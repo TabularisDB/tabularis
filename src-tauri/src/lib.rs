@@ -2,6 +2,7 @@ pub mod ai;
 pub mod commands;
 pub mod config;
 pub mod dump_commands; // Added
+pub mod dump_utils;
 #[cfg(test)]
 pub mod dump_commands_tests;
 pub mod export;

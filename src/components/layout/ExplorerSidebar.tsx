@@ -1664,7 +1664,11 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse }: Explo
           onClose={() => setDumpModal(null)}
           connectionId={activeConnectionId}
           databaseName={dumpModal.database || activeDatabaseName || "Database"}
-          tables={(databaseDataMap[dumpModal.database]?.tables ?? tables).map((t) => t.name)}
+          tables={(
+            activeCapabilities?.schemas && activeSchema
+              ? (schemaDataMap[activeSchema]?.tables ?? [])
+              : (databaseDataMap[dumpModal.database]?.tables ?? tables)
+          ).map((t) => t.name)}
         />
       )}
 

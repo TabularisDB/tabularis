@@ -1,4 +1,7 @@
-use crate::commands::{find_connection_by_id, resolve_connection_params};
+use crate::commands::{
+    expand_ssh_connection_params, find_connection_by_id, resolve_connection_params_with_id,
+};
+use crate::dump_utils::{drop_table_if_exists, format_table_ref, insert_into_statement};
 use crate::drivers::{mysql, postgres, sqlite};
 use crate::models::ConnectionParams;
 use crate::pool_manager::{get_mysql_pool, get_postgres_pool, get_sqlite_pool};
@@ -49,9 +52,10 @@ pub async fn dump_database<R: Runtime>(
     schema: Option<String>,
 ) -> Result<(), String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let params = resolve_connection_params(&saved_conn.params)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let driver = saved_conn.params.driver.clone();
-    let pg_schema = schema.unwrap_or_else(|| "public".to_string());
+    let schema = schema.unwrap_or_else(|| "public".to_string());
 
     // Spawn the dump process
     let task = tokio::spawn(async move {
@@ -67,7 +71,7 @@ pub async fn dump_database<R: Runtime>(
         // Get tables
         let all_tables = match driver.as_str() {
             "mysql" => mysql::get_tables(&params, None).await?,
-            "postgres" => postgres::get_tables(&params, &pg_schema).await?,
+            "postgres" => postgres::get_tables(&params, &schema).await?,
             "sqlite" => sqlite::get_tables(&params).await?,
             _ => return Err("Unsupported driver".into()),
         };
@@ -80,13 +84,18 @@ pub async fn dump_database<R: Runtime>(
 
         for table in tables_to_process {
             if options.structure {
-                writeln!(writer, "-- Structure for table `{}`", table)
+                writeln!(
+                    writer,
+                    "-- Structure for table {}",
+                    format_table_ref(&driver, &schema, &table)
+                )
+                .map_err(|e| e.to_string())?;
+                writeln!(writer, "{}", drop_table_if_exists(&driver, &schema, &table))
                     .map_err(|e| e.to_string())?;
-                writeln!(writer, "DROP TABLE IF EXISTS `{}`;", table).map_err(|e| e.to_string())?;
 
                 let ddl = match driver.as_str() {
                     "mysql" => mysql::get_table_ddl(&params, &table).await?,
-                    "postgres" => postgres::get_table_ddl(&params, &table, &pg_schema).await?,
+                    "postgres" => postgres::get_table_ddl(&params, &table, &schema).await?,
                     "sqlite" => sqlite::get_table_ddl(&params, &table).await?,
                     _ => return Err("Unsupported driver".into()),
                 };
@@ -95,8 +104,13 @@ pub async fn dump_database<R: Runtime>(
             }
 
             if options.data {
-                writeln!(writer, "-- Data for table `{}`", table).map_err(|e| e.to_string())?;
-                export_table_data(&mut writer, &params, &driver, &table, &pg_schema).await?;
+                writeln!(
+                    writer,
+                    "-- Data for table {}",
+                    format_table_ref(&driver, &schema, &table)
+                )
+                .map_err(|e| e.to_string())?;
+                export_table_data(&mut writer, &params, &driver, &table, &schema).await?;
                 writeln!(writer, "\n").map_err(|e| e.to_string())?;
             }
         }
@@ -132,7 +146,7 @@ async fn export_table_data(
     params: &ConnectionParams,
     driver: &str,
     table: &str,
-    pg_schema: &str,
+    schema: &str,
 ) -> Result<(), String> {
     // We need to implement streaming fetch manually here because we need raw values, not JSON strings if possible,
     // or we parse JSON strings back to SQL literals.
@@ -142,12 +156,7 @@ async fn export_table_data(
     // Ideally we should use specific batch size
     let query = format!(
         "SELECT * FROM {}",
-        match driver {
-            "mysql" => format!("`{}`", table),
-            "postgres" => format!("\"{}\".\"{}\"", pg_schema, table),
-            "sqlite" => format!("\"{}\"", table),
-            _ => table.to_string(),
-        }
+        format_table_ref(driver, schema, table)
     );
 
     match driver {
@@ -170,9 +179,8 @@ async fn export_table_data(
                 if batch.len() >= 100 {
                     writeln!(
                         writer,
-                        "INSERT INTO `{}` VALUES {};",
-                        table,
-                        batch.join(", ")
+                        "{}",
+                        insert_into_statement(driver, schema, table, &batch.join(", "))
                     )
                     .map_err(|e| e.to_string())?;
                     batch.clear();
@@ -181,9 +189,8 @@ async fn export_table_data(
             if !batch.is_empty() {
                 writeln!(
                     writer,
-                    "INSERT INTO `{}` VALUES {};",
-                    table,
-                    batch.join(", ")
+                    "{}",
+                    insert_into_statement(driver, schema, table, &batch.join(", "))
                 )
                 .map_err(|e| e.to_string())?;
             }
@@ -207,9 +214,8 @@ async fn export_table_data(
                 if batch.len() >= 100 {
                     writeln!(
                         writer,
-                        "INSERT INTO \"{}\" VALUES {};",
-                        table,
-                        batch.join(", ")
+                        "{}",
+                        insert_into_statement(driver, schema, table, &batch.join(", "))
                     )
                     .map_err(|e| e.to_string())?;
                     batch.clear();
@@ -218,9 +224,8 @@ async fn export_table_data(
             if !batch.is_empty() {
                 writeln!(
                     writer,
-                    "INSERT INTO \"{}\" VALUES {};",
-                    table,
-                    batch.join(", ")
+                    "{}",
+                    insert_into_statement(driver, schema, table, &batch.join(", "))
                 )
                 .map_err(|e| e.to_string())?;
             }
@@ -244,9 +249,8 @@ async fn export_table_data(
                 if batch.len() >= 100 {
                     writeln!(
                         writer,
-                        "INSERT INTO \"{}\" VALUES {};",
-                        table,
-                        batch.join(", ")
+                        "{}",
+                        insert_into_statement(driver, schema, table, &batch.join(", "))
                     )
                     .map_err(|e| e.to_string())?;
                     batch.clear();
@@ -255,9 +259,8 @@ async fn export_table_data(
             if !batch.is_empty() {
                 writeln!(
                     writer,
-                    "INSERT INTO \"{}\" VALUES {};",
-                    table,
-                    batch.join(", ")
+                    "{}",
+                    insert_into_statement(driver, schema, table, &batch.join(", "))
                 )
                 .map_err(|e| e.to_string())?;
             }
@@ -421,10 +424,13 @@ pub async fn import_database<R: Runtime>(
     state: State<'_, DumpCancellationState>,
     connection_id: String,
     file_path: String,
+    schema: Option<String>,
 ) -> Result<(), String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let params = resolve_connection_params(&saved_conn.params)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let driver = saved_conn.params.driver.clone();
+    let pg_schema = schema.unwrap_or_else(|| "public".to_string());
     let app_handle = app.clone();
     let conn_id = connection_id.clone();
 
@@ -487,6 +493,12 @@ pub async fn import_database<R: Runtime>(
             "postgres" => {
                 let pool = get_postgres_pool(&params).await?;
                 let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+
+                // Set schema search path so unqualified table names resolve correctly
+                sqlx::query(&format!("SET search_path TO \"{}\"", pg_schema))
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| e.to_string())?;
 
                 // Performance optimizations for PostgreSQL
                 sqlx::query("SET CONSTRAINTS ALL DEFERRED")

@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import { message } from "@tauri-apps/plugin-dialog";
 import { Loader2, Database, X, CheckCircle2, XCircle } from "lucide-react";
 import { formatElapsedTime } from "../../utils/formatTime";
+import { useDatabase } from "../../hooks/useDatabase";
 
 interface ImportProgress {
   statements_executed: number;
@@ -31,6 +32,7 @@ export const ImportDatabaseModal = ({
   onSuccess,
 }: ImportDatabaseModalProps) => {
   const { t } = useTranslation();
+  const { activeSchema } = useDatabase();
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +51,7 @@ export const ImportDatabaseModal = ({
       await invoke("import_database", {
         connectionId,
         filePath,
+        ...(activeSchema ? { schema: activeSchema } : {}),
       });
 
       setSuccess(true);
@@ -73,7 +76,7 @@ export const ImportDatabaseModal = ({
         });
       }
     }
-  }, [connectionId, filePath, onSuccess, onClose, t]);
+  }, [connectionId, filePath, activeSchema, onSuccess, onClose, t]);
 
   useEffect(() => {
     if (!isOpen) {
