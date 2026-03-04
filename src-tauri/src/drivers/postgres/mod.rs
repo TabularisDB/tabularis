@@ -9,6 +9,7 @@ use crate::models::{
 use crate::pool_manager::get_postgres_pool;
 use extract::extract_value;
 use sqlx::{Column, Row};
+use uuid::Uuid;
 
 // Helper function to escape double quotes in identifiers for PostgreSQL
 fn escape_identifier(name: &str) -> String {
@@ -447,7 +448,13 @@ pub async fn save_blob_column_to_file(
                 sqlx::query(&query).bind(n.as_f64()).fetch_one(&pool).await
             }
         }
-        serde_json::Value::String(s) => sqlx::query(&query).bind(s).fetch_one(&pool).await,
+        serde_json::Value::String(s) => {
+            if let Ok(uuid) = Uuid::parse_str(&s) {
+                sqlx::query(&query).bind(uuid).fetch_one(&pool).await
+            } else {
+                sqlx::query(&query).bind(s).fetch_one(&pool).await
+            }
+        }
         _ => return Err("Unsupported PK type".into()),
     }
     .map_err(|e| e.to_string())?;
@@ -482,7 +489,13 @@ pub async fn fetch_blob_column_as_data_url(
                 sqlx::query(&query).bind(n.as_f64()).fetch_one(&pool).await
             }
         }
-        serde_json::Value::String(s) => sqlx::query(&query).bind(s).fetch_one(&pool).await,
+        serde_json::Value::String(s) => {
+            if let Ok(uuid) = Uuid::parse_str(&s) {
+                sqlx::query(&query).bind(uuid).fetch_one(&pool).await
+            } else {
+                sqlx::query(&query).bind(s).fetch_one(&pool).await
+            }
+        }
         _ => return Err("Unsupported PK type".into()),
     }
     .map_err(|e| e.to_string())?;
@@ -515,7 +528,13 @@ pub async fn delete_record(
                 sqlx::query(&query).bind(n.as_f64()).execute(&pool).await
             }
         }
-        serde_json::Value::String(s) => sqlx::query(&query).bind(s).execute(&pool).await,
+        serde_json::Value::String(s) => {
+            if let Ok(uuid) = Uuid::parse_str(&s) {
+                sqlx::query(&query).bind(uuid).execute(&pool).await
+            } else {
+                sqlx::query(&query).bind(s).execute(&pool).await
+            }
+        }
         _ => return Err("Unsupported PK type".into()),
     };
 
@@ -592,7 +611,11 @@ pub async fn update_record(
             }
         }
         serde_json::Value::String(s) => {
-            qb.push_bind(s);
+            if let Ok(uuid) = Uuid::parse_str(&s) {
+                qb.push_bind(uuid);
+            } else {
+                qb.push_bind(s);
+            }
         }
         _ => return Err("Unsupported PK type".into()),
     }
