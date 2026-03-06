@@ -26,6 +26,7 @@ export interface Settings {
   maxLogEntries?: number;
   erDiagramDefaultLayout?: ERDiagramLayout;
   activeExternalDrivers?: string[];
+  maxConnections?: number;
 }
 
 export interface SettingsContextType {
@@ -53,4 +54,5 @@ export const DEFAULT_SETTINGS: Settings = {
   loggingEnabled: true,
   maxLogEntries: 1000,
   erDiagramDefaultLayout: "LR",
+  maxConnections: 10,
 };

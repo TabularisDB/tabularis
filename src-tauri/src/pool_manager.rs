@@ -72,7 +72,6 @@ pub async fn get_mysql_pool_with_id(
     connection_id: Option<&str>,
 ) -> Result<Pool<MySql>, String> {
     let key = build_connection_key(params, connection_id);
-
     // Try to get existing pool
     {
         let pools = MYSQL_POOLS.read().await;
@@ -95,14 +94,13 @@ pub async fn get_mysql_pool_with_id(
     );
     let url = build_mysql_url(params);
     let pool = sqlx::mysql::MySqlPoolOptions::new()
-        .max_connections(10)
+        .max_connections(crate::config::get_pool_max_connections())
         .connect(&url)
         .await
         .map_err(|e| {
             log::error!("Failed to create MySQL connection pool: {}", e);
             e.to_string()
         })?;
-
     log::info!(
         "MySQL connection pool created successfully for: {} (key: {})",
         params.database,
@@ -151,14 +149,14 @@ pub async fn get_postgres_pool_with_id(
     );
     let url = build_postgres_url(params);
     let pool = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(10)
+        .max_connections(crate::config::get_pool_max_connections())
         .connect(&url)
         .await
         .map_err(|e| {
             log::error!("Failed to create PostgreSQL connection pool: {}", e);
             e.to_string()
         })?;
-
+    log::info!("Max connections: {}", crate::config::get_pool_max_connections());
     log::info!(
         "PostgreSQL connection pool created successfully for: {} (key: {})",
         params.database,
@@ -206,7 +204,7 @@ pub async fn get_sqlite_pool_with_id(
     );
     let url = build_sqlite_url(params);
     let pool = sqlx::sqlite::SqlitePoolOptions::new()
-        .max_connections(5) // SQLite has lower concurrency needs
+        .max_connections(crate::config::get_pool_max_connections())
         .connect(&url)
         .await
         .map_err(|e| {

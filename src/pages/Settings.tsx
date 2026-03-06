@@ -977,6 +977,33 @@ export const Settings = () => {
                       </span>
                     </div>
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-1">
+                      {t("settings.maxConnections")}
+                    </label>
+                    <p className="text-xs text-muted mb-2">
+                      {t("settings.maxConnectionsDesc")}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={settings.maxConnections ?? DEFAULT_SETTINGS.maxConnections}
+                        onChange={(e) =>
+                          updateSetting(
+                            "maxConnections",
+                            parseInt(e.target.value) || DEFAULT_SETTINGS.maxConnections!,
+                          )
+                        }
+                        min="1"
+                        max="100"
+                        className="bg-base border border-strong rounded px-3 py-2 text-primary w-32 focus:outline-none focus:border-blue-500 transition-colors"
+                      />
+                      <span className="text-sm text-muted">
+                        {t("settings.connections")}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 

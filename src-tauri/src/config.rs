@@ -1,4 +1,5 @@
 use crate::keychain_utils;
+use crate::paths::get_app_config_dir;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -31,6 +32,7 @@ pub struct AppConfig {
     pub max_blob_size: Option<u64>,
     pub active_external_drivers: Option<Vec<String>>,
     pub custom_registry_url: Option<String>,
+    pub max_connections: Option<u32>,
 }
 
 pub fn get_config_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
@@ -129,6 +131,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         if config.active_external_drivers.is_some() {
             existing_config.active_external_drivers = config.active_external_drivers;
         }
+        if config.max_connections.is_some() {
+            existing_config.max_connections = config.max_connections;
+        }
 
         let content = serde_json::to_string_pretty(&existing_config).map_err(|e| e.to_string())?;
         fs::write(config_path, content).map_err(|e| e.to_string())?;
@@ -211,6 +216,20 @@ pub fn set_ai_key(provider: String, key: String) -> Result<(), String> {
 #[tauri::command]
 pub fn delete_ai_key(provider: String) -> Result<(), String> {
     keychain_utils::delete_ai_key(&provider)
+}
+
+pub const DEFAULT_MAX_CONNECTIONS: u32 = 10;
+
+/// Get the configured maximum pool connections, or DEFAULT_MAX_CONNECTIONS if not set.
+/// Does not require AppHandle — reads config.json directly via the paths module.
+pub fn get_pool_max_connections() -> u32 {
+    let config_path = get_app_config_dir().join("config.json");
+    if let Ok(content) = fs::read_to_string(config_path) {
+        if let Ok(config) = serde_json::from_str::<AppConfig>(&content) {
+            return config.max_connections.unwrap_or(DEFAULT_MAX_CONNECTIONS);
+        }
+    }
+    DEFAULT_MAX_CONNECTIONS
 }
 
 /// Get the configured maximum BLOB size in bytes, or DEFAULT_MAX_BLOB_SIZE if not set
