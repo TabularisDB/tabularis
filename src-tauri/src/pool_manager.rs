@@ -156,7 +156,6 @@ pub async fn get_postgres_pool_with_id(
             log::error!("Failed to create PostgreSQL connection pool: {}", e);
             e.to_string()
         })?;
-    log::info!("Max connections: {}", crate::config::get_pool_max_connections());
     log::info!(
         "PostgreSQL connection pool created successfully for: {} (key: {})",
         params.database,

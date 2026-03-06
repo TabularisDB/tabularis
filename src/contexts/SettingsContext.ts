@@ -54,5 +54,5 @@ export const DEFAULT_SETTINGS: Settings = {
   loggingEnabled: true,
   maxLogEntries: 1000,
   erDiagramDefaultLayout: "LR",
-  maxConnections: 10,
+  maxConnections: 1,
 };

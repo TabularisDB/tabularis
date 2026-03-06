@@ -218,7 +218,7 @@ pub fn delete_ai_key(provider: String) -> Result<(), String> {
     keychain_utils::delete_ai_key(&provider)
 }
 
-pub const DEFAULT_MAX_CONNECTIONS: u32 = 10;
+pub const DEFAULT_MAX_CONNECTIONS: u32 = 1;
 
 /// Get the configured maximum pool connections, or DEFAULT_MAX_CONNECTIONS if not set.
 /// Does not require AppHandle — reads config.json directly via the paths module.
