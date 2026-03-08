@@ -49,6 +49,7 @@ export const ConnectionGroupFolder = ({
   const [editName, setEditName] = useState(group.name);
   const [isDragOver, setIsDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isRenameCancelledRef = useRef(false);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -74,6 +75,7 @@ export const ConnectionGroupFolder = ({
     if (e.key === "Enter") {
       handleRenameSubmit();
     } else if (e.key === "Escape") {
+      isRenameCancelledRef.current = true;
       setIsEditing(false);
       setEditName(group.name);
     }
@@ -166,7 +168,12 @@ export const ConnectionGroupFolder = ({
               type="text"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              onBlur={handleRenameSubmit}
+              onBlur={() => {
+                if (!isRenameCancelledRef.current) {
+                  handleRenameSubmit();
+                }
+                isRenameCancelledRef.current = false;
+              }}
               onKeyDown={handleKeyDown}
               className="bg-surface-primary border border-strong rounded px-1.5 py-0.5 text-xs text-primary w-32 focus:outline-none focus:border-blue-500"
               onClick={(e) => e.stopPropagation()}

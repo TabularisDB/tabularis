@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { NewConnectionModal } from '../components/ui/NewConnectionModal';
@@ -160,6 +160,7 @@ export const Connections = () => {
   const [connectionContextMenu, setConnectionContextMenu] = useState<{ x: number; y: number; connId: string } | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editGroupName, setEditGroupName] = useState('');
+  const isRenameCancelledRef = useRef(false);
 
   useEffect(() => { void loadConnections(); }, [loadConnections]);
 
@@ -618,10 +619,18 @@ export const Connections = () => {
                             type="text"
                             value={editGroupName}
                             onChange={(e) => setEditGroupName(e.target.value)}
-                            onBlur={() => void handleRenameGroup(group.id)}
+                            onBlur={() => {
+                              if (!isRenameCancelledRef.current) {
+                                void handleRenameGroup(group.id);
+                              }
+                              isRenameCancelledRef.current = false;
+                            }}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') void handleRenameGroup(group.id);
-                              if (e.key === 'Escape') setEditingGroupId(null);
+                              if (e.key === 'Escape') {
+                                isRenameCancelledRef.current = true;
+                                setEditingGroupId(null);
+                              }
                             }}
                             onClick={(e) => e.stopPropagation()}
                             autoFocus
@@ -935,20 +944,23 @@ export const Connections = () => {
       {/* Connection context menu for moving to groups */}
       {connectionContextMenu && (() => {
         const conn = connections.find(c => c.id === connectionContextMenu.connId);
-        const isInGroup = !!conn?.group_id;
+        const currentGroupId = conn?.group_id;
+        const isInGroup = !!currentGroupId;
+        // Filter out the current group from move targets
+        const availableGroups = sortedGroups.filter(g => g.id !== currentGroupId);
         return (
           <ContextMenu
             x={connectionContextMenu.x}
             y={connectionContextMenu.y}
             items={[
-              ...sortedGroups.map(group => ({
+              ...availableGroups.map(group => ({
                 label: group.name,
                 icon: Folder,
                 action: () => void handleMoveToGroup(connectionContextMenu.connId, group.id),
               })),
               // Only show "Remove from Group" if the connection is in a group
               ...(isInGroup ? [
-                ...(sortedGroups.length > 0 ? [{ separator: true as const }] : []),
+                ...(availableGroups.length > 0 ? [{ separator: true as const }] : []),
                 {
                   label: t('groups.removeFromGroup'),
                   icon: X,
