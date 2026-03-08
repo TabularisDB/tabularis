@@ -74,11 +74,15 @@ jobs:
         uses: swatinem/rust-cache@v2.8.2
         with:
           workspaces: src-tauri
+          
+      - name: Override tauri-cli with custom AppImage format (Linux)
+        if: matrix.platform == 'ubuntu-24.04'
+        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --branch feat/truly-portable-appimage --force
 
       - uses: tauri-apps/tauri-action@v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: ${{ matrix.platform == 'ubuntu-24.04' && 'true' || '' }}
+          TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: 'true'
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
