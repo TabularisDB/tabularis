@@ -32,6 +32,7 @@ interface ConnectionParams {
   username?: string;
   password?: string;
   database: string | string[];
+  ssl_mode?: string;
   // SSH
   ssh_enabled?: boolean;
   ssh_connection_id?: string;
@@ -113,6 +114,7 @@ export const NewConnectionModal = ({
     port: 3306,
     username: "",
     database: "",
+    ssl_mode: "",
     ssh_enabled: false,
     ssh_port: 22,
   });
@@ -345,7 +347,7 @@ export const NewConnectionModal = ({
       ) : (
         <>
           {/* Host + Port */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className={clsx("grid gap-3", driver === "postgres" ? "grid-cols-4" : "grid-cols-3")}>
             <FieldInput
               className="col-span-2"
               label={t("newConnection.host")}
@@ -360,6 +362,25 @@ export const NewConnectionModal = ({
               type="number"
               placeholder={driver === "mysql" ? "3306" : "5432"}
             />
+            {driver === "postgres" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
+                  {t("newConnection.sslMode", { defaultValue: "SSL Mode" })}
+                </label>
+                <select
+                  value={formData.ssl_mode || "prefer"}
+                  onChange={(v) => updateField("ssl_mode", v.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-strong rounded-md text-sm text-primary"
+                >
+                  <option value="disable">disable</option>
+                  <option value="allow">allow</option>
+                  <option value="prefer">prefer</option>
+                  <option value="require">require</option>
+                  {/* <option value="verify-ca">verify-ca</option> */}
+                  {/* <option value="verify-full">verify-full</option> */}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* User + Password */}
