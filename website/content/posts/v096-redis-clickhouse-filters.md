@@ -27,7 +27,7 @@ The filter toolbar now supports **structured filter expressions** — column, op
 
 This does not replace the ability to type a raw WHERE clause — the raw input is still there for complex predicates. The structured mode handles the common case of "show me rows where status = active and created_at > last week" without requiring SQL knowledge.
 
-<video src="/img/filters-demo.mp4" autoplay loop muted playsinline style="width:100%;border-radius:8px;margin:1rem 0"></video>
+<video src="/videos/posts/filters-demo.mp4" autoplay loop muted playsinline style="width:100%;border-radius:8px;margin:1rem 0"></video>
 
 ### ORDER BY Autocomplete
 
@@ -39,9 +39,9 @@ The ORDER BY field in the toolbar now autocompletes column names from the curren
 
 The editor tab bar now responds to a close-tab shortcut:
 
-| Platform | Shortcut |
-| :--- | :--- |
-| macOS | `⌘+W` |
+| Platform        | Shortcut |
+| :-------------- | :------- |
+| macOS           | `⌘+W`    |
 | Windows / Linux | `Ctrl+W` |
 
 If the tab has unsaved query changes, a confirmation prompt appears before closing. If the content is clean, the tab closes immediately. The shortcut is rebindable from **Settings → Keyboard Shortcuts** like all other custom bindings.
