@@ -193,12 +193,20 @@ export const NewConnectionModal = ({
         setName(initialConnection.name);
         setDriver(initialConnection.params.driver);
         const db = initialConnection.params.database;
+        // When editing, don't populate password fields - they're stored in keychain
+        // User will only see a placeholder and must re-enter if they want to change
+        const paramsWithoutSecrets = {
+          ...initialConnection.params,
+          password: undefined,
+          ssh_password: undefined,
+          ssh_key_passphrase: undefined,
+        };
         if (Array.isArray(db)) {
           setSelectedDatabasesState(db);
-          setFormData({ ...initialConnection.params, database: db[0] ?? "" });
+          setFormData({ ...paramsWithoutSecrets, database: db[0] ?? "" });
         } else {
           setSelectedDatabasesState([]);
-          setFormData({ ...initialConnection.params });
+          setFormData({ ...paramsWithoutSecrets });
         }
         setPasswordDirty(false);
         setSshPasswordDirty(false);
@@ -453,9 +461,6 @@ export const NewConnectionModal = ({
               type="checkbox"
               checked={!!formData.save_in_keychain}
               onChange={(e) => {
-                updateField("password", "");
-                setPasswordDirty(true);
-                setSshPasswordDirty(true);
                 updateField("save_in_keychain", e.target.checked);
               }}
               className="accent-blue-500 w-3.5 h-3.5 rounded"

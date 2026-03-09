@@ -49,7 +49,7 @@ pub fn get_db_password_cached(cache: &CredentialCache, connection_id: &str) -> R
             None => {}
         }
     }
-    let result = crate::keychain_utils::get_db_password(connection_id);
+    let result = crate::keychain_utils::get_db_password(connection_id, "");
     {
         let mut guard = cache.db_passwords.lock().unwrap();
         guard.insert(connection_id.to_string(), match &result {
@@ -70,7 +70,7 @@ pub fn get_ssh_password_cached(cache: &CredentialCache, connection_id: &str) -> 
             None => {}
         }
     }
-    let result = crate::keychain_utils::get_ssh_password(connection_id);
+    let result = crate::keychain_utils::get_ssh_password(connection_id, "");
     {
         let mut guard = cache.ssh_passwords.lock().unwrap();
         guard.insert(connection_id.to_string(), match &result {
@@ -91,7 +91,7 @@ pub fn get_ssh_key_passphrase_cached(cache: &CredentialCache, connection_id: &st
             None => {}
         }
     }
-    let result = crate::keychain_utils::get_ssh_key_passphrase(connection_id);
+    let result = crate::keychain_utils::get_ssh_key_passphrase(connection_id, "");
     {
         let mut guard = cache.ssh_passphrases.lock().unwrap();
         guard.insert(connection_id.to_string(), match &result {

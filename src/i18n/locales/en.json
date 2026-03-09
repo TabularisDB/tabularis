@@ -827,5 +827,24 @@
         "unknown": "unknown"
       }
     }
+  },
+  "groups": {
+    "title": "Groups",
+    "newGroup": "New Group",
+    "createGroup": "Create Group",
+    "rename": "Rename",
+    "delete": "Delete",
+    "deleteConfirm": "Are you sure you want to delete group \"{{name}}\"? Connections in this group will be moved to ungrouped.",
+    "deleteTitle": "Delete Group",
+    "connection": "connection",
+    "connections": "connections",
+    "ungrouped": "Ungrouped",
+    "moveToGroup": "Move to Group",
+    "removeFromGroup": "Remove from Group",
+    "noGroups": "No groups yet",
+    "createFirst": "Create your first group to organize connections",
+    "groupName": "Group name",
+    "dragHint": "Drag connections here",
+    "createError": "Failed to create group"
   }
 }

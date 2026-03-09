@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Plug2, Settings, Cpu, PanelLeft } from "lucide-react";
@@ -13,6 +13,7 @@ import { McpModal } from "../modals/McpModal";
 import { NavItem } from "./sidebar/NavItem";
 import { OpenConnectionItem } from "./sidebar/OpenConnectionItem";
 import { ConnectionGroupItem } from "./sidebar/ConnectionGroupItem";
+import { ConnectionGroupFolder } from "./sidebar/ConnectionGroupFolder";
 import { ExplorerSidebar } from "./ExplorerSidebar";
 import { PanelDatabaseProvider } from "./PanelDatabaseProvider";
 
@@ -22,13 +23,22 @@ import { useConnectionManager } from "../../hooks/useConnectionManager";
 import { useConnectionLayoutContext } from "../../contexts/useConnectionLayoutContext";
 import { isConnectionGrouped } from "../../utils/connectionLayout";
 import { useDrivers } from "../../hooks/useDrivers";
+import type { ConnectionStatus } from "../../hooks/useConnectionManager";
 import { useKeybindings } from "../../hooks/useKeybindings";
 
 export const Sidebar = () => {
   const { t } = useTranslation();
   const { currentTheme } = useTheme();
   const isDarkTheme = !currentTheme?.id?.includes("-light");
-  const { activeConnectionId } = useDatabase();
+  const {
+    activeConnectionId,
+    connectionGroups,
+    connections,
+    updateGroup,
+    deleteGroup,
+    moveConnectionToGroup,
+    toggleGroupCollapsed,
+  } = useDatabase();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -78,6 +88,43 @@ export const Sidebar = () => {
   } = useConnectionLayoutContext();
 
   const { sidebarWidth, startResize } = useSidebarResize();
+
+  // Organize open connections by group
+  const { groupedConnections, ungroupedConnections } = useMemo(() => {
+    const grouped: Record<string, ConnectionStatus[]> = {};
+    const ungrouped: ConnectionStatus[] = [];
+
+    // Get group_id for each open connection from saved connections
+    const connectionGroupMap = new Map(
+      connections.map(c => [c.id, c.group_id])
+    );
+
+    for (const conn of openConnections) {
+      const groupId = connectionGroupMap.get(conn.id);
+      if (groupId) {
+        if (!grouped[groupId]) {
+          grouped[groupId] = [];
+        }
+        grouped[groupId].push(conn);
+      } else {
+        ungrouped.push(conn);
+      }
+    }
+
+    return { groupedConnections: grouped, ungroupedConnections: ungrouped };
+  }, [openConnections, connections]);
+
+  // Sort groups by sort_order
+  const sortedGroups = useMemo(
+    () => [...connectionGroups].sort((a, b) => a.sort_order - b.sort_order),
+    [connectionGroups]
+  );
+
+  // Filter to only show groups that have open connections
+  const activeGroups = useMemo(
+    () => sortedGroups.filter(g => groupedConnections[g.id]?.length > 0),
+    [sortedGroups, groupedConnections]
+  );
 
   const handleSwitchToConnection = (connectionId: string) => {
     handleSwitch(connectionId);
@@ -154,8 +201,37 @@ export const Sidebar = () => {
                 />
               )}
 
-              {/* Show individual items for non-grouped connections */}
-              {openConnections
+              {/* Show grouped connections by folder */}
+              {activeGroups.map((group) => {
+                const groupConns = groupedConnections[group.id] || [];
+                const nonSplitConns = groupConns.filter(
+                  conn => !isConnectionGrouped(conn.id, splitView)
+                );
+                if (nonSplitConns.length === 0) return null;
+
+                return (
+                  <ConnectionGroupFolder
+                    key={group.id}
+                    group={group}
+                    connections={nonSplitConns}
+                    allDrivers={allDrivers}
+                    selectedConnectionIds={selectedConnectionIds}
+                    onToggleCollapsed={() => void toggleGroupCollapsed(group.id)}
+                    onRename={(newName) => void updateGroup(group.id, { name: newName })}
+                    onDelete={() => void deleteGroup(group.id)}
+                    onSwitch={handleSwitchOrSetExplorer}
+                    onOpenInEditor={handleOpenInEditor}
+                    onDisconnect={handleDisconnectConnection}
+                    onToggleSelect={toggleSelection}
+                    onActivateSplit={activateSplit}
+                    onDropConnection={(connId) => void moveConnectionToGroup(connId, group.id)}
+                    showShortcutHints={showShortcutHints}
+                  />
+                );
+              })}
+
+              {/* Show ungrouped connections */}
+              {ungroupedConnections
                 .filter(conn => !isConnectionGrouped(conn.id, splitView))
                 .map((conn, idx) => (
                   <OpenConnectionItem

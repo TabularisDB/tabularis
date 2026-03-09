@@ -10,10 +10,11 @@ use uuid::Uuid;
 use crate::credential_cache;
 use crate::keychain_utils;
 use crate::models::{
-    ColumnDefinition, ConnectionParams, ForeignKey, Index, QueryResult,
-    RoutineInfo, RoutineParameter, SavedConnection, SshConnection, SshConnectionInput,
-    SshTestParams, TableColumn, TableInfo, TestConnectionRequest,
+    ColumnDefinition, ConnectionGroup, ConnectionParams, ConnectionsFile, ForeignKey, Index,
+    QueryResult, RoutineInfo, RoutineParameter, SavedConnection, SshConnection,
+    SshConnectionInput, SshTestParams, TableColumn, TableInfo, TestConnectionRequest,
 };
+use crate::persistence;
 use crate::ssh_tunnel::{get_tunnels, SshTunnel};
 
 // Constants
@@ -244,9 +245,9 @@ pub fn find_connection_by_id<R: Runtime>(
     if !path.exists() {
         return Err("Connection not found".into());
     }
-    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let connections: Vec<SavedConnection> = serde_json::from_str(&content).unwrap_or_default();
-    let mut conn = connections
+    // Use persistence module to properly load connections (handles both old and new formats)
+    let conn_file = persistence::load_connections_file(&path)?;
+    let mut conn = conn_file.connections
         .into_iter()
         .find(|c| c.id == id)
         .ok_or_else(|| "Connection not found".to_string())?;
@@ -394,12 +395,7 @@ pub async fn save_connection<R: Runtime>(
     log::info!("Saving new connection: {}", name);
 
     let path = get_config_path(&app)?;
-    let mut connections: Vec<SavedConnection> = if path.exists() {
-        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        serde_json::from_str(&content).unwrap_or_default()
-    } else {
-        Vec::new()
-    };
+    let mut conn_file = persistence::load_connections_file(&path).unwrap_or_default();
 
     let id = Uuid::new_v4().to_string();
     let mut params_to_save = params.clone();
@@ -432,10 +428,11 @@ pub async fn save_connection<R: Runtime>(
         id: id.clone(),
         name: name.clone(),
         params: params_to_save,
+        group_id: None,
+        sort_order: None,
     };
-    connections.push(new_conn.clone());
-    let json = serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
+    conn_file.connections.push(new_conn.clone());
+    persistence::save_connections_file(&path, &conn_file)?;
 
     log::info!("Connection saved successfully: {} (ID: {})", name, id);
 
@@ -453,12 +450,11 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
         return Ok(());
     }
 
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let mut connections: Vec<SavedConnection> = serde_json::from_str(&content).unwrap_or_default();
+    let mut conn_file = persistence::load_connections_file(&path)?;
 
-    let initial_count = connections.len();
-    connections.retain(|c| c.id != id);
-    let deleted = connections.len() < initial_count;
+    let initial_count = conn_file.connections.len();
+    conn_file.connections.retain(|c| c.id != id);
+    let deleted = conn_file.connections.len() < initial_count;
 
     // Attempt to remove passwords from keychain (ignore if not found)
     keychain_utils::delete_db_password(&id).ok();
@@ -468,8 +464,7 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     credential_cache::invalidate_all_for_connection(&cache, &id);
 
-    let json = serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
+    persistence::save_connections_file(&path, &conn_file)?;
 
     if deleted {
         log::info!("Connection deleted successfully: {}", id);
@@ -488,10 +483,10 @@ pub async fn update_connection<R: Runtime>(
     params: ConnectionParams,
 ) -> Result<SavedConnection, String> {
     let path = get_config_path(&app)?;
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let mut connections: Vec<SavedConnection> = serde_json::from_str(&content).unwrap_or_default();
+    let mut conn_file = persistence::load_connections_file(&path)?;
 
-    let conn_idx = connections
+    let conn_idx = conn_file
+        .connections
         .iter()
         .position(|c| c.id == id)
         .ok_or("Connection not found")?;
@@ -531,16 +526,21 @@ pub async fn update_connection<R: Runtime>(
         credential_cache::invalidate_all_for_connection(&cache, &id);
     }
 
+    // Preserve existing group_id and sort_order from the original connection
+    let original_group_id = conn_file.connections[conn_idx].group_id.clone();
+    let original_sort_order = conn_file.connections[conn_idx].sort_order;
+
     let updated = SavedConnection {
         id: id.clone(),
         name,
         params: params_to_save,
+        group_id: original_group_id,
+        sort_order: original_sort_order,
     };
 
-    connections[conn_idx] = updated.clone();
+    conn_file.connections[conn_idx] = updated.clone();
 
-    let json = serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
+    persistence::save_connections_file(&path, &conn_file)?;
 
     let mut returned_conn = updated;
     returned_conn.params = params;
@@ -553,14 +553,14 @@ pub async fn duplicate_connection<R: Runtime>(
     id: String,
 ) -> Result<SavedConnection, String> {
     let path = get_config_path(&app)?;
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let mut connections: Vec<SavedConnection> = serde_json::from_str(&content).unwrap_or_default();
+    let mut conn_file = persistence::load_connections_file(&path)?;
 
-    let original_idx = connections
+    let original_idx = conn_file
+        .connections
         .iter()
         .position(|c| c.id == id)
         .ok_or("Connection not found")?;
-    let mut original = connections[original_idx].clone();
+    let mut original = conn_file.connections[original_idx].clone();
 
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
 
@@ -613,12 +613,13 @@ pub async fn duplicate_connection<R: Runtime>(
         id: new_id,
         name: format!("{} (Copy)", original.name),
         params: new_params,
+        group_id: original.group_id.clone(), // Copy to same group as original
+        sort_order: None, // Will be placed at end of group
     };
 
-    connections.push(new_conn.clone());
+    conn_file.connections.push(new_conn.clone());
 
-    let json = serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
+    persistence::save_connections_file(&path, &conn_file)?;
 
     let mut returned_conn = new_conn;
     // Return with passwords for frontend consistency
@@ -641,13 +642,8 @@ pub async fn get_connections<R: Runtime>(
     migrate_ssh_connections(&app).await.ok();
 
     let path = get_config_path(&app)?;
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let connections: Vec<SavedConnection> = serde_json::from_str(&content).unwrap_or_default();
-
-    Ok(connections)
+    // Use persistence function that handles both old and new formats
+    persistence::load_connections(&path)
 }
 
 // ==================== SSH Connection Management ====================
@@ -659,8 +655,9 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
         return Ok(()); // Nothing to migrate
     }
 
-    let content = fs::read_to_string(&conn_path).map_err(|e| e.to_string())?;
-    let connections: Vec<SavedConnection> = serde_json::from_str(&content).unwrap_or_default();
+    // Load connections using persistence (handles both old and new formats)
+    let mut conn_file = persistence::load_connections_file(&conn_path)?;
+    let connections = &conn_file.connections;
 
     // Check if any connections have old embedded SSH params
     let needs_migration = connections
@@ -684,7 +681,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
     let mut migrated_connections = Vec::new();
     let mut ssh_connection_map: HashMap<String, String> = HashMap::new(); // (ssh_key -> ssh_id)
 
-    for mut conn in connections {
+    for mut conn in conn_file.connections.clone() {
         if conn.params.ssh_enabled.unwrap_or(false) && conn.params.ssh_connection_id.is_none() {
             // Extract SSH params
             if let (Some(host), Some(user)) = (&conn.params.ssh_host, &conn.params.ssh_user) {
@@ -704,12 +701,12 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
 
                     // Migrate credentials from connection keychain to SSH keychain
                     if conn.params.save_in_keychain.unwrap_or(false) {
-                        if let Ok(ssh_pwd) = keychain_utils::get_ssh_password(&conn.id) {
+                        if let Ok(ssh_pwd) = keychain_utils::get_ssh_password(&conn.id, &conn.name) {
                             if !ssh_pwd.trim().is_empty() {
                                 keychain_utils::set_ssh_password(&new_ssh_id, &ssh_pwd).ok();
                             }
                         }
-                        if let Ok(ssh_pass) = keychain_utils::get_ssh_key_passphrase(&conn.id) {
+                        if let Ok(ssh_pass) = keychain_utils::get_ssh_key_passphrase(&conn.id, &conn.name) {
                             if !ssh_pass.trim().is_empty() {
                                 keychain_utils::set_ssh_key_passphrase(&new_ssh_id, &ssh_pass).ok();
                             }
@@ -761,10 +758,9 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
     let ssh_json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
     fs::write(ssh_path, ssh_json).map_err(|e| e.to_string())?;
 
-    // Save migrated connections
-    let conn_json =
-        serde_json::to_string_pretty(&migrated_connections).map_err(|e| e.to_string())?;
-    fs::write(conn_path, conn_json).map_err(|e| e.to_string())?;
+    // Save migrated connections using new format (preserving groups)
+    conn_file.connections = migrated_connections;
+    persistence::save_connections_file(&conn_path, &conn_file)?;
 
     println!(
         "[Migration] Successfully migrated {} SSH connections",
@@ -1025,7 +1021,7 @@ pub async fn test_ssh_connection<R: Runtime>(
                 serde_json::from_str(&content).unwrap_or_default();
             connections.into_iter().find(|c| c.id == conn_id)
         },
-        |conn_id| keychain_utils::get_ssh_password(conn_id),
+        |conn_id| keychain_utils::get_ssh_password(conn_id, ""),
     );
 
     // Resolve passphrase using same logic
@@ -1042,7 +1038,7 @@ pub async fn test_ssh_connection<R: Runtime>(
                 serde_json::from_str(&content).unwrap_or_default();
             connections.into_iter().find(|c| c.id == conn_id)
         },
-        |conn_id| keychain_utils::get_ssh_key_passphrase(conn_id),
+        |conn_id| keychain_utils::get_ssh_key_passphrase(conn_id, ""),
         |conn| {
             conn.key_passphrase
                 .as_ref()
@@ -1080,7 +1076,7 @@ pub async fn test_connection<R: Runtime>(
         };
         expanded_params.password =
             resolve_test_connection_password(&request.params, saved_conn.as_ref(), |conn_id| {
-                keychain_utils::get_db_password(conn_id)
+                keychain_utils::get_db_password(conn_id, "")
             });
     }
 
@@ -1153,6 +1149,8 @@ mod tests {
                 save_in_keychain: Some(save_in_keychain),
                 ..base_params()
             },
+            group_id: None,
+            sort_order: None,
         }
     }
 
@@ -1598,7 +1596,7 @@ pub async fn list_databases<R: Runtime>(
         };
         expanded_params.password =
             resolve_test_connection_password(&request.params, saved_conn.as_ref(), |conn_id| {
-                keychain_utils::get_db_password(conn_id)
+                keychain_utils::get_db_password(conn_id, "")
             });
     }
 
@@ -2629,4 +2627,167 @@ pub async fn get_driver_manifest(
     crate::drivers::registry::get_driver(&driver_id)
         .await
         .map(|d| d.manifest().clone())
+}
+
+// ==================== Connection Groups Management ====================
+
+#[tauri::command]
+pub async fn get_connection_groups<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<Vec<ConnectionGroup>, String> {
+    let path = get_config_path(&app)?;
+    persistence::load_groups(&path)
+}
+
+#[tauri::command]
+pub async fn get_connections_with_groups<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<ConnectionsFile, String> {
+    // Run migration if needed
+    migrate_ssh_connections(&app).await.ok();
+
+    let path = get_config_path(&app)?;
+    persistence::load_connections_file(&path)
+}
+
+#[tauri::command]
+pub async fn create_connection_group<R: Runtime>(
+    app: AppHandle<R>,
+    name: String,
+) -> Result<ConnectionGroup, String> {
+    let path = get_config_path(&app)?;
+    let mut file = persistence::load_connections_file(&path).unwrap_or_default();
+
+    // Calculate next sort_order
+    let max_order = file.groups.iter().map(|g| g.sort_order).max().unwrap_or(-1);
+
+    let group = ConnectionGroup {
+        id: Uuid::new_v4().to_string(),
+        name,
+        collapsed: false,
+        sort_order: max_order + 1,
+    };
+
+    file.groups.push(group.clone());
+    persistence::save_connections_file(&path, &file)?;
+
+    Ok(group)
+}
+
+#[tauri::command]
+pub async fn update_connection_group<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    name: Option<String>,
+    collapsed: Option<bool>,
+    sort_order: Option<i32>,
+) -> Result<ConnectionGroup, String> {
+    let path = get_config_path(&app)?;
+    let mut file = persistence::load_connections_file(&path)?;
+
+    let group = file
+        .groups
+        .iter_mut()
+        .find(|g| g.id == id)
+        .ok_or_else(|| format!("Group with ID {} not found", id))?;
+
+    if let Some(n) = name {
+        group.name = n;
+    }
+    if let Some(c) = collapsed {
+        group.collapsed = c;
+    }
+    if let Some(o) = sort_order {
+        group.sort_order = o;
+    }
+
+    let updated = group.clone();
+    persistence::save_connections_file(&path, &file)?;
+
+    Ok(updated)
+}
+
+#[tauri::command]
+pub async fn delete_connection_group<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+) -> Result<(), String> {
+    let path = get_config_path(&app)?;
+    let mut file = persistence::load_connections_file(&path)?;
+
+    // Remove connections from the group (set group_id to None)
+    for conn in &mut file.connections {
+        if conn.group_id.as_ref() == Some(&id) {
+            conn.group_id = None;
+        }
+    }
+
+    // Remove the group
+    file.groups.retain(|g| g.id != id);
+    persistence::save_connections_file(&path, &file)?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn move_connection_to_group<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    group_id: Option<String>,
+    sort_order: Option<i32>,
+) -> Result<SavedConnection, String> {
+    let path = get_config_path(&app)?;
+    let mut file = persistence::load_connections_file(&path)?;
+
+    let conn = file
+        .connections
+        .iter_mut()
+        .find(|c| c.id == connection_id)
+        .ok_or_else(|| format!("Connection with ID {} not found", connection_id))?;
+
+    conn.group_id = group_id;
+    if let Some(order) = sort_order {
+        conn.sort_order = Some(order);
+    }
+
+    let updated = conn.clone();
+    persistence::save_connections_file(&path, &file)?;
+
+    Ok(updated)
+}
+
+#[tauri::command]
+pub async fn reorder_groups<R: Runtime>(
+    app: AppHandle<R>,
+    group_orders: Vec<(String, i32)>,
+) -> Result<(), String> {
+    let path = get_config_path(&app)?;
+    let mut file = persistence::load_connections_file(&path)?;
+
+    for (group_id, order) in group_orders {
+        if let Some(group) = file.groups.iter_mut().find(|g| g.id == group_id) {
+            group.sort_order = order;
+        }
+    }
+
+    persistence::save_connections_file(&path, &file)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn reorder_connections_in_group<R: Runtime>(
+    app: AppHandle<R>,
+    connection_orders: Vec<(String, i32)>,
+) -> Result<(), String> {
+    let path = get_config_path(&app)?;
+    let mut file = persistence::load_connections_file(&path)?;
+
+    for (conn_id, order) in connection_orders {
+        if let Some(conn) = file.connections.iter_mut().find(|c| c.id == conn_id) {
+            conn.sort_order = Some(order);
+        }
+    }
+
+    persistence::save_connections_file(&path, &file)?;
+    Ok(())
 }

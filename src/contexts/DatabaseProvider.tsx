@@ -6,7 +6,9 @@ import {
   type ViewInfo,
   type RoutineInfo,
   type SavedConnection,
-  type ConnectionData
+  type ConnectionData,
+  type ConnectionGroup,
+  type ConnectionsFile,
 } from './DatabaseContext';
 import type { ReactNode } from 'react';
 import type { PluginManifest } from '../types/plugins';
@@ -45,6 +47,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const [connectionDataMap, setConnectionDataMap] = useState<Record<string, ConnectionData>>({});
   const [activeTable, setActiveTable] = useState<string | null>(null);
   const [connections, setConnections] = useState<SavedConnection[]>([]);
+  const [connectionGroups, setConnectionGroups] = useState<ConnectionGroup[]>([]);
   const [isLoadingConnections, setIsLoadingConnections] = useState(false);
 
   // Refs used in the plugin-disable effect to avoid stale closures
@@ -685,8 +688,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const loadConnections = useCallback(async () => {
     setIsLoadingConnections(true);
     try {
-      const result = await invoke<SavedConnection[]>('get_connections');
-      setConnections(result);
+      const result = await invoke<ConnectionsFile>('get_connections_with_groups');
+      setConnections(result.connections);
+      setConnectionGroups(result.groups);
     } catch (e) {
       console.error('Failed to load connections:', e);
     } finally {
@@ -723,6 +727,75 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.activeExternalDrivers]);
 
+  // Connection Group methods
+  const createGroup = useCallback(async (name: string): Promise<ConnectionGroup> => {
+    const group = await invoke<ConnectionGroup>('create_connection_group', { name });
+    setConnectionGroups(prev => [...prev, group]);
+    return group;
+  }, []);
+
+  const updateGroup = useCallback(async (
+    id: string,
+    updates: { name?: string; collapsed?: boolean; sort_order?: number }
+  ): Promise<void> => {
+    await invoke('update_connection_group', { id, ...updates });
+    setConnectionGroups(prev =>
+      prev.map(g => (g.id === id ? { ...g, ...updates } : g))
+    );
+  }, []);
+
+  const deleteGroup = useCallback(async (id: string): Promise<void> => {
+    await invoke('delete_connection_group', { id });
+    setConnectionGroups(prev => prev.filter(g => g.id !== id));
+    // Update connections that were in this group
+    setConnections(prev =>
+      prev.map(c => (c.group_id === id ? { ...c, group_id: undefined } : c))
+    );
+  }, []);
+
+  const moveConnectionToGroup = useCallback(async (
+    connectionId: string,
+    groupId: string | null
+  ): Promise<void> => {
+    await invoke('move_connection_to_group', { connectionId, groupId });
+    setConnections(prev =>
+      prev.map(c => (c.id === connectionId ? { ...c, group_id: groupId ?? undefined } : c))
+    );
+  }, []);
+
+  const reorderGroups = useCallback(async (
+    groupOrders: Array<[string, number]>
+  ): Promise<void> => {
+    await invoke('reorder_groups', { groupOrders });
+    setConnectionGroups(prev => {
+      const orderMap = new Map(groupOrders);
+      return prev.map(g => ({
+        ...g,
+        sort_order: orderMap.get(g.id) ?? g.sort_order,
+      })).sort((a, b) => a.sort_order - b.sort_order);
+    });
+  }, []);
+
+  const reorderConnectionsInGroup = useCallback(async (
+    connectionOrders: Array<[string, number]>
+  ): Promise<void> => {
+    await invoke('reorder_connections_in_group', { connectionOrders });
+    setConnections(prev => {
+      const orderMap = new Map(connectionOrders);
+      return prev.map(c => ({
+        ...c,
+        sort_order: orderMap.get(c.id) ?? c.sort_order,
+      }));
+    });
+  }, []);
+
+  const toggleGroupCollapsed = useCallback(async (groupId: string): Promise<void> => {
+    const group = connectionGroups.find(g => g.id === groupId);
+    if (group) {
+      await updateGroup(groupId, { collapsed: !group.collapsed });
+    }
+  }, [connectionGroups, updateGroup]);
+
   return (
     <DatabaseContext.Provider value={{
       activeConnectionId,
@@ -748,6 +821,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       selectedDatabases,
       databaseDataMap,
       connections,
+      connectionGroups,
       loadConnections,
       isLoadingConnections,
       connect,
@@ -765,6 +839,13 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       setSelectedDatabases,
       getConnectionData,
       isConnectionOpen,
+      createGroup,
+      updateGroup,
+      deleteGroup,
+      moveConnectionToGroup,
+      reorderGroups,
+      reorderConnectionsInGroup,
+      toggleGroupCollapsed,
     }}>
       {children}
     </DatabaseContext.Provider>

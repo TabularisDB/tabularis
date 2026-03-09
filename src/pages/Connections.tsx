@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { NewConnectionModal } from '../components/ui/NewConnectionModal';
@@ -19,12 +19,18 @@ import {
   X,
   LayoutGrid,
   List,
+  FolderPlus,
+  Folder,
+  FolderOpen,
+  ChevronRight,
+  MoreVertical,
 } from 'lucide-react';
 import { getDriverColor, getDriverIcon } from '../utils/driverUI';
 import { useDatabase } from '../hooks/useDatabase';
 import { useDrivers } from '../hooks/useDrivers';
 import clsx from 'clsx';
 import { isLocalDriver, getCapabilitiesForDriver } from '../utils/driverCapabilities';
+import { ContextMenu } from '../components/ui/ContextMenu';
 
 interface SavedConnection {
   id: string;
@@ -43,6 +49,8 @@ interface SavedConnection {
     ssh_password?: string;
     ssh_key_file?: string;
   };
+  group_id?: string;
+  sort_order?: number;
 }
 
 function connectionSubtitle(conn: SavedConnection, capabilities: ReturnType<typeof getCapabilitiesForDriver>): string {
@@ -121,26 +129,140 @@ export const Connections = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { connect, activeConnectionId, disconnect, isConnectionOpen, switchConnection } = useDatabase();
+  const {
+    connect,
+    activeConnectionId,
+    disconnect,
+    isConnectionOpen,
+    switchConnection,
+    connectionGroups,
+    createGroup,
+    updateGroup,
+    deleteGroup,
+    moveConnectionToGroup,
+    toggleGroupCollapsed,
+    loadConnections,
+    connections: contextConnections,
+  } = useDatabase();
   const { drivers, allDrivers } = useDrivers();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingConnection, setEditingConnection] = useState<SavedConnection | null>(null);
-  const [connections, setConnections] = useState<SavedConnection[]>([]);
+  // Use connections from context, cast to local SavedConnection type for SSH fields
+  const connections = contextConnections as SavedConnection[];
   const [error, setError] = useState<string | null>(null);
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [groupContextMenu, setGroupContextMenu] = useState<{ x: number; y: number; groupId: string } | null>(null);
+  const [connectionContextMenu, setConnectionContextMenu] = useState<{ x: number; y: number; connId: string } | null>(null);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editGroupName, setEditGroupName] = useState('');
+  const isRenameCancelledRef = useRef(false);
 
-  const loadConnections = async () => {
+  useEffect(() => { void loadConnections(); }, [loadConnections]);
+
+  // Initialize collapsed groups from saved state
+  useEffect(() => {
+    const collapsed = new Set(connectionGroups.filter(g => g.collapsed).map(g => g.id));
+    setCollapsedGroups(collapsed);
+  }, [connectionGroups]);
+
+  // Sort groups by sort_order
+  const sortedGroups = useMemo(
+    () => [...connectionGroups].sort((a, b) => a.sort_order - b.sort_order),
+    [connectionGroups]
+  );
+
+  // Organize connections by group
+  const { groupedConnections, ungroupedConnections } = useMemo(() => {
+    const grouped: Record<string, SavedConnection[]> = {};
+    const ungrouped: SavedConnection[] = [];
+
+    for (const conn of connections) {
+      if (conn.group_id) {
+        if (!grouped[conn.group_id]) {
+          grouped[conn.group_id] = [];
+        }
+        grouped[conn.group_id].push(conn);
+      } else {
+        ungrouped.push(conn);
+      }
+    }
+
+    // Sort connections within each group by sort_order
+    for (const groupId in grouped) {
+      grouped[groupId].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    }
+    ungrouped.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+    return { groupedConnections: grouped, ungroupedConnections: ungrouped };
+  }, [connections]);
+
+  // Group management functions
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim()) return;
     try {
-      const result = await invoke<SavedConnection[]>('get_connections');
-      setConnections(result);
+      await createGroup(newGroupName.trim());
+      setNewGroupName('');
+      setIsCreatingGroup(false);
+      await loadConnections();
     } catch (e) {
-      console.error('Failed to load connections:', e);
+      console.error('Failed to create group:', e);
+      setError(t('groups.createError'));
     }
   };
 
-  useEffect(() => { void loadConnections(); }, []);
+  const handleToggleGroupCollapsed = async (groupId: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+    await toggleGroupCollapsed(groupId);
+  };
+
+  const handleRenameGroup = async (groupId: string) => {
+    if (!editGroupName.trim()) return;
+    try {
+      await updateGroup(groupId, { name: editGroupName.trim() });
+      setEditingGroupId(null);
+      await loadConnections();
+    } catch (e) {
+      console.error('Failed to rename group:', e);
+    }
+  };
+
+  const handleDeleteGroup = async (groupId: string) => {
+    const group = connectionGroups.find(g => g.id === groupId);
+    const confirmed = await ask(t('groups.deleteConfirm', { name: group?.name }), {
+      title: t('groups.deleteTitle'),
+      kind: 'warning',
+    });
+    if (confirmed) {
+      try {
+        await deleteGroup(groupId);
+        await loadConnections();
+      } catch (e) {
+        console.error('Failed to delete group:', e);
+      }
+    }
+  };
+
+  const handleMoveToGroup = async (connectionId: string, groupId: string | null) => {
+    try {
+      await moveConnectionToGroup(connectionId, groupId);
+      await loadConnections();
+    } catch (e) {
+      console.error('Failed to move connection:', e);
+    }
+  };
 
   useEffect(() => {
     if ((location.state as { openNew?: boolean } | null)?.openNew) {
@@ -150,7 +272,7 @@ export const Connections = () => {
   }, [location.state]);
 
   const handleSave = () => {
-    loadConnections();
+    void loadConnections();
     setIsModalOpen(false);
     setEditingConnection(null);
   };
@@ -193,7 +315,7 @@ export const Connections = () => {
       try {
         if (isConnectionOpen(id)) await disconnect(id);
         await invoke('delete_connection', { id });
-        loadConnections();
+        void loadConnections();
       } catch (e) {
         console.error(e);
       }
@@ -212,7 +334,7 @@ export const Connections = () => {
     try {
       const newConn = await invoke<SavedConnection>('duplicate_connection', { id });
       await loadConnections();
-      openEdit(newConn);
+      void openEdit(newConn);
     } catch (e) {
       console.error(e);
       setError(t('connections.failDuplicate'));
@@ -225,6 +347,30 @@ export const Connections = () => {
         c.params.driver.toLowerCase().includes(search.toLowerCase())
       )
     : connections;
+
+  // Filter grouped/ungrouped based on search
+  const filteredGroupedConnections = useMemo(() => {
+    if (!search.trim()) return groupedConnections;
+    const result: Record<string, SavedConnection[]> = {};
+    for (const groupId in groupedConnections) {
+      const filteredConns = groupedConnections[groupId].filter(c =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.params.driver.toLowerCase().includes(search.toLowerCase())
+      );
+      if (filteredConns.length > 0) {
+        result[groupId] = filteredConns;
+      }
+    }
+    return result;
+  }, [groupedConnections, search]);
+
+  const filteredUngroupedConnections = useMemo(() => {
+    if (!search.trim()) return ungroupedConnections;
+    return ungroupedConnections.filter(c =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.params.driver.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [ungroupedConnections, search]);
 
   const openCount = connections.filter(c => isConnectionOpen(c.id)).length;
 
@@ -339,7 +485,7 @@ export const Connections = () => {
           </div>
         ) : (
           <>
-            {/* ── Toolbar: search + view toggle ─────────────────────────── */}
+            {/* ── Toolbar: search + new group + view toggle ─────────────────────────── */}
             <div className="flex items-center gap-3 mb-5">
               <div className="relative flex-1">
                 <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
@@ -359,6 +505,52 @@ export const Connections = () => {
                   </button>
                 )}
               </div>
+
+              {/* New Group button or input */}
+              {isCreatingGroup ? (
+                <div className="flex items-center gap-2 shrink-0">
+                  <input
+                    type="text"
+                    value={newGroupName}
+                    onChange={e => setNewGroupName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') void handleCreateGroup();
+                      if (e.key === 'Escape') {
+                        setIsCreatingGroup(false);
+                        setNewGroupName('');
+                      }
+                    }}
+                    placeholder={t('groups.groupName')}
+                    autoFocus
+                    className="w-40 px-3 py-2 bg-elevated border border-strong rounded-xl text-sm text-primary placeholder:text-muted focus:border-amber-500/70 focus:outline-none transition-colors"
+                  />
+                  <button
+                    onClick={() => void handleCreateGroup()}
+                    disabled={!newGroupName.trim()}
+                    className="p-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Plus size={14} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsCreatingGroup(false);
+                      setNewGroupName('');
+                    }}
+                    className="p-2 rounded-lg text-muted hover:text-primary hover:bg-surface-secondary transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setIsCreatingGroup(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-elevated border border-strong rounded-xl text-sm text-muted hover:text-amber-400 hover:border-amber-500/50 transition-colors shrink-0"
+                  title={t('groups.newGroup')}
+                >
+                  <FolderPlus size={14} />
+                  <span className="hidden sm:inline">{t('groups.newGroup')}</span>
+                </button>
+              )}
 
               {/* View toggle */}
               <div className="flex items-center gap-0.5 bg-elevated border border-strong rounded-xl p-1 shrink-0">
@@ -391,87 +583,237 @@ export const Connections = () => {
 
             {/* ── Grid view ─────────────────────────────────────────────── */}
             {viewMode === 'grid' ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {filtered.map(conn => {
-                  const isOpen = isConnectionOpen(conn.id);
-                  const isConnecting = connectingId === conn.id;
-                  const capabilities = getCapabilitiesForDriver(conn.params.driver, allDrivers);
-                  const driverManifest = allDrivers.find(d => d.id === conn.params.driver);
-                  const isDriverEnabled = drivers.some(d => d.id === conn.params.driver);
-                  const subtitle = connectionSubtitle(conn, capabilities);
-                  const driverColor = getDriverColor(driverManifest);
+              <div className="space-y-6">
+                {/* Groups */}
+                {sortedGroups.map(group => {
+                  const groupConns = filteredGroupedConnections[group.id] || [];
+                  if (groupConns.length === 0 && search.trim()) return null; // Hide empty groups when searching
+
+                  const isCollapsed = collapsedGroups.has(group.id);
 
                   return (
-                    <div
-                      key={conn.id}
-                      onDoubleClick={() => isDriverEnabled && !isConnecting && handleConnect(conn)}
-                      className={clsx(
-                        'group relative flex flex-col rounded-2xl border transition-all duration-150 cursor-pointer select-none overflow-hidden',
-                        !isDriverEnabled && 'opacity-60 cursor-not-allowed',
-                        isConnecting && 'pointer-events-none',
-                        cardClass(conn),
-                      )}
-                    >
-                      {/* Card body */}
-                      <div className="flex items-start gap-3.5 px-4 pt-4 pb-3">
-                        {/* Driver icon */}
-                        <div
-                          className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md"
-                          style={{ backgroundColor: driverColor }}
-                        >
-                          {getDriverIcon(driverManifest, 20)}
-                        </div>
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0 pt-0.5">
-                          <div className="flex items-start justify-between gap-2 mb-1.5">
-                            <span className="font-bold text-sm text-primary leading-snug truncate">{conn.name}</span>
-                            <div className="shrink-0">
-                              <StatusBadge conn={conn} />
-                            </div>
-                          </div>
-
-                          {/* Driver + SSH badges */}
-                          <div className="flex items-center gap-1.5 flex-wrap mb-2">
-                            <span className="text-[10px] font-semibold text-secondary bg-surface-secondary border border-strong/40 px-1.5 py-0.5 rounded-md capitalize">
-                              {conn.params.driver}
-                            </span>
-                            {conn.params.ssh_enabled && (
-                              <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-1.5 py-0.5 rounded-md">
-                                <Shield size={8} /> SSH
-                              </span>
-                            )}
-                            {!isDriverEnabled && (
-                              <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-1.5 py-0.5 rounded-md">
-                                <PlugZap size={8} /> {t('connections.pluginDisabled')}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Subtitle */}
-                          <p className="text-[11px] text-muted truncate">{subtitle}</p>
-                        </div>
-                      </div>
-
-                      {/* Action bar */}
-                      <div className="flex items-center justify-end gap-0.5 px-3 py-2 border-t border-default/50 mt-auto opacity-40 group-hover:opacity-100 transition-opacity duration-150">
-                        <ActionButtons
-                          conn={conn}
-                          isOpen={isOpen}
-                          isDriverEnabled={isDriverEnabled}
-                          onConnect={() => handleConnect(conn)}
-                          onDisconnect={() => handleDisconnect(conn.id)}
-                          onEdit={() => void openEdit(conn)}
-                          onDuplicate={() => handleDuplicate(conn.id)}
-                          onDelete={() => handleDelete(conn.id)}
+                    <div key={group.id} className="space-y-3">
+                      {/* Group header */}
+                      <div
+                        className="flex items-center gap-2 group cursor-pointer"
+                        onClick={() => void handleToggleGroupCollapsed(group.id)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setGroupContextMenu({ x: e.clientX, y: e.clientY, groupId: group.id });
+                        }}
+                      >
+                        <ChevronRight
+                          size={14}
+                          className={clsx(
+                            "text-muted transition-transform",
+                            !isCollapsed && "rotate-90"
+                          )}
                         />
+                        {isCollapsed ? (
+                          <Folder size={16} className="text-amber-400/70" />
+                        ) : (
+                          <FolderOpen size={16} className="text-amber-400" />
+                        )}
+                        {editingGroupId === group.id ? (
+                          <input
+                            type="text"
+                            value={editGroupName}
+                            onChange={(e) => setEditGroupName(e.target.value)}
+                            onBlur={() => {
+                              if (!isRenameCancelledRef.current) {
+                                void handleRenameGroup(group.id);
+                              }
+                              isRenameCancelledRef.current = false;
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void handleRenameGroup(group.id);
+                              if (e.key === 'Escape') {
+                                isRenameCancelledRef.current = true;
+                                setEditingGroupId(null);
+                              }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            autoFocus
+                            className="px-2 py-0.5 bg-elevated border border-strong rounded text-sm text-primary focus:border-amber-500/70 focus:outline-none"
+                          />
+                        ) : (
+                          <span className="text-sm font-semibold text-primary">{group.name}</span>
+                        )}
+                        <span className="text-xs text-muted">({groupConns.length})</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setGroupContextMenu({ x: e.clientX, y: e.clientY, groupId: group.id });
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-secondary transition-all"
+                        >
+                          <MoreVertical size={12} className="text-muted" />
+                        </button>
                       </div>
+
+                      {/* Group connections */}
+                      {!isCollapsed && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pl-6">
+                          {groupConns.map(conn => {
+                            const isOpen = isConnectionOpen(conn.id);
+                            const isConnecting = connectingId === conn.id;
+                            const capabilities = getCapabilitiesForDriver(conn.params.driver, allDrivers);
+                            const driverManifest = allDrivers.find(d => d.id === conn.params.driver);
+                            const isDriverEnabled = drivers.some(d => d.id === conn.params.driver);
+                            const subtitle = connectionSubtitle(conn, capabilities);
+                            const driverColor = getDriverColor(driverManifest);
+
+                            return (
+                              <div
+                                key={conn.id}
+                                draggable
+                                onDragStart={(e) => e.dataTransfer.setData('connectionId', conn.id)}
+                                onDoubleClick={() => isDriverEnabled && !isConnecting && handleConnect(conn)}
+                                onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  setConnectionContextMenu({ x: e.clientX, y: e.clientY, connId: conn.id });
+                                }}
+                                className={clsx(
+                                  'group relative flex flex-col rounded-2xl border transition-all duration-150 cursor-pointer select-none overflow-hidden',
+                                  !isDriverEnabled && 'opacity-60 cursor-not-allowed',
+                                  isConnecting && 'pointer-events-none',
+                                  cardClass(conn),
+                                )}
+                              >
+                                <div className="flex items-start gap-3.5 px-4 pt-4 pb-3">
+                                  <div
+                                    className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md"
+                                    style={{ backgroundColor: driverColor }}
+                                  >
+                                    {getDriverIcon(driverManifest, 20)}
+                                  </div>
+                                  <div className="flex-1 min-w-0 pt-0.5">
+                                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                                      <span className="font-bold text-sm text-primary leading-snug truncate">{conn.name}</span>
+                                      <div className="shrink-0"><StatusBadge conn={conn} /></div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                                      <span className="text-[10px] font-semibold text-secondary bg-surface-secondary border border-strong/40 px-1.5 py-0.5 rounded-md capitalize">{conn.params.driver}</span>
+                                      {conn.params.ssh_enabled && (
+                                        <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-1.5 py-0.5 rounded-md">
+                                          <Shield size={8} /> SSH
+                                        </span>
+                                      )}
+                                      {!isDriverEnabled && (
+                                        <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-1.5 py-0.5 rounded-md">
+                                          <PlugZap size={8} /> {t('connections.pluginDisabled')}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-muted truncate">{subtitle}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-end gap-0.5 px-3 py-2 border-t border-default/50 mt-auto opacity-40 group-hover:opacity-100 transition-opacity duration-150">
+                                  <ActionButtons
+                                    conn={conn}
+                                    isOpen={isOpen}
+                                    isDriverEnabled={isDriverEnabled}
+                                    onConnect={() => handleConnect(conn)}
+                                    onDisconnect={() => handleDisconnect(conn.id)}
+                                    onEdit={() => void openEdit(conn)}
+                                    onDuplicate={() => handleDuplicate(conn.id)}
+                                    onDelete={() => handleDelete(conn.id)}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
 
-                {filtered.length === 0 && search && (
-                  <div className="col-span-full text-center py-12 text-sm text-muted">
+                {/* Ungrouped connections */}
+                {filteredUngroupedConnections.length > 0 && (
+                  <div className="space-y-3">
+                    {sortedGroups.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-muted">{t('groups.ungrouped')}</span>
+                        <span className="text-xs text-muted">({filteredUngroupedConnections.length})</span>
+                      </div>
+                    )}
+                    <div className={clsx("grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3", sortedGroups.length > 0 && "pl-6")}>
+                      {filteredUngroupedConnections.map(conn => {
+                        const isOpen = isConnectionOpen(conn.id);
+                        const isConnecting = connectingId === conn.id;
+                        const capabilities = getCapabilitiesForDriver(conn.params.driver, allDrivers);
+                        const driverManifest = allDrivers.find(d => d.id === conn.params.driver);
+                        const isDriverEnabled = drivers.some(d => d.id === conn.params.driver);
+                        const subtitle = connectionSubtitle(conn, capabilities);
+                        const driverColor = getDriverColor(driverManifest);
+
+                        return (
+                          <div
+                            key={conn.id}
+                            draggable
+                            onDragStart={(e) => e.dataTransfer.setData('connectionId', conn.id)}
+                            onDoubleClick={() => isDriverEnabled && !isConnecting && handleConnect(conn)}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              setConnectionContextMenu({ x: e.clientX, y: e.clientY, connId: conn.id });
+                            }}
+                            className={clsx(
+                              'group relative flex flex-col rounded-2xl border transition-all duration-150 cursor-pointer select-none overflow-hidden',
+                              !isDriverEnabled && 'opacity-60 cursor-not-allowed',
+                              isConnecting && 'pointer-events-none',
+                              cardClass(conn),
+                            )}
+                          >
+                            <div className="flex items-start gap-3.5 px-4 pt-4 pb-3">
+                              <div
+                                className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md"
+                                style={{ backgroundColor: driverColor }}
+                              >
+                                {getDriverIcon(driverManifest, 20)}
+                              </div>
+                              <div className="flex-1 min-w-0 pt-0.5">
+                                <div className="flex items-start justify-between gap-2 mb-1.5">
+                                  <span className="font-bold text-sm text-primary leading-snug truncate">{conn.name}</span>
+                                  <div className="shrink-0"><StatusBadge conn={conn} /></div>
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                                  <span className="text-[10px] font-semibold text-secondary bg-surface-secondary border border-strong/40 px-1.5 py-0.5 rounded-md capitalize">{conn.params.driver}</span>
+                                  {conn.params.ssh_enabled && (
+                                    <span className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-1.5 py-0.5 rounded-md">
+                                      <Shield size={8} /> SSH
+                                    </span>
+                                  )}
+                                  {!isDriverEnabled && (
+                                    <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-1.5 py-0.5 rounded-md">
+                                      <PlugZap size={8} /> {t('connections.pluginDisabled')}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-muted truncate">{subtitle}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-end gap-0.5 px-3 py-2 border-t border-default/50 mt-auto opacity-40 group-hover:opacity-100 transition-opacity duration-150">
+                              <ActionButtons
+                                conn={conn}
+                                isOpen={isOpen}
+                                isDriverEnabled={isDriverEnabled}
+                                onConnect={() => handleConnect(conn)}
+                                onDisconnect={() => handleDisconnect(conn.id)}
+                                onEdit={() => void openEdit(conn)}
+                                onDuplicate={() => handleDuplicate(conn.id)}
+                                onDelete={() => handleDelete(conn.id)}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {Object.keys(filteredGroupedConnections).length === 0 && filteredUngroupedConnections.length === 0 && search && (
+                  <div className="text-center py-12 text-sm text-muted">
                     {t('connections.noSearchResults', { query: search })}
                   </div>
                 )}
@@ -569,6 +911,67 @@ export const Connections = () => {
         onSave={handleSave}
         initialConnection={editingConnection}
       />
+
+      {/* Group context menu */}
+      {groupContextMenu && (
+        <ContextMenu
+          x={groupContextMenu.x}
+          y={groupContextMenu.y}
+          items={[
+            {
+              label: t('groups.rename'),
+              icon: Edit,
+              action: () => {
+                const group = connectionGroups.find(g => g.id === groupContextMenu.groupId);
+                if (group) {
+                  setEditGroupName(group.name);
+                  setEditingGroupId(groupContextMenu.groupId);
+                }
+              },
+            },
+            { separator: true as const },
+            {
+              label: t('groups.delete'),
+              icon: Trash2,
+              action: () => void handleDeleteGroup(groupContextMenu.groupId),
+              danger: true,
+            },
+          ]}
+          onClose={() => setGroupContextMenu(null)}
+        />
+      )}
+
+      {/* Connection context menu for moving to groups */}
+      {connectionContextMenu && (() => {
+        const conn = connections.find(c => c.id === connectionContextMenu.connId);
+        const currentGroupId = conn?.group_id;
+        const isInGroup = !!currentGroupId;
+        // Filter out the current group from move targets
+        const availableGroups = sortedGroups.filter(g => g.id !== currentGroupId);
+        return (
+          <ContextMenu
+            x={connectionContextMenu.x}
+            y={connectionContextMenu.y}
+            items={[
+              ...availableGroups.map(group => ({
+                label: group.name,
+                icon: Folder,
+                action: () => void handleMoveToGroup(connectionContextMenu.connId, group.id),
+              })),
+              // Only show "Remove from Group" if the connection is in a group
+              ...(isInGroup ? [
+                ...(availableGroups.length > 0 ? [{ separator: true as const }] : []),
+                {
+                  label: t('groups.removeFromGroup'),
+                  icon: X,
+                  action: () => void handleMoveToGroup(connectionContextMenu.connId, null),
+                },
+              ] : []),
+            ]}
+            onClose={() => setConnectionContextMenu(null)}
+          />
+        );
+      })()}
     </div>
   );
 };

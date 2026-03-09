@@ -29,6 +29,20 @@ export interface SavedConnection {
     ssh_enabled?: boolean;
     ssh_connection_id?: string;
   };
+  group_id?: string;
+  sort_order?: number;
+}
+
+export interface ConnectionGroup {
+  id: string;
+  name: string;
+  collapsed: boolean;
+  sort_order: number;
+}
+
+export interface ConnectionsFile {
+  groups: ConnectionGroup[];
+  connections: SavedConnection[];
 }
 
 export interface SchemaData {
@@ -87,6 +101,7 @@ export interface DatabaseContextType {
   selectedDatabases: string[];
   databaseDataMap: Record<string, SchemaData>;
   connections: SavedConnection[];
+  connectionGroups: ConnectionGroup[];
   loadConnections: () => Promise<void>;
   isLoadingConnections: boolean;
   connect: (connectionId: string) => Promise<void>;
@@ -104,6 +119,14 @@ export interface DatabaseContextType {
   setSelectedDatabases: (databases: string[], connectionId?: string) => void;
   getConnectionData: (connectionId: string) => ConnectionData | undefined;
   isConnectionOpen: (connectionId: string) => boolean;
+  // Connection Group methods
+  createGroup: (name: string) => Promise<ConnectionGroup>;
+  updateGroup: (id: string, updates: { name?: string; collapsed?: boolean; sort_order?: number }) => Promise<void>;
+  deleteGroup: (id: string) => Promise<void>;
+  moveConnectionToGroup: (connectionId: string, groupId: string | null) => Promise<void>;
+  reorderGroups: (groupOrders: Array<[string, number]>) => Promise<void>;
+  reorderConnectionsInGroup: (connectionOrders: Array<[string, number]>) => Promise<void>;
+  toggleGroupCollapsed: (groupId: string) => Promise<void>;
 }
 
 export const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined);

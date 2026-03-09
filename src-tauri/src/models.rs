@@ -123,6 +123,28 @@ pub struct SavedConnection {
     pub id: String,
     pub name: String,
     pub params: ConnectionParams,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sort_order: Option<i32>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ConnectionGroup {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub collapsed: bool,
+    #[serde(default)]
+    pub sort_order: i32,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct ConnectionsFile {
+    #[serde(default)]
+    pub groups: Vec<ConnectionGroup>,
+    #[serde(default)]
+    pub connections: Vec<SavedConnection>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

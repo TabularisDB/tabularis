@@ -30,16 +30,27 @@ export function findTabById(tabs: Tab[], tabId: string | null): Tab | undefined 
  * @param tabs - All tabs
  * @param connectionId - The connection ID
  * @param activeTabId - The active tab ID
- * @returns The active tab if found and belongs to the connection, null otherwise
+ * @returns The active tab if found and belongs to the connection, or the first tab for the connection as fallback
  */
 export function getActiveTabForConnection(
   tabs: Tab[],
   connectionId: string | null,
   activeTabId: string | null
 ): Tab | null {
-  if (!connectionId || !activeTabId) return null;
-  const tab = findTabById(tabs, activeTabId);
-  return tab && tab.connectionId === connectionId ? tab : null;
+  if (!connectionId) return null;
+
+  // If we have an activeTabId, try to find that specific tab
+  if (activeTabId) {
+    const tab = findTabById(tabs, activeTabId);
+    if (tab && tab.connectionId === connectionId) {
+      return tab;
+    }
+  }
+
+  // Fallback: return the first tab for this connection
+  // This handles the race condition where tabs are created before activeTabIds is updated
+  const connectionTabs = filterTabsByConnection(tabs, connectionId);
+  return connectionTabs.length > 0 ? connectionTabs[0] : null;
 }
 
 /**
