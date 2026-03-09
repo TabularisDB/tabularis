@@ -1,9 +1,10 @@
 use crate::models::ConnectionParams;
 use once_cell::sync::Lazy;
-use sqlx::{postgres::PgConnectOptions, MySql, Pool, Postgres, Sqlite};
+use sqlx::{postgres::PgConnectOptions, sqlite::SqliteConnectOptions, MySql, Pool, Postgres, Sqlite};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use std::str::FromStr;
 use urlencoding::encode;
 
 type PoolMap<T> = Arc<RwLock<HashMap<String, Pool<T>>>>;
@@ -62,8 +63,12 @@ fn build_postgres_connectoptions(params: &ConnectionParams) -> PgConnectOptions 
     options
 }
 
-fn build_sqlite_url(params: &ConnectionParams) -> String {
-    format!("sqlite://{}", params.database)
+fn build_sqlite_connectoptions(params: &ConnectionParams) -> SqliteConnectOptions {
+    let url = format!("sqlite://{}", params.database);
+    SqliteConnectOptions::from_str(&url)
+        .unwrap_or_else(|_| SqliteConnectOptions::new().filename(&params.database))
+        .read_only(true)
+        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
 }
 
 pub async fn get_mysql_pool(params: &ConnectionParams) -> Result<Pool<MySql>, String> {
@@ -208,10 +213,10 @@ pub async fn get_sqlite_pool_with_id(
         params.database,
         key
     );
-    let url = build_sqlite_url(params);
+    let options = build_sqlite_connectoptions(params);
     let pool = sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(5) // SQLite has lower concurrency needs
-        .connect(&url)
+        .connect_with(options)
         .await
         .map_err(|e| {
             log::error!("Failed to create SQLite connection pool: {}", e);
