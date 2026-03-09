@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { NewConnectionModal } from '../components/ui/NewConnectionModal';
+import { ConfirmModal } from '../components/modals/ConfirmModal';
 import { invoke } from '@tauri-apps/api/core';
-import { ask } from '@tauri-apps/plugin-dialog';
 import {
   Database,
   Plus,
@@ -160,6 +160,7 @@ export const Connections = () => {
   const [connectionContextMenu, setConnectionContextMenu] = useState<{ x: number; y: number; connId: string } | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editGroupName, setEditGroupName] = useState('');
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
   const isRenameCancelledRef = useRef(false);
 
   useEffect(() => { void loadConnections(); }, [loadConnections]);
@@ -239,20 +240,21 @@ export const Connections = () => {
     }
   };
 
-  const handleDeleteGroup = async (groupId: string) => {
+  const handleDeleteGroup = (groupId: string) => {
     const group = connectionGroups.find(g => g.id === groupId);
-    const confirmed = await ask(t('groups.deleteConfirm', { name: group?.name }), {
+    setConfirmModal({
       title: t('groups.deleteTitle'),
-      kind: 'warning',
+      message: t('groups.deleteConfirm', { name: group?.name }),
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await deleteGroup(groupId);
+          await loadConnections();
+        } catch (e) {
+          console.error('Failed to delete group:', e);
+        }
+      },
     });
-    if (confirmed) {
-      try {
-        await deleteGroup(groupId);
-        await loadConnections();
-      } catch (e) {
-        console.error('Failed to delete group:', e);
-      }
-    }
   };
 
   const handleMoveToGroup = async (connectionId: string, groupId: string | null) => {
@@ -306,20 +308,21 @@ export const Connections = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    const confirmed = await ask(t('connections.confirmDelete'), {
+  const handleDelete = (id: string) => {
+    setConfirmModal({
       title: t('connections.deleteTitle'),
-      kind: 'warning',
+      message: t('connections.confirmDelete'),
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          if (isConnectionOpen(id)) await disconnect(id);
+          await invoke('delete_connection', { id });
+          void loadConnections();
+        } catch (e) {
+          console.error(e);
+        }
+      },
     });
-    if (confirmed) {
-      try {
-        if (isConnectionOpen(id)) await disconnect(id);
-        await invoke('delete_connection', { id });
-        void loadConnections();
-      } catch (e) {
-        console.error(e);
-      }
-    }
   };
 
   const openEdit = async (conn: SavedConnection) => {
@@ -911,6 +914,13 @@ export const Connections = () => {
         onSave={handleSave}
         initialConnection={editingConnection}
       />
+      <ConfirmModal
+        isOpen={confirmModal !== null}
+        onClose={() => setConfirmModal(null)}
+        title={confirmModal?.title ?? ""}
+        message={confirmModal?.message ?? ""}
+        onConfirm={() => confirmModal?.onConfirm()}
+      />
 
       {/* Group context menu */}
       {groupContextMenu && (
@@ -933,7 +943,7 @@ export const Connections = () => {
             {
               label: t('groups.delete'),
               icon: Trash2,
-              action: () => void handleDeleteGroup(groupContextMenu.groupId),
+              action: () => handleDeleteGroup(groupContextMenu.groupId),
               danger: true,
             },
           ]}
