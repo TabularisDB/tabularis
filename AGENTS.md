@@ -11,7 +11,7 @@ Adhere to the rules defined in the [rules directory](./.rules/):
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **tabularis** (2965 symbols, 7429 relationships, 231 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **tabularis** (2799 symbols, 6979 relationships, 215 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
