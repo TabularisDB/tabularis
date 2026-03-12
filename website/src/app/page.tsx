@@ -12,6 +12,7 @@ import { getAllPlugins } from "@/lib/plugins";
 
 import { SiteHeader } from "@/components/SiteHeader";
 import { DownloadButtons } from "@/components/DownloadButtons";
+import { SponsorsSection } from "@/components/SponsorsSection";
 
 const GITHUB_EDIT_HOME_URL =
   "https://github.com/debba/tabularis/edit/main/website/content/home.md";
@@ -164,6 +165,9 @@ export default function HomePage() {
           className="screenshot-main"
         />
       </div>
+
+      {/* SPONSORS */}
+      <SponsorsSection />
 
       {/* WHY TABULARIS */}
       <section className="section">
