@@ -135,6 +135,7 @@ pub async fn get_installed_plugins() -> Result<Vec<InstalledPluginInfo>, String>
 #[tauri::command]
 pub async fn disable_plugin(plugin_id: String) -> Result<(), String> {
     crate::drivers::registry::unregister_driver(&plugin_id).await;
+    crate::drivers::registry::unregister_manifest(&plugin_id).await;
     Ok(())
 }
 
@@ -183,5 +184,33 @@ pub async fn get_plugin_manifest(plugin_id: String) -> Result<PluginManifest, St
         color: config.color,
         icon: config.icon,
         settings: config.settings,
+        ui_extensions: config.ui_extensions,
     })
+}
+
+/// Returns the absolute filesystem path of an installed plugin's directory.
+#[tauri::command]
+pub fn get_plugin_dir(plugin_id: String) -> Result<String, String> {
+    let plugins_dir = installer::get_plugins_dir()?;
+    let plugin_dir = plugins_dir.join(&plugin_id);
+    if !plugin_dir.exists() {
+        return Err(format!("Plugin '{}' is not installed", plugin_id));
+    }
+    plugin_dir
+        .to_str()
+        .ok_or_else(|| "Plugin path contains invalid UTF-8".to_string())
+        .map(|s| s.to_string())
+}
+
+/// Reads a file from an installed plugin's directory.
+/// The `file_path` must be a relative path with no `..` components.
+#[tauri::command]
+pub fn read_plugin_file(plugin_id: String, file_path: String) -> Result<String, String> {
+    if file_path.contains("..") || file_path.starts_with('/') || file_path.starts_with('\\') {
+        return Err("Invalid file path: must be relative and contain no '..' components".to_string());
+    }
+    let plugins_dir = installer::get_plugins_dir()?;
+    let full_path = plugins_dir.join(&plugin_id).join(&file_path);
+    fs::read_to_string(&full_path)
+        .map_err(|e| format!("Failed to read '{}' from plugin '{}': {}", file_path, plugin_id, e))
 }

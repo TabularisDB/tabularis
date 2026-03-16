@@ -1057,6 +1057,7 @@ impl MysqlDriver {
                 color: "#f97316".to_string(),
                 icon: "mysql".to_string(),
                 settings: vec![],
+                ui_extensions: None,
             },
         }
     }

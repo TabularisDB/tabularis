@@ -13,7 +13,7 @@ use crate::models::{
 
 /// Capabilities advertised by a driver.
 /// The frontend uses these flags to decide which UI sections to show.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct DriverCapabilities {
     /// Supports multiple named schemas (e.g. PostgreSQL).
     pub schemas: bool,
@@ -72,6 +72,18 @@ fn default_true() -> bool {
     true
 }
 
+/// A UI extension slot entry declared in a plugin's manifest.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UIExtensionEntry {
+    /// Target slot name (e.g. `"row-edit-modal.field.after"`).
+    pub slot: String,
+    /// Module path relative to the plugin directory (e.g. `"dist/index.js"`).
+    pub module: String,
+    /// Ordering weight (lower = earlier).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub order: Option<u32>,
+}
+
 /// A single user-configurable setting declared in a plugin's manifest.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PluginSettingDefinition {
@@ -121,6 +133,9 @@ pub struct PluginManifest {
     /// Plugin-declared settings definitions. Empty for built-in drivers.
     #[serde(default)]
     pub settings: Vec<PluginSettingDefinition>,
+    /// UI extension slot declarations. Absent for built-in drivers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui_extensions: Option<Vec<UIExtensionEntry>>,
 }
 
 /// The complete interface every database driver plugin must implement.

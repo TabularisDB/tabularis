@@ -34,10 +34,15 @@ pub struct ConfigManifest {
     pub name: String,
     pub version: String,
     pub description: String,
+    #[serde(default)]
     pub default_port: Option<u16>,
+    #[serde(default)]
     pub capabilities: DriverCapabilities,
+    #[serde(default)]
     pub data_types: Vec<DataTypeInfo>,
-    pub executable: String,
+    /// Absent for UI-only plugins that ship no driver executable.
+    #[serde(default)]
+    pub executable: Option<String>,
     #[serde(default)]
     pub default_username: Option<String>,
     #[serde(default)]
@@ -48,6 +53,8 @@ pub struct ConfigManifest {
     pub interpreter: Option<String>,
     #[serde(default)]
     pub settings: Vec<PluginSettingDefinition>,
+    #[serde(default)]
+    pub ui_extensions: Option<Vec<crate::drivers::driver_trait::UIExtensionEntry>>,
 }
 
 /// Load installed plugins at startup.
@@ -133,21 +140,6 @@ pub async fn load_plugin_from_dir(path: &Path, interpreter_override: Option<Stri
     let config: ConfigManifest = serde_json::from_str(&manifest_str)
         .map_err(|e| format!("Failed to parse plugin manifest {:?}: {}", manifest_path, e))?;
 
-    let mut exec_path = path.join(&config.executable);
-    if !exec_path.exists() {
-        // On Windows, try appending .exe if the manifest omits it
-        if cfg!(windows) {
-            let with_exe = path.join(format!("{}.exe", config.executable));
-            if with_exe.exists() {
-                exec_path = with_exe;
-            } else {
-                return Err(format!("Plugin executable not found: {:?}", exec_path));
-            }
-        } else {
-            return Err(format!("Plugin executable not found: {:?}", exec_path));
-        }
-    }
-
     let manifest = PluginManifest {
         id: config.id,
         name: config.name,
@@ -160,7 +152,33 @@ pub async fn load_plugin_from_dir(path: &Path, interpreter_override: Option<Stri
         color: config.color,
         icon: config.icon,
         settings: config.settings,
+        ui_extensions: config.ui_extensions,
     };
+
+    // UI-only plugins (no executable) register only their manifest.
+    let executable = match config.executable {
+        Some(ref e) => e.clone(),
+        None => {
+            log::info!("Plugin '{}' has no executable — loaded as UI-only plugin", manifest.id);
+            crate::drivers::registry::register_manifest(manifest).await;
+            return Ok(());
+        }
+    };
+
+    let mut exec_path = path.join(&executable);
+    if !exec_path.exists() {
+        // On Windows, try appending .exe if the manifest omits it
+        if cfg!(windows) {
+            let with_exe = path.join(format!("{}.exe", executable));
+            if with_exe.exists() {
+                exec_path = with_exe;
+            } else {
+                return Err(format!("Plugin executable not found: {:?}", exec_path));
+            }
+        } else {
+            return Err(format!("Plugin executable not found: {:?}", exec_path));
+        }
+    }
 
     let interpreter = interpreter_override
         .or(config.interpreter)

@@ -1247,6 +1247,7 @@ impl PostgresDriver {
                 color: "#3b82f6".to_string(),
                 icon: "postgres".to_string(),
                 settings: vec![],
+                ui_extensions: None,
             },
         }
     }

@@ -6,7 +6,7 @@
  */
 
 // Plugin hooks
-export { usePluginQuery, usePluginConnection, usePluginToast, usePluginSetting, usePluginTheme } from "./hooks/usePluginApi";
+export { usePluginQuery, usePluginConnection, usePluginToast, usePluginSetting, usePluginTheme, usePluginTranslation } from "./hooks/usePluginApi";
 
 // Types
 export type { SlotComponentProps, SlotContext, SlotName } from "./types/pluginSlots";

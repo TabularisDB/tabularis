@@ -1,6 +1,7 @@
 import { useState, useCallback, useContext, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
+import { useTranslation } from "react-i18next";
 
 import { ThemeContext } from "../contexts/ThemeContext";
 import { DatabaseContext } from "../contexts/DatabaseContext";
@@ -116,6 +117,16 @@ export function usePluginSetting(pluginId: string) {
   );
 
   return { getSetting, setSetting };
+}
+
+/**
+ * Hook for plugin components to access their own translations.
+ * Uses the plugin ID as the i18next namespace, which must be pre-loaded
+ * by the Tabularis plugin loader before the component mounts.
+ */
+export function usePluginTranslation(pluginId: string) {
+  const { t } = useTranslation(pluginId);
+  return t;
 }
 
 /**

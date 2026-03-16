@@ -7,8 +7,13 @@ use tokio::sync::RwLock;
 use super::driver_trait::{DatabaseDriver, PluginManifest};
 
 type Registry = Arc<RwLock<HashMap<String, Arc<dyn DatabaseDriver>>>>;
+type ManifestRegistry = Arc<RwLock<HashMap<String, PluginManifest>>>;
 
 static REGISTRY: Lazy<Registry> =
+    Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
+
+/// Stores manifests for UI-only plugins (no executable/driver process).
+static MANIFEST_REGISTRY: Lazy<ManifestRegistry> =
     Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
 
 /// Register a driver. Called once at application startup for each built-in
@@ -43,12 +48,34 @@ pub async fn unregister_driver(id: &str) -> bool {
     }
 }
 
-/// Returns the manifests of all registered drivers, sorted by id.
+/// Register the manifest of a UI-only plugin (no driver process).
+pub async fn register_manifest(manifest: PluginManifest) {
+    let id = manifest.id.clone();
+    log::info!("Registering UI-only plugin manifest: {}", id);
+    let mut reg = MANIFEST_REGISTRY.write().await;
+    reg.insert(id, manifest);
+}
+
+/// Unregister a UI-only plugin manifest by id.
+pub async fn unregister_manifest(id: &str) -> bool {
+    let mut reg = MANIFEST_REGISTRY.write().await;
+    let removed = reg.remove(id).is_some();
+    if removed {
+        log::info!("Unregistered UI-only plugin manifest: {}", id);
+    }
+    removed
+}
+
+/// Returns the manifests of all registered drivers (including UI-only plugins), sorted by id.
 /// Called by the `get_registered_drivers` Tauri command.
 pub async fn list_drivers() -> Vec<PluginManifest> {
     let reg = REGISTRY.read().await;
-    let mut manifests: Vec<PluginManifest> =
-        reg.values().map(|d| d.manifest().clone()).collect();
+    let manifest_reg = MANIFEST_REGISTRY.read().await;
+    let mut manifests: Vec<PluginManifest> = reg
+        .values()
+        .map(|d| d.manifest().clone())
+        .chain(manifest_reg.values().cloned())
+        .collect();
     manifests.sort_by(|a, b| a.id.cmp(&b.id));
     manifests
 }

@@ -878,6 +878,7 @@ impl SqliteDriver {
                 color: "#06b6d4".to_string(),
                 icon: "sqlite".to_string(),
                 settings: vec![],
+                ui_extensions: None,
             },
         }
     }
