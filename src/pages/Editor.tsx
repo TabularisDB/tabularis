@@ -39,6 +39,7 @@ import {
   BookOpen,
   Hash,
   Loader2,
+  Copy,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -209,6 +210,9 @@ export const Editor = () => {
   const [tempPage, setTempPage] = useState("1");
   const [isCountLoading, setIsCountLoading] = useState(false);
   const [applyToAll, setApplyToAll] = useState(false);
+  const [copyFormat, setCopyFormat] = useState<"csv" | "json">(
+    settings.copyFormat ?? "csv",
+  );
 
   const activeTabType = activeTab?.type;
   const activeTabQuery = activeTab?.query;
@@ -2152,6 +2156,24 @@ export const Editor = () => {
                       </button>
                     </div>
 
+                    <div className="w-[1px] h-4 bg-surface-secondary mx-1"></div>
+
+                    <div className="flex items-center gap-1.5 text-secondary">
+                      <Copy size={13} className="shrink-0" />
+                      <select
+                        value={copyFormat}
+                        onChange={(e) =>
+                          setCopyFormat(e.target.value as "csv" | "json")
+                        }
+                        className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium uppercase tracking-wide"
+                        title={t("settings.copyFormat")}
+                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right center' }}
+                      >
+                        <option value="csv">CSV</option>
+                        <option value="json">JSON</option>
+                      </select>
+                    </div>
+
                     {/* Separator */}
                     {hasPendingChanges && (
                       <div className="w-[1px] h-4 bg-surface-secondary mx-1"></div>
@@ -2224,6 +2246,7 @@ export const Editor = () => {
                     onMarkForDeletion={handleMarkForDeletion}
                     selectedRows={new Set(activeTab.selectedRows || [])}
                     onSelectionChange={handleSelectionChange}
+                    copyFormat={copyFormat}
                     sortClause={activeTab.sortClause}
                     onSort={activeTab.type === "table" && (activeTab.result?.rows.length ?? 0) > 0 ? handleSort : undefined}
                   />

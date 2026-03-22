@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { 
-  rowToTSV, 
-  rowsToTSV, 
+import {
+  rowToTSV,
+  rowsToTSV,
+  rowToJSON,
+  rowsToJSON,
   getSelectedRows,
-  copyTextToClipboard 
+  copyTextToClipboard
 } from '../../src/utils/clipboard';
 
 describe('clipboard utils', () => {
@@ -80,6 +82,72 @@ describe('clipboard utils', () => {
         [2, 'value']
       ];
       expect(rowsToTSV(rows, 'NULL')).toBe('1\tNULL\n2\tvalue');
+    });
+  });
+
+  describe('rowToJSON', () => {
+    it('should convert a row to a JSON object string', () => {
+      const row = [1, 'John Doe', 'john@example.com'];
+      const columns = ['id', 'name', 'email'];
+      expect(rowToJSON(row, columns)).toBe('{"id":1,"name":"John Doe","email":"john@example.com"}');
+    });
+
+    it('should handle null values', () => {
+      const row = [1, null, 'test'];
+      const columns = ['id', 'name', 'value'];
+      expect(rowToJSON(row, columns)).toBe('{"id":1,"name":null,"value":"test"}');
+    });
+
+    it('should handle undefined values as null', () => {
+      const row = [1, undefined];
+      const columns = ['id', 'name'];
+      expect(rowToJSON(row, columns)).toBe('{"id":1,"name":null}');
+    });
+
+    it('should handle boolean values', () => {
+      const row = [true, false];
+      const columns = ['active', 'deleted'];
+      expect(rowToJSON(row, columns)).toBe('{"active":true,"deleted":false}');
+    });
+
+    it('should handle object values', () => {
+      const row = [1, { nested: 'value' }];
+      const columns = ['id', 'data'];
+      expect(rowToJSON(row, columns)).toBe('{"id":1,"data":{"nested":"value"}}');
+    });
+
+    it('should handle empty row', () => {
+      expect(rowToJSON([], [])).toBe('{}');
+    });
+  });
+
+  describe('rowsToJSON', () => {
+    it('should convert multiple rows to a JSON array string', () => {
+      const rows = [
+        [1, 'Alice'],
+        [2, 'Bob'],
+      ];
+      const columns = ['id', 'name'];
+      expect(rowsToJSON(rows, columns)).toBe('[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]');
+    });
+
+    it('should handle single row', () => {
+      const rows = [[1, 'test']];
+      const columns = ['id', 'value'];
+      expect(rowsToJSON(rows, columns)).toBe('[{"id":1,"value":"test"}]');
+    });
+
+    it('should handle empty rows array', () => {
+      expect(rowsToJSON([], ['id'])).toBe('[]');
+    });
+
+    it('should handle null values in rows', () => {
+      const rows = [
+        [1, null],
+        [2, 'value'],
+      ];
+      const columns = ['id', 'name'];
+      expect(rowsToJSON(rows, columns)).toBe('[{"id":1,"name":null},{"id":2,"name":"value"}]');
     });
   });
 

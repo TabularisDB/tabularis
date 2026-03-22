@@ -1081,6 +1081,39 @@ export const Settings = () => {
                       </span>
                     </div>
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-1">
+                      {t("settings.copyFormat")}
+                    </label>
+                    <p className="text-xs text-muted mb-3">
+                      {t("settings.copyFormatDesc")}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => updateSetting("copyFormat", "csv")}
+                        className={clsx(
+                          "px-4 py-2 rounded-lg text-sm font-medium transition-all border",
+                          (settings.copyFormat ?? DEFAULT_SETTINGS.copyFormat) === "csv"
+                            ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20"
+                            : "bg-base border-default text-muted hover:border-strong hover:text-primary",
+                        )}
+                      >
+                        CSV
+                      </button>
+                      <button
+                        onClick={() => updateSetting("copyFormat", "json")}
+                        className={clsx(
+                          "px-4 py-2 rounded-lg text-sm font-medium transition-all border",
+                          (settings.copyFormat ?? DEFAULT_SETTINGS.copyFormat) === "json"
+                            ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20"
+                            : "bg-base border-default text-muted hover:border-strong hover:text-primary",
+                        )}
+                      >
+                        JSON
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 

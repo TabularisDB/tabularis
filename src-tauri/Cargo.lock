@@ -5925,7 +5925,7 @@ dependencies = [
 
 [[package]]
 name = "tabularis"
-version = "0.9.9"
+version = "0.9.10"
 dependencies = [
  "async-trait",
  "base64 0.22.1",

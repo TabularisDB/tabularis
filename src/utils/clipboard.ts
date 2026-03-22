@@ -12,6 +12,26 @@ export function rowsToTSV(rows: unknown[][], nullLabel: string = "null"): string
     .join("\n");
 }
 
+export function rowToJSON(row: unknown[], columns: string[]): string {
+  const obj: Record<string, unknown> = {};
+  columns.forEach((col, i) => {
+    obj[col] = row[i] ?? null;
+  });
+  return JSON.stringify(obj);
+}
+
+export function rowsToJSON(rows: unknown[][], columns: string[]): string {
+  return JSON.stringify(
+    rows.map((row) => {
+      const obj: Record<string, unknown> = {};
+      columns.forEach((col, i) => {
+        obj[col] = row[i] ?? null;
+      });
+      return obj;
+    }),
+  );
+}
+
 export function getSelectedRows(
   data: unknown[][],
   selectedIndices: Set<number>
