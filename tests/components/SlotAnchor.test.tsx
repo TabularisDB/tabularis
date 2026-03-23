@@ -2,8 +2,15 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { PluginSlotProvider } from "../../src/contexts/PluginSlotProvider";
 import { PluginSlotContext } from "../../src/contexts/PluginSlotContext";
+import { SettingsContext, DEFAULT_SETTINGS } from "../../src/contexts/SettingsContext";
 import { SlotAnchor } from "../../src/components/ui/SlotAnchor";
 import type { SlotComponentProps } from "../../src/types/pluginSlots";
+
+const settingsValue = {
+  settings: DEFAULT_SETTINGS,
+  updateSetting: () => {},
+  isLoading: false,
+};
 
 const GoodPlugin = ({ pluginId }: SlotComponentProps) => (
   <span data-testid="good-plugin">{pluginId}</span>
@@ -16,9 +23,11 @@ const CrashingPlugin = () => {
 describe("SlotAnchor", () => {
   it("should render nothing when no contributions exist", () => {
     const { container } = render(
-      <PluginSlotProvider>
-        <SlotAnchor name="sidebar.footer.actions" context={{}} />
-      </PluginSlotProvider>,
+      <SettingsContext.Provider value={settingsValue}>
+        <PluginSlotProvider>
+          <SlotAnchor name="sidebar.footer.actions" context={{}} />
+        </PluginSlotProvider>
+      </SettingsContext.Provider>,
     );
 
     expect(container.innerHTML).toBe("");

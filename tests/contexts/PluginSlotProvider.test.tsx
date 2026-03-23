@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, act } from "@testing-library/react";
 import { useContext } from "react";
 import { PluginSlotProvider } from "../../src/contexts/PluginSlotProvider";
 import { PluginSlotContext } from "../../src/contexts/PluginSlotContext";
+import { SettingsContext, DEFAULT_SETTINGS } from "../../src/contexts/SettingsContext";
 import type { PluginSlotRegistryType } from "../../src/contexts/PluginSlotContext";
 import type { SlotContribution, SlotComponentProps } from "../../src/types/pluginSlots";
-import { builtinPluginContributions } from "../../src/plugins/examples";
 
 const TestComponent = ({ context: _ctx, pluginId }: SlotComponentProps) => (
   <span data-testid="slot-component">{pluginId}</span>
@@ -17,25 +17,37 @@ function RegistryConsumer({ onRegistry }: { onRegistry: (r: PluginSlotRegistryTy
   return null;
 }
 
+const settingsValue = {
+  settings: DEFAULT_SETTINGS,
+  updateSetting: () => {},
+  isLoading: false,
+};
+
+const renderWithSettings = (ui: React.ReactNode) =>
+  render(
+    <SettingsContext.Provider value={settingsValue}>
+      {ui}
+    </SettingsContext.Provider>,
+  );
+
 describe("PluginSlotProvider", () => {
-  it("should provide a registry with builtin contributions initially", () => {
+  it("should provide a registry with no contributions initially", () => {
     let registry: PluginSlotRegistryType | undefined;
 
-    render(
+    renderWithSettings(
       <PluginSlotProvider>
         <RegistryConsumer onRegistry={(r) => { registry = r; }} />
       </PluginSlotProvider>,
     );
 
     expect(registry).toBeDefined();
-    expect(registry!.contributions).toHaveLength(builtinPluginContributions.length);
+    expect(registry!.contributions).toHaveLength(0);
   });
 
   it("should register and unregister a contribution", () => {
     let registry: PluginSlotRegistryType | undefined;
-    const builtinCount = builtinPluginContributions.length;
 
-    const { rerender } = render(
+    const { rerender } = renderWithSettings(
       <PluginSlotProvider>
         <RegistryConsumer onRegistry={(r) => { registry = r; }} />
       </PluginSlotProvider>,
@@ -54,30 +66,34 @@ describe("PluginSlotProvider", () => {
     });
 
     rerender(
-      <PluginSlotProvider>
-        <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-      </PluginSlotProvider>,
+      <SettingsContext.Provider value={settingsValue}>
+        <PluginSlotProvider>
+          <RegistryConsumer onRegistry={(r) => { registry = r; }} />
+        </PluginSlotProvider>
+      </SettingsContext.Provider>,
     );
 
-    expect(registry!.contributions).toHaveLength(builtinCount + 1);
+    expect(registry!.contributions).toHaveLength(1);
 
     act(() => {
       unregister!();
     });
 
     rerender(
-      <PluginSlotProvider>
-        <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-      </PluginSlotProvider>,
+      <SettingsContext.Provider value={settingsValue}>
+        <PluginSlotProvider>
+          <RegistryConsumer onRegistry={(r) => { registry = r; }} />
+        </PluginSlotProvider>
+      </SettingsContext.Provider>,
     );
 
-    expect(registry!.contributions).toHaveLength(builtinCount);
+    expect(registry!.contributions).toHaveLength(0);
   });
 
   it("should getSlotContributions filtered by slot name and sorted by order", () => {
     let registry: PluginSlotRegistryType | undefined;
 
-    const { rerender } = render(
+    const { rerender } = renderWithSettings(
       <PluginSlotProvider>
         <RegistryConsumer onRegistry={(r) => { registry = r; }} />
       </PluginSlotProvider>,
@@ -92,9 +108,11 @@ describe("PluginSlotProvider", () => {
     });
 
     rerender(
-      <PluginSlotProvider>
-        <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-      </PluginSlotProvider>,
+      <SettingsContext.Provider value={settingsValue}>
+        <PluginSlotProvider>
+          <RegistryConsumer onRegistry={(r) => { registry = r; }} />
+        </PluginSlotProvider>
+      </SettingsContext.Provider>,
     );
 
     const sidebarSlots = registry!.getSlotContributions("sidebar.footer.actions", {});
@@ -110,7 +128,7 @@ describe("PluginSlotProvider", () => {
   it("should filter contributions by when predicate", () => {
     let registry: PluginSlotRegistryType | undefined;
 
-    const { rerender } = render(
+    const { rerender } = renderWithSettings(
       <PluginSlotProvider>
         <RegistryConsumer onRegistry={(r) => { registry = r; }} />
       </PluginSlotProvider>,
@@ -133,9 +151,11 @@ describe("PluginSlotProvider", () => {
     });
 
     rerender(
-      <PluginSlotProvider>
-        <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-      </PluginSlotProvider>,
+      <SettingsContext.Provider value={settingsValue}>
+        <PluginSlotProvider>
+          <RegistryConsumer onRegistry={(r) => { registry = r; }} />
+        </PluginSlotProvider>
+      </SettingsContext.Provider>,
     );
 
     const withPostgres = registry!.getSlotContributions("sidebar.footer.actions", { driver: "postgres" });
@@ -148,9 +168,8 @@ describe("PluginSlotProvider", () => {
 
   it("should registerAll and unregister all at once", () => {
     let registry: PluginSlotRegistryType | undefined;
-    const builtinCount = builtinPluginContributions.length;
 
-    const { rerender } = render(
+    const { rerender } = renderWithSettings(
       <PluginSlotProvider>
         <RegistryConsumer onRegistry={(r) => { registry = r; }} />
       </PluginSlotProvider>,
@@ -165,23 +184,27 @@ describe("PluginSlotProvider", () => {
     });
 
     rerender(
-      <PluginSlotProvider>
-        <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-      </PluginSlotProvider>,
+      <SettingsContext.Provider value={settingsValue}>
+        <PluginSlotProvider>
+          <RegistryConsumer onRegistry={(r) => { registry = r; }} />
+        </PluginSlotProvider>
+      </SettingsContext.Provider>,
     );
 
-    expect(registry!.contributions).toHaveLength(builtinCount + 2);
+    expect(registry!.contributions).toHaveLength(2);
 
     act(() => {
       unregisterAll!();
     });
 
     rerender(
-      <PluginSlotProvider>
-        <RegistryConsumer onRegistry={(r) => { registry = r; }} />
-      </PluginSlotProvider>,
+      <SettingsContext.Provider value={settingsValue}>
+        <PluginSlotProvider>
+          <RegistryConsumer onRegistry={(r) => { registry = r; }} />
+        </PluginSlotProvider>
+      </SettingsContext.Provider>,
     );
 
-    expect(registry!.contributions).toHaveLength(builtinCount);
+    expect(registry!.contributions).toHaveLength(0);
   });
 });

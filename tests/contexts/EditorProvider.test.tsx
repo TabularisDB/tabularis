@@ -77,6 +77,7 @@ describe("EditorProvider", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === "load_editor_preferences") return Promise.resolve(null);
       if (cmd === "get_schema_snapshot") return Promise.resolve(mockSchema);
       return Promise.reject(new Error(`Unexpected command: ${cmd}`));
     });
