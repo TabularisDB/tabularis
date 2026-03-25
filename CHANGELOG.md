@@ -1,3 +1,14 @@
+## [0.9.11](https://github.com/debba/tabularis/compare/v0.9.10...v0.9.11) (2026-03-25)
+
+
+### Features
+
+* add Chinese (Simplified) language support ([fc8c6b9](https://github.com/debba/tabularis/commit/fc8c6b923bb06112c3b90aea8465ab435ed4597c))
+* **console:** enable inline editing for single-table query results ([a9ceb74](https://github.com/debba/tabularis/commit/a9ceb74e2c9c5e243e7a34eb6ab1ed2e4bcd2bb1))
+* **copy:** add JSON copy format and selectable default ([594cb8c](https://github.com/debba/tabularis/commit/594cb8c5e6e17bc312f975ce404109d3e62245f9))
+* **export:** add configurable CSV delimiter for copy and export ([5e20c6a](https://github.com/debba/tabularis/commit/5e20c6a479721f831d9a7f4798eaf3cbb91235fb))
+* **postgres:** support array types and JSON-to-ARRAY literals ([9ab2c37](https://github.com/debba/tabularis/commit/9ab2c37f78ce4afea3555ceb9e7cf52d81f387a0))
+
 ## [0.9.10](https://github.com/debba/tabularis/compare/v0.9.9...v0.9.10) (2026-03-18)
 
 

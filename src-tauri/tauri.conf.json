@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "tabularis",
-  "version": "0.9.10",
+  "version": "0.9.11",
   "identifier": "tabularis",
   "build": {
     "frontendDist": "../dist",
