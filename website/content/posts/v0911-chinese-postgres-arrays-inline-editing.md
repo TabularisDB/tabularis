@@ -8,7 +8,7 @@ og:
   title: "v0.9.11: 你好 Tabularis"
   accent: "Chinese Support."
   claim: "Chinese (Simplified), PostgreSQL arrays, inline editing, configurable exports."
-  image: "/img/tabularis-plugin-manager.png"
+  image: "/img/tabularis-localization-settings.png"
 ---
 
 # v0.9.11: 你好 Tabularis
