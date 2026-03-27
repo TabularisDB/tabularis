@@ -198,8 +198,9 @@ async fn export_table_data(
 
             let pool = get_postgres_pool(params).await?;
             let client = pool.get().await.map_err(|e| e.to_string())?;
+            let params: Vec<i32> = vec![];
             let mut rows = std::pin::pin!(client
-                .query_raw(&query, &[])
+                .query_raw(&query, &params)
                 .await
                 .map_err(|e| e.to_string())?);
 
