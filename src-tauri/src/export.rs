@@ -59,7 +59,7 @@ macro_rules! export_rows {
                 }
 
                 let record: Vec<String> = (0..row.columns().len())
-                    .map(|i| value_to_string($extract_fn(&row, i)))
+                    .map(|i| value_to_string($extract_fn(&row, i, None)))
                     .collect();
                 csv_wtr.write_record(&record).map_err(|e| e.to_string())?;
 
@@ -86,7 +86,7 @@ macro_rules! export_rows {
                 let mut obj = serde_json::Map::new();
                 for i in 0..row.columns().len() {
                     let name = row.column(i).name().to_string();
-                    let val = $extract_fn(&row, i);
+                    let val = $extract_fn(&row, i, None);
                     obj.insert(name, val);
                 }
                 serde_json::to_writer(&mut writer, &obj).map_err(|e| e.to_string())?;

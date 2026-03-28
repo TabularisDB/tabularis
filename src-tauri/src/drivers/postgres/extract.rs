@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::drivers::common::encode_blob;
 
 /// Extract value from PostgreSQL row
-pub fn extract_value(row: &sqlx::postgres::PgRow, index: usize) -> serde_json::Value {
+pub fn extract_value(row: &sqlx::postgres::PgRow, index: usize, _known_type: Option<&str>) -> serde_json::Value {
     use sqlx::ValueRef;
 
     // Check for NULL first

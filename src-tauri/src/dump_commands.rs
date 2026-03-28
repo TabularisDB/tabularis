@@ -171,7 +171,7 @@ async fn export_table_data(
             while let Some(row) = rows.try_next().await.map_err(|e| e.to_string())? {
                 let mut values = Vec::new();
                 for i in 0..row.columns().len() {
-                    let val = extract_value(&row, i);
+                    let val = extract_value(&row, i, None);
                     values.push(escape_sql_value(val));
                 }
                 batch.push(format!("({})", values.join(", ")));
@@ -206,7 +206,7 @@ async fn export_table_data(
             while let Some(row) = rows.try_next().await.map_err(|e| e.to_string())? {
                 let mut values = Vec::new();
                 for i in 0..row.columns().len() {
-                    let val = extract_value(&row, i);
+                    let val = extract_value(&row, i, None);
                     values.push(escape_sql_value(val));
                 }
                 batch.push(format!("({})", values.join(", ")));
@@ -241,7 +241,7 @@ async fn export_table_data(
             while let Some(row) = rows.try_next().await.map_err(|e| e.to_string())? {
                 let mut values = Vec::new();
                 for i in 0..row.columns().len() {
-                    let val = extract_value(&row, i);
+                    let val = extract_value(&row, i, None);
                     values.push(escape_sql_value(val));
                 }
                 batch.push(format!("({})", values.join(", ")));

@@ -6,13 +6,23 @@ use uuid::Uuid;
 use crate::drivers::common::encode_blob;
 
 /// Extract value from MySQL row - supports all MySQL types including unsigned integers and geometry
-pub fn extract_value(row: &sqlx::mysql::MySqlRow, index: usize) -> serde_json::Value {
+pub fn extract_value(
+    row: &sqlx::mysql::MySqlRow,
+    index: usize,
+    known_type: Option<&str>,
+) -> serde_json::Value {
     use sqlx::{Column, TypeInfo, ValueRef};
 
     // Get column info
     let col = row.columns().get(index);
     let col_name = col.map(|c| c.name()).unwrap_or("unknown");
     let col_type = col.map(|c| c.type_info().name()).unwrap_or("unknown");
+
+    // Prefer the known type from information_schema (accurate) over sqlx's TypeInfo
+    // which can misreport LONGTEXT as BLOB due to shared MySQL wire protocol type codes.
+    let effective_type = known_type
+        .map(|t| t.to_uppercase())
+        .unwrap_or_else(|| col_type.to_uppercase());
 
     // Get the raw value to check if it's NULL
     let value_ref = row.try_get_raw(index).ok();
@@ -23,7 +33,7 @@ pub fn extract_value(row: &sqlx::mysql::MySqlRow, index: usize) -> serde_json::V
     }
 
     // DECIMAL/NUMERIC optimization
-    if col_type == "DECIMAL" || col_type == "NEWDECIMAL" || col_type == "NUMERIC" {
+    if effective_type == "DECIMAL" || effective_type == "NEWDECIMAL" || effective_type == "NUMERIC" {
         if let Ok(v) = row.try_get::<Decimal, _>(index) {
             return serde_json::Value::String(v.to_string());
         }
@@ -34,7 +44,7 @@ pub fn extract_value(row: &sqlx::mysql::MySqlRow, index: usize) -> serde_json::V
     }
 
     // For TIMESTAMP/DATETIME, try all possible representations
-    if col_type == "TIMESTAMP" || col_type == "DATETIME" {
+    if effective_type == "TIMESTAMP" || effective_type == "DATETIME" {
         // Try chrono types
         match row.try_get::<NaiveDateTime, _>(index) {
             Ok(v) => {
@@ -80,12 +90,21 @@ pub fn extract_value(row: &sqlx::mysql::MySqlRow, index: usize) -> serde_json::V
     // fits within 65 535 bytes are returned as plain strings so that small
     // fixed-size values (e.g. UUIDs stored as VARBINARY(36)) remain readable.
     // This threshold mirrors BLOB_TEXT_LENGTH_THRESHOLD on the frontend.
-    if col_type.contains("BLOB") || col_type.contains("BINARY") {
+    if effective_type.contains("BLOB") || effective_type.contains("BINARY") {
         match row.try_get::<Vec<u8>, _>(index) {
             Ok(v) => {
                 let is_variable_or_fixed_binary =
-                    col_type.contains("VARBINARY") || col_type == "BINARY";
+                    effective_type.contains("VARBINARY") || effective_type == "BINARY";
                 if is_variable_or_fixed_binary && v.len() <= 65_535 {
+                    if let Ok(s) = String::from_utf8(v.clone()) {
+                        return serde_json::Value::String(s);
+                    }
+                }
+                // Heuristic: when no known_type is provided, sqlx may misreport
+                // TEXT types (LONGTEXT, MEDIUMTEXT, etc.) as BLOB because the MySQL
+                // wire protocol shares type codes. If the data is valid UTF-8, treat
+                // it as text rather than encoding as BLOB wire format.
+                if known_type.is_none() {
                     if let Ok(s) = String::from_utf8(v.clone()) {
                         return serde_json::Value::String(s);
                     }
@@ -105,7 +124,7 @@ pub fn extract_value(row: &sqlx::mysql::MySqlRow, index: usize) -> serde_json::V
     }
 
     // For TEXT types (TINYTEXT, TEXT, MEDIUMTEXT, LONGTEXT), try string first
-    if col_type.contains("TEXT") {
+    if effective_type.contains("TEXT") {
         match row.try_get::<String, _>(index) {
             Ok(v) => {
                 return serde_json::Value::String(v);
@@ -131,7 +150,7 @@ pub fn extract_value(row: &sqlx::mysql::MySqlRow, index: usize) -> serde_json::V
     }
 
     // For JSON type, decode as serde_json::Value (requires sqlx "json" feature)
-    if col_type == "JSON" {
+    if effective_type == "JSON" {
         if let Ok(v) = row.try_get::<serde_json::Value, _>(index) {
             return v;
         }
@@ -152,11 +171,11 @@ pub fn extract_value(row: &sqlx::mysql::MySqlRow, index: usize) -> serde_json::V
     }
 
     // For GEOMETRY types (GEOMETRY, POINT, LINESTRING, POLYGON, etc.), extract as WKB binary and encode
-    if col_type == "GEOMETRY"
-        || col_type.contains("POINT")
-        || col_type.contains("LINESTRING")
-        || col_type.contains("POLYGON")
-        || col_type.contains("COLLECTION")
+    if effective_type == "GEOMETRY"
+        || effective_type.contains("POINT")
+        || effective_type.contains("LINESTRING")
+        || effective_type.contains("POLYGON")
+        || effective_type.contains("COLLECTION")
     {
         // Use try_get_raw() to get the raw bytes since sqlx doesn't allow Vec<u8> for GEOMETRY
         match row.try_get_raw(index) {
