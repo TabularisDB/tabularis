@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { MainLayout } from "./components/layout/MainLayout";
 import { ConnectionLayoutProvider } from "./contexts/ConnectionLayoutProvider";
 import { KeybindingsProvider } from "./contexts/KeybindingsProvider";
+import { AlertProvider } from "./contexts/AlertProvider";
 import { Connections } from "./pages/Connections";
 import { Editor } from "./pages/Editor";
 import { Settings } from "./pages/Settings";
@@ -56,6 +57,7 @@ export function App() {
 
   return (
     <>
+      <AlertProvider>
       <BrowserRouter>
         <KeybindingsProvider>
         <ConnectionLayoutProvider>
@@ -72,6 +74,7 @@ export function App() {
         </ConnectionLayoutProvider>
         </KeybindingsProvider>
       </BrowserRouter>
+      </AlertProvider>
 
       <UpdateNotificationModal
         isOpen={!!updateInfo}

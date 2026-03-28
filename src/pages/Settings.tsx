@@ -41,7 +41,8 @@ import type { AiProvider, PluginConfig } from "../contexts/SettingsContext";
 import { SUPPORTED_LANGUAGES, type AppLanguage } from "../i18n/config";
 import { DEFAULT_SETTINGS } from "../contexts/SettingsContext";
 import { APP_VERSION } from "../version";
-import { message, ask, save } from "@tauri-apps/plugin-dialog";
+import { ask, save } from "@tauri-apps/plugin-dialog";
+import { useAlert } from "../hooks/useAlert";
 import { AVAILABLE_FONTS, ROADMAP } from "../utils/settings";
 import { getProviderLabel } from "../utils/settingsUI";
 import { useDrivers } from "../hooks/useDrivers";
@@ -136,6 +137,7 @@ function PluginCard({ name, description, version, author, homepage, status, acti
 const LogsTab = () => {
   const { t } = useTranslation();
   const { settings, updateSetting } = useSettings();
+  const { showAlert } = useAlert();
   
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [levelFilter, setLevelFilter] = useState<string>("");
@@ -186,7 +188,7 @@ const LogsTab = () => {
       if (!filePath) return;
 
       await invoke("export_logs", { filePath });
-      await message(t("settings.exportLogsSuccess"), { title: t("common.success"), kind: "info" });
+      showAlert(t("settings.exportLogsSuccess"), { title: t("common.success"), kind: "info" });
     } catch (e) {
       console.error("Failed to export logs", e);
     }
@@ -823,6 +825,7 @@ export const Settings = () => {
   const [explainPrompt, setExplainPrompt] = useState("");
   
   const { currentTheme, allThemes, setTheme } = useTheme();
+  const { showAlert } = useAlert();
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const updateSettingRef = useRef(updateSetting);
@@ -872,13 +875,13 @@ export const Settings = () => {
       const models = await invoke<Record<string, string[]>>("get_ai_models", { forceRefresh: force });
       setAvailableModels(models);
       if (force) {
-          await message(t("settings.ai.refreshSuccess"), { title: t("common.success"), kind: "info" });
+          showAlert(t("settings.ai.refreshSuccess"), { title: t("common.success"), kind: "info" });
       }
     } catch (e) {
       console.error("Failed to load AI models", e);
-      await message(t("settings.ai.refreshError") + ": " + String(e), { title: t("common.error"), kind: "error" });
+      showAlert(t("settings.ai.refreshError") + ": " + String(e), { title: t("common.error"), kind: "error" });
     }
-  }, [t]);
+  }, [t, showAlert]);
   
   const loadSystemPrompt = async () => {
     try {
@@ -901,24 +904,24 @@ export const Settings = () => {
   const handleSavePrompt = async () => {
     try {
       await invoke("save_system_prompt", { prompt: systemPrompt });
-      await message("System prompt saved successfully", {
+      showAlert("System prompt saved successfully", {
         title: "Success",
         kind: "info",
       });
     } catch (e) {
-      await message(String(e), { title: "Error", kind: "error" });
+      showAlert(String(e), { title: "Error", kind: "error" });
     }
   };
 
   const handleSaveExplainPrompt = async () => {
     try {
       await invoke("save_explain_prompt", { prompt: explainPrompt });
-      await message("Explain prompt saved successfully", {
+      showAlert("Explain prompt saved successfully", {
         title: "Success",
         kind: "info",
       });
     } catch (e) {
-      await message(String(e), { title: "Error", kind: "error" });
+      showAlert(String(e), { title: "Error", kind: "error" });
     }
   };
 
@@ -926,12 +929,12 @@ export const Settings = () => {
     try {
       const defaultPrompt = await invoke<string>("reset_system_prompt");
       setSystemPrompt(defaultPrompt);
-      await message("System prompt reset to default", {
+      showAlert("System prompt reset to default", {
         title: "Success",
         kind: "info",
       });
     } catch (e) {
-      await message(String(e), { title: "Error", kind: "error" });
+      showAlert(String(e), { title: "Error", kind: "error" });
     }
   };
 
@@ -939,12 +942,12 @@ export const Settings = () => {
     try {
       const defaultPrompt = await invoke<string>("reset_explain_prompt");
       setExplainPrompt(defaultPrompt);
-      await message("Explain prompt reset to default", {
+      showAlert("Explain prompt reset to default", {
         title: "Success",
         kind: "info",
       });
     } catch (e) {
-      await message(String(e), { title: "Error", kind: "error" });
+      showAlert(String(e), { title: "Error", kind: "error" });
     }
   };
 
@@ -975,12 +978,12 @@ export const Settings = () => {
       await invoke("set_ai_key", { provider, key: keyInput });
       await checkKeys();
       setKeyInput("");
-      await message("API Key saved securely", {
+      showAlert("API Key saved securely", {
         title: "Success",
         kind: "info",
       });
     } catch (e) {
-      await message(String(e), { title: "Error", kind: "error" });
+      showAlert(String(e), { title: "Error", kind: "error" });
     }
   };
 
@@ -1552,9 +1555,9 @@ export const Settings = () => {
                                                 try {
                                                     await invoke("delete_ai_key", { provider: settings.aiProvider });
                                                     await checkKeys();
-                                                    await message(t("settings.ai.keyResetSuccess"), { title: t("common.success"), kind: "info" });
+                                                    showAlert(t("settings.ai.keyResetSuccess"), { title: t("common.success"), kind: "info" });
                                                 } catch (e) {
-                                                    await message(String(e), { title: t("common.error"), kind: "error" });
+                                                    showAlert(String(e), { title: t("common.error"), kind: "error" });
                                                 }
                                             }}
                                             className="px-3 py-2 bg-surface-secondary hover:bg-red-900/20 text-secondary hover:text-red-400 border border-strong hover:border-red-900/30 rounded text-sm font-medium transition-colors whitespace-nowrap"

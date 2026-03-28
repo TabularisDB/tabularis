@@ -35,7 +35,8 @@
     "loading": "加载中...",
     "search": "搜索...",
     "error": "错误",
-    "success": "成功"
+    "success": "成功",
+    "ok": "OK"
   },
   "sidebar": {
     "connections": "连接",

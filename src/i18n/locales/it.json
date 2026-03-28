@@ -35,7 +35,8 @@
     "loading": "Caricamento...",
     "search": "Cerca...",
     "error": "Errore",
-    "success": "Successo"
+    "success": "Successo",
+    "ok": "OK"
   },
   "sidebar": {
     "connections": "Connessioni",

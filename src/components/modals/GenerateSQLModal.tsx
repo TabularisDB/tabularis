@@ -5,7 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useDatabase } from "../../hooks/useDatabase";
 import { Modal } from "../ui/Modal";
 import { SqlPreview } from "../ui/SqlPreview";
-import { message } from "@tauri-apps/plugin-dialog";
+import { useAlert } from "../../hooks/useAlert";
 import {
   generateCreateTableSQL,
   type TableColumn,
@@ -26,6 +26,7 @@ export const GenerateSQLModal = ({
 }: GenerateSQLModalProps) => {
   const { t } = useTranslation();
   const { activeConnectionId, activeDriver, activeSchema, activeCapabilities } = useDatabase();
+  const { showAlert } = useAlert();
   const [sql, setSql] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -65,7 +66,7 @@ export const GenerateSQLModal = ({
         setSql(generatedSQL);
       } catch (err) {
         console.error(err);
-        await message(String(err), { title: t("common.error"), kind: "error" });
+        showAlert(String(err), { title: t("common.error"), kind: "error" });
       } finally {
         setLoading(false);
       }

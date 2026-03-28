@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
-import { ask, message } from "@tauri-apps/plugin-dialog";
+import { ask } from "@tauri-apps/plugin-dialog";
+import { useAlert } from "../../../hooks/useAlert";
 import { Key, Columns, Edit, Copy, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { ContextMenu } from "../../ui/ContextMenu";
@@ -30,6 +31,7 @@ export const SidebarColumnItem = ({
   schema,
 }: SidebarColumnItemProps) => {
   const { t } = useTranslation();
+  const { showAlert } = useAlert();
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -65,7 +67,7 @@ export const SidebarColumnItem = ({
         onRefresh();
       } catch (e) {
         console.error(e);
-        await message(t("sidebar.failDeleteColumn") + String(e), {
+        showAlert(t("sidebar.failDeleteColumn") + String(e), {
           title: t("common.error"),
           kind: "error",
         });

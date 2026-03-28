@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Loader2, Eye, AlertCircle, Play } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { message, ask } from "@tauri-apps/plugin-dialog";
+import { ask } from "@tauri-apps/plugin-dialog";
+import { useAlert } from "../../hooks/useAlert";
 import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
 import { useDatabase } from "../../hooks/useDatabase";
 import { Modal } from "../ui/Modal";
@@ -26,6 +27,7 @@ export const ViewEditorModal = ({
 }: ViewEditorModalProps) => {
   const { t } = useTranslation();
   const { activeSchema } = useDatabase();
+  const { showAlert } = useAlert();
   const [name, setName] = useState("");
   const [definition, setDefinition] = useState("");
   const [originalDefinition, setOriginalDefinition] = useState("");
@@ -108,12 +110,12 @@ export const ViewEditorModal = ({
 
   const handleSave = async () => {
     if (!name.trim()) {
-      await message(t("views.nameRequired"), { kind: "error" });
+      showAlert(t("views.nameRequired"), { kind: "error" });
       return;
     }
 
     if (!definition.trim()) {
-      await message(t("views.definitionRequired"), { kind: "error" });
+      showAlert(t("views.definitionRequired"), { kind: "error" });
       return;
     }
 
@@ -128,7 +130,7 @@ export const ViewEditorModal = ({
           definition,
           ...(activeSchema ? { schema: activeSchema } : {}),
         });
-        await message(t("views.createSuccess"), { kind: "info" });
+        showAlert(t("views.createSuccess"), { kind: "info" });
       } else {
         // Check if definition changed
         if (definition !== originalDefinition) {
@@ -148,7 +150,7 @@ export const ViewEditorModal = ({
           definition,
           ...(activeSchema ? { schema: activeSchema } : {}),
         });
-        await message(t("views.alterSuccess"), { kind: "info" });
+        showAlert(t("views.alterSuccess"), { kind: "info" });
       }
 
       onSuccess?.();

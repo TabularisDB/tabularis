@@ -28,7 +28,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Loader2 } from "lucide-react";  // Close icon + loading spinner
 import { invoke } from "@tauri-apps/api/core";  // If using Tauri commands
-import { message } from "@tauri-apps/plugin-dialog";  // For notifications
+import { useAlert } from "../../hooks/useAlert";  // For notifications (showAlert)
 ```
 
 ### 3. Render Pattern

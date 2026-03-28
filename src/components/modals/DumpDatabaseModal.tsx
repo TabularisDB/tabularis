@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
-import { message } from "@tauri-apps/plugin-dialog";
+import { useAlert } from "../../hooks/useAlert";
 import { useDatabase } from "../../hooks/useDatabase";
 import { Modal } from "../ui/Modal";
 import { Loader2, Download, Database, Square, CheckSquare } from "lucide-react";
@@ -30,6 +30,7 @@ export const DumpDatabaseModal = ({
 }: DumpDatabaseModalProps) => {
   const { t } = useTranslation();
   const { activeSchema } = useDatabase();
+  const { showAlert } = useAlert();
   const [includeStructure, setIncludeStructure] = useState(true);
   const [includeData, setIncludeData] = useState(true);
   const [selectedTables, setSelectedTables] = useState<Set<string>>(
@@ -75,7 +76,7 @@ export const DumpDatabaseModal = ({
     );
 
     if (!validation.isValid && validation.errorKey) {
-      await message(t(validation.errorKey), { kind: "error" });
+      showAlert(t(validation.errorKey), { kind: "error" });
       return;
     }
 
@@ -108,12 +109,12 @@ export const DumpDatabaseModal = ({
         ...(activeSchema ? { schema: activeSchema } : {}),
       });
 
-      await message(t("dump.success"), { kind: "info" });
+      showAlert(t("dump.success"), { kind: "info" });
       onClose();
     } catch (e) {
       // Check if it's a cancellation error (optional logic, but usually we just log)
       console.error(e);
-      await message(t("dump.failure") + String(e), { kind: "error" });
+      showAlert(t("dump.failure") + String(e), { kind: "error" });
     } finally {
       setIsExporting(false);
     }
