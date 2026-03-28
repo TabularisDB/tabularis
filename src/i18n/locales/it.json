@@ -35,7 +35,8 @@
     "loading": "Caricamento...",
     "search": "Cerca...",
     "error": "Errore",
-    "success": "Successo"
+    "success": "Successo",
+    "ok": "OK"
   },
   "sidebar": {
     "connections": "Connessioni",
@@ -766,6 +767,12 @@
     "sqlPlaceholder": "ST_GeomFromText('POINT(30 40)', 4326)",
     "wktPlaceholder": "POINT(30 40)",
     "toggleTooltip": "Funzioni SQL"
+  },
+  "jsonInput": {
+    "placeholder": "Inserisci JSON...",
+    "format": "Formatta",
+    "valid": "JSON valido",
+    "invalid": "JSON non valido"
   },
   "rowEditor": {
     "title": "Modifica Riga",

@@ -518,7 +518,12 @@ pub async fn update_record(
         serde_json::Value::Null => {
             qb.push("NULL");
         }
-        _ => return Err("Unsupported Value type".into()),
+        serde_json::Value::Object(_) | serde_json::Value::Array(_) => {
+            let json_str = serde_json::to_string(&new_val).map_err(|e| e.to_string())?;
+            qb.push("CAST(");
+            qb.push_bind(json_str);
+            qb.push(" AS JSON)");
+        }
     }
 
     qb.push(format!(" WHERE `{}` = ", pk_col));
@@ -604,7 +609,12 @@ pub async fn insert_record(
                 serde_json::Value::Null => {
                     separated.push("NULL");
                 }
-                _ => return Err("Unsupported value type".into()),
+                serde_json::Value::Object(_) | serde_json::Value::Array(_) => {
+                    let json_str = serde_json::to_string(&val).map_err(|e| e.to_string())?;
+                    separated.push_unseparated("CAST(");
+                    separated.push_bind_unseparated(json_str);
+                    separated.push_unseparated(" AS JSON)");
+                }
             }
         }
         separated.push_unseparated(")");
@@ -985,7 +995,7 @@ pub async fn execute_query(
                     // Map row using type extraction function
                     let mut json_row = Vec::new();
                     for (i, _) in row.columns().iter().enumerate() {
-                        let val = extract_value(&row, i);
+                        let val = extract_value(&row, i, None);
                         json_row.push(val);
                     }
                     json_rows.push(json_row);

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { message } from "@tauri-apps/plugin-dialog";
+import { useAlert } from "../../hooks/useAlert";
 import { Loader2, Database, X, CheckCircle2, XCircle } from "lucide-react";
 import { formatElapsedTime } from "../../utils/formatTime";
 import { useDatabase } from "../../hooks/useDatabase";
@@ -34,6 +34,7 @@ export const ImportDatabaseModal = ({
 }: ImportDatabaseModalProps) => {
   const { t } = useTranslation();
   const { activeSchema } = useDatabase();
+  const { showAlert } = useAlert();
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,12 +73,12 @@ export const ImportDatabaseModal = ({
       setIsImporting(false);
 
       if (!errorMsg.includes("cancelled")) {
-        await message(t("dump.importFailure") + ": " + errorMsg, {
+        showAlert(t("dump.importFailure") + ": " + errorMsg, {
           kind: "error",
         });
       }
     }
-  }, [connectionId, filePath, activeSchema, onSuccess, onClose, t]);
+  }, [connectionId, filePath, activeSchema, onSuccess, onClose, t, showAlert]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -125,7 +126,7 @@ export const ImportDatabaseModal = ({
 
     try {
       await invoke("cancel_import", { connectionId });
-      await message(t("dump.importCancelled"), { kind: "info" });
+      showAlert(t("dump.importCancelled"), { kind: "info" });
       onClose();
     } catch (e) {
       console.error("Failed to cancel import:", e);

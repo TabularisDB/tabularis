@@ -28,7 +28,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { message } from "@tauri-apps/plugin-dialog";
+import { useAlert } from "../../hooks/useAlert";
 import {
   USE_DEFAULT_SENTINEL,
   formatCellValue,
@@ -43,6 +43,7 @@ import {
 } from "../../utils/dataGrid";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
+import { isJsonColumn } from "../../utils/json";
 import { getDateInputMode } from "../../utils/dateInput";
 import { GeometryInput } from "./GeometryInput";
 import { DateInput } from "./DateInput";
@@ -119,6 +120,7 @@ export const DataGrid = React.memo(
   }: DataGridProps) => {
     const { t } = useTranslation();
     const { activeSchema } = useDatabase();
+    const { showAlert } = useAlert();
 
     const [contextMenu, setContextMenu] = useState<{
       x: number;
@@ -302,6 +304,16 @@ export const DataGrid = React.memo(
         return;
       }
 
+      if (colType && isJsonColumn(colType)) {
+        setSidebarRowData({
+          data: buildRowDataWithPending(mergedRow.rowData, mergedRow.type === "insertion"),
+          rowIndex,
+          focusField: colName,
+        });
+        setSidebarOpen(true);
+        return;
+      }
+
       let editValue = value;
       if (
         colType &&
@@ -401,7 +413,7 @@ export const DataGrid = React.memo(
           if (onRefresh) onRefresh();
         } catch (e) {
           console.error("Update failed:", e);
-          await message(t("dataGrid.updateFailed") + e, {
+          showAlert(t("dataGrid.updateFailed") + e, {
             title: t("common.error"),
             kind: "error",
           });
@@ -739,16 +751,16 @@ export const DataGrid = React.memo(
         try {
           await copyTextToClipboard(text);
           // Optional: show a brief success message
-          // await message(t("dataGrid.copied"), { title: t("common.success"), kind: "info" });
+          // showAlert(t("dataGrid.copied"), { title: t("common.success"), kind: "info" });
         } catch (e) {
           console.error("Copy failed:", e);
-          await message(t("common.error") + ": " + e, {
+          showAlert(t("common.error") + ": " + e, {
             title: t("common.error"),
             kind: "error",
           });
         }
       },
-      [t],
+      [t, showAlert],
     );
 
     const formatRows = useCallback(

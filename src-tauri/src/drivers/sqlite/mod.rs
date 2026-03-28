@@ -575,7 +575,7 @@ pub async fn execute_query(
 
                 let mut json_row = Vec::new();
                 for (i, _) in row.columns().iter().enumerate() {
-                    let val = extract_value(&row, i);
+                    let val = extract_value(&row, i, None);
                     json_row.push(val);
                 }
                 json_rows.push(json_row);

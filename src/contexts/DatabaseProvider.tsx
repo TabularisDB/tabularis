@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
   DatabaseContext,
@@ -81,7 +81,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const activeSchema = activeData?.activeSchema ?? null;
   const selectedSchemas = activeData?.selectedSchemas ?? [];
   const needsSchemaSelection = activeData?.needsSchemaSelection ?? false;
-  const selectedDatabases = activeData?.selectedDatabases ?? [];
+  const selectedDatabases = useMemo(() => activeData?.selectedDatabases ?? [], [activeData?.selectedDatabases]);
   const databaseDataMap = activeData?.databaseDataMap ?? {};
 
   useEffect(() => {

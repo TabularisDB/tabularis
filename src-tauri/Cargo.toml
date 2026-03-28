@@ -28,7 +28,7 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.10.2", features = ["devtools"] }
 tauri-plugin-log = "2"
-sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "mysql", "postgres", "tls-native-tls", "chrono", "uuid", "rust_decimal"] }
+sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "mysql", "postgres", "tls-native-tls", "chrono", "uuid", "rust_decimal", "json"] }
 tokio = { version = "1.49.0", features = ["full"] }
 openssl = { version = "0.10", features = ["vendored"] }
 uuid = { version = "1.20.0", features = ["v4", "serde"] }

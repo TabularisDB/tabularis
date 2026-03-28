@@ -1707,6 +1707,10 @@ pub async fn delete_record<R: Runtime>(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
+    log::info!(
+        "Executing query on connection: {} | Query: DELETE FROM {} WHERE {} = {}",
+        connection_id, table, pk_col, pk_val
+    );
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
@@ -1729,6 +1733,10 @@ pub async fn update_record<R: Runtime>(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
+    log::info!(
+        "Executing query on connection: {} | Query: UPDATE {} SET {} = {} WHERE {} = {}",
+        connection_id, table, col_name, new_val, pk_col, pk_val
+    );
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
@@ -1949,6 +1957,11 @@ pub async fn insert_record<R: Runtime>(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
+    let columns: Vec<&str> = data.keys().map(|k| k.as_str()).collect();
+    log::info!(
+        "Executing query on connection: {} | Query: INSERT INTO {} ({}) VALUES (...)",
+        connection_id, table, columns.join(", ")
+    );
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
@@ -1987,7 +2000,7 @@ pub async fn execute_query<R: Runtime>(
     log::info!(
         "Executing query on connection: {} | Query: {}",
         connection_id,
-        query.chars().take(200).collect::<String>()
+        query
     );
 
     // 1. Sanitize Query (Ignore trailing semicolon + normalize smart quotes)

@@ -59,7 +59,7 @@ macro_rules! export_rows {
                 }
 
                 let record: Vec<String> = (0..row.columns().len())
-                    .map(|i| value_to_string($extract_fn(&row, i)))
+                    .map(|i| value_to_string($extract_fn(&row, i, None)))
                     .collect();
                 csv_wtr.write_record(&record).map_err(|e| e.to_string())?;
 

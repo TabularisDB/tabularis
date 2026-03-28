@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { X, Check, Copy, Cpu, Terminal } from "lucide-react";
-import { message } from "@tauri-apps/plugin-dialog";
+import { useAlert } from "../../hooks/useAlert";
 import Editor from "@monaco-editor/react";
 import { useTheme } from "../../hooks/useTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
@@ -53,6 +53,7 @@ const ClientIcon = ({
 export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
   const { t } = useTranslation();
   const { currentTheme } = useTheme();
+  const { showAlert } = useAlert();
   const [clients, setClients] = useState<McpClientStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedJson, setCopiedJson] = useState(false);
@@ -82,13 +83,7 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
     [selectedClient?.executable_path]
   );
 
-  useEffect(() => {
-    if (isOpen) {
-      loadStatus();
-    }
-  }, [isOpen]);
-
-  const loadStatus = async () => {
+  const loadStatus = useCallback(async () => {
     try {
       setLoading(true);
       const res = await invoke<McpClientStatus[]>("get_mcp_status");
@@ -101,18 +96,24 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedClient]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadStatus();
+    }
+  }, [isOpen, loadStatus]);
 
   const handleInstall = async (clientId: string) => {
     try {
       const clientName = await invoke<string>("install_mcp_config", { clientId });
-      await message(t("mcp.successMsg", { client: clientName }), {
+      showAlert(t("mcp.successMsg", { client: clientName }), {
         kind: "info",
         title: t("mcp.successTitle"),
       });
       await loadStatus();
     } catch (e) {
-      await message(String(e), { kind: "error", title: t("mcp.errorTitle") });
+      showAlert(String(e), { kind: "error", title: t("mcp.errorTitle") });
     }
   };
 

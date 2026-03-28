@@ -3,7 +3,7 @@ use sqlx::Row;
 use crate::drivers::common::encode_blob;
 
 /// Extract value from SQLite row
-pub fn extract_value(row: &sqlx::sqlite::SqliteRow, index: usize) -> serde_json::Value {
+pub fn extract_value(row: &sqlx::sqlite::SqliteRow, index: usize, _known_type: Option<&str>) -> serde_json::Value {
     use sqlx::ValueRef;
 
     // Check for NULL first

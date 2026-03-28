@@ -35,7 +35,8 @@
     "loading": "加载中...",
     "search": "搜索...",
     "error": "错误",
-    "success": "成功"
+    "success": "成功",
+    "ok": "OK"
   },
   "sidebar": {
     "connections": "连接",
@@ -766,6 +767,12 @@
     "sqlPlaceholder": "ST_GeomFromText('POINT(30 40)', 4326)",
     "wktPlaceholder": "POINT(30 40)",
     "toggleTooltip": "SQL 函数"
+  },
+  "jsonInput": {
+    "placeholder": "输入 JSON...",
+    "format": "格式化",
+    "valid": "JSON 格式正确",
+    "invalid": "JSON 格式错误"
   },
   "rowEditor": {
     "title": "编辑行",

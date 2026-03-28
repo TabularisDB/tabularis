@@ -4,8 +4,10 @@ import { Sparkles, Ban, FileDigit } from "lucide-react";
 import { GeometryInput } from "./GeometryInput";
 import { BlobInput } from "./BlobInput";
 import { DateInput } from "./DateInput";
+import { JsonInput } from "./JsonInput";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn } from "../../utils/blob";
+import { isJsonColumn } from "../../utils/json";
 import { getDateInputMode } from "../../utils/dateInput";
 import { USE_DEFAULT_SENTINEL } from "../../utils/dataGrid";
 
@@ -54,6 +56,7 @@ export const FieldEditor: React.FC<FieldEditorProps> = ({
   const { t } = useTranslation();
   const isGeometric = type && isGeometricType(type);
   const isBlob = type && isBlobColumn(type, characterMaximumLength);
+  const isJson = type && isJsonColumn(type);
   const dateMode = type ? getDateInputMode(type) : null;
 
   const defaultPlaceholder = placeholder || t("rowEditor.enterValue");
@@ -94,6 +97,13 @@ export const FieldEditor: React.FC<FieldEditorProps> = ({
         className="w-full bg-transparent text-primary border-none outline-none p-0 m-0 font-mono"
       />
     </div>
+  ) : isJson ? (
+    <JsonInput
+      value={value}
+      onChange={(newValue) => onChange(newValue)}
+      placeholder={defaultPlaceholder}
+      className={className}
+    />
   ) : dateMode ? (
     <DateInput
       value={String(value ?? "")}

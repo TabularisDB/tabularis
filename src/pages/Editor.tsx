@@ -65,7 +65,8 @@ import { formatDuration } from "../utils/formatTime";
 import { SqlEditorWrapper } from "../components/ui/SqlEditorWrapper";
 import { registerSqlAutocomplete } from "../utils/autocomplete";
 import { type OnMount, type Monaco } from "@monaco-editor/react";
-import { save, message } from "@tauri-apps/plugin-dialog";
+import { save } from "@tauri-apps/plugin-dialog";
+import { useAlert } from "../hooks/useAlert";
 import { useDatabase } from "../hooks/useDatabase";
 import { useSavedQueries } from "../hooks/useSavedQueries";
 import { useSettings } from "../hooks/useSettings";
@@ -117,6 +118,7 @@ export const Editor = () => {
   } = useEditor();
   const location = useLocation();
   const { matchesShortcut } = useKeybindings();
+  const { showAlert } = useAlert();
   const navigate = useNavigate();
 
   const [tabContextMenu, setTabContextMenu] = useState<{
@@ -1066,12 +1068,12 @@ export const Editor = () => {
       updateTab(activeTabIdRef.current, updates);
     } catch (err) {
       console.error("Failed to create new row:", err);
-      await message(t("editor.failedCreateRow") + String(err), {
+      showAlert(t("editor.failedCreateRow") + String(err), {
         title: t("general.error"),
         kind: "error",
       });
     }
-  }, [activeConnectionId, activeTab, updateTab, t, settings.resultPageSize, activeSchema]);
+  }, [activeConnectionId, activeTab, updateTab, t, settings.resultPageSize, activeSchema, showAlert]);
 
   const handleSubmitChanges = useCallback(async () => {
     if (
@@ -1179,7 +1181,7 @@ export const Editor = () => {
         }
       } catch (err) {
         console.error("Failed to process insertions:", err);
-        await message(t("editor.failedProcessInsertions") + String(err), {
+        showAlert(t("editor.failedProcessInsertions") + String(err), {
           title: t("common.error"),
           kind: "error",
         });
@@ -1298,12 +1300,12 @@ export const Editor = () => {
     } catch (e) {
       console.error("Batch update failed", e);
       updateActiveTab({ isLoading: false });
-      await message(t("dataGrid.updateFailed") + String(e), {
+      showAlert(t("dataGrid.updateFailed") + String(e), {
         title: t("common.error"),
         kind: "error",
       });
     }
-  }, [activeTab, activeConnectionId, updateActiveTab, runQuery, t, applyToAll, activeSchema]);
+  }, [activeTab, activeConnectionId, updateActiveTab, runQuery, t, applyToAll, activeSchema, activeCapabilities, showAlert]);
 
   const handleParamsSubmit = useCallback(
     (values: Record<string, string>) => {
