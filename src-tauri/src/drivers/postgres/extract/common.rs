@@ -8,7 +8,7 @@ pub fn advance_buf(buf: &mut &[u8], n: usize) -> Result<(), ()> {
     Ok(())
 }
 
-pub fn split_at_value_len<'a>(buf: &mut &'a [u8]) -> Result<&'a [u8], ()> {
+pub fn split_at_value_len<'a>(buf: &mut &'a [u8]) -> Result<Option<&'a [u8]>, ()> {
     let len = i32::from_be_bytes(match buf[..4].try_into() {
         Ok(bytes) => bytes,
         Err(e) => {
@@ -20,13 +20,13 @@ pub fn split_at_value_len<'a>(buf: &mut &'a [u8]) -> Result<&'a [u8], ()> {
     *buf = &buf[4..];
 
     if len < 0 {
-        return Ok(&[]);
+        return Ok(None);
     };
 
     match buf.split_at_checked(len as usize) {
         Some((value_buf, rest)) => {
             *buf = rest;
-            Ok(value_buf)
+            Ok(Some(value_buf))
         }
 
         None => {
