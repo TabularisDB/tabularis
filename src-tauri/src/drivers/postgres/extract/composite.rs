@@ -47,7 +47,7 @@ fn extract_or_fill_nulls_into(
                 map.insert(field.name().to_string(), JsonValue::Null);
 
                 if i + 1 < fields.len() {
-                    // insert the reset of the fields with null values
+                    // insert the rest of the fields with null values
                     fill_nulls(&fields[i + 1..], map);
                     return;
                 }

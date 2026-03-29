@@ -60,7 +60,7 @@ fn try_extract_bound_into(ty: &Type, buf: &mut &[u8], range: &mut String) -> Res
 
     let val = match ty.kind() {
         Kind::Simple => super::simple::extract_or_null(ty, value_buf),
-        Kind::Enum(_variants) => super::r#enum::extract_or_null(&mut value_buf),
+        Kind::Enum(_variants) => super::r#enum::extract_or_null(value_buf),
         Kind::Array(ty) => super::array::extract_or_null(ty, &mut value_buf),
         Kind::Range(_) => JsonValue::Null,      // impossible
         Kind::Multirange(_) => JsonValue::Null, // not allowed by postgres

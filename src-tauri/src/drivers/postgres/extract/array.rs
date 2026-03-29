@@ -120,7 +120,7 @@ fn extract_recursively_or_fill_nulls_into(
 
         false => {
             let len = arr_lengths[depth - 1];
-            for _ in 0..len {
+            for i in 0..len {
                 let mut sub_vec = Vec::with_capacity(len);
                 if let Err(_) = extract_recursively_or_fill_nulls_into(
                     &mut sub_vec,
@@ -129,7 +129,8 @@ fn extract_recursively_or_fill_nulls_into(
                     ty,
                     buf,
                 ) {
-                    fill_nulls(vec, len - 1);
+                    vec.push(JsonValue::Array(sub_vec));
+                    fill_nulls(vec, len - 1 - i);
                     return Err(());
                 }
                 vec.push(JsonValue::Array(sub_vec));
