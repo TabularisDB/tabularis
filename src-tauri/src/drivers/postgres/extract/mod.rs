@@ -1,6 +1,9 @@
 mod array;
 mod common;
 mod composite;
+mod r#enum;
+mod multi_range;
+mod range;
 mod simple;
 
 use serde_json::Value as JsonValue;
@@ -38,14 +41,23 @@ impl<'a> FromSql<'a> for Extractor {
         let mut extractor = Extractor::new();
         extractor.value = match ty.kind() {
             Kind::Simple => simple::extract_or_null(ty, raw),
-            Kind::Domain(ty) => simple::extract_or_null(ty, raw),
+            Kind::Enum(_variants) => r#enum::extract_or_null(raw), // we don't need _variants
             Kind::Array(ty) => {
                 let mut buf = raw;
-                array::extract_or_null(ty, &mut buf).unwrap_or_default()
+                array::extract_or_null(ty, &mut buf)
             }
+            Kind::Range(ty) => {
+                let mut buf = raw;
+                range::extract_or_null(ty, &mut buf)
+            }
+            Kind::Multirange(ty) => {
+                let mut buf = raw;
+                multi_range::extract_or_null(ty, &mut buf)
+            }
+            Kind::Domain(ty) => simple::extract_or_null(ty, raw),
             Kind::Composite(fields) => {
                 let mut buf = raw;
-                composite::extract_or_null(fields, &mut buf).unwrap_or_default()
+                composite::extract_or_null(fields, &mut buf)
             }
             _ => JsonValue::Null, // unsupported
         };
@@ -58,9 +70,6 @@ impl<'a> FromSql<'a> for Extractor {
         true
     }
 }
-
-// #[inline]
-// fn extract_array_into(of: &Type, buf: &mut &[u8], vec: &mut Vec<JsonValue>) {}
 
 // TODO: support the following types
 

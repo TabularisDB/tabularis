@@ -117,7 +117,10 @@ async fn query_all(
     params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
 ) -> Result<Vec<PgRow>, String> {
     let client = get_client(pool).await?;
-    client.query(sql, params).await.map_err(|e| format_pg_error(&e))
+    client
+        .query(sql, params)
+        .await
+        .map_err(|e| format_pg_error(&e))
 }
 
 #[inline]
@@ -127,7 +130,10 @@ async fn query_one(
     params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
 ) -> Result<PgRow, String> {
     let client = get_client(pool).await?;
-    client.query_one(sql, params).await.map_err(|e| format_pg_error(&e))
+    client
+        .query_one(sql, params)
+        .await
+        .map_err(|e| format_pg_error(&e))
 }
 
 #[inline]
@@ -137,7 +143,10 @@ async fn execute(
     params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
 ) -> Result<u64, String> {
     let client = get_client(pool).await?;
-    client.execute(sql, params).await.map_err(|e| format_pg_error(&e))
+    client
+        .execute(sql, params)
+        .await
+        .map_err(|e| format_pg_error(&e))
 }
 
 pub async fn get_schemas(params: &ConnectionParams) -> Result<Vec<String>, String> {
