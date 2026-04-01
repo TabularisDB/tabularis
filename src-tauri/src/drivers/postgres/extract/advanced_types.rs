@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use serde_json::{Number as JsonNumber, Value as JsonValue};
 use tokio_postgres::types::{FromSql, Type};
 
@@ -465,5 +467,229 @@ impl From<Circle> for JsonValue {
             "<({}, {}), {}>",
             value.point.x, value.point.y, value.radius
         ))
+    }
+}
+
+// Network types
+
+pub struct MacAddr {
+    bytes: [u8; 6],
+}
+
+impl<'a> FromSql<'a> for MacAddr {
+    fn from_sql(_ty: &Type, raw: &[u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() != 6 {
+            return Err(format!("expected 6 bytes for MacAddr, got {}", raw.len()).into());
+        }
+        let mut bytes = [0u8; 6];
+        bytes.copy_from_slice(raw);
+        Ok(Self { bytes })
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::MACADDR => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<MacAddr> for JsonValue {
+    #[inline(always)]
+    fn from(value: MacAddr) -> Self {
+        JsonValue::String(format!(
+            "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
+            value.bytes[0],
+            value.bytes[1],
+            value.bytes[2],
+            value.bytes[3],
+            value.bytes[4],
+            value.bytes[5]
+        ))
+    }
+}
+
+pub struct MacAddr8 {
+    bytes: [u8; 8],
+}
+
+impl<'a> FromSql<'a> for MacAddr8 {
+    fn from_sql(_ty: &Type, raw: &[u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() != 8 {
+            return Err(format!("expected 8 bytes for MacAddr8, got {}", raw.len()).into());
+        }
+        let mut bytes = [0u8; 8];
+        bytes.copy_from_slice(raw);
+        Ok(Self { bytes })
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::MACADDR8 => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<MacAddr8> for JsonValue {
+    #[inline(always)]
+    fn from(value: MacAddr8) -> Self {
+        JsonValue::String(format!(
+            "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
+            value.bytes[0],
+            value.bytes[1],
+            value.bytes[2],
+            value.bytes[3],
+            value.bytes[4],
+            value.bytes[5],
+            value.bytes[6],
+            value.bytes[7]
+        ))
+    }
+}
+
+pub struct CidrOrInet {
+    pub addr: IpAddr,
+    pub netmask: u8,
+}
+
+impl<'a> FromSql<'a> for CidrOrInet {
+    fn from_sql(_ty: &Type, raw: &[u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() < 8 {
+            return Err("invalid buffer size".into());
+        }
+
+        let family = raw[0];
+        let netmask = raw[1];
+        // let _is_cidr = raw[2];
+        let len = raw[3];
+
+        match family {
+            2 => {
+                if netmask > 32 {
+                    return Err(
+                        format!("expected IPv4 netmask to be <= 32, got {}", netmask).into(),
+                    );
+                }
+                if len != 4 {
+                    return Err(format!("expected IP4v address length to be 4, got {}", len).into());
+                }
+
+                let octets: [u8; 4] = raw[4..8].try_into().unwrap();
+                let addr = IpAddr::from(octets);
+                Ok(Self { addr, netmask })
+            }
+            3 => {
+                if netmask > 128 {
+                    return Err(
+                        format!("expected IPv6 netmask to be <= 128, got {}", netmask).into(),
+                    );
+                }
+                if len != 16 {
+                    return Err(
+                        format!("expected IP6v address length to be 16, got {}", len).into(),
+                    );
+                };
+                if raw.len() < 20 {
+                    return Err(format!(
+                        "expected IP6v address buffer length to be 20, got {}",
+                        raw.len()
+                    )
+                    .into());
+                }
+
+                let bytes: [u8; 16] = raw[4..20].try_into().unwrap();
+                let addr = IpAddr::from(bytes);
+                Ok(Self { addr, netmask })
+            }
+
+            _ => {
+                return Err(format!(
+                    "expected IP family to be 2 (IPv4) or 3 (IPv6) got {}",
+                    family
+                )
+                .into())
+            }
+        }
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::CIDR | Type::INET => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<CidrOrInet> for JsonValue {
+    #[inline(always)]
+    fn from(value: CidrOrInet) -> Self {
+        JsonValue::String(format!("{}/{}", value.addr, value.netmask))
+    }
+}
+
+pub struct BitOrVarBit {
+    pub bits: String,
+}
+
+impl<'a> FromSql<'a> for BitOrVarBit {
+    fn from_sql(_ty: &Type, raw: &[u8]) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        if raw.len() < 4 {
+            return Err(format!(
+                "expected at least 4 bytes for BIT/VARBIT, got {}",
+                raw.len()
+            )
+            .into());
+        };
+
+        let bits_num = i32::from_be_bytes(raw[..4].try_into().unwrap()) as usize;
+
+        let mut bits_len = bits_num / 8;
+        let remainder = bits_num % 8;
+
+        if remainder > 0 {
+            bits_len += 1;
+        };
+
+        if raw.len() < 4 + bits_len {
+            return Err(format!(
+                "expected at least {} bytes for BIT/VARBIT, got {}",
+                4 + bits_len,
+                raw.len()
+            )
+            .into());
+        };
+
+        if bits_len == 0 {
+            return Ok(Self {
+                bits: String::new(),
+            });
+        }
+
+        let mut bits = String::with_capacity(bits_num);
+
+        for b in raw[4..4 + bits_len - 1].iter() {
+            bits.push_str(&format!("{:08b}", b));
+        }
+
+        let last_byte = format!("{:08b}", raw[4 + bits_len - 1]);
+        // remove padded zeros
+        bits.push_str(&last_byte[..remainder]);
+
+        Ok(Self { bits })
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::BIT | Type::VARBIT => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<BitOrVarBit> for JsonValue {
+    #[inline(always)]
+    fn from(value: BitOrVarBit) -> Self {
+        JsonValue::String(value.bits)
     }
 }
