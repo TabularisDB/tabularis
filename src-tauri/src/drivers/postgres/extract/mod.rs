@@ -1,3 +1,4 @@
+mod advanced_types;
 mod array;
 mod common;
 mod composite;

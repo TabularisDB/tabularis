@@ -1,0 +1,469 @@
+use serde_json::{Number as JsonNumber, Value as JsonValue};
+use tokio_postgres::types::{FromSql, Type};
+
+// System Identifiers & Object References (The "Reg" Types)
+
+macro_rules! u32_wrapper {
+    ($name: ident, $pg_type: ident) => {
+        pub struct $name(u32);
+
+        impl<'a> FromSql<'a> for $name {
+            fn from_sql(
+                ty: &Type,
+                raw: &[u8],
+            ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+                Ok(Self(<u32 as FromSql>::from_sql(ty, raw)?))
+            }
+
+            fn accepts(ty: &Type) -> bool {
+                match *ty {
+                    Type::$pg_type => true,
+                    _ => false,
+                }
+            }
+        }
+
+        impl From<$name> for JsonValue {
+            #[inline(always)]
+            fn from(value: $name) -> Self {
+                JsonValue::Number(JsonNumber::from(value.0))
+            }
+        }
+    };
+}
+
+u32_wrapper!(Xid, XID);
+u32_wrapper!(Cid, CID);
+
+// NOTE:
+// These are all literally just Oids under the hood and we should get the name of the object
+// from the database but we can't do that from here so instead we just return the Oid (u32)
+u32_wrapper!(RegClass, REGCLASS);
+u32_wrapper!(RegProc, REGPROC);
+u32_wrapper!(RegProcedure, REGPROCEDURE);
+u32_wrapper!(RegOper, REGOPER);
+u32_wrapper!(RegOperator, REGOPERATOR);
+u32_wrapper!(RegType, REGTYPE);
+u32_wrapper!(RegConfig, REGCONFIG);
+u32_wrapper!(RegDictionary, REGDICTIONARY);
+u32_wrapper!(RegNamespace, REGNAMESPACE);
+u32_wrapper!(RegRole, REGROLE);
+u32_wrapper!(RegCollation, REGCOLLATION);
+
+pub struct Xid8(u64);
+
+impl<'a> FromSql<'a> for Xid8 {
+    fn from_sql(
+        ty: &Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        Ok(Self(<i64 as FromSql>::from_sql(ty, raw)? as u64))
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::XID8 => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<Xid8> for JsonValue {
+    #[inline(always)]
+    fn from(value: Xid8) -> Self {
+        JsonValue::Number(JsonNumber::from(value.0))
+    }
+}
+
+pub struct Tid {
+    block_num: u32,
+    offset: u16,
+}
+
+impl<'a> FromSql<'a> for Tid {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() != 6 {
+            return Err(format!("expected 6 bytes for TID, got {}", raw.len()).into());
+        };
+
+        Ok(Self {
+            block_num: <u32 as FromSql>::from_sql(&Type::OID, &raw[..4])?,
+            offset: <i16 as FromSql>::from_sql(&Type::INT2, &raw[4..])? as u16,
+        })
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::TID => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<Tid> for JsonValue {
+    #[inline(always)]
+    fn from(value: Tid) -> Self {
+        JsonValue::String(format!("({}, {})", value.block_num, value.offset))
+    }
+}
+
+// Geometric Types
+
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+impl Point {
+    #[inline]
+    fn extract(raw: &[u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() != 16 {
+            return Err(format!("expected 16 bytes for Point, got {}", raw.len()).into());
+        };
+
+        Ok(Self {
+            x: <f64 as FromSql>::from_sql(&Type::FLOAT8, &raw[..8])?,
+            y: <f64 as FromSql>::from_sql(&Type::FLOAT8, &raw[8..])?,
+        })
+    }
+}
+
+impl<'a> FromSql<'a> for Point {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        Point::extract(raw)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::POINT => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<Point> for JsonValue {
+    #[inline(always)]
+    fn from(value: Point) -> Self {
+        JsonValue::String(format!("({}, {})", value.x, value.y))
+    }
+}
+
+pub struct Lseg {
+    pub p1: Point,
+    pub p2: Point,
+}
+
+impl<'a> FromSql<'a> for Lseg {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() != 32 {
+            return Err(format!("expected 32 bytes for Lseg, got {}", raw.len()).into());
+        };
+
+        Ok(Self {
+            p1: Point::extract(&raw[..16])?,
+            p2: Point::extract(&raw[16..])?,
+        })
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::LSEG => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<Lseg> for JsonValue {
+    #[inline(always)]
+    fn from(value: Lseg) -> Self {
+        JsonValue::String(format!(
+            "[({}, {}), ({}, {})]",
+            value.p1.x, value.p1.y, value.p2.x, value.p2.y
+        ))
+    }
+}
+
+pub struct PgBox {
+    pub upper_right_p: Point,
+    pub lower_left_p: Point,
+}
+
+impl<'a> FromSql<'a> for PgBox {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() != 32 {
+            return Err(format!("expected 32 bytes for Box, got {}", raw.len()).into());
+        };
+
+        Ok(Self {
+            upper_right_p: Point::extract(&raw[..16])?,
+            lower_left_p: Point::extract(&raw[16..])?,
+        })
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::BOX => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<PgBox> for JsonValue {
+    #[inline(always)]
+    fn from(value: PgBox) -> Self {
+        JsonValue::String(format!(
+            "(({}, {}), ({}, {}))",
+            value.upper_right_p.x,
+            value.upper_right_p.y,
+            value.lower_left_p.x,
+            value.lower_left_p.y
+        ))
+    }
+}
+
+pub struct Polygon {
+    pub points: Vec<Point>,
+}
+
+impl<'a> FromSql<'a> for Polygon {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() < 4 {
+            return Err(format!("expected at least 4 bytes for Polygon, got {}", raw.len()).into());
+        };
+
+        let num_points = i32::from_be_bytes(raw[..4].try_into().unwrap());
+
+        if num_points < 0 {
+            return Err(format!(
+                "expected non-negative number of points for Polygon, got {}",
+                num_points
+            )
+            .into());
+        };
+
+        if num_points == 0 {
+            return Ok(Self { points: Vec::new() });
+        };
+
+        let num_points = num_points as usize;
+
+        if raw.len() < 4 + num_points * 16 {
+            return Err(format!(
+                "expected at least {} bytes for Polygon, got {}",
+                4 + num_points * 16,
+                raw.len()
+            )
+            .into());
+        }
+
+        let mut points = Vec::with_capacity(num_points);
+        let mut buf = raw[4..].chunks_exact(16);
+
+        while let Some(chunk) = buf.next() {
+            points.push(Point::extract(chunk)?);
+        }
+
+        Ok(Self { points })
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::POLYGON => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<Polygon> for JsonValue {
+    #[inline]
+    fn from(value: Polygon) -> Self {
+        let mut s = String::with_capacity(5 + value.points.len() * 16);
+
+        s.push('(');
+        if value.points.is_empty() {
+            s.push(')');
+            return JsonValue::String(s);
+        };
+
+        s.push_str(&format!("({}, {})", value.points[0].x, value.points[0].y));
+        for p in value.points[1..].iter() {
+            s.push_str(&format!(", ({}, {})", p.x, p.y));
+        }
+
+        s.push(')');
+
+        JsonValue::String(s)
+    }
+}
+
+pub struct Path {
+    pub flag: u8,
+    pub points: Vec<Point>,
+}
+
+impl<'a> FromSql<'a> for Path {
+    fn from_sql(
+        _ty: &Type,
+        raw: &'a [u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() < 5 {
+            return Err(format!("expected at least 5 bytes for Path, got {}", raw.len()).into());
+        };
+
+        let flag = raw[0];
+
+        let num_points = i32::from_be_bytes(raw[1..5].try_into().unwrap());
+
+        if num_points < 0 {
+            return Err(format!(
+                "expected non-negative number of points for Path, got {}",
+                num_points
+            )
+            .into());
+        }
+
+        if num_points == 0 {
+            return Ok(Self {
+                flag,
+                points: Vec::new(),
+            });
+        }
+
+        let num_points = num_points as usize;
+
+        if raw.len() < 5 + num_points * 16 {
+            return Err(format!(
+                "expected at least {} bytes for Path, got {}",
+                5 + num_points * 16,
+                raw.len()
+            )
+            .into());
+        }
+
+        let mut points = Vec::with_capacity(num_points);
+        let mut buf = raw[5..].chunks_exact(16);
+        while let Some(chunk) = buf.next() {
+            points.push(Point::extract(chunk)?);
+        }
+
+        Ok(Self { flag, points })
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::PATH => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<Path> for JsonValue {
+    #[inline]
+    fn from(value: Path) -> Self {
+        let (opening, closing) = if value.flag & 0x01 == 1 {
+            ('(', ')')
+        } else {
+            ('[', ']')
+        };
+
+        let mut s = String::with_capacity(6 + value.points.len() * 16);
+
+        s.push(opening);
+
+        if value.points.is_empty() {
+            s.push(closing);
+            return JsonValue::String(s);
+        };
+
+        s.push_str(&format!("({}, {})", value.points[0].x, value.points[0].y));
+        for p in value.points[1..].iter() {
+            s.push_str(&format!(", ({}, {})", p.x, p.y));
+        }
+
+        s.push(closing);
+
+        JsonValue::String(s)
+    }
+}
+
+pub struct Line {
+    pub a: f64,
+    pub b: f64,
+    pub c: f64,
+}
+
+impl<'a> FromSql<'a> for Line {
+    fn from_sql(_ty: &Type, raw: &[u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() != 24 {
+            return Err(format!("expected 24 bytes for Line, got {}", raw.len()).into());
+        };
+
+        let a = f64::from_sql(&Type::FLOAT8, &raw[..8])?;
+        let b = f64::from_sql(&Type::FLOAT8, &raw[8..16])?;
+        let c = f64::from_sql(&Type::FLOAT8, &raw[16..])?;
+        Ok(Self { a, b, c })
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::LINE => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<Line> for JsonValue {
+    #[inline(always)]
+    fn from(value: Line) -> Self {
+        JsonValue::String(format!("{{{}, {}, {}}}", value.a, value.b, value.c))
+    }
+}
+
+pub struct Circle {
+    pub point: Point,
+    pub radius: f64,
+}
+
+impl<'a> FromSql<'a> for Circle {
+    fn from_sql(_ty: &Type, raw: &[u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() != 24 {
+            return Err(format!("expected 24 bytes for Circle, got {}", raw.len()).into());
+        };
+
+        let point = Point::extract(&raw[..16])?;
+        let radius = f64::from_sql(&Type::FLOAT8, &raw[16..])?;
+        Ok(Self { point, radius })
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::CIRCLE => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<Circle> for JsonValue {
+    #[inline(always)]
+    fn from(value: Circle) -> Self {
+        JsonValue::String(format!(
+            "<({}, {}), {}>",
+            value.point.x, value.point.y, value.radius
+        ))
+    }
+}
