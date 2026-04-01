@@ -1,7 +1,6 @@
 use std::net::IpAddr;
 
 use serde_json::{Number as JsonNumber, Value as JsonValue};
-use tauri::webview::cookie::time::serde::timestamp::microseconds;
 use tokio_postgres::types::{FromSql, Type};
 
 // System Identifiers & Object References (The "Reg" Types)
@@ -936,5 +935,93 @@ impl From<Interval> for JsonValue {
         };
 
         JsonValue::String(s)
+    }
+}
+
+/// Represents the total value in "cents" or the fractional unit of the database's locale.
+pub struct Money(i64);
+
+impl<'a> FromSql<'a> for Money {
+    fn from_sql(_ty: &Type, raw: &[u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        Ok(Self(<i64 as FromSql>::from_sql(&Type::INT8, raw)?))
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::MONEY => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<Money> for JsonValue {
+    fn from(value: Money) -> Self {
+        JsonValue::Number(JsonNumber::from(value.0))
+    }
+}
+
+macro_rules! utf8_wrapper {
+    ($name: ident, $pg_type: ident) => {
+        pub struct $name(String);
+
+        impl<'a> FromSql<'a> for $name {
+            fn from_sql(
+                _ty: &Type,
+                raw: &[u8],
+            ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+                Ok(Self(String::from_utf8(raw.to_vec())?))
+            }
+
+            fn accepts(ty: &Type) -> bool {
+                match *ty {
+                    Type::$pg_type => true,
+                    _ => false,
+                }
+            }
+        }
+
+        impl From<$name> for JsonValue {
+            #[inline(always)]
+            fn from(value: $name) -> Self {
+                JsonValue::String(value.0)
+            }
+        }
+    };
+}
+
+utf8_wrapper!(Xml, XML);
+utf8_wrapper!(RefCursor, REFCURSOR);
+
+pub struct JsonPath {
+    _version: u8,
+    path: String,
+}
+
+impl<'a> FromSql<'a> for JsonPath {
+    fn from_sql(_ty: &Type, raw: &[u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() < 1 {
+            return Err("invalid JSON path".into());
+        }
+
+        let version = raw[0];
+        let path = String::from_utf8(raw[1..].to_vec())?;
+        Ok(Self {
+            _version: version,
+            path,
+        })
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        match *ty {
+            Type::JSONPATH => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<JsonPath> for JsonValue {
+    #[inline(always)]
+    fn from(value: JsonPath) -> Self {
+        JsonValue::String(value.path)
     }
 }
