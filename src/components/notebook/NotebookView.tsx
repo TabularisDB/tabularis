@@ -213,7 +213,7 @@ export function NotebookView({ tab, updateTab, connectionId }: NotebookViewProps
       />
       <div className="flex-1 overflow-auto p-4 space-y-0">
         {cells.map((cell, index) => (
-          <div key={cell.id}>
+          <div key={`${cell.id}-${index}`}>
             <NotebookCellWrapper
               cell={cell}
               index={index}
