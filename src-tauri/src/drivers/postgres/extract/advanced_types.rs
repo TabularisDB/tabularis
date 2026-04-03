@@ -1168,7 +1168,16 @@ impl<'a> FromSql<'a> for TsQuery {
         _ty: &Type,
         raw: &'a [u8],
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let mut buf = raw;
+        if raw.len() < 4 {
+            return Err(format!(
+                "error extracting TsQuery: expected at least 4 bytes, got {}",
+                raw.len()
+            )
+            .into());
+        };
+
+        // ignore length prefix
+        let mut buf = &raw[4..];
         match try_extract_ts_query(&mut buf, 4) {
             Ok(query) => Ok(TsQuery { query }),
             Err(e) => Err(e.into()),
@@ -1247,10 +1256,11 @@ fn try_extract_ts_query(buf: &mut &[u8], pre_lvl: u8) -> Result<String, String> 
             };
 
             let weight = match buf[1] {
-                0 => 'D',
-                1 => 'C',
-                2 => 'B',
-                3 => 'A',
+                0 => None,
+                1 => Some('D'),
+                2 => Some('C'),
+                4 => Some('B'),
+                8 => Some('A'),
                 _ => {
                     return Err(
                         "fail to extract ts_query operand weight: invalid weight value".into(),
@@ -1273,7 +1283,7 @@ fn try_extract_ts_query(buf: &mut &[u8], pre_lvl: u8) -> Result<String, String> 
                 s.push_str(":*");
             };
 
-            if weight != 'D' {
+            if let Some(weight) = weight {
                 if prefixed {
                     s.push_str(&format!("{}", weight));
                 } else {
@@ -1300,8 +1310,8 @@ fn try_extract_ts_query(buf: &mut &[u8], pre_lvl: u8) -> Result<String, String> 
                     return Ok(format!("!{}", operand));
                 }
 
-                2 => (2, "&".into()),
-                3 => (3, "|".into()),
+                2 => (3, "&".into()),
+                3 => (4, "|".into()),
                 4 => {
                     if buf.len() < 2 {
                         return Err(
@@ -1315,9 +1325,9 @@ fn try_extract_ts_query(buf: &mut &[u8], pre_lvl: u8) -> Result<String, String> 
                     *buf = &buf[2..];
 
                     if distance == 1 {
-                        (4, "<->".into())
+                        (2, "<->".into())
                     } else {
-                        (4, format!("<{}>", distance))
+                        (2, format!("<{}>", distance))
                     }
                 }
 
