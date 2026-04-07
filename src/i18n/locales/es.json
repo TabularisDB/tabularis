@@ -613,7 +613,8 @@
     "cancel": "Cancelar",
     "nameRequired": "El nombre de la tabla es requerido",
     "colRequired": "Se requiere al menos una columna",
-    "failCreate": "Error al crear la tabla: "
+    "failCreate": "Error al crear la tabla: ",
+    "requiresExtension": "Requiere extensión: {{ext}}"
   },
   "schema": {
     "title": "Esquema: {{table}}",
@@ -650,7 +651,8 @@
     "fail": "Error: ",
     "noChanges": "No se detectaron cambios",
     "unsupported": "Driver no soportado",
-    "pkNotSupported": "Este driver solo soporta claves primarias en la creación de la tabla"
+    "pkNotSupported": "Este driver solo soporta claves primarias en la creación de la tabla",
+    "requiresExtension": "Requiere extensión: {{ext}}"
   },
   "createIndex": {
     "title": "Crear Índice",

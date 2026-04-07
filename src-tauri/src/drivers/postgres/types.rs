@@ -13,6 +13,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: true,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "INTEGER".to_string(),
@@ -20,6 +22,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: true,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "BIGINT".to_string(),
@@ -27,6 +31,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: true,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "DECIMAL".to_string(),
@@ -34,6 +40,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: true,
             default_length: Some("10,2".to_string()),
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "NUMERIC".to_string(),
@@ -41,6 +49,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: true,
             default_length: Some("10,2".to_string()),
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "REAL".to_string(),
@@ -48,6 +58,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "DOUBLE PRECISION".to_string(),
@@ -55,6 +67,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "SMALLSERIAL".to_string(),
@@ -62,6 +76,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "SERIAL".to_string(),
@@ -69,6 +85,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "BIGSERIAL".to_string(),
@@ -76,6 +94,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "MONEY".to_string(),
@@ -83,6 +103,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // String / Character types
@@ -93,6 +115,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: true,
             requires_precision: false,
             default_length: Some("255".to_string()),
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "CHAR".to_string(),
@@ -100,6 +124,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: true,
             requires_precision: false,
             default_length: Some("10".to_string()),
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "TEXT".to_string(),
@@ -107,6 +133,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "NAME".to_string(),
@@ -114,6 +142,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "\"char\"".to_string(),
@@ -121,6 +151,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // Boolean
@@ -131,6 +163,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // Date/Time types
@@ -141,6 +175,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "TIME".to_string(),
@@ -148,6 +184,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "TIMETZ".to_string(),
@@ -155,6 +193,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "TIMESTAMP".to_string(),
@@ -162,6 +202,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "TIMESTAMPTZ".to_string(),
@@ -169,6 +211,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "INTERVAL".to_string(),
@@ -176,6 +220,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // JSON types
@@ -186,6 +232,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "JSONB".to_string(),
@@ -193,6 +241,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "JSONPATH".to_string(),
@@ -200,6 +250,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // UUID
@@ -210,6 +262,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // Binary types
@@ -220,6 +274,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // Bit string types
@@ -230,6 +286,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: true,
             requires_precision: false,
             default_length: Some("1".to_string()),
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "VARBIT".to_string(),
@@ -237,6 +295,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: true,
             requires_precision: false,
             default_length: Some("64".to_string()),
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // Network address types
@@ -247,6 +307,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "CIDR".to_string(),
@@ -254,6 +316,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "MACADDR".to_string(),
@@ -261,6 +325,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "MACADDR8".to_string(),
@@ -268,6 +334,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // Geometric types (built-in)
@@ -278,6 +346,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "LINE".to_string(),
@@ -285,6 +355,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "LSEG".to_string(),
@@ -292,6 +364,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "BOX".to_string(),
@@ -299,6 +373,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "PATH".to_string(),
@@ -306,6 +382,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "POLYGON".to_string(),
@@ -313,6 +391,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "CIRCLE".to_string(),
@@ -320,6 +400,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // Full text search types
@@ -330,6 +412,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "TSQUERY".to_string(),
@@ -337,6 +421,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // XML
@@ -347,6 +433,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // System / Internal types (rarely used in user tables)
@@ -357,6 +445,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "XID".to_string(),
@@ -364,6 +454,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "XID8".to_string(),
@@ -371,6 +463,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "CID".to_string(),
@@ -378,6 +472,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "TID".to_string(),
@@ -385,6 +481,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // Object identifier (Reg) types
@@ -395,6 +493,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "REGTYPE".to_string(),
@@ -402,6 +502,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "REGPROC".to_string(),
@@ -409,6 +511,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "REGPROCEDURE".to_string(),
@@ -416,6 +520,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "REGOPER".to_string(),
@@ -423,6 +529,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "REGOPERATOR".to_string(),
@@ -430,6 +538,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "REGCONFIG".to_string(),
@@ -437,6 +547,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "REGDICTIONARY".to_string(),
@@ -444,6 +556,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "REGNAMESPACE".to_string(),
@@ -451,6 +565,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "REGROLE".to_string(),
@@ -458,6 +574,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "REGCOLLATION".to_string(),
@@ -465,6 +583,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // ============================================================
         // Extension: hstore (CREATE EXTENSION hstore)
@@ -475,6 +595,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("hstore".to_string()),
         },
         // ============================================================
         // Extension: ltree (CREATE EXTENSION ltree)
@@ -485,6 +607,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("ltree".to_string()),
         },
         DataTypeInfo {
             name: "LQUERY".to_string(),
@@ -492,6 +616,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("ltree".to_string()),
         },
         DataTypeInfo {
             name: "LTXTQUERY".to_string(),
@@ -499,6 +625,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("ltree".to_string()),
         },
         // ============================================================
         // Extension: citext (CREATE EXTENSION citext)
@@ -509,6 +637,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("citext".to_string()),
         },
         // ============================================================
         // Extension: pg_trgm (CREATE EXTENSION pg_trgm)
@@ -519,6 +649,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("pg_trgm".to_string()),
         },
         // ============================================================
         // Extension: PostGIS (CREATE EXTENSION postgis)
@@ -530,6 +662,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("postgis".to_string()),
         },
         DataTypeInfo {
             name: "GEOGRAPHY".to_string(),
@@ -537,6 +671,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("postgis".to_string()),
         },
         DataTypeInfo {
             name: "GEOMETRY(Point, 4326)".to_string(),
@@ -544,6 +680,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("postgis".to_string()),
         },
         DataTypeInfo {
             name: "GEOMETRY(LineString, 4326)".to_string(),
@@ -551,6 +689,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("postgis".to_string()),
         },
         DataTypeInfo {
             name: "GEOMETRY(Polygon, 4326)".to_string(),
@@ -558,6 +698,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("postgis".to_string()),
         },
         DataTypeInfo {
             name: "GEOMETRY(MultiPoint, 4326)".to_string(),
@@ -565,6 +707,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("postgis".to_string()),
         },
         DataTypeInfo {
             name: "GEOMETRY(MultiLineString, 4326)".to_string(),
@@ -572,6 +716,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("postgis".to_string()),
         },
         DataTypeInfo {
             name: "GEOMETRY(MultiPolygon, 4326)".to_string(),
@@ -579,6 +725,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("postgis".to_string()),
         },
         DataTypeInfo {
             name: "GEOMETRY(GeometryCollection, 4326)".to_string(),
@@ -586,6 +734,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("postgis".to_string()),
         },
         DataTypeInfo {
             name: "GEOGRAPHY(Point, 4326)".to_string(),
@@ -593,6 +743,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("postgis".to_string()),
         },
         // ============================================================
         // Extension: intarray (CREATE EXTENSION intarray)
@@ -603,6 +755,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: Some("intarray".to_string()),
         },
         // ============================================================
         // Arrays (PostgreSQL supports arrays of any type)
@@ -613,6 +767,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "TEXT[]".to_string(),
@@ -620,6 +776,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "VARCHAR[]".to_string(),
@@ -627,6 +785,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "BOOLEAN[]".to_string(),
@@ -634,6 +794,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "UUID[]".to_string(),
@@ -641,6 +803,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "JSONB[]".to_string(),
@@ -648,6 +812,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "TIMESTAMP[]".to_string(),
@@ -655,6 +821,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "NUMERIC[]".to_string(),
@@ -662,6 +830,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
     ]
 }

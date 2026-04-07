@@ -11,6 +11,39 @@ use deadpool_postgres::{Object as PgObject, Pool as PgPool};
 use extract::extract_value;
 use tokio_postgres::{types::ToSql, Row as PgRow};
 use uuid::Uuid;
+/// Extract base type name, e.g. "GEOMETRY(Point, 4326)" -> "GEOMETRY", "VARCHAR(255)" -> "VARCHAR"
+fn extract_base_type(data_type: &str) -> String {
+    if let Some(idx) = data_type.find('(') {
+        data_type[..idx].trim().to_uppercase()
+    } else {
+        data_type.trim().to_uppercase()
+    }
+}
+
+/// Check if PostgreSQL can implicitly cast between these base types (no USING clause needed).
+fn is_implicit_cast_compatible(old_type: &str, new_type: &str) -> bool {
+    if old_type == new_type {
+        return true;
+    }
+
+    let compatible_groups: &[&[&str]] = &[
+        &["SMALLINT", "INTEGER", "BIGINT", "SERIAL", "BIGSERIAL", "SMALLSERIAL"],
+        &["REAL", "DOUBLE PRECISION", "NUMERIC", "DECIMAL", "MONEY"],
+        &["CHAR", "VARCHAR", "TEXT", "NAME", "CITEXT"],
+        &["TIMESTAMP", "TIMESTAMPTZ"],
+        &["TIME", "TIMETZ"],
+        &["JSON", "JSONB"],
+        &["BIT", "VARBIT"],
+    ];
+
+    for group in compatible_groups {
+        if group.contains(&old_type) && group.contains(&new_type) {
+            return true;
+        }
+    }
+    false
+}
+
 // Helper function to escape double quotes in identifiers for PostgreSQL
 fn escape_identifier(name: &str) -> String {
     name.replace('"', "\"\"")
@@ -1761,10 +1794,20 @@ impl DatabaseDriver for PostgresDriver {
         let col_ref = &new_name_quoted;
 
         if old_column.data_type != new_column.data_type {
-            stmts.push(format!(
-                "ALTER TABLE {} ALTER COLUMN {} TYPE {} USING {}::{}",
-                tbl, col_ref, new_column.data_type, col_ref, new_column.data_type
-            ));
+            let old_base = extract_base_type(&old_column.data_type);
+            let new_base = extract_base_type(&new_column.data_type);
+
+            if is_implicit_cast_compatible(&old_base, &new_base) {
+                stmts.push(format!(
+                    "ALTER TABLE {} ALTER COLUMN {} TYPE {}",
+                    tbl, col_ref, new_column.data_type
+                ));
+            } else {
+                stmts.push(format!(
+                    "ALTER TABLE {} ALTER COLUMN {} TYPE {} USING {}::{}",
+                    tbl, col_ref, new_column.data_type, col_ref, new_column.data_type
+                ));
+            }
         }
 
         if old_column.is_nullable != new_column.is_nullable {
@@ -1928,5 +1971,168 @@ impl DatabaseDriver for PostgresDriver {
                 foreign_keys: fks_map.remove(&t.name).unwrap_or_default(),
             })
             .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod extract_base_type_tests {
+        use super::*;
+
+        #[test]
+        fn simple_type() {
+            assert_eq!(extract_base_type("INTEGER"), "INTEGER");
+        }
+
+        #[test]
+        fn type_with_length() {
+            assert_eq!(extract_base_type("VARCHAR(255)"), "VARCHAR");
+        }
+
+        #[test]
+        fn type_with_precision() {
+            assert_eq!(extract_base_type("NUMERIC(10,2)"), "NUMERIC");
+        }
+
+        #[test]
+        fn parameterized_geometry() {
+            assert_eq!(extract_base_type("GEOMETRY(Point, 4326)"), "GEOMETRY");
+        }
+
+        #[test]
+        fn type_with_spaces() {
+            assert_eq!(extract_base_type("DOUBLE PRECISION"), "DOUBLE PRECISION");
+        }
+
+        #[test]
+        fn lowercase_input() {
+            assert_eq!(extract_base_type("varchar(100)"), "VARCHAR");
+        }
+
+        #[test]
+        fn type_with_leading_trailing_spaces() {
+            assert_eq!(extract_base_type("  integer  "), "INTEGER");
+        }
+
+        #[test]
+        fn geography_parameterized() {
+            assert_eq!(extract_base_type("GEOGRAPHY(Point, 4326)"), "GEOGRAPHY");
+        }
+
+        #[test]
+        fn serial_type() {
+            assert_eq!(extract_base_type("BIGSERIAL"), "BIGSERIAL");
+        }
+    }
+
+    mod is_implicit_cast_compatible_tests {
+        use super::*;
+
+        #[test]
+        fn same_type_is_compatible() {
+            assert!(is_implicit_cast_compatible("INTEGER", "INTEGER"));
+        }
+
+        #[test]
+        fn integer_to_bigint() {
+            assert!(is_implicit_cast_compatible("INTEGER", "BIGINT"));
+        }
+
+        #[test]
+        fn smallint_to_bigint() {
+            assert!(is_implicit_cast_compatible("SMALLINT", "BIGINT"));
+        }
+
+        #[test]
+        fn bigint_to_smallint() {
+            assert!(is_implicit_cast_compatible("BIGINT", "SMALLINT"));
+        }
+
+        #[test]
+        fn serial_to_integer() {
+            assert!(is_implicit_cast_compatible("SERIAL", "INTEGER"));
+        }
+
+        #[test]
+        fn varchar_to_text() {
+            assert!(is_implicit_cast_compatible("VARCHAR", "TEXT"));
+        }
+
+        #[test]
+        fn char_to_text() {
+            assert!(is_implicit_cast_compatible("CHAR", "TEXT"));
+        }
+
+        #[test]
+        fn text_to_citext() {
+            assert!(is_implicit_cast_compatible("TEXT", "CITEXT"));
+        }
+
+        #[test]
+        fn timestamp_to_timestamptz() {
+            assert!(is_implicit_cast_compatible("TIMESTAMP", "TIMESTAMPTZ"));
+        }
+
+        #[test]
+        fn time_to_timetz() {
+            assert!(is_implicit_cast_compatible("TIME", "TIMETZ"));
+        }
+
+        #[test]
+        fn json_to_jsonb() {
+            assert!(is_implicit_cast_compatible("JSON", "JSONB"));
+        }
+
+        #[test]
+        fn real_to_double_precision() {
+            assert!(is_implicit_cast_compatible("REAL", "DOUBLE PRECISION"));
+        }
+
+        #[test]
+        fn numeric_to_decimal() {
+            assert!(is_implicit_cast_compatible("NUMERIC", "DECIMAL"));
+        }
+
+        #[test]
+        fn bit_to_varbit() {
+            assert!(is_implicit_cast_compatible("BIT", "VARBIT"));
+        }
+
+        #[test]
+        fn integer_to_text_not_compatible() {
+            assert!(!is_implicit_cast_compatible("INTEGER", "TEXT"));
+        }
+
+        #[test]
+        fn text_to_boolean_not_compatible() {
+            assert!(!is_implicit_cast_compatible("TEXT", "BOOLEAN"));
+        }
+
+        #[test]
+        fn varchar_to_integer_not_compatible() {
+            assert!(!is_implicit_cast_compatible("VARCHAR", "INTEGER"));
+        }
+
+        #[test]
+        fn timestamp_to_integer_not_compatible() {
+            assert!(!is_implicit_cast_compatible("TIMESTAMP", "INTEGER"));
+        }
+
+        #[test]
+        fn jsonb_to_integer_not_compatible() {
+            assert!(!is_implicit_cast_compatible("JSONB", "INTEGER"));
+        }
+
+        #[test]
+        fn geometry_to_text_not_compatible() {
+            assert!(!is_implicit_cast_compatible("GEOMETRY", "TEXT"));
+        }
+
+        #[test]
+        fn uuid_to_text_not_compatible() {
+            assert!(!is_implicit_cast_compatible("UUID", "TEXT"));
+        }
     }
 }

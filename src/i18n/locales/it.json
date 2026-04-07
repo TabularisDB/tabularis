@@ -623,7 +623,8 @@
     "cancel": "Annulla",
     "nameRequired": "Il nome della tabella è richiesto",
     "colRequired": "È richiesta almeno una colonna",
-    "failCreate": "Creazione tabella fallita: "
+    "failCreate": "Creazione tabella fallita: ",
+    "requiresExtension": "Richiede estensione: {{ext}}"
   },
   "schema": {
     "title": "Schema: {{table}}",
@@ -660,7 +661,8 @@
     "fail": "Fallito: ",
     "noChanges": "Nessuna modifica rilevata",
     "unsupported": "Driver non supportato",
-    "pkNotSupported": "Questo driver supporta le chiavi primarie solo in fase di creazione della tabella"
+    "pkNotSupported": "Questo driver supporta le chiavi primarie solo in fase di creazione della tabella",
+    "requiresExtension": "Richiede estensione: {{ext}}"
   },
   "createIndex": {
     "title": "Crea Indice",

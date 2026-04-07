@@ -8,16 +8,10 @@ import { useDataTypes } from "../../hooks/useDataTypes";
 import { useDrivers } from "../../hooks/useDrivers";
 import { Modal } from "../ui/Modal";
 import { supportsAlterColumn } from "../../utils/driverCapabilities";
+import { parseColumnType, buildColumnDefinition } from "../../utils/columnTypes";
+import type { ColumnFormData } from "../../utils/columnTypes";
 
-interface ColumnDef {
-  name: string;
-  type: string;
-  length?: string;
-  isNullable: boolean;
-  defaultValue?: string;
-  isPk: boolean;
-  isAutoInc: boolean;
-}
+type ColumnDef = ColumnFormData;
 
 interface ModifyColumnModalProps {
   isOpen: boolean;
@@ -34,27 +28,6 @@ interface ModifyColumnModalProps {
     is_pk: boolean;
     is_auto_increment: boolean;
   } | null;
-}
-
-interface ColumnDefinition {
-  name: string;
-  data_type: string;
-  is_nullable: boolean;
-  is_pk: boolean;
-  is_auto_increment: boolean;
-  default_value: string | null;
-}
-
-function buildColumnDefinition(form: ColumnDef): ColumnDefinition {
-  const typeDef = `${form.type}${form.length ? `(${form.length})` : ""}`;
-  return {
-    name: form.name,
-    data_type: typeDef,
-    is_nullable: form.isNullable,
-    is_pk: form.isPk,
-    is_auto_increment: form.isAutoInc,
-    default_value: form.defaultValue || null,
-  };
 }
 
 export const ModifyColumnModal = ({
@@ -81,15 +54,7 @@ export const ModifyColumnModal = ({
     [dataTypes],
   );
 
-  // Parse initial type/length from column.data_type if possible
-  // e.g. "varchar(255)" -> type="VARCHAR", length="255"
-  const parseType = (fullType: string) => {
-    const match = fullType.match(/^([a-zA-Z0-9_ ]+)(?:\((.+)\))?$/);
-    if (match) {
-      return { type: match[1].toUpperCase().trim(), length: match[2] || "" };
-    }
-    return { type: fullType.toUpperCase().trim(), length: "" };
-  };
+  const parseType = (fullType: string) => parseColumnType(fullType, availableTypes);
 
   const initial = useMemo(() => {
     if (column) {
@@ -113,7 +78,7 @@ export const ModifyColumnModal = ({
       isPk: false,
       isAutoInc: false,
     };
-  }, [column]);
+  }, [column, availableTypes]);
 
   const [form, setForm] = useState<ColumnDef>(initial);
   const [loading, setLoading] = useState(false);
@@ -304,6 +269,12 @@ export const ModifyColumnModal = ({
                   </option>
                 ))}
               </select>
+              {availableTypes.find((t) => t.name === form.type)?.requires_extension && (
+                <div className="text-xs text-amber-400 mt-1 flex items-center gap-1">
+                  <AlertTriangle size={12} />
+                  <span>{t("modifyColumn.requiresExtension", { ext: availableTypes.find((t) => t.name === form.type)?.requires_extension })}</span>
+                </div>
+              )}
             </div>
             <div className="w-24">
               <label className="block text-xs font-semibold text-secondary mb-1">
@@ -390,13 +361,13 @@ export const ModifyColumnModal = ({
                 }
                 disabled={
                   (isEdit && !(canAlterColumn && !!driverCapabilities?.auto_increment_keyword)) ||
-                  !["INTEGER", "BIGINT"].includes(form.type)
+                  !availableTypes.find((t) => t.name === form.type)?.supports_auto_increment
                 }
                 className="accent-blue-500 disabled:opacity-50"
               />
               <label
                 htmlFor="isAutoInc"
-                className={`text-sm select-none cursor-pointer ${(isEdit && !(canAlterColumn && !!driverCapabilities?.auto_increment_keyword)) || !["INTEGER", "BIGINT"].includes(form.type) ? "text-muted" : "text-secondary"}`}
+                className={`text-sm select-none cursor-pointer ${(isEdit && !(canAlterColumn && !!driverCapabilities?.auto_increment_keyword)) || !availableTypes.find((t) => t.name === form.type)?.supports_auto_increment ? "text-muted" : "text-secondary"}`}
               >
                 {t("modifyColumn.autoInc")}
               </label>

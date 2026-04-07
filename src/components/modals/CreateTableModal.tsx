@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Plus, Trash2, Save, Code, Loader2 } from 'lucide-react';
+import { X, Plus, Trash2, Save, Code, Loader2, AlertTriangle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useDatabase } from '../../hooks/useDatabase';
 import { SqlPreview } from '../ui/SqlPreview';
 import { useDataTypes } from '../../hooks/useDataTypes';
 import { Modal } from '../ui/Modal';
+import { getRequiredExtensions } from '../../utils/columnTypes';
 
 interface ColumnDef {
   id: string; // Internal ID for React keys
@@ -98,11 +99,11 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
   };
 
   const handleRemoveColumn = (id: string) => {
-    setColumns(columns.filter(c => c.id !== id));
+    setColumns(prev => prev.filter(c => c.id !== id));
   };
 
   const updateColumn = (id: string, field: keyof ColumnDef, value: string | boolean) => {
-    setColumns(columns.map(c => {
+    setColumns(prev => prev.map(c => {
       if (c.id !== id) return c;
       return { ...c, [field]: value };
     }));
@@ -282,7 +283,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
                                             type="checkbox"
                                             checked={col.isAutoInc}
                                             onChange={(e) => updateColumn(col.id, 'isAutoInc', e.target.checked)}
-                                            disabled={!['INTEGER', 'BIGINT'].includes(col.type)}
+                                            disabled={!availableTypes.find((t) => t.name === col.type)?.supports_auto_increment}
                                             className="accent-blue-500"
                                         />
                                     </td>
@@ -309,9 +310,20 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
                 </div>
             </div>
 
+            {/* Extension warnings */}
+            {(() => {
+                const exts = getRequiredExtensions(columns.map(c => c.type), availableTypes);
+                return exts.length > 0 ? (
+                    <div className="text-xs text-amber-400 flex items-center gap-1">
+                        <AlertTriangle size={12} className="shrink-0" />
+                        <span>{t('createTable.requiresExtension', { ext: exts.join(', ') })}</span>
+                    </div>
+                ) : null;
+            })()}
+
             {/* SQL Preview Toggle/Area */}
             <div className="flex flex-col gap-2">
-                <button 
+                <button
                     onClick={() => setShowSqlPreview(!showSqlPreview)}
                     className="text-xs text-muted hover:text-blue-400 flex items-center gap-2 self-start font-medium"
                 >

@@ -623,7 +623,8 @@
     "cancel": "Cancel",
     "nameRequired": "Table name is required",
     "colRequired": "At least one column is required",
-    "failCreate": "Failed to create table: "
+    "failCreate": "Failed to create table: ",
+    "requiresExtension": "Requires extension: {{ext}}"
   },
   "schema": {
     "title": "Schema: {{table}}",
@@ -660,7 +661,8 @@
     "fail": "Failed: ",
     "noChanges": "No changes detected",
     "unsupported": "Unsupported driver",
-    "pkNotSupported": "This driver only supports primary keys at table creation time"
+    "pkNotSupported": "This driver only supports primary keys at table creation time",
+    "requiresExtension": "Requires extension: {{ext}}"
   },
   "createIndex": {
     "title": "Create Index",

@@ -250,10 +250,14 @@ pub struct ColumnDefinition {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DataTypeInfo {
     pub name: String,
-    pub category: String, // "numeric", "string", "date", "binary", "json", "spatial", "other"
+    pub category: String,
     pub requires_length: bool,
     pub requires_precision: bool,
     pub default_length: Option<String>,
+    #[serde(default)]
+    pub supports_auto_increment: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires_extension: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

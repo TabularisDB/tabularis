@@ -12,6 +12,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: true,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "REAL".to_string(),
@@ -19,6 +21,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "TEXT".to_string(),
@@ -26,6 +30,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "BLOB".to_string(),
@@ -33,6 +39,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         // Common type name aliases (accepted by SQLite)
         DataTypeInfo {
@@ -41,6 +49,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: true,
             requires_precision: false,
             default_length: Some("255".to_string()),
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "BOOLEAN".to_string(),
@@ -48,6 +58,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "DATE".to_string(),
@@ -55,6 +67,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
         DataTypeInfo {
             name: "DATETIME".to_string(),
@@ -62,6 +76,8 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             requires_length: false,
             requires_precision: false,
             default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
         },
     ]
 }
