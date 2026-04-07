@@ -34,6 +34,7 @@
     "disconnect": "Disconnect",
     "loading": "Loading...",
     "search": "Search...",
+    "noResults": "No results found",
     "error": "Error",
     "success": "Success",
     "ok": "OK"
