@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Save, Loader2 } from 'lucide-react';
+import { X, Save, Loader2, ListTree, AlertTriangle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { SqlPreview } from '../ui/SqlPreview';
 import { useDatabase } from '../../hooks/useDatabase';
@@ -43,7 +43,7 @@ export const CreateIndexModal = ({
         setSelectedColumns([]);
         setIsUnique(false);
         setError('');
-        
+
         invoke<TableColumn[]>('get_columns', { connectionId, tableName, ...(activeSchema ? { schema: activeSchema } : {}) })
             .then(cols => setAvailableColumns(cols))
             .catch(e => console.error(e))
@@ -118,38 +118,48 @@ export const CreateIndexModal = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} overlayClassName="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
-      <div className="bg-elevated rounded-xl shadow-2xl w-[500px] border border-strong flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-default bg-surface-secondary/50 rounded-t-xl">
-           <h2 className="text-lg font-semibold text-primary">{t('createIndex.title')}</h2>
-           <button onClick={onClose} className="text-secondary hover:text-primary transition-colors">
-             <X size={20} />
-           </button>
+    <Modal isOpen={isOpen} onClose={onClose} overlayClassName="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100]">
+      <div className="bg-elevated rounded-xl shadow-2xl w-[500px] border border-strong flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-default bg-base">
+          <div className="flex items-center gap-3">
+            <div className="bg-green-900/30 p-2 rounded-lg">
+              <ListTree size={20} className="text-green-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-primary">{t('createIndex.title')}</h2>
+              <p className="text-xs text-secondary font-mono">{tableName}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-secondary hover:text-primary transition-colors">
+            <X size={20} />
+          </button>
         </div>
 
-        <div className="p-6 flex flex-col gap-4">
+        {/* Body */}
+        <div className="p-6 flex flex-col gap-4 overflow-y-auto">
             <div>
-                <label className="block text-xs font-semibold text-secondary mb-1 uppercase">{t('createIndex.name')}</label>
+                <label className="block text-xs uppercase font-bold text-muted mb-1">{t('createIndex.name')}</label>
                 <input
                     value={indexName}
-                    onChange={(e) => setIndexName(e.target.value)}
-                    className="w-full bg-base border border-strong rounded p-2 text-primary text-sm focus:border-focus outline-none font-mono"
+                    onChange={(e) => { setIndexName(e.target.value); setError(''); }}
+                    className={`w-full bg-base border rounded-lg px-3 py-2 text-primary text-sm focus:border-blue-500 focus:outline-none font-mono ${!indexName.trim() && error ? 'border-red-500' : 'border-strong'}`}
                     placeholder="idx_table_column"
                     autoFocus
                 />
             </div>
 
             <div>
-                <label className="block text-xs font-semibold text-secondary mb-2 uppercase">{t('createIndex.columns')}</label>
+                <label className="block text-xs uppercase font-bold text-muted mb-2">{t('createIndex.columns')}</label>
                 {fetchingCols ? (
-                    <div className="flex items-center gap-2 text-muted text-sm">
+                    <div className="flex items-center gap-2 text-muted text-sm py-4 justify-center">
                         <Loader2 size={14} className="animate-spin" /> {t('common.loading')}
                     </div>
                 ) : (
                     <div className="border border-strong rounded-lg bg-base/50 max-h-40 overflow-y-auto p-2 flex flex-col gap-1">
                         {availableColumns.map(col => (
                             <label key={col.name} className="flex items-center gap-2 p-1.5 hover:bg-surface-secondary rounded cursor-pointer group">
-                                <input 
+                                <input
                                     type="checkbox"
                                     checked={selectedColumns.includes(col.name)}
                                     onChange={() => toggleColumn(col.name)}
@@ -165,7 +175,7 @@ export const CreateIndexModal = ({
             </div>
 
             <div className="flex items-center gap-2">
-                <input 
+                <input
                     type="checkbox"
                     id="isUnique"
                     checked={isUnique}
@@ -177,26 +187,29 @@ export const CreateIndexModal = ({
                 </label>
             </div>
 
-            <div className="mt-2">
+            {/* SQL Preview */}
+            <div>
                 <div className="text-[10px] text-muted mb-1 uppercase tracking-wider">{t('createIndex.sqlPreview')}</div>
                 <SqlPreview sql={sqlPreview} height="80px" showLineNumbers={true} />
             </div>
 
             {error && (
-                <div className="text-error-text text-xs bg-error-bg border border-error-border p-2 rounded">
+                <div className="text-error-text text-xs bg-error-bg border border-error-border p-3 rounded-lg flex items-center gap-2">
+                    <AlertTriangle size={14} className="shrink-0" />
                     {error}
                 </div>
             )}
         </div>
 
-        <div className="p-4 bg-surface-secondary/50 border-t border-default rounded-b-xl flex justify-end gap-3">
-           <button onClick={onClose} className="px-4 py-2 text-secondary hover:text-primary hover:bg-surface-secondary font-medium text-sm rounded-lg transition-colors">
+        {/* Footer */}
+        <div className="p-4 border-t border-default bg-base/50 flex justify-end gap-3">
+           <button onClick={onClose} className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm">
              {t('createIndex.cancel')}
            </button>
            <button
              onClick={handleCreate}
-             disabled={loading || selectedColumns.length === 0}
-             className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-primary px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
+             disabled={loading || selectedColumns.length === 0 || !indexName.trim()}
+             className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
            >
              {loading && <Loader2 size={16} className="animate-spin" />}
              <Save size={16} /> {t('createIndex.create')}

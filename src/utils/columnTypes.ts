@@ -40,7 +40,7 @@ export function parseColumnType(
   if (exactMatch) {
     return { type: exactMatch.name, length: "" };
   }
-  const match = fullType.match(/^([a-zA-Z0-9_\[\] ]+)(?:\((.+)\))?$/);
+  const match = fullType.match(/^([a-zA-Z0-9_[\] ]+)(?:\((.+)\))?$/);
   if (match) {
     return { type: match[1].toUpperCase().trim(), length: match[2] || "" };
   }

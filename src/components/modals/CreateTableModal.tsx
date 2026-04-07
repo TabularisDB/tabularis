@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Plus, Trash2, Save, Code, Loader2, AlertTriangle } from 'lucide-react';
+import { X, Plus, Trash2, Save, Loader2, AlertTriangle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useDatabase } from '../../hooks/useDatabase';
 import { SqlPreview } from '../ui/SqlPreview';
@@ -37,9 +37,6 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
   ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showSqlPreview, setShowSqlPreview] = useState(false);
-
-  // Determine current driver
 
   const availableTypes = useMemo(
     () => dataTypes?.types || [],
@@ -144,7 +141,6 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
 
         onSuccess();
         onClose();
-        // Reset state
         setTableName('');
         setColumns([{ id: '1', name: 'id', type: 'INTEGER', length: '', isPk: true, isNullable: false, isAutoInc: true, defaultValue: '' }]);
     } catch (e: unknown) {
@@ -155,11 +151,13 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
     }
   };
 
+  const hasEmptyColumnNames = columns.some(c => !c.name.trim());
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} overlayClassName="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+    <Modal isOpen={isOpen} onClose={onClose} overlayClassName="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100]">
       <div className="bg-elevated rounded-xl shadow-2xl w-[900px] border border-strong flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-default bg-base rounded-t-xl">
+        <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
              <div className="bg-blue-900/30 p-2 rounded-lg">
                 <Plus className="text-blue-400" size={20} />
@@ -176,14 +174,14 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
 
         {/* Body */}
         <div className="flex-1 overflow-hidden flex flex-col p-6 gap-6">
-            
+
             {/* Table Name */}
             <div>
-                <label className="block text-xs font-semibold text-secondary mb-1 uppercase tracking-wider">{t('createTable.tableName')}</label>
+                <label className="block text-xs uppercase font-bold text-muted mb-1">{t('createTable.tableName')}</label>
                 <input
                     value={tableName}
-                    onChange={(e) => setTableName(e.target.value)}
-                    className="w-full bg-base border border-strong rounded-lg px-4 py-2 text-primary focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-mono"
+                    onChange={(e) => { setTableName(e.target.value); setError(''); }}
+                    className={`w-full bg-base border rounded-lg px-3 py-2 text-primary focus:border-blue-500 focus:outline-none transition-all font-mono ${!tableName.trim() && error ? 'border-red-500' : 'border-strong'}`}
                     placeholder={t('createTable.tableNamePlaceholder')}
                     autoFocus
                 />
@@ -197,7 +195,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
                         <Plus size={12} /> {t('createTable.addColumn')}
                     </button>
                 </div>
-                
+
                 <div className="overflow-auto flex-1">
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-elevated/50 sticky top-0 z-10">
@@ -221,7 +219,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
                                         <input
                                             value={col.name}
                                             onChange={(e) => updateColumn(col.id, 'name', e.target.value)}
-                                            className="w-full bg-transparent text-sm text-primary focus:outline-none border-b border-transparent focus:border-blue-500 font-mono placeholder:text-muted"
+                                            className={`w-full bg-transparent text-sm text-primary focus:outline-none border-b font-mono placeholder:text-muted ${!col.name.trim() ? 'border-red-500/50' : 'border-transparent focus:border-blue-500'}`}
                                             placeholder="col_name"
                                         />
                                     </td>
@@ -254,7 +252,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
                                         <input
                                             value={col.length}
                                             onChange={(e) => updateColumn(col.id, 'length', e.target.value)}
-                                            className="w-full bg-transparent text-xs text-secondary focus:outline-none border-b border-transparent focus:border-blue-500 text-center"
+                                            className="w-full bg-transparent text-xs text-secondary focus:outline-none border-b border-transparent focus:border-blue-500 text-center disabled:opacity-30"
                                             placeholder={availableTypes.find((t) => t.name === col.type)?.default_length || "-"}
                                             disabled={
                                               !availableTypes.find((t) => t.name === col.type)?.requires_length &&
@@ -263,7 +261,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
                                         />
                                     </td>
                                     <td className="p-2 text-center">
-                                        <input 
+                                        <input
                                             type="checkbox"
                                             checked={col.isPk}
                                             onChange={(e) => updateColumn(col.id, 'isPk', e.target.checked)}
@@ -271,7 +269,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
                                         />
                                     </td>
                                     <td className="p-2 text-center">
-                                        <input 
+                                        <input
                                             type="checkbox"
                                             checked={!col.isNullable}
                                             onChange={(e) => updateColumn(col.id, 'isNullable', !e.target.checked)}
@@ -279,16 +277,16 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
                                         />
                                     </td>
                                     <td className="p-2 text-center">
-                                        <input 
+                                        <input
                                             type="checkbox"
                                             checked={col.isAutoInc}
                                             onChange={(e) => updateColumn(col.id, 'isAutoInc', e.target.checked)}
                                             disabled={!availableTypes.find((t) => t.name === col.type)?.supports_auto_increment}
-                                            className="accent-blue-500"
+                                            className="accent-blue-500 disabled:opacity-30"
                                         />
                                     </td>
                                     <td className="p-2">
-                                         <input 
+                                         <input
                                             value={col.defaultValue}
                                             onChange={(e) => updateColumn(col.id, 'defaultValue', e.target.value)}
                                             className="w-full bg-transparent text-xs text-secondary focus:outline-none border-b border-transparent focus:border-blue-500"
@@ -296,7 +294,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
                                         />
                                     </td>
                                     <td className="p-2 text-center">
-                                        <button 
+                                        <button
                                             onClick={() => handleRemoveColumn(col.id)}
                                             className="text-surface-tertiary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
@@ -314,37 +312,29 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
             {(() => {
                 const exts = getRequiredExtensions(columns.map(c => c.type), availableTypes);
                 return exts.length > 0 ? (
-                    <div className="text-xs text-amber-400 flex items-center gap-1">
-                        <AlertTriangle size={12} className="shrink-0" />
+                    <div className="bg-warning-bg border border-warning-border text-warning-text text-xs p-3 rounded-lg flex items-center gap-2">
+                        <AlertTriangle size={14} className="shrink-0" />
                         <span>{t('createTable.requiresExtension', { ext: exts.join(', ') })}</span>
                     </div>
                 ) : null;
             })()}
 
-            {/* SQL Preview Toggle/Area */}
-            <div className="flex flex-col gap-2">
-                <button
-                    onClick={() => setShowSqlPreview(!showSqlPreview)}
-                    className="text-xs text-muted hover:text-blue-400 flex items-center gap-2 self-start font-medium"
-                >
-                    <Code size={14} />
-                    {showSqlPreview ? t('createTable.hideSql') : t('createTable.showSql')}
-                </button>
-                
-                {showSqlPreview && (
-                    <SqlPreview sql={sqlPreview} height="128px" showLineNumbers={true} />
-                )}
+            {/* SQL Preview - always visible */}
+            <div>
+                <div className="text-[10px] text-muted mb-1 uppercase tracking-wider">{t('createTable.sqlPreview', { defaultValue: 'SQL Preview' })}</div>
+                <SqlPreview sql={sqlPreview} height="100px" showLineNumbers={true} />
             </div>
 
             {error && (
-                <div className="bg-red-900/20 border border-red-900/50 text-red-200 text-sm p-3 rounded-lg animate-in fade-in">
+                <div className="text-error-text text-xs bg-error-bg border border-error-border p-3 rounded-lg flex items-center gap-2">
+                    <AlertTriangle size={14} className="shrink-0" />
                     {error}
                 </div>
             )}
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-base/50 border-t border-default rounded-b-xl flex justify-end gap-3">
+        <div className="p-4 border-t border-default bg-base/50 flex justify-end gap-3">
           <button
             onClick={onClose}
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
@@ -353,7 +343,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
           </button>
           <button
             onClick={handleCreate}
-            disabled={loading || !tableName.trim()}
+            disabled={loading || !tableName.trim() || hasEmptyColumnNames}
             className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
           >
             {loading && <Loader2 size={16} className="animate-spin" />}

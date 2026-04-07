@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { X, Save, Loader2, AlertTriangle } from "lucide-react";
+import { X, Save, Loader2, AlertTriangle, Columns, Plus } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { SqlPreview } from "../ui/SqlPreview";
 import { useDatabase } from "../../hooks/useDatabase";
@@ -54,11 +54,9 @@ export const ModifyColumnModal = ({
     [dataTypes],
   );
 
-  const parseType = (fullType: string) => parseColumnType(fullType, availableTypes);
-
   const initial = useMemo(() => {
     if (column) {
-      const { type, length } = parseType(column.data_type);
+      const { type, length } = parseColumnType(column.data_type, availableTypes);
       return {
         name: column.name,
         type,
@@ -104,8 +102,8 @@ export const ModifyColumnModal = ({
       if (isEdit) {
         const oldCol = buildColumnDefinition({
           name: column!.name,
-          type: parseType(column!.data_type).type,
-          length: parseType(column!.data_type).length,
+          type: parseColumnType(column!.data_type, availableTypes).type,
+          length: parseColumnType(column!.data_type, availableTypes).length,
           isNullable: column!.is_nullable,
           defaultValue: "",
           isPk: column!.is_pk,
@@ -132,7 +130,7 @@ export const ModifyColumnModal = ({
     } catch (e) {
       setSqlPreview("-- " + String(e));
     }
-  }, [form, isEdit, column, connectionId, tableName, activeSchema, t]);
+  }, [form, isEdit, column, connectionId, tableName, activeSchema, availableTypes, t]);
 
   // Debounced preview generation
   useEffect(() => {
@@ -153,8 +151,8 @@ export const ModifyColumnModal = ({
       if (isEdit) {
         const oldCol = buildColumnDefinition({
           name: column!.name,
-          type: parseType(column!.data_type).type,
-          length: parseType(column!.data_type).length,
+          type: parseColumnType(column!.data_type, availableTypes).type,
+          length: parseColumnType(column!.data_type, availableTypes).length,
           isNullable: column!.is_nullable,
           defaultValue: "",
           isPk: column!.is_pk,
@@ -197,13 +195,18 @@ export const ModifyColumnModal = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} overlayClassName="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
-      <div className="bg-elevated rounded-xl shadow-2xl w-[500px] border border-strong flex flex-col">
+    <Modal isOpen={isOpen} onClose={onClose} overlayClassName="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100]">
+      <div className="bg-elevated rounded-xl shadow-2xl w-[500px] border border-strong flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-default bg-surface-secondary/50 rounded-t-xl">
-          <h2 className="text-lg font-semibold text-primary">
-            {isEdit ? t("modifyColumn.titleEdit") : t("modifyColumn.titleAdd")}
-          </h2>
+        <div className="flex items-center justify-between p-4 border-b border-default bg-base">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${isEdit ? 'bg-purple-900/30' : 'bg-blue-900/30'}`}>
+              {isEdit ? <Columns size={20} className="text-purple-400" /> : <Plus size={20} className="text-blue-400" />}
+            </div>
+            <h2 className="text-lg font-semibold text-primary">
+              {isEdit ? t("modifyColumn.titleEdit") : t("modifyColumn.titleAdd")}
+            </h2>
+          </div>
           <button
             onClick={onClose}
             className="text-secondary hover:text-primary transition-colors"
@@ -213,22 +216,22 @@ export const ModifyColumnModal = ({
         </div>
 
         {/* Body */}
-        <div className="p-6 flex flex-col gap-4">
+        <div className="p-6 flex flex-col gap-4 overflow-y-auto">
           {!canAlterColumn && isEdit && (
-            <div className="bg-warning-bg border border-warning-border text-warning-text text-xs p-3 rounded flex items-start gap-2">
+            <div className="bg-warning-bg border border-warning-border text-warning-text text-xs p-3 rounded-lg flex items-start gap-2">
               <AlertTriangle size={14} className="shrink-0 mt-0.5" />
               <span>{t("modifyColumn.sqliteWarn")}</span>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-secondary mb-1">
+            <label className="block text-xs uppercase font-bold text-muted mb-1">
               {t("modifyColumn.name")}
             </label>
             <input
               value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full bg-base border border-strong rounded p-2 text-primary text-sm focus:border-focus outline-none font-mono"
+              onChange={(e) => { setForm({ ...form, name: e.target.value }); setError(""); }}
+              className={`w-full bg-base border rounded-lg px-3 py-2 text-primary text-sm focus:border-blue-500 focus:outline-none font-mono ${!form.name.trim() && error ? 'border-red-500' : 'border-strong'}`}
               placeholder="column_name"
               autoFocus
             />
@@ -236,7 +239,7 @@ export const ModifyColumnModal = ({
 
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block text-xs font-semibold text-secondary mb-1">
+              <label className="block text-xs uppercase font-bold text-muted mb-1">
                 {t("modifyColumn.type")}
               </label>
               <select
@@ -277,7 +280,7 @@ export const ModifyColumnModal = ({
               )}
             </div>
             <div className="w-24">
-              <label className="block text-xs font-semibold text-secondary mb-1">
+              <label className="block text-xs uppercase font-bold text-muted mb-1">
                 {t("modifyColumn.length")}
               </label>
               <input
@@ -298,7 +301,7 @@ export const ModifyColumnModal = ({
 
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block text-xs font-semibold text-secondary mb-1">
+              <label className="block text-xs uppercase font-bold text-muted mb-1">
                 {t("modifyColumn.default")}
               </label>
               <input
@@ -387,17 +390,18 @@ export const ModifyColumnModal = ({
           </div>
 
           {error && (
-            <div className="text-error-text text-xs bg-error-bg border border-error-border p-2 rounded">
+            <div className="text-error-text text-xs bg-error-bg border border-error-border p-3 rounded-lg flex items-center gap-2">
+              <AlertTriangle size={14} className="shrink-0" />
               {error}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-surface-secondary/50 border-t border-default rounded-b-xl flex justify-end gap-3">
+        <div className="p-4 border-t border-default bg-base/50 flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-secondary hover:text-primary hover:bg-surface-secondary font-medium text-sm rounded-lg transition-colors"
+            className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
             {t("modifyColumn.cancel")}
           </button>
@@ -405,9 +409,10 @@ export const ModifyColumnModal = ({
             onClick={handleSubmit}
             disabled={
               loading ||
+              !form.name.trim() ||
               (!canAlterColumn && isEdit && form.name === column?.name)
             }
-            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-primary px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
+            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
           >
             {loading && <Loader2 size={16} className="animate-spin" />}
             <Save size={16} />{" "}
