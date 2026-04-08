@@ -1,3 +1,43 @@
+## [0.9.15](https://github.com/debba/tabularis/compare/v0.9.14...v0.9.15) (2026-04-08)
+
+
+### Bug Fixes
+
+* **notebook:** ensure unique keys for rendered cells using id and index ([8d6e1ea](https://github.com/debba/tabularis/commit/8d6e1ea81947f7f5c64c896fac51dc6d46349020))
+* **notebook:** prevent stale runCell, add typings and guards ([be1731e](https://github.com/debba/tabularis/commit/be1731eed97154126abfc7bfc52fe6c35d3f60b9))
+* **notebook:** render cell history panel outside collapsed check for sql ([cb58710](https://github.com/debba/tabularis/commit/cb58710a83efaaa57972024fcc06778c4605d1bf))
+* **notebook:** sync cells ref and improve export with error handling ([aa6ba5a](https://github.com/debba/tabularis/commit/aa6ba5abea5ceec935bbddd6fbec77a534c82203))
+* **ui:** render modal into portal and adjust tooltip z-index ([5a60282](https://github.com/debba/tabularis/commit/5a60282934c0e7fd3c4d6bb0841bade25523ae71))
+* **ui:** replace useEffect setState with initialEditing prop pattern ([85262f3](https://github.com/debba/tabularis/commit/85262f38dd39d34a3569ccff65ad29387aeacc9f))
+
+
+### Features
+
+* **ai:** add AI tab rename feature ([c5cfb57](https://github.com/debba/tabularis/commit/c5cfb57ec98f236fe5875d7979a40723788b823f))
+* **editor:** add multi-query run and selection UI ([63e5aa8](https://github.com/debba/tabularis/commit/63e5aa872767ca48060bb6b908e177996daa656c))
+* **editor:** add tab rename, close and multi-query run support ([808e0cb](https://github.com/debba/tabularis/commit/808e0cbabd6641572962bc6e91a7555f2381f5f5))
+* **editor:** prompt for params when running multi queries ([c741411](https://github.com/debba/tabularis/commit/c7414115a94db1c366ee3e5218f72ab4eb161f69))
+* **health-check:** add periodic connection ping health checks ([17398dd](https://github.com/debba/tabularis/commit/17398dd001cede8c71692d8cd4c42e738b60320f))
+* **multi-result-panel:** add collapsible query preview to result panel ([be8e541](https://github.com/debba/tabularis/commit/be8e541349e57a328253c4e885a0d51d501362bc))
+* **notebook:** add AI buttons, outline, collapse and export ([d0ccee9](https://github.com/debba/tabularis/commit/d0ccee9e2684e6727aa2f5fbc3486fbcb9a5e215))
+* **notebook:** add AI naming for outline and collapse/expand all ([a15b056](https://github.com/debba/tabularis/commit/a15b056c6e24e5ce3b0acccfa8520d26f1f2758a))
+* **notebook:** add AI-generated cell names and outline support ([8499bdb](https://github.com/debba/tabularis/commit/8499bdb6470ebbf265529956bca52c5b0a3eb60c))
+* **notebook:** add charts, params, sections, history ([da915f2](https://github.com/debba/tabularis/commit/da915f247969d9f71ac6157001de6cf1f46c5750))
+* **notebook:** add fallback markdown outline and add-cell button ([09887df](https://github.com/debba/tabularis/commit/09887df411b42b17b8e218d87978a72827b63c74))
+* **notebook:** add notebook UI with SQL and markdown cells, add run ([f4b4983](https://github.com/debba/tabularis/commit/f4b49838dbfb74ac23ce4f479bcfde1d10d4b40a))
+* **notebook:** add per-cell schema selection and multi-db support ([6047199](https://github.com/debba/tabularis/commit/6047199151ff56a979eaa756705438435b3e8ad6))
+* **notebook:** auto-run unresolved cell dependencies before query ([1757639](https://github.com/debba/tabularis/commit/17576395034d036a4261a35c2af0102f6189fa29))
+* **notebooks:** add file-based persistence and debounced store ([98ebf4c](https://github.com/debba/tabularis/commit/98ebf4c19d3f214fdc350ea032ebfb938ab225da))
+* **query-selection:** revamp modal UI and add run-single action ([8f7052b](https://github.com/debba/tabularis/commit/8f7052bea4166f4212d048c2c2ab195fea56bfa2))
+* **ui:** add scrolling and inline rename to multi-result tabs ([871d7be](https://github.com/debba/tabularis/commit/871d7be81fc64b38b3d0b4437826ddc0bb4314ed))
+* **ui:** add tab context menu to multi-result panel ([c291f0c](https://github.com/debba/tabularis/commit/c291f0c5e18ca892e68da52060104355a68f20a4))
+* **ui:** add WhatsNew modal and stacked multi-result UI components ([f1ef252](https://github.com/debba/tabularis/commit/f1ef252fcaf488a4c8ba268b77581af5513e5901))
+
+
+### BREAKING CHANGES
+
+* **notebook:** clearHistory no longer accepts a cell argument
+
 ## [0.9.14](https://github.com/debba/tabularis/compare/v0.9.13...v0.9.14) (2026-04-07)
 
 
