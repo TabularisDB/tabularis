@@ -52,27 +52,30 @@ interface MultiResultPanelProps {
 function ResultTab({
   entry,
   isActive,
-  forceEdit,
+  initialEditing,
   onSelect,
   onRerun,
   onClose,
   onRename,
   onContextMenu,
-  onEditDone,
 }: {
   entry: QueryResultEntry;
   isActive: boolean;
-  forceEdit: boolean;
+  initialEditing: boolean;
   onSelect: () => void;
   onRerun: () => void;
   onClose: () => void;
   onRename: (label: string) => void;
   onContextMenu: (e: React.MouseEvent) => void;
-  onEditDone: () => void;
 }) {
   const { t } = useTranslation();
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState("");
+  const displayLabel =
+    entry.label ||
+    t("editor.multiResult.query", { index: entry.queryIndex + 1 });
+  const [isEditing, setIsEditing] = useState(initialEditing);
+  const [editValue, setEditValue] = useState(
+    initialEditing ? (entry.label || displayLabel) : "",
+  );
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -82,24 +85,10 @@ function ResultTab({
     }
   }, [isEditing]);
 
-  const displayLabel =
-    entry.label ||
-    t("editor.multiResult.query", { index: entry.queryIndex + 1 });
-
   const startEditing = () => {
-    setEditValue(
-      entry.label ||
-        t("editor.multiResult.query", { index: entry.queryIndex + 1 }),
-    );
+    setEditValue(entry.label || displayLabel);
     setIsEditing(true);
   };
-
-  useEffect(() => {
-    if (forceEdit && !isEditing) {
-      startEditing();
-      onEditDone();
-    }
-  }, [forceEdit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const commitEdit = () => {
     const trimmed = editValue.trim();
@@ -289,20 +278,22 @@ export function MultiResultPanel({
           onScroll={updateScrollArrows}
           className="flex flex-1 overflow-x-auto no-scrollbar h-full"
         >
-          {results.map((entry) => (
+          {results.map((entry) => {
+            const shouldEdit = editingEntryId === entry.id;
+            return (
             <ResultTab
-              key={entry.id}
+              key={shouldEdit ? `${entry.id}-edit` : entry.id}
               entry={entry}
               isActive={entry.id === activeEntry.id}
-              forceEdit={editingEntryId === entry.id}
-              onEditDone={() => setEditingEntryId(null)}
-              onSelect={() => onSelectResult(entry.id)}
+              initialEditing={shouldEdit}
+              onSelect={() => { if (shouldEdit) setEditingEntryId(null); onSelectResult(entry.id); }}
               onRerun={() => onRerunEntry(entry.id)}
               onClose={() => onCloseEntry(entry.id)}
               onRename={(label) => onRenameEntry(entry.id, label)}
               onContextMenu={(e) => handleContextMenu(entry.id, e)}
             />
-          ))}
+            );
+          })}
         </div>
         {/* Summary badge */}
         {isAllDone && (
