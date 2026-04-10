@@ -1109,9 +1109,15 @@ pub async fn explain_query(
                         let root = parse_mysql_query_block(query_block, &mut counter);
                         let has_analyze = has_analyze_data_recursive(&root);
 
+                        // MariaDB: query_optimization.r_total_time_ms
+                        let planning_time_ms = json_val
+                            .get("query_optimization")
+                            .and_then(|qo| qo.get("r_total_time_ms"))
+                            .and_then(|v| v.as_f64());
+
                         return Ok(ExplainPlan {
                             root,
-                            planning_time_ms: None,
+                            planning_time_ms,
                             execution_time_ms: None,
                             original_query: query.to_string(),
                             driver: "mysql".to_string(),
@@ -1360,6 +1366,13 @@ fn parse_mariadb_filesort(filesort: &serde_json::Value, counter: &mut u32) -> Ex
         }
     }
 
+    // Also capture r_limit and r_used_priority_queue when present
+    for key in &["r_limit", "r_used_priority_queue"] {
+        if let Some(val) = filesort.get(*key) {
+            extra.insert(key.to_string(), val.clone());
+        }
+    }
+
     let mut children = Vec::new();
     if let Some(tmp_tbl) = filesort.get("temporary_table") {
         children.push(parse_mariadb_temporary_table(tmp_tbl, counter));
@@ -1371,6 +1384,13 @@ fn parse_mariadb_filesort(filesort: &serde_json::Value, counter: &mut u32) -> Ex
     }
     if let Some(order_op) = filesort.get("ordering_operation") {
         children.push(parse_mysql_query_block(order_op, counter));
+    }
+    // MariaDB: filesort may contain a direct "table" (no nested_loop wrapper)
+    if filesort.get("table").is_some()
+        && filesort.get("nested_loop").is_none()
+        && filesort.get("temporary_table").is_none()
+    {
+        children.push(parse_mysql_query_block(filesort, counter));
     }
 
     ExplainNode {
@@ -1432,6 +1452,55 @@ fn parse_mariadb_temporary_table(
         join_type: None,
         hash_condition: None,
         extra: std::collections::HashMap::new(),
+        children,
+    }
+}
+
+/// Parse a MariaDB `subquery_cache` wrapper into an ExplainNode.
+///
+/// MariaDB wraps correlated/dependent subqueries in `"subquery_cache": {
+/// r_loops, r_hit_ratio, query_block: { … } }` when the optimizer can
+/// cache repeated evaluations.  The `r_hit_ratio` (0–100) indicates how
+/// often the cache was reused.
+fn parse_mariadb_subquery_cache(
+    cache: &serde_json::Value,
+    counter: &mut u32,
+) -> ExplainNode {
+    let id = format!("node_{}", counter);
+    *counter += 1;
+
+    let actual_loops = cache
+        .get("r_loops")
+        .and_then(|v| v.as_u64())
+        .or_else(|| cache.get("r_loops").and_then(|v| v.as_f64()).map(|f| f as u64));
+
+    let mut extra = std::collections::HashMap::new();
+    if let Some(hit) = cache.get("r_hit_ratio") {
+        extra.insert("r_hit_ratio".to_string(), hit.clone());
+    }
+
+    let mut children = Vec::new();
+    if let Some(qb) = cache.get("query_block") {
+        children.push(parse_mysql_query_block(qb, counter));
+    }
+
+    ExplainNode {
+        id,
+        node_type: "Subquery Cache".to_string(),
+        relation: None,
+        startup_cost: None,
+        total_cost: None,
+        plan_rows: None,
+        actual_rows: None,
+        actual_time_ms: None,
+        actual_loops,
+        buffers_hit: None,
+        buffers_read: None,
+        filter: None,
+        index_condition: None,
+        join_type: None,
+        hash_condition: None,
+        extra,
         children,
     }
 }
@@ -1646,6 +1715,18 @@ fn parse_mysql_query_block(block: &serde_json::Value, counter: &mut u32) -> Expl
         for item in nested_loop {
             if item.get("table").is_some() {
                 children.push(parse_mysql_query_block(item, counter));
+            } else if let Some(rsf) = item.get("read_sorted_file") {
+                children.push(parse_mariadb_wrapper(rsf, "Read Sorted File", counter));
+            } else if let Some(fs) = item.get("filesort") {
+                if fs.is_object() {
+                    children.push(parse_mariadb_filesort(fs, counter));
+                }
+            } else if let Some(tmp) = item.get("temporary_table") {
+                children.push(parse_mariadb_temporary_table(tmp, counter));
+            } else if let Some(mat) = item.get("materialized") {
+                children.push(parse_mariadb_wrapper(mat, "Materialized Subquery", counter));
+            } else if let Some(buf) = item.get("buffer_result") {
+                children.push(parse_mariadb_wrapper(buf, "Buffer Result", counter));
             }
         }
     }
@@ -1677,6 +1758,18 @@ fn parse_mysql_query_block(block: &serde_json::Value, counter: &mut u32) -> Expl
     {
         for sq in attached {
             children.push(parse_mysql_query_block(sq, counter));
+        }
+    }
+
+    // MariaDB: "subqueries" array — each entry may be a subquery_cache wrapper
+    // or a direct query_block.
+    if let Some(subqueries) = block.get("subqueries").and_then(|v| v.as_array()) {
+        for sq in subqueries {
+            if let Some(cache) = sq.get("subquery_cache") {
+                children.push(parse_mariadb_subquery_cache(cache, counter));
+            } else if sq.get("query_block").is_some() || sq.get("table").is_some() {
+                children.push(parse_mysql_query_block(sq, counter));
+            }
         }
     }
 
@@ -2818,5 +2911,195 @@ mod tests {
         assert_eq!(filesort.children.len(), 1);
         assert_eq!(filesort.children[0].node_type, "Range Scan");
         assert_eq!(filesort.children[0].relation.as_deref(), Some("t"));
+    }
+
+    // -- read_sorted_file in nested_loop + subqueries with subquery_cache -----
+
+    #[test]
+    fn test_read_sorted_file_in_nested_loop_with_subquery_cache() {
+        let root = parse_json(r#"{
+            "query_block": {
+                "select_id": 1,
+                "cost": 0.41,
+                "r_loops": 1,
+                "r_total_time_ms": 10.94,
+                "nested_loop": [
+                    {
+                        "read_sorted_file": {
+                            "r_rows": 20,
+                            "filesort": {
+                                "sort_key": "p.view_count desc",
+                                "r_loops": 1,
+                                "r_total_time_ms": 9.95,
+                                "r_limit": 20,
+                                "r_used_priority_queue": true,
+                                "r_output_rows": 21,
+                                "r_sort_mode": "sort_key,rowid",
+                                "table": {
+                                    "table_name": "p",
+                                    "access_type": "ALL",
+                                    "rows": 1944,
+                                    "r_rows": 2000,
+                                    "cost": 0.41,
+                                    "r_table_time_ms": 1.40,
+                                    "r_other_time_ms": 2.02,
+                                    "filtered": 100,
+                                    "r_filtered": 50.55,
+                                    "attached_condition": "p.view_count > (subquery#5)"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "subqueries": [
+                    {
+                        "subquery_cache": {
+                            "r_loops": 2000,
+                            "r_hit_ratio": 99,
+                            "query_block": {
+                                "select_id": 5,
+                                "cost": 0.18,
+                                "r_loops": 20,
+                                "r_total_time_ms": 6.60,
+                                "nested_loop": [
+                                    {
+                                        "table": {
+                                            "table_name": "p2",
+                                            "access_type": "ref",
+                                            "key": "idx_category",
+                                            "rows": 97,
+                                            "r_rows": 100,
+                                            "cost": 0.18,
+                                            "r_table_time_ms": 5.91,
+                                            "r_other_time_ms": 0.64
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "subquery_cache": {
+                            "r_loops": 20,
+                            "r_hit_ratio": 0,
+                            "query_block": {
+                                "select_id": 4,
+                                "nested_loop": [
+                                    {
+                                        "table": {
+                                            "table_name": "pt",
+                                            "access_type": "ref",
+                                            "key": "PRIMARY",
+                                            "rows": 2,
+                                            "r_rows": 2.35
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                ]
+            }
+        }"#);
+
+        let nodes = flatten(&root);
+
+        // Root: Query Block
+        assert_eq!(root.node_type, "Query Block");
+        assert!((root.actual_time_ms.unwrap() - 10.94).abs() < 0.01);
+
+        // Should have: Read Sorted File + 2 Subquery Cache children
+        assert_eq!(root.children.len(), 3);
+
+        // First child: Read Sorted File (from nested_loop)
+        let rsf = &root.children[0];
+        assert_eq!(rsf.node_type, "Read Sorted File");
+        assert!((rsf.actual_rows.unwrap() - 20.0).abs() < 0.1);
+
+        // Inside read_sorted_file: Filesort
+        assert_eq!(rsf.children.len(), 1);
+        let filesort = &rsf.children[0];
+        assert_eq!(filesort.node_type, "Filesort");
+        assert!((filesort.actual_time_ms.unwrap() - 9.95).abs() < 0.01);
+        assert_eq!(
+            filesort.extra.get("sort_key").and_then(|v| v.as_str()),
+            Some("p.view_count desc")
+        );
+        assert_eq!(
+            filesort.extra.get("r_limit").and_then(|v| v.as_u64()),
+            Some(20)
+        );
+        assert_eq!(
+            filesort.extra.get("r_used_priority_queue").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+
+        // Inside filesort: direct table "p"
+        assert_eq!(filesort.children.len(), 1);
+        let table_p = &filesort.children[0];
+        assert_eq!(table_p.node_type, "Full Table Scan");
+        assert_eq!(table_p.relation.as_deref(), Some("p"));
+        assert_eq!(
+            table_p.filter.as_deref(),
+            Some("p.view_count > (subquery#5)")
+        );
+
+        // Second child: Subquery Cache with r_hit_ratio=99
+        let cache1 = &root.children[1];
+        assert_eq!(cache1.node_type, "Subquery Cache");
+        assert_eq!(cache1.actual_loops, Some(2000));
+        assert_eq!(
+            cache1.extra.get("r_hit_ratio").and_then(|v| v.as_u64()),
+            Some(99)
+        );
+        // Should have a query_block child with table p2
+        let p2 = nodes.iter().find(|n| n.relation.as_deref() == Some("p2"));
+        assert!(p2.is_some(), "should have table p2 from subquery_cache");
+        assert_eq!(p2.unwrap().node_type, "Index Lookup");
+
+        // Third child: Subquery Cache with r_hit_ratio=0
+        let cache2 = &root.children[2];
+        assert_eq!(cache2.node_type, "Subquery Cache");
+        assert_eq!(cache2.actual_loops, Some(20));
+        assert_eq!(
+            cache2.extra.get("r_hit_ratio").and_then(|v| v.as_u64()),
+            Some(0)
+        );
+        let pt = nodes.iter().find(|n| n.relation.as_deref() == Some("pt"));
+        assert!(pt.is_some(), "should have table pt from subquery_cache");
+    }
+
+    // -- Filesort with direct table (no nested_loop / temporary_table) --------
+
+    #[test]
+    fn test_filesort_with_direct_table() {
+        let root = parse_json(r#"{
+            "query_block": {
+                "select_id": 1,
+                "filesort": {
+                    "sort_key": "t.id desc",
+                    "r_loops": 1,
+                    "r_total_time_ms": 0.5,
+                    "r_output_rows": 10,
+                    "table": {
+                        "table_name": "t",
+                        "access_type": "ALL",
+                        "rows": 100,
+                        "r_rows": 100,
+                        "r_table_time_ms": 0.3,
+                        "r_other_time_ms": 0.1
+                    }
+                }
+            }
+        }"#);
+
+        assert_eq!(root.node_type, "Query Block");
+        let filesort = &root.children[0];
+        assert_eq!(filesort.node_type, "Filesort");
+        assert_eq!(filesort.children.len(), 1);
+        let table = &filesort.children[0];
+        assert_eq!(table.node_type, "Full Table Scan");
+        assert_eq!(table.relation.as_deref(), Some("t"));
+        assert!((table.actual_rows.unwrap() - 100.0).abs() < 0.1);
     }
 }
