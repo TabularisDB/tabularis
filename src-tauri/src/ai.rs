@@ -355,6 +355,14 @@ pub async fn explain_ai_query(app: AppHandle, req: AiExplainRequest) -> Result<S
 }
 
 #[tauri::command]
+pub async fn analyze_ai_explain_plan(
+    app: AppHandle,
+    req: AiExplainRequest,
+) -> Result<String, String> {
+    analyze_explain_plan(app, req).await
+}
+
+#[tauri::command]
 pub async fn generate_cell_name(app: AppHandle, req: AiCellNameRequest) -> Result<String, String> {
     generate_cellname(app, req).await
 }
@@ -470,6 +478,42 @@ pub async fn explain_query(app: AppHandle, mut req: AiExplainRequest) -> Result<
     match &result {
         Ok(_) => log::info!("Query explanation generated successfully using {}", req.model),
         Err(e) => log::error!("Query explanation generation failed: {}", e),
+    }
+
+    result
+}
+
+pub async fn analyze_explain_plan(
+    app: AppHandle,
+    mut req: AiExplainRequest,
+) -> Result<String, String> {
+    log::info!(
+        "Analyzing explain plan using AI provider: {}",
+        req.provider
+    );
+
+    let app_config = config::load_config_internal(&app);
+    let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
+    req.model = resolve_model(&req.provider, &req.model, &app_config, ollama_port).await?;
+
+    let raw_prompt = config::get_explainplan_prompt(app);
+    let system_prompt = raw_prompt.replace("{{LANGUAGE}}", &req.language);
+
+    let gen_req = AiGenerateRequest {
+        provider: req.provider.clone(),
+        model: req.model.clone(),
+        prompt: req.query.clone(),
+        schema: String::new(),
+    };
+
+    let result = dispatch_provider(&app_config, &gen_req, &system_prompt, ollama_port).await;
+
+    match &result {
+        Ok(_) => log::info!(
+            "Explain plan analysis generated successfully using {}",
+            req.model
+        ),
+        Err(e) => log::error!("Explain plan analysis failed: {}", e),
     }
 
     result

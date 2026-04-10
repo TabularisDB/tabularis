@@ -12,6 +12,7 @@ import {
   type ExplainViewMode,
 } from "./visual-explain/ExplainSummaryBar";
 import { ExplainGraph } from "./visual-explain/ExplainGraph";
+import { ExplainTableView } from "./visual-explain/ExplainTableView";
 import { ExplainAiAnalysis } from "./visual-explain/ExplainAiAnalysis";
 
 interface VisualExplainModalProps {
@@ -134,6 +135,8 @@ export const VisualExplainModal = ({
               />
             ) : viewMode === "ai" ? (
               <ExplainAiAnalysis plan={plan} />
+            ) : viewMode === "table" ? (
+              <ExplainTableView plan={plan} />
             ) : (
               <ExplainGraph plan={plan} />
             )

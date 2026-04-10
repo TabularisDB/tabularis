@@ -35,7 +35,7 @@ export function ExplainAiAnalysis({ plan }: ExplainAiAnalysisProps) {
     ].join("\n");
 
     try {
-      const result = await invoke<string>("explain_ai_query", {
+      const result = await invoke<string>("analyze_ai_explain_plan", {
         req: {
           provider: settings.aiProvider,
           model: settings.aiModel || "",

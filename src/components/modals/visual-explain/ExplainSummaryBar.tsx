@@ -1,10 +1,10 @@
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
-import { FileText, Sparkles } from "lucide-react";
+import { FileText, Sparkles, TableProperties, Network } from "lucide-react";
 import type { ExplainPlan } from "../../../types/explain";
 import { formatTime, formatCost, getMaxCost } from "../../../utils/explainPlan";
 
-export type ExplainViewMode = "graph" | "raw" | "ai";
+export type ExplainViewMode = "graph" | "table" | "raw" | "ai";
 
 interface ExplainSummaryBarProps {
   plan: ExplainPlan | null;
@@ -25,9 +25,9 @@ export const ExplainSummaryBar = memo(
       `flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
         viewMode === mode
           ? mode === "ai"
-            ? "bg-purple-900/40 text-purple-300 border border-purple-500/40"
-            : "bg-blue-900/40 text-blue-300 border border-blue-500/40"
-          : "text-muted hover:text-primary bg-surface-secondary hover:bg-surface-tertiary border border-transparent"
+            ? "bg-purple-900/40 text-purple-300"
+            : "bg-blue-900/40 text-blue-300"
+          : "text-muted hover:text-primary"
       }`;
 
     return (
@@ -67,27 +67,38 @@ export const ExplainSummaryBar = memo(
 
         <div className="flex-1" />
 
-        <button
-          onClick={() =>
-            onViewModeChange(viewMode === "raw" ? "graph" : "raw")
-          }
-          className={toggleButtonClass("raw")}
-        >
-          <FileText size={12} />
-          {t("editor.visualExplain.rawOutput")}
-        </button>
-
-        {aiEnabled && (
+        <div className="flex items-center gap-1 bg-surface-secondary rounded-lg p-0.5">
           <button
-            onClick={() =>
-              onViewModeChange(viewMode === "ai" ? "graph" : "ai")
-            }
-            className={toggleButtonClass("ai")}
+            onClick={() => onViewModeChange("graph")}
+            className={toggleButtonClass("graph")}
           >
-            <Sparkles size={12} />
-            {t("editor.visualExplain.aiAnalysis")}
+            <Network size={12} />
+            {t("editor.visualExplain.graphView")}
           </button>
-        )}
+          <button
+            onClick={() => onViewModeChange("table")}
+            className={toggleButtonClass("table")}
+          >
+            <TableProperties size={12} />
+            {t("editor.visualExplain.tableView")}
+          </button>
+          <button
+            onClick={() => onViewModeChange("raw")}
+            className={toggleButtonClass("raw")}
+          >
+            <FileText size={12} />
+            {t("editor.visualExplain.rawOutput")}
+          </button>
+          {aiEnabled && (
+            <button
+              onClick={() => onViewModeChange("ai")}
+              className={toggleButtonClass("ai")}
+            >
+              <Sparkles size={12} />
+              {t("editor.visualExplain.aiAnalysis")}
+            </button>
+          )}
+        </div>
       </div>
     );
   },

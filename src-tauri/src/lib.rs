@@ -270,6 +270,9 @@ pub fn run() {
             config::get_explain_prompt,
             config::save_explain_prompt,
             config::reset_explain_prompt,
+            config::get_explainplan_prompt,
+            config::save_explainplan_prompt,
+            config::reset_explainplan_prompt,
             config::get_cellname_prompt,
             config::save_cellname_prompt,
             config::reset_cellname_prompt,
@@ -279,6 +282,7 @@ pub fn run() {
             // AI
             ai::generate_ai_query,
             ai::explain_ai_query,
+            ai::analyze_ai_explain_plan,
             ai::generate_cell_name,
             ai::generate_tab_rename,
             ai::get_ai_models,

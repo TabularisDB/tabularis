@@ -85,8 +85,9 @@ export function AiTab() {
   const [explainPrompt, setExplainPrompt] = useState("");
   const [cellnamePrompt, setCellnamePrompt] = useState("");
   const [tabrenamePrompt, setTabrenamePrompt] = useState("");
+  const [explainplanPrompt, setExplainplanPrompt] = useState("");
   const [promptSectionOpen, setPromptSectionOpen] = useState<
-    "system" | "explain" | "cellname" | "tabrename" | null
+    "system" | "explain" | "cellname" | "tabrename" | "explainplan" | null
   >(null);
 
   const loadModels = useCallback(
@@ -157,6 +158,9 @@ export function AiTab() {
     invoke<string>("get_tabrename_prompt")
       .then(setTabrenamePrompt)
       .catch(console.error);
+    invoke<string>("get_explainplan_prompt")
+      .then(setExplainplanPrompt)
+      .catch(console.error);
   }, [checkKeys, loadModels]);
 
   const handleSaveKey = async (provider: string) => {
@@ -175,10 +179,10 @@ export function AiTab() {
     }
   };
 
-  const handleSavePrompt = async (type: "system" | "explain" | "cellname" | "tabrename") => {
-    const cmdMap = { system: "save_system_prompt", explain: "save_explain_prompt", cellname: "save_cellname_prompt", tabrename: "save_tabrename_prompt" } as const;
+  const handleSavePrompt = async (type: "system" | "explain" | "cellname" | "tabrename" | "explainplan") => {
+    const cmdMap = { system: "save_system_prompt", explain: "save_explain_prompt", cellname: "save_cellname_prompt", tabrename: "save_tabrename_prompt", explainplan: "save_explainplan_prompt" } as const;
     const cmd = cmdMap[type];
-    const promptMap = { system: systemPrompt, explain: explainPrompt, cellname: cellnamePrompt, tabrename: tabrenamePrompt };
+    const promptMap = { system: systemPrompt, explain: explainPrompt, cellname: cellnamePrompt, tabrename: tabrenamePrompt, explainplan: explainplanPrompt };
     const prompt = promptMap[type];
     try {
       await invoke(cmd, { prompt });
@@ -191,10 +195,10 @@ export function AiTab() {
     }
   };
 
-  const handleResetPrompt = async (type: "system" | "explain" | "cellname" | "tabrename") => {
-    const cmdMap = { system: "reset_system_prompt", explain: "reset_explain_prompt", cellname: "reset_cellname_prompt", tabrename: "reset_tabrename_prompt" } as const;
+  const handleResetPrompt = async (type: "system" | "explain" | "cellname" | "tabrename" | "explainplan") => {
+    const cmdMap = { system: "reset_system_prompt", explain: "reset_explain_prompt", cellname: "reset_cellname_prompt", tabrename: "reset_tabrename_prompt", explainplan: "reset_explainplan_prompt" } as const;
     const cmd = cmdMap[type];
-    const setterMap = { system: setSystemPrompt, explain: setExplainPrompt, cellname: setCellnamePrompt, tabrename: setTabrenamePrompt };
+    const setterMap = { system: setSystemPrompt, explain: setExplainPrompt, cellname: setCellnamePrompt, tabrename: setTabrenamePrompt, explainplan: setExplainplanPrompt };
     const setter = setterMap[type];
     try {
       const defaultPrompt = await invoke<string>(cmd);
@@ -574,10 +578,10 @@ export function AiTab() {
 
         {/* Prompt customization */}
         <SettingSection title={t("settings.ai.systemPrompt")}>
-          {(["system", "explain", "cellname", "tabrename"] as const).map((type) => {
+          {(["system", "explain", "cellname", "tabrename", "explainplan"] as const).map((type) => {
             const isOpen = promptSectionOpen === type;
-            const promptMap = { system: systemPrompt, explain: explainPrompt, cellname: cellnamePrompt, tabrename: tabrenamePrompt };
-            const setPromptMap = { system: setSystemPrompt, explain: setExplainPrompt, cellname: setCellnamePrompt, tabrename: setTabrenamePrompt };
+            const promptMap = { system: systemPrompt, explain: explainPrompt, cellname: cellnamePrompt, tabrename: tabrenamePrompt, explainplan: explainplanPrompt };
+            const setPromptMap = { system: setSystemPrompt, explain: setExplainPrompt, cellname: setCellnamePrompt, tabrename: setTabrenamePrompt, explainplan: setExplainplanPrompt };
             const prompt = promptMap[type];
             const setPrompt = setPromptMap[type];
             return (
