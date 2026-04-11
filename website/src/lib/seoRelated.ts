@@ -37,7 +37,7 @@ const TAG_TO_LINKS: Record<string, RelatedLink[]> = {
     { href: "/compare/datagrip-alternative", label: "DataGrip alternative" },
   ],
   mysql: [
-    { href: "/solutions/postgresql-client", label: "SQL client guide" },
+    { href: "/solutions/mysql-client-for-developers", label: "MySQL client guide" },
     { href: "/compare/tableplus-alternative", label: "TablePlus alternative" },
   ],
   connections: [
@@ -101,15 +101,15 @@ const TAG_TO_LINKS: Record<string, RelatedLink[]> = {
     { href: "/plugins", label: "Plugin registry" },
   ],
   nosql: [
-    { href: "/plugins", label: "Plugin registry" },
+    { href: "/solutions/duckdb-redis-database-workflows", label: "DuckDB and Redis workflows" },
     { href: "/compare/beekeeper-studio-alternative", label: "Beekeeper Studio alternative" },
   ],
   redis: [
-    { href: "/plugins", label: "Plugin registry" },
+    { href: "/solutions/duckdb-redis-database-workflows", label: "DuckDB and Redis workflows" },
     { href: "/compare/beekeeper-studio-alternative", label: "Beekeeper Studio alternative" },
   ],
   duckdb: [
-    { href: "/plugins", label: "Plugin registry" },
+    { href: "/solutions/duckdb-redis-database-workflows", label: "DuckDB and Redis workflows" },
     { href: "/compare/dbgate-alternative", label: "DbGate alternative" },
   ],
   community: [
@@ -156,7 +156,7 @@ const WIKI_TO_LINKS: Record<string, RelatedLink[]> = {
   ],
   plugins: [
     { href: "/plugins", label: "Plugin registry" },
-    { href: "/compare/dbgate-alternative", label: "DbGate alternative" },
+    { href: "/solutions/plugin-based-database-client", label: "Plugin-based database client" },
   ],
   installation: [
     { href: "/download", label: "Download Tabularis" },
