@@ -4167,7 +4167,12 @@ footer {
 }
 
 .related-links-box .plugin-list {
+  gap: 0.35rem;
   margin-bottom: 0;
+}
+
+.related-links-box .plugin-entry {
+  padding: 0.85rem 1.25rem;
 }
 
 @media (max-width: 720px) {
