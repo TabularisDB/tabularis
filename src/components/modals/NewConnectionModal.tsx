@@ -192,15 +192,21 @@ export const NewConnectionModal = ({
   const onDatabaseChange = useCallback((value: string) => {
     setFormData((prev) => ({ ...prev, database: value }));
   }, []);
-  const dbFieldSlotContext = useMemo(() => ({
-    driver,
-    database: typeof formData.database === "string" ? formData.database : "",
-    onDatabaseChange,
-    connectionName: name,
-  }), [driver, formData.database, onDatabaseChange, name]);
+  const dbFieldSlotContext = useMemo(
+    () => ({
+      driver,
+      database: typeof formData.database === "string" ? formData.database : "",
+      onDatabaseChange,
+      connectionName: name,
+    }),
+    [driver, formData.database, onDatabaseChange, name],
+  );
   const hasConnectionContentSlot =
     noConnectionRequired &&
-    slotRegistry.getSlotContributions("connection-modal.connection_content", dbFieldSlotContext).length > 0;
+    slotRegistry.getSlotContributions(
+      "connection-modal.connection_content",
+      dbFieldSlotContext,
+    ).length > 0;
 
   // ── helpers ──
   const loadSshConnectionsList = async () => {
@@ -316,6 +322,14 @@ export const NewConnectionModal = ({
         } else {
           setSelectedDatabasesState([]);
           setFormData({ ...params });
+        }
+
+        // Auto-load available databases when editing a multi-db connection
+        const editDriver = drivers.find(
+          (d) => d.id === initialConnection.params.driver,
+        );
+        if (isMultiDatabaseCapable(editDriver?.capabilities)) {
+          loadDatabases(params);
         }
       } else {
         setName("");
@@ -894,7 +908,8 @@ export const NewConnectionModal = ({
                       setSelectedDatabasesState((prev) =>
                         sel ? prev.filter((d) => d !== db) : [...prev, db],
                       );
-                      if (databasesTabError && !sel) setDatabasesTabError(false);
+                      if (databasesTabError && !sel)
+                        setDatabasesTabError(false);
                     }}
                     className={clsx(
                       "flex items-center gap-2 px-2.5 py-1.5 cursor-pointer text-sm transition-colors hover:bg-surface-secondary select-none",
