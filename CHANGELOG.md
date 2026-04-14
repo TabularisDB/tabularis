@@ -1,3 +1,29 @@
+## [0.9.17](https://github.com/debba/tabularis/compare/v0.9.16...v0.9.17) (2026-04-14)
+
+
+### Bug Fixes
+
+* **editor:** pass undefined for missing schema prop ([8c4b9f6](https://github.com/debba/tabularis/commit/8c4b9f635c052db8f8c3bb09b2e7173b441619ad))
+* mobile layout for compare pages ([ab877b5](https://github.com/debba/tabularis/commit/ab877b5f5fd234a840fa1973ca11bec9ed67595b))
+* **modals:** include 't' in VisualExplainModal hook deps ([9eb814e](https://github.com/debba/tabularis/commit/9eb814e75518071a556cc0daf843be9f71fd1360))
+* **visual-explain:** narrow tone literals with as const in explain ([b936e93](https://github.com/debba/tabularis/commit/b936e93983462f2ab1a7123005c22d7f2e1d0fd9))
+
+
+### Features
+
+* **ai:** add explain plan analysis command and table view ([9cb46eb](https://github.com/debba/tabularis/commit/9cb46eb473541db0bae71897229fc33a0bfbbb2f))
+* **explain:** add AI analysis view and tabular EXPLAIN fallback ([d160ce5](https://github.com/debba/tabularis/commit/d160ce549d4a7aff0ae5fed5bdf9b00a7800e928))
+* **explain:** add AI analysis view and tabular EXPLAIN fallback ([fd27727](https://github.com/debba/tabularis/commit/fd277270beb8ccc7de97092be0d3a13b62e502fd))
+* **explain:** add visual explain plan and driver support ([c60982a](https://github.com/debba/tabularis/commit/c60982a40e8772767633381b8d3be80c964a2507))
+* **modals:** auto-load databases when editing multi-db connection ([3a4f96b](https://github.com/debba/tabularis/commit/3a4f96b44651dd6f3eeb1fa6a7b0a985d14ee470))
+* **mysql:** add MariaDB JSON explain parsing for filesort and wrappers ([5232a7f](https://github.com/debba/tabularis/commit/5232a7f742e425e1d7e361c950f6e6141119cb0e))
+* **mysql:** add server version detection and enhanced EXPLAIN ([d8d850e](https://github.com/debba/tabularis/commit/d8d850ebf5524c407c3ccbb41da89da803923f24))
+* **mysql:** enhance MariaDB explain parsing with subquery cache and ([fd8c83b](https://github.com/debba/tabularis/commit/fd8c83baa98b71f94eccb0b1f59b6147fca87de8))
+* **sql:** add explainable query check and comment stripping ([fa2e46a](https://github.com/debba/tabularis/commit/fa2e46a8e34f770667be4f2cc789a488e6512b79))
+* **ui:** add AI dropdown button and replace inline AI buttons ([7ccc324](https://github.com/debba/tabularis/commit/7ccc324accbe1a56aaf2251043a2baff9c6a2f3c))
+* **visual-explain:** add overview and node details UI ([dd1c1a7](https://github.com/debba/tabularis/commit/dd1c1a7caf4f5ff931114e0dab0cb1057084ff10))
+* **website:** add subscription UI, pages, and markdown slot ([e14b5d4](https://github.com/debba/tabularis/commit/e14b5d431e6c9a8ecd913028c450f0f26c8ce920))
+
 ## [0.9.16](https://github.com/debba/tabularis/compare/v0.9.15...v0.9.16) (2026-04-12)
 
 
