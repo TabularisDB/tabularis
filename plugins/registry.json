@@ -140,6 +140,27 @@
           }
         }
       ]
+    },
+    {
+      "id": "db2",
+      "name": "IBM Db2",
+      "description": "IBM Db2 driver plugin for Tabularis",
+      "author": "debba <https://github.com/debba>",
+      "homepage": "https://github.com/debba/tabularis-db2-plugin",
+      "latest_version": "0.0.1",
+      "releases": [
+        {
+          "version": "0.0.1",
+          "min_tabularis_version": "0.9.17",
+          "assets": {
+            "linux-x64": "https://github.com/debba/tabularis-db2-plugin/releases/download/v0.0.1/db2-plugin-linux-x64.zip",
+            "linux-arm64": "https://github.com/debba/tabularis-db2-plugin/releases/download/v0.0.1/db2-plugin-linux-arm64.zip",
+            "darwin-x64": "https://github.com/debba/tabularis-db2-plugin/releases/download/v0.0.1/db2-plugin-darwin-x64.zip",
+            "darwin-arm64": "https://github.com/debba/tabularis-db2-plugin/releases/download/v0.0.1/db2-plugin-darwin-arm64.zip",
+            "win-x64": "https://github.com/debba/tabularis-db2-plugin/releases/download/v0.0.1/db2-plugin-win-x64.zip"
+          }
+        }
+      ]
     }
   ]
 }
