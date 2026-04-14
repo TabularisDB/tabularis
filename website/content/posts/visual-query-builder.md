@@ -29,6 +29,8 @@ The builder generates a valid SQL query in real time. Switch to the editor tab, 
 
 Large schemas need room. The canvas supports zoom and pan so you can work with complex diagrams without losing context. Tables snap to a grid; connections route automatically. Nothing gets in the way of understanding.
 
+:::newsletter:::
+
 Once the SQL is generated, you own it. Tabularis doesn't try to round-trip edits back to the visual representation. Edit the query freely and run it.
 
 ## Multiple Tabs, Finally

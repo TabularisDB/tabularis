@@ -2,11 +2,11 @@
 title: "From 0 to 1,000 GitHub Stars: What I Learned in 10 Weeks"
 date: "2026-04-14T09:00:00"
 tags: ["community", "milestone", "open-source", "growth"]
-excerpt: "Tabularis crossed 1,000 GitHub stars in under three months. No VC, no marketing team, no growth hacks. Just a useful tool and a community that showed up. Here's what actually worked, what didn't, and what I'd do differently."
+excerpt: "Tabularis crossed 1,000 GitHub stars in under three months. No marketing team, no growth hacks. Just a useful tool and a community that showed up. Here's what actually worked, what didn't, and what I'd do differently."
 og:
   title: "From 0 to 1,000 Stars —"
   accent: "What I Learned in 10 Weeks."
-  claim: "No VC, no marketing budget. Just a database client, a plugin system, and a community that made it real."
+  claim: "No marketing budget. Just a database client, a plugin system, and a community that made it real."
   image: "/img/overview.png"
 ---
 
@@ -21,6 +21,8 @@ It became bigger than a personal tool. Not because of a launch strategy. Because
 This post is what I'd tell myself ten weeks ago if I could go back. Not a growth playbook (those already exist and most of them are noise). This is what actually happened, what I think mattered, and what I got wrong.
 
 [![RepoStars](https://repostars.dev/api/embed?repo=debba%2Ftabularis&theme=dark)](https://repostars.dev/?repos=debba%2Ftabularis&theme=dark)
+
+:::newsletter:::
 
 ---
 
@@ -114,6 +116,12 @@ One thing that surprised me: where those stars come from. About half of our star
 ![Stargazers by country](/img/posts/stargazers-by-country.svg)
 
 The United States and China lead, but what stands out is the long tail: South Korea, Germany, France, Brazil, Indonesia, Vietnam. Tabularis isn't a tool for one market. It's a tool for developers, and developers are everywhere.
+
+The download breakdown by operating system tells a complementary story. Windows leads at 40.8%, followed by macOS at 32.3% and Linux at 26.9%:
+
+![Downloads by operating system](/img/posts/downloads-by-os.svg)
+
+What I find encouraging is that all three platforms have meaningful adoption. The Linux share is especially notable for a desktop app — it reflects the developer audience we're building for. And within each OS, the format diversity (setup vs. portable on Windows, .deb vs. AppImage vs. .rpm on Linux) suggests people are actually integrating Tabularis into their workflows, not just trying it once.
 
 These numbers feel good. But I want to be honest about what they don't measure.
 

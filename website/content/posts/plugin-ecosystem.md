@@ -44,6 +44,8 @@ Each plugin runs as a separate OS process. If it crashes, only the affected conn
 
 No restart required. Open Settings → Plugins, paste a GitHub URL or a local path, and the driver registers immediately. New connection types appear in the form without touching the app binary.
 
+:::newsletter:::
+
 ## The First Plugin: DuckDB
 
 We shipped the plugin system alongside a reference implementation: [tabularis-duckdb-plugin](https://github.com/debba/tabularis-duckdb-plugin). DuckDB is an in-process OLAP engine — fast, file-based, no server required. Perfect for analytics on local datasets.

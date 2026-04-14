@@ -33,6 +33,8 @@ If you had `integer[]` or `text[]` columns in PostgreSQL, the grid would show ra
 
 All Rust-side, no UI changes.
 
+:::newsletter:::
+
 ---
 
 ## Inline Editing for Query Results

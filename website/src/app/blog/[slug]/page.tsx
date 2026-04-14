@@ -9,6 +9,8 @@ import { ShareButton } from "@/components/ShareButton";
 import { PostContentLightbox } from "@/components/PostContentLightbox";
 import { getAllPosts, getPostBySlug, getAdjacentPosts } from "@/lib/posts";
 import { PostMetaBar } from "@/components/PostMetaBar";
+import { NewsletterForm } from "@/components/NewsletterForm";
+import { PostNewsletterSlots } from "@/components/PostNewsletterSlots";
 import { buildArticleJsonLd, buildBreadcrumbJsonLd } from "@/lib/seo";
 import { getRelatedLinksForPost } from "@/lib/seoRelated";
 import { RelatedLinks } from "@/components/RelatedLinks";
@@ -91,6 +93,7 @@ export default async function BlogPostPage({ params }: PageProps) {
         <PostMetaBar date={meta.date} readingTime={meta.readingTime} release={meta.release} tags={meta.tags} />
         {htmlAfter && <div dangerouslySetInnerHTML={{ __html: htmlAfter }} />}
       </article>
+      <PostNewsletterSlots />
       <PostContentLightbox />
 
       <RelatedLinks title="Related Guides" links={relatedLinks} />
@@ -112,6 +115,8 @@ export default async function BlogPostPage({ params }: PageProps) {
           <ShareButton />
         </div>
       </div>
+
+      <NewsletterForm compact />
 
       <div className="post-author">
         <img

@@ -31,6 +31,8 @@ v0.5.0 adds dedicated panels for index management and foreign key relationships.
 
 No more looking up `ON DELETE CASCADE` syntax. The form has your back.
 
+:::newsletter:::
+
 ## Multi-Row Selection
 
 The data grid gains multi-row selection in this release. Select several rows with Shift+Click or Ctrl+Click, then delete them all at once or copy them to the clipboard. A select-all checkbox in the column header handles the full result set.

@@ -54,6 +54,8 @@ Since then, we've shipped:
 
 One month. That's the velocity the community made possible.
 
+:::newsletter:::
+
 ## The Wiki Is Open
 
 Starting today, the [Tabularis Wiki](/wiki) is live and open for contributions. Every page has an **Edit on GitHub** link — if you spot something wrong, outdated, or missing, you can fix it directly.

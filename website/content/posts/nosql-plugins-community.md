@@ -56,6 +56,8 @@ If you work with ClickHouse at scale and know what a power user actually needs f
 
 :::plugin clickhouse:::
 
+:::newsletter:::
+
 ## How to Contribute
 
 The plugin protocol is language-agnostic. MongoDB contributors have used Go, Rust, Python, and Node.js in existing plugins — pick the runtime you are most productive in. What matters is the JSON-RPC 2.0 interface over stdin/stdout.

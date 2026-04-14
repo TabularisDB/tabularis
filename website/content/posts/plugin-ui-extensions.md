@@ -52,6 +52,8 @@ I went through the UI and picked eight places where plugin content makes sense w
 
 Eight slots. Not thirty. I would rather ship a small set that works well than scatter extension points everywhere and regret the maintenance cost.
 
+:::newsletter:::
+
 ## How it works for plugin authors
 
 You add a `ui_extensions` section to your manifest — the same JSON file that already declares your driver name, version, and capabilities. Each entry says which slot to target and which file contains the component:

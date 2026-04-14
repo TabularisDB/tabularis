@@ -46,6 +46,8 @@ The editor tab bar now responds to a close-tab shortcut:
 
 If the tab has unsaved query changes, a confirmation prompt appears before closing. If the content is clean, the tab closes immediately. The shortcut is rebindable from **Settings → Keyboard Shortcuts** like all other custom bindings.
 
+:::newsletter:::
+
 ---
 
 ## Plugin Install Error Modal

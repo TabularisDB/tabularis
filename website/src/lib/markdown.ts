@@ -62,6 +62,22 @@ marked.use({
         return renderPluginCard(token["pluginId"] as string);
       },
     },
+    {
+      name: "newsletter",
+      level: "block",
+      start(src: string) {
+        return src.indexOf(":::newsletter");
+      },
+      tokenizer(src: string) {
+        const match = src.match(/^:::newsletter:::\s*(?:\n|$)/);
+        if (match) {
+          return { type: "newsletter", raw: match[0] };
+        }
+      },
+      renderer() {
+        return `<div data-newsletter></div>`;
+      },
+    },
   ],
 });
 

@@ -63,6 +63,8 @@ The plugin exposes four tables, three of which are opt-in via settings:
 
 Enabling `comments` and `users` increases the number of API calls on the first query — HN's Firebase API is item-by-item, so fetching author details for 500 stories means up to 500 additional requests. The TTL and HTTP timeout settings let you tune this trade-off for your connection.
 
+:::newsletter:::
+
 ---
 
 ## Plugin Settings in Practice

@@ -4202,6 +4202,207 @@ footer {
   margin-top: 2rem;
 }
 
+/* NEWSLETTER */
+
+.newsletter-box {
+  margin-top: 2.5rem;
+  padding: 1.5rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.newsletter-box.newsletter-compact {
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-left: 3px solid var(--accent);
+  border-radius: 0;
+  padding-left: 1.25rem;
+}
+
+.newsletter-compact-body {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.newsletter-compact-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.newsletter-compact-text h3 {
+  color: var(--text-bright);
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.newsletter-compact-text p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.newsletter-compact .newsletter-form-inline {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+
+.newsletter-header h3 {
+  color: var(--text-bright);
+  font-size: 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.newsletter-header p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0;
+  line-height: 1.5;
+}
+
+.newsletter-form {
+  margin-top: 1.25rem;
+}
+
+
+.newsletter-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.newsletter-fields .newsletter-row:last-child {
+  grid-column: 1 / -1;
+}
+
+.newsletter-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.newsletter-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.newsletter-required {
+  color: var(--error);
+}
+
+.newsletter-input {
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.55rem 0.75rem;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  transition: border-color 0.2s;
+  outline: none;
+  width: 100%;
+}
+
+.newsletter-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.newsletter-input:focus {
+  border-color: var(--accent);
+}
+
+.newsletter-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1.25rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+
+.newsletter-btn:hover {
+  filter: brightness(1.15);
+}
+
+.newsletter-form-inline .newsletter-inline-fields {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.newsletter-form-inline .newsletter-input {
+  flex: 1;
+}
+
+.newsletter-form-inline .newsletter-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--accent);
+}
+
+/* newsletter subscribe page */
+
+.subscribe-page {
+  max-width: 520px;
+  margin: 0 auto;
+  padding-top: 2rem;
+}
+
+.subscribe-page-hero {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.subscribe-page-hero h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.subscribe-page-hero p {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.subscribe-page .newsletter-box {
+  margin-top: 0;
+}
+
+@media (max-width: 600px) {
+  .newsletter-compact-body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .newsletter-compact .newsletter-form-inline {
+    width: 100%;
+  }
+
+  .newsletter-form-inline .newsletter-inline-fields {
+    flex-direction: column;
+  }
+
+  .newsletter-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .newsletter-fields .newsletter-row:last-child {
+    grid-column: auto;
+  }
+}
+
 .related-links-box {
   margin-top: 2rem;
 }
@@ -4275,6 +4476,41 @@ footer {
 .dl-thankyou-fallback a {
   color: var(--accent);
   text-decoration: underline;
+}
+
+.nl-thankyou {
+  padding-top: 2rem;
+}
+
+.nl-thankyou-hero {
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto 3rem;
+}
+
+.nl-thankyou-kicker {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.75rem;
+}
+
+.nl-thankyou-title {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0 0 1rem;
+  line-height: 1.2;
+}
+
+.nl-thankyou-desc {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+  margin: 0;
 }
 
 .dl-thankyou-cards {

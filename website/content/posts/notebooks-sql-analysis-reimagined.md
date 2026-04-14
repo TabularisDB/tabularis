@@ -113,6 +113,8 @@ Mark a cell with the lightning bolt icon, and it runs **concurrently** during "R
 
 Sequential cells still run in order. Parallel cells fire together. You control it per cell, one click.
 
+:::newsletter:::
+
 ![Two SQL cells with parallel execution lightning bolt icons enabled for concurrent running](/img/posts/tabularis-notebook-parallel-execution-concurrent-cells.png)
 
 ---

@@ -114,6 +114,8 @@ It works with OpenAI, Anthropic, Ollama, and custom OpenAI-compatible endpoints.
 
 It is not a replacement for knowing how to read execution plans. It is closer to a second pass over the plan, which is useful when the issue is not obvious or the query is large enough that manual inspection is slow.
 
+:::newsletter:::
+
 ![AI analysis view with structured performance recommendations and optimization suggestions](/img/posts/tabularis-visual-explain-ai-analysis-recommendations.png)
 
 ---

@@ -72,6 +72,8 @@ Manifests declare UI extensions alongside the existing driver configuration:
 
 Modules are lazy-loaded when the target slot first mounts. Plugins that declare no `ui_extensions` are unaffected — everything is additive.
 
+:::newsletter:::
+
 ---
 
 ## Testing with Two Real Plugins

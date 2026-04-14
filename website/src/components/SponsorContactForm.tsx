@@ -98,8 +98,6 @@ export function SponsorContactForm() {
         <input type="hidden" name="referrer" id="ec_referrer" value="" />
         <input type="hidden" name="redirect" value="/sponsors/confirm" />
 
-        <div id="ec_recaptcha" />
-
         <button
           type="submit"
           id="mc-signup-form-button-submit"
@@ -116,10 +114,6 @@ export function SponsorContactForm() {
 
       <Script
         src="https://app.emailchef.com/signup/form.js/7o22666s726q5s6964223n2237353130227q/en/api"
-        strategy="lazyOnload"
-      />
-      <Script
-        src="https://www.google.com/recaptcha/api.js?onload=renderRecaptcha&render=explicit"
         strategy="lazyOnload"
       />
     </>

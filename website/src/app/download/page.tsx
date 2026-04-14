@@ -4,6 +4,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Footer } from "@/components/Footer";
 import { DownloadInline } from "@/components/DownloadInline";
+import { NewsletterForm } from "@/components/NewsletterForm";
 import { APP_VERSION } from "@/lib/version";
 import { OG_IMAGE_URL } from "@/lib/siteConfig";
 import { getReleaseDate, formatDate } from "@/lib/posts";
@@ -115,6 +116,8 @@ export default function DownloadPage() {
             Download from SourceForge &rarr;
           </a>
         </div>
+
+        <NewsletterForm compact />
 
         <div className="plugin-cta dl-mirror-box">
           <h3>Explore by Workflow</h3>

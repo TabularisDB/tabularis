@@ -37,6 +37,8 @@ Internationalization is unglamorous work — every string needs to be extracted,
 
 More languages are planned. If you'd like to contribute a translation, the i18n files are straightforward JSON — no build step, no toolchain to set up.
 
+:::newsletter:::
+
 ## Tab Context Menu
 
 A smaller addition from this release: right-clicking an editor tab opens a context menu with Rename, Close, Close Others, and Close All. The kind of polish that makes the editor feel like a proper application rather than a prototype.

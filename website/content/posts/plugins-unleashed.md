@@ -83,6 +83,8 @@ The Python implementation is deliberately minimal. No compiled extension, no bui
 
 Because the plugin distributes as a **universal** asset — a single `.zip` that works on Linux, macOS, and Windows — the release process is straightforward. There are no platform-specific binaries to cross-compile. Python handles the portability; Tabularis handles the UI.
 
+:::newsletter:::
+
 This makes it a practical starting point for anyone who wants to write a Tabularis plugin. The barrier is a working Python environment and a JSON-RPC loop — nothing more.
 
 :::plugin csv:::

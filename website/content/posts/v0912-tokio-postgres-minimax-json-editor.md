@@ -37,6 +37,8 @@ It works exactly like the other providers — set your API key in Settings, pick
 
 This brings the supported providers to seven: OpenAI, Anthropic, OpenRouter, Ollama, OpenAI-Compatible, and now MiniMax.
 
+:::newsletter:::
+
 ---
 
 ## JSON Editor in the Sidebar

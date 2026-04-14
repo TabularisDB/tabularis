@@ -33,6 +33,8 @@ That sounds small, but it changes the workflow quite a bit. Before, reorganizing
 
 For anyone with separate local, staging, production, analytics, or client-specific setups, this makes keeping the list tidy much less annoying.
 
+:::newsletter:::
+
 ---
 
 ## Pagination Logic, Cleaned Up

@@ -68,6 +68,8 @@ If your script uses parameters (`:param` syntax), Tabularis prompts for values o
 
 The query selection modal also got a revamp — you can now run a single query from the list without switching to single-query mode.
 
+:::newsletter:::
+
 ---
 
 ## Query Splitting: Done Right

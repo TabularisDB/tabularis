@@ -32,6 +32,8 @@ We didn't want to force a single AI provider. v0.8.0 integrates with:
 
 The last one matters. If your database contains sensitive data, you can run a local Llama 3 model via Ollama and get AI assistance without sending anything to the cloud. Your schema stays private.
 
+:::newsletter:::
+
 ## The MCP Server
 
 Alongside the AI assistant, v0.8.0 ships a built-in **Model Context Protocol** server. MCP is an emerging standard for exposing structured data to AI agents — think of it as giving Claude or another AI agent a live window into your database.

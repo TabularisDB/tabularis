@@ -45,6 +45,8 @@ The new `usePluginModal()` hook lets slot components open host-managed modals wi
 
 I'm working on a set of demo plugins that showcase these capabilities in practice. Expect them in the coming days.
 
+:::newsletter:::
+
 ---
 
 ## PostgreSQL: Range, Multirange, and Enum Types

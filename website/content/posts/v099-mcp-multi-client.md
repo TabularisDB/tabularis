@@ -55,6 +55,8 @@ Tabularis reads your OS and resolves each path automatically — you never need 
 
 If you prefer to configure things manually, the panel also shows the exact JSON block to paste under the **Manual Configuration** section, with the correct binary path pre-filled.
 
+:::newsletter:::
+
 ### What you can do once connected
 
 Once your AI client is connected to Tabularis via MCP, you can have natural-language conversations like:

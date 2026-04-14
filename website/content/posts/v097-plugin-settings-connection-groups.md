@@ -54,6 +54,8 @@ When a plugin fails to start, Tabularis previously gave no feedback — the plug
 
 A new backend command `get_plugin_startup_errors` tracks failure reasons per plugin and makes them available to the frontend at any point after startup.
 
+:::newsletter:::
+
 ### `no_connection_required` Capability Flag
 
 Plugins that connect to public APIs or REST services — where there is no host, port, or credentials to enter — can now declare `"no_connection_required": true` in their manifest. When this flag is set, Tabularis hides the entire connection form. The user fills in only a connection name and can start querying immediately.

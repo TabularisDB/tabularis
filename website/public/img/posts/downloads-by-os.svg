@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 430" style="max-width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <path d="M 200,200 L 200.00,40.00 A 160,160 0 0,1 287.42,334.00 Z" fill="#3b82f6" stroke="#1a1a2e" stroke-width="1.5"/>
+  <path d="M 200,200 L 287.42,334.00 A 160,160 0 0,1 41.14,219.06 Z" fill="#ef4444" stroke="#1a1a2e" stroke-width="1.5"/>
+  <path d="M 200,200 L 41.14,219.06 A 160,160 0 0,1 200.00,40.00 Z" fill="#f59e0b" stroke="#1a1a2e" stroke-width="1.5"/>
+  <rect x="420" y="50" width="12" height="12" rx="2" fill="#3b82f6"/>
+  <text x="438" y="61" fill="#e0e0e0" font-size="12" font-weight="600">Windows</text>
+  <text x="438" y="76" fill="#9ca3af" font-size="10">2,422 downloads (40.8%)</text>
+  <text x="438" y="92" fill="#6b7280" font-size="9">setup.exe 1,756 · portable 428 · .msi 238</text>
+  <rect x="420" y="112" width="12" height="12" rx="2" fill="#ef4444"/>
+  <text x="438" y="123" fill="#e0e0e0" font-size="12" font-weight="600">macOS</text>
+  <text x="438" y="138" fill="#9ca3af" font-size="10">1,917 downloads (32.3%)</text>
+  <text x="438" y="154" fill="#6b7280" font-size="9">.dmg 1,324 · .app.tar.gz 593</text>
+  <rect x="420" y="174" width="12" height="12" rx="2" fill="#f59e0b"/>
+  <text x="438" y="185" fill="#e0e0e0" font-size="12" font-weight="600">Linux</text>
+  <text x="438" y="200" fill="#9ca3af" font-size="10">1,596 downloads (26.9%)</text>
+  <text x="438" y="216" fill="#6b7280" font-size="9">.deb 888 · .AppImage 519 · .rpm 189</text>
+  <text x="320" y="420" fill="#6b7280" font-size="10" text-anchor="middle">Based on 5,935 binary downloads across all 41 GitHub releases (excludes update manifests and signatures)</text>
+</svg>

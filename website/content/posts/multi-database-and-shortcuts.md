@@ -51,6 +51,8 @@ Every built-in driver now renders with its official brand icon and color: the Po
 
 If you have existing connections with a single database string, nothing changes. The connection format accepts both a string (`"mydb"`) and an array (`["db1", "db2"]`); both paths are handled transparently. File-based drivers (SQLite, DuckDB) and PostgreSQL (which uses schemas rather than database-level switching) are unaffected.
 
+:::newsletter:::
+
 ---
 
 ## Keyboard Shortcuts: Persistent, Customizable, Visible

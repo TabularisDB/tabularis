@@ -57,6 +57,8 @@ Along the way, the type picker in the schema editor also gained these types — 
 
 This is the kind of work that turns "PostgreSQL support" from a marketing bullet into a real claim.
 
+:::newsletter:::
+
 ---
 
 ## Searchable Type Picker in DDL Modals

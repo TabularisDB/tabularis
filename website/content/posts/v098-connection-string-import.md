@@ -43,6 +43,8 @@ Plugins can now declare whether they support connection string import via two ne
 
 Both flags also accept their camelCase equivalents (`connectionString`, `connectionStringExample`) for plugin compatibility.
 
+:::newsletter:::
+
 Example for a ClickHouse plugin:
 
 ```json

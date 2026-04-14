@@ -37,6 +37,8 @@ Small feature, but a real friction reducer. When writing a query that references
 
 More actions will be added to this menu in upcoming releases.
 
+:::newsletter:::
+
 ---
 
 ## Bug Fixes
