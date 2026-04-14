@@ -11,8 +11,8 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::drivers::driver_trait::{DatabaseDriver, PluginManifest};
 use crate::models::{
-    ColumnDefinition, ConnectionParams, DataTypeInfo, ForeignKey, Index, QueryResult, RoutineInfo,
-    RoutineParameter, TableColumn, TableInfo, TableSchema, ViewInfo,
+    ColumnDefinition, ConnectionParams, DataTypeInfo, ExplainPlan, ForeignKey, Index, QueryResult,
+    RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema, ViewInfo,
 };
 use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse};
 
@@ -293,6 +293,11 @@ impl DatabaseDriver for RpcDriver {
 
     async fn execute_query(&self, params: &ConnectionParams, query: &str, limit: Option<u32>, page: u32, schema: Option<&str>) -> Result<QueryResult, String> {
         let res = self.process.call("execute_query", json!({ "params": params, "query": query, "limit": limit, "page": page, "schema": schema })).await?;
+        serde_json::from_value(res).map_err(|e| e.to_string())
+    }
+
+    async fn explain_query(&self, params: &ConnectionParams, query: &str, analyze: bool, schema: Option<&str>) -> Result<ExplainPlan, String> {
+        let res = self.process.call("explain_query", json!({ "params": params, "query": query, "analyze": analyze, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 

@@ -5,6 +5,47 @@ export function splitQueries(sql: string): string[] {
 }
 
 /**
+ * Strip leading SQL comments (single-line and block comments) and whitespace
+ * so that the first keyword of the actual statement is at position 0.
+ */
+export function stripLeadingSqlComments(query: string): string {
+  let s = query;
+  for (;;) {
+    s = s.trimStart();
+    if (s.startsWith("--")) {
+      const nl = s.indexOf("\n");
+      s = nl === -1 ? "" : s.slice(nl + 1);
+    } else if (s.startsWith("/*")) {
+      const end = s.indexOf("*/");
+      s = end === -1 ? "" : s.slice(end + 2);
+    } else {
+      break;
+    }
+  }
+  return s;
+}
+
+/**
+ * Check if a SQL statement supports EXPLAIN.
+ *
+ * EXPLAIN works with DML statements (SELECT, INSERT, UPDATE, DELETE, REPLACE)
+ * and CTEs (WITH). DDL statements (CREATE, DROP, ALTER, TRUNCATE, etc.) are not supported.
+ * Leading SQL comments are stripped before checking.
+ */
+export function isExplainableQuery(query: string): boolean {
+  const upper = stripLeadingSqlComments(query).toUpperCase();
+  return (
+    upper.startsWith("SELECT") ||
+    upper.startsWith("INSERT") ||
+    upper.startsWith("UPDATE") ||
+    upper.startsWith("DELETE") ||
+    upper.startsWith("REPLACE") ||
+    upper.startsWith("WITH") ||
+    upper.startsWith("TABLE")
+  );
+}
+
+/**
  * Extracts the table name from a SELECT query.
  * Handles quotes: `table`, "table", 'table', and unquoted table names.
  * Returns null if no table is found or if it's not a SELECT query.

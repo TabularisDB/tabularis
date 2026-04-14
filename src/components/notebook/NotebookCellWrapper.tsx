@@ -16,6 +16,7 @@ interface NotebookCellWrapperProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRun: () => void;
+  connectionId: string;
   activeSchema?: string;
   selectedDatabases?: string[];
   onSchemaChange?: (schema: string) => void;
@@ -36,6 +37,7 @@ export function NotebookCellWrapper({
   onMoveUp,
   onMoveDown,
   onRun,
+  connectionId,
   activeSchema,
   selectedDatabases,
   onSchemaChange,
@@ -117,6 +119,8 @@ export function NotebookCellWrapper({
           onRun={onRun}
           onChartConfigChange={handleChartConfigChange}
           onResultHeightChange={handleResultHeightChange}
+          connectionId={connectionId}
+          schema={activeSchema}
         />
       ) : !cell.isCollapsed ? (
         <MarkdownCell

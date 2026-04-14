@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitQueries, extractTableName } from '../../src/utils/sql';
+import { splitQueries, extractTableName, isExplainableQuery, stripLeadingSqlComments } from '../../src/utils/sql';
 
 describe('sql utils', () => {
   describe('splitQueries', () => {
@@ -32,6 +32,77 @@ describe('sql utils', () => {
       expect(result).toHaveLength(2);
       expect(result[0]).toBe('SELECT 1');
       expect(result[1]).toContain('SELECT 2');
+    });
+  });
+
+  describe('stripLeadingSqlComments', () => {
+    it('should strip line comments', () => {
+      expect(stripLeadingSqlComments('-- comment\nSELECT 1')).toBe('SELECT 1');
+      expect(stripLeadingSqlComments('-- line1\n-- line2\nSELECT 1')).toBe('SELECT 1');
+    });
+
+    it('should strip block comments', () => {
+      expect(stripLeadingSqlComments('/* block */ SELECT 1')).toBe('SELECT 1');
+      expect(stripLeadingSqlComments('/* a */ /* b */ SELECT 1')).toBe('SELECT 1');
+    });
+
+    it('should strip mixed comments', () => {
+      expect(stripLeadingSqlComments('-- line\n/* block */\nSELECT 1')).toBe('SELECT 1');
+    });
+
+    it('should handle no comments', () => {
+      expect(stripLeadingSqlComments('SELECT 1')).toBe('SELECT 1');
+      expect(stripLeadingSqlComments('  SELECT 1')).toBe('SELECT 1');
+    });
+
+    it('should handle unterminated comments', () => {
+      expect(stripLeadingSqlComments('-- only comment')).toBe('');
+      expect(stripLeadingSqlComments('/* never closed')).toBe('');
+    });
+  });
+
+  describe('isExplainableQuery', () => {
+    it('should return true for DML statements', () => {
+      expect(isExplainableQuery('SELECT * FROM users')).toBe(true);
+      expect(isExplainableQuery('INSERT INTO users VALUES (1)')).toBe(true);
+      expect(isExplainableQuery('UPDATE users SET name = "test"')).toBe(true);
+      expect(isExplainableQuery('DELETE FROM users WHERE id = 1')).toBe(true);
+      expect(isExplainableQuery('REPLACE INTO users VALUES (1, "a")')).toBe(true);
+    });
+
+    it('should return true for CTE and TABLE statements', () => {
+      expect(isExplainableQuery('WITH cte AS (SELECT 1) SELECT * FROM cte')).toBe(true);
+      expect(isExplainableQuery('TABLE users')).toBe(true);
+    });
+
+    it('should return false for DDL statements', () => {
+      expect(isExplainableQuery('CREATE INDEX idx ON t(col)')).toBe(false);
+      expect(isExplainableQuery('CREATE TABLE users (id INT)')).toBe(false);
+      expect(isExplainableQuery('DROP TABLE users')).toBe(false);
+      expect(isExplainableQuery('ALTER TABLE users ADD COLUMN name TEXT')).toBe(false);
+      expect(isExplainableQuery('TRUNCATE TABLE users')).toBe(false);
+    });
+
+    it('should return false for DCL statements', () => {
+      expect(isExplainableQuery("GRANT SELECT ON users TO 'user'")).toBe(false);
+      expect(isExplainableQuery("REVOKE SELECT ON users FROM 'user'")).toBe(false);
+    });
+
+    it('should handle leading whitespace', () => {
+      expect(isExplainableQuery('  SELECT 1')).toBe(true);
+      expect(isExplainableQuery('\n\t  CREATE INDEX idx ON t(col)')).toBe(false);
+    });
+
+    it('should be case-insensitive', () => {
+      expect(isExplainableQuery('select * from users')).toBe(true);
+      expect(isExplainableQuery('create index idx on t(col)')).toBe(false);
+    });
+
+    it('should handle queries with leading SQL comments', () => {
+      expect(isExplainableQuery('-- BEFORE index: full scan\nSELECT * FROM audit_log')).toBe(true);
+      expect(isExplainableQuery('/* explain this */ SELECT * FROM users')).toBe(true);
+      expect(isExplainableQuery('-- comment\n-- another\nDELETE FROM users WHERE id = 1')).toBe(true);
+      expect(isExplainableQuery('-- setup\nCREATE INDEX idx ON t(col)')).toBe(false);
     });
   });
 

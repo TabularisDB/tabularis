@@ -10,8 +10,8 @@ use uuid::Uuid;
 use crate::credential_cache;
 use crate::keychain_utils;
 use crate::models::{
-    ColumnDefinition, ConnectionGroup, ConnectionParams, ConnectionsFile, ForeignKey, Index,
-    QueryResult, RoutineInfo, RoutineParameter, SavedConnection, SshConnection,
+    ColumnDefinition, ConnectionGroup, ConnectionParams, ConnectionsFile, ExplainPlan, ForeignKey,
+    Index, QueryResult, RoutineInfo, RoutineParameter, SavedConnection, SshConnection,
     SshConnectionInput, SshTestParams, TableColumn, TableInfo, TestConnectionRequest,
 };
 use crate::persistence;
@@ -2057,6 +2057,79 @@ pub async fn execute_query<R: Runtime>(
         Err(_) => {
             log::warn!("Query was cancelled");
             Err("Query cancelled".into())
+        }
+    }
+}
+
+// --- Explain Query Plan ---
+
+#[tauri::command]
+pub async fn explain_query_plan<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, QueryCancellationState>,
+    connection_id: String,
+    query: String,
+    analyze: bool,
+    schema: Option<String>,
+) -> Result<ExplainPlan, String> {
+    log::info!(
+        "Explaining query on connection: {} | analyze: {} | Query: {}",
+        connection_id,
+        analyze,
+        query
+    );
+
+    let sanitized_query = query
+        .trim()
+        .trim_end_matches(';')
+        .replace('\u{2018}', "'")
+        .replace('\u{2019}', "'")
+        .replace('\u{201C}', "\"")
+        .replace('\u{201D}', "\"")
+        .to_string();
+
+    if !crate::drivers::common::is_explainable_query(&sanitized_query) {
+        return Err(
+            "EXPLAIN is only supported for DML statements (SELECT, INSERT, UPDATE, DELETE, REPLACE). DDL statements like CREATE, DROP, or ALTER cannot be explained."
+                .into(),
+        );
+    }
+
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    let task = tokio::spawn(async move {
+        drv.explain_query(&params, &sanitized_query, analyze, schema.as_deref())
+            .await
+    });
+
+    let abort_handle = task.abort_handle();
+    {
+        let mut handles = state.handles.lock().unwrap();
+        handles.insert(format!("explain_{}", connection_id), abort_handle);
+    }
+
+    let result = task.await;
+
+    {
+        let mut handles = state.handles.lock().unwrap();
+        handles.remove(&format!("explain_{}", connection_id));
+    }
+
+    match result {
+        Ok(Ok(plan)) => {
+            log::info!("Explain query completed successfully");
+            Ok(plan)
+        }
+        Ok(Err(e)) => {
+            log::error!("Explain query failed: {}", e);
+            Err(e)
+        }
+        Err(_) => {
+            log::warn!("Explain query was cancelled");
+            Err("Explain query cancelled".into())
         }
     }
 }

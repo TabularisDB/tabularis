@@ -638,6 +638,7 @@ export function NotebookView({
                   );
               }}
               onRun={() => runCell(cell.id)}
+              connectionId={connectionId}
               activeSchema={cell.schema || effectiveSchema || undefined}
               selectedDatabases={isMultiDb ? selectedDatabases : undefined}
               onSchemaChange={

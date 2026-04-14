@@ -7,8 +7,8 @@ use sqlx::{AnyConnection, Connection};
 use std::str::FromStr;
 
 use crate::models::{
-    ColumnDefinition, ConnectionParams, DataTypeInfo, ForeignKey, Index, QueryResult, RoutineInfo,
-    RoutineParameter, TableColumn, TableInfo, TableSchema, ViewInfo,
+    ColumnDefinition, ConnectionParams, DataTypeInfo, ExplainPlan, ForeignKey, Index, QueryResult,
+    RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema, ViewInfo,
 };
 
 /// Capabilities advertised by a driver.
@@ -308,6 +308,19 @@ pub trait DatabaseDriver: Send + Sync {
         page: u32,
         schema: Option<&str>,
     ) -> Result<QueryResult, String>;
+
+    /// Runs EXPLAIN (or EXPLAIN ANALYZE) on the given query and returns a
+    /// parsed execution plan tree. Drivers that do not support EXPLAIN can
+    /// rely on the default implementation which returns an error.
+    async fn explain_query(
+        &self,
+        _params: &ConnectionParams,
+        _query: &str,
+        _analyze: bool,
+        _schema: Option<&str>,
+    ) -> Result<ExplainPlan, String> {
+        Err("EXPLAIN not supported by this driver".into())
+    }
 
     // --- CRUD ---------------------------------------------------------------
 

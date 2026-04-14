@@ -7,6 +7,8 @@ interface SqlCellEditorProps {
   content: string;
   onContentChange: (content: string) => void;
   onRun: () => void;
+  connectionId: string;
+  schema?: string;
 }
 
 export function SqlCellEditor({
@@ -14,6 +16,8 @@ export function SqlCellEditor({
   content,
   onContentChange,
   onRun,
+  connectionId,
+  schema,
 }: SqlCellEditorProps) {
   const { settings } = useSettings();
 
@@ -32,7 +36,12 @@ export function SqlCellEditor({
         }}
       />
       {settings.aiEnabled && (
-        <NotebookAiButtons content={content} onInsert={onContentChange} />
+        <NotebookAiButtons
+          content={content}
+          onInsert={onContentChange}
+          connectionId={connectionId}
+          schema={schema}
+        />
       )}
     </div>
   );

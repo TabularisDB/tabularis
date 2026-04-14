@@ -12,6 +12,8 @@ import {
 } from "../utils/pendingInsertions";
 import { AiQueryModal } from "../components/modals/AiQueryModal";
 import { AiExplainModal } from "../components/modals/AiExplainModal";
+import { AiDropdownButton } from "../components/ui/AiDropdownButton";
+import { VisualExplainModal } from "../components/modals/VisualExplainModal";
 import {
   Play,
   Plus,
@@ -36,7 +38,6 @@ import {
   Trash2,
   Check,
   Undo2,
-  Sparkles,
   BookOpen,
   Hash,
   Loader2,
@@ -276,6 +277,7 @@ export const Editor = () => {
   const [isDbDropdownOpen, setIsDbDropdownOpen] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isAiExplainModalOpen, setIsAiExplainModalOpen] = useState(false);
+  const [isVisualExplainOpen, setIsVisualExplainOpen] = useState(false);
   const [isEditingPage, setIsEditingPage] = useState(false);
   const [tempPage, setTempPage] = useState("1");
   const [isCountLoading, setIsCountLoading] = useState(false);
@@ -2422,27 +2424,28 @@ export const Editor = () => {
               />
             )}
 
-            {/* AI buttons — discrete overlay bottom-right */}
-            {tab.type !== "query_builder" && settings.aiEnabled && (
+            {/* Editor overlay buttons — bottom-right */}
+            {tab.type !== "query_builder" && (
               <div className="absolute bottom-2 right-6 z-10 flex items-center gap-1">
+                {/* Visual Explain — always available */}
                 <button
-                  onClick={() => setIsAiModalOpen(true)}
-                  disabled={!activeConnectionId}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-muted hover:text-purple-300 bg-elevated/80 hover:bg-purple-900/40 border border-default hover:border-purple-500/40 transition-all disabled:opacity-30 disabled:pointer-events-none backdrop-blur-sm"
-                  title="Generate SQL with AI"
-                >
-                  <Sparkles size={12} />
-                  AI
-                </button>
-                <button
-                  onClick={() => setIsAiExplainModalOpen(true)}
+                  onClick={() => setIsVisualExplainOpen(true)}
                   disabled={!activeConnectionId || !tab.query?.trim()}
-                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-muted hover:text-blue-300 bg-elevated/80 hover:bg-blue-900/40 border border-default hover:border-blue-500/40 transition-all disabled:opacity-30 disabled:pointer-events-none backdrop-blur-sm"
-                  title="Explain this Query"
+                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-muted hover:text-green-300 bg-elevated/80 hover:bg-green-900/40 border border-default hover:border-green-500/40 transition-all disabled:opacity-30 disabled:pointer-events-none backdrop-blur-sm"
+                  title={t("editor.visualExplain.title")}
                 >
-                  <BookOpen size={12} />
-                  Explain
+                  <Network size={12} />
+                  {t("editor.visualExplain.buttonShort")}
                 </button>
+                {/* AI dropdown — only if AI enabled */}
+                {settings.aiEnabled && (
+                  <AiDropdownButton
+                    onGenerate={() => setIsAiModalOpen(true)}
+                    onExplain={() => setIsAiExplainModalOpen(true)}
+                    disableAll={!activeConnectionId}
+                    disableExplain={!tab.query?.trim()}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -3005,6 +3008,13 @@ export const Editor = () => {
         isOpen={isAiExplainModalOpen}
         onClose={() => setIsAiExplainModalOpen(false)}
         query={activeTab.query}
+      />
+      <VisualExplainModal
+        isOpen={isVisualExplainOpen}
+        onClose={() => setIsVisualExplainOpen(false)}
+        query={activeTab?.query ?? ""}
+        connectionId={activeConnectionId ?? ""}
+        schema={activeTab?.schema ?? activeSchema ?? undefined}
       />
       {tabContextMenu && (
         <ContextMenu

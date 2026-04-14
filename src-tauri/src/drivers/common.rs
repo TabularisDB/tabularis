@@ -115,6 +115,46 @@ pub fn is_select_query(query: &str) -> bool {
     query.trim_start().to_uppercase().starts_with("SELECT")
 }
 
+/// Strip leading SQL comments (`-- …` line comments and `/* … */` block
+/// comments) and whitespace so the first statement keyword is at position 0.
+pub fn strip_leading_sql_comments(query: &str) -> &str {
+    let mut s = query;
+    loop {
+        s = s.trim_start();
+        if s.starts_with("--") {
+            match s.find('\n') {
+                Some(pos) => s = &s[pos + 1..],
+                None => return "",
+            }
+        } else if s.starts_with("/*") {
+            match s.find("*/") {
+                Some(pos) => s = &s[pos + 2..],
+                None => return "",
+            }
+        } else {
+            break;
+        }
+    }
+    s
+}
+
+/// Check if a query type supports EXPLAIN.
+///
+/// MySQL/MariaDB support EXPLAIN for DML statements only:
+/// SELECT, INSERT, UPDATE, DELETE, REPLACE, and WITH (CTE).
+/// DDL statements (CREATE, DROP, ALTER, TRUNCATE, etc.) are not supported.
+/// Leading SQL comments are stripped before checking.
+pub fn is_explainable_query(query: &str) -> bool {
+    let upper = strip_leading_sql_comments(query).to_uppercase();
+    upper.starts_with("SELECT")
+        || upper.starts_with("INSERT")
+        || upper.starts_with("UPDATE")
+        || upper.starts_with("DELETE")
+        || upper.starts_with("REPLACE")
+        || upper.starts_with("WITH")
+        || upper.starts_with("TABLE")
+}
+
 /// Calculate offset for pagination
 pub fn calculate_offset(page: u32, page_size: u32) -> u32 {
     (page - 1) * page_size
@@ -211,6 +251,95 @@ mod tests {
         let decoded = decode_blob_wire_format(&wire, DEFAULT_MAX_BLOB_SIZE)
             .expect("should decode svg wire format");
         assert_eq!(decoded, svg);
+    }
+
+    #[test]
+    fn test_strip_leading_sql_comments_line() {
+        assert_eq!(
+            strip_leading_sql_comments("-- comment\nSELECT 1"),
+            "SELECT 1"
+        );
+        assert_eq!(
+            strip_leading_sql_comments("-- line1\n-- line2\nSELECT 1"),
+            "SELECT 1"
+        );
+    }
+
+    #[test]
+    fn test_strip_leading_sql_comments_block() {
+        assert_eq!(
+            strip_leading_sql_comments("/* block */ SELECT 1"),
+            "SELECT 1"
+        );
+        assert_eq!(
+            strip_leading_sql_comments("/* a */ /* b */ SELECT 1"),
+            "SELECT 1"
+        );
+    }
+
+    #[test]
+    fn test_strip_leading_sql_comments_mixed() {
+        assert_eq!(
+            strip_leading_sql_comments("-- line\n/* block */\nSELECT 1"),
+            "SELECT 1"
+        );
+    }
+
+    #[test]
+    fn test_strip_leading_sql_comments_no_comments() {
+        assert_eq!(strip_leading_sql_comments("SELECT 1"), "SELECT 1");
+        assert_eq!(strip_leading_sql_comments("  SELECT 1"), "SELECT 1");
+    }
+
+    #[test]
+    fn test_strip_leading_sql_comments_unterminated() {
+        assert_eq!(strip_leading_sql_comments("-- only comment"), "");
+        assert_eq!(strip_leading_sql_comments("/* never closed"), "");
+    }
+
+    #[test]
+    fn test_is_explainable_query_dml() {
+        assert!(is_explainable_query("SELECT * FROM users"));
+        assert!(is_explainable_query("  select * from users"));
+        assert!(is_explainable_query("INSERT INTO users VALUES (1)"));
+        assert!(is_explainable_query("UPDATE users SET name = 'test'"));
+        assert!(is_explainable_query("DELETE FROM users WHERE id = 1"));
+        assert!(is_explainable_query("REPLACE INTO users VALUES (1, 'a')"));
+        assert!(is_explainable_query("WITH cte AS (SELECT 1) SELECT * FROM cte"));
+        assert!(is_explainable_query("TABLE users"));
+    }
+
+    #[test]
+    fn test_is_explainable_query_ddl() {
+        assert!(!is_explainable_query("CREATE INDEX idx ON t(col)"));
+        assert!(!is_explainable_query("CREATE TABLE users (id INT)"));
+        assert!(!is_explainable_query("DROP TABLE users"));
+        assert!(!is_explainable_query("ALTER TABLE users ADD COLUMN name TEXT"));
+        assert!(!is_explainable_query("TRUNCATE TABLE users"));
+        assert!(!is_explainable_query("GRANT SELECT ON users TO 'user'"));
+        assert!(!is_explainable_query("REVOKE SELECT ON users FROM 'user'"));
+    }
+
+    #[test]
+    fn test_is_explainable_query_whitespace() {
+        assert!(is_explainable_query("\n\t  SELECT 1"));
+        assert!(!is_explainable_query("\n\t  CREATE INDEX idx ON t(col)"));
+    }
+
+    #[test]
+    fn test_is_explainable_query_with_comments() {
+        assert!(is_explainable_query(
+            "-- BEFORE index: full scan\nSELECT * FROM audit_log"
+        ));
+        assert!(is_explainable_query(
+            "/* explain this */ SELECT * FROM users"
+        ));
+        assert!(is_explainable_query(
+            "-- comment\n-- another\nDELETE FROM users WHERE id = 1"
+        ));
+        assert!(!is_explainable_query(
+            "-- setup\nCREATE INDEX idx ON t(col)"
+        ));
     }
 
     #[test]

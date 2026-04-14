@@ -9,6 +9,8 @@ interface SqlCellProps {
   onRun: () => void;
   onChartConfigChange?: (config: CellChartConfig | null) => void;
   onResultHeightChange?: (height: number) => void;
+  connectionId: string;
+  schema?: string;
 }
 
 export function SqlCell({
@@ -17,6 +19,8 @@ export function SqlCell({
   onRun,
   onChartConfigChange,
   onResultHeightChange,
+  connectionId,
+  schema,
 }: SqlCellProps) {
   return (
     <div>
@@ -25,6 +29,8 @@ export function SqlCell({
         content={cell.content}
         onContentChange={onContentChange}
         onRun={onRun}
+        connectionId={connectionId}
+        schema={schema}
       />
       <SqlCellResult
         result={cell.result ?? null}
