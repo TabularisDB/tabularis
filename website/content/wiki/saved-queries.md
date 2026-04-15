@@ -14,13 +14,15 @@ Tabularis lets you save SQL queries and associate them with a specific connectio
 There are two ways to save a query:
 
 1. **From the Editor** — write or highlight a SQL statement in the editor, then click the **Save Query** button (or use the command palette). A modal opens where you give the query a name.
-2. **From Query History** — when browsing past executions, click the save icon next to any entry to promote it to a saved query.
+2. **From Query History** — open the Explorer's **History** tab, browse past executions for the active connection, and save any entry to promote it to a saved query.
 
 The query is stored on disk alongside your connection profiles. Each saved query gets a unique UUID, and the SQL content is written to its own `.sql` file inside `{app_config_dir}/saved_queries/`. Metadata (name, filename, connection ID) is tracked in a central `meta.json` file.
 
 ## Browsing Saved Queries
 
-Open the **Saved Queries** accordion in the Explorer sidebar. The section header shows the total count for the active connection — e.g., `Saved Queries (12)`.
+Open the Explorer's **Favorites** tab. The saved-query list is separated from the schema tree and shows only the entries for the active connection.
+
+![Favorites tab in the Explorer sidebar](/img/tabularis-favorites-sidebar.png)
 
 Each entry displays the query name. Click once to select it; **double-click** to execute it immediately in a new editor tab.
 
@@ -41,7 +43,7 @@ Right-click → **Delete**. A confirmation dialog is shown before the query file
 
 ## Per-Connection Isolation
 
-Saved queries are scoped to a connection. When you switch the active connection in the sidebar, the Saved Queries list updates automatically to show only the queries associated with that connection. This prevents accidental execution of a PostgreSQL query against a MySQL connection.
+Saved queries are scoped to a connection. When you switch the active connection in the sidebar, the Favorites tab updates automatically to show only the queries associated with that connection. This prevents accidental execution of a PostgreSQL query against a MySQL connection.
 
 ## Storage Format
 

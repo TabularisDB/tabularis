@@ -39,10 +39,14 @@ If your database is in a private network, enable the **SSH** tab before saving. 
 
 ## 2. Explore the schema
 
-Once connected, the sidebar tree expands to show all schemas, tables, views, and routines for that connection. Expand any node to browse its children.
+Once connected, the Explorer opens on the **Structure** tab and shows schemas, tables, views, and routines for that connection. Expand any node to browse its children.
+
+![Explorer sidebar with Structure, Favorites, and History tabs](/img/tabularis-explorer-overview.png)
 
 - **Double-click a table** to open it in the Data Grid and load the first page of rows.
 - **Right-click a table** for schema actions: modify columns, add indexes, add foreign keys, view the ER diagram, dump, or generate SQL.
+- Switch to **Favorites** to see saved queries for the active connection only.
+- Switch to **History** to review previously executed SQL, grouped by date with search and quick re-run support.
 
 For PostgreSQL connections with multiple schemas, use the schema selector in the sidebar header to control which schemas are visible. Your selection is persisted per connection.
 
@@ -61,6 +65,12 @@ If you have multiple statements in the editor and no text is selected, Tabularis
 
 Results stream into the Data Grid below the editor. Use the page controls to navigate large result sets. The page size defaults to 500 rows and can be changed via `resultPageSize` in [Configuration](/wiki/configuration).
 
+### Query History
+
+Every executed statement is recorded in the Explorer's **History** tab for the current connection. Double-click any history entry to reopen that SQL in the editor, or right-click it for actions like copy, run, run in a new tab, save as favorite, and delete.
+
+History is isolated per connection, so a PostgreSQL session and a MySQL session keep separate timelines.
+
 ## 4. Edit data
 
 Double-click any cell in the Data Grid to edit it inline. Modified cells are highlighted. When you are ready, click **Commit** to generate and execute the `UPDATE` statements using the table's primary key. Click **Discard** to revert all pending changes.
@@ -74,7 +84,8 @@ Right-click on the Data Grid result to export the current result set to **CSV** 
 | Topic | What you will learn |
 | :--- | :--- |
 | [Connection Management](/wiki/connections) | SSH tunnels, read-only mode, connection groups |
-| [SQL Editor](/wiki/editor) | Autocomplete, query history, the Monaco command palette |
+| [SQL Editor](/wiki/editor) | Autocomplete, multi-result execution, query history, the Monaco command palette |
+| [Saved Queries](/wiki/saved-queries) | Favorites tab, reusing queries, saving from history |
 | [Visual Query Builder](/wiki/visual-query-builder) | Build `JOIN` queries without writing SQL |
 | [Schema Management](/wiki/schema-management) | Alter tables, manage indexes and foreign keys |
 | [ER Diagram](/wiki/er-diagram) | Visualise table relationships as an interactive diagram |

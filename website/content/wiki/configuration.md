@@ -70,6 +70,7 @@ Any key omitted from the file falls back to its default value. You do not need a
 | `erDiagramDefaultLayout` | `string` | `"LR"` | `TB` (Top-Bottom) or `LR` (Left-Right) for Dagre layout. |
 | `schemaPreferences` | `object` | `{}` | Per-connection active schema for DDL operations (map of connection ID → schema name). |
 | `selectedSchemas` | `object` | `{}` | Per-connection visible schemas in the sidebar (map of connection ID → string[]). |
+| `queryHistoryMaxEntries` | `number` | `500` | Maximum number of query history entries retained per connection. |
 | `maxBlobSize` | `number` | `1048576` | Max bytes to load into UI for BLOB/bytea columns (default 1 MB). |
 | `copyFormat` | `string` | `"csv"` | Default row copy format: `csv` or `json`. |
 | `csvDelimiter` | `string` | `","` | Default delimiter used when copying or exporting CSV. |

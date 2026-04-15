@@ -67,7 +67,7 @@ Once connected, the sidebar shows all schemas, tables, views, and routines. Doub
 
 The UI has three fixed regions:
 
-1. **Left sidebar** — connection tree with schemas, tables, views, routines, and saved queries. Collapsible with `Cmd/Ctrl + B`.
+1. **Left sidebar** — a two-level navigation area: the narrow primary rail for app sections and open connections, plus the Explorer panel for the active connection. The Explorer is split into **Structure**, **Favorites**, and **History** tabs, so schema browsing, saved queries, and past executions are separated instead of mixed into one long tree. Collapse/expand it with `Cmd/Ctrl + B`.
 2. **Tab bar** — each open table or SQL editor is a tab, color-coded by connection.
 3. **Main canvas** — shows the active view: data grid, SQL editor, query builder, ER diagram, or schema editor.
 
@@ -91,6 +91,7 @@ Tabularis stores all data locally. Nothing is sent to external servers except:
 | :--- | :--- |
 | App config (`config.json`) | `~/Library/Application Support/tabularis/` (macOS) |
 | Connection metadata | Same directory, `connections.json` |
+| Query history | Same directory, `query_history/<connection-id>.json` |
 | SSH profiles | Same directory, `ssh_connections.json` |
 | Saved queries | Same directory, per-connection `.sql` files |
 | Passwords / API keys | OS keychain only |

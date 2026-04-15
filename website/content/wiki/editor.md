@@ -142,6 +142,40 @@ This ensures that you see relevant completions regardless of how many schemas or
 
 When you execute a query, Tabularis handles the results asynchronously, streaming them into the integrated Data Grid.
 
+## Query History Sidebar
+
+Every execution is also written to the Explorer's **History** tab for the active connection.
+
+![Query History tab in the Explorer sidebar](/img/tabularis-query-history-sidebar.png)
+
+### What gets stored
+
+Each history entry includes:
+
+- The SQL text
+- Execution timestamp
+- Execution duration
+- Success or error status
+- Rows affected when available
+
+History is stored per connection, newest first. If you run the exact same SQL twice in a row, Tabularis updates the latest entry instead of appending a duplicate immediately after it.
+
+### Working from history
+
+The History tab supports:
+
+- **Search** by SQL text
+- **Date grouping** such as Today / Yesterday / older buckets
+- **Double-click to reopen** a query in the editor without auto-running it
+- **Context menu actions** to copy SQL, run it, run it in a new tab, save it to Favorites, or delete the entry
+- **Clear All** for the current connection only
+
+This makes the sidebar history a fast iteration loop: run a query, tweak it, and jump back to any earlier version without digging through editor tabs.
+
+### History retention
+
+The maximum number of stored entries is controlled in **Settings → General → Query History**. The backing config key is `queryHistoryMaxEntries`, with a default of `500`.
+
 ### Transaction Management
 By default, queries are executed in auto-commit mode. However, you can manually wrap your statements in `BEGIN; ... COMMIT;` blocks. If an error occurs midway through a block, Tabularis halts execution and outputs the precise line and database engine error.
 
