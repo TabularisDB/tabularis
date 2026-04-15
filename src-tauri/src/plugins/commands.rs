@@ -3,13 +3,13 @@ use std::fs;
 use crate::drivers::driver_trait::PluginManifest;
 use crate::plugins::installer::{self, InstalledPluginInfo};
 use crate::plugins::manager::ConfigManifest;
-use crate::plugins::registry::{
-    self, RegistryPluginWithStatus, RegistryReleaseWithStatus,
-};
+use crate::plugins::registry::{self, RegistryPluginWithStatus, RegistryReleaseWithStatus};
 use tauri::AppHandle;
 
 #[tauri::command]
-pub async fn fetch_plugin_registry(app: AppHandle) -> Result<Vec<RegistryPluginWithStatus>, String> {
+pub async fn fetch_plugin_registry(
+    app: AppHandle,
+) -> Result<Vec<RegistryPluginWithStatus>, String> {
     let config = crate::config::load_config_internal(&app);
     let remote = registry::fetch_registry(config.custom_registry_url.as_deref()).await?;
     let installed = installer::list_installed()?;
@@ -66,7 +66,11 @@ pub async fn fetch_plugin_registry(app: AppHandle) -> Result<Vec<RegistryPluginW
 }
 
 #[tauri::command]
-pub async fn install_plugin(app: AppHandle, plugin_id: String, version: Option<String>) -> Result<(), String> {
+pub async fn install_plugin(
+    app: AppHandle,
+    plugin_id: String,
+    version: Option<String>,
+) -> Result<(), String> {
     let config = crate::config::load_config_internal(&app);
     let remote = registry::fetch_registry(config.custom_registry_url.as_deref()).await?;
     let platform = registry::get_current_platform();
@@ -99,16 +103,13 @@ pub async fn install_plugin(app: AppHandle, plugin_id: String, version: Option<S
     installer::download_and_install(&plugin_id, download_url).await?;
 
     // Hot-register the new driver (no restart needed)
-    let plugin_cfg = config.plugins
-        .as_ref()
-        .and_then(|m| m.get(&plugin_id));
+    let plugin_cfg = config.plugins.as_ref().and_then(|m| m.get(&plugin_id));
     let interpreter_override = plugin_cfg.and_then(|c| c.interpreter.clone());
-    let settings = plugin_cfg
-        .map(|c| c.settings.clone())
-        .unwrap_or_default();
+    let settings = plugin_cfg.map(|c| c.settings.clone()).unwrap_or_default();
     let plugins_dir = installer::get_plugins_dir()?;
     let plugin_dir = plugins_dir.join(&plugin_id);
-    crate::plugins::manager::load_plugin_from_dir(&plugin_dir, interpreter_override, settings).await
+    crate::plugins::manager::load_plugin_from_dir(&plugin_dir, interpreter_override, settings)
+        .await
         .map_err(|e| format!("Plugin installed but failed to load: {}", e))?;
 
     Ok(())
@@ -143,19 +144,16 @@ pub async fn disable_plugin(plugin_id: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn enable_plugin(app: AppHandle, plugin_id: String) -> Result<(), String> {
     let config = crate::config::load_config_internal(&app);
-    let plugin_cfg = config.plugins
-        .as_ref()
-        .and_then(|m| m.get(&plugin_id));
+    let plugin_cfg = config.plugins.as_ref().and_then(|m| m.get(&plugin_id));
     let interpreter_override = plugin_cfg.and_then(|c| c.interpreter.clone());
-    let settings = plugin_cfg
-        .map(|c| c.settings.clone())
-        .unwrap_or_default();
+    let settings = plugin_cfg.map(|c| c.settings.clone()).unwrap_or_default();
     let plugins_dir = installer::get_plugins_dir()?;
     let plugin_dir = plugins_dir.join(&plugin_id);
     if !plugin_dir.exists() {
         return Err(format!("Plugin '{}' is not installed", plugin_id));
     }
-    crate::plugins::manager::load_plugin_from_dir(&plugin_dir, interpreter_override, settings).await?;
+    crate::plugins::manager::load_plugin_from_dir(&plugin_dir, interpreter_override, settings)
+        .await?;
     Ok(())
 }
 
@@ -207,10 +205,16 @@ pub fn get_plugin_dir(plugin_id: String) -> Result<String, String> {
 #[tauri::command]
 pub fn read_plugin_file(plugin_id: String, file_path: String) -> Result<String, String> {
     if file_path.contains("..") || file_path.starts_with('/') || file_path.starts_with('\\') {
-        return Err("Invalid file path: must be relative and contain no '..' components".to_string());
+        return Err(
+            "Invalid file path: must be relative and contain no '..' components".to_string(),
+        );
     }
     let plugins_dir = installer::get_plugins_dir()?;
     let full_path = plugins_dir.join(&plugin_id).join(&file_path);
-    fs::read_to_string(&full_path)
-        .map_err(|e| format!("Failed to read '{}' from plugin '{}': {}", file_path, plugin_id, e))
+    fs::read_to_string(&full_path).map_err(|e| {
+        format!(
+            "Failed to read '{}' from plugin '{}': {}",
+            file_path, plugin_id, e
+        )
+    })
 }

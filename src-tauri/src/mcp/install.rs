@@ -51,13 +51,9 @@ fn get_all_clients() -> Vec<McpClient> {
     };
 
     // Claude Code stores user-scope MCP in ~/.claude.json
-    let claude_code_path = base
-        .as_ref()
-        .map(|b| b.home_dir().join(".claude.json"));
+    let claude_code_path = base.as_ref().map(|b| b.home_dir().join(".claude.json"));
 
-    let cursor_path = base
-        .as_ref()
-        .map(|b| b.home_dir().join(".cursor/mcp.json"));
+    let cursor_path = base.as_ref().map(|b| b.home_dir().join(".cursor/mcp.json"));
 
     let windsurf_path = base
         .as_ref()

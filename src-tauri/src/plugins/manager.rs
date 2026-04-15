@@ -13,8 +13,7 @@ use crate::models::DataTypeInfo;
 use crate::plugins::driver::RpcDriver;
 
 /// Errors that occurred during startup plugin loading, to be fetched by the frontend.
-static STARTUP_ERRORS: Lazy<Mutex<Vec<PluginLoadError>>> =
-    Lazy::new(|| Mutex::new(Vec::new()));
+static STARTUP_ERRORS: Lazy<Mutex<Vec<PluginLoadError>>> = Lazy::new(|| Mutex::new(Vec::new()));
 
 #[derive(Serialize, Clone)]
 pub struct PluginLoadError {
@@ -122,13 +121,20 @@ pub async fn load_plugins<R: tauri::Runtime>(app: &AppHandle<R>, enabled_ids: Op
                 .unwrap_or("unknown")
                 .to_string();
             if let Ok(mut guard) = STARTUP_ERRORS.lock() {
-                guard.push(PluginLoadError { plugin_id, error: e });
+                guard.push(PluginLoadError {
+                    plugin_id,
+                    error: e,
+                });
             }
         }
     }
 }
 
-pub async fn load_plugin_from_dir(path: &Path, interpreter_override: Option<String>, settings: HashMap<String, serde_json::Value>) -> Result<(), String> {
+pub async fn load_plugin_from_dir(
+    path: &Path,
+    interpreter_override: Option<String>,
+    settings: HashMap<String, serde_json::Value>,
+) -> Result<(), String> {
     let manifest_path = path.join("manifest.json");
     if !manifest_path.exists() {
         return Err(format!("manifest.json not found in {:?}", path));
@@ -159,7 +165,10 @@ pub async fn load_plugin_from_dir(path: &Path, interpreter_override: Option<Stri
     let executable = match config.executable {
         Some(ref e) => e.clone(),
         None => {
-            log::info!("Plugin '{}' has no executable — loaded as UI-only plugin", manifest.id);
+            log::info!(
+                "Plugin '{}' has no executable — loaded as UI-only plugin",
+                manifest.id
+            );
             crate::drivers::registry::register_manifest(manifest).await;
             return Ok(());
         }
@@ -180,20 +189,29 @@ pub async fn load_plugin_from_dir(path: &Path, interpreter_override: Option<Stri
         }
     }
 
-    let interpreter = interpreter_override
-        .or(config.interpreter)
-        .or_else(|| {
-            if exec_path.extension().map(|e| e == "py").unwrap_or(false) {
-                #[cfg(windows)]
-                { Some("python".to_string()) }
-                #[cfg(not(windows))]
-                { Some("python3".to_string()) }
-            } else {
-                None
+    let interpreter = interpreter_override.or(config.interpreter).or_else(|| {
+        if exec_path.extension().map(|e| e == "py").unwrap_or(false) {
+            #[cfg(windows)]
+            {
+                Some("python".to_string())
             }
-        });
+            #[cfg(not(windows))]
+            {
+                Some("python3".to_string())
+            }
+        } else {
+            None
+        }
+    });
 
-    let driver = RpcDriver::new(manifest, exec_path, interpreter, config.data_types, settings).await?;
+    let driver = RpcDriver::new(
+        manifest,
+        exec_path,
+        interpreter,
+        config.data_types,
+        settings,
+    )
+    .await?;
     crate::drivers::registry::register_driver(driver).await;
     Ok(())
 }

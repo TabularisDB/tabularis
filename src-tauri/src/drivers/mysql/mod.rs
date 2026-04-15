@@ -1,41 +1,23 @@
 pub mod extract;
 pub mod types;
 
+mod explain;
+mod helpers;
+
+#[cfg(test)]
+mod tests;
+
 use crate::models::{
-    ConnectionParams, ExplainNode, ExplainPlan, ForeignKey, Index, Pagination, QueryResult,
-    RoutineInfo, RoutineParameter, TableColumn, TableInfo, ViewInfo,
+    ConnectionParams, ForeignKey, Index, Pagination, QueryResult, RoutineInfo, RoutineParameter,
+    TableColumn, TableInfo, ViewInfo,
 };
 use crate::pool_manager::get_mysql_pool;
+pub use explain::explain_query;
 use extract::extract_value;
+use helpers::{
+    escape_identifier, is_raw_sql_function, is_wkt_geometry, mysql_row_str, mysql_row_str_opt,
+};
 use sqlx::{Column, Row};
-
-// Helper function to escape backticks in identifiers for MySQL
-fn escape_identifier(name: &str) -> String {
-    name.replace('`', "``")
-}
-
-/// Read a string from a MySQL row by index.
-/// MySQL 8 information_schema returns VARBINARY/BLOB instead of VARCHAR,
-/// so try_get::<String> fails silently. This falls back to reading raw bytes.
-fn mysql_row_str(row: &sqlx::mysql::MySqlRow, idx: usize) -> String {
-    row.try_get::<String, _>(idx).unwrap_or_else(|_| {
-        row.try_get::<Vec<u8>, _>(idx)
-            .map(|bytes| String::from_utf8_lossy(&bytes).to_string())
-            .unwrap_or_default()
-    })
-}
-
-/// Optional string variant of mysql_row_str.
-fn mysql_row_str_opt(row: &sqlx::mysql::MySqlRow, idx: usize) -> Option<String> {
-    match row.try_get::<Option<String>, _>(idx) {
-        Ok(val) => val,
-        Err(_) => row
-            .try_get::<Option<Vec<u8>>, _>(idx)
-            .ok()
-            .flatten()
-            .map(|bytes| String::from_utf8_lossy(&bytes).to_string()),
-    }
-}
 
 pub async fn get_schemas(_params: &ConnectionParams) -> Result<Vec<String>, String> {
     Ok(vec![])
@@ -50,7 +32,10 @@ pub async fn get_databases(params: &ConnectionParams) -> Result<Vec<String>, Str
     Ok(rows.iter().map(|r| mysql_row_str(r, 0)).collect())
 }
 
-pub async fn get_tables(params: &ConnectionParams, schema: Option<&str>) -> Result<Vec<TableInfo>, String> {
+pub async fn get_tables(
+    params: &ConnectionParams,
+    schema: Option<&str>,
+) -> Result<Vec<TableInfo>, String> {
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     log::debug!("MySQL: Fetching tables for database: {}", db_name);
     let pool = get_mysql_pool(params).await?;
@@ -67,11 +52,7 @@ pub async fn get_tables(params: &ConnectionParams, schema: Option<&str>) -> Resu
             name: mysql_row_str(r, 0),
         })
         .collect();
-    log::debug!(
-        "MySQL: Found {} tables in {}",
-        tables.len(),
-        db_name
-    );
+    log::debug!("MySQL: Found {} tables in {}", tables.len(), db_name);
     Ok(tables)
 }
 
@@ -438,36 +419,6 @@ pub async fn delete_record(
     result.map(|r| r.rows_affected()).map_err(|e| e.to_string())
 }
 
-/// Checks if a string value looks like WKT (Well-Known Text) geometry format
-fn is_wkt_geometry(s: &str) -> bool {
-    let s_upper = s.trim().to_uppercase();
-    s_upper.starts_with("POINT(")
-        || s_upper.starts_with("LINESTRING(")
-        || s_upper.starts_with("POLYGON(")
-        || s_upper.starts_with("MULTIPOINT(")
-        || s_upper.starts_with("MULTILINESTRING(")
-        || s_upper.starts_with("MULTIPOLYGON(")
-        || s_upper.starts_with("GEOMETRYCOLLECTION(")
-        || s_upper.starts_with("GEOMETRY(")
-}
-
-/// Checks if a string value is a raw SQL function call (e.g., ST_GeomFromText(...))
-/// This is used to detect when user has entered a complete SQL function that should
-/// be inserted directly into the query without parameter binding
-fn is_raw_sql_function(s: &str) -> bool {
-    let trimmed = s.trim().to_uppercase();
-    // Check for common SQL spatial function patterns
-    // Functions starting with ST_ followed by parenthesis
-    if trimmed.starts_with("ST_") {
-        return trimmed.contains('(');
-    }
-    // Legacy function names
-    trimmed.starts_with("GEOMFROMTEXT(")
-        || trimmed.starts_with("GEOMFROMWKB(")
-        || trimmed.starts_with("POINTFROMTEXT(")
-        || trimmed.starts_with("POINTFROMWKB(")
-}
-
 pub async fn update_record(
     params: &ConnectionParams,
     table: &str,
@@ -626,7 +577,6 @@ pub async fn insert_record(
     Ok(result.rows_affected())
 }
 
-
 pub async fn get_table_ddl(params: &ConnectionParams, table_name: &str) -> Result<String, String> {
     let pool = get_mysql_pool(params).await?;
     let query = format!("SHOW CREATE TABLE `{}`", table_name);
@@ -639,7 +589,10 @@ pub async fn get_table_ddl(params: &ConnectionParams, table_name: &str) -> Resul
     Ok(format!("{};", create_sql))
 }
 
-pub async fn get_views(params: &ConnectionParams, schema: Option<&str>) -> Result<Vec<ViewInfo>, String> {
+pub async fn get_views(
+    params: &ConnectionParams,
+    schema: Option<&str>,
+) -> Result<Vec<ViewInfo>, String> {
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     log::debug!("MySQL: Fetching views for database: {}", db_name);
     let pool = get_mysql_pool(params).await?;
@@ -776,7 +729,10 @@ pub async fn get_view_columns(
         .collect())
 }
 
-pub async fn get_routines(params: &ConnectionParams, schema: Option<&str>) -> Result<Vec<RoutineInfo>, String> {
+pub async fn get_routines(
+    params: &ConnectionParams,
+    schema: Option<&str>,
+) -> Result<Vec<RoutineInfo>, String> {
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     let pool = get_mysql_pool(params).await?;
     let query = r#"
@@ -990,1244 +946,6 @@ pub async fn execute_query(
     })
 }
 
-// ---------------------------------------------------------------------------
-// EXPLAIN QUERY
-// ---------------------------------------------------------------------------
-
-/// Server capabilities detected via `SELECT VERSION()`.
-struct MysqlCapabilities {
-    /// EXPLAIN FORMAT=JSON (MySQL 5.6+ / MariaDB 10.1+)
-    supports_json_format: bool,
-    /// EXPLAIN ANALYZE (MySQL 8.0.18+ only)
-    supports_explain_analyze: bool,
-    /// ANALYZE FORMAT=JSON (MariaDB 10.1+ only)
-    supports_analyze_format: bool,
-}
-
-fn parse_mysql_version(version_str: &str) -> MysqlCapabilities {
-    let is_mariadb = version_str.to_lowercase().contains("mariadb");
-
-    // Extract "5.5.24" from "5.5.24-55-log" or "10.5.22-MariaDB"
-    let version_part = version_str.split('-').next().unwrap_or("");
-    let parts: Vec<u32> = version_part
-        .split('.')
-        .filter_map(|s| s.parse().ok())
-        .collect();
-    let ver = (
-        parts.first().copied().unwrap_or(0),
-        parts.get(1).copied().unwrap_or(0),
-        parts.get(2).copied().unwrap_or(0),
-    );
-
-    if is_mariadb {
-        MysqlCapabilities {
-            supports_json_format: ver >= (10, 1, 0),
-            supports_explain_analyze: false,
-            supports_analyze_format: ver >= (10, 1, 0),
-        }
-    } else {
-        MysqlCapabilities {
-            supports_json_format: ver >= (5, 6, 0),
-            supports_explain_analyze: ver >= (8, 0, 18),
-            supports_analyze_format: false,
-        }
-    }
-}
-
-pub async fn explain_query(
-    params: &ConnectionParams,
-    query: &str,
-    analyze: bool,
-    schema: Option<&str>,
-) -> Result<ExplainPlan, String> {
-    let effective_params;
-    let pool = if let Some(db) = schema {
-        effective_params = {
-            let mut p = params.clone();
-            p.database = crate::models::DatabaseSelection::Single(db.to_string());
-            p
-        };
-        get_mysql_pool(&effective_params).await?
-    } else {
-        get_mysql_pool(params).await?
-    };
-
-    // Detect server version to skip unsupported EXPLAIN variants
-    let caps = {
-        let mut vc = pool.acquire().await.map_err(|e| e.to_string())?;
-        let ver_row = sqlx::query("SELECT VERSION()")
-            .fetch_one(&mut *vc)
-            .await
-            .ok();
-        let ver_str: String = ver_row
-            .and_then(|r| r.try_get(0).ok())
-            .unwrap_or_default();
-        log::debug!("MySQL/MariaDB version: {}", ver_str);
-        parse_mysql_version(&ver_str)
-    };
-
-    // EXPLAIN ANALYZE — MySQL 8.0.18+ text tree with estimated + actual data
-    if analyze && caps.supports_explain_analyze {
-        let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
-        let analyze_sql = format!("EXPLAIN ANALYZE {}", query);
-        if let Ok(rows) = sqlx::query(&analyze_sql).fetch_all(&mut *conn).await {
-            let mut lines = Vec::new();
-            for row in &rows {
-                if let Ok(line) = row.try_get::<String, _>(0) {
-                    lines.push(line);
-                }
-            }
-            if !lines.is_empty() {
-                let raw_output = lines.join("\n");
-                let mut counter: u32 = 0;
-                let root = parse_mysql_analyze_text(&raw_output, &mut counter);
-                let has_analyze = has_analyze_data_recursive(&root);
-
-                return Ok(ExplainPlan {
-                    root,
-                    planning_time_ms: None,
-                    execution_time_ms: None,
-                    original_query: query.to_string(),
-                    driver: "mysql".to_string(),
-                    has_analyze_data: has_analyze,
-                    raw_output: Some(raw_output),
-                });
-            }
-        }
-    }
-
-    // ANALYZE FORMAT=JSON — MariaDB 10.1+ (executes the query and returns JSON
-    // with both estimated and r_* actual fields)
-    if analyze && caps.supports_analyze_format {
-        let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
-        let maria_sql = format!("ANALYZE FORMAT=JSON {}", query);
-        if let Ok(row) = sqlx::query(&maria_sql).fetch_one(&mut *conn).await {
-            if let Ok(raw_json) = row.try_get::<String, _>(0) {
-                if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&raw_json) {
-                    if let Some(query_block) = json_val.get("query_block") {
-                        let mut counter: u32 = 0;
-                        let root = parse_mysql_query_block(query_block, &mut counter);
-                        let has_analyze = has_analyze_data_recursive(&root);
-
-                        // MariaDB: query_optimization.r_total_time_ms
-                        let planning_time_ms = json_val
-                            .get("query_optimization")
-                            .and_then(|qo| qo.get("r_total_time_ms"))
-                            .and_then(|v| v.as_f64());
-
-                        return Ok(ExplainPlan {
-                            root,
-                            planning_time_ms,
-                            execution_time_ms: None,
-                            original_query: query.to_string(),
-                            driver: "mysql".to_string(),
-                            has_analyze_data: has_analyze,
-                            raw_output: Some(raw_json),
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    // EXPLAIN FORMAT=JSON — MySQL 5.6+ / MariaDB 10.1+
-    if caps.supports_json_format {
-        let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
-        let json_sql = format!("EXPLAIN FORMAT=JSON {}", query);
-        let json_result: Result<String, String> = async {
-            let row = sqlx::query(&json_sql)
-                .fetch_one(&mut *conn)
-                .await
-                .map_err(|e| e.to_string())?;
-            row.try_get::<String, _>(0).map_err(|e| e.to_string())
-        }
-        .await;
-
-        if let Ok(raw_json) = json_result {
-            if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&raw_json) {
-                if let Some(query_block) = json_val.get("query_block") {
-                    let mut counter: u32 = 0;
-                    let root = parse_mysql_query_block(query_block, &mut counter);
-                    let has_analyze = has_analyze_data_recursive(&root);
-
-                    return Ok(ExplainPlan {
-                        root,
-                        planning_time_ms: None,
-                        execution_time_ms: None,
-                        original_query: query.to_string(),
-                        driver: "mysql".to_string(),
-                        has_analyze_data: has_analyze,
-                        raw_output: Some(raw_json),
-                    });
-                }
-            }
-        }
-    }
-
-    // Tabular fallback — works on all MySQL/MariaDB versions
-    let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
-    let explain_sql = format!("EXPLAIN {}", query);
-    let rows = sqlx::query(&explain_sql)
-        .fetch_all(&mut *conn)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let (root, raw) = parse_mysql_tabular_explain(&rows);
-    Ok(ExplainPlan {
-        root,
-        planning_time_ms: None,
-        execution_time_ms: None,
-        original_query: query.to_string(),
-        driver: "mysql".to_string(),
-        has_analyze_data: false,
-        raw_output: Some(raw),
-    })
-}
-
-/// Parse the tabular output from plain `EXPLAIN` (for MySQL/MariaDB without FORMAT=JSON).
-///
-/// MySQL 5.5:  id, select_type, table, type, possible_keys, key, key_len, ref, rows, Extra
-/// MySQL 5.7+: id, select_type, table, partitions, type, possible_keys, key, key_len, ref, rows, filtered, Extra
-///
-/// Uses column-name lookup + `mysql_row_str` / `mysql_row_str_opt` to handle
-/// MySQL versions that return VARBINARY instead of VARCHAR.
-fn parse_mysql_tabular_explain(rows: &[sqlx::mysql::MySqlRow]) -> (ExplainNode, String) {
-    let mut raw_lines = Vec::new();
-    let mut children = Vec::new();
-
-    /// Find a column index by name (case-insensitive).
-    fn col_idx(row: &sqlx::mysql::MySqlRow, name: &str) -> Option<usize> {
-        row.columns()
-            .iter()
-            .position(|c| c.name().eq_ignore_ascii_case(name))
-    }
-
-    for (i, row) in rows.iter().enumerate() {
-        let select_type = col_idx(row, "select_type")
-            .map(|idx| mysql_row_str(row, idx))
-            .unwrap_or_default();
-        let table = col_idx(row, "table")
-            .and_then(|idx| mysql_row_str_opt(row, idx))
-            .unwrap_or_default();
-        let access_type = col_idx(row, "type")
-            .and_then(|idx| mysql_row_str_opt(row, idx))
-            .unwrap_or_default();
-        let possible_keys = col_idx(row, "possible_keys")
-            .and_then(|idx| mysql_row_str_opt(row, idx));
-        let key = col_idx(row, "key")
-            .and_then(|idx| mysql_row_str_opt(row, idx));
-        let plan_rows: Option<i64> = col_idx(row, "rows")
-            .and_then(|idx| {
-                row.try_get::<Option<i64>, _>(idx)
-                    .unwrap_or(None)
-                    .or_else(|| {
-                        // Fallback: read as string and parse
-                        mysql_row_str_opt(row, idx)
-                            .and_then(|s| s.parse::<i64>().ok())
-                    })
-            });
-        let filtered: Option<f64> = col_idx(row, "filtered")
-            .and_then(|idx| {
-                row.try_get::<Option<f64>, _>(idx)
-                    .unwrap_or(None)
-                    .or_else(|| {
-                        mysql_row_str_opt(row, idx)
-                            .and_then(|s| s.parse::<f64>().ok())
-                    })
-            });
-        let extra = col_idx(row, "Extra")
-            .and_then(|idx| mysql_row_str_opt(row, idx));
-
-        let node_type = match access_type.as_str() {
-            "ALL" => "Full Table Scan",
-            "index" => "Index Scan",
-            "range" => "Range Scan",
-            "ref" => "Index Lookup",
-            "eq_ref" => "Unique Index Lookup",
-            "const" | "system" => "Const Lookup",
-            "fulltext" => "Fulltext Search",
-            "" => "Unknown",
-            other => other,
-        }
-        .to_string();
-
-        raw_lines.push(format!(
-            "{}\t{}\t{}\t{}\t{}\t{}",
-            select_type,
-            table,
-            access_type,
-            key.as_deref().unwrap_or("-"),
-            plan_rows.unwrap_or(0),
-            extra.as_deref().unwrap_or("")
-        ));
-
-        let mut node_extra = std::collections::HashMap::new();
-        if let Some(pk) = &possible_keys {
-            node_extra.insert(
-                "possible_keys".to_string(),
-                serde_json::Value::String(pk.clone()),
-            );
-        }
-        if let Some(f) = filtered {
-            node_extra.insert(
-                "filtered".to_string(),
-                serde_json::Value::Number(
-                    serde_json::Number::from_f64(f)
-                        .unwrap_or(serde_json::Number::from(0)),
-                ),
-            );
-        }
-        if let Some(e) = &extra {
-            node_extra.insert(
-                "extra".to_string(),
-                serde_json::Value::String(e.clone()),
-            );
-        }
-        node_extra.insert(
-            "select_type".to_string(),
-            serde_json::Value::String(select_type),
-        );
-
-        children.push(ExplainNode {
-            id: format!("node_{}", i + 1),
-            node_type,
-            relation: if table.is_empty() { None } else { Some(table) },
-            startup_cost: None,
-            total_cost: None,
-            plan_rows: plan_rows.map(|r| r as f64),
-            actual_rows: None,
-            actual_time_ms: None,
-            actual_loops: None,
-            buffers_hit: None,
-            buffers_read: None,
-            filter: extra.clone(),
-            index_condition: key,
-            join_type: None,
-            hash_condition: None,
-            extra: node_extra,
-            children: vec![],
-        });
-    }
-
-    let root = ExplainNode {
-        id: "node_0".to_string(),
-        node_type: "Query".to_string(),
-        relation: None,
-        startup_cost: None,
-        total_cost: None,
-        plan_rows: None,
-        actual_rows: None,
-        actual_time_ms: None,
-        actual_loops: None,
-        buffers_hit: None,
-        buffers_read: None,
-        filter: None,
-        index_condition: None,
-        join_type: None,
-        hash_condition: None,
-        extra: std::collections::HashMap::new(),
-        children,
-    };
-
-    (root, raw_lines.join("\n"))
-}
-
-/// Parse a JSON value that might be a string number or a numeric value.
-fn parse_json_number(v: &serde_json::Value) -> Option<f64> {
-    v.as_f64()
-        .or_else(|| v.as_str().and_then(|s| s.parse::<f64>().ok()))
-}
-
-/// Parse a MariaDB `filesort` JSON object into an ExplainNode.
-///
-/// MariaDB ANALYZE FORMAT=JSON emits `"filesort": { sort_key, r_total_time_ms,
-/// temporary_table | nested_loop, … }` as a nested object — unlike MySQL which
-/// uses the boolean flag `"using_filesort": true`.
-fn parse_mariadb_filesort(filesort: &serde_json::Value, counter: &mut u32) -> ExplainNode {
-    let id = format!("node_{}", counter);
-    *counter += 1;
-
-    let actual_time_ms = filesort.get("r_total_time_ms").and_then(|v| v.as_f64());
-    let actual_rows = filesort.get("r_output_rows").and_then(|v| v.as_f64());
-    let actual_loops = filesort
-        .get("r_loops")
-        .and_then(|v| v.as_u64())
-        .or_else(|| {
-            filesort
-                .get("r_loops")
-                .and_then(|v| v.as_f64())
-                .map(|f| f as u64)
-        });
-
-    let mut extra = std::collections::HashMap::new();
-    for key in &["sort_key", "r_sort_mode", "r_buffer_size"] {
-        if let Some(val) = filesort.get(*key) {
-            extra.insert(key.to_string(), val.clone());
-        }
-    }
-
-    // Also capture r_limit and r_used_priority_queue when present
-    for key in &["r_limit", "r_used_priority_queue"] {
-        if let Some(val) = filesort.get(*key) {
-            extra.insert(key.to_string(), val.clone());
-        }
-    }
-
-    let mut children = Vec::new();
-    if let Some(tmp_tbl) = filesort.get("temporary_table") {
-        children.push(parse_mariadb_temporary_table(tmp_tbl, counter));
-    }
-    if let Some(nested_loop) = filesort.get("nested_loop").and_then(|v| v.as_array()) {
-        for item in nested_loop {
-            children.push(parse_mysql_query_block(item, counter));
-        }
-    }
-    if let Some(order_op) = filesort.get("ordering_operation") {
-        children.push(parse_mysql_query_block(order_op, counter));
-    }
-    // MariaDB: filesort may contain a direct "table" (no nested_loop wrapper)
-    if filesort.get("table").is_some()
-        && filesort.get("nested_loop").is_none()
-        && filesort.get("temporary_table").is_none()
-    {
-        children.push(parse_mysql_query_block(filesort, counter));
-    }
-
-    ExplainNode {
-        id,
-        node_type: "Filesort".to_string(),
-        relation: None,
-        startup_cost: None,
-        total_cost: None,
-        plan_rows: None,
-        actual_rows,
-        actual_time_ms,
-        actual_loops,
-        buffers_hit: None,
-        buffers_read: None,
-        filter: None,
-        index_condition: None,
-        join_type: None,
-        hash_condition: None,
-        extra,
-        children,
-    }
-}
-
-/// Parse a MariaDB `temporary_table` JSON wrapper into an ExplainNode.
-///
-/// MariaDB wraps `nested_loop` (and sometimes `filesort`) inside a
-/// `"temporary_table": { … }` object when a temp table is materialised.
-fn parse_mariadb_temporary_table(
-    tmp_tbl: &serde_json::Value,
-    counter: &mut u32,
-) -> ExplainNode {
-    let id = format!("node_{}", counter);
-    *counter += 1;
-
-    let mut children = Vec::new();
-    if let Some(nested_loop) = tmp_tbl.get("nested_loop").and_then(|v| v.as_array()) {
-        for item in nested_loop {
-            children.push(parse_mysql_query_block(item, counter));
-        }
-    }
-    if let Some(filesort) = tmp_tbl.get("filesort") {
-        children.push(parse_mariadb_filesort(filesort, counter));
-    }
-
-    ExplainNode {
-        id,
-        node_type: "Temporary Table".to_string(),
-        relation: None,
-        startup_cost: None,
-        total_cost: None,
-        plan_rows: None,
-        actual_rows: None,
-        actual_time_ms: None,
-        actual_loops: None,
-        buffers_hit: None,
-        buffers_read: None,
-        filter: None,
-        index_condition: None,
-        join_type: None,
-        hash_condition: None,
-        extra: std::collections::HashMap::new(),
-        children,
-    }
-}
-
-/// Parse a MariaDB `subquery_cache` wrapper into an ExplainNode.
-///
-/// MariaDB wraps correlated/dependent subqueries in `"subquery_cache": {
-/// r_loops, r_hit_ratio, query_block: { … } }` when the optimizer can
-/// cache repeated evaluations.  The `r_hit_ratio` (0–100) indicates how
-/// often the cache was reused.
-fn parse_mariadb_subquery_cache(
-    cache: &serde_json::Value,
-    counter: &mut u32,
-) -> ExplainNode {
-    let id = format!("node_{}", counter);
-    *counter += 1;
-
-    let actual_loops = cache
-        .get("r_loops")
-        .and_then(|v| v.as_u64())
-        .or_else(|| cache.get("r_loops").and_then(|v| v.as_f64()).map(|f| f as u64));
-
-    let mut extra = std::collections::HashMap::new();
-    if let Some(hit) = cache.get("r_hit_ratio") {
-        extra.insert("r_hit_ratio".to_string(), hit.clone());
-    }
-
-    let mut children = Vec::new();
-    if let Some(qb) = cache.get("query_block") {
-        children.push(parse_mysql_query_block(qb, counter));
-    }
-
-    ExplainNode {
-        id,
-        node_type: "Subquery Cache".to_string(),
-        relation: None,
-        startup_cost: None,
-        total_cost: None,
-        plan_rows: None,
-        actual_rows: None,
-        actual_time_ms: None,
-        actual_loops,
-        buffers_hit: None,
-        buffers_read: None,
-        filter: None,
-        index_condition: None,
-        join_type: None,
-        hash_condition: None,
-        extra,
-        children,
-    }
-}
-
-/// Generic parser for MariaDB wrapper nodes (materialized, union_result,
-/// buffer_result, window_functions_computation, expression_cache,
-/// read_sorted_file).  These share a common pattern: an object that may
-/// contain nested_loop, table, filesort, query_specifications, or other
-/// recursive structures.
-fn parse_mariadb_wrapper(
-    obj: &serde_json::Value,
-    label: &str,
-    counter: &mut u32,
-) -> ExplainNode {
-    let id = format!("node_{}", counter);
-    *counter += 1;
-
-    let actual_time_ms = obj.get("r_total_time_ms").and_then(|v| v.as_f64());
-    let actual_rows = obj
-        .get("r_rows")
-        .or_else(|| obj.get("r_output_rows"))
-        .and_then(|v| v.as_f64());
-    let actual_loops = obj
-        .get("r_loops")
-        .and_then(|v| v.as_u64())
-        .or_else(|| obj.get("r_loops").and_then(|v| v.as_f64()).map(|f| f as u64));
-
-    let mut children = Vec::new();
-
-    // The wrapper may directly contain a table
-    if obj.get("table").is_some() {
-        children.push(parse_mysql_query_block(obj, counter));
-    }
-
-    if let Some(nl) = obj.get("nested_loop").and_then(|v| v.as_array()) {
-        for item in nl {
-            children.push(parse_mysql_query_block(item, counter));
-        }
-    }
-    if let Some(fs) = obj.get("filesort") {
-        if fs.is_object() {
-            children.push(parse_mariadb_filesort(fs, counter));
-        }
-    }
-    if let Some(tmp) = obj.get("temporary_table") {
-        children.push(parse_mariadb_temporary_table(tmp, counter));
-    }
-    if let Some(qb) = obj.get("query_block") {
-        children.push(parse_mysql_query_block(qb, counter));
-    }
-    if let Some(specs) = obj.get("query_specifications").and_then(|v| v.as_array()) {
-        for spec in specs {
-            children.push(parse_mysql_query_block(spec, counter));
-        }
-    }
-    if let Some(order_op) = obj.get("ordering_operation") {
-        children.push(parse_mysql_query_block(order_op, counter));
-    }
-    if let Some(group_op) = obj.get("grouping_operation") {
-        children.push(parse_mysql_query_block(group_op, counter));
-    }
-    if let Some(subs) = obj.get("attached_subqueries").and_then(|v| v.as_array()) {
-        for sq in subs {
-            children.push(parse_mysql_query_block(sq, counter));
-        }
-    }
-
-    ExplainNode {
-        id,
-        node_type: label.to_string(),
-        relation: None,
-        startup_cost: None,
-        total_cost: obj.get("cost").and_then(parse_json_number),
-        plan_rows: None,
-        actual_rows,
-        actual_time_ms,
-        actual_loops,
-        buffers_hit: None,
-        buffers_read: None,
-        filter: None,
-        index_condition: None,
-        join_type: None,
-        hash_condition: None,
-        extra: std::collections::HashMap::new(),
-        children,
-    }
-}
-
-fn parse_mysql_query_block(block: &serde_json::Value, counter: &mut u32) -> ExplainNode {
-    let id = format!("node_{}", counter);
-    *counter += 1;
-
-    // Determine node type from the query block structure
-    let (node_type, relation, plan_rows, startup_cost, total_cost, filter) = if let Some(table) =
-        block.get("table")
-    {
-        let access = table
-            .get("access_type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("ALL");
-        let node_type = match access {
-            "ALL" => "Full Table Scan",
-            "index" => "Index Scan",
-            "range" => "Range Scan",
-            "ref" => "Index Lookup",
-            "eq_ref" => "Unique Index Lookup",
-            "const" | "system" => "Const Lookup",
-            "fulltext" => "Fulltext Search",
-            other => other,
-        }
-        .to_string();
-        let rel = table
-            .get("table_name")
-            .and_then(|v| v.as_str())
-            .map(String::from);
-
-        // Rows: MySQL 8 uses rows_examined_per_scan, MariaDB uses rows
-        let rows = table
-            .get("rows_examined_per_scan")
-            .and_then(|v| v.as_f64())
-            .or_else(|| table.get("rows").and_then(|v| v.as_f64()));
-
-        // Cost: MySQL 8 uses cost_info.prefix_cost / read_cost;
-        // MariaDB puts "cost" directly on the table object.
-        let cost_info = table.get("cost_info");
-        let startup = cost_info
-            .and_then(|c| c.get("read_cost"))
-            .and_then(parse_json_number);
-        let total = cost_info
-            .and_then(|c| c.get("prefix_cost"))
-            .and_then(parse_json_number)
-            .or(startup)
-            .or_else(|| table.get("cost").and_then(parse_json_number));
-
-        let filt = table
-            .get("attached_condition")
-            .and_then(|v| v.as_str())
-            .map(String::from);
-        (node_type, rel, rows, startup, total, filt)
-    } else {
-        // Non-table node: detect operation type from child keys
-        let node_type = if block
-            .get("using_filesort")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false)
-        {
-            "Filesort".to_string()
-        } else if block.get("grouping_operation").is_some() {
-            "Group".to_string()
-        } else if block.get("duplicates_removal").is_some() {
-            "Duplicate Removal".to_string()
-        } else if block.get("having_condition").is_some() {
-            "Having Filter".to_string()
-        } else if block.get("window_functions_computation").is_some() {
-            "Window Functions".to_string()
-        } else {
-            "Query Block".to_string()
-        };
-
-        // Extract cost from block-level cost_info (MySQL) or direct "cost" (MariaDB)
-        let cost_info = block.get("cost_info");
-        let total = cost_info
-            .and_then(|c| {
-                c.get("query_cost")
-                    .or_else(|| c.get("sort_cost"))
-                    .or_else(|| c.get("prefix_cost"))
-            })
-            .and_then(parse_json_number)
-            .or_else(|| block.get("cost").and_then(parse_json_number));
-
-        let filt = block
-            .get("having_condition")
-            .and_then(|v| v.as_str())
-            .map(String::from);
-
-        (node_type, None, None, None, total, filt)
-    };
-
-    // Collect extra fields from the table object
-    let known_keys: &[&str] = &[
-        "access_type",
-        "table_name",
-        "rows_examined_per_scan",
-        "rows",
-        "cost_info",
-        "attached_condition",
-        "key",
-        "possible_keys",
-        "used_key_parts",
-    ];
-    let mut extra = std::collections::HashMap::new();
-    if let Some(table) = block.get("table").and_then(|t| t.as_object()) {
-        for (k, v) in table {
-            if !known_keys.contains(&k.as_str()) {
-                extra.insert(k.clone(), v.clone());
-            }
-        }
-    }
-    if let Some(table) = block.get("table") {
-        if let Some(key) = table.get("key").and_then(|v| v.as_str()) {
-            extra.insert(
-                "key".to_string(),
-                serde_json::Value::String(key.to_string()),
-            );
-        }
-    }
-
-    // Parse children from nested_loop, ordering_operation, subqueries, etc.
-    let mut children = Vec::new();
-
-    if let Some(nested_loop) = block.get("nested_loop").and_then(|v| v.as_array()) {
-        for item in nested_loop {
-            if item.get("table").is_some() {
-                children.push(parse_mysql_query_block(item, counter));
-            } else if let Some(rsf) = item.get("read_sorted_file") {
-                children.push(parse_mariadb_wrapper(rsf, "Read Sorted File", counter));
-            } else if let Some(fs) = item.get("filesort") {
-                if fs.is_object() {
-                    children.push(parse_mariadb_filesort(fs, counter));
-                }
-            } else if let Some(tmp) = item.get("temporary_table") {
-                children.push(parse_mariadb_temporary_table(tmp, counter));
-            } else if let Some(mat) = item.get("materialized") {
-                children.push(parse_mariadb_wrapper(mat, "Materialized Subquery", counter));
-            } else if let Some(buf) = item.get("buffer_result") {
-                children.push(parse_mariadb_wrapper(buf, "Buffer Result", counter));
-            }
-        }
-    }
-
-    if let Some(order_op) = block.get("ordering_operation") {
-        children.push(parse_mysql_query_block(order_op, counter));
-    }
-
-    if let Some(group_op) = block.get("grouping_operation") {
-        children.push(parse_mysql_query_block(group_op, counter));
-    }
-
-    if let Some(dup_op) = block.get("duplicates_removal") {
-        children.push(parse_mysql_query_block(dup_op, counter));
-    }
-
-    if let Some(subqueries) = block
-        .get("optimized_away_subqueries")
-        .and_then(|v| v.as_array())
-    {
-        for sq in subqueries {
-            children.push(parse_mysql_query_block(sq, counter));
-        }
-    }
-
-    if let Some(attached) = block
-        .get("attached_subqueries")
-        .and_then(|v| v.as_array())
-    {
-        for sq in attached {
-            children.push(parse_mysql_query_block(sq, counter));
-        }
-    }
-
-    // MariaDB: "subqueries" array — each entry may be a subquery_cache wrapper
-    // or a direct query_block.
-    if let Some(subqueries) = block.get("subqueries").and_then(|v| v.as_array()) {
-        for sq in subqueries {
-            if let Some(cache) = sq.get("subquery_cache") {
-                children.push(parse_mariadb_subquery_cache(cache, counter));
-            } else if sq.get("query_block").is_some() || sq.get("table").is_some() {
-                children.push(parse_mysql_query_block(sq, counter));
-            }
-        }
-    }
-
-    // MariaDB: filesort as nested object (not the boolean using_filesort flag)
-    if let Some(filesort) = block.get("filesort") {
-        if filesort.is_object() {
-            children.push(parse_mariadb_filesort(filesort, counter));
-        }
-    }
-
-    // MariaDB: temporary_table wrapper around nested_loop
-    if let Some(tmp_tbl) = block.get("temporary_table") {
-        children.push(parse_mariadb_temporary_table(tmp_tbl, counter));
-    }
-
-    // MariaDB: materialized subquery (e.g. IN (SELECT …) materialised as temp table)
-    if let Some(mat) = block.get("materialized") {
-        children.push(parse_mariadb_wrapper(mat, "Materialized Subquery", counter));
-    }
-
-    // MariaDB / MySQL: union_result — combines rows from UNION branches
-    if let Some(union_res) = block.get("union_result") {
-        children.push(parse_mariadb_wrapper(union_res, "Union Result", counter));
-    }
-
-    // MariaDB: buffer_result (SQL_BUFFER_RESULT hint)
-    if let Some(buf) = block.get("buffer_result") {
-        children.push(parse_mariadb_wrapper(buf, "Buffer Result", counter));
-    }
-
-    // MariaDB: window_functions_computation (window functions)
-    if let Some(wf) = block.get("window_functions_computation") {
-        children.push(parse_mariadb_wrapper(wf, "Window Functions", counter));
-    }
-
-    // MariaDB: expression_cache (cached subquery results)
-    if let Some(ec) = block.get("expression_cache") {
-        children.push(parse_mariadb_wrapper(ec, "Expression Cache", counter));
-    }
-
-    // MariaDB: read_sorted_file (after filesort writes to disk)
-    if let Some(rsf) = block.get("read_sorted_file") {
-        children.push(parse_mariadb_wrapper(rsf, "Read Sorted File", counter));
-    }
-
-    // MariaDB: query_specifications inside union_result
-    if let Some(specs) = block.get("query_specifications").and_then(|v| v.as_array()) {
-        for spec in specs {
-            children.push(parse_mysql_query_block(spec, counter));
-        }
-    }
-
-    let index_condition = block
-        .get("table")
-        .and_then(|t| t.get("key"))
-        .and_then(|v| v.as_str())
-        .map(String::from);
-
-    // MariaDB ANALYZE data: r_total_time_ms, r_rows, r_loops.
-    // Table objects may use r_table_time_ms + r_other_time_ms instead of
-    // r_total_time_ms. Non-table nodes (query_block) carry these at block level.
-    let table_obj = block.get("table");
-    let actual_time_ms = table_obj
-        .and_then(|t| t.get("r_total_time_ms"))
-        .and_then(|v| v.as_f64())
-        .or_else(|| {
-            // MariaDB tables: r_table_time_ms + r_other_time_ms
-            let tbl = table_obj?;
-            let table_ms = tbl.get("r_table_time_ms").and_then(|v| v.as_f64());
-            let other_ms = tbl.get("r_other_time_ms").and_then(|v| v.as_f64());
-            match (table_ms, other_ms) {
-                (Some(t), Some(o)) => Some(t + o),
-                (Some(t), None) => Some(t),
-                _ => None,
-            }
-        })
-        // Fallback: block-level r_total_time_ms (non-table nodes)
-        .or_else(|| block.get("r_total_time_ms").and_then(|v| v.as_f64()));
-    let actual_rows = table_obj
-        .and_then(|t| t.get("r_rows"))
-        .and_then(|v| v.as_f64())
-        .or_else(|| block.get("r_rows").and_then(|v| v.as_f64()));
-    let actual_loops = table_obj
-        .and_then(|t| t.get("r_loops"))
-        .and_then(|v| v.as_u64())
-        .or_else(|| {
-            table_obj
-                .and_then(|t| t.get("r_loops"))
-                .and_then(|v| v.as_f64())
-                .map(|f| f as u64)
-        })
-        // Fallback: block-level r_loops
-        .or_else(|| block.get("r_loops").and_then(|v| v.as_u64()))
-        .or_else(|| {
-            block
-                .get("r_loops")
-                .and_then(|v| v.as_f64())
-                .map(|f| f as u64)
-        });
-
-    ExplainNode {
-        id,
-        node_type,
-        relation,
-        startup_cost,
-        total_cost,
-        plan_rows,
-        actual_rows,
-        actual_time_ms,
-        actual_loops,
-        buffers_hit: None,
-        buffers_read: None,
-        filter,
-        index_condition,
-        join_type: None,
-        hash_condition: None,
-        extra,
-        children,
-    }
-}
-
-// ---------------------------------------------------------------------------
-// EXPLAIN ANALYZE text parser (MySQL 8.0.18+)
-// ---------------------------------------------------------------------------
-
-struct AnalyzeParsedLine {
-    depth: usize,
-    node_type: String,
-    relation: Option<String>,
-    filter: Option<String>,
-    index_condition: Option<String>,
-    join_type: Option<String>,
-    est_cost: Option<f64>,
-    est_rows: Option<f64>,
-    actual_time_ms: Option<f64>,
-    actual_rows: Option<f64>,
-    actual_loops: Option<u64>,
-}
-
-/// Check recursively whether any node in the tree has actual analyze data.
-fn has_analyze_data_recursive(node: &ExplainNode) -> bool {
-    if node.actual_rows.is_some() || node.actual_time_ms.is_some() {
-        return true;
-    }
-    node.children.iter().any(has_analyze_data_recursive)
-}
-
-/// Parse MySQL EXPLAIN ANALYZE text output into a plan tree.
-///
-/// Each line looks like:
-/// `    -> Table scan on t1  (cost=1.25 rows=10) (actual time=0.045..0.145 rows=10 loops=1)`
-fn parse_mysql_analyze_text(text: &str, counter: &mut u32) -> ExplainNode {
-    let mut parsed_lines: Vec<AnalyzeParsedLine> = Vec::new();
-
-    for line in text.lines() {
-        let trimmed = line.trim_end();
-        if trimmed.is_empty() {
-            continue;
-        }
-
-        // Count leading spaces for depth (4 spaces = 1 level)
-        let leading = trimmed.len() - trimmed.trim_start().len();
-        let depth = leading / 4;
-
-        let content = trimmed.trim_start();
-
-        // Lines must start with "-> "
-        let desc_rest = match content.strip_prefix("-> ") {
-            Some(r) => r,
-            None => continue,
-        };
-
-        // Description ends at double-space-paren "  ("
-        let desc_end = desc_rest.find("  (").unwrap_or(desc_rest.len());
-        let description = &desc_rest[..desc_end];
-        let metrics = &desc_rest[desc_end..];
-
-        let (est_cost, est_rows) = parse_analyze_estimated(metrics);
-        let (actual_time_ms, actual_rows, actual_loops) = parse_analyze_actual(metrics);
-        let (node_type, relation, filter, index_condition, join_type) =
-            map_analyze_description(description);
-
-        parsed_lines.push(AnalyzeParsedLine {
-            depth,
-            node_type,
-            relation,
-            filter,
-            index_condition,
-            join_type,
-            est_cost,
-            est_rows,
-            actual_time_ms,
-            actual_rows,
-            actual_loops,
-        });
-    }
-
-    if parsed_lines.is_empty() {
-        let id = format!("node_{}", counter);
-        *counter += 1;
-        return ExplainNode {
-            id,
-            node_type: "Query".to_string(),
-            relation: None,
-            startup_cost: None,
-            total_cost: None,
-            plan_rows: None,
-            actual_rows: None,
-            actual_time_ms: None,
-            actual_loops: None,
-            buffers_hit: None,
-            buffers_read: None,
-            filter: None,
-            index_condition: None,
-            join_type: None,
-            hash_condition: None,
-            extra: std::collections::HashMap::new(),
-            children: vec![],
-        };
-    }
-
-    let (mut roots, _) = build_analyze_tree(&parsed_lines, 0, -1, counter);
-    if roots.len() == 1 {
-        roots.remove(0)
-    } else {
-        // Multiple roots — wrap in a Query node
-        let id = format!("node_{}", counter);
-        *counter += 1;
-        ExplainNode {
-            id,
-            node_type: "Query".to_string(),
-            relation: None,
-            startup_cost: None,
-            total_cost: None,
-            plan_rows: None,
-            actual_rows: None,
-            actual_time_ms: None,
-            actual_loops: None,
-            buffers_hit: None,
-            buffers_read: None,
-            filter: None,
-            index_condition: None,
-            join_type: None,
-            hash_condition: None,
-            extra: std::collections::HashMap::new(),
-            children: roots,
-        }
-    }
-}
-
-/// Recursively build a tree from parsed lines using indentation depth.
-fn build_analyze_tree(
-    lines: &[AnalyzeParsedLine],
-    start: usize,
-    parent_depth: i32,
-    counter: &mut u32,
-) -> (Vec<ExplainNode>, usize) {
-    let mut children = Vec::new();
-    let mut i = start;
-
-    while i < lines.len() {
-        let depth = lines[i].depth as i32;
-        if depth <= parent_depth {
-            break;
-        }
-
-        let id = format!("node_{}", counter);
-        *counter += 1;
-
-        let (grandchildren, next_i) = build_analyze_tree(lines, i + 1, depth, counter);
-
-        children.push(ExplainNode {
-            id,
-            node_type: lines[i].node_type.clone(),
-            relation: lines[i].relation.clone(),
-            startup_cost: None,
-            total_cost: lines[i].est_cost,
-            plan_rows: lines[i].est_rows,
-            actual_rows: lines[i].actual_rows,
-            actual_time_ms: lines[i].actual_time_ms,
-            actual_loops: lines[i].actual_loops,
-            buffers_hit: None,
-            buffers_read: None,
-            filter: lines[i].filter.clone(),
-            index_condition: lines[i].index_condition.clone(),
-            join_type: lines[i].join_type.clone(),
-            hash_condition: None,
-            extra: std::collections::HashMap::new(),
-            children: grandchildren,
-        });
-
-        i = next_i;
-    }
-
-    (children, i)
-}
-
-/// Extract estimated cost and rows from "(cost=X rows=Y)" section.
-fn parse_analyze_estimated(s: &str) -> (Option<f64>, Option<f64>) {
-    // Find "(cost=" that is NOT inside "(actual"
-    let idx = match s.find("(cost=") {
-        Some(i) => i,
-        None => return (None, None),
-    };
-    let section = &s[idx..];
-    let end = match section.find(')') {
-        Some(e) => e,
-        None => return (None, None),
-    };
-    let inner = &section[1..end]; // "cost=X rows=Y"
-    let mut cost = None;
-    let mut rows = None;
-    for part in inner.split_whitespace() {
-        if let Some(val) = part.strip_prefix("cost=") {
-            cost = val.parse().ok();
-        } else if let Some(val) = part.strip_prefix("rows=") {
-            rows = val.parse().ok();
-        }
-    }
-    (cost, rows)
-}
-
-/// Extract actual time, rows, loops from "(actual time=X..Y rows=Z loops=W)" section.
-fn parse_analyze_actual(s: &str) -> (Option<f64>, Option<f64>, Option<u64>) {
-    let idx = match s.find("(actual time=") {
-        Some(i) => i,
-        None => return (None, None, None),
-    };
-    let section = &s[idx..];
-    let end = match section.find(')') {
-        Some(e) => e,
-        None => return (None, None, None),
-    };
-    let inner = &section[1..end]; // "actual time=X..Y rows=Z loops=W"
-    let mut time_ms = None;
-    let mut rows = None;
-    let mut loops = None;
-    for part in inner.split_whitespace() {
-        if let Some(val) = part.strip_prefix("time=") {
-            // Use end time (after "..") as total time
-            if let Some(dot_pos) = val.find("..") {
-                time_ms = val[dot_pos + 2..].parse().ok();
-            } else {
-                time_ms = val.parse().ok();
-            }
-        } else if let Some(val) = part.strip_prefix("rows=") {
-            rows = val.parse().ok();
-        } else if let Some(val) = part.strip_prefix("loops=") {
-            loops = val.parse().ok();
-        }
-    }
-    (time_ms, rows, loops)
-}
-
-/// Map an EXPLAIN ANALYZE description to (node_type, relation, filter, index_condition, join_type).
-fn map_analyze_description(
-    desc: &str,
-) -> (
-    String,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-) {
-    let lower = desc.to_lowercase();
-    let relation = extract_on_relation(desc);
-    let index_cond = extract_using_index(desc);
-
-    let (node_type, filter, join_type) = if lower.starts_with("table scan") {
-        ("Full Table Scan".into(), None, None)
-    } else if lower.starts_with("covering index scan") {
-        ("Index Only Scan".into(), None, None)
-    } else if lower.starts_with("index range scan") || lower.starts_with("range scan") {
-        ("Range Scan".into(), None, None)
-    } else if lower.starts_with("index scan") {
-        ("Index Scan".into(), None, None)
-    } else if lower.starts_with("single-row index lookup") {
-        ("Unique Index Lookup".into(), None, None)
-    } else if lower.starts_with("index lookup") || lower.starts_with("multi-range index lookup") {
-        ("Index Lookup".into(), None, None)
-    } else if lower.starts_with("constant row") {
-        ("Const Lookup".into(), None, None)
-    } else if lower.starts_with("nested loop") {
-        let jt = if lower.contains("inner") {
-            Some("Inner".into())
-        } else if lower.contains("left") {
-            Some("Left".into())
-        } else if lower.contains("semijoin") {
-            Some("Semi".into())
-        } else if lower.contains("antijoin") || lower.contains("anti") {
-            Some("Anti".into())
-        } else {
-            None
-        };
-        ("Nested Loop".into(), None, jt)
-    } else if lower.contains("hash join") {
-        let jt = if lower.contains("left") {
-            Some("Left".into())
-        } else {
-            Some("Inner".into())
-        };
-        ("Hash Join".into(), None, jt)
-    } else if lower.starts_with("filter:") {
-        let filt = desc
-            .get(7..)
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
-        ("Filter".into(), filt, None)
-    } else if lower.starts_with("sort:") || lower.starts_with("sort row") {
-        ("Sort".into(), None, None)
-    } else if lower.starts_with("limit:") || lower.starts_with("limit ") {
-        ("Limit".into(), None, None)
-    } else if lower.starts_with("group aggregate") || lower.starts_with("aggregate") {
-        ("Aggregate".into(), None, None)
-    } else if lower.starts_with("temporary table") || lower.starts_with("materialize") {
-        ("Materialize".into(), None, None)
-    } else if lower.starts_with("stream results") || lower.starts_with("stream") {
-        ("Stream".into(), None, None)
-    } else if lower.starts_with("window aggregate") || lower.starts_with("window") {
-        ("Window".into(), None, None)
-    } else {
-        (desc.to_string(), None, None)
-    };
-
-    (node_type, relation, filter, index_cond, join_type)
-}
-
-/// Extract table/relation name from "... on <table> ..." pattern.
-fn extract_on_relation(desc: &str) -> Option<String> {
-    let pos = desc.find(" on ")?;
-    let after = &desc[pos + 4..];
-    let end = after
-        .find(|c: char| c == ' ' || c == '(')
-        .unwrap_or(after.len());
-    let name = after[..end].trim();
-    if name.is_empty() {
-        None
-    } else {
-        Some(name.to_string())
-    }
-}
-
-/// Extract index name from "... using <index> ..." pattern.
-fn extract_using_index(desc: &str) -> Option<String> {
-    let lower = desc.to_lowercase();
-    let pos = lower.find(" using ")?;
-    let after = &desc[pos + 7..];
-    let end = after
-        .find(|c: char| c == ' ' || c == '(')
-        .unwrap_or(after.len());
-    let name = after[..end].trim();
-    if name.is_empty() {
-        None
-    } else {
-        Some(name.to_string())
-    }
-}
-
 // ============================================================
 // Plugin wrapper
 // ============================================================
@@ -2281,19 +999,25 @@ impl MysqlDriver {
 
 #[async_trait]
 impl DatabaseDriver for MysqlDriver {
-    fn manifest(&self) -> &PluginManifest { &self.manifest }
+    fn manifest(&self) -> &PluginManifest {
+        &self.manifest
+    }
 
     fn get_data_types(&self) -> Vec<crate::models::DataTypeInfo> {
         types::get_data_types()
     }
 
-    fn build_connection_url(&self, params: &crate::models::ConnectionParams) -> Result<String, String> {
+    fn build_connection_url(
+        &self,
+        params: &crate::models::ConnectionParams,
+    ) -> Result<String, String> {
         use urlencoding::encode;
         let user = encode(params.username.as_deref().unwrap_or_default());
         let pass = encode(params.password.as_deref().unwrap_or_default());
         Ok(format!(
             "mysql://{}:{}@{}:{}/{}",
-            user, pass,
+            user,
+            pass,
             params.host.as_deref().unwrap_or("localhost"),
             params.port.unwrap_or(3306),
             params.database
@@ -2307,10 +1031,15 @@ impl DatabaseDriver for MysqlDriver {
         }
         let pool = crate::pool_manager::get_mysql_pool_with_id(params, conn_id).await?;
         let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
-        sqlx::Connection::ping(&mut *conn).await.map_err(|e| e.to_string())
+        sqlx::Connection::ping(&mut *conn)
+            .await
+            .map_err(|e| e.to_string())
     }
 
-    async fn get_databases(&self, params: &crate::models::ConnectionParams) -> Result<Vec<String>, String> {
+    async fn get_databases(
+        &self,
+        params: &crate::models::ConnectionParams,
+    ) -> Result<Vec<String>, String> {
         // MySQL requires connecting to information_schema to list databases
         let mut p = params.clone();
         p.database = crate::models::DatabaseSelection::Single("information_schema".to_string());
@@ -2318,87 +1047,218 @@ impl DatabaseDriver for MysqlDriver {
         get_databases(&p).await
     }
 
-    async fn get_schemas(&self, params: &crate::models::ConnectionParams) -> Result<Vec<String>, String> {
+    async fn get_schemas(
+        &self,
+        params: &crate::models::ConnectionParams,
+    ) -> Result<Vec<String>, String> {
         get_schemas(params).await
     }
 
-    async fn get_tables(&self, params: &crate::models::ConnectionParams, schema: Option<&str>) -> Result<Vec<crate::models::TableInfo>, String> {
+    async fn get_tables(
+        &self,
+        params: &crate::models::ConnectionParams,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TableInfo>, String> {
         get_tables(params, schema).await
     }
 
-    async fn get_columns(&self, params: &crate::models::ConnectionParams, table: &str, schema: Option<&str>) -> Result<Vec<crate::models::TableColumn>, String> {
+    async fn get_columns(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TableColumn>, String> {
         get_columns(params, table, schema).await
     }
 
-    async fn get_foreign_keys(&self, params: &crate::models::ConnectionParams, table: &str, schema: Option<&str>) -> Result<Vec<crate::models::ForeignKey>, String> {
+    async fn get_foreign_keys(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::ForeignKey>, String> {
         get_foreign_keys(params, table, schema).await
     }
 
-    async fn get_indexes(&self, params: &crate::models::ConnectionParams, table: &str, schema: Option<&str>) -> Result<Vec<crate::models::Index>, String> {
+    async fn get_indexes(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::Index>, String> {
         get_indexes(params, table, schema).await
     }
 
-    async fn get_views(&self, params: &crate::models::ConnectionParams, schema: Option<&str>) -> Result<Vec<crate::models::ViewInfo>, String> {
+    async fn get_views(
+        &self,
+        params: &crate::models::ConnectionParams,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::ViewInfo>, String> {
         get_views(params, schema).await
     }
 
-    async fn get_view_definition(&self, params: &crate::models::ConnectionParams, view_name: &str, _schema: Option<&str>) -> Result<String, String> {
+    async fn get_view_definition(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
         get_view_definition(params, view_name).await
     }
 
-    async fn get_view_columns(&self, params: &crate::models::ConnectionParams, view_name: &str, schema: Option<&str>) -> Result<Vec<crate::models::TableColumn>, String> {
+    async fn get_view_columns(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TableColumn>, String> {
         get_view_columns(params, view_name, schema).await
     }
 
-    async fn create_view(&self, params: &crate::models::ConnectionParams, view_name: &str, definition: &str, _schema: Option<&str>) -> Result<(), String> {
+    async fn create_view(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        definition: &str,
+        _schema: Option<&str>,
+    ) -> Result<(), String> {
         create_view(params, view_name, definition).await
     }
 
-    async fn alter_view(&self, params: &crate::models::ConnectionParams, view_name: &str, definition: &str, _schema: Option<&str>) -> Result<(), String> {
+    async fn alter_view(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        definition: &str,
+        _schema: Option<&str>,
+    ) -> Result<(), String> {
         alter_view(params, view_name, definition).await
     }
 
-    async fn drop_view(&self, params: &crate::models::ConnectionParams, view_name: &str, _schema: Option<&str>) -> Result<(), String> {
+    async fn drop_view(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        _schema: Option<&str>,
+    ) -> Result<(), String> {
         drop_view(params, view_name).await
     }
 
-    async fn get_routines(&self, params: &crate::models::ConnectionParams, schema: Option<&str>) -> Result<Vec<crate::models::RoutineInfo>, String> {
+    async fn get_routines(
+        &self,
+        params: &crate::models::ConnectionParams,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::RoutineInfo>, String> {
         get_routines(params, schema).await
     }
 
-    async fn get_routine_parameters(&self, params: &crate::models::ConnectionParams, routine_name: &str, schema: Option<&str>) -> Result<Vec<crate::models::RoutineParameter>, String> {
+    async fn get_routine_parameters(
+        &self,
+        params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::RoutineParameter>, String> {
         get_routine_parameters(params, routine_name, schema).await
     }
 
-    async fn get_routine_definition(&self, params: &crate::models::ConnectionParams, routine_name: &str, routine_type: &str, _schema: Option<&str>) -> Result<String, String> {
+    async fn get_routine_definition(
+        &self,
+        params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
         get_routine_definition(params, routine_name, routine_type).await
     }
 
-    async fn execute_query(&self, params: &crate::models::ConnectionParams, query: &str, limit: Option<u32>, page: u32, schema: Option<&str>) -> Result<crate::models::QueryResult, String> {
+    async fn execute_query(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<crate::models::QueryResult, String> {
         execute_query(params, query, limit, page, schema).await
     }
 
-    async fn explain_query(&self, params: &crate::models::ConnectionParams, query: &str, analyze: bool, schema: Option<&str>) -> Result<crate::models::ExplainPlan, String> {
+    async fn explain_query(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        analyze: bool,
+        schema: Option<&str>,
+    ) -> Result<crate::models::ExplainPlan, String> {
         explain_query(params, query, analyze, schema).await
     }
 
-    async fn insert_record(&self, params: &crate::models::ConnectionParams, table: &str, data: std::collections::HashMap<String, serde_json::Value>, _schema: Option<&str>, max_blob_size: u64) -> Result<u64, String> {
+    async fn insert_record(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        data: std::collections::HashMap<String, serde_json::Value>,
+        _schema: Option<&str>,
+        max_blob_size: u64,
+    ) -> Result<u64, String> {
         insert_record(params, table, data, max_blob_size).await
     }
 
-    async fn update_record(&self, params: &crate::models::ConnectionParams, table: &str, pk_col: &str, pk_val: serde_json::Value, col_name: &str, new_val: serde_json::Value, _schema: Option<&str>, max_blob_size: u64) -> Result<u64, String> {
-        update_record(params, table, pk_col, pk_val, col_name, new_val, max_blob_size).await
+    async fn update_record(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        pk_col: &str,
+        pk_val: serde_json::Value,
+        col_name: &str,
+        new_val: serde_json::Value,
+        _schema: Option<&str>,
+        max_blob_size: u64,
+    ) -> Result<u64, String> {
+        update_record(
+            params,
+            table,
+            pk_col,
+            pk_val,
+            col_name,
+            new_val,
+            max_blob_size,
+        )
+        .await
     }
 
-    async fn delete_record(&self, params: &crate::models::ConnectionParams, table: &str, pk_col: &str, pk_val: serde_json::Value, _schema: Option<&str>) -> Result<u64, String> {
+    async fn delete_record(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        pk_col: &str,
+        pk_val: serde_json::Value,
+        _schema: Option<&str>,
+    ) -> Result<u64, String> {
         delete_record(params, table, pk_col, pk_val).await
     }
 
-    async fn save_blob_to_file(&self, params: &crate::models::ConnectionParams, table: &str, col_name: &str, pk_col: &str, pk_val: serde_json::Value, _schema: Option<&str>, file_path: &str) -> Result<(), String> {
+    async fn save_blob_to_file(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        col_name: &str,
+        pk_col: &str,
+        pk_val: serde_json::Value,
+        _schema: Option<&str>,
+        file_path: &str,
+    ) -> Result<(), String> {
         save_blob_column_to_file(params, table, col_name, pk_col, pk_val, file_path).await
     }
 
-    async fn fetch_blob_as_data_url(&self, params: &crate::models::ConnectionParams, table: &str, col_name: &str, pk_col: &str, pk_val: serde_json::Value, _schema: Option<&str>) -> Result<String, String> {
+    async fn fetch_blob_as_data_url(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        col_name: &str,
+        pk_col: &str,
+        pk_val: serde_json::Value,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
         fetch_blob_column_as_data_url(params, table, col_name, pk_col, pk_val).await
     }
 
@@ -2585,521 +1445,41 @@ impl DatabaseDriver for MysqlDriver {
         Ok(())
     }
 
-    async fn get_all_columns_batch(&self, params: &crate::models::ConnectionParams, schema: Option<&str>) -> Result<HashMap<String, Vec<crate::models::TableColumn>>, String> {
+    async fn get_all_columns_batch(
+        &self,
+        params: &crate::models::ConnectionParams,
+        schema: Option<&str>,
+    ) -> Result<HashMap<String, Vec<crate::models::TableColumn>>, String> {
         get_all_columns_batch(params, schema).await
     }
 
-    async fn get_all_foreign_keys_batch(&self, params: &crate::models::ConnectionParams, schema: Option<&str>) -> Result<HashMap<String, Vec<crate::models::ForeignKey>>, String> {
+    async fn get_all_foreign_keys_batch(
+        &self,
+        params: &crate::models::ConnectionParams,
+        schema: Option<&str>,
+    ) -> Result<HashMap<String, Vec<crate::models::ForeignKey>>, String> {
         get_all_foreign_keys_batch(params, schema).await
     }
 
-    async fn get_schema_snapshot(&self, params: &crate::models::ConnectionParams, schema: Option<&str>) -> Result<Vec<crate::models::TableSchema>, String> {
+    async fn get_schema_snapshot(
+        &self,
+        params: &crate::models::ConnectionParams,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TableSchema>, String> {
         let tables = self.get_tables(params, schema).await?;
         let mut columns_map = self.get_all_columns_batch(params, schema).await?;
         let mut fks_map = self.get_all_foreign_keys_batch(params, schema).await?;
-        Ok(tables.into_iter().map(|t| crate::models::TableSchema {
-            name: t.name.clone(),
-            columns: columns_map.remove(&t.name).unwrap_or_default(),
-            foreign_keys: fks_map.remove(&t.name).unwrap_or_default(),
-        }).collect())
+        Ok(tables
+            .into_iter()
+            .map(|t| crate::models::TableSchema {
+                name: t.name.clone(),
+                columns: columns_map.remove(&t.name).unwrap_or_default(),
+                foreign_keys: fks_map.remove(&t.name).unwrap_or_default(),
+            })
+            .collect())
     }
 }
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Helper: parse a MariaDB ANALYZE FORMAT=JSON string and return the root node.
-    fn parse_json(json: &str) -> ExplainNode {
-        let val: serde_json::Value = serde_json::from_str(json).expect("invalid JSON");
-        let qb = val.get("query_block").expect("missing query_block");
-        let mut counter = 0u32;
-        parse_mysql_query_block(qb, &mut counter)
-    }
-
-    /// Helper: flatten a tree into a vec in pre-order.
-    fn flatten(node: &ExplainNode) -> Vec<&ExplainNode> {
-        let mut out = vec![node];
-        for child in &node.children {
-            out.extend(flatten(child));
-        }
-        out
-    }
-
-    // -- MariaDB filesort → temporary_table → nested_loop → table ------------
-
-    #[test]
-    fn test_mariadb_filesort_temporary_table() {
-        let root = parse_json(r#"{
-            "query_block": {
-                "select_id": 1,
-                "cost": 0.87,
-                "r_loops": 1,
-                "r_total_time_ms": 3.22,
-                "filesort": {
-                    "sort_key": "count(0) desc",
-                    "r_loops": 1,
-                    "r_total_time_ms": 0.02,
-                    "r_output_rows": 4,
-                    "r_buffer_size": "360",
-                    "r_sort_mode": "sort_key,rowid",
-                    "temporary_table": {
-                        "nested_loop": [
-                            {
-                                "table": {
-                                    "table_name": "audit_log",
-                                    "access_type": "ALL",
-                                    "rows": 5131,
-                                    "r_rows": 5146,
-                                    "cost": 0.87,
-                                    "r_table_time_ms": 1.77,
-                                    "r_other_time_ms": 1.41,
-                                    "attached_condition": "audit_log.`action` = 'login'"
-                                }
-                            }
-                        ]
-                    }
-                }
-            }
-        }"#);
-
-        let nodes = flatten(&root);
-        assert_eq!(nodes.len(), 4, "expected 4 nodes: QueryBlock → Filesort → TempTable → TableScan");
-
-        // Root: Query Block with block-level timing
-        assert_eq!(root.node_type, "Query Block");
-        assert!((root.total_cost.unwrap() - 0.87).abs() < 0.01);
-        assert!((root.actual_time_ms.unwrap() - 3.22).abs() < 0.01);
-
-        // Filesort with sort_key extra
-        let filesort = &root.children[0];
-        assert_eq!(filesort.node_type, "Filesort");
-        assert!((filesort.actual_time_ms.unwrap() - 0.02).abs() < 0.01);
-        assert_eq!(
-            filesort.extra.get("sort_key").and_then(|v| v.as_str()),
-            Some("count(0) desc")
-        );
-
-        // Temporary Table
-        let tmp = &filesort.children[0];
-        assert_eq!(tmp.node_type, "Temporary Table");
-
-        // Table scan with r_table_time_ms + r_other_time_ms
-        let scan = &tmp.children[0];
-        assert_eq!(scan.node_type, "Full Table Scan");
-        assert_eq!(scan.relation.as_deref(), Some("audit_log"));
-        assert!((scan.plan_rows.unwrap() - 5131.0).abs() < 0.1);
-        assert!((scan.actual_rows.unwrap() - 5146.0).abs() < 0.1);
-        assert_eq!(
-            scan.filter.as_deref(),
-            Some("audit_log.`action` = 'login'")
-        );
-        // r_table_time_ms(1.77) + r_other_time_ms(1.41) = 3.18
-        assert!((scan.actual_time_ms.unwrap() - 3.18).abs() < 0.01);
-    }
-
-    // -- Simple table scan without wrappers ------------------------------------
-
-    #[test]
-    fn test_simple_table_scan() {
-        let root = parse_json(r#"{
-            "query_block": {
-                "select_id": 1,
-                "table": {
-                    "table_name": "users",
-                    "access_type": "ALL",
-                    "rows": 1000,
-                    "filtered": 100,
-                    "r_rows": 998,
-                    "r_total_time_ms": 0.5
-                }
-            }
-        }"#);
-
-        assert_eq!(root.node_type, "Full Table Scan");
-        assert_eq!(root.relation.as_deref(), Some("users"));
-        assert!((root.plan_rows.unwrap() - 1000.0).abs() < 0.1);
-        assert!((root.actual_time_ms.unwrap() - 0.5).abs() < 0.01);
-    }
-
-    // -- Nested loop join (two tables) ----------------------------------------
-
-    #[test]
-    fn test_nested_loop_join() {
-        let root = parse_json(r#"{
-            "query_block": {
-                "select_id": 1,
-                "cost": 5.0,
-                "nested_loop": [
-                    {
-                        "table": {
-                            "table_name": "orders",
-                            "access_type": "ALL",
-                            "rows": 100
-                        }
-                    },
-                    {
-                        "table": {
-                            "table_name": "items",
-                            "access_type": "ref",
-                            "rows": 5
-                        }
-                    }
-                ]
-            }
-        }"#);
-
-        assert_eq!(root.node_type, "Query Block");
-        assert_eq!(root.children.len(), 2);
-        assert_eq!(root.children[0].relation.as_deref(), Some("orders"));
-        assert_eq!(root.children[0].node_type, "Full Table Scan");
-        assert_eq!(root.children[1].relation.as_deref(), Some("items"));
-        assert_eq!(root.children[1].node_type, "Index Lookup");
-    }
-
-    // -- Materialized subquery -------------------------------------------------
-
-    #[test]
-    fn test_materialized_subquery() {
-        let root = parse_json(r#"{
-            "query_block": {
-                "select_id": 1,
-                "nested_loop": [
-                    {
-                        "table": {
-                            "table_name": "orders",
-                            "access_type": "ALL",
-                            "rows": 100
-                        }
-                    }
-                ],
-                "materialized": {
-                    "query_block": {
-                        "select_id": 2,
-                        "table": {
-                            "table_name": "big_lookup",
-                            "access_type": "ALL",
-                            "rows": 50000
-                        }
-                    }
-                }
-            }
-        }"#);
-
-        let nodes = flatten(&root);
-        // QueryBlock → orders (from nested_loop) + Materialized → QueryBlock → big_lookup
-        assert_eq!(nodes.len(), 4);
-
-        let mat = nodes.iter().find(|n| n.node_type == "Materialized Subquery");
-        assert!(mat.is_some(), "should have Materialized Subquery node");
-
-        let big = nodes.iter().find(|n| n.relation.as_deref() == Some("big_lookup"));
-        assert!(big.is_some(), "should have big_lookup table");
-    }
-
-    // -- Union result ---------------------------------------------------------
-
-    #[test]
-    fn test_union_result() {
-        let root = parse_json(r#"{
-            "query_block": {
-                "select_id": 1,
-                "union_result": {
-                    "table_name": "<union1,2>",
-                    "access_type": "ALL",
-                    "r_loops": 1,
-                    "r_total_time_ms": 0.5,
-                    "query_specifications": [
-                        {
-                            "query_block": {
-                                "select_id": 1,
-                                "table": {
-                                    "table_name": "users",
-                                    "access_type": "ALL",
-                                    "rows": 100
-                                }
-                            }
-                        },
-                        {
-                            "query_block": {
-                                "select_id": 2,
-                                "table": {
-                                    "table_name": "admins",
-                                    "access_type": "ALL",
-                                    "rows": 10
-                                }
-                            }
-                        }
-                    ]
-                }
-            }
-        }"#);
-
-        let nodes = flatten(&root);
-        let union = nodes.iter().find(|n| n.node_type == "Union Result");
-        assert!(union.is_some(), "should have Union Result node");
-        let u = union.unwrap();
-        assert!((u.actual_time_ms.unwrap() - 0.5).abs() < 0.01);
-        // Union result should have 2 children (the query_specifications)
-        assert_eq!(u.children.len(), 2);
-    }
-
-    // -- Having condition -----------------------------------------------------
-
-    #[test]
-    fn test_having_condition() {
-        let root = parse_json(r#"{
-            "query_block": {
-                "select_id": 1,
-                "cost": 1.5,
-                "having_condition": "cnt > 5",
-                "filesort": {
-                    "sort_key": "cnt desc",
-                    "r_loops": 1,
-                    "r_total_time_ms": 0.01,
-                    "temporary_table": {
-                        "nested_loop": [
-                            {
-                                "table": {
-                                    "table_name": "events",
-                                    "access_type": "ALL",
-                                    "rows": 500
-                                }
-                            }
-                        ]
-                    }
-                }
-            }
-        }"#);
-
-        // Root should be "Having Filter" because having_condition is present
-        assert_eq!(root.node_type, "Having Filter");
-        assert_eq!(root.filter.as_deref(), Some("cnt > 5"));
-    }
-
-    // -- MariaDB filesort directly wrapping nested_loop (no temp table) -------
-
-    #[test]
-    fn test_filesort_without_temporary_table() {
-        let root = parse_json(r#"{
-            "query_block": {
-                "select_id": 1,
-                "filesort": {
-                    "sort_key": "t.name",
-                    "r_loops": 1,
-                    "r_total_time_ms": 0.1,
-                    "nested_loop": [
-                        {
-                            "table": {
-                                "table_name": "t",
-                                "access_type": "range",
-                                "rows": 50
-                            }
-                        }
-                    ]
-                }
-            }
-        }"#);
-
-        assert_eq!(root.node_type, "Query Block");
-        let filesort = &root.children[0];
-        assert_eq!(filesort.node_type, "Filesort");
-        assert_eq!(filesort.children.len(), 1);
-        assert_eq!(filesort.children[0].node_type, "Range Scan");
-        assert_eq!(filesort.children[0].relation.as_deref(), Some("t"));
-    }
-
-    // -- read_sorted_file in nested_loop + subqueries with subquery_cache -----
-
-    #[test]
-    fn test_read_sorted_file_in_nested_loop_with_subquery_cache() {
-        let root = parse_json(r#"{
-            "query_block": {
-                "select_id": 1,
-                "cost": 0.41,
-                "r_loops": 1,
-                "r_total_time_ms": 10.94,
-                "nested_loop": [
-                    {
-                        "read_sorted_file": {
-                            "r_rows": 20,
-                            "filesort": {
-                                "sort_key": "p.view_count desc",
-                                "r_loops": 1,
-                                "r_total_time_ms": 9.95,
-                                "r_limit": 20,
-                                "r_used_priority_queue": true,
-                                "r_output_rows": 21,
-                                "r_sort_mode": "sort_key,rowid",
-                                "table": {
-                                    "table_name": "p",
-                                    "access_type": "ALL",
-                                    "rows": 1944,
-                                    "r_rows": 2000,
-                                    "cost": 0.41,
-                                    "r_table_time_ms": 1.40,
-                                    "r_other_time_ms": 2.02,
-                                    "filtered": 100,
-                                    "r_filtered": 50.55,
-                                    "attached_condition": "p.view_count > (subquery#5)"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "subqueries": [
-                    {
-                        "subquery_cache": {
-                            "r_loops": 2000,
-                            "r_hit_ratio": 99,
-                            "query_block": {
-                                "select_id": 5,
-                                "cost": 0.18,
-                                "r_loops": 20,
-                                "r_total_time_ms": 6.60,
-                                "nested_loop": [
-                                    {
-                                        "table": {
-                                            "table_name": "p2",
-                                            "access_type": "ref",
-                                            "key": "idx_category",
-                                            "rows": 97,
-                                            "r_rows": 100,
-                                            "cost": 0.18,
-                                            "r_table_time_ms": 5.91,
-                                            "r_other_time_ms": 0.64
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    },
-                    {
-                        "subquery_cache": {
-                            "r_loops": 20,
-                            "r_hit_ratio": 0,
-                            "query_block": {
-                                "select_id": 4,
-                                "nested_loop": [
-                                    {
-                                        "table": {
-                                            "table_name": "pt",
-                                            "access_type": "ref",
-                                            "key": "PRIMARY",
-                                            "rows": 2,
-                                            "r_rows": 2.35
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    }
-                ]
-            }
-        }"#);
-
-        let nodes = flatten(&root);
-
-        // Root: Query Block
-        assert_eq!(root.node_type, "Query Block");
-        assert!((root.actual_time_ms.unwrap() - 10.94).abs() < 0.01);
-
-        // Should have: Read Sorted File + 2 Subquery Cache children
-        assert_eq!(root.children.len(), 3);
-
-        // First child: Read Sorted File (from nested_loop)
-        let rsf = &root.children[0];
-        assert_eq!(rsf.node_type, "Read Sorted File");
-        assert!((rsf.actual_rows.unwrap() - 20.0).abs() < 0.1);
-
-        // Inside read_sorted_file: Filesort
-        assert_eq!(rsf.children.len(), 1);
-        let filesort = &rsf.children[0];
-        assert_eq!(filesort.node_type, "Filesort");
-        assert!((filesort.actual_time_ms.unwrap() - 9.95).abs() < 0.01);
-        assert_eq!(
-            filesort.extra.get("sort_key").and_then(|v| v.as_str()),
-            Some("p.view_count desc")
-        );
-        assert_eq!(
-            filesort.extra.get("r_limit").and_then(|v| v.as_u64()),
-            Some(20)
-        );
-        assert_eq!(
-            filesort.extra.get("r_used_priority_queue").and_then(|v| v.as_bool()),
-            Some(true)
-        );
-
-        // Inside filesort: direct table "p"
-        assert_eq!(filesort.children.len(), 1);
-        let table_p = &filesort.children[0];
-        assert_eq!(table_p.node_type, "Full Table Scan");
-        assert_eq!(table_p.relation.as_deref(), Some("p"));
-        assert_eq!(
-            table_p.filter.as_deref(),
-            Some("p.view_count > (subquery#5)")
-        );
-
-        // Second child: Subquery Cache with r_hit_ratio=99
-        let cache1 = &root.children[1];
-        assert_eq!(cache1.node_type, "Subquery Cache");
-        assert_eq!(cache1.actual_loops, Some(2000));
-        assert_eq!(
-            cache1.extra.get("r_hit_ratio").and_then(|v| v.as_u64()),
-            Some(99)
-        );
-        // Should have a query_block child with table p2
-        let p2 = nodes.iter().find(|n| n.relation.as_deref() == Some("p2"));
-        assert!(p2.is_some(), "should have table p2 from subquery_cache");
-        assert_eq!(p2.unwrap().node_type, "Index Lookup");
-
-        // Third child: Subquery Cache with r_hit_ratio=0
-        let cache2 = &root.children[2];
-        assert_eq!(cache2.node_type, "Subquery Cache");
-        assert_eq!(cache2.actual_loops, Some(20));
-        assert_eq!(
-            cache2.extra.get("r_hit_ratio").and_then(|v| v.as_u64()),
-            Some(0)
-        );
-        let pt = nodes.iter().find(|n| n.relation.as_deref() == Some("pt"));
-        assert!(pt.is_some(), "should have table pt from subquery_cache");
-    }
-
-    // -- Filesort with direct table (no nested_loop / temporary_table) --------
-
-    #[test]
-    fn test_filesort_with_direct_table() {
-        let root = parse_json(r#"{
-            "query_block": {
-                "select_id": 1,
-                "filesort": {
-                    "sort_key": "t.id desc",
-                    "r_loops": 1,
-                    "r_total_time_ms": 0.5,
-                    "r_output_rows": 10,
-                    "table": {
-                        "table_name": "t",
-                        "access_type": "ALL",
-                        "rows": 100,
-                        "r_rows": 100,
-                        "r_table_time_ms": 0.3,
-                        "r_other_time_ms": 0.1
-                    }
-                }
-            }
-        }"#);
-
-        assert_eq!(root.node_type, "Query Block");
-        let filesort = &root.children[0];
-        assert_eq!(filesort.node_type, "Filesort");
-        assert_eq!(filesort.children.len(), 1);
-        let table = &filesort.children[0];
-        assert_eq!(table.node_type, "Full Table Scan");
-        assert_eq!(table.relation.as_deref(), Some("t"));
-        assert!((table.actual_rows.unwrap() - 100.0).abs() < 0.1);
-    }
-}

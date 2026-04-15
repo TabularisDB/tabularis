@@ -35,7 +35,10 @@ fn build_connection_key(params: &ConnectionParams, connection_id: Option<&str>) 
     }
 }
 
-fn build_mysql_options(params: &ConnectionParams, override_db: Option<&str>) -> Result<sqlx::mysql::MySqlConnectOptions, String> {
+fn build_mysql_options(
+    params: &ConnectionParams,
+    override_db: Option<&str>,
+) -> Result<sqlx::mysql::MySqlConnectOptions, String> {
     use sqlx::mysql::{MySqlConnectOptions, MySqlSslMode};
 
     let username = params.username.as_deref().unwrap_or_default();

@@ -1,11 +1,11 @@
 pub mod ai;
 pub mod commands;
-pub mod credential_cache;
 pub mod config;
+pub mod credential_cache;
 pub mod dump_commands; // Added
-pub mod dump_utils;
 #[cfg(test)]
 pub mod dump_commands_tests;
+pub mod dump_utils;
 pub mod export;
 pub mod health_check;
 pub mod keychain_utils;
@@ -13,18 +13,18 @@ pub mod log_commands;
 pub mod logger;
 pub mod mcp;
 pub mod models;
+pub mod notebooks;
 pub mod paths; // Added
 pub mod persistence;
+pub mod plugins;
 pub mod pool_manager;
-pub mod notebooks;
 pub mod preferences;
 pub mod saved_queries;
 pub mod ssh_tunnel;
+pub mod task_manager;
 pub mod theme_commands;
 pub mod theme_models;
-pub mod task_manager;
 pub mod updater;
-pub mod plugins;
 pub mod drivers {
     pub mod common;
     pub mod driver_trait;
@@ -88,7 +88,9 @@ pub fn run() {
     // compositing and rendering intact.
     #[cfg(target_os = "linux")]
     {
-        if std::env::var("WAYLAND_DISPLAY").is_ok() || std::env::var("XDG_SESSION_TYPE").map_or(false, |v| v == "wayland") {
+        if std::env::var("WAYLAND_DISPLAY").is_ok()
+            || std::env::var("XDG_SESSION_TYPE").map_or(false, |v| v == "wayland")
+        {
             std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
     }
@@ -144,12 +146,14 @@ pub fn run() {
         .manage(export::ExportCancellationState::default())
         .manage(dump_commands::DumpCancellationState::default())
         .manage(log_buffer)
-        .manage(std::sync::Arc::new(credential_cache::CredentialCache::default()))
+        .manage(std::sync::Arc::new(
+            credential_cache::CredentialCache::default(),
+        ))
         .setup(move |app| {
             // Read persisted config to know which external plugins are enabled.
             // `None` means no preference has been saved yet → load all installed plugins.
-            let active_ext_drivers = crate::config::load_config_internal(&app.handle())
-                .active_external_drivers;
+            let active_ext_drivers =
+                crate::config::load_config_internal(&app.handle()).active_external_drivers;
 
             // Register built-in drivers
             tauri::async_runtime::block_on(async {
@@ -158,7 +162,8 @@ pub fn run() {
                 drivers::registry::register_driver(drivers::sqlite::SqliteDriver::new()).await;
 
                 // Load only enabled external plugins (or all if no preference saved).
-                crate::plugins::manager::load_plugins(&app.handle(), active_ext_drivers.as_deref()).await;
+                crate::plugins::manager::load_plugins(&app.handle(), active_ext_drivers.as_deref())
+                    .await;
             });
 
             // Start connection health-check ping loop.

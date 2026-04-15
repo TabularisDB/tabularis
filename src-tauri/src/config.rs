@@ -187,9 +187,10 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
                 let interval = existing_config
                     .ping_interval
                     .unwrap_or(crate::health_check::DEFAULT_PING_INTERVAL);
-                tauri::async_runtime::spawn(
-                    crate::health_check::restart_ping_loop(app.clone(), interval as u64),
-                );
+                tauri::async_runtime::spawn(crate::health_check::restart_ping_loop(
+                    app.clone(),
+                    interval as u64,
+                ));
             }
         }
 
@@ -396,8 +397,7 @@ fn get_prompt(app: &AppHandle, filename: &str, default: &str) -> String {
 }
 
 fn save_prompt(app: &AppHandle, filename: &str, prompt: &str) -> Result<(), String> {
-    let config_dir = get_config_dir(app)
-        .ok_or("Could not resolve config directory")?;
+    let config_dir = get_config_dir(app).ok_or("Could not resolve config directory")?;
     if !config_dir.exists() {
         fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     }

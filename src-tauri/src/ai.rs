@@ -476,7 +476,10 @@ pub async fn explain_query(app: AppHandle, mut req: AiExplainRequest) -> Result<
     let result = dispatch_provider(&app_config, &gen_req, &system_prompt, ollama_port).await;
 
     match &result {
-        Ok(_) => log::info!("Query explanation generated successfully using {}", req.model),
+        Ok(_) => log::info!(
+            "Query explanation generated successfully using {}",
+            req.model
+        ),
         Err(e) => log::error!("Query explanation generation failed: {}", e),
     }
 
@@ -487,10 +490,7 @@ pub async fn analyze_explain_plan(
     app: AppHandle,
     mut req: AiExplainRequest,
 ) -> Result<String, String> {
-    log::info!(
-        "Analyzing explain plan using AI provider: {}",
-        req.provider
-    );
+    log::info!("Analyzing explain plan using AI provider: {}", req.provider);
 
     let app_config = config::load_config_internal(&app);
     let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
@@ -553,12 +553,31 @@ async fn generate_with_simple_prompt(
 }
 
 pub async fn generate_cellname(app: AppHandle, req: AiCellNameRequest) -> Result<String, String> {
-    generate_with_simple_prompt(app, req.provider, req.model, req.query, config::get_cellname_prompt, "Cell name").await
+    generate_with_simple_prompt(
+        app,
+        req.provider,
+        req.model,
+        req.query,
+        config::get_cellname_prompt,
+        "Cell name",
+    )
+    .await
 }
 
 #[tauri::command]
-pub async fn generate_tab_rename(app: AppHandle, req: AiTabRenameRequest) -> Result<String, String> {
-    generate_with_simple_prompt(app, req.provider, req.model, req.query, config::get_tabrename_prompt, "Tab name").await
+pub async fn generate_tab_rename(
+    app: AppHandle,
+    req: AiTabRenameRequest,
+) -> Result<String, String> {
+    generate_with_simple_prompt(
+        app,
+        req.provider,
+        req.model,
+        req.query,
+        config::get_tabrename_prompt,
+        "Tab name",
+    )
+    .await
 }
 
 // --- Provider Implementations ---

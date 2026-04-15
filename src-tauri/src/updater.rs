@@ -72,9 +72,11 @@ fn detect_installation_source() -> Option<String> {
 
         // AUR: check if pacman's local database has a tabularis-bin entry
         if let Ok(entries) = std::fs::read_dir("/var/lib/pacman/local") {
-            let is_aur = entries
-                .filter_map(|e| e.ok())
-                .any(|e| e.file_name().to_string_lossy().starts_with("tabularis-bin-"));
+            let is_aur = entries.filter_map(|e| e.ok()).any(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("tabularis-bin-")
+            });
             if is_aur {
                 return Some("aur".to_string());
             }

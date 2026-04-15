@@ -2,185 +2,27 @@ pub mod types;
 
 pub mod extract;
 
+mod client;
+mod explain;
+mod helpers;
+
+#[cfg(test)]
+mod tests;
+
 use crate::models::{
-    ConnectionParams, ExplainNode, ExplainPlan, ForeignKey, Index, Pagination, QueryResult,
-    RoutineInfo, RoutineParameter, TableColumn, TableInfo, ViewInfo,
+    ConnectionParams, ForeignKey, Index, Pagination, QueryResult, RoutineInfo, RoutineParameter,
+    TableColumn, TableInfo, ViewInfo,
 };
 use crate::pool_manager::get_postgres_pool;
-use deadpool_postgres::{Object as PgObject, Pool as PgPool};
+use client::{execute, format_pg_error, query_all, query_one};
+pub use explain::explain_query;
 use extract::extract_value;
-use tokio_postgres::{types::ToSql, Row as PgRow};
+use helpers::{
+    escape_identifier, extract_base_type, is_implicit_cast_compatible, is_raw_sql_function,
+    is_wkt_geometry, json_array_to_pg_literal, try_parse_pg_array,
+};
+use tokio_postgres::types::ToSql;
 use uuid::Uuid;
-/// Extract base type name, e.g. "GEOMETRY(Point, 4326)" -> "GEOMETRY", "VARCHAR(255)" -> "VARCHAR"
-fn extract_base_type(data_type: &str) -> String {
-    if let Some(idx) = data_type.find('(') {
-        data_type[..idx].trim().to_uppercase()
-    } else {
-        data_type.trim().to_uppercase()
-    }
-}
-
-/// Check if PostgreSQL can implicitly cast between these base types (no USING clause needed).
-fn is_implicit_cast_compatible(old_type: &str, new_type: &str) -> bool {
-    if old_type == new_type {
-        return true;
-    }
-
-    let compatible_groups: &[&[&str]] = &[
-        &["SMALLINT", "INTEGER", "BIGINT", "SERIAL", "BIGSERIAL", "SMALLSERIAL"],
-        &["REAL", "DOUBLE PRECISION", "NUMERIC", "DECIMAL", "MONEY"],
-        &["CHAR", "VARCHAR", "TEXT", "NAME", "CITEXT"],
-        &["TIMESTAMP", "TIMESTAMPTZ"],
-        &["TIME", "TIMETZ"],
-        &["JSON", "JSONB"],
-        &["BIT", "VARBIT"],
-    ];
-
-    for group in compatible_groups {
-        if group.contains(&old_type) && group.contains(&new_type) {
-            return true;
-        }
-    }
-    false
-}
-
-// Helper function to escape double quotes in identifiers for PostgreSQL
-fn escape_identifier(name: &str) -> String {
-    name.replace('"', "\"\"")
-}
-
-/// Checks if a string value looks like WKT (Well-Known Text) geometry format
-fn is_wkt_geometry(s: &str) -> bool {
-    let s_upper = s.trim().to_uppercase();
-    s_upper.starts_with("POINT(")
-        || s_upper.starts_with("LINESTRING(")
-        || s_upper.starts_with("POLYGON(")
-        || s_upper.starts_with("MULTIPOINT(")
-        || s_upper.starts_with("MULTILINESTRING(")
-        || s_upper.starts_with("MULTIPOLYGON(")
-        || s_upper.starts_with("GEOMETRYCOLLECTION(")
-        || s_upper.starts_with("GEOMETRY(")
-}
-
-/// Checks if a string value is a raw SQL function call (e.g., ST_GeomFromText(...))
-/// This is used to detect when user has entered a complete SQL function that should
-/// be inserted directly into the query without parameter binding
-/// Convert a JSON array to a PostgreSQL ARRAY[...] literal.
-/// Elements are safely formatted to prevent SQL injection.
-fn json_array_to_pg_literal(arr: &[serde_json::Value]) -> Result<String, String> {
-    if arr.is_empty() {
-        return Ok("'{}'".to_string());
-    }
-    let mut parts = Vec::new();
-    for val in arr {
-        match val {
-            serde_json::Value::Number(n) => parts.push(n.to_string()),
-            serde_json::Value::String(s) => {
-                let escaped = s.replace('\'', "''");
-                parts.push(format!("'{}'", escaped));
-            }
-            serde_json::Value::Bool(b) => parts.push(if *b { "TRUE" } else { "FALSE" }.to_string()),
-            serde_json::Value::Null => parts.push("NULL".to_string()),
-            serde_json::Value::Array(nested) => {
-                parts.push(json_array_to_pg_literal(nested)?);
-            }
-            _ => return Err("Unsupported array element type".to_string()),
-        }
-    }
-    Ok(format!("ARRAY[{}]", parts.join(", ")))
-}
-
-/// Try to parse a string as a JSON array and convert to PostgreSQL array literal.
-fn try_parse_pg_array(s: &str) -> Option<Result<String, String>> {
-    let trimmed = s.trim();
-    if trimmed.starts_with('[') && trimmed.ends_with(']') {
-        if let Ok(serde_json::Value::Array(arr)) =
-            serde_json::from_str::<serde_json::Value>(trimmed)
-        {
-            return Some(json_array_to_pg_literal(&arr));
-        }
-    }
-    None
-}
-
-fn is_raw_sql_function(s: &str) -> bool {
-    let trimmed = s.trim().to_uppercase();
-    // Check for common SQL spatial function patterns
-    // Functions starting with ST_ followed by parenthesis
-    if trimmed.starts_with("ST_") {
-        return trimmed.contains('(');
-    }
-    // Legacy function names
-    trimmed.starts_with("GEOMFROMTEXT(")
-        || trimmed.starts_with("GEOMFROMWKB(")
-        || trimmed.starts_with("POINTFROMTEXT(")
-        || trimmed.starts_with("POINTFROMWKB(")
-}
-
-fn format_pg_error(e: &tokio_postgres::Error) -> String {
-    if let Some(db) = e.as_db_error() {
-        let brief = format!("{}: {}", db.severity(), db.message());
-        let detail = format!("{:#?}", e);
-        format!("{}\n\n{}", brief, detail)
-    } else {
-        e.to_string()
-    }
-}
-
-#[inline(always)]
-fn map_pg_err<E: std::fmt::Debug + std::fmt::Display>(e: E) -> String {
-    let brief = e.to_string();
-    let detail = format!("{:#?}", e);
-    if detail.len() > brief.len() + 20 {
-        format!("{}\n\n{}", brief, detail)
-    } else {
-        brief
-    }
-}
-
-#[inline(always)]
-async fn get_client(pool: &PgPool) -> Result<PgObject, String> {
-    pool.get().await.map_err(map_pg_err)
-}
-
-#[inline]
-async fn query_all(
-    pool: &PgPool,
-    sql: &str,
-    params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
-) -> Result<Vec<PgRow>, String> {
-    let client = get_client(pool).await?;
-    client
-        .query(sql, params)
-        .await
-        .map_err(|e| format_pg_error(&e))
-}
-
-#[inline]
-async fn query_one(
-    pool: &PgPool,
-    sql: &str,
-    params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
-) -> Result<PgRow, String> {
-    let client = get_client(pool).await?;
-    client
-        .query_one(sql, params)
-        .await
-        .map_err(|e| format_pg_error(&e))
-}
-
-#[inline]
-async fn execute(
-    pool: &PgPool,
-    sql: &str,
-    params: &[&(dyn tokio_postgres::types::ToSql + Sync)],
-) -> Result<u64, String> {
-    let client = get_client(pool).await?;
-    client
-        .execute(sql, params)
-        .await
-        .map_err(|e| format_pg_error(&e))
-}
 
 pub async fn get_schemas(params: &ConnectionParams) -> Result<Vec<String>, String> {
     let pool = get_postgres_pool(params).await?;
@@ -573,7 +415,7 @@ pub async fn save_blob_column_to_file(
     }?;
 
     let bytes: Vec<u8> = row.try_get(0).map_err(|e| format_pg_error(&e))?;
-    std::fs::write(file_path, bytes).map_err(map_pg_err)
+    std::fs::write(file_path, bytes).map_err(|e| e.to_string())
 }
 
 pub async fn fetch_blob_column_as_data_url(
@@ -866,7 +708,6 @@ pub async fn insert_record(
     execute(&pool, &query, &params).await
 }
 
-
 pub async fn get_table_ddl(
     params: &ConnectionParams,
     table_name: &str,
@@ -935,7 +776,7 @@ pub async fn execute_query(
     // Acquire main connection for the data fetch (COUNT runs concurrently above)
     // let mut conn = pool.acquire().await.map_err(map_pg_err)?;
 
-    let client = get_client(&pool).await?;
+    let client = pool.get().await.map_err(|e| e.to_string())?;
 
     if let Some(schema) = schema {
         let search_path = format!("SET search_path TO \"{}\"", escape_identifier(schema));
@@ -1008,155 +849,6 @@ pub async fn execute_query(
     })
 }
 
-// ---------------------------------------------------------------------------
-// EXPLAIN QUERY
-// ---------------------------------------------------------------------------
-
-pub async fn explain_query(
-    params: &ConnectionParams,
-    query: &str,
-    analyze: bool,
-    schema: Option<&str>,
-) -> Result<ExplainPlan, String> {
-    let pool = get_postgres_pool(params).await?;
-    let client = get_client(&pool).await?;
-
-    if let Some(s) = schema {
-        let search_path = format!("SET search_path TO \"{}\"", escape_identifier(s));
-        client
-            .execute(&search_path, &[])
-            .await
-            .map_err(|e| format_pg_error(&e))?;
-    }
-
-    let explain_sql = if analyze {
-        format!("EXPLAIN (FORMAT JSON, ANALYZE, BUFFERS) {}", query)
-    } else {
-        format!("EXPLAIN (FORMAT JSON) {}", query)
-    };
-
-    let rows = client
-        .query(&explain_sql, &[])
-        .await
-        .map_err(|e| format_pg_error(&e))?;
-
-    if rows.is_empty() {
-        return Err("EXPLAIN returned no output".into());
-    }
-
-    // PostgreSQL returns a single row with a single text column containing JSON
-    let plan_json_str: String = rows[0].try_get(0).map_err(|e| format_pg_error(&e))?;
-    let raw_output = plan_json_str.clone();
-
-    let plan_json: serde_json::Value =
-        serde_json::from_str(&plan_json_str).map_err(|e| format!("Failed to parse EXPLAIN JSON: {}", e))?;
-
-    let plan_array = plan_json
-        .as_array()
-        .ok_or("EXPLAIN JSON is not an array")?;
-
-    if plan_array.is_empty() {
-        return Err("EXPLAIN JSON array is empty".into());
-    }
-
-    let top = &plan_array[0];
-    let plan_obj = top
-        .get("Plan")
-        .ok_or("EXPLAIN JSON missing 'Plan' key")?;
-
-    let mut counter: u32 = 0;
-    let root = parse_pg_plan_node(plan_obj, &mut counter);
-
-    let planning_time_ms = top.get("Planning Time").and_then(|v| v.as_f64());
-    let execution_time_ms = top.get("Execution Time").and_then(|v| v.as_f64());
-
-    let has_analyze_data = root.actual_rows.is_some() || root.actual_time_ms.is_some();
-
-    Ok(ExplainPlan {
-        root,
-        planning_time_ms,
-        execution_time_ms,
-        original_query: query.to_string(),
-        driver: "postgres".to_string(),
-        has_analyze_data,
-        raw_output: Some(raw_output),
-    })
-}
-
-fn parse_pg_plan_node(node: &serde_json::Value, counter: &mut u32) -> ExplainNode {
-    let id = format!("node_{}", counter);
-    *counter += 1;
-
-    let obj = node.as_object();
-
-    let node_type = node
-        .get("Node Type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("Unknown")
-        .to_string();
-
-    let relation = node.get("Relation Name").and_then(|v| v.as_str()).map(String::from);
-    let startup_cost = node.get("Startup Cost").and_then(|v| v.as_f64());
-    let total_cost = node.get("Total Cost").and_then(|v| v.as_f64());
-    let plan_rows = node.get("Plan Rows").and_then(|v| v.as_f64());
-    let actual_rows = node.get("Actual Rows").and_then(|v| v.as_f64());
-    let actual_time_ms = node.get("Actual Total Time").and_then(|v| v.as_f64());
-    let actual_loops = node.get("Actual Loops").and_then(|v| v.as_u64());
-    let buffers_hit = node.get("Shared Hit Blocks").and_then(|v| v.as_u64());
-    let buffers_read = node.get("Shared Read Blocks").and_then(|v| v.as_u64());
-    let filter = node.get("Filter").and_then(|v| v.as_str()).map(String::from);
-    let index_condition = node.get("Index Cond").and_then(|v| v.as_str()).map(String::from);
-    let join_type = node.get("Join Type").and_then(|v| v.as_str()).map(String::from);
-    let hash_condition = node.get("Hash Cond").and_then(|v| v.as_str()).map(String::from);
-
-    // Collect all fields not explicitly mapped into `extra`
-    let known_keys: &[&str] = &[
-        "Node Type", "Relation Name", "Startup Cost", "Total Cost",
-        "Plan Rows", "Actual Rows", "Actual Total Time", "Actual Loops",
-        "Shared Hit Blocks", "Shared Read Blocks", "Filter", "Index Cond",
-        "Join Type", "Hash Cond", "Plans",
-    ];
-    let mut extra = std::collections::HashMap::new();
-    if let Some(map) = obj {
-        for (k, v) in map {
-            if !known_keys.contains(&k.as_str()) {
-                extra.insert(k.clone(), v.clone());
-            }
-        }
-    }
-
-    let children = node
-        .get("Plans")
-        .and_then(|v| v.as_array())
-        .map(|plans| {
-            plans
-                .iter()
-                .map(|child| parse_pg_plan_node(child, counter))
-                .collect()
-        })
-        .unwrap_or_default();
-
-    ExplainNode {
-        id,
-        node_type,
-        relation,
-        startup_cost,
-        total_cost,
-        plan_rows,
-        actual_rows,
-        actual_time_ms,
-        actual_loops,
-        buffers_hit,
-        buffers_read,
-        filter,
-        index_condition,
-        join_type,
-        hash_condition,
-        extra,
-        children,
-    }
-}
-
 pub async fn get_views(params: &ConnectionParams, schema: &str) -> Result<Vec<ViewInfo>, String> {
     log::debug!(
         "PostgreSQL: Fetching views for database: {} schema: {}",
@@ -1198,7 +890,7 @@ pub async fn get_view_definition(
         escape_identifier(view_name)
     );
 
-    let client = get_client(&pool).await?;
+    let client = pool.get().await.map_err(|e| e.to_string())?;
 
     let row = client
         .query_one(
@@ -1229,7 +921,7 @@ pub async fn create_view(
         definition
     );
 
-    let client = get_client(&pool).await?;
+    let client = pool.get().await.map_err(|e| e.to_string())?;
     client
         .execute(&query, &[])
         .await
@@ -1252,7 +944,7 @@ pub async fn alter_view(
         definition
     );
 
-    let client = get_client(&pool).await?;
+    let client = pool.get().await.map_err(|e| e.to_string())?;
     client
         .execute(&query, &[])
         .await
@@ -1273,7 +965,7 @@ pub async fn drop_view(
         escape_identifier(view_name)
     );
 
-    let client = get_client(&pool).await?;
+    let client = pool.get().await.map_err(|e| e.to_string())?;
     client
         .execute(&query, &[])
         .await
@@ -1399,7 +1091,7 @@ pub async fn get_routine_parameters(
             LIMIT 1
         "#;
 
-    let client = get_client(&pool).await?;
+    let client = pool.get().await.map_err(|e| e.to_string())?;
 
     let routine_info = client
         .query_opt(return_type_query, &[&schema, &routine_name])
@@ -1560,7 +1252,10 @@ impl DatabaseDriver for PostgresDriver {
         }
         let pool = crate::pool_manager::get_postgres_pool_with_id(params, conn_id).await?;
         let client = pool.get().await.map_err(|e| e.to_string())?;
-        client.simple_query("SELECT 1").await.map_err(|e| e.to_string())?;
+        client
+            .simple_query("SELECT 1")
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -2111,168 +1806,5 @@ impl DatabaseDriver for PostgresDriver {
                 foreign_keys: fks_map.remove(&t.name).unwrap_or_default(),
             })
             .collect())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    mod extract_base_type_tests {
-        use super::*;
-
-        #[test]
-        fn simple_type() {
-            assert_eq!(extract_base_type("INTEGER"), "INTEGER");
-        }
-
-        #[test]
-        fn type_with_length() {
-            assert_eq!(extract_base_type("VARCHAR(255)"), "VARCHAR");
-        }
-
-        #[test]
-        fn type_with_precision() {
-            assert_eq!(extract_base_type("NUMERIC(10,2)"), "NUMERIC");
-        }
-
-        #[test]
-        fn parameterized_geometry() {
-            assert_eq!(extract_base_type("GEOMETRY(Point, 4326)"), "GEOMETRY");
-        }
-
-        #[test]
-        fn type_with_spaces() {
-            assert_eq!(extract_base_type("DOUBLE PRECISION"), "DOUBLE PRECISION");
-        }
-
-        #[test]
-        fn lowercase_input() {
-            assert_eq!(extract_base_type("varchar(100)"), "VARCHAR");
-        }
-
-        #[test]
-        fn type_with_leading_trailing_spaces() {
-            assert_eq!(extract_base_type("  integer  "), "INTEGER");
-        }
-
-        #[test]
-        fn geography_parameterized() {
-            assert_eq!(extract_base_type("GEOGRAPHY(Point, 4326)"), "GEOGRAPHY");
-        }
-
-        #[test]
-        fn serial_type() {
-            assert_eq!(extract_base_type("BIGSERIAL"), "BIGSERIAL");
-        }
-    }
-
-    mod is_implicit_cast_compatible_tests {
-        use super::*;
-
-        #[test]
-        fn same_type_is_compatible() {
-            assert!(is_implicit_cast_compatible("INTEGER", "INTEGER"));
-        }
-
-        #[test]
-        fn integer_to_bigint() {
-            assert!(is_implicit_cast_compatible("INTEGER", "BIGINT"));
-        }
-
-        #[test]
-        fn smallint_to_bigint() {
-            assert!(is_implicit_cast_compatible("SMALLINT", "BIGINT"));
-        }
-
-        #[test]
-        fn bigint_to_smallint() {
-            assert!(is_implicit_cast_compatible("BIGINT", "SMALLINT"));
-        }
-
-        #[test]
-        fn serial_to_integer() {
-            assert!(is_implicit_cast_compatible("SERIAL", "INTEGER"));
-        }
-
-        #[test]
-        fn varchar_to_text() {
-            assert!(is_implicit_cast_compatible("VARCHAR", "TEXT"));
-        }
-
-        #[test]
-        fn char_to_text() {
-            assert!(is_implicit_cast_compatible("CHAR", "TEXT"));
-        }
-
-        #[test]
-        fn text_to_citext() {
-            assert!(is_implicit_cast_compatible("TEXT", "CITEXT"));
-        }
-
-        #[test]
-        fn timestamp_to_timestamptz() {
-            assert!(is_implicit_cast_compatible("TIMESTAMP", "TIMESTAMPTZ"));
-        }
-
-        #[test]
-        fn time_to_timetz() {
-            assert!(is_implicit_cast_compatible("TIME", "TIMETZ"));
-        }
-
-        #[test]
-        fn json_to_jsonb() {
-            assert!(is_implicit_cast_compatible("JSON", "JSONB"));
-        }
-
-        #[test]
-        fn real_to_double_precision() {
-            assert!(is_implicit_cast_compatible("REAL", "DOUBLE PRECISION"));
-        }
-
-        #[test]
-        fn numeric_to_decimal() {
-            assert!(is_implicit_cast_compatible("NUMERIC", "DECIMAL"));
-        }
-
-        #[test]
-        fn bit_to_varbit() {
-            assert!(is_implicit_cast_compatible("BIT", "VARBIT"));
-        }
-
-        #[test]
-        fn integer_to_text_not_compatible() {
-            assert!(!is_implicit_cast_compatible("INTEGER", "TEXT"));
-        }
-
-        #[test]
-        fn text_to_boolean_not_compatible() {
-            assert!(!is_implicit_cast_compatible("TEXT", "BOOLEAN"));
-        }
-
-        #[test]
-        fn varchar_to_integer_not_compatible() {
-            assert!(!is_implicit_cast_compatible("VARCHAR", "INTEGER"));
-        }
-
-        #[test]
-        fn timestamp_to_integer_not_compatible() {
-            assert!(!is_implicit_cast_compatible("TIMESTAMP", "INTEGER"));
-        }
-
-        #[test]
-        fn jsonb_to_integer_not_compatible() {
-            assert!(!is_implicit_cast_compatible("JSONB", "INTEGER"));
-        }
-
-        #[test]
-        fn geometry_to_text_not_compatible() {
-            assert!(!is_implicit_cast_compatible("GEOMETRY", "TEXT"));
-        }
-
-        #[test]
-        fn uuid_to_text_not_compatible() {
-            assert!(!is_implicit_cast_compatible("UUID", "TEXT"));
-        }
     }
 }

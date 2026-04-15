@@ -50,7 +50,9 @@ pub async fn download_and_install(plugin_id: &str, download_url: &str) -> Result
         .to_string();
     log::info!(
         "Download response for '{}': HTTP {} (content-type: {})",
-        plugin_id, status, content_type
+        plugin_id,
+        status,
+        content_type
     );
 
     if !status.is_success() {
@@ -58,7 +60,9 @@ pub async fn download_and_install(plugin_id: &str, download_url: &str) -> Result
         let snippet = body.chars().take(200).collect::<String>();
         log::error!(
             "Plugin '{}' download failed — HTTP {}: {}",
-            plugin_id, status, snippet
+            plugin_id,
+            status,
+            snippet
         );
         return Err(format!(
             "Failed to download plugin: server returned HTTP {} for URL: {}",
@@ -79,8 +83,7 @@ pub async fn download_and_install(plugin_id: &str, download_url: &str) -> Result
     );
 
     // Extract to temp dir
-    fs::create_dir_all(&tmp_dir)
-        .map_err(|e| format!("Failed to create temp directory: {}", e))?;
+    fs::create_dir_all(&tmp_dir).map_err(|e| format!("Failed to create temp directory: {}", e))?;
 
     let cursor = std::io::Cursor::new(bytes.clone());
     let mut archive = zip::ZipArchive::new(cursor).map_err(|e| {
@@ -122,8 +125,7 @@ pub async fn download_and_install(plugin_id: &str, download_url: &str) -> Result
             let mut buf = Vec::new();
             file.read_to_end(&mut buf)
                 .map_err(|e| format!("Failed to read ZIP file content: {}", e))?;
-            fs::write(&out_path, &buf)
-                .map_err(|e| format!("Failed to write file: {}", e))?;
+            fs::write(&out_path, &buf).map_err(|e| format!("Failed to write file: {}", e))?;
 
             // Set executable permissions on Unix
             #[cfg(unix)]
@@ -147,11 +149,10 @@ pub async fn download_and_install(plugin_id: &str, download_url: &str) -> Result
     // Validate manifest.json parses correctly
     let manifest_str = fs::read_to_string(&manifest_path)
         .map_err(|e| format!("Failed to read manifest.json: {}", e))?;
-    serde_json::from_str::<serde_json::Value>(&manifest_str)
-        .map_err(|e| {
-            fs::remove_dir_all(&tmp_dir).ok();
-            format!("Invalid manifest.json: {}", e)
-        })?;
+    serde_json::from_str::<serde_json::Value>(&manifest_str).map_err(|e| {
+        fs::remove_dir_all(&tmp_dir).ok();
+        format!("Invalid manifest.json: {}", e)
+    })?;
 
     // Remove existing plugin dir if present
     if final_dir.exists() {

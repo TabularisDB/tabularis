@@ -3,9 +3,7 @@ use std::sync::Mutex;
 
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use sysinfo::{
-    get_current_pid, Pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System,
-};
+use sysinfo::{get_current_pid, Pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use tokio::time::{sleep, Duration};
 
@@ -209,15 +207,18 @@ fn refresh_and_collect_system_stats() -> SystemStats {
         }
 
         // Main process stats.
-        let self_memory_bytes = sys
-            .process(self_pid)
-            .map(|p| p.memory())
-            .unwrap_or(0);
+        let self_memory_bytes = sys.process(self_pid).map(|p| p.memory()).unwrap_or(0);
 
         let mut total_cpu: f32 = sys.process(self_pid).map(|p| p.cpu_usage()).unwrap_or(0.0);
         let mut total_mem: u64 = self_memory_bytes;
-        let mut total_dr: u64 = sys.process(self_pid).map(|p| p.disk_usage().read_bytes).unwrap_or(0);
-        let mut total_dw: u64 = sys.process(self_pid).map(|p| p.disk_usage().written_bytes).unwrap_or(0);
+        let mut total_dr: u64 = sys
+            .process(self_pid)
+            .map(|p| p.disk_usage().read_bytes)
+            .unwrap_or(0);
+        let mut total_dw: u64 = sys
+            .process(self_pid)
+            .map(|p| p.disk_usage().written_bytes)
+            .unwrap_or(0);
 
         for pid in &descendants {
             if let Some(proc) = sys.process(*pid) {
@@ -305,11 +306,10 @@ pub async fn get_process_list() -> Result<Vec<ProcessInfo>, String> {
         .map(|(manifest, pid_opt)| (manifest.id, manifest.name, pid_opt))
         .collect();
 
-    let processes = tokio::task::spawn_blocking(move || {
-        refresh_and_collect_process_stats(plugin_pids)
-    })
-    .await
-    .map_err(|e| format!("Failed to collect process stats: {}", e))?;
+    let processes =
+        tokio::task::spawn_blocking(move || refresh_and_collect_process_stats(plugin_pids))
+            .await
+            .map_err(|e| format!("Failed to collect process stats: {}", e))?;
 
     Ok(processes)
 }
@@ -335,7 +335,10 @@ pub async fn kill_plugin_process(plugin_id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn restart_plugin_process(app: tauri::AppHandle, plugin_id: String) -> Result<(), String> {
+pub async fn restart_plugin_process(
+    app: tauri::AppHandle,
+    plugin_id: String,
+) -> Result<(), String> {
     registry::unregister_driver(&plugin_id).await;
 
     // Give the OS a moment to release process resources before respawning.
@@ -352,7 +355,8 @@ pub async fn restart_plugin_process(app: tauri::AppHandle, plugin_id: String) ->
     if !plugin_dir.exists() {
         return Err(format!("Plugin '{}' is not installed", plugin_id));
     }
-    load_plugin_from_dir(&plugin_dir, interpreter_override, settings).await
+    load_plugin_from_dir(&plugin_dir, interpreter_override, settings)
+        .await
         .map_err(|e| format!("Failed to restart plugin '{}': {}", plugin_id, e))?;
 
     Ok(())
@@ -367,13 +371,17 @@ pub async fn open_task_manager_window(app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    WebviewWindowBuilder::new(&app, "task-manager", WebviewUrl::App("/task-manager".into()))
-        .title("tabularis - Task Manager")
-        .inner_size(900.0, 600.0)
-        .min_inner_size(700.0, 450.0)
-        .center()
-        .build()
-        .map_err(|e| format!("Failed to create task manager window: {}", e))?;
+    WebviewWindowBuilder::new(
+        &app,
+        "task-manager",
+        WebviewUrl::App("/task-manager".into()),
+    )
+    .title("tabularis - Task Manager")
+    .inner_size(900.0, 600.0)
+    .min_inner_size(700.0, 450.0)
+    .center()
+    .build()
+    .map_err(|e| format!("Failed to create task manager window: {}", e))?;
 
     Ok(())
 }

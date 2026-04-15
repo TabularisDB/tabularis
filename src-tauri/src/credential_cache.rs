@@ -18,19 +18,19 @@ pub enum CacheEntry {
 /// across `.await` points. Wrapping the struct in `Arc` lets callers clone
 /// it into `tokio::task::spawn_blocking` closures.
 pub struct CredentialCache {
-    pub db_passwords:    Mutex<HashMap<String, CacheEntry>>,
-    pub ssh_passwords:   Mutex<HashMap<String, CacheEntry>>,
+    pub db_passwords: Mutex<HashMap<String, CacheEntry>>,
+    pub ssh_passwords: Mutex<HashMap<String, CacheEntry>>,
     pub ssh_passphrases: Mutex<HashMap<String, CacheEntry>>,
-    pub ai_keys:         Mutex<HashMap<String, CacheEntry>>,
+    pub ai_keys: Mutex<HashMap<String, CacheEntry>>,
 }
 
 impl Default for CredentialCache {
     fn default() -> Self {
         Self {
-            db_passwords:    Mutex::new(HashMap::new()),
-            ssh_passwords:   Mutex::new(HashMap::new()),
+            db_passwords: Mutex::new(HashMap::new()),
+            ssh_passwords: Mutex::new(HashMap::new()),
             ssh_passphrases: Mutex::new(HashMap::new()),
-            ai_keys:         Mutex::new(HashMap::new()),
+            ai_keys: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -40,64 +40,82 @@ impl Default for CredentialCache {
 // `tokio::task::spawn_blocking` when used in async contexts.
 
 /// Get DB password: check cache first, fall through to keychain on miss.
-pub fn get_db_password_cached(cache: &CredentialCache, connection_id: &str) -> Result<String, String> {
+pub fn get_db_password_cached(
+    cache: &CredentialCache,
+    connection_id: &str,
+) -> Result<String, String> {
     {
         let guard = cache.db_passwords.lock().unwrap();
         match guard.get(connection_id) {
             Some(CacheEntry::Present(v)) => return Ok(v.clone()),
-            Some(CacheEntry::Absent)     => return Err("No entry".to_string()),
+            Some(CacheEntry::Absent) => return Err("No entry".to_string()),
             None => {}
         }
     }
     let result = crate::keychain_utils::get_db_password(connection_id, "");
     {
         let mut guard = cache.db_passwords.lock().unwrap();
-        guard.insert(connection_id.to_string(), match &result {
-            Ok(v)  => CacheEntry::Present(v.clone()),
-            Err(_) => CacheEntry::Absent,
-        });
+        guard.insert(
+            connection_id.to_string(),
+            match &result {
+                Ok(v) => CacheEntry::Present(v.clone()),
+                Err(_) => CacheEntry::Absent,
+            },
+        );
     }
     result
 }
 
 /// Get SSH password: check cache first, fall through to keychain on miss.
-pub fn get_ssh_password_cached(cache: &CredentialCache, connection_id: &str) -> Result<String, String> {
+pub fn get_ssh_password_cached(
+    cache: &CredentialCache,
+    connection_id: &str,
+) -> Result<String, String> {
     {
         let guard = cache.ssh_passwords.lock().unwrap();
         match guard.get(connection_id) {
             Some(CacheEntry::Present(v)) => return Ok(v.clone()),
-            Some(CacheEntry::Absent)     => return Err("No entry".to_string()),
+            Some(CacheEntry::Absent) => return Err("No entry".to_string()),
             None => {}
         }
     }
     let result = crate::keychain_utils::get_ssh_password(connection_id, "");
     {
         let mut guard = cache.ssh_passwords.lock().unwrap();
-        guard.insert(connection_id.to_string(), match &result {
-            Ok(v)  => CacheEntry::Present(v.clone()),
-            Err(_) => CacheEntry::Absent,
-        });
+        guard.insert(
+            connection_id.to_string(),
+            match &result {
+                Ok(v) => CacheEntry::Present(v.clone()),
+                Err(_) => CacheEntry::Absent,
+            },
+        );
     }
     result
 }
 
 /// Get SSH key passphrase: check cache first, fall through to keychain on miss.
-pub fn get_ssh_key_passphrase_cached(cache: &CredentialCache, connection_id: &str) -> Result<String, String> {
+pub fn get_ssh_key_passphrase_cached(
+    cache: &CredentialCache,
+    connection_id: &str,
+) -> Result<String, String> {
     {
         let guard = cache.ssh_passphrases.lock().unwrap();
         match guard.get(connection_id) {
             Some(CacheEntry::Present(v)) => return Ok(v.clone()),
-            Some(CacheEntry::Absent)     => return Err("No entry".to_string()),
+            Some(CacheEntry::Absent) => return Err("No entry".to_string()),
             None => {}
         }
     }
     let result = crate::keychain_utils::get_ssh_key_passphrase(connection_id, "");
     {
         let mut guard = cache.ssh_passphrases.lock().unwrap();
-        guard.insert(connection_id.to_string(), match &result {
-            Ok(v)  => CacheEntry::Present(v.clone()),
-            Err(_) => CacheEntry::Absent,
-        });
+        guard.insert(
+            connection_id.to_string(),
+            match &result {
+                Ok(v) => CacheEntry::Present(v.clone()),
+                Err(_) => CacheEntry::Absent,
+            },
+        );
     }
     result
 }
@@ -108,17 +126,20 @@ pub fn get_ai_key_cached(cache: &CredentialCache, provider: &str) -> Result<Stri
         let guard = cache.ai_keys.lock().unwrap();
         match guard.get(provider) {
             Some(CacheEntry::Present(v)) => return Ok(v.clone()),
-            Some(CacheEntry::Absent)     => return Err("No entry".to_string()),
+            Some(CacheEntry::Absent) => return Err("No entry".to_string()),
             None => {}
         }
     }
     let result = crate::keychain_utils::get_ai_key(provider);
     {
         let mut guard = cache.ai_keys.lock().unwrap();
-        guard.insert(provider.to_string(), match &result {
-            Ok(v)  => CacheEntry::Present(v.clone()),
-            Err(_) => CacheEntry::Absent,
-        });
+        guard.insert(
+            provider.to_string(),
+            match &result {
+                Ok(v) => CacheEntry::Present(v.clone()),
+                Err(_) => CacheEntry::Absent,
+            },
+        );
     }
     result
 }
@@ -127,22 +148,35 @@ pub fn get_ai_key_cached(cache: &CredentialCache, provider: &str) -> Result<Stri
 // Call these AFTER the corresponding keychain_utils::set_* succeeds.
 
 pub fn set_db_password_cached(cache: &CredentialCache, connection_id: &str, password: &str) {
-    cache.db_passwords.lock().unwrap()
-        .insert(connection_id.to_string(), CacheEntry::Present(password.to_string()));
+    cache.db_passwords.lock().unwrap().insert(
+        connection_id.to_string(),
+        CacheEntry::Present(password.to_string()),
+    );
 }
 
 pub fn set_ssh_password_cached(cache: &CredentialCache, connection_id: &str, password: &str) {
-    cache.ssh_passwords.lock().unwrap()
-        .insert(connection_id.to_string(), CacheEntry::Present(password.to_string()));
+    cache.ssh_passwords.lock().unwrap().insert(
+        connection_id.to_string(),
+        CacheEntry::Present(password.to_string()),
+    );
 }
 
-pub fn set_ssh_key_passphrase_cached(cache: &CredentialCache, connection_id: &str, passphrase: &str) {
-    cache.ssh_passphrases.lock().unwrap()
-        .insert(connection_id.to_string(), CacheEntry::Present(passphrase.to_string()));
+pub fn set_ssh_key_passphrase_cached(
+    cache: &CredentialCache,
+    connection_id: &str,
+    passphrase: &str,
+) {
+    cache.ssh_passphrases.lock().unwrap().insert(
+        connection_id.to_string(),
+        CacheEntry::Present(passphrase.to_string()),
+    );
 }
 
 pub fn set_ai_key_cached(cache: &CredentialCache, provider: &str, key: &str) {
-    cache.ai_keys.lock().unwrap()
+    cache
+        .ai_keys
+        .lock()
+        .unwrap()
         .insert(provider.to_string(), CacheEntry::Present(key.to_string()));
 }
 

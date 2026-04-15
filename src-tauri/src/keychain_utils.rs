@@ -16,7 +16,10 @@ pub fn get_db_password(connection_id: &str, connection_name: &str) -> Result<Str
     if connection_name.is_empty() {
         println!("[Keychain] Getting DB password for {}", connection_id);
     } else {
-        println!("[Keychain] Getting DB password for {} ({})", connection_name, connection_id);
+        println!(
+            "[Keychain] Getting DB password for {} ({})",
+            connection_name, connection_id
+        );
     }
     let entry =
         Entry::new(SERVICE_NAME, &format!("{}:db", connection_id)).map_err(|e| e.to_string())?;
@@ -59,7 +62,10 @@ pub fn get_ssh_password(connection_id: &str, connection_name: &str) -> Result<St
     if connection_name.is_empty() {
         println!("[Keychain] Getting SSH password for {}", connection_id);
     } else {
-        println!("[Keychain] Getting SSH password for {} ({})", connection_name, connection_id);
+        println!(
+            "[Keychain] Getting SSH password for {} ({})",
+            connection_name, connection_id
+        );
     }
     let entry =
         Entry::new(SERVICE_NAME, &format!("{}:ssh", connection_id)).map_err(|e| e.to_string())?;
@@ -101,11 +107,20 @@ pub fn set_ssh_key_passphrase(connection_id: &str, passphrase: &str) -> Result<(
     })
 }
 
-pub fn get_ssh_key_passphrase(connection_id: &str, connection_name: &str) -> Result<String, String> {
+pub fn get_ssh_key_passphrase(
+    connection_id: &str,
+    connection_name: &str,
+) -> Result<String, String> {
     if connection_name.is_empty() {
-        println!("[Keychain] Getting SSH key passphrase for {}", connection_id);
+        println!(
+            "[Keychain] Getting SSH key passphrase for {}",
+            connection_id
+        );
     } else {
-        println!("[Keychain] Getting SSH key passphrase for {} ({})", connection_name, connection_id);
+        println!(
+            "[Keychain] Getting SSH key passphrase for {} ({})",
+            connection_name, connection_id
+        );
     }
     let entry = Entry::new(SERVICE_NAME, &format!("{}:ssh_passphrase", connection_id))
         .map_err(|e| e.to_string())?;

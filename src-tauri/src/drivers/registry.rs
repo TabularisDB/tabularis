@@ -9,8 +9,7 @@ use super::driver_trait::{DatabaseDriver, PluginManifest};
 type Registry = Arc<RwLock<HashMap<String, Arc<dyn DatabaseDriver>>>>;
 type ManifestRegistry = Arc<RwLock<HashMap<String, PluginManifest>>>;
 
-static REGISTRY: Lazy<Registry> =
-    Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
+static REGISTRY: Lazy<Registry> = Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
 
 /// Stores manifests for UI-only plugins (no executable/driver process).
 static MANIFEST_REGISTRY: Lazy<ManifestRegistry> =

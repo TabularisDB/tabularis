@@ -13,7 +13,10 @@ pub fn format_table_ref(driver: &str, schema: &str, table: &str) -> String {
 
 /// Returns a DROP TABLE IF EXISTS statement using driver-specific quoting.
 pub fn drop_table_if_exists(driver: &str, schema: &str, table: &str) -> String {
-    format!("DROP TABLE IF EXISTS {};", format_table_ref(driver, schema, table))
+    format!(
+        "DROP TABLE IF EXISTS {};",
+        format_table_ref(driver, schema, table)
+    )
 }
 
 /// Returns an INSERT INTO ... VALUES ... statement using driver-specific quoting.

@@ -74,7 +74,11 @@ async fn get_ssh_connection_by_id<R: Runtime>(
     // Backward compat: determine auth_type if absent (mirrors get_ssh_connections logic)
     if ssh.auth_type.is_none() {
         ssh.auth_type = Some(
-            if ssh.key_file.as_ref().map_or(false, |k| !k.trim().is_empty()) {
+            if ssh
+                .key_file
+                .as_ref()
+                .map_or(false, |k| !k.trim().is_empty())
+            {
                 "ssh_key".to_string()
             } else {
                 "password".to_string()
@@ -87,18 +91,29 @@ async fn get_ssh_connection_by_id<R: Runtime>(
     // it calls keychain once per credential and then caches the result.
     if ssh.save_in_keychain.unwrap_or(false) {
         // Clone the Arc out of the Tauri State so the closure owns it ('static bound)
-        let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>().inner().clone();
+        let cache = app
+            .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
+            .inner()
+            .clone();
         let id = ssh.id.clone();
         let (pwd_r, pass_r) = tokio::task::spawn_blocking(move || {
-            let pwd  = credential_cache::get_ssh_password_cached(&cache, &id);
+            let pwd = credential_cache::get_ssh_password_cached(&cache, &id);
             let pass = credential_cache::get_ssh_key_passphrase_cached(&cache, &id);
             (pwd, pass)
         })
         .await
         .map_err(|e| e.to_string())?;
 
-        if let Ok(v) = pwd_r  { if !v.trim().is_empty() { ssh.password       = Some(v); } }
-        if let Ok(v) = pass_r { if !v.trim().is_empty() { ssh.key_passphrase = Some(v); } }
+        if let Ok(v) = pwd_r {
+            if !v.trim().is_empty() {
+                ssh.password = Some(v);
+            }
+        }
+        if let Ok(v) = pass_r {
+            if !v.trim().is_empty() {
+                ssh.key_passphrase = Some(v);
+            }
+        }
     }
 
     Ok(ssh)
@@ -119,11 +134,11 @@ pub async fn expand_ssh_connection_params<R: Runtime>(
             let ssh_conn = get_ssh_connection_by_id(app, ssh_id).await?;
 
             // Populate legacy SSH fields from the SSH connection
-            expanded_params.ssh_host           = Some(ssh_conn.host.clone());
-            expanded_params.ssh_port           = Some(ssh_conn.port);
-            expanded_params.ssh_user           = Some(ssh_conn.user.clone());
-            expanded_params.ssh_password       = ssh_conn.password.clone();
-            expanded_params.ssh_key_file       = ssh_conn.key_file.clone();
+            expanded_params.ssh_host = Some(ssh_conn.host.clone());
+            expanded_params.ssh_port = Some(ssh_conn.port);
+            expanded_params.ssh_user = Some(ssh_conn.user.clone());
+            expanded_params.ssh_password = ssh_conn.password.clone();
+            expanded_params.ssh_key_file = ssh_conn.key_file.clone();
             expanded_params.ssh_key_passphrase = ssh_conn.key_passphrase.clone();
         }
     }
@@ -247,7 +262,8 @@ pub fn find_connection_by_id<R: Runtime>(
     }
     // Use persistence module to properly load connections (handles both old and new formats)
     let conn_file = persistence::load_connections_file(&path)?;
-    let mut conn = conn_file.connections
+    let mut conn = conn_file
+        .connections
         .into_iter()
         .find(|c| c.id == id)
         .ok_or_else(|| "Connection not found".to_string())?;
@@ -270,7 +286,9 @@ pub fn find_connection_by_id<R: Runtime>(
                     conn.params.ssh_password = Some(ssh_pwd);
                 }
             }
-            if let Ok(ssh_passphrase) = credential_cache::get_ssh_key_passphrase_cached(&cache, &conn.id) {
+            if let Ok(ssh_passphrase) =
+                credential_cache::get_ssh_key_passphrase_cached(&cache, &conn.id)
+            {
                 if !ssh_passphrase.trim().is_empty() {
                     conn.params.ssh_key_passphrase = Some(ssh_passphrase);
                 }
@@ -311,7 +329,10 @@ pub async fn get_available_databases<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<Vec<String>, String> {
-    log::info!("Fetching available databases for connection: {}", connection_id);
+    log::info!(
+        "Fetching available databases for connection: {}",
+        connection_id
+    );
 
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
@@ -355,7 +376,8 @@ pub async fn get_routine_parameters<R: Runtime>(
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
 
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_routine_parameters(&params, &routine_name, schema.as_deref()).await
+    drv.get_routine_parameters(&params, &routine_name, schema.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -378,7 +400,8 @@ pub async fn get_routine_definition<R: Runtime>(
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
 
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_routine_definition(&params, &routine_name, &routine_type, schema.as_deref()).await
+    drv.get_routine_definition(&params, &routine_name, &routine_type, schema.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -583,7 +606,9 @@ pub async fn duplicate_connection<R: Runtime>(
                     original.params.ssh_password = Some(ssh_pwd);
                 }
             }
-            if let Ok(ssh_passphrase) = credential_cache::get_ssh_key_passphrase_cached(&cache, &original.id) {
+            if let Ok(ssh_passphrase) =
+                credential_cache::get_ssh_key_passphrase_cached(&cache, &original.id)
+            {
                 if !ssh_passphrase.trim().is_empty() {
                     original.params.ssh_key_passphrase = Some(ssh_passphrase);
                 }
@@ -608,7 +633,11 @@ pub async fn duplicate_connection<R: Runtime>(
             if let Some(ssh_passphrase) = &new_params.ssh_key_passphrase {
                 if !ssh_passphrase.trim().is_empty() {
                     keychain_utils::set_ssh_key_passphrase(&new_id, ssh_passphrase)?;
-                    credential_cache::set_ssh_key_passphrase_cached(&cache, &new_id, ssh_passphrase);
+                    credential_cache::set_ssh_key_passphrase_cached(
+                        &cache,
+                        &new_id,
+                        ssh_passphrase,
+                    );
                 }
             }
         }
@@ -622,7 +651,7 @@ pub async fn duplicate_connection<R: Runtime>(
         name: format!("{} (Copy)", original.name),
         params: new_params,
         group_id: original.group_id.clone(), // Copy to same group as original
-        sort_order: None, // Will be placed at end of group
+        sort_order: None,                    // Will be placed at end of group
     };
 
     conn_file.connections.push(new_conn.clone());
@@ -709,12 +738,15 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
 
                     // Migrate credentials from connection keychain to SSH keychain
                     if conn.params.save_in_keychain.unwrap_or(false) {
-                        if let Ok(ssh_pwd) = keychain_utils::get_ssh_password(&conn.id, &conn.name) {
+                        if let Ok(ssh_pwd) = keychain_utils::get_ssh_password(&conn.id, &conn.name)
+                        {
                             if !ssh_pwd.trim().is_empty() {
                                 keychain_utils::set_ssh_password(&new_ssh_id, &ssh_pwd).ok();
                             }
                         }
-                        if let Ok(ssh_pass) = keychain_utils::get_ssh_key_passphrase(&conn.id, &conn.name) {
+                        if let Ok(ssh_pass) =
+                            keychain_utils::get_ssh_key_passphrase(&conn.id, &conn.name)
+                        {
                             if !ssh_pass.trim().is_empty() {
                                 keychain_utils::set_ssh_key_passphrase(&new_ssh_id, &ssh_pass).ok();
                             }
@@ -801,7 +833,11 @@ pub async fn get_ssh_connections<R: Runtime>(
     for ssh in &mut ssh_connections {
         if ssh.auth_type.is_none() {
             ssh.auth_type = Some(
-                if ssh.key_file.as_ref().map_or(false, |k| !k.trim().is_empty()) {
+                if ssh
+                    .key_file
+                    .as_ref()
+                    .map_or(false, |k| !k.trim().is_empty())
+                {
                     "ssh_key".to_string()
                 } else {
                     "password".to_string()
@@ -821,12 +857,15 @@ pub async fn get_ssh_connections<R: Runtime>(
 
     if !ids_needing_creds.is_empty() {
         // Clone the Arc out of the Tauri State so the closure owns it ('static bound)
-        let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>().inner().clone();
+        let cache = app
+            .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
+            .inner()
+            .clone();
         let credentials = tokio::task::spawn_blocking(move || {
             ids_needing_creds
                 .into_iter()
                 .map(|id| {
-                    let pwd  = credential_cache::get_ssh_password_cached(&cache, &id);
+                    let pwd = credential_cache::get_ssh_password_cached(&cache, &id);
                     let pass = credential_cache::get_ssh_key_passphrase_cached(&cache, &id);
                     (id, pwd, pass)
                 })
@@ -1135,6 +1174,9 @@ mod tests {
             password: None,
             database: DatabaseSelection::Single("testdb".to_string()),
             ssl_mode: None,
+            ssl_ca: None,
+            ssl_cert: None,
+            ssl_key: None,
             ssh_enabled: None,
             ssh_connection_id: None,
             ssh_host: None,
@@ -1216,6 +1258,9 @@ mod tests {
                 password: password.map(|p| p.to_string()),
                 database: DatabaseSelection::Single(database.to_string()),
                 ssl_mode: None,
+                ssl_ca: None,
+                ssl_cert: None,
+                ssl_key: None,
                 ssh_enabled: None,
                 ssh_connection_id: None,
                 ssh_host: None,
@@ -1494,6 +1539,9 @@ mod tests {
                 password: Some("dbpass".to_string()),
                 database: DatabaseSelection::Single("testdb".to_string()),
                 ssl_mode: None,
+                ssl_ca: None,
+                ssl_cert: None,
+                ssl_key: None,
                 ssh_enabled: Some(true),
                 ssh_connection_id: None,
                 ssh_host: Some(ssh_host.to_string()),
@@ -1666,7 +1714,8 @@ pub async fn get_columns<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_columns(&params, &table_name, schema.as_deref()).await
+    drv.get_columns(&params, &table_name, schema.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -1680,7 +1729,8 @@ pub async fn get_foreign_keys<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_foreign_keys(&params, &table_name, schema.as_deref()).await
+    drv.get_foreign_keys(&params, &table_name, schema.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -1694,7 +1744,8 @@ pub async fn get_indexes<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_indexes(&params, &table_name, schema.as_deref()).await
+    drv.get_indexes(&params, &table_name, schema.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -1709,7 +1760,10 @@ pub async fn delete_record<R: Runtime>(
 ) -> Result<u64, String> {
     log::info!(
         "Executing query on connection: {} | Query: DELETE FROM {} WHERE {} = {}",
-        connection_id, table, pk_col, pk_val
+        connection_id,
+        table,
+        pk_col,
+        pk_val
     );
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
@@ -1718,7 +1772,8 @@ pub async fn delete_record<R: Runtime>(
         params.database = crate::models::DatabaseSelection::Single(db);
     }
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.delete_record(&params, &table, &pk_col, pk_val, schema.as_deref()).await
+    drv.delete_record(&params, &table, &pk_col, pk_val, schema.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -1735,7 +1790,12 @@ pub async fn update_record<R: Runtime>(
 ) -> Result<u64, String> {
     log::info!(
         "Executing query on connection: {} | Query: UPDATE {} SET {} = {} WHERE {} = {}",
-        connection_id, table, col_name, new_val, pk_col, pk_val
+        connection_id,
+        table,
+        col_name,
+        new_val,
+        pk_col,
+        pk_val
     );
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
@@ -1745,7 +1805,17 @@ pub async fn update_record<R: Runtime>(
     }
     let max_blob_size = crate::config::get_max_blob_size(&app);
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.update_record(&params, &table, &pk_col, pk_val, &col_name, new_val, schema.as_deref(), max_blob_size).await
+    drv.update_record(
+        &params,
+        &table,
+        &pk_col,
+        pk_val,
+        &col_name,
+        new_val,
+        schema.as_deref(),
+        max_blob_size,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1763,7 +1833,16 @@ pub async fn save_blob_to_file<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.save_blob_to_file(&params, &table, &col_name, &pk_col, pk_val, schema.as_deref(), &file_path).await
+    drv.save_blob_to_file(
+        &params,
+        &table,
+        &col_name,
+        &pk_col,
+        pk_val,
+        schema.as_deref(),
+        &file_path,
+    )
+    .await
 }
 
 /// Fetches a BLOB column from the database and returns it as a data: URL for image preview.
@@ -1782,7 +1861,16 @@ pub async fn fetch_blob_as_data_url<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
-    let wire = drv.fetch_blob_as_data_url(&params, &table, &col_name, &pk_col, pk_val, schema.as_deref()).await?;
+    let wire = drv
+        .fetch_blob_as_data_url(
+            &params,
+            &table,
+            &col_name,
+            &pk_col,
+            pk_val,
+            schema.as_deref(),
+        )
+        .await?;
     // Convert the BLOB wire format to a data: URL
     // wire format: "BLOB:<size>:<mime>:<base64>"
     if !wire.starts_with("BLOB:") {
@@ -1960,7 +2048,9 @@ pub async fn insert_record<R: Runtime>(
     let columns: Vec<&str> = data.keys().map(|k| k.as_str()).collect();
     log::info!(
         "Executing query on connection: {} | Query: INSERT INTO {} ({}) VALUES (...)",
-        connection_id, table, columns.join(", ")
+        connection_id,
+        table,
+        columns.join(", ")
     );
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
@@ -1970,7 +2060,8 @@ pub async fn insert_record<R: Runtime>(
     }
     let max_blob_size = crate::config::get_max_blob_size(&app);
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.insert_record(&params, &table, data, schema.as_deref(), max_blob_size).await
+    drv.insert_record(&params, &table, data, schema.as_deref(), max_blob_size)
+        .await
 }
 
 #[tauri::command]
@@ -2020,7 +2111,14 @@ pub async fn execute_query<R: Runtime>(
     // 2. Spawn Cancellable Task
     let drv = driver_for(&saved_conn.params.driver).await?;
     let task = tokio::spawn(async move {
-        drv.execute_query(&params, &sanitized_query, limit, page.unwrap_or(1), schema.as_deref()).await
+        drv.execute_query(
+            &params,
+            &sanitized_query,
+            limit,
+            page.unwrap_or(1),
+            schema.as_deref(),
+        )
+        .await
     });
 
     // 3. Register Abort Handle
@@ -2147,10 +2245,7 @@ pub async fn count_query<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
 
-    let sanitized = query
-        .trim()
-        .trim_end_matches(';')
-        .to_string();
+    let sanitized = query.trim().trim_end_matches(';').to_string();
 
     let count_q = format!("SELECT COUNT(*) FROM ({}) as count_wrapper", sanitized);
 
@@ -2425,7 +2520,9 @@ pub async fn get_view_definition<R: Runtime>(
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
 
     let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv.get_view_definition(&params, &view_name, schema.as_deref()).await;
+    let result = drv
+        .get_view_definition(&params, &view_name, schema.as_deref())
+        .await;
 
     match &result {
         Ok(_) => log::info!("Successfully retrieved view definition for {}", view_name),
@@ -2454,7 +2551,9 @@ pub async fn create_view<R: Runtime>(
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
 
     let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv.create_view(&params, &view_name, &definition, schema.as_deref()).await;
+    let result = drv
+        .create_view(&params, &view_name, &definition, schema.as_deref())
+        .await;
 
     match &result {
         Ok(_) => log::info!("Successfully created view: {}", view_name),
@@ -2483,7 +2582,9 @@ pub async fn alter_view<R: Runtime>(
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
 
     let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv.alter_view(&params, &view_name, &definition, schema.as_deref()).await;
+    let result = drv
+        .alter_view(&params, &view_name, &definition, schema.as_deref())
+        .await;
 
     match &result {
         Ok(_) => log::info!("Successfully altered view: {}", view_name),
@@ -2539,7 +2640,9 @@ pub async fn get_view_columns<R: Runtime>(
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
 
     let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv.get_view_columns(&params, &view_name, schema.as_deref()).await;
+    let result = drv
+        .get_view_columns(&params, &view_name, schema.as_deref())
+        .await;
 
     match &result {
         Ok(columns) => log::info!("Retrieved {} columns for view {}", columns.len(), view_name),
@@ -2592,7 +2695,6 @@ pub async fn get_data_types(driver: String) -> Result<crate::models::DataTypeReg
     Ok(crate::models::DataTypeRegistry { driver, types })
 }
 
-
 // --- DDL generation commands ---
 
 #[tauri::command]
@@ -2605,7 +2707,8 @@ pub async fn get_create_table_sql<R: Runtime>(
 ) -> Result<Vec<String>, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_create_table_sql(&table_name, columns, schema.as_deref()).await
+    drv.get_create_table_sql(&table_name, columns, schema.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -2618,7 +2721,8 @@ pub async fn get_add_column_sql<R: Runtime>(
 ) -> Result<Vec<String>, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_add_column_sql(&table, column, schema.as_deref()).await
+    drv.get_add_column_sql(&table, column, schema.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -2632,7 +2736,8 @@ pub async fn get_alter_column_sql<R: Runtime>(
 ) -> Result<Vec<String>, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_alter_column_sql(&table, old_column, new_column, schema.as_deref()).await
+    drv.get_alter_column_sql(&table, old_column, new_column, schema.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -2647,7 +2752,8 @@ pub async fn get_create_index_sql<R: Runtime>(
 ) -> Result<Vec<String>, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_create_index_sql(&table, &index_name, columns, is_unique, schema.as_deref()).await
+    drv.get_create_index_sql(&table, &index_name, columns, is_unique, schema.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -2666,9 +2772,16 @@ pub async fn get_create_foreign_key_sql<R: Runtime>(
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
     drv.get_create_foreign_key_sql(
-        &table, &fk_name, &column, &ref_table, &ref_column,
-        on_delete.as_deref(), on_update.as_deref(), schema.as_deref(),
-    ).await
+        &table,
+        &fk_name,
+        &column,
+        &ref_table,
+        &ref_column,
+        on_delete.as_deref(),
+        on_update.as_deref(),
+        schema.as_deref(),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -2683,7 +2796,8 @@ pub async fn drop_index_action<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.drop_index(&params, &table, &index_name, schema.as_deref()).await
+    drv.drop_index(&params, &table, &index_name, schema.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -2698,7 +2812,8 @@ pub async fn drop_foreign_key_action<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.drop_foreign_key(&params, &table, &fk_name, schema.as_deref()).await
+    drv.drop_foreign_key(&params, &table, &fk_name, schema.as_deref())
+        .await
 }
 
 #[tauri::command]
@@ -2708,10 +2823,7 @@ pub async fn get_registered_drivers() -> Vec<crate::drivers::driver_trait::Plugi
 
 #[tauri::command]
 pub async fn get_keybindings<R: Runtime>(app: AppHandle<R>) -> Result<serde_json::Value, String> {
-    let config_dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| e.to_string())?;
+    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     let path = config_dir.join("keybindings.json");
     if !path.exists() {
         return Ok(serde_json::Value::Object(serde_json::Map::new()));
@@ -2725,10 +2837,7 @@ pub async fn save_keybindings<R: Runtime>(
     app: AppHandle<R>,
     keybindings: serde_json::Value,
 ) -> Result<(), String> {
-    let config_dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| e.to_string())?;
+    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     let path = config_dir.join("keybindings.json");
     let content = serde_json::to_string_pretty(&keybindings).map_err(|e| e.to_string())?;

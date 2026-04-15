@@ -1,6 +1,6 @@
-pub mod rpc;
-pub mod manager;
-pub mod driver;
-pub mod registry;
-pub mod installer;
 pub mod commands;
+pub mod driver;
+pub mod installer;
+pub mod manager;
+pub mod registry;
+pub mod rpc;

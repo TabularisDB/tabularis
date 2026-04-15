@@ -20,8 +20,7 @@ fn get_notebook_path(notebook_id: &str) -> PathBuf {
 /// Ensure the notebooks directory exists
 fn ensure_notebooks_dir() -> Result<(), String> {
     let dir = get_notebooks_dir();
-    fs::create_dir_all(&dir)
-        .map_err(|e| format!("Failed to create notebooks directory: {}", e))?;
+    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create notebooks directory: {}", e))?;
     Ok(())
 }
 

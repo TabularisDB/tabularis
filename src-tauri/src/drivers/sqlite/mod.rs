@@ -1,13 +1,20 @@
 pub mod extract;
 pub mod types;
 
+mod explain;
+
+#[cfg(test)]
+mod tests;
+
 use crate::models::{
-    ConnectionParams, ExplainNode, ExplainPlan, ForeignKey, Index, Pagination, QueryResult,
-    RoutineInfo, RoutineParameter, TableColumn, TableInfo, ViewInfo,
+    ConnectionParams, ForeignKey, Index, Pagination, QueryResult, RoutineInfo, RoutineParameter,
+    TableColumn, TableInfo, ViewInfo,
 };
 use crate::pool_manager::get_sqlite_pool;
 use extract::extract_value;
 use sqlx::{Column, Row};
+
+pub use explain::explain_query;
 
 // Helper function to escape double quotes in identifiers for SQLite
 fn escape_identifier(name: &str) -> String {
@@ -475,7 +482,6 @@ pub async fn insert_record(
     Ok(result.rows_affected())
 }
 
-
 pub async fn get_table_ddl(params: &ConnectionParams, table_name: &str) -> Result<String, String> {
     let pool = get_sqlite_pool(params).await?;
     let query = "SELECT sql FROM sqlite_master WHERE type='table' AND name = ?";
@@ -569,203 +575,6 @@ pub async fn execute_query(
         truncated,
         pagination,
     })
-}
-
-// ---------------------------------------------------------------------------
-// EXPLAIN QUERY
-// ---------------------------------------------------------------------------
-
-pub async fn explain_query(
-    params: &ConnectionParams,
-    query: &str,
-) -> Result<ExplainPlan, String> {
-    let pool = get_sqlite_pool(params).await?;
-    let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
-
-    let explain_sql = format!("EXPLAIN QUERY PLAN {}", query);
-
-    let rows = sqlx::query(&explain_sql)
-        .fetch_all(&mut *conn)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if rows.is_empty() {
-        return Err("EXPLAIN QUERY PLAN returned no output".into());
-    }
-
-    // Build raw output text
-    let mut raw_lines = Vec::new();
-    // Collect flat entries: (id, parent, detail)
-    let mut entries: Vec<(i64, i64, String)> = Vec::new();
-
-    for row in &rows {
-        let id: i32 = row.try_get("id").unwrap_or(0);
-        let parent: i32 = row.try_get("parent").unwrap_or(0);
-        let detail: String = row.try_get("detail").unwrap_or_default();
-        raw_lines.push(format!("{}|{}|{}", id, parent, &detail));
-        entries.push((id as i64, parent as i64, detail));
-    }
-
-    let raw_output = raw_lines.join("\n");
-
-    // Build tree from flat entries
-    let mut counter: u32 = 0;
-    let root = build_sqlite_tree(&entries, 0, &mut counter);
-
-    Ok(ExplainPlan {
-        root,
-        planning_time_ms: None,
-        execution_time_ms: None,
-        original_query: query.to_string(),
-        driver: "sqlite".to_string(),
-        has_analyze_data: false,
-        raw_output: Some(raw_output),
-    })
-}
-
-fn build_sqlite_tree(entries: &[(i64, i64, String)], parent_id: i64, counter: &mut u32) -> ExplainNode {
-    // Find the first entry with the given parent_id to use as the root node
-    let root_entry = entries
-        .iter()
-        .find(|(id, parent, _)| {
-            if parent_id == 0 {
-                *parent == 0 && *id == 0
-            } else {
-                *id == parent_id
-            }
-        });
-
-    let (node_type, relation, index_condition) = if let Some((_, _, detail)) = root_entry {
-        parse_sqlite_detail(detail)
-    } else {
-        ("Query Plan".to_string(), None, None)
-    };
-
-    let id = format!("node_{}", counter);
-    *counter += 1;
-
-    // Find children: entries whose parent matches the root entry's id
-    let root_id = root_entry.map(|(id, _, _)| *id).unwrap_or(0);
-    let child_ids: Vec<i64> = entries
-        .iter()
-        .filter(|(_, parent, _)| *parent == root_id && root_entry.map(|(id, _, _)| *id != root_id).unwrap_or(true) || (*parent == root_id && root_id == 0 && root_entry.is_some()))
-        .filter(|(id, _, _)| *id != root_id)
-        .map(|(id, _, _)| *id)
-        .collect();
-
-    let children: Vec<ExplainNode> = child_ids
-        .iter()
-        .map(|child_id| {
-            let child_entry = entries.iter().find(|(id, _, _)| *id == *child_id);
-            let (ct, cr, ci) = child_entry
-                .map(|(_, _, detail)| parse_sqlite_detail(detail))
-                .unwrap_or(("Unknown".to_string(), None, None));
-
-            let child_node_id = format!("node_{}", counter);
-            *counter += 1;
-
-            // Recursively find grandchildren
-            let grandchild_ids: Vec<i64> = entries
-                .iter()
-                .filter(|(_, parent, _)| *parent == *child_id)
-                .map(|(id, _, _)| *id)
-                .collect();
-
-            let grandchildren: Vec<ExplainNode> = grandchild_ids
-                .iter()
-                .map(|gc_id| build_sqlite_tree(entries, *gc_id, counter))
-                .collect();
-
-            ExplainNode {
-                id: child_node_id,
-                node_type: ct,
-                relation: cr,
-                startup_cost: None,
-                total_cost: None,
-                plan_rows: None,
-                actual_rows: None,
-                actual_time_ms: None,
-                actual_loops: None,
-                buffers_hit: None,
-                buffers_read: None,
-                filter: None,
-                index_condition: ci,
-                join_type: None,
-                hash_condition: None,
-                extra: std::collections::HashMap::new(),
-                children: grandchildren,
-            }
-        })
-        .collect();
-
-    ExplainNode {
-        id,
-        node_type,
-        relation,
-        startup_cost: None,
-        total_cost: None,
-        plan_rows: None,
-        actual_rows: None,
-        actual_time_ms: None,
-        actual_loops: None,
-        buffers_hit: None,
-        buffers_read: None,
-        filter: None,
-        index_condition,
-        join_type: None,
-        hash_condition: None,
-        extra: std::collections::HashMap::new(),
-        children,
-    }
-}
-
-fn parse_sqlite_detail(detail: &str) -> (String, Option<String>, Option<String>) {
-    let detail_upper = detail.to_uppercase();
-
-    if detail_upper.starts_with("SCAN") {
-        // "SCAN t1" or "SCAN t1 USING ..."
-        let parts: Vec<&str> = detail.splitn(3, ' ').collect();
-        let relation = parts.get(1).map(|s| s.to_string());
-        let index = if detail_upper.contains("USING INDEX") {
-            detail
-                .find("USING INDEX")
-                .map(|pos| detail[pos + 12..].trim().to_string())
-        } else if detail_upper.contains("USING COVERING INDEX") {
-            detail
-                .find("USING COVERING INDEX")
-                .map(|pos| detail[pos + 21..].trim().to_string())
-        } else {
-            None
-        };
-        ("Scan".to_string(), relation, index)
-    } else if detail_upper.starts_with("SEARCH") {
-        let parts: Vec<&str> = detail.splitn(3, ' ').collect();
-        let relation = parts.get(1).map(|s| s.to_string());
-        let index = if detail_upper.contains("USING INDEX") {
-            detail
-                .find("USING INDEX")
-                .map(|pos| detail[pos + 12..].trim().to_string())
-        } else if detail_upper.contains("USING INTEGER PRIMARY KEY") {
-            Some("PRIMARY KEY".to_string())
-        } else if detail_upper.contains("USING COVERING INDEX") {
-            detail
-                .find("USING COVERING INDEX")
-                .map(|pos| detail[pos + 21..].trim().to_string())
-        } else {
-            None
-        };
-        ("Search".to_string(), relation, index)
-    } else if detail_upper.contains("TEMP B-TREE") {
-        ("Sort".to_string(), None, None)
-    } else if detail_upper.starts_with("CO-ROUTINE") {
-        ("Co-routine".to_string(), None, None)
-    } else if detail_upper.starts_with("COMPOUND SUBQUERIES") {
-        ("Compound Subquery".to_string(), None, None)
-    } else if detail_upper.starts_with("MATERIALIZE") {
-        ("Materialize".to_string(), None, None)
-    } else {
-        (detail.to_string(), None, None)
-    }
 }
 
 pub async fn get_views(params: &ConnectionParams) -> Result<Vec<ViewInfo>, String> {
@@ -883,123 +692,6 @@ pub async fn get_view_columns(
         .collect())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::models::{ConnectionParams, DatabaseSelection};
-    use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-    use tempfile::NamedTempFile;
-
-    async fn setup_test_db() -> (ConnectionParams, NamedTempFile) {
-        let file = NamedTempFile::new().expect("Failed to create temp file");
-        let path = file.path().to_str().unwrap().to_string();
-
-        let params = ConnectionParams {
-            driver: "sqlite".to_string(),
-            database: DatabaseSelection::Single(path.clone()),
-            host: None,
-            port: None,
-            username: None,
-            password: None,
-            ssl_mode: None,
-            ssh_enabled: None,
-            ssh_connection_id: None,
-            ssh_host: None,
-            ssh_port: None,
-            ssh_user: None,
-            ssh_password: None,
-            ssh_key_file: None,
-            ssh_key_passphrase: None,
-            save_in_keychain: None,
-            connection_id: None,
-        };
-
-        // Initialize DB with a table
-        // Use .filename() to handle Windows paths correctly (avoids backslash issues in URLs)
-        let options = SqliteConnectOptions::new()
-            .filename(&path)
-            .create_if_missing(true);
-
-        let pool = SqlitePoolOptions::new()
-            .connect_with(options)
-            .await
-            .expect("Failed to connect to test DB");
-
-        sqlx::query("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
-            .execute(&pool)
-            .await
-            .expect("Failed to create table");
-
-        sqlx::query("INSERT INTO users (name) VALUES ('Alice'), ('Bob')")
-            .execute(&pool)
-            .await
-            .expect("Failed to insert data");
-
-        // Close this pool so the file isn't locked (though SQLite handles concurrent reads usually)
-        pool.close().await;
-
-        // We return the file handle too so it doesn't get deleted until the test ends
-        (params, file)
-    }
-
-    #[tokio::test]
-    async fn test_view_lifecycle() {
-        let (params, _file) = setup_test_db().await;
-
-        // 1. Create View
-        let view_name = "view_users";
-        // Note: SQLite view definitions are stored as written
-        let definition = "SELECT name FROM users";
-        create_view(&params, view_name, definition)
-            .await
-            .expect("Failed to create view");
-
-        // 2. Get Views
-        let views = get_views(&params).await.expect("Failed to get views");
-        assert_eq!(views.len(), 1);
-        assert_eq!(views[0].name, view_name);
-
-        // 3. Get View Definition
-        let def = get_view_definition(&params, view_name)
-            .await
-            .expect("Failed to get definition");
-        // SQLite stores the full "CREATE VIEW ..." statement in 'sql' column usually,
-        // OR just the definition depending on normalization.
-        // The get_view_definition implementation returns 'sql' column from sqlite_master.
-        // It usually is "CREATE VIEW view_users AS SELECT name FROM users"
-        assert!(def.to_uppercase().contains("CREATE VIEW"));
-        assert!(def.to_uppercase().contains("SELECT NAME FROM USERS"));
-
-        // 4. Get View Columns
-        let cols = get_view_columns(&params, view_name)
-            .await
-            .expect("Failed to get columns");
-        assert_eq!(cols.len(), 1);
-        assert_eq!(cols[0].name, "name");
-
-        // 5. Alter View (Drop & Recreate)
-        let new_def = "SELECT id, name FROM users";
-        alter_view(&params, view_name, new_def)
-            .await
-            .expect("Failed to alter view");
-
-        let cols_after = get_view_columns(&params, view_name)
-            .await
-            .expect("Failed to get columns after alter");
-        assert_eq!(cols_after.len(), 2);
-
-        // 6. Drop View
-        drop_view(&params, view_name)
-            .await
-            .expect("Failed to drop view");
-        let views_final = get_views(&params).await.expect("Failed to get views final");
-        assert_eq!(views_final.len(), 0);
-
-        // Cleanup: Close the pool created by the functions (via pool_manager)
-        crate::pool_manager::close_pool(&params).await;
-    }
-}
-
 // ============================================================
 // Plugin wrapper
 // ============================================================
@@ -1053,13 +745,18 @@ impl SqliteDriver {
 
 #[async_trait]
 impl DatabaseDriver for SqliteDriver {
-    fn manifest(&self) -> &PluginManifest { &self.manifest }
+    fn manifest(&self) -> &PluginManifest {
+        &self.manifest
+    }
 
     fn get_data_types(&self) -> Vec<crate::models::DataTypeInfo> {
         types::get_data_types()
     }
 
-    fn build_connection_url(&self, params: &crate::models::ConnectionParams) -> Result<String, String> {
+    fn build_connection_url(
+        &self,
+        params: &crate::models::ConnectionParams,
+    ) -> Result<String, String> {
         // Normalize path separators for URL format (Windows backslashes → forward slashes)
         let path = params.database.to_string().replace('\\', "/");
         // Windows absolute paths (e.g. C:/path/file) need sqlite:///C:/... (3 slashes = empty authority + abs path)
@@ -1078,100 +775,239 @@ impl DatabaseDriver for SqliteDriver {
         }
         let pool = crate::pool_manager::get_sqlite_pool_with_id(params, conn_id).await?;
         let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
-        sqlx::Connection::ping(&mut *conn).await.map_err(|e| e.to_string())
+        sqlx::Connection::ping(&mut *conn)
+            .await
+            .map_err(|e| e.to_string())
     }
 
-    async fn test_connection(&self, params: &crate::models::ConnectionParams) -> Result<(), String> {
+    async fn test_connection(
+        &self,
+        params: &crate::models::ConnectionParams,
+    ) -> Result<(), String> {
         // Use pool manager directly to avoid URL formatting issues with Windows paths
         crate::pool_manager::get_sqlite_pool(params).await?;
         Ok(())
     }
 
-    async fn get_databases(&self, params: &crate::models::ConnectionParams) -> Result<Vec<String>, String> {
+    async fn get_databases(
+        &self,
+        params: &crate::models::ConnectionParams,
+    ) -> Result<Vec<String>, String> {
         get_databases(params).await
     }
 
-    async fn get_schemas(&self, params: &crate::models::ConnectionParams) -> Result<Vec<String>, String> {
+    async fn get_schemas(
+        &self,
+        params: &crate::models::ConnectionParams,
+    ) -> Result<Vec<String>, String> {
         get_schemas(params).await
     }
 
-    async fn get_tables(&self, params: &crate::models::ConnectionParams, _schema: Option<&str>) -> Result<Vec<crate::models::TableInfo>, String> {
+    async fn get_tables(
+        &self,
+        params: &crate::models::ConnectionParams,
+        _schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TableInfo>, String> {
         get_tables(params).await
     }
 
-    async fn get_columns(&self, params: &crate::models::ConnectionParams, table: &str, _schema: Option<&str>) -> Result<Vec<crate::models::TableColumn>, String> {
+    async fn get_columns(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        _schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TableColumn>, String> {
         get_columns(params, table).await
     }
 
-    async fn get_foreign_keys(&self, params: &crate::models::ConnectionParams, table: &str, _schema: Option<&str>) -> Result<Vec<crate::models::ForeignKey>, String> {
+    async fn get_foreign_keys(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        _schema: Option<&str>,
+    ) -> Result<Vec<crate::models::ForeignKey>, String> {
         get_foreign_keys(params, table).await
     }
 
-    async fn get_indexes(&self, params: &crate::models::ConnectionParams, table: &str, _schema: Option<&str>) -> Result<Vec<crate::models::Index>, String> {
+    async fn get_indexes(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        _schema: Option<&str>,
+    ) -> Result<Vec<crate::models::Index>, String> {
         get_indexes(params, table).await
     }
 
-    async fn get_views(&self, params: &crate::models::ConnectionParams, _schema: Option<&str>) -> Result<Vec<crate::models::ViewInfo>, String> {
+    async fn get_views(
+        &self,
+        params: &crate::models::ConnectionParams,
+        _schema: Option<&str>,
+    ) -> Result<Vec<crate::models::ViewInfo>, String> {
         get_views(params).await
     }
 
-    async fn get_view_definition(&self, params: &crate::models::ConnectionParams, view_name: &str, _schema: Option<&str>) -> Result<String, String> {
+    async fn get_view_definition(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
         get_view_definition(params, view_name).await
     }
 
-    async fn get_view_columns(&self, params: &crate::models::ConnectionParams, view_name: &str, _schema: Option<&str>) -> Result<Vec<crate::models::TableColumn>, String> {
+    async fn get_view_columns(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        _schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TableColumn>, String> {
         get_view_columns(params, view_name).await
     }
 
-    async fn create_view(&self, params: &crate::models::ConnectionParams, view_name: &str, definition: &str, _schema: Option<&str>) -> Result<(), String> {
+    async fn create_view(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        definition: &str,
+        _schema: Option<&str>,
+    ) -> Result<(), String> {
         create_view(params, view_name, definition).await
     }
 
-    async fn alter_view(&self, params: &crate::models::ConnectionParams, view_name: &str, definition: &str, _schema: Option<&str>) -> Result<(), String> {
+    async fn alter_view(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        definition: &str,
+        _schema: Option<&str>,
+    ) -> Result<(), String> {
         alter_view(params, view_name, definition).await
     }
 
-    async fn drop_view(&self, params: &crate::models::ConnectionParams, view_name: &str, _schema: Option<&str>) -> Result<(), String> {
+    async fn drop_view(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        _schema: Option<&str>,
+    ) -> Result<(), String> {
         drop_view(params, view_name).await
     }
 
-    async fn get_routines(&self, params: &crate::models::ConnectionParams, _schema: Option<&str>) -> Result<Vec<crate::models::RoutineInfo>, String> {
+    async fn get_routines(
+        &self,
+        params: &crate::models::ConnectionParams,
+        _schema: Option<&str>,
+    ) -> Result<Vec<crate::models::RoutineInfo>, String> {
         get_routines(params).await
     }
 
-    async fn get_routine_parameters(&self, params: &crate::models::ConnectionParams, routine_name: &str, _schema: Option<&str>) -> Result<Vec<crate::models::RoutineParameter>, String> {
+    async fn get_routine_parameters(
+        &self,
+        params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        _schema: Option<&str>,
+    ) -> Result<Vec<crate::models::RoutineParameter>, String> {
         get_routine_parameters(params, routine_name).await
     }
 
-    async fn get_routine_definition(&self, params: &crate::models::ConnectionParams, routine_name: &str, routine_type: &str, _schema: Option<&str>) -> Result<String, String> {
+    async fn get_routine_definition(
+        &self,
+        params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
         get_routine_definition(params, routine_name, routine_type).await
     }
 
-    async fn execute_query(&self, params: &crate::models::ConnectionParams, query: &str, limit: Option<u32>, page: u32, _schema: Option<&str>) -> Result<crate::models::QueryResult, String> {
+    async fn execute_query(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        limit: Option<u32>,
+        page: u32,
+        _schema: Option<&str>,
+    ) -> Result<crate::models::QueryResult, String> {
         execute_query(params, query, limit, page).await
     }
 
-    async fn explain_query(&self, params: &crate::models::ConnectionParams, query: &str, _analyze: bool, _schema: Option<&str>) -> Result<crate::models::ExplainPlan, String> {
+    async fn explain_query(
+        &self,
+        params: &crate::models::ConnectionParams,
+        query: &str,
+        _analyze: bool,
+        _schema: Option<&str>,
+    ) -> Result<crate::models::ExplainPlan, String> {
         explain_query(params, query).await
     }
 
-    async fn insert_record(&self, params: &crate::models::ConnectionParams, table: &str, data: std::collections::HashMap<String, serde_json::Value>, _schema: Option<&str>, max_blob_size: u64) -> Result<u64, String> {
+    async fn insert_record(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        data: std::collections::HashMap<String, serde_json::Value>,
+        _schema: Option<&str>,
+        max_blob_size: u64,
+    ) -> Result<u64, String> {
         insert_record(params, table, data, max_blob_size).await
     }
 
-    async fn update_record(&self, params: &crate::models::ConnectionParams, table: &str, pk_col: &str, pk_val: serde_json::Value, col_name: &str, new_val: serde_json::Value, _schema: Option<&str>, max_blob_size: u64) -> Result<u64, String> {
-        update_record(params, table, pk_col, pk_val, col_name, new_val, max_blob_size).await
+    async fn update_record(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        pk_col: &str,
+        pk_val: serde_json::Value,
+        col_name: &str,
+        new_val: serde_json::Value,
+        _schema: Option<&str>,
+        max_blob_size: u64,
+    ) -> Result<u64, String> {
+        update_record(
+            params,
+            table,
+            pk_col,
+            pk_val,
+            col_name,
+            new_val,
+            max_blob_size,
+        )
+        .await
     }
 
-    async fn delete_record(&self, params: &crate::models::ConnectionParams, table: &str, pk_col: &str, pk_val: serde_json::Value, _schema: Option<&str>) -> Result<u64, String> {
+    async fn delete_record(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        pk_col: &str,
+        pk_val: serde_json::Value,
+        _schema: Option<&str>,
+    ) -> Result<u64, String> {
         delete_record(params, table, pk_col, pk_val).await
     }
 
-    async fn save_blob_to_file(&self, params: &crate::models::ConnectionParams, table: &str, col_name: &str, pk_col: &str, pk_val: serde_json::Value, _schema: Option<&str>, file_path: &str) -> Result<(), String> {
+    async fn save_blob_to_file(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        col_name: &str,
+        pk_col: &str,
+        pk_val: serde_json::Value,
+        _schema: Option<&str>,
+        file_path: &str,
+    ) -> Result<(), String> {
         save_blob_column_to_file(params, table, col_name, pk_col, pk_val, file_path).await
     }
 
-    async fn fetch_blob_as_data_url(&self, params: &crate::models::ConnectionParams, table: &str, col_name: &str, pk_col: &str, pk_val: serde_json::Value, _schema: Option<&str>) -> Result<String, String> {
+    async fn fetch_blob_as_data_url(
+        &self,
+        params: &crate::models::ConnectionParams,
+        table: &str,
+        col_name: &str,
+        pk_col: &str,
+        pk_val: serde_json::Value,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
         fetch_blob_column_as_data_url(params, table, col_name, pk_col, pk_val).await
     }
 
@@ -1310,27 +1146,42 @@ impl DatabaseDriver for SqliteDriver {
         Err("SQLite does not support dropping foreign keys".into())
     }
 
-    async fn get_all_columns_batch(&self, params: &crate::models::ConnectionParams, _schema: Option<&str>) -> Result<HashMap<String, Vec<crate::models::TableColumn>>, String> {
+    async fn get_all_columns_batch(
+        &self,
+        params: &crate::models::ConnectionParams,
+        _schema: Option<&str>,
+    ) -> Result<HashMap<String, Vec<crate::models::TableColumn>>, String> {
         let tables = get_tables(params).await?;
         let names: Vec<String> = tables.into_iter().map(|t| t.name).collect();
         get_all_columns_batch(params, &names).await
     }
 
-    async fn get_all_foreign_keys_batch(&self, params: &crate::models::ConnectionParams, _schema: Option<&str>) -> Result<HashMap<String, Vec<crate::models::ForeignKey>>, String> {
+    async fn get_all_foreign_keys_batch(
+        &self,
+        params: &crate::models::ConnectionParams,
+        _schema: Option<&str>,
+    ) -> Result<HashMap<String, Vec<crate::models::ForeignKey>>, String> {
         let tables = get_tables(params).await?;
         let names: Vec<String> = tables.into_iter().map(|t| t.name).collect();
         get_all_foreign_keys_batch(params, &names).await
     }
 
-    async fn get_schema_snapshot(&self, params: &crate::models::ConnectionParams, _schema: Option<&str>) -> Result<Vec<crate::models::TableSchema>, String> {
+    async fn get_schema_snapshot(
+        &self,
+        params: &crate::models::ConnectionParams,
+        _schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TableSchema>, String> {
         let tables = get_tables(params).await?;
         let names: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
         let mut columns_map = get_all_columns_batch(params, &names).await?;
         let mut fks_map = get_all_foreign_keys_batch(params, &names).await?;
-        Ok(tables.into_iter().map(|t| crate::models::TableSchema {
-            name: t.name.clone(),
-            columns: columns_map.remove(&t.name).unwrap_or_default(),
-            foreign_keys: fks_map.remove(&t.name).unwrap_or_default(),
-        }).collect())
+        Ok(tables
+            .into_iter()
+            .map(|t| crate::models::TableSchema {
+                name: t.name.clone(),
+                columns: columns_map.remove(&t.name).unwrap_or_default(),
+                foreign_keys: fks_map.remove(&t.name).unwrap_or_default(),
+            })
+            .collect())
     }
 }

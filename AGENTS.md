@@ -3,6 +3,7 @@
 ## Directives
 Adhere to the rules defined in the [rules directory](./.rules/):
 - [General Rules](./.rules/general.md) (Logging & Language)
+- [Rust Rules](./.rules/rust.md) (Backend module structure and Rust testing)
 - [TypeScript Rules](./.rules/typescript.md)
 - [React Rules](./.rules/react.md)
 - [Modal Styling Rules](./.rules/modals.md) (Modal component structure and styling)
