@@ -46,6 +46,23 @@ export function isExplainableQuery(query: string): boolean {
 }
 
 /**
+ * Splits a SQL text into individual queries and returns only those
+ * that are explainable (DML: SELECT, INSERT, UPDATE, DELETE, REPLACE, WITH, TABLE).
+ * Each returned entry carries its 1-based index in the original split.
+ */
+export function getExplainableQueries(
+  sql: string,
+): { query: string; index: number }[] {
+  return splitQueries(sql).reduce<{ query: string; index: number }[]>(
+    (acc, q, i) => {
+      if (isExplainableQuery(q)) acc.push({ query: q, index: i + 1 });
+      return acc;
+    },
+    [],
+  );
+}
+
+/**
  * Extracts the table name from a SELECT query.
  * Handles quotes: `table`, "table", 'table', and unquoted table names.
  * Returns null if no table is found or if it's not a SELECT query.

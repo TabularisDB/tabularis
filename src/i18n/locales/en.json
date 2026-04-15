@@ -693,6 +693,7 @@
       "analyzeWarning": "ANALYZE executes the query. Use with caution on data-modifying statements.",
       "notSupported": "EXPLAIN is not supported for this connection type.",
       "notExplainable": "EXPLAIN is only supported for DML statements (SELECT, INSERT, UPDATE, DELETE). DDL statements like CREATE, DROP, or ALTER cannot be explained.",
+      "contextMenuExplain": "Explain Plan",
       "rerun": "Re-run",
       "close": "Close",
       "graphView": "Graph",
@@ -807,6 +808,14 @@
       "runSingle": "Run this query",
       "selectAll": "Select All",
       "deselectAll": "Deselect All"
+    },
+    "explainSelection": {
+      "title": "Select Query to Explain",
+      "queriesFound": "{{count}} explainable queries found",
+      "explainSingle": "Explain this query",
+      "explainFocused": "explain focused",
+      "explainNth": "explain Nth",
+      "cancel": "cancel"
     },
     "multiResult": {
       "query": "Query {{index}}",

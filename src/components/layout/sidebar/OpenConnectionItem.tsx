@@ -21,6 +21,13 @@ interface Props {
   shortcutIndex?: number;
   showShortcutHint?: boolean;
   showLabel?: boolean;
+  draggable?: boolean;
+  onReorderDragStart?: (e: React.DragEvent) => void;
+  onReorderDragOver?: (e: React.DragEvent) => void;
+  onReorderDragLeave?: () => void;
+  onReorderDrop?: (e: React.DragEvent) => void;
+  onReorderDragEnd?: () => void;
+  dropIndicator?: 'above' | 'below' | null;
 }
 
 export const OpenConnectionItem = ({
@@ -36,6 +43,13 @@ export const OpenConnectionItem = ({
   shortcutIndex,
   showShortcutHint = false,
   showLabel = false,
+  draggable: isDraggable = false,
+  onReorderDragStart,
+  onReorderDragOver,
+  onReorderDragLeave,
+  onReorderDrop,
+  onReorderDragEnd,
+  dropIndicator = null,
 }: Props) => {
   const { t } = useTranslation();
   const { isActive, isConnecting, name, database, sshEnabled, error } = connection;
@@ -104,7 +118,20 @@ export const OpenConnectionItem = ({
 
   return (
     <>
-      <div className={`relative group w-full flex flex-col items-center ${showLabel ? 'mb-0.5' : 'mb-1'}`}>
+      <div
+        className={`relative group w-full flex flex-col items-center ${showLabel ? 'mb-0.5' : 'mb-1'}`}
+        draggable={isDraggable}
+        onDragStart={onReorderDragStart}
+        onDragOver={onReorderDragOver}
+        onDragLeave={onReorderDragLeave}
+        onDrop={onReorderDrop}
+        onDragEnd={onReorderDragEnd}
+      >
+        {/* Drop indicator - above */}
+        {dropIndicator === 'above' && (
+          <div className="absolute -top-0.5 left-2 right-2 h-0.5 bg-blue-400 rounded-full z-30" />
+        )}
+
         <button
           onClick={handleClick}
           onContextMenu={handleContextMenu}
@@ -188,6 +215,11 @@ export const OpenConnectionItem = ({
           <span className="text-[9px] text-muted leading-tight max-w-[56px] truncate text-center select-none mt-0.5">
             {name}
           </span>
+        )}
+
+        {/* Drop indicator - below */}
+        {dropIndicator === 'below' && (
+          <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 bg-blue-400 rounded-full z-30" />
         )}
       </div>
 

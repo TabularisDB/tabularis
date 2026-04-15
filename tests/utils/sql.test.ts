@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitQueries, extractTableName, isExplainableQuery, stripLeadingSqlComments } from '../../src/utils/sql';
+import { splitQueries, extractTableName, isExplainableQuery, stripLeadingSqlComments, getExplainableQueries } from '../../src/utils/sql';
 
 describe('sql utils', () => {
   describe('splitQueries', () => {
@@ -103,6 +103,51 @@ describe('sql utils', () => {
       expect(isExplainableQuery('/* explain this */ SELECT * FROM users')).toBe(true);
       expect(isExplainableQuery('-- comment\n-- another\nDELETE FROM users WHERE id = 1')).toBe(true);
       expect(isExplainableQuery('-- setup\nCREATE INDEX idx ON t(col)')).toBe(false);
+    });
+  });
+
+  describe('getExplainableQueries', () => {
+    it('should return all queries when all are explainable', () => {
+      const sql = 'SELECT * FROM users; SELECT * FROM posts;';
+      const result = getExplainableQueries(sql);
+      expect(result).toEqual([
+        { query: 'SELECT * FROM users', index: 1 },
+        { query: 'SELECT * FROM posts', index: 2 },
+      ]);
+    });
+
+    it('should filter out DDL statements', () => {
+      const sql = 'SELECT * FROM users; CREATE TABLE t (id INT); DELETE FROM logs;';
+      const result = getExplainableQueries(sql);
+      expect(result).toEqual([
+        { query: 'SELECT * FROM users', index: 1 },
+        { query: 'DELETE FROM logs', index: 3 },
+      ]);
+    });
+
+    it('should return empty array when no queries are explainable', () => {
+      const sql = 'CREATE TABLE t (id INT); DROP TABLE t;';
+      const result = getExplainableQueries(sql);
+      expect(result).toEqual([]);
+    });
+
+    it('should handle single explainable query', () => {
+      const sql = 'UPDATE users SET name = "test" WHERE id = 1';
+      const result = getExplainableQueries(sql);
+      expect(result).toEqual([{ query: 'UPDATE users SET name = "test" WHERE id = 1', index: 1 }]);
+    });
+
+    it('should handle empty input', () => {
+      expect(getExplainableQueries('')).toEqual([]);
+    });
+
+    it('should preserve original index across mixed statements', () => {
+      const sql = 'DROP TABLE t; SELECT 1; ALTER TABLE t ADD col INT; INSERT INTO t VALUES (1); TRUNCATE TABLE t;';
+      const result = getExplainableQueries(sql);
+      expect(result).toEqual([
+        { query: 'SELECT 1', index: 2 },
+        { query: 'INSERT INTO t VALUES (1)', index: 4 },
+      ]);
     });
   });
 

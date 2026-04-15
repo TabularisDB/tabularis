@@ -51,6 +51,7 @@ import { MultiResultPanel } from "../components/ui/MultiResultPanel";
 import { ErrorDisplay } from "../components/ui/ErrorDisplay";
 import { NewRowModal } from "../components/modals/NewRowModal";
 import { QuerySelectionModal } from "../components/modals/QuerySelectionModal";
+import { ExplainSelectionModal } from "../components/modals/ExplainSelectionModal";
 import { TabSwitcherModal } from "../components/modals/TabSwitcherModal";
 import { QueryModal } from "../components/modals/QueryModal";
 import { QueryParamsModal } from "../components/modals/QueryParamsModal";
@@ -61,7 +62,7 @@ import {
   ExportProgressModal,
   type ExportStatus,
 } from "../components/modals/ExportProgressModal";
-import { splitQueries, extractTableName } from "../utils/sql";
+import { splitQueries, extractTableName, getExplainableQueries } from "../utils/sql";
 import {
   createResultEntries,
   updateResultEntry,
@@ -280,6 +281,9 @@ export const Editor = () => {
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isAiExplainModalOpen, setIsAiExplainModalOpen] = useState(false);
   const [isVisualExplainOpen, setIsVisualExplainOpen] = useState(false);
+  const [visualExplainQuery, setVisualExplainQuery] = useState<string | null>(null);
+  const [isExplainSelectionOpen, setIsExplainSelectionOpen] = useState(false);
+  const [explainSelectableQueries, setExplainSelectableQueries] = useState<{ query: string; index: number }[]>([]);
   const [isEditingPage, setIsEditingPage] = useState(false);
   const [tempPage, setTempPage] = useState("1");
   const [isCountLoading, setIsCountLoading] = useState(false);
@@ -374,6 +378,7 @@ export const Editor = () => {
   // Stable refs for functions used inside Monaco actions (which capture closures at mount time)
   const runQueryRef = useRef<typeof runQuery>(null!);
   const runMultipleQueriesRef = useRef<typeof runMultipleQueries>(null!);
+  const openExplainForQueryRef = useRef<(query: string) => void>(null!);
   const tabScrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -1005,9 +1010,45 @@ export const Editor = () => {
     }
   }, [activeTab, runQuery, runMultipleQueries]);
 
+  const openExplainForQuery = useCallback((query: string) => {
+    setVisualExplainQuery(query);
+    setIsVisualExplainOpen(true);
+  }, []);
+
+  const handleExplainButton = useCallback(() => {
+    if (!activeTab || !activeConnectionId) return;
+
+    // Get text: selection first, then full editor content, then saved query
+    const editor = editorsRef.current[activeTab.id];
+    let text = "";
+    if (editor) {
+      const selection = editor.getSelection();
+      const selectedText = selection && !selection.isEmpty()
+        ? editor.getModel()?.getValueInRange(selection)
+        : undefined;
+      text = (selectedText || editor.getValue()).trim();
+    } else {
+      text = (activeTab.query ?? "").trim();
+    }
+
+    if (!text) return;
+
+    const explainable = getExplainableQueries(text);
+    if (explainable.length === 0) {
+      // No explainable queries — open modal with full text so it shows the error
+      openExplainForQuery(text);
+    } else if (explainable.length === 1) {
+      openExplainForQuery(explainable[0].query);
+    } else {
+      setExplainSelectableQueries(explainable);
+      setIsExplainSelectionOpen(true);
+    }
+  }, [activeTab, activeConnectionId, openExplainForQuery]);
+
   // Keep stable refs in sync for Monaco actions (closure-captured at mount time)
   runQueryRef.current = runQuery;
   runMultipleQueriesRef.current = runMultipleQueries;
+  openExplainForQueryRef.current = openExplainForQuery;
 
   // Global Ctrl/Command+F5 shortcut for Run
   useEffect(() => {
@@ -1866,6 +1907,28 @@ export const Editor = () => {
         }
       },
     });
+    editor.addAction({
+      id: "explain-selection",
+      label: t("editor.visualExplain.contextMenuExplain"),
+      contextMenuGroupId: "navigation",
+      contextMenuOrder: 1.6,
+      run: (ed) => {
+        const selection = ed.getSelection();
+        const selectedText = selection && !selection.isEmpty()
+          ? ed.getModel()?.getValueInRange(selection)
+          : undefined;
+        const text = (selectedText || ed.getValue()).trim();
+        if (!text) return;
+        const explainable = getExplainableQueries(text);
+        if (explainable.length === 0) {
+          openExplainForQueryRef.current(text);
+        } else if (explainable.length === 1) {
+          openExplainForQueryRef.current(explainable[0].query);
+        } else {
+          openExplainForQueryRef.current(explainable[0].query);
+        }
+      },
+    });
     editor.addCommand(
       monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
       handleRunButton,
@@ -2482,7 +2545,7 @@ export const Editor = () => {
               <div className="absolute bottom-2 right-6 z-10 flex items-center gap-1">
                 {/* Visual Explain — always available */}
                 <button
-                  onClick={() => setIsVisualExplainOpen(true)}
+                  onClick={handleExplainButton}
                   disabled={!activeConnectionId || !tab.query?.trim()}
                   className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-muted hover:text-green-300 bg-elevated/80 hover:bg-green-900/40 border border-default hover:border-green-500/40 transition-all disabled:opacity-30 disabled:pointer-events-none backdrop-blur-sm"
                   title={t("editor.visualExplain.title")}
@@ -3064,10 +3127,22 @@ export const Editor = () => {
       />
       <VisualExplainModal
         isOpen={isVisualExplainOpen}
-        onClose={() => setIsVisualExplainOpen(false)}
-        query={activeTab?.query ?? ""}
+        onClose={() => {
+          setIsVisualExplainOpen(false);
+          setVisualExplainQuery(null);
+        }}
+        query={visualExplainQuery ?? activeTab?.query ?? ""}
         connectionId={activeConnectionId ?? ""}
         schema={activeTab?.schema ?? activeSchema ?? undefined}
+      />
+      <ExplainSelectionModal
+        isOpen={isExplainSelectionOpen}
+        queries={explainSelectableQueries}
+        onSelect={(q) => {
+          setIsExplainSelectionOpen(false);
+          openExplainForQuery(q);
+        }}
+        onClose={() => setIsExplainSelectionOpen(false)}
       />
       {tabContextMenu && (
         <ContextMenu

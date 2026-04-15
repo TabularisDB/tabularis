@@ -683,6 +683,7 @@
       "analyzeWarning": "ANALYZE ejecuta la consulta. Usar con precaucion en instrucciones que modifican datos.",
       "notSupported": "EXPLAIN no esta soportado para este tipo de conexion.",
       "notExplainable": "EXPLAIN solo es compatible con instrucciones DML (SELECT, INSERT, UPDATE, DELETE). Las instrucciones DDL como CREATE, DROP o ALTER no se pueden analizar.",
+      "contextMenuExplain": "Plan de Query",
       "rerun": "Reejecutar",
       "close": "Cerrar",
       "graphView": "Grafo",
@@ -797,6 +798,14 @@
       "runSingle": "Ejecutar esta consulta",
       "selectAll": "Seleccionar todas",
       "deselectAll": "Deseleccionar todas"
+    },
+    "explainSelection": {
+      "title": "Seleccionar consulta a analizar",
+      "queriesFound": "{{count}} consultas analizables encontradas",
+      "explainSingle": "Analizar esta consulta",
+      "explainFocused": "analizar seleccionada",
+      "explainNth": "analizar N-esima",
+      "cancel": "cancelar"
     },
     "multiResult": {
       "query": "Consulta {{index}}",

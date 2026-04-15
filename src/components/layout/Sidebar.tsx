@@ -23,7 +23,6 @@ import { useConnectionManager } from "../../hooks/useConnectionManager";
 import { useConnectionLayoutContext } from "../../hooks/useConnectionLayoutContext";
 import { isConnectionGrouped } from "../../utils/connectionLayout";
 import { useDrivers } from "../../hooks/useDrivers";
-import type { ConnectionStatus } from "../../hooks/useConnectionManager";
 import { useKeybindings } from "../../hooks/useKeybindings";
 
 export const Sidebar = () => {
@@ -32,7 +31,6 @@ export const Sidebar = () => {
   const isDarkTheme = !currentTheme?.id?.includes("-light");
   const {
     activeConnectionId,
-    connectionGroups,
     connections,
   } = useDatabase();
   const navigate = useNavigate();
@@ -87,42 +85,78 @@ export const Sidebar = () => {
   const collapseExplorer = useCallback(() => setIsExplorerCollapsed(true), []);
   const { sidebarWidth, startResize } = useSidebarResize(collapseExplorer);
 
-  // Organize open connections by group
-  const { groupedConnections, ungroupedConnections } = useMemo(() => {
-    const grouped: Record<string, ConnectionStatus[]> = {};
-    const ungrouped: ConnectionStatus[] = [];
+  // Sidebar-only ordering (in-memory, resets when connections close)
+  const [sidebarOrder, setSidebarOrder] = useState<string[]>([]);
 
-    // Get group_id for each open connection from saved connections
-    const connectionGroupMap = new Map(
-      connections.map(c => [c.id, c.group_id])
-    );
+  // Build a flat list of non-split open connections, sorted by sidebar order
+  const sortedSidebarConnections = useMemo(() => {
+    const nonSplit = openConnections.filter(conn => !isConnectionGrouped(conn.id, splitView));
+    const orderMap = new Map(sidebarOrder.map((id, i) => [id, i]));
+    return nonSplit.sort((a, b) => {
+      const oa = orderMap.get(a.id);
+      const ob = orderMap.get(b.id);
+      // Connections not in sidebarOrder go at the end, in their original order
+      if (oa === undefined && ob === undefined) return 0;
+      if (oa === undefined) return 1;
+      if (ob === undefined) return -1;
+      return oa - ob;
+    });
+  }, [openConnections, splitView, sidebarOrder]);
 
-    for (const conn of openConnections) {
-      const groupId = connectionGroupMap.get(conn.id);
-      if (groupId) {
-        if (!grouped[groupId]) {
-          grouped[groupId] = [];
-        }
-        grouped[groupId].push(conn);
-      } else {
-        ungrouped.push(conn);
-      }
+  // Track which connections have a group (to show labels)
+  const groupedIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of connections) {
+      if (c.group_id) set.add(c.id);
+    }
+    return set;
+  }, [connections]);
+
+  // Drag-and-drop reorder state
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ id: string; position: 'above' | 'below' } | null>(null);
+
+  const handleReorderDragStart = useCallback((connectionId: string, e: React.DragEvent) => {
+    setDraggedId(connectionId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', connectionId);
+  }, []);
+
+  const handleReorderDragOver = useCallback((targetId: string, e: React.DragEvent) => {
+    e.preventDefault();
+    if (!draggedId || draggedId === targetId) {
+      setDropTarget(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const position = e.clientY < midY ? 'above' : 'below';
+    setDropTarget({ id: targetId, position });
+  }, [draggedId]);
+
+  const handleReorderDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (!draggedId || !dropTarget || draggedId === dropTarget.id) {
+      setDraggedId(null);
+      setDropTarget(null);
+      return;
     }
 
-    return { groupedConnections: grouped, ungroupedConnections: ungrouped };
-  }, [openConnections, connections]);
+    const currentOrder = sortedSidebarConnections.map(c => c.id);
+    const reordered = currentOrder.filter(id => id !== draggedId);
+    let toIdx = reordered.indexOf(dropTarget.id);
+    if (dropTarget.position === 'below') toIdx += 1;
+    reordered.splice(toIdx, 0, draggedId);
 
-  // Sort groups by sort_order
-  const sortedGroups = useMemo(
-    () => [...connectionGroups].sort((a, b) => a.sort_order - b.sort_order),
-    [connectionGroups]
-  );
+    setSidebarOrder(reordered);
+    setDraggedId(null);
+    setDropTarget(null);
+  }, [draggedId, dropTarget, sortedSidebarConnections]);
 
-  // Filter to only show groups that have open connections
-  const activeGroups = useMemo(
-    () => sortedGroups.filter(g => groupedConnections[g.id]?.length > 0),
-    [sortedGroups, groupedConnections]
-  );
+  const handleReorderDragEnd = useCallback(() => {
+    setDraggedId(null);
+    setDropTarget(null);
+  }, []);
 
   const handleSwitchToConnection = (connectionId: string) => {
     handleSwitch(connectionId);
@@ -199,55 +233,31 @@ export const Sidebar = () => {
                 />
               )}
 
-              {/* Show grouped connections flat with labels */}
-              {(() => {
-                let groupedIdx = 0;
-                return activeGroups.flatMap((group) => {
-                  const groupConns = groupedConnections[group.id] || [];
-                  return groupConns
-                    .filter(conn => !isConnectionGrouped(conn.id, splitView))
-                    .map((conn) => {
-                      groupedIdx++;
-                      return (
-                        <OpenConnectionItem
-                          key={conn.id}
-                          connection={conn}
-                          driverManifest={allDrivers.find(d => d.id === conn.driver)}
-                          isSelected={selectedConnectionIds.has(conn.id)}
-                          onSwitch={() => handleSwitchOrSetExplorer(conn.id)}
-                          onOpenInEditor={() => handleOpenInEditor(conn.id)}
-                          onDisconnect={() => handleDisconnectConnection(conn.id)}
-                          onToggleSelect={(isCtrlHeld) => toggleSelection(conn.id, isCtrlHeld)}
-                          selectedConnectionIds={selectedConnectionIds}
-                          onActivateSplit={activateSplit}
-                          shortcutIndex={groupedIdx}
-                          showShortcutHint={showShortcutHints && groupedIdx <= 9}
-                          showLabel
-                        />
-                      );
-                    });
-                });
-              })()}
-
-              {/* Show ungrouped connections */}
-              {ungroupedConnections
-                .filter(conn => !isConnectionGrouped(conn.id, splitView))
-                .map((conn, idx) => (
-                  <OpenConnectionItem
-                    key={conn.id}
-                    connection={conn}
-                    driverManifest={allDrivers.find(d => d.id === conn.driver)}
-                    isSelected={selectedConnectionIds.has(conn.id)}
-                    onSwitch={() => handleSwitchOrSetExplorer(conn.id)}
-                    onOpenInEditor={() => handleOpenInEditor(conn.id)}
-                    onDisconnect={() => handleDisconnectConnection(conn.id)}
-                    onToggleSelect={(isCtrlHeld) => toggleSelection(conn.id, isCtrlHeld)}
-                    selectedConnectionIds={selectedConnectionIds}
-                    onActivateSplit={activateSplit}
-                    shortcutIndex={idx + 1}
-                    showShortcutHint={showShortcutHints && idx < 9}
-                  />
-                ))}
+              {/* Sortable connection list */}
+              {sortedSidebarConnections.map((conn, idx) => (
+                <OpenConnectionItem
+                  key={conn.id}
+                  connection={conn}
+                  driverManifest={allDrivers.find(d => d.id === conn.driver)}
+                  isSelected={selectedConnectionIds.has(conn.id)}
+                  onSwitch={() => handleSwitchOrSetExplorer(conn.id)}
+                  onOpenInEditor={() => handleOpenInEditor(conn.id)}
+                  onDisconnect={() => handleDisconnectConnection(conn.id)}
+                  onToggleSelect={(isCtrlHeld) => toggleSelection(conn.id, isCtrlHeld)}
+                  selectedConnectionIds={selectedConnectionIds}
+                  onActivateSplit={activateSplit}
+                  shortcutIndex={idx + 1}
+                  showShortcutHint={showShortcutHints && idx < 9}
+                  showLabel={groupedIds.has(conn.id)}
+                  draggable
+                  onReorderDragStart={(e) => handleReorderDragStart(conn.id, e)}
+                  onReorderDragOver={(e) => handleReorderDragOver(conn.id, e)}
+                  onReorderDragLeave={() => setDropTarget(null)}
+                  onReorderDrop={handleReorderDrop}
+                  onReorderDragEnd={handleReorderDragEnd}
+                  dropIndicator={dropTarget?.id === conn.id ? dropTarget.position : null}
+                />
+              ))}
             </div>
           )}
         </nav>
