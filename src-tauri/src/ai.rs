@@ -185,6 +185,27 @@ async fn fetch_openrouter_models() -> Vec<String> {
     }
 }
 
+/// Build an API endpoint URL from a user-provided base_url.
+///
+/// Handles various formats the user might input:
+/// - Full path (e.g., `.../v1/chat/completions`) → used as-is
+/// - Base with version (e.g., `.../v1` or `.../v4`) → appends only the endpoint
+/// - Base with trailing slash → trimmed, then appends endpoint
+/// - Plain base URL → appends endpoint directly
+///
+/// This avoids hardcoding `/v1` so that providers using different
+/// version paths (e.g., Zhipu GLM's `/v4`) work correctly.
+fn build_api_url(base_url: &str, endpoint: &str) -> String {
+    let trimmed = base_url.trim_end_matches('/');
+
+    // User already provided the full path
+    if trimmed.ends_with(endpoint) {
+        return trimmed.to_string();
+    }
+
+    format!("{trimmed}{endpoint}")
+}
+
 async fn fetch_custom_openai_models(base_url: &str, api_key: &str) -> Vec<String> {
     if base_url.is_empty() || api_key.is_empty() {
         return Vec::new();
@@ -192,16 +213,7 @@ async fn fetch_custom_openai_models(base_url: &str, api_key: &str) -> Vec<String
 
     let client = Client::new();
 
-    // Build the /models endpoint URL
-    let url = if base_url.ends_with("/models") {
-        base_url.to_string()
-    } else if base_url.ends_with("/") {
-        format!("{}models", base_url)
-    } else if base_url.ends_with("/v1") {
-        format!("{}/models", base_url)
-    } else {
-        format!("{}/v1/models", base_url)
-    };
+    let url = build_api_url(base_url, "/models");
 
     match client
         .get(&url)
@@ -634,16 +646,8 @@ async fn generate_custom_openai(
         "temperature": 0.0
     });
 
-    // Ensure base_url ends with /v1/chat/completions or append it
-    let url = if base_url.ends_with("/v1/chat/completions") {
-        base_url.to_string()
-    } else if base_url.ends_with("/") {
-        format!("{}v1/chat/completions", base_url)
-    } else if base_url.ends_with("/v1") {
-        format!("{}/chat/completions", base_url)
-    } else {
-        format!("{}/v1/chat/completions", base_url)
-    };
+    // Build the chat completions endpoint URL
+    let url = build_api_url(base_url, "/chat/completions");
 
     let res = client
         .post(&url)
