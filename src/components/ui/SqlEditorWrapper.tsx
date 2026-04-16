@@ -92,13 +92,15 @@ const SqlEditorInternal = ({
     const tauriPaste = async (ed: Monaco.editor.ICodeEditor) => {
       try {
         const text = await readText();
-        const selection = ed.getSelection();
-        if (selection && text) {
-          ed.executeEdits('paste', [{
-            range: selection,
-            text: text,
+        const selections = ed.getSelections();
+        if (selections && selections.length > 0 && text) {
+          const lines = text.split('\n');
+          const edits = selections.map((sel, i) => ({
+            range: sel,
+            text: lines.length === selections.length ? lines[i] : text,
             forceMoveMarkers: true
-          }]);
+          }));
+          ed.executeEdits('paste', edits);
           ed.pushUndoStop();
         }
       } catch (err) {
@@ -173,6 +175,7 @@ const SqlEditorInternal = ({
             horizontalScrollbarSize: 8,
           },
           acceptSuggestionOnEnter: 'off',
+          multiCursorModifier: 'ctrlCmd',
           automaticLayout: true,
           ...options
         }}

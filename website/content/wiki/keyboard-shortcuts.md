@@ -31,6 +31,12 @@ Tabularis ships with a set of keyboard shortcuts for common actions across navig
 | New console tab | `⌘+T` | `Ctrl+T` |
 | Switch tab (circular) | `Ctrl+Tab` | `Ctrl+Tab` |
 | Copy selection | `⌘+C` | `Ctrl+C` |
+| Multi-Cursor (click) | `⌘+Click` | `Ctrl+Click` |
+| Add next occurrence | `⌘+D` | `Ctrl+D` |
+| Select all occurrences | `⌘+Shift+L` | `Ctrl+Shift+L` |
+| Cursors at line ends | `⌥+Shift+I` | `Alt+Shift+I` |
+| Copy line up | `⌥+Shift+↑` | `Ctrl+Shift+↑` |
+| Copy line down | `⌥+Shift+↓` | `Ctrl+Shift+↓` |
 
 ---
 

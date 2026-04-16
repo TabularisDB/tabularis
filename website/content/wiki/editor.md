@@ -37,7 +37,12 @@ The Monaco integration brings powerful developer features:
 | **Execute Selection** | *(context menu only)* | *(context menu only)* | Right-click → "Execute Selection" to run highlighted text. |
 | **Format SQL** | `Shift + Option + F` | `Shift + Alt + F` | Prettifies the SQL syntax (built-in Monaco). |
 | **Toggle Comment** | `Cmd + /` | `Ctrl + /` | Comments/uncomments the current line or selection (built-in Monaco). |
-| **Multi-Cursor** | `Option + Click` | `Alt + Click` | Place multiple cursors for simultaneous editing (built-in Monaco). |
+| **Multi-Cursor (click)** | `Cmd + Click` | `Ctrl + Click` | Place multiple cursors for simultaneous editing. |
+| **Add Next Occurrence** | `Cmd + D` | `Ctrl + D` | Select the next occurrence of the current selection and add a cursor. |
+| **Select All Occurrences** | `Cmd + Shift + L` | `Ctrl + Shift + L` | Select all occurrences of the current selection and add cursors. |
+| **Cursors at Line Ends** | `Option + Shift + I` | `Alt + Shift + I` | Add a cursor at the end of each line in the current selection. |
+| **Copy Line Up** | `Option + Shift + ↑` | `Ctrl + Shift + ↑` | Duplicate the current line above. |
+| **Copy Line Down** | `Option + Shift + ↓` | `Ctrl + Shift + ↓` | Duplicate the current line below. |
 | **Command Palette**| `F1` | `F1` | Open the Monaco command palette. |
 
 ## Multi-Statement Execution
