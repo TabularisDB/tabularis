@@ -332,6 +332,21 @@
       "customOpenaiModelHelp": "Inserisci il nome esatto del modello per il tuo provider compatibile OpenAI."
     },
     "updates": "Aggiornamenti",
+    "openSourceLibraries": "Librerie Open Source",
+    "openSourceLibrariesDesc": "Consulta le dipendenze open source dirette usate dall'app, dal backend e dalla toolchain.",
+    "openSourceLibrariesSource": "Dipendenze dirette dichiarate in package.json e src-tauri/Cargo.toml.",
+    "openSourceLibrariesTotal": "{{count}} librerie",
+    "openSourceLibrariesOpenProject": "Apri pagina del pacchetto",
+    "openSourceLibrariesSections": {
+      "npm-runtime": "Dipendenze Frontend",
+      "npm-tooling": "Dipendenze Dev Frontend",
+      "cargo-runtime": "Dipendenze Rust",
+      "cargo-tooling": "Build e Test Rust"
+    },
+    "openSourceLibrariesEcosystem": {
+      "npm": "ecosistema npm",
+      "cargo": "ecosistema Cargo"
+    },
     "autoCheckUpdates": "Controlla aggiornamenti all'avvio",
     "autoCheckUpdatesDesc": "Controlla automaticamente nuove versioni all'avvio dell'app",
     "checkNow": "Controlla Aggiornamenti Ora",

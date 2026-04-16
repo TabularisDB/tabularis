@@ -307,6 +307,21 @@
       "customOpenaiModelHelp": "输入您的 OpenAI 兼容提供商的确切模型名称。"
     },
     "updates": "更新",
+    "openSourceLibraries": "开源库",
+    "openSourceLibrariesDesc": "查看应用、后端和工具链直接使用的开源依赖。",
+    "openSourceLibrariesSource": "直接依赖声明于 package.json 和 src-tauri/Cargo.toml。",
+    "openSourceLibrariesTotal": "{{count}} 个库",
+    "openSourceLibrariesOpenProject": "打开包页面",
+    "openSourceLibrariesSections": {
+      "npm-runtime": "前端依赖",
+      "npm-tooling": "前端开发依赖",
+      "cargo-runtime": "Rust 依赖",
+      "cargo-tooling": "Rust 构建与测试"
+    },
+    "openSourceLibrariesEcosystem": {
+      "npm": "npm 生态",
+      "cargo": "Cargo 生态"
+    },
     "autoCheckUpdates": "启动时检查更新",
     "autoCheckUpdatesDesc": "应用启动时自动检查新版本",
     "checkNow": "立即检查更新",

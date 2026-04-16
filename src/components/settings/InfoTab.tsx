@@ -9,6 +9,7 @@ import {
   Heart,
   Info,
   Code2,
+  Library,
   Download,
   Loader2,
   ExternalLink,
@@ -24,6 +25,7 @@ import { APP_VERSION } from "../../version";
 import { ROADMAP } from "../../utils/settings";
 import { SettingRow, SettingSection, SettingToggle } from "./SettingControls";
 import { WhatsNewModal } from "../modals/WhatsNewModal";
+import { OpenSourceLibrariesModal } from "../modals/OpenSourceLibrariesModal";
 
 export function InfoTab() {
   const { t } = useTranslation();
@@ -42,6 +44,8 @@ export function InfoTab() {
     isLoading: isChangelogLoading,
   } = useChangelog();
   const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(false);
+  const [isOpenSourceLibrariesOpen, setIsOpenSourceLibrariesOpen] =
+    useState(false);
 
   return (
     <div>
@@ -71,7 +75,7 @@ export function InfoTab() {
           create a modern, native tool in record time.
         </p>
 
-        <div className="flex justify-center gap-4">
+        <div className="flex justify-center gap-4 flex-wrap">
           <button
             onClick={() => openUrl("https://github.com/debba/tabularis")}
             className="flex items-center gap-2 bg-surface-secondary hover:bg-surface-tertiary text-primary px-4 py-2 rounded-lg font-medium transition-colors border border-strong"
@@ -93,6 +97,13 @@ export function InfoTab() {
           >
             <Sparkles size={18} />
             {t("whatsNew.title")}
+          </button>
+          <button
+            onClick={() => setIsOpenSourceLibrariesOpen(true)}
+            className="flex items-center gap-2 bg-blue-900/20 hover:bg-blue-900/30 text-blue-400 px-4 py-2 rounded-lg font-medium transition-colors border border-blue-500/30"
+          >
+            <Library size={18} />
+            {t("settings.openSourceLibraries")}
           </button>
         </div>
       </div>
@@ -289,6 +300,11 @@ export function InfoTab() {
         onClose={() => setIsWhatsNewOpen(false)}
         entries={changelogEntries}
         isLoading={isChangelogLoading}
+      />
+
+      <OpenSourceLibrariesModal
+        isOpen={isOpenSourceLibrariesOpen}
+        onClose={() => setIsOpenSourceLibrariesOpen(false)}
       />
     </div>
   );
