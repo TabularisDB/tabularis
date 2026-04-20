@@ -39,6 +39,9 @@ Reusable multi-cell workspaces that combine **SQL** and **Markdown**. Keep inlin
 ### 🪟 Split View
 Open **multiple connections simultaneously** in a resizable split layout and compare queries or data across databases side by side.
 
+### 📋 Clipboard Import
+Paste a spreadsheet range, CSV, JSON array, or Markdown table directly into a database table. Tabularis detects the format, infers column types, and lets you review the schema — no SQL required.
+
 ### 🗄️ Schema Management
 Edit table and column properties inline, then use guided dialogs to create tables, modify columns, and manage indexes or foreign keys.
 
