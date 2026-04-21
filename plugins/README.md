@@ -4,6 +4,10 @@ This directory contains the official plugin registry and documentation for the T
 
 ## Quick start — build a plugin
 
+**First time?** Read [`PLUGIN_TUTORIAL.md`](./PLUGIN_TUTORIAL.md) — a 20-minute walkthrough that ends with a working Google Sheets driver in your local Tabularis.
+
+**Already know the system?**
+
 ```bash
 npm create @tabularis/plugin@latest my-driver
 cd my-driver
