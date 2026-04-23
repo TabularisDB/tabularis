@@ -115,6 +115,36 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
       create_foreign_keys: false,
     },
   },
+  {
+    id: "sqlserver",
+    name: "SQL Server",
+    version: "0.1.0",
+    description: "Microsoft SQL Server (read-only preview)",
+    default_port: 1433,
+    is_builtin: true,
+    default_username: "sa",
+    color: "#cc2927",
+    icon: "database",
+    capabilities: {
+      schemas: true,
+      views: true,
+      routines: true,
+      file_based: false,
+      folder_based: false,
+      connection_string: true,
+      connection_string_example:
+        "server=localhost,1433;database=master;user id=sa;password=...;encrypt=true",
+      identifier_quote: '"',
+      alter_primary_key: true,
+      auto_increment_keyword: "IDENTITY(1,1)",
+      serial_type: "",
+      inline_pk: false,
+      alter_column: false,
+      create_foreign_keys: false,
+      manage_tables: false,
+      readonly: true,
+    },
+  },
 ];
 
 export function useDrivers(): {

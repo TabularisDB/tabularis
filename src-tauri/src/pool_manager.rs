@@ -1,4 +1,6 @@
+use crate::drivers::sqlserver::pool::{build_config as build_sqlserver_config, TiberiusManager};
 use crate::models::ConnectionParams;
+use deadpool::managed::Pool as DeadPool;
 use deadpool_postgres::{Manager as PgPoolManager, Pool as PgPool};
 use native_tls::TlsConnector;
 use once_cell::sync::Lazy;
@@ -12,10 +14,14 @@ use tokio_postgres::{config::SslMode as PgSslMode, Config as PgConfig};
 
 type PoolMap<T> = Arc<RwLock<HashMap<String, Pool<T>>>>;
 type PgPoolMap = Arc<RwLock<HashMap<String, PgPool>>>;
+pub type SqlServerPool = DeadPool<TiberiusManager>;
+type SqlServerPoolMap = Arc<RwLock<HashMap<String, SqlServerPool>>>;
 
 static MYSQL_POOLS: Lazy<PoolMap<MySql>> = Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
 static POSTGRES_POOLS: Lazy<PgPoolMap> = Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
 static SQLITE_POOLS: Lazy<PoolMap<Sqlite>> = Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
+static SQLSERVER_POOLS: Lazy<SqlServerPoolMap> =
+    Lazy::new(|| Arc::new(RwLock::new(HashMap::new())));
 
 const DEFAULT_MYSQL_CONNECT_TIMEOUT_MS: u64 = 60_000;
 const DEFAULT_MYSQL_TIMEZONE: &str = "SYSTEM";
@@ -346,6 +352,63 @@ pub async fn get_sqlite_pool_with_id(
     Ok(pool)
 }
 
+pub async fn get_sqlserver_pool(params: &ConnectionParams) -> Result<SqlServerPool, String> {
+    let connection_id = params.connection_id.as_deref();
+    get_sqlserver_pool_with_id(params, connection_id).await
+}
+
+pub async fn get_sqlserver_pool_with_id(
+    params: &ConnectionParams,
+    connection_id: Option<&str>,
+) -> Result<SqlServerPool, String> {
+    let key = build_connection_key(params, connection_id);
+
+    // Try to get existing pool
+    {
+        let pools = SQLSERVER_POOLS.read().await;
+        if let Some(pool) = pools.get(&key) {
+            log::debug!(
+                "Using existing SQL Server connection pool for: {} (key: {})",
+                params.database,
+                key
+            );
+            return Ok(pool.clone());
+        }
+    }
+
+    // Create new pool
+    log::info!(
+        "Creating new SQL Server connection pool for: {}@{:?} (key: {})",
+        params.username.as_deref().unwrap_or("unknown"),
+        params.host,
+        key
+    );
+
+    let cfg = build_sqlserver_config(params)?;
+    let manager = TiberiusManager::new(cfg);
+    let pool = DeadPool::builder(manager)
+        .max_size(10)
+        .build()
+        .map_err(|e| {
+            log::error!("Failed to create SQL Server connection pool: {}", e);
+            e.to_string()
+        })?;
+
+    log::info!(
+        "SQL Server connection pool created successfully for: {} (key: {})",
+        params.database,
+        key
+    );
+
+    // Store pool
+    {
+        let mut pools = SQLSERVER_POOLS.write().await;
+        pools.insert(key, pool.clone());
+    }
+
+    Ok(pool)
+}
+
 /// Check whether a connection pool exists for the given params without creating one.
 pub async fn has_pool(params: &ConnectionParams, connection_id: Option<&str>) -> bool {
     has_pool_for_database(params, None, connection_id).await
@@ -366,6 +429,7 @@ pub async fn has_pool_for_database(
         "mysql" => MYSQL_POOLS.read().await.contains_key(&key),
         "postgres" => POSTGRES_POOLS.read().await.contains_key(&key),
         "sqlite" => SQLITE_POOLS.read().await.contains_key(&key),
+        "sqlserver" => SQLSERVER_POOLS.read().await.contains_key(&key),
         _ => false,
     }
 }
@@ -429,6 +493,22 @@ pub async fn close_pool_with_id(params: &ConnectionParams, connection_id: Option
                 );
             }
         }
+        "sqlserver" => {
+            let mut pools = SQLSERVER_POOLS.write().await;
+            if let Some(pool) = pools.remove(&key) {
+                log::info!(
+                    "Closing SQL Server connection pool for: {} (key: {})",
+                    params.database,
+                    key
+                );
+                pool.close();
+                log::info!(
+                    "SQL Server connection pool closed for: {} (key: {})",
+                    params.database,
+                    key
+                );
+            }
+        }
         _ => {}
     }
 }
@@ -451,6 +531,12 @@ pub async fn close_all_pools() {
         let mut pools = SQLITE_POOLS.write().await;
         for (_, pool) in pools.drain() {
             pool.close().await;
+        }
+    }
+    {
+        let mut pools = SQLSERVER_POOLS.write().await;
+        for (_, pool) in pools.drain() {
+            pool.close();
         }
     }
 }

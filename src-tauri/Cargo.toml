@@ -58,6 +58,10 @@ tokio-postgres = { version = "0.7.13", features = ["with-chrono-0_4", "with-uuid
 deadpool-postgres = "0.14.1"
 postgres-native-tls = "0.5.1"
 native-tls = "0.2.13"
+# SQL Server driver (tiberius) — pooled via generic deadpool manager
+tiberius = { version = "0.12", default-features = false, features = ["native-tls", "tds73", "chrono", "rust_decimal", "sql-browser-tokio"] }
+tokio-util = { version = "0.7", features = ["compat"] }
+deadpool = "0.12"
 
 # GTK dependencies for Wayland window title workaround (Linux only)
 [target.'cfg(target_os = "linux")'.dependencies]

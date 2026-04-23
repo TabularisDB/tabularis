@@ -9,6 +9,7 @@ pub use blob::{
     DEFAULT_MAX_BLOB_SIZE, MAX_BLOB_PREVIEW_SIZE,
 };
 pub use query::{
-    build_paginated_query, calculate_offset, extract_user_limit, is_explainable_query,
-    is_select_query, strip_leading_sql_comments, strip_limit_offset,
+    build_paginated_query, build_paginated_query_dialect, calculate_offset, extract_user_limit,
+    is_explainable_query, is_select_query, strip_leading_sql_comments, strip_limit_offset,
+    PaginationDialect,
 };
