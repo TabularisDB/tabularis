@@ -20,6 +20,11 @@
     "url": "https://github.com/TabularisDB/tabularis/issues/18"
   },
   {
+    "label": "SQL Server driver — implementation roadmap & call for contributors",
+    "done": false,
+    "url": "https://github.com/TabularisDB/tabularis/issues/150"
+  },
+  {
     "label": "Feature: Remote Control",
     "done": false,
     "url": "https://github.com/TabularisDB/tabularis/issues/46"

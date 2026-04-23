@@ -479,6 +479,7 @@ pnpm tauri build
 - [x] [Visual Explain Analyze](https://github.com/TabularisDB/tabularis/issues/22)
 - [x] [Plugin System](https://github.com/TabularisDB/tabularis/issues/19)
 - [x] [Query History](https://github.com/TabularisDB/tabularis/issues/18)
+- [ ] [SQL Server driver — implementation roadmap & call for contributors](https://github.com/TabularisDB/tabularis/issues/150)
 - [ ] [Feature: Remote Control](https://github.com/TabularisDB/tabularis/issues/46)
 - [ ] [Command Palette](https://github.com/TabularisDB/tabularis/issues/25)
 - [ ] [JSON/JSONB Editor & Viewer](https://github.com/TabularisDB/tabularis/issues/24)
