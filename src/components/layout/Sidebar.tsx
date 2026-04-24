@@ -7,7 +7,6 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { DISCORD_URL } from "../../config/links";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useTheme } from "../../hooks/useTheme";
-import { McpModal } from "../modals/McpModal";
 import { SlotAnchor } from "../ui/SlotAnchor";
 
 // Sub-components
@@ -38,7 +37,6 @@ export const Sidebar = () => {
 
   const [isExplorerCollapsed, setIsExplorerCollapsed] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("structure");
-  const [isMcpModalOpen, setIsMcpModalOpen] = useState(false);
   const [showShortcutHints, setShowShortcutHints] = useState(false);
   const { isMac } = useKeybindings();
 
@@ -163,6 +161,7 @@ export const Sidebar = () => {
     if (
       location.pathname === "/" ||
       location.pathname === "/connections" ||
+      location.pathname === "/mcp" ||
       location.pathname === "/settings"
     ) {
       navigate("/editor");
@@ -193,6 +192,7 @@ export const Sidebar = () => {
   const shouldShowExplorer =
     !!explorerConnId &&
     location.pathname !== "/settings" &&
+    location.pathname !== "/mcp" &&
     location.pathname !== "/connections";
 
   return (
@@ -275,17 +275,11 @@ export const Sidebar = () => {
             </span>
           </button>
 
-          <button
-            onClick={() => setIsMcpModalOpen(true)}
-            className="flex items-center justify-center w-12 h-12 rounded-lg transition-colors mb-2 relative group text-secondary hover:bg-surface-secondary hover:text-primary"
-          >
-            <div className="relative">
-              <Cpu size={24} />
-            </div>
-            <span className="absolute left-14 bg-surface-secondary text-primary text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30 pointer-events-none">
-              MCP Server
-            </span>
-          </button>
+          <NavItem
+            to="/mcp"
+            icon={Cpu}
+            label={t("sidebar.mcpServer")}
+          />
 
           <NavItem
             to="/settings"
@@ -353,13 +347,6 @@ export const Sidebar = () => {
             </button>
           ))}
         </div>
-      )}
-
-      {isMcpModalOpen && (
-        <McpModal
-          isOpen={isMcpModalOpen}
-          onClose={() => setIsMcpModalOpen(false)}
-        />
       )}
     </div>
   );

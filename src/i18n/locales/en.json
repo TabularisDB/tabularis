@@ -170,6 +170,11 @@
     "clients": "AI CLIENTS",
     "manualCommand": "MANUAL COMMAND",
     "manualCommandText": "Run this command in your terminal, then restart Claude Code.",
+    "tabs": {
+      "setup": "Setup",
+      "activity": "Activity",
+      "safety": "Safety"
+    },
     "safety": {
       "readOnlyTitle": "Read-only mode",
       "readOnlyDefault": "Make all MCP queries read-only",

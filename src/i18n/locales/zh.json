@@ -169,6 +169,11 @@
     "clients": "AI 客户端",
     "manualCommand": "手动命令",
     "manualCommandText": "在终端中运行此命令，然后重启 Claude Code。",
+    "tabs": {
+      "setup": "设置",
+      "activity": "活动",
+      "safety": "安全"
+    },
     "safety": {
       "readOnlyTitle": "只读模式",
       "readOnlyDefault": "将所有 MCP 查询设为只读",

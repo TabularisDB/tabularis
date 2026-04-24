@@ -9,6 +9,7 @@ import { PluginModalProvider } from "./contexts/PluginModalProvider";
 import { AlertProvider } from "./contexts/AlertProvider";
 import { Connections } from "./pages/Connections";
 import { Editor } from "./pages/Editor";
+import { McpPage } from "./pages/McpPage";
 import { Settings } from "./pages/Settings";
 import { SchemaDiagramPage } from "./pages/SchemaDiagramPage";
 import { TaskManagerPage } from "./pages/TaskManagerPage";
@@ -111,6 +112,7 @@ export function App() {
                       />
                       <Route path="connections" element={<Connections />} />
                       <Route path="editor" element={<Editor />} />
+                      <Route path="mcp" element={<McpPage />} />
                       <Route path="settings" element={<Settings />} />
                     </Route>
                     <Route

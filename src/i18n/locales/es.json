@@ -170,6 +170,11 @@
     "clients": "CLIENTES IA",
     "manualCommand": "COMANDO MANUAL",
     "manualCommandText": "Ejecuta este comando en tu terminal y reinicia Claude Code.",
+    "tabs": {
+      "setup": "Configuración",
+      "activity": "Actividad",
+      "safety": "Seguridad"
+    },
     "safety": {
       "readOnlyTitle": "Modo solo lectura",
       "readOnlyDefault": "Hacer todas las consultas MCP de solo lectura",

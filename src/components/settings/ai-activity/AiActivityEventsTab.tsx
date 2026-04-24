@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Copy, Eye, GitGraph, Trash2, Download, RefreshCw } from "lucide-react";
+import {
+  Copy,
+  Download,
+  Eye,
+  GitGraph,
+  RefreshCw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import {
@@ -16,6 +24,7 @@ import { StatusBadge } from "./StatusBadge";
 import { QueryKindBadge } from "./QueryKindBadge";
 import { EventDetailModal } from "./EventDetailModal";
 import { VisualExplainModal } from "../../modals/VisualExplainModal";
+import { Select } from "../../ui/Select";
 
 interface ExplainTarget {
   query: string;
@@ -35,7 +44,10 @@ export function AiActivityEventsTab() {
 
   const stats = useMemo(() => {
     const errors = events.filter(
-      (e) => e.status === "error" || e.status === "denied" || e.status === "timeout",
+      (e) =>
+        e.status === "error" ||
+        e.status === "denied" ||
+        e.status === "timeout",
     ).length;
     const blocked = events.filter((e) =>
       e.status.startsWith("blocked"),
@@ -88,7 +100,7 @@ export function AiActivityEventsTab() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0">
       <FiltersBar
         filter={filter}
         onFilterChange={setFilter}
@@ -98,18 +110,18 @@ export function AiActivityEventsTab() {
         onExportCsv={() => handleExport("csv")}
       />
 
-      <div className="flex items-center gap-3 text-xs text-muted">
-        <span>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="inline-flex items-center rounded-full border border-default bg-base/50 px-2.5 py-1 text-muted">
           {t("aiActivity.eventsCount", { count: stats.total })}
         </span>
         {stats.blocked > 0 && (
-          <span className="text-yellow-400">
-            · {t("aiActivity.blockedCount", { count: stats.blocked })}
+          <span className="inline-flex items-center rounded-full border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-yellow-300">
+            {t("aiActivity.blockedCount", { count: stats.blocked })}
           </span>
         )}
         {stats.errors > 0 && (
-          <span className="text-red-400">
-            · {t("aiActivity.errorsCount", { count: stats.errors })}
+          <span className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-red-300">
+            {t("aiActivity.errorsCount", { count: stats.errors })}
           </span>
         )}
       </div>
@@ -165,72 +177,99 @@ function FiltersBar({
   const { t } = useTranslation();
   const update = (patch: Partial<AiEventFilter>) =>
     onFilterChange({ ...filter, ...patch });
+  const toolOptions = [
+    "",
+    "list_connections",
+    "list_tables",
+    "describe_table",
+    "run_query",
+  ];
+  const statusOptions = [
+    "",
+    "success",
+    "error",
+    "denied",
+    "timeout",
+    "blocked_readonly",
+  ];
+  const toolLabels = { "": t("aiActivity.allTools") };
+  const statusLabels = {
+    "": t("aiActivity.allStatuses"),
+    success: t("aiActivity.status.success"),
+    error: t("aiActivity.status.error"),
+    denied: t("aiActivity.status.denied"),
+    timeout: t("aiActivity.status.timeout"),
+    blocked_readonly: t("aiActivity.status.blocked_readonly"),
+  };
 
   return (
-    <div className="bg-surface-secondary/40 rounded-lg p-3 flex flex-wrap items-center gap-2 border border-default">
-      <input
-        type="text"
-        placeholder={t("aiActivity.searchQuery")}
-        value={filter.queryContains ?? ""}
-        onChange={(e) =>
-          update({ queryContains: e.target.value || undefined })
-        }
-        className="flex-1 min-w-[180px] bg-base border border-strong rounded px-3 py-1.5 text-xs text-primary focus:outline-none focus:border-blue-500"
-      />
-      <select
-        value={filter.tool ?? ""}
-        onChange={(e) => update({ tool: e.target.value || undefined })}
-        className="bg-base border border-strong rounded px-2 py-1.5 text-xs text-primary focus:outline-none focus:border-blue-500"
-      >
-        <option value="">{t("aiActivity.allTools")}</option>
-        <option value="list_connections">list_connections</option>
-        <option value="list_tables">list_tables</option>
-        <option value="describe_table">describe_table</option>
-        <option value="run_query">run_query</option>
-      </select>
-      <select
-        value={filter.status ?? ""}
-        onChange={(e) =>
-          update({
-            status: (e.target.value || undefined) as AiEventFilter["status"],
-          })
-        }
-        className="bg-base border border-strong rounded px-2 py-1.5 text-xs text-primary focus:outline-none focus:border-blue-500"
-      >
-        <option value="">{t("aiActivity.allStatuses")}</option>
-        <option value="success">{t("aiActivity.status.success")}</option>
-        <option value="error">{t("aiActivity.status.error")}</option>
-        <option value="denied">{t("aiActivity.status.denied")}</option>
-        <option value="timeout">{t("aiActivity.status.timeout")}</option>
-        <option value="blocked_readonly">
-          {t("aiActivity.status.blocked_readonly")}
-        </option>
-      </select>
-      <button
-        onClick={onRefresh}
-        className="p-1.5 text-muted hover:text-primary hover:bg-surface-tertiary rounded transition-colors"
-        title={t("common.refresh", { defaultValue: "Refresh" })}
-      >
-        <RefreshCw size={14} />
-      </button>
-      <button
-        onClick={onExportCsv}
-        className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-muted hover:text-primary hover:bg-surface-tertiary rounded transition-colors"
-      >
-        <Download size={12} /> CSV
-      </button>
-      <button
-        onClick={onExportJson}
-        className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-muted hover:text-primary hover:bg-surface-tertiary rounded transition-colors"
-      >
-        <Download size={12} /> JSON
-      </button>
-      <button
-        onClick={onClear}
-        className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded transition-colors"
-      >
-        <Trash2 size={12} /> {t("aiActivity.clearAll")}
-      </button>
+    <div className="rounded-lg border border-default bg-surface-secondary/25 p-3">
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-[minmax(220px,1fr)_180px_190px_auto]">
+        <div className="relative min-w-0">
+          <Search
+            size={14}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+          />
+          <input
+            type="text"
+            placeholder={t("aiActivity.searchQuery")}
+            value={filter.queryContains ?? ""}
+            onChange={(e) =>
+              update({ queryContains: e.target.value || undefined })
+            }
+            className="h-9 w-full rounded border border-strong bg-base pl-9 pr-3 text-sm text-primary placeholder:text-muted focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+        <Select
+          value={filter.tool ?? ""}
+          options={toolOptions}
+          labels={toolLabels}
+          onChange={(value) => update({ tool: value || undefined })}
+          placeholder={t("aiActivity.allTools")}
+          searchable={false}
+          className="min-w-0"
+        />
+        <Select
+          value={filter.status ?? ""}
+          options={statusOptions}
+          labels={statusLabels}
+          onChange={(value) =>
+            update({
+              status: (value || undefined) as AiEventFilter["status"],
+            })
+          }
+          placeholder={t("aiActivity.allStatuses")}
+          searchable={false}
+          className="min-w-0"
+        />
+        <div className="flex items-center justify-end gap-1">
+          <button
+            onClick={onRefresh}
+            className="flex h-9 w-9 items-center justify-center rounded text-muted transition-colors hover:bg-surface-tertiary hover:text-primary"
+            title={t("common.refresh", { defaultValue: "Refresh" })}
+          >
+            <RefreshCw size={14} />
+          </button>
+          <button
+            onClick={onExportCsv}
+            className="flex h-9 items-center gap-1.5 rounded px-2.5 text-xs text-muted transition-colors hover:bg-surface-tertiary hover:text-primary"
+          >
+            <Download size={12} /> CSV
+          </button>
+          <button
+            onClick={onExportJson}
+            className="flex h-9 items-center gap-1.5 rounded px-2.5 text-xs text-muted transition-colors hover:bg-surface-tertiary hover:text-primary"
+          >
+            <Download size={12} /> JSON
+          </button>
+          <button
+            onClick={onClear}
+            className="flex h-9 items-center gap-1.5 rounded px-2.5 text-xs text-red-400 transition-colors hover:bg-red-900/20 hover:text-red-300"
+          >
+            <Trash2 size={12} /> {t("aiActivity.clearAll")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -266,25 +305,33 @@ function EventsTable({
     );
   }
   return (
-    <div className="border border-default rounded-lg overflow-hidden">
+    <div className="overflow-hidden rounded-lg border border-default bg-base/30">
       <div className="max-h-[500px] overflow-auto">
-        <table className="w-full text-xs">
-          <thead className="bg-surface-secondary sticky top-0">
-            <tr className="text-muted text-left">
-              <th className="px-3 py-2 font-medium">
+        <table className="w-full table-fixed text-xs">
+          <thead className="sticky top-0 z-10 bg-surface-secondary">
+            <tr className="text-left text-muted">
+              <th className="w-[9.5rem] px-3 py-2 font-medium">
                 {t("aiActivity.col.timestamp")}
               </th>
-              <th className="px-3 py-2 font-medium">{t("aiActivity.col.tool")}</th>
-              <th className="px-3 py-2 font-medium">
+              <th className="w-[8.5rem] px-3 py-2 font-medium">
+                {t("aiActivity.col.tool")}
+              </th>
+              <th className="w-[8rem] px-3 py-2 font-medium">
                 {t("aiActivity.col.connection")}
               </th>
-              <th className="px-3 py-2 font-medium">{t("aiActivity.col.query")}</th>
-              <th className="px-3 py-2 font-medium">{t("aiActivity.col.kind")}</th>
-              <th className="px-3 py-2 font-medium text-right">
+              <th className="px-3 py-2 font-medium">
+                {t("aiActivity.col.query")}
+              </th>
+              <th className="w-[5.5rem] px-3 py-2 font-medium">
+                {t("aiActivity.col.kind")}
+              </th>
+              <th className="w-[5.5rem] px-3 py-2 text-right font-medium">
                 {t("aiActivity.col.duration")}
               </th>
-              <th className="px-3 py-2 font-medium">{t("aiActivity.col.status")}</th>
-              <th className="px-3 py-2 font-medium text-right">
+              <th className="w-[9.5rem] px-3 py-2 font-medium">
+                {t("aiActivity.col.status")}
+              </th>
+              <th className="w-[5.25rem] px-3 py-2 text-right font-medium">
                 {t("aiActivity.col.actions")}
               </th>
             </tr>
@@ -293,32 +340,37 @@ function EventsTable({
             {events.map((ev) => (
               <tr
                 key={ev.id}
-                className="border-t border-default hover:bg-surface-tertiary/30"
+                className="border-t border-default transition-colors hover:bg-surface-tertiary/25"
               >
-                <td className="px-3 py-2 text-muted font-mono whitespace-nowrap">
+                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted">
                   {ev.timestamp.replace("T", " ").slice(0, 19)}
                 </td>
-                <td className="px-3 py-2 text-primary font-mono">{ev.tool}</td>
-                <td className="px-3 py-2 text-muted">
+                <td className="truncate px-3 py-2.5 font-mono text-primary">
+                  {ev.tool}
+                </td>
+                <td className="truncate px-3 py-2.5 text-muted">
                   {ev.connectionName ?? "—"}
                 </td>
-                <td className="px-3 py-2 text-secondary font-mono max-w-[260px] truncate">
+                <td
+                  className="truncate px-3 py-2.5 font-mono text-secondary"
+                  title={ev.query ?? undefined}
+                >
                   {truncateQuery(ev.query, 80) || "—"}
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2.5">
                   <QueryKindBadge kind={ev.queryKind} />
                 </td>
-                <td className="px-3 py-2 text-muted text-right whitespace-nowrap">
+                <td className="whitespace-nowrap px-3 py-2.5 text-right text-muted">
                   {formatDurationMs(ev.durationMs)}
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2.5">
                   <StatusBadge status={ev.status} />
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2.5">
                   <div className="flex items-center justify-end gap-1">
                     <button
                       onClick={() => onView(ev)}
-                      className="p-1 text-muted hover:text-primary hover:bg-surface-tertiary rounded"
+                      className="rounded p-1 text-muted hover:bg-surface-tertiary hover:text-primary"
                       title={t("aiActivity.viewDetails")}
                     >
                       <Eye size={12} />
@@ -326,7 +378,7 @@ function EventsTable({
                     {ev.query && (
                       <button
                         onClick={() => onCopyQuery(ev.query!)}
-                        className="p-1 text-muted hover:text-primary hover:bg-surface-tertiary rounded"
+                        className="rounded p-1 text-muted hover:bg-surface-tertiary hover:text-primary"
                         title={t("aiActivity.copyQuery")}
                       >
                         <Copy size={12} />
@@ -335,7 +387,7 @@ function EventsTable({
                     {ev.tool === "run_query" && ev.query && ev.connectionId && (
                       <button
                         onClick={() => onOpenInVisualExplain(ev)}
-                        className="p-1 text-muted hover:text-green-400 hover:bg-green-900/20 rounded"
+                        className="rounded p-1 text-muted hover:bg-green-900/20 hover:text-green-400"
                         title={t("aiActivity.openVisualExplain")}
                       >
                         <GitGraph size={12} />

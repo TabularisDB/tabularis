@@ -1,0 +1,7 @@
+interface:
+  display_name: "Tabularis Plugin Driver"
+  short_description: "Create Rust database plugins for Tabularis."
+  default_prompt: "Use $tabularis-plugin-driver to create or update a Rust Tabularis database plugin with a modern manifest, modular handlers, tests, and validation."
+
+policy:
+  allow_implicit_invocation: true

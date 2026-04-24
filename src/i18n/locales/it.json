@@ -170,6 +170,11 @@
     "clients": "CLIENT AI",
     "manualCommand": "COMANDO MANUALE",
     "manualCommandText": "Esegui questo comando nel terminale, poi riavvia Claude Code.",
+    "tabs": {
+      "setup": "Configurazione",
+      "activity": "Attività",
+      "safety": "Sicurezza"
+    },
     "safety": {
       "readOnlyTitle": "Modalità sola lettura",
       "readOnlyDefault": "Rendi tutte le query MCP di sola lettura",

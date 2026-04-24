@@ -170,6 +170,11 @@
     "clients": "KI-CLIENTS",
     "manualCommand": "MANUELLER BEFEHL",
     "manualCommandText": "Führe diesen Befehl im Terminal aus und starte anschließend Claude Code neu.",
+    "tabs": {
+      "setup": "Einrichtung",
+      "activity": "Aktivität",
+      "safety": "Sicherheit"
+    },
     "safety": {
       "readOnlyTitle": "Nur-Lese-Modus",
       "readOnlyDefault": "Alle MCP-Abfragen nur lesen",
