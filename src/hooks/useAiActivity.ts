@@ -33,6 +33,7 @@ export function useAiActivityEvents(
   // Stabilise the filter reference so `useCallback` below does not re-bind on
   // every render (callers can pass an inline object literal safely).
   const filterKey = JSON.stringify(filter);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- filterKey captures filter content
   const stableFilter = useMemo(() => filter, [filterKey]);
 
   const refetch = useCallback(async () => {
@@ -107,33 +108,46 @@ export function useAiSessionEvents(
   sessionId: string | null,
 ): UseAiSessionEventsResult {
   const [events, setEvents] = useState<AiActivityEvent[]>([]);
+  const [loadedSessionId, setLoadedSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchSession = useCallback(
+    async (id: string, isCancelled: () => boolean) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await invoke<AiActivityEvent[]>("get_ai_session_events", {
+          sessionId: id,
+        });
+        if (!isCancelled()) {
+          setEvents(data);
+          setLoadedSessionId(id);
+        }
+      } catch (err) {
+        if (!isCancelled()) setError(String(err));
+      } finally {
+        if (!isCancelled()) setLoading(false);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
-    if (!sessionId) {
-      setEvents([]);
-      return;
-    }
+    if (!sessionId) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    invoke<AiActivityEvent[]>("get_ai_session_events", { sessionId })
-      .then((data) => {
-        if (!cancelled) setEvents(data);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(String(err));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    fetchSession(sessionId, () => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [sessionId, fetchSession]);
 
-  return { events, loading, error };
+  // Derive an empty list when no session is selected (or while a new session
+  // is loading) instead of clearing state inside the effect body.
+  const visibleEvents =
+    sessionId !== null && sessionId === loadedSessionId ? events : [];
+
+  return { events: visibleEvents, loading, error };
 }
 
 // ---------------------------------------------------------------------------
