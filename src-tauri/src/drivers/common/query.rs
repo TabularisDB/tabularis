@@ -48,29 +48,192 @@ pub fn calculate_offset(page: u32, page_size: u32) -> u32 {
     (page - 1) * page_size
 }
 
+/// Simple SQL tokenizer that respects:
+/// - Single-quoted strings ('...')
+/// - Double-quoted identifiers ("...")
+/// - Backtick-quoted identifiers (`...`)
+/// - Parenthesized groups (treated as single tokens)
+/// - Whitespace as delimiter
+///
+/// This prevents keywords like LIMIT or OFFSET from being matched
+/// inside string literals, quoted identifiers, or table names such as
+/// `tapp_appointment_message_event_limit`.
+fn tokenize_sql(sql: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let chars: Vec<char> = sql.chars().collect();
+    let len = chars.len();
+    let mut i = 0;
+
+    while i < len {
+        if chars[i].is_whitespace() {
+            i += 1;
+            continue;
+        }
+
+        if chars[i] == '\'' {
+            let mut token = String::new();
+            token.push(chars[i]);
+            i += 1;
+            while i < len {
+                token.push(chars[i]);
+                if chars[i] == '\'' {
+                    if i + 1 < len && chars[i + 1] == '\'' {
+                        i += 1;
+                        token.push(chars[i]);
+                    } else {
+                        i += 1;
+                        break;
+                    }
+                }
+                i += 1;
+            }
+            tokens.push(token);
+            continue;
+        }
+
+        if chars[i] == '"' {
+            let mut token = String::new();
+            token.push(chars[i]);
+            i += 1;
+            while i < len {
+                token.push(chars[i]);
+                if chars[i] == '"' {
+                    if i + 1 < len && chars[i + 1] == '"' {
+                        i += 1;
+                        token.push(chars[i]);
+                    } else {
+                        i += 1;
+                        break;
+                    }
+                }
+                i += 1;
+            }
+            tokens.push(token);
+            continue;
+        }
+
+        if chars[i] == '`' {
+            let mut token = String::new();
+            token.push(chars[i]);
+            i += 1;
+            while i < len {
+                token.push(chars[i]);
+                if chars[i] == '`' {
+                    if i + 1 < len && chars[i + 1] == '`' {
+                        i += 1;
+                        token.push(chars[i]);
+                    } else {
+                        i += 1;
+                        break;
+                    }
+                }
+                i += 1;
+            }
+            tokens.push(token);
+            continue;
+        }
+
+        if chars[i] == '(' {
+            let mut token = String::new();
+            let mut depth = 0;
+            while i < len {
+                token.push(chars[i]);
+                if chars[i] == '(' {
+                    depth += 1;
+                } else if chars[i] == ')' {
+                    depth -= 1;
+                    if depth == 0 {
+                        i += 1;
+                        break;
+                    }
+                } else if chars[i] == '\'' {
+                    i += 1;
+                    while i < len {
+                        token.push(chars[i]);
+                        if chars[i] == '\'' {
+                            if i + 1 < len && chars[i + 1] == '\'' {
+                                i += 1;
+                                token.push(chars[i]);
+                            } else {
+                                break;
+                            }
+                        }
+                        i += 1;
+                    }
+                }
+                i += 1;
+            }
+            tokens.push(token);
+            continue;
+        }
+
+        let mut token = String::new();
+        while i < len
+            && !chars[i].is_whitespace()
+            && chars[i] != '('
+            && chars[i] != '\''
+            && chars[i] != '"'
+            && chars[i] != '`'
+        {
+            token.push(chars[i]);
+            i += 1;
+        }
+        if !token.is_empty() {
+            tokens.push(token);
+        }
+    }
+
+    tokens
+}
+
 /// Remove trailing LIMIT and OFFSET clauses from a SQL query.
 ///
-/// Uses `rfind` to locate the last `LIMIT` keyword and strips everything from
-/// there onwards (which includes any subsequent OFFSET). Falls back to looking
-/// for a standalone `OFFSET` when no LIMIT is present.
-pub fn strip_limit_offset(query: &str) -> &str {
-    let upper = query.to_uppercase();
-    if let Some(pos) = upper.rfind("LIMIT") {
-        query[..pos].trim()
-    } else if let Some(pos) = upper.rfind("OFFSET") {
-        query[..pos].trim()
-    } else {
-        query.trim()
+/// Uses a token-aware scan so that `LIMIT` / `OFFSET` keywords inside
+/// string literals, quoted identifiers, parenthesized subqueries, or as
+/// part of table names (e.g. `tapp_…_limit`) are never misidentified.
+pub fn strip_limit_offset(query: &str) -> String {
+    let tokens = tokenize_sql(query.trim());
+    let mut end = tokens.len();
+
+    // Scan backwards for OFFSET <n>
+    if end >= 2 && tokens[end - 2].to_uppercase() == "OFFSET" {
+        if tokens[end - 1].parse::<u64>().is_ok() {
+            end -= 2;
+        }
     }
+
+    // Scan backwards for LIMIT <n>
+    if end >= 2 && tokens[end - 2].to_uppercase() == "LIMIT" {
+        if tokens[end - 1].parse::<u64>().is_ok() {
+            end -= 2;
+        }
+    }
+
+    tokens[..end].join(" ")
 }
 
 /// Extract the numeric value from a trailing LIMIT clause, if present.
+///
+/// Uses a token-aware scan so that `LIMIT` as a substring of a table name
+/// (e.g. `tapp_appointment_message_event_limit`) is never misidentified.
 pub fn extract_user_limit(query: &str) -> Option<u32> {
-    let upper = query.to_uppercase();
-    let pos = upper.rfind("LIMIT")?;
-    let after = query[pos + 5..].trim();
-    let num_str: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
-    num_str.parse().ok()
+    let tokens = tokenize_sql(query.trim());
+    let len = tokens.len();
+
+    // Walk backwards past optional OFFSET <n>
+    let mut end = len;
+    if end >= 2 && tokens[end - 2].to_uppercase() == "OFFSET" {
+        if tokens[end - 1].parse::<u64>().is_ok() {
+            end -= 2;
+        }
+    }
+
+    // Check for LIMIT <n>
+    if end >= 2 && tokens[end - 2].to_uppercase() == "LIMIT" {
+        return tokens[end - 1].parse().ok();
+    }
+
+    None
 }
 
 /// Build a paginated query by stripping any user-supplied LIMIT/OFFSET and
