@@ -130,6 +130,36 @@
     "overridable": true
   },
   {
+    "id": "toggle_right_panel",
+    "category": "navigation",
+    "defaultMac": "⌘+I",
+    "defaultWin": "Ctrl+I",
+    "macMatch": { "metaKey": true, "key": "i" },
+    "winMatch": { "ctrlKey": true, "key": "i" },
+    "i18nKey": "settings.shortcuts.toggleRightPanel",
+    "overridable": true
+  },
+  {
+    "id": "open_settings",
+    "category": "navigation",
+    "defaultMac": "⌘+,",
+    "defaultWin": "Ctrl+,",
+    "macMatch": { "metaKey": true, "key": "," },
+    "winMatch": { "ctrlKey": true, "key": "," },
+    "i18nKey": "settings.shortcuts.openSettings",
+    "overridable": true
+  },
+  {
+    "id": "command_palette",
+    "category": "navigation",
+    "defaultMac": "⌘+K",
+    "defaultWin": "Ctrl+K",
+    "macMatch": { "metaKey": true, "key": "k" },
+    "winMatch": { "ctrlKey": true, "key": "k" },
+    "i18nKey": "settings.shortcuts.commandPalette",
+    "overridable": true
+  },
+  {
     "id": "notebook_run_all",
     "category": "notebook",
     "defaultMac": "⌘+Shift+Enter",

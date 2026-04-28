@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { reconstructTableQuery } from "../utils/editor";
+import { dispatchQueryStats } from "../utils/queryStats";
 import { isMultiDatabaseCapable } from "../utils/database";
 import { isReadonly } from "../utils/driverCapabilities";
 import {
@@ -710,6 +711,12 @@ export const Editor = () => {
           activeTable: tableName || null,
         });
 
+        dispatchQueryStats({
+          rows: res.pagination?.total_rows ?? res.rows.length,
+          durationMs: end - start,
+          error: null,
+        });
+
         if (shouldRecordHistory) {
           addHistoryEntry(
             textToRun,
@@ -724,6 +731,12 @@ export const Editor = () => {
         updateTab(targetTabId, {
           error: typeof err === "string" ? err : t("editor.queryFailed"),
           isLoading: false,
+        });
+
+        dispatchQueryStats({
+          rows: null,
+          durationMs: 0,
+          error: typeof err === "string" ? err : t("editor.queryFailed"),
         });
 
         if (shouldRecordHistory) {
@@ -841,6 +854,12 @@ export const Editor = () => {
             };
             updateTab(targetTabId, { results: [...liveResults] });
 
+            dispatchQueryStats({
+              rows: res.pagination?.total_rows ?? res.rows.length,
+              durationMs: end - start,
+              error: null,
+            });
+
             if (shouldRecordHistory) {
               addHistoryEntry(
                 entry.query,
@@ -861,6 +880,12 @@ export const Editor = () => {
               isLoading: false,
             };
             updateTab(targetTabId, { results: [...liveResults] });
+
+            dispatchQueryStats({
+              rows: null,
+              durationMs: end - start,
+              error: typeof err === "string" ? err : t("editor.queryFailed"),
+            });
 
             if (shouldRecordHistory) {
               addHistoryEntry(

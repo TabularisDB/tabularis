@@ -14,7 +14,15 @@ export function useGlobalShortcuts() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't fire when typing in inputs / textareas / contenteditable
+      // Command palette must work everywhere, including inside inputs.
+      // Why: SQL editors and search fields are exactly where users want it.
+      if (matchesShortcut(e, "command_palette")) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("tabularis:open-command-palette"));
+        return;
+      }
+
+      // Other shortcuts skip when typing in inputs / textareas / contenteditable
       const target = e.target as HTMLElement;
       if (
         target.tagName === "INPUT" ||
@@ -27,6 +35,12 @@ export function useGlobalShortcuts() {
       if (matchesShortcut(e, "toggle_sidebar")) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent("tabularis:toggle-sidebar"));
+        return;
+      }
+
+      if (matchesShortcut(e, "toggle_right_panel")) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("tabularis:toggle-right-panel"));
         return;
       }
 
@@ -45,6 +59,12 @@ export function useGlobalShortcuts() {
       if (matchesShortcut(e, "new_connection")) {
         e.preventDefault();
         navigate("/connections", { state: { openNew: true } });
+        return;
+      }
+
+      if (matchesShortcut(e, "open_settings")) {
+        e.preventDefault();
+        navigate("/settings");
         return;
       }
 
