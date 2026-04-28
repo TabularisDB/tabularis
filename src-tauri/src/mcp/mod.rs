@@ -502,12 +502,13 @@ fn handle_list_tools() -> Result<Value, JsonRpcError> {
         },
         Tool {
             name: "run_query".to_string(),
-            description: Some("Execute a SQL query on a specific connection".to_string()),
+            description: Some("Execute a SQL query on a specific connection. If the query already contains a LIMIT clause, it will be respected.".to_string()),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "connection_id": { "type": "string", "description": "The ID or name of the connection" },
-                    "query": { "type": "string", "description": "The SQL query to execute" }
+                    "query": { "type": "string", "description": "The SQL query to execute" },
+                    "limit": { "type": "integer", "description": "Maximum number of rows to return (default: 100). If the query already contains a LIMIT clause smaller than this value, the query's LIMIT takes precedence." }
                 },
                 "required": ["connection_id", "query"]
             }),
@@ -821,6 +822,11 @@ async fn tool_run_query(
             data: None,
         })?;
 
+    let max_rows = args
+        .get("limit")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(100) as u32;
+
     audit.connection_id = Some(conn_id.to_string());
     audit.query = Some(query.to_string());
     let kind = ai_activity::classify_query_kind(query);
@@ -986,11 +992,13 @@ async fn tool_run_query(
     }
 
     let result = match conn.params.driver.as_str() {
-        "mysql" => mysql::execute_query(&db_params, &effective_query, Some(100), 1, None).await,
-        "postgres" => {
-            postgres::execute_query(&db_params, &effective_query, Some(100), 1, None).await
+        "mysql" => {
+            mysql::execute_query(&db_params, &effective_query, Some(max_rows), 1, None).await
         }
-        "sqlite" => sqlite::execute_query(&db_params, &effective_query, Some(100), 1).await,
+        "postgres" => {
+            postgres::execute_query(&db_params, &effective_query, Some(max_rows), 1, None).await
+        }
+        "sqlite" => sqlite::execute_query(&db_params, &effective_query, Some(max_rows), 1).await,
         _ => Err("Unsupported driver".into()),
     }
     .map_err(|e| JsonRpcError {

@@ -187,6 +187,38 @@ fn test_strip_limit_offset_only_offset() {
 }
 
 #[test]
+fn test_strip_limit_offset_table_name_contains_limit() {
+    assert_eq!(
+        strip_limit_offset("SELECT * FROM tapp_appointment_message_event_limit ORDER BY id"),
+        "SELECT * FROM tapp_appointment_message_event_limit ORDER BY id"
+    );
+}
+
+#[test]
+fn test_strip_limit_offset_table_name_contains_limit_with_real_limit() {
+    assert_eq!(
+        strip_limit_offset("SELECT * FROM tapp_appointment_message_event_limit ORDER BY id LIMIT 10"),
+        "SELECT * FROM tapp_appointment_message_event_limit ORDER BY id"
+    );
+}
+
+#[test]
+fn test_strip_limit_offset_quoted_identifier() {
+    assert_eq!(
+        strip_limit_offset(r#"SELECT * FROM "order_limit_table" WHERE x > 1 LIMIT 5 OFFSET 10"#),
+        r#"SELECT * FROM "order_limit_table" WHERE x > 1"#
+    );
+}
+
+#[test]
+fn test_strip_limit_offset_string_literal_with_limit() {
+    assert_eq!(
+        strip_limit_offset("SELECT * FROM t WHERE name LIKE '%limit%' LIMIT 10"),
+        "SELECT * FROM t WHERE name LIKE '%limit%'"
+    );
+}
+
+#[test]
 fn test_extract_user_limit_present() {
     assert_eq!(
         super::extract_user_limit("SELECT * FROM t LIMIT 50"),
@@ -207,6 +239,22 @@ fn test_extract_user_limit_absent() {
     assert_eq!(
         super::extract_user_limit("SELECT * FROM t ORDER BY id"),
         None
+    );
+}
+
+#[test]
+fn test_extract_user_limit_table_name_contains_limit() {
+    assert_eq!(
+        super::extract_user_limit("SELECT * FROM tapp_appointment_message_event_limit"),
+        None
+    );
+}
+
+#[test]
+fn test_extract_user_limit_table_name_contains_limit_with_real_limit() {
+    assert_eq!(
+        super::extract_user_limit("SELECT * FROM tapp_appointment_message_event_limit LIMIT 10"),
+        Some(10)
     );
 }
 
@@ -242,6 +290,36 @@ fn test_build_paginated_query_user_limit_exhausted() {
     let result = build_paginated_query(q, 100, 2);
     // offset=100, remaining=0 (50-100 saturates to 0), fetch = min(0, 101) = 0
     assert_eq!(result, "SELECT * FROM t LIMIT 0 OFFSET 100");
+}
+
+#[test]
+fn test_build_paginated_query_table_name_contains_limit() {
+    let q = "SELECT * FROM tapp_appointment_message_event_limit ORDER BY id";
+    let result = build_paginated_query(q, 100, 1);
+    assert_eq!(
+        result,
+        "SELECT * FROM tapp_appointment_message_event_limit ORDER BY id LIMIT 101 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_table_name_contains_limit_with_user_limit() {
+    let q = "SELECT * FROM tapp_appointment_message_event_limit ORDER BY id LIMIT 10";
+    let result = build_paginated_query(q, 100, 1);
+    assert_eq!(
+        result,
+        "SELECT * FROM tapp_appointment_message_event_limit ORDER BY id LIMIT 10 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_subquery_with_limit() {
+    let q = "SELECT * FROM (SELECT id FROM t ORDER BY id LIMIT 100) sub ORDER BY id LIMIT 5";
+    let result = build_paginated_query(q, 100, 1);
+    assert_eq!(
+        result,
+        "SELECT * FROM (SELECT id FROM t ORDER BY id LIMIT 100) sub ORDER BY id LIMIT 5 OFFSET 0"
+    );
 }
 
 #[test]
