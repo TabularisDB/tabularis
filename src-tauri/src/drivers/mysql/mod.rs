@@ -65,10 +65,18 @@ pub async fn get_columns(
     let pool = get_mysql_pool(params).await?;
 
     let query = r#"
-        SELECT column_name, data_type, column_key, is_nullable, extra, column_default, character_maximum_length
-        FROM information_schema.columns
-        WHERE table_schema = ? AND table_name = ?
-        ORDER BY ordinal_position
+        SELECT c.column_name, c.data_type, c.column_key, c.is_nullable, c.extra,
+               c.column_default, c.character_maximum_length,
+               (SELECT s.SEQ_IN_INDEX
+                  FROM information_schema.statistics s
+                 WHERE s.TABLE_SCHEMA = c.TABLE_SCHEMA
+                   AND s.TABLE_NAME = c.TABLE_NAME
+                   AND s.COLUMN_NAME = c.COLUMN_NAME
+                   AND s.INDEX_NAME = 'PRIMARY'
+                 LIMIT 1) AS pk_ordinal
+        FROM information_schema.columns c
+        WHERE c.table_schema = ? AND c.table_name = ?
+        ORDER BY c.ordinal_position
     "#;
 
     let rows = sqlx::query(query)
@@ -88,6 +96,7 @@ pub async fn get_columns(
             let extra = mysql_row_str(r, 4);
             let default_val = mysql_row_str_opt(r, 5);
             let character_maximum_length: Option<u64> = r.try_get(6).ok();
+            let pk_ordinal_raw: Option<i64> = r.try_get(7).ok();
 
             let is_auto_increment = extra.contains("auto_increment");
 
@@ -100,14 +109,22 @@ pub async fn get_columns(
                 None
             };
 
+            let is_pk = key == "PRI";
+            let pk_ordinal = if is_pk {
+                pk_ordinal_raw.and_then(|n| u32::try_from(n).ok())
+            } else {
+                None
+            };
+
             TableColumn {
                 name: column_name,
                 data_type,
-                is_pk: key == "PRI",
+                is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment,
                 default_value,
                 character_maximum_length,
+                pk_ordinal,
             }
         })
         .collect())
@@ -169,10 +186,18 @@ pub async fn get_all_columns_batch(
     let pool = get_mysql_pool(params).await?;
 
     let query = r#"
-        SELECT table_name, column_name, data_type, column_key, is_nullable, extra, column_default, character_maximum_length
-        FROM information_schema.columns
-        WHERE table_schema = ?
-        ORDER BY table_name, ordinal_position
+        SELECT c.table_name, c.column_name, c.data_type, c.column_key, c.is_nullable,
+               c.extra, c.column_default, c.character_maximum_length,
+               (SELECT s.SEQ_IN_INDEX
+                  FROM information_schema.statistics s
+                 WHERE s.TABLE_SCHEMA = c.TABLE_SCHEMA
+                   AND s.TABLE_NAME = c.TABLE_NAME
+                   AND s.COLUMN_NAME = c.COLUMN_NAME
+                   AND s.INDEX_NAME = 'PRIMARY'
+                 LIMIT 1) AS pk_ordinal
+        FROM information_schema.columns c
+        WHERE c.table_schema = ?
+        ORDER BY c.table_name, c.ordinal_position
     "#;
 
     let rows = sqlx::query(query)
@@ -192,6 +217,7 @@ pub async fn get_all_columns_batch(
         let extra = mysql_row_str(row, 5);
         let default_val = mysql_row_str_opt(row, 6);
         let character_maximum_length: Option<u64> = row.try_get(7).ok();
+        let pk_ordinal_raw: Option<i64> = row.try_get(8).ok();
 
         let is_auto_increment = extra.contains("auto_increment");
 
@@ -204,14 +230,20 @@ pub async fn get_all_columns_batch(
             None
         };
 
+        let is_pk = key == "PRI";
         let column = TableColumn {
             name: column_name,
             data_type,
-            is_pk: key == "PRI",
+            is_pk,
             is_nullable: null_str == "YES",
             is_auto_increment,
             default_value,
             character_maximum_length,
+            pk_ordinal: if is_pk {
+                pk_ordinal_raw.and_then(|n| u32::try_from(n).ok())
+            } else {
+                None
+            },
         };
 
         result
@@ -724,6 +756,7 @@ pub async fn get_view_columns(
                 is_auto_increment,
                 default_value,
                 character_maximum_length,
+                pk_ordinal: None,
             }
         })
         .collect())

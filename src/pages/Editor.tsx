@@ -3086,6 +3086,19 @@ export const Editor = () => {
                     data={activeTab.result?.rows || []}
                     tableName={activeTab.activeTable}
                     pkColumn={activeTab.pkColumn}
+                    pkColumns={
+                      activeTab.columnMetadata
+                        ? activeTab.columnMetadata
+                            .filter((c) => c.is_pk)
+                            .slice()
+                            .sort(
+                              (a, b) =>
+                                (a.pk_ordinal ?? Number.MAX_SAFE_INTEGER) -
+                                (b.pk_ordinal ?? Number.MAX_SAFE_INTEGER),
+                            )
+                            .map((c) => c.name)
+                        : undefined
+                    }
                     autoIncrementColumns={activeTab.autoIncrementColumns}
                     defaultValueColumns={activeTab.defaultValueColumns}
                     nullableColumns={activeTab.nullableColumns}

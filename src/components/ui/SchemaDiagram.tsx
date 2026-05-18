@@ -213,8 +213,21 @@ const SchemaDiagramContent = ({
             },
           });
 
+          // Group FKs by constraint name to detect composite FKs.
+          const fkGroups = new Map<string, typeof table.foreign_keys>();
+          for (const fk of table.foreign_keys) {
+            const key = fk.name || `${fk.column_name}->${fk.ref_table}.${fk.ref_column}`;
+            const arr = fkGroups.get(key) ?? [];
+            arr.push(fk);
+            fkGroups.set(key, arr);
+          }
+
           table.foreign_keys.forEach((fk) => {
             if (tableSet.has(fk.ref_table)) {
+              const group = fkGroups.get(
+                fk.name || `${fk.column_name}->${fk.ref_table}.${fk.ref_column}`,
+              );
+              const isComposite = !!group && group.length > 1;
               initialEdges.push({
                 id: `e-${table.name}-${fk.column_name}-${fk.ref_table}-${fk.ref_column}`,
                 source: table.name,
@@ -222,7 +235,11 @@ const SchemaDiagramContent = ({
                 sourceHandle: fk.column_name,
                 targetHandle: fk.ref_column,
                 animated: initialEdges.length < ANIMATION_THRESHOLD, // Conditional animation
-                style: { stroke: "#6366f1", strokeWidth: 1.5 },
+                style: {
+                  stroke: isComposite ? "#a855f7" : "#6366f1",
+                  strokeWidth: isComposite ? 2 : 1.5,
+                },
+                label: isComposite ? fk.name : undefined,
                 type: "smoothstep",
               });
             }

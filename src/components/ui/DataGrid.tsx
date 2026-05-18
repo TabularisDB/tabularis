@@ -70,6 +70,7 @@ interface DataGridProps {
   data: unknown[][];
   tableName?: string | null;
   pkColumn?: string | null;
+  pkColumns?: string[];
   autoIncrementColumns?: string[];
   defaultValueColumns?: string[];
   nullableColumns?: string[];
@@ -108,6 +109,7 @@ export const DataGrid = React.memo(
     data,
     tableName,
     pkColumn,
+    pkColumns,
     autoIncrementColumns,
     defaultValueColumns,
     nullableColumns,
@@ -199,6 +201,17 @@ export const DataGrid = React.memo(
       const pkIndex = columns.indexOf(pkColumn);
       return pkIndex >= 0 ? pkIndex : null;
     }, [columns, pkColumn]);
+
+    // Composite PK: ordered list of column indexes (mirrors pkColumns order).
+    // When pkColumns has 2+ entries we route mutations through the composite
+    // Tauri commands so the WHERE clause uses every PK column.
+    const pkIndexes = useMemo(() => {
+      if (!pkColumns || pkColumns.length === 0) return null;
+      const idxs = pkColumns.map((c) => columns.indexOf(c));
+      if (idxs.some((i) => i < 0)) return null;
+      return idxs;
+    }, [columns, pkColumns]);
+    const isCompositePk = !!pkColumns && pkColumns.length > 1 && pkIndexes !== null;
 
     // Create column type map for O(1) lookup during cell rendering
     const columnTypeMap = useMemo(() => {
@@ -424,15 +437,28 @@ export const DataGrid = React.memo(
 
         // Legacy immediate update
         try {
-          await invoke("update_record", {
-            connectionId,
-            table: tableName,
-            pkCol: pkColumn,
-            pkVal,
-            colName,
-            newVal: value,
-            ...(activeSchema ? { schema: activeSchema } : {}),
-          });
+          if (isCompositePk && pkIndexes) {
+            const pkVals = pkIndexes.map((i) => row[i]);
+            await invoke("update_record_composite", {
+              connectionId,
+              table: tableName,
+              pkCols: pkColumns,
+              pkVals,
+              colName,
+              newVal: value,
+              ...(activeSchema ? { schema: activeSchema } : {}),
+            });
+          } else {
+            await invoke("update_record", {
+              connectionId,
+              table: tableName,
+              pkCol: pkColumn,
+              pkVal,
+              colName,
+              newVal: value,
+              ...(activeSchema ? { schema: activeSchema } : {}),
+            });
+          }
           if (onRefresh) onRefresh();
         } catch (e) {
           console.error("Update failed:", e);

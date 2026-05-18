@@ -104,7 +104,15 @@ pub async fn get_columns(
              WHERE tc.constraint_type = 'PRIMARY KEY'
              AND tc.table_schema = c.table_schema
              AND kcu.table_name = c.table_name
-             AND kcu.column_name = c.column_name) > 0 as is_pk
+             AND kcu.column_name = c.column_name) > 0 as is_pk,
+            (SELECT kcu.ordinal_position FROM information_schema.table_constraints tc
+             JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
+             AND tc.table_schema = kcu.table_schema
+             WHERE tc.constraint_type = 'PRIMARY KEY'
+             AND tc.table_schema = c.table_schema
+             AND kcu.table_name = c.table_name
+             AND kcu.column_name = c.column_name
+             LIMIT 1) as pk_ordinal
         FROM information_schema.columns c
         WHERE c.table_schema = $1 AND c.table_name = $2
         ORDER BY c.ordinal_position
@@ -139,6 +147,15 @@ pub async fn get_columns(
                 None
             };
 
+            let pk_ordinal: Option<u32> = if is_pk {
+                r.try_get::<_, Option<i32>>("pk_ordinal")
+                    .ok()
+                    .flatten()
+                    .and_then(|v| u32::try_from(v).ok())
+            } else {
+                None
+            };
+
             TableColumn {
                 name: r.try_get("column_name").unwrap_or_default(),
                 data_type: r.try_get("data_type").unwrap_or_default(),
@@ -147,6 +164,7 @@ pub async fn get_columns(
                 is_auto_increment: is_auto,
                 default_value,
                 character_maximum_length,
+                pk_ordinal,
             }
         })
         .collect())
@@ -221,7 +239,15 @@ pub async fn get_all_columns_batch(
              WHERE tc.constraint_type = 'PRIMARY KEY'
              AND tc.table_schema = c.table_schema
              AND kcu.table_name = c.table_name
-             AND kcu.column_name = c.column_name) > 0 as is_pk
+             AND kcu.column_name = c.column_name) > 0 as is_pk,
+            (SELECT kcu.ordinal_position FROM information_schema.table_constraints tc
+             JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
+             AND tc.table_schema = kcu.table_schema
+             WHERE tc.constraint_type = 'PRIMARY KEY'
+             AND tc.table_schema = c.table_schema
+             AND kcu.table_name = c.table_name
+             AND kcu.column_name = c.column_name
+             LIMIT 1) as pk_ordinal
         FROM information_schema.columns c
         WHERE c.table_schema = $1
         ORDER BY c.table_name, c.ordinal_position
@@ -242,6 +268,14 @@ pub async fn get_all_columns_batch(
             .ok()
             .flatten()
             .and_then(|v| u64::try_from(v).ok());
+        let pk_ordinal: Option<u32> = if is_pk {
+            row.try_get::<_, Option<i32>>("pk_ordinal")
+                .ok()
+                .flatten()
+                .and_then(|v| u32::try_from(v).ok())
+        } else {
+            None
+        };
 
         let is_auto = is_identity == "YES" || default_val.contains("nextval");
 
@@ -265,6 +299,7 @@ pub async fn get_all_columns_batch(
             is_auto_increment: is_auto,
             default_value,
             character_maximum_length,
+            pk_ordinal,
         };
 
         result
@@ -994,6 +1029,7 @@ pub async fn get_view_columns(
                 is_auto_increment: is_auto,
                 default_value,
                 character_maximum_length,
+                pk_ordinal: None,
             }
         })
         .collect())

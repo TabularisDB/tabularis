@@ -270,6 +270,8 @@ pub fn run() {
             commands::get_indexes,
             commands::delete_record,
             commands::update_record,
+            commands::update_record_composite,
+            commands::delete_record_composite,
             commands::insert_record,
             commands::save_blob_to_file,
             commands::fetch_blob_as_data_url,

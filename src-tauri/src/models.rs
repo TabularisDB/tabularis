@@ -206,6 +206,12 @@ pub struct TableColumn {
     pub default_value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub character_maximum_length: Option<u64>,
+    /// 1-based position of this column within its table's primary key.
+    /// `None` for non-PK columns and for drivers that don't yet emit ordinal
+    /// info. Frontends should sort PK columns by `pk_ordinal` when assembling
+    /// composite-key requests (issue #148).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pk_ordinal: Option<u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
