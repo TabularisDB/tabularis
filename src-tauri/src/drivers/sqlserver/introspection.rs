@@ -40,6 +40,14 @@ SELECT \
           AND ic.column_id = c.column_id \
           AND i.is_primary_key = 1 \
     ), 0) AS BIT) AS is_pk, \
+    CAST(( \
+        SELECT TOP 1 ic.key_ordinal \
+        FROM sys.index_columns ic \
+        JOIN sys.indexes i ON i.object_id = ic.object_id AND i.index_id = ic.index_id \
+        WHERE ic.object_id = c.object_id \
+          AND ic.column_id = c.column_id \
+          AND i.is_primary_key = 1 \
+    ) AS INT) AS pk_ordinal, \
     dc.definition AS default_value \
 FROM sys.columns c \
 JOIN sys.types ty ON c.user_type_id = ty.user_type_id \
@@ -121,6 +129,14 @@ SELECT \
           AND ic.column_id = c.column_id \
           AND i.is_primary_key = 1 \
     ), 0) AS BIT) AS is_pk, \
+    CAST(( \
+        SELECT TOP 1 ic.key_ordinal \
+        FROM sys.index_columns ic \
+        JOIN sys.indexes i ON i.object_id = ic.object_id AND i.index_id = ic.index_id \
+        WHERE ic.object_id = c.object_id \
+          AND ic.column_id = c.column_id \
+          AND i.is_primary_key = 1 \
+    ) AS INT) AS pk_ordinal, \
     dc.definition AS default_value \
 FROM sys.columns c \
 JOIN sys.tables t ON c.object_id = t.object_id \
@@ -232,6 +248,7 @@ pub fn build_table_column(
     is_identity: bool,
     max_length_bytes: i32,
     is_pk: bool,
+    pk_ordinal: Option<u32>,
     default_value: Option<String>,
 ) -> TableColumn {
     let character_maximum_length = if is_string_type(&data_type) {
@@ -239,6 +256,10 @@ pub fn build_table_column(
     } else {
         None
     };
+    // Only carry pk_ordinal when this is actually a PK column. Defensive: a
+    // non-PK row should never have a positive ordinal, but enforce here so the
+    // serialized payload stays consistent for the frontend.
+    let pk_ordinal = if is_pk { pk_ordinal } else { None };
     TableColumn {
         name,
         data_type,
@@ -247,6 +268,7 @@ pub fn build_table_column(
         is_auto_increment: is_identity,
         default_value,
         character_maximum_length,
+        pk_ordinal,
     }
 }
 
@@ -307,6 +329,10 @@ fn row_i32(row: &mssql_tiberius_bridge::Row, col: &str) -> i32 {
     row.get::<i32, _>(col).unwrap_or(0)
 }
 
+fn row_i32_opt(row: &mssql_tiberius_bridge::Row, col: &str) -> Option<i32> {
+    row.get::<i32, _>(col)
+}
+
 pub async fn get_tables(
     conn: &mut BridgeConnection,
     schema: &str,
@@ -345,6 +371,8 @@ pub async fn get_columns(
                 row_bool(&r, "is_identity"),
                 row_i32(&r, "max_length"),
                 row_bool(&r, "is_pk"),
+                row_i32_opt(&r, "pk_ordinal")
+                    .and_then(|n| u32::try_from(n).ok()),
                 row_str_opt(&r, "default_value"),
             )
         })
@@ -398,6 +426,7 @@ pub async fn get_all_columns_batch(
             row_bool(&r, "is_identity"),
             row_i32(&r, "max_length"),
             row_bool(&r, "is_pk"),
+            row_i32_opt(&r, "pk_ordinal").and_then(|n| u32::try_from(n).ok()),
             row_str_opt(&r, "default_value"),
         );
         out.entry(table_name).or_default().push(col);
@@ -704,6 +733,7 @@ mod tests {
             40,
             false,
             None,
+            None,
         );
         assert_eq!(col.name, "note");
         assert_eq!(col.data_type, "nvarchar");
@@ -712,6 +742,7 @@ mod tests {
         assert!(!col.is_auto_increment);
         // nvarchar(20) -> max_length bytes = 40 -> chars = 20
         assert_eq!(col.character_maximum_length, Some(20));
+        assert_eq!(col.pk_ordinal, None);
     }
 
     #[test]
@@ -723,11 +754,13 @@ mod tests {
             true,
             4,
             true,
+            Some(1),
             None,
         );
         assert_eq!(col.character_maximum_length, None);
         assert!(col.is_pk);
         assert!(col.is_auto_increment);
+        assert_eq!(col.pk_ordinal, Some(1));
     }
 
     #[test]
@@ -740,6 +773,7 @@ mod tests {
             false,
             -1,
             false,
+            None,
             None,
         );
         assert_eq!(col.character_maximum_length, None);
@@ -754,10 +788,56 @@ mod tests {
             false,
             8,
             false,
+            None,
             Some("(getdate())".into()),
         );
         assert_eq!(col.default_value, Some("(getdate())".into()));
         assert_eq!(col.character_maximum_length, None);
+    }
+
+    #[test]
+    fn build_table_column_drops_pk_ordinal_for_non_pk() {
+        // Defensive: a non-PK column with a spurious ordinal must serialize as None.
+        let col = build_table_column(
+            "name".into(),
+            "nvarchar".into(),
+            true,
+            false,
+            40,
+            false,
+            Some(2),
+            None,
+        );
+        assert!(!col.is_pk);
+        assert_eq!(col.pk_ordinal, None);
+    }
+
+    #[test]
+    fn build_table_column_keeps_pk_ordinal_for_composite_pk() {
+        let col = build_table_column(
+            "order_id".into(),
+            "int".into(),
+            false,
+            false,
+            4,
+            true,
+            Some(2),
+            None,
+        );
+        assert!(col.is_pk);
+        assert_eq!(col.pk_ordinal, Some(2));
+    }
+
+    #[test]
+    fn q_get_columns_emits_pk_ordinal() {
+        assert!(Q_GET_COLUMNS.contains("AS pk_ordinal"));
+        assert!(Q_GET_COLUMNS.contains("ic.key_ordinal"));
+    }
+
+    #[test]
+    fn q_get_all_columns_batch_emits_pk_ordinal() {
+        assert!(Q_GET_ALL_COLUMNS_BATCH.contains("AS pk_ordinal"));
+        assert!(Q_GET_ALL_COLUMNS_BATCH.contains("ic.key_ordinal"));
     }
 
     // --- build_foreign_key -----------------------------------------------

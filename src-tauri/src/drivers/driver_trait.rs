@@ -365,6 +365,81 @@ pub trait DatabaseDriver: Send + Sync {
         schema: Option<&str>,
     ) -> Result<u64, String>;
 
+    /// Update a row identified by a composite primary key.
+    ///
+    /// Default implementation delegates to [`update_record`] when only one PK
+    /// column is supplied (preserving the long-standing single-PK path) and
+    /// returns an error otherwise. Drivers that support composite primary
+    /// keys (currently SQL Server) override this to issue a multi-column
+    /// `WHERE` predicate.
+    async fn update_record_composite(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        pk_cols: Vec<String>,
+        pk_vals: Vec<serde_json::Value>,
+        col_name: &str,
+        new_val: serde_json::Value,
+        schema: Option<&str>,
+        max_blob_size: u64,
+    ) -> Result<u64, String> {
+        if pk_cols.len() != pk_vals.len() {
+            return Err(format!(
+                "pk_cols ({}) and pk_vals ({}) length mismatch",
+                pk_cols.len(),
+                pk_vals.len()
+            ));
+        }
+        if pk_cols.len() == 1 {
+            return self
+                .update_record(
+                    params,
+                    table,
+                    &pk_cols[0],
+                    pk_vals.into_iter().next().unwrap(),
+                    col_name,
+                    new_val,
+                    schema,
+                    max_blob_size,
+                )
+                .await;
+        }
+        Err("Composite primary key updates are not supported by this driver".into())
+    }
+
+    /// Delete a row identified by a composite primary key.
+    ///
+    /// Default implementation delegates to [`delete_record`] when only one PK
+    /// column is supplied and returns an error otherwise.
+    async fn delete_record_composite(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        pk_cols: Vec<String>,
+        pk_vals: Vec<serde_json::Value>,
+        schema: Option<&str>,
+    ) -> Result<u64, String> {
+        if pk_cols.len() != pk_vals.len() {
+            return Err(format!(
+                "pk_cols ({}) and pk_vals ({}) length mismatch",
+                pk_cols.len(),
+                pk_vals.len()
+            ));
+        }
+        if pk_cols.len() == 1 {
+            return self
+                .delete_record(
+                    params,
+                    table,
+                    &pk_cols[0],
+                    pk_vals.into_iter().next().unwrap(),
+                    schema,
+                )
+                .await;
+        }
+        Err("Composite primary key deletes are not supported by this driver".into())
+    }
+
     // --- BLOB helpers (optional, built-in drivers only) ---------------------
 
     async fn save_blob_to_file(

@@ -1858,6 +1858,74 @@ pub async fn update_record<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn update_record_composite<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    table: String,
+    pk_cols: Vec<String>,
+    pk_vals: Vec<serde_json::Value>,
+    col_name: String,
+    new_val: serde_json::Value,
+    schema: Option<String>,
+    database: Option<String>,
+) -> Result<u64, String> {
+    log::info!(
+        "Executing query on connection: {} | Query: UPDATE {} SET {} = {} WHERE composite PK ({} cols)",
+        connection_id,
+        table,
+        col_name,
+        new_val,
+        pk_cols.len()
+    );
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
+    let max_blob_size = crate::config::get_max_blob_size(&app);
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    drv.update_record_composite(
+        &params,
+        &table,
+        pk_cols,
+        pk_vals,
+        &col_name,
+        new_val,
+        schema.as_deref(),
+        max_blob_size,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn delete_record_composite<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    table: String,
+    pk_cols: Vec<String>,
+    pk_vals: Vec<serde_json::Value>,
+    schema: Option<String>,
+    database: Option<String>,
+) -> Result<u64, String> {
+    log::info!(
+        "Executing query on connection: {} | Query: DELETE FROM {} WHERE composite PK ({} cols)",
+        connection_id,
+        table,
+        pk_cols.len()
+    );
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    drv.delete_record_composite(&params, &table, pk_cols, pk_vals, schema.as_deref())
+        .await
+}
+
+#[tauri::command]
 pub async fn save_blob_to_file<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,

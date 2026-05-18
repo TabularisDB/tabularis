@@ -5,6 +5,7 @@ export interface TableColumn {
   is_nullable: boolean;
   is_auto_increment: boolean;
   character_maximum_length?: number;
+  pk_ordinal?: number;
 }
 
 export interface ForeignKey {
