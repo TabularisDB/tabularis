@@ -384,17 +384,72 @@ impl DatabaseDriver for SqlServerDriver {
         })
     }
 
-    // --- CRUD (disabled by readonly=true in manifest) -----------------------
+    // --- CRUD ----------------------------------------------------------------
 
     async fn insert_record(
         &self,
-        _params: &ConnectionParams,
-        _table: &str,
-        _data: HashMap<String, serde_json::Value>,
-        _schema: Option<&str>,
+        params: &ConnectionParams,
+        table: &str,
+        data: HashMap<String, serde_json::Value>,
+        schema: Option<&str>,
         _max_blob_size: u64,
     ) -> Result<u64, String> {
-        Err("SQL Server: INSERT disabled in Phase 1 read-only preview".into())
+        if data.is_empty() {
+            return Err(
+                "SQL Server: INSERT requires at least one column/value pair"
+                    .to_string(),
+            );
+        }
+
+        // Acquire the connection up-front; both the identity probe and the
+        // actual INSERT reuse it so the IDENTITY_INSERT batch and any error
+        // recovery happen on the same session.
+        let mut conn = acquire(params).await?;
+
+        let identity_col =
+            introspection::detect_identity_column(&mut conn, table, schema).await?;
+
+        // Deterministic column order keeps the SQL stable for tests and for
+        // SQL Server's plan cache (sp_executesql keys on the full text).
+        let mut columns: Vec<String> = data.keys().cloned().collect();
+        columns.sort();
+
+        let needs_identity_insert = identity_col
+            .as_ref()
+            .map(|id| columns.iter().any(|c| c.eq_ignore_ascii_case(id)))
+            .unwrap_or(false);
+
+        let qualified = helpers::qualify(schema, table);
+        let sql = helpers::build_insert_sql(
+            &qualified,
+            &columns,
+            if needs_identity_insert {
+                Some(qualified.as_str())
+            } else {
+                None
+            },
+        );
+
+        // Map each `serde_json::Value` to a typed bridge parameter so that
+        // primitives bind as `bit`/`bigint`/`float`/`nvarchar` instead of
+        // the JSON-stringified `NVARCHAR(4000)` the bridge's blanket
+        // `ToSql for Value` would produce. Owned boxes live for the
+        // duration of the call so the borrowed `&dyn ToSql` slice is valid.
+        let owned_params: Vec<Box<dyn mssql_tiberius_bridge::ToSql>> = columns
+            .iter()
+            .map(|c| helpers::value_to_sql_param(&data[c]))
+            .collect();
+        let params_slice: Vec<&dyn mssql_tiberius_bridge::ToSql> =
+            owned_params.iter().map(|b| b.as_ref()).collect();
+
+        let exec = conn
+            .execute(&sql, &params_slice)
+            .await
+            .map_err(|e| e.to_string())?;
+        // Bridge preview.3 returns 0 for DML row counts (mssql-tds doesn't
+        // expose DONE token row counts yet — bridge issue #1). Callers must
+        // verify success via a follow-up SELECT rather than this count.
+        Ok(exec.total())
     }
 
     async fn update_record(
@@ -558,11 +613,16 @@ mod tests {
         let drv = SqlServerDriver::new();
         let params = make_params(Some("localhost"), Some(1433), "master");
 
+        // `insert_record` is now wired up (issue #147) so it no longer
+        // returns the Phase 1 "read-only" string. It exercises a real
+        // connection path which fails fast in unit tests; we assert only
+        // that the empty-data validation still rejects callers before any
+        // I/O happens.
         let insert_err = drv
             .insert_record(&params, "t", HashMap::new(), None, 0)
             .await
-            .expect_err("insert must be blocked");
-        assert!(insert_err.contains("read-only"));
+            .expect_err("empty insert must be rejected");
+        assert!(insert_err.contains("at least one column"));
 
         let delete_err = drv
             .delete_record(&params, "t", "id", serde_json::json!(1), None)

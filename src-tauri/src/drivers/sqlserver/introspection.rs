@@ -351,6 +351,37 @@ pub async fn get_columns(
         .collect())
 }
 
+/// Identity-column probe used by [`crate::drivers::sqlserver::SqlServerDriver::insert_record`].
+///
+/// SQL Server allows at most one identity column per table. Returns the
+/// column name (case-preserved as stored in `sys.columns.name`) when one
+/// exists, or `None` if the table has no identity column. Bubbles the
+/// underlying TDS error up as a `String` on connection / query failure.
+pub async fn detect_identity_column(
+    conn: &mut BridgeConnection,
+    table: &str,
+    schema: Option<&str>,
+) -> Result<Option<String>, String> {
+    let qualified = qualify(schema, table);
+    let rows = conn
+        .query(Q_GET_IDENTITY_COLUMN, &[&qualified])
+        .await
+        .map_err(|e| e.to_string())?
+        .into_first_result();
+
+    Ok(rows
+        .into_iter()
+        .next()
+        .and_then(|r| r.get::<&str, _>(0).map(|s| s.to_string())))
+}
+
+/// Locate the (at most one) IDENTITY column for a `[schema].[table]`. P1 is
+/// the qualified name string — `OBJECT_ID(@P1)` resolves it server-side.
+pub const Q_GET_IDENTITY_COLUMN: &str = "\
+SELECT c.name \
+FROM sys.columns c \
+WHERE c.object_id = OBJECT_ID(@P1) AND c.is_identity = 1";
+
 pub async fn get_foreign_keys(
     conn: &mut BridgeConnection,
     table: &str,
@@ -609,6 +640,18 @@ mod tests {
         assert!(Q_GET_INDEXES.contains("sys.columns"));
         assert!(Q_GET_INDEXES.contains("i.type > 0"));
         assert!(Q_GET_INDEXES.contains("i.name IS NOT NULL"));
+    }
+
+    #[test]
+    fn q_get_identity_column_filters_sys_columns_by_object_id() {
+        // Must take a qualified [schema].[table] string and resolve it via
+        // OBJECT_ID server-side so the caller doesn't have to translate the
+        // name into a sys.tables / sys.schemas join.
+        assert!(Q_GET_IDENTITY_COLUMN.contains("sys.columns"));
+        assert!(Q_GET_IDENTITY_COLUMN.contains("OBJECT_ID(@P1)"));
+        assert!(Q_GET_IDENTITY_COLUMN.contains("is_identity = 1"));
+        // We project only the column name — the caller wraps it in Option.
+        assert!(Q_GET_IDENTITY_COLUMN.contains("SELECT c.name"));
     }
 
     // --- character_length_from_sys_columns -------------------------------

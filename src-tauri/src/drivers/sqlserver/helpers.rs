@@ -60,6 +60,68 @@ pub fn qualify(schema: Option<&str>, object: &str) -> String {
     format!("{}.{}", bracket_quote(schema), bracket_quote(object))
 }
 
+/// Build a parameterized SQL Server `INSERT` statement.
+///
+/// `qualified` is expected to already be a `[schema].[table]` produced by
+/// [`qualify`]. `columns` is the in-order list of column names that will be
+/// bound to `@P1, @P2, ...` (callers must bind values in the same order).
+///
+/// When `wrap_identity_insert` is `Some(target)`, the resulting batch toggles
+/// `SET IDENTITY_INSERT <target> ON` around the insert and is wrapped in
+/// `BEGIN TRY / BEGIN CATCH` so the session-scoped setting is always cleared,
+/// even if the insert fails. `target` should also be a `[schema].[table]`
+/// reference (typically the same as `qualified`); accepting it as a parameter
+/// keeps the helper pure and easy to unit-test.
+///
+/// Returns the SQL batch. The number of placeholders always matches
+/// `columns.len()`.
+pub fn build_insert_sql(
+    qualified: &str,
+    columns: &[String],
+    wrap_identity_insert: Option<&str>,
+) -> String {
+    let col_list = columns
+        .iter()
+        .map(|c| bracket_quote(c))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let placeholders = (1..=columns.len())
+        .map(|i| format!("@P{}", i))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let insert = format!(
+        "INSERT INTO {} ({}) VALUES ({})",
+        qualified, col_list, placeholders
+    );
+
+    match wrap_identity_insert {
+        None => format!("{};", insert),
+        Some(target) => {
+            // SET IDENTITY_INSERT is session-scoped and is *not* reverted by
+            // ROLLBACK, so the CATCH block must explicitly turn it OFF before
+            // re-raising. Setting OFF on a table that is already OFF is a
+            // no-op in SQL Server, so this is safe even if the failure occurs
+            // before the ON statement executes.
+            format!(
+                "BEGIN TRY\n\
+                     BEGIN TRAN;\n\
+                     SET IDENTITY_INSERT {target} ON;\n\
+                     {insert};\n\
+                     SET IDENTITY_INSERT {target} OFF;\n\
+                     COMMIT TRAN;\n\
+                 END TRY\n\
+                 BEGIN CATCH\n\
+                     IF @@TRANCOUNT > 0 ROLLBACK TRAN;\n\
+                     SET IDENTITY_INSERT {target} OFF;\n\
+                     THROW;\n\
+                 END CATCH;",
+                target = target,
+                insert = insert,
+            )
+        }
+    }
+}
+
 /// Escape a single-quoted string literal by doubling embedded single quotes.
 /// **Do not use this for parameterised values** — prefer tiberius parameter
 /// binding (`@P1` / `conn.query(sql, &[&value])`). This helper is only for
@@ -67,6 +129,60 @@ pub fn qualify(schema: Option<&str>, object: &str) -> String {
 /// embedding a schema name into a diagnostic comment).
 pub fn escape_single_quoted(value: &str) -> String {
     value.replace('\'', "''")
+}
+
+/// Map a [`serde_json::Value`] to a bridge parameter that binds with a
+/// proper SQL Server data type — not as a stringified JSON literal.
+///
+/// The bridge ships a default `impl ToSql for serde_json::Value` (behind its
+/// `json` feature) that serialises *every* JSON variant — including `true`,
+/// `42`, and `null` — to a JSON-encoded string and binds it as
+/// `NVARCHAR(4000)`. That round-trips for `nvarchar` targets but silently
+/// produces wrong results for `bit`, `int`, `bigint`, and `float` columns
+/// (e.g. inserting the literal string `"true"` into a `bit` column raises
+/// a conversion error; into a `varchar` column it stores `true` rather
+/// than `1`).
+///
+/// This helper dispatches on the JSON variant and hands the bridge a
+/// natively-typed primitive instead, leaning on the bridge's existing
+/// `ToSql for bool / i64 / f64 / String / Option<T>` implementations:
+///
+/// * `Null`            → `Option::<String>::None` → typed SQL NULL
+/// * `Bool`            → `bool`  → `bit`
+/// * `Number` (int)    → `i64`   → `bigint` (server widens as needed)
+/// * `Number` (float)  → `f64`   → `float(53)`
+/// * `String`          → `String` → `nvarchar(4000)`
+/// * `Array` / `Object` → stringified JSON, bound as `nvarchar(4000)`
+///
+/// Returning a `Box<dyn ToSql>` keeps the lifetime story simple at the call
+/// site: the caller collects owned boxes once, then borrows from them when
+/// building the `&[&dyn ToSql]` slice required by `Client::execute` /
+/// `Client::query`.
+pub fn value_to_sql_param(
+    value: &serde_json::Value,
+) -> Box<dyn mssql_tiberius_bridge::ToSql> {
+    match value {
+        serde_json::Value::Null => Box::new(None::<String>),
+        serde_json::Value::Bool(b) => Box::new(*b),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Box::new(i)
+            } else if let Some(u) = n.as_u64() {
+                // u64 → i64 may overflow; clamp via cast and let the server
+                // raise if the column can't accept the resulting bigint.
+                // The bridge does not yet expose a `Decimal`/`Numeric` impl.
+                Box::new(u as i64)
+            } else {
+                // serde_json guarantees `as_f64` returns Some for any
+                // non-integer JSON number; fall back to 0.0 defensively.
+                Box::new(n.as_f64().unwrap_or(0.0))
+            }
+        }
+        serde_json::Value::String(s) => Box::new(s.clone()),
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+            Box::new(value.to_string())
+        }
+    }
 }
 
 #[cfg(test)]
@@ -149,5 +265,112 @@ mod tests {
         assert!(twice.ends_with(']'));
         // Inner brackets ']' are each doubled again.
         assert!(twice.contains("]]]]"));
+    }
+
+    #[test]
+    fn build_insert_sql_plain_emits_positional_placeholders() {
+        let sql = build_insert_sql(
+            "[dbo].[Users]",
+            &["id".to_string(), "name".to_string(), "email".to_string()],
+            None,
+        );
+        assert_eq!(
+            sql,
+            "INSERT INTO [dbo].[Users] ([id], [name], [email]) VALUES (@P1, @P2, @P3);"
+        );
+    }
+
+    #[test]
+    fn build_insert_sql_plain_quotes_column_identifiers() {
+        let sql = build_insert_sql(
+            "[sales].[Orders]",
+            &["order id".to_string(), "weird]col".to_string()],
+            None,
+        );
+        assert!(sql.contains("([order id], [weird]]col])"));
+        assert!(sql.contains("VALUES (@P1, @P2)"));
+    }
+
+    #[test]
+    fn build_insert_sql_with_identity_wraps_in_try_catch() {
+        let sql = build_insert_sql(
+            "[dbo].[Users]",
+            &["id".to_string(), "name".to_string()],
+            Some("[dbo].[Users]"),
+        );
+        assert!(sql.contains("BEGIN TRY"));
+        assert!(sql.contains("BEGIN TRAN;"));
+        assert!(sql.contains("SET IDENTITY_INSERT [dbo].[Users] ON;"));
+        assert!(sql.contains(
+            "INSERT INTO [dbo].[Users] ([id], [name]) VALUES (@P1, @P2);"
+        ));
+        assert!(sql.contains("SET IDENTITY_INSERT [dbo].[Users] OFF;"));
+        assert!(sql.contains("COMMIT TRAN;"));
+        assert!(sql.contains("BEGIN CATCH"));
+        assert!(sql.contains("IF @@TRANCOUNT > 0 ROLLBACK TRAN;"));
+        assert!(sql.contains("THROW;"));
+        // The OFF guard must appear both on success and in CATCH so the
+        // session-scoped setting cannot leak when an insert fails.
+        let off_count = sql.matches("SET IDENTITY_INSERT [dbo].[Users] OFF;").count();
+        assert_eq!(off_count, 2);
+    }
+
+    #[test]
+    fn build_insert_sql_with_identity_uses_provided_target() {
+        // Caller may pass a different qualified name as the IDENTITY_INSERT
+        // target (e.g. for round-trip tests with escaped identifiers).
+        let sql = build_insert_sql(
+            "[dbo].[T]",
+            &["k".to_string()],
+            Some("[s].[we]]ird]"),
+        );
+        assert!(sql.contains("SET IDENTITY_INSERT [s].[we]]ird] ON;"));
+        assert!(sql.contains("SET IDENTITY_INSERT [s].[we]]ird] OFF;"));
+    }
+
+    #[test]
+    fn value_to_sql_param_dispatches_on_json_variant() {
+        // Round-trip each JSON variant through `value_to_sql_param` and use
+        // the bridge's `debug_fmt` to confirm we routed to the expected
+        // primitive impl. `bool`, integers, floats, and strings all derive
+        // their `Debug` output from the underlying Rust value, so matching
+        // the formatted string is a good proxy for "we picked the right
+        // ToSql impl".
+        fn fmt(p: &dyn mssql_tiberius_bridge::ToSql) -> String {
+            struct W<'a>(&'a dyn mssql_tiberius_bridge::ToSql);
+            impl std::fmt::Debug for W<'_> {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    self.0.debug_fmt(f)
+                }
+            }
+            format!("{:?}", W(p))
+        }
+
+        let b = value_to_sql_param(&serde_json::json!(true));
+        assert_eq!(fmt(b.as_ref()), "true");
+
+        let i = value_to_sql_param(&serde_json::json!(42));
+        assert_eq!(fmt(i.as_ref()), "42");
+
+        let neg = value_to_sql_param(&serde_json::json!(-7i64));
+        assert_eq!(fmt(neg.as_ref()), "-7");
+
+        let f = value_to_sql_param(&serde_json::json!(3.5));
+        assert_eq!(fmt(f.as_ref()), "3.5");
+
+        let s = value_to_sql_param(&serde_json::json!("hello"));
+        assert_eq!(fmt(s.as_ref()), "\"hello\"");
+
+        // Null routes through `Option::<String>::None`; the bridge's
+        // Option impl formats it as `None`.
+        let n = value_to_sql_param(&serde_json::Value::Null);
+        assert_eq!(fmt(n.as_ref()), "None");
+
+        // Arrays / objects fall through to JSON text form bound as String.
+        let arr = value_to_sql_param(&serde_json::json!([1, 2, 3]));
+        assert_eq!(fmt(arr.as_ref()), "\"[1,2,3]\"");
+
+        let obj = value_to_sql_param(&serde_json::json!({"k": 1}));
+        assert_eq!(fmt(obj.as_ref()), "\"{\\\"k\\\":1}\"");
     }
 }
