@@ -91,6 +91,7 @@ interface DataGridProps {
   columnMetadata?: TableColumn[];
   foreignKeys?: ForeignKey[];
   onForeignKeyNavigate?: (fk: ForeignKey, value: unknown) => void;
+  onForeignKeyShowPanel?: (fk: ForeignKey, value: unknown) => void;
   connectionId?: string | null;
   onRefresh?: () => void;
   pendingChanges?: Record<
@@ -131,6 +132,7 @@ export const DataGrid = React.memo(
     columnMetadata,
     foreignKeys,
     onForeignKeyNavigate,
+    onForeignKeyShowPanel,
     connectionId,
     onRefresh,
     pendingChanges,
@@ -1317,6 +1319,18 @@ export const DataGrid = React.memo(
                               }
                               setFocusedCell({ rowIndex, colIndex });
                               updateSelection(new Set());
+
+                              // Single-click on foreign key shows reference table in bottom panel
+                              const fkForCol = fksByColumn.get(colName);
+                              if (
+                                fkForCol &&
+                                onForeignKeyShowPanel &&
+                                !isPendingDelete &&
+                                !isInsertion &&
+                                isForeignKeyValueNavigable(rawCellValue)
+                              ) {
+                                onForeignKeyShowPanel(fkForCol, rawCellValue);
+                              }
                             }}
                             onDoubleClick={() =>
                               !isPendingDelete &&
@@ -1567,8 +1581,8 @@ export const DataGrid = React.memo(
                                       !isPendingDelete
                                     ) {
                                       return (
-                                        <span className="flex items-center gap-1 group/blobcell w-full">
-                                          <span className="truncate flex-1">
+                                        <span className="inline-flex items-center gap-1 group/blobcell w-full min-w-0">
+                                          <span className="truncate flex-1 min-w-0">
                                             {flexRender(
                                               cell.column.columnDef.cell,
                                               cell.getContext(),
@@ -1610,8 +1624,8 @@ export const DataGrid = React.memo(
                                       isForeignKeyValueNavigable(rawCellValue)
                                     ) {
                                       return (
-                                        <span className="flex items-center gap-1 group/fkcell w-full">
-                                          <span className="truncate flex-1">
+                                        <span className="inline-flex items-center gap-1 group/fkcell w-full min-w-0">
+                                          <span className="truncate flex-1 min-w-0">
                                             {flexRender(
                                               cell.column.columnDef.cell,
                                               cell.getContext(),
