@@ -194,6 +194,7 @@ pub async fn get_foreign_keys(
             ref_column: r.try_get("foreign_column_name").unwrap_or_default(),
             on_update: r.try_get("update_rule").ok(),
             on_delete: r.try_get("delete_rule").ok(),
+            ..Default::default()
         })
         .collect())
 }
@@ -322,6 +323,7 @@ pub async fn get_all_foreign_keys_batch(
             ref_column: row.try_get("foreign_column_name").unwrap_or_default(),
             on_update: row.try_get("update_rule").ok(),
             on_delete: row.try_get("delete_rule").ok(),
+            ..Default::default()
         };
 
         result.entry(table_name).or_insert_with(Vec::new).push(fk);

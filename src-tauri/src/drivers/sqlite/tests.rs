@@ -168,3 +168,173 @@ async fn test_view_lifecycle() {
     // Cleanup: Close the pool created by the functions (via pool_manager)
     crate::pool_manager::close_pool(&params).await;
 }
+
+// --- Trait default fallback: composite-PK delegation (issue #145) ---------
+//
+// The default `delete_record_composite` / `update_record_composite` impls in
+// `DatabaseDriver` are supposed to forward to the legacy single-key methods
+// when `pk_cols.len() == 1`, so MySQL / Postgres / SQLite keep working
+// without overriding anything. We exercise that contract here against the
+// real SQLite driver — if the fallback ever stops calling through, these
+// tests will catch the regression.
+
+#[tokio::test]
+async fn composite_delete_single_key_falls_back_to_single_key_path() {
+    use crate::drivers::driver_trait::DatabaseDriver;
+    use crate::drivers::sqlite::SqliteDriver;
+
+    let (params, _file) = setup_test_db().await;
+    let drv = SqliteDriver::new();
+
+    let affected = drv
+        .delete_record_composite(
+            &params,
+            "users",
+            &["id".to_string()],
+            vec![serde_json::json!(1)],
+            None,
+        )
+        .await
+        .expect("composite delete with single PK should delegate to delete_record");
+    assert_eq!(affected, 1, "exactly one row should be deleted via fallback");
+
+    let drv2 = SqliteDriver::new();
+    let rows = drv2
+        .execute_query(&params, "SELECT id FROM users ORDER BY id", None, 0, None)
+        .await
+        .expect("select after delete");
+    let remaining: Vec<i64> = rows
+        .rows
+        .iter()
+        .filter_map(|row| row.first().and_then(|v| v.as_i64()))
+        .collect();
+    assert_eq!(remaining, vec![2], "only Bob (id=2) should remain");
+
+    crate::pool_manager::close_pool(&params).await;
+}
+
+#[tokio::test]
+async fn composite_update_single_key_falls_back_to_single_key_path() {
+    use crate::drivers::driver_trait::DatabaseDriver;
+    use crate::drivers::sqlite::SqliteDriver;
+
+    let (params, _file) = setup_test_db().await;
+    let drv = SqliteDriver::new();
+
+    let affected = drv
+        .update_record_composite(
+            &params,
+            "users",
+            &["id".to_string()],
+            vec![serde_json::json!(2)],
+            "name",
+            serde_json::json!("Robert"),
+            None,
+            1024 * 1024,
+        )
+        .await
+        .expect("composite update with single PK should delegate to update_record");
+    assert_eq!(affected, 1, "exactly one row should be updated via fallback");
+
+    let drv2 = SqliteDriver::new();
+    let rows = drv2
+        .execute_query(
+            &params,
+            "SELECT name FROM users WHERE id = 2",
+            None,
+            0,
+            None,
+        )
+        .await
+        .expect("select after update");
+    let name = rows
+        .rows
+        .first()
+        .and_then(|row| row.first())
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    assert_eq!(name.as_deref(), Some("Robert"));
+
+    crate::pool_manager::close_pool(&params).await;
+}
+
+#[tokio::test]
+async fn composite_delete_real_composite_returns_descriptive_error() {
+    use crate::drivers::driver_trait::DatabaseDriver;
+    use crate::drivers::sqlite::SqliteDriver;
+
+    let (params, _file) = setup_test_db().await;
+    let drv = SqliteDriver::new();
+
+    let err = drv
+        .delete_record_composite(
+            &params,
+            "users",
+            &["a".to_string(), "b".to_string()],
+            vec![serde_json::json!(1), serde_json::json!(2)],
+            None,
+        )
+        .await
+        .expect_err("driver without override must reject genuine composite PKs");
+    assert!(
+        err.to_lowercase().contains("composite"),
+        "error should mention composite PKs, got: {err}"
+    );
+
+    crate::pool_manager::close_pool(&params).await;
+}
+
+#[tokio::test]
+async fn composite_update_real_composite_returns_descriptive_error() {
+    use crate::drivers::driver_trait::DatabaseDriver;
+    use crate::drivers::sqlite::SqliteDriver;
+
+    let (params, _file) = setup_test_db().await;
+    let drv = SqliteDriver::new();
+
+    let err = drv
+        .update_record_composite(
+            &params,
+            "users",
+            &["a".to_string(), "b".to_string()],
+            vec![serde_json::json!(1), serde_json::json!(2)],
+            "name",
+            serde_json::json!("x"),
+            None,
+            1024 * 1024,
+        )
+        .await
+        .expect_err("driver without override must reject genuine composite PKs");
+    assert!(
+        err.to_lowercase().contains("composite"),
+        "error should mention composite PKs, got: {err}"
+    );
+
+    crate::pool_manager::close_pool(&params).await;
+}
+
+#[tokio::test]
+async fn composite_pk_cols_pk_vals_length_mismatch_errors() {
+    use crate::drivers::driver_trait::DatabaseDriver;
+    use crate::drivers::sqlite::SqliteDriver;
+
+    let (params, _file) = setup_test_db().await;
+    let drv = SqliteDriver::new();
+
+    let err = drv
+        .delete_record_composite(
+            &params,
+            "users",
+            &["id".to_string(), "name".to_string()],
+            vec![serde_json::json!(1)],
+            None,
+        )
+        .await
+        .expect_err("length mismatch must surface as an error");
+    assert!(
+        err.contains("length mismatch"),
+        "expected length-mismatch error, got: {err}"
+    );
+
+    crate::pool_manager::close_pool(&params).await;
+}

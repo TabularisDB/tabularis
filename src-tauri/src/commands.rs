@@ -1796,14 +1796,14 @@ pub async fn delete_record<R: Runtime>(
     pk_val: serde_json::Value,
     schema: Option<String>,
     database: Option<String>,
+    // Composite-PK extension (issue #145). When both are supplied (and at
+    // least one column is present) the driver's composite path is used and
+    // `pk_col` / `pk_val` are ignored. Legacy single-PK callers leave these
+    // unset; Tauri deserialises missing JSON keys as `None`, so existing
+    // frontend invocations are unaffected.
+    pk_cols: Option<Vec<String>>,
+    pk_vals: Option<Vec<serde_json::Value>>,
 ) -> Result<u64, String> {
-    log::info!(
-        "Executing query on connection: {} | Query: DELETE FROM {} WHERE {} = {}",
-        connection_id,
-        table,
-        pk_col,
-        pk_val
-    );
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
@@ -1811,6 +1811,28 @@ pub async fn delete_record<R: Runtime>(
         params.database = crate::models::DatabaseSelection::Single(db);
     }
     let drv = driver_for(&saved_conn.params.driver).await?;
+
+    if let (Some(cols), Some(vals)) = (pk_cols, pk_vals) {
+        if !cols.is_empty() {
+            log::info!(
+                "Executing query on connection: {} | Query: DELETE FROM {} WHERE composite PK ({} cols)",
+                connection_id,
+                table,
+                cols.len()
+            );
+            return drv
+                .delete_record_composite(&params, &table, &cols, vals, schema.as_deref())
+                .await;
+        }
+    }
+
+    log::info!(
+        "Executing query on connection: {} | Query: DELETE FROM {} WHERE {} = {}",
+        connection_id,
+        table,
+        pk_col,
+        pk_val
+    );
     drv.delete_record(&params, &table, &pk_col, pk_val, schema.as_deref())
         .await
 }
@@ -1826,7 +1848,48 @@ pub async fn update_record<R: Runtime>(
     new_val: serde_json::Value,
     schema: Option<String>,
     database: Option<String>,
+    // Composite-PK extension (issue #145). When both are supplied (and at
+    // least one column is present) the driver's composite path is used and
+    // `pk_col` / `pk_val` are ignored. Legacy single-PK callers leave these
+    // unset; Tauri deserialises missing JSON keys as `None`, so existing
+    // frontend invocations are unaffected.
+    pk_cols: Option<Vec<String>>,
+    pk_vals: Option<Vec<serde_json::Value>>,
 ) -> Result<u64, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    if let Some(db) = database {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
+    let max_blob_size = crate::config::get_max_blob_size(&app);
+    let drv = driver_for(&saved_conn.params.driver).await?;
+
+    if let (Some(cols), Some(vals)) = (pk_cols, pk_vals) {
+        if !cols.is_empty() {
+            log::info!(
+                "Executing query on connection: {} | Query: UPDATE {} SET {} = {} WHERE composite PK ({} cols)",
+                connection_id,
+                table,
+                col_name,
+                new_val,
+                cols.len()
+            );
+            return drv
+                .update_record_composite(
+                    &params,
+                    &table,
+                    &cols,
+                    vals,
+                    &col_name,
+                    new_val,
+                    schema.as_deref(),
+                    max_blob_size,
+                )
+                .await;
+        }
+    }
+
     log::info!(
         "Executing query on connection: {} | Query: UPDATE {} SET {} = {} WHERE {} = {}",
         connection_id,
@@ -1836,14 +1899,6 @@ pub async fn update_record<R: Runtime>(
         pk_col,
         pk_val
     );
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    if let Some(db) = database {
-        params.database = crate::models::DatabaseSelection::Single(db);
-    }
-    let max_blob_size = crate::config::get_max_blob_size(&app);
-    let drv = driver_for(&saved_conn.params.driver).await?;
     drv.update_record(
         &params,
         &table,

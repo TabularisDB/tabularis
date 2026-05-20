@@ -365,6 +365,77 @@ pub trait DatabaseDriver: Send + Sync {
         schema: Option<&str>,
     ) -> Result<u64, String>;
 
+    // --- CRUD: composite primary keys --------------------------------------
+    //
+    // Default implementations forward to the single-key methods when there is
+    // exactly one PK column. Drivers that natively support composite primary
+    // keys (e.g. SQL Server) override these to build a multi-column WHERE
+    // clause. Drivers that do not override return a descriptive error when a
+    // genuinely composite key is passed — single-key callers continue to work
+    // unchanged via the fallback.
+    //
+    // Issue: TabularisDB/tabularis#145
+
+    async fn delete_record_composite(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        pk_cols: &[String],
+        pk_vals: Vec<serde_json::Value>,
+        schema: Option<&str>,
+    ) -> Result<u64, String> {
+        if pk_cols.len() != pk_vals.len() {
+            return Err(format!(
+                "delete_record_composite: pk_cols ({}) and pk_vals ({}) length mismatch",
+                pk_cols.len(),
+                pk_vals.len()
+            ));
+        }
+        if pk_cols.len() == 1 {
+            let val = pk_vals.into_iter().next().unwrap_or(serde_json::Value::Null);
+            return self
+                .delete_record(params, table, &pk_cols[0], val, schema)
+                .await;
+        }
+        Err("Composite primary keys not supported by this driver".into())
+    }
+
+    async fn update_record_composite(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        pk_cols: &[String],
+        pk_vals: Vec<serde_json::Value>,
+        col_name: &str,
+        new_val: serde_json::Value,
+        schema: Option<&str>,
+        max_blob_size: u64,
+    ) -> Result<u64, String> {
+        if pk_cols.len() != pk_vals.len() {
+            return Err(format!(
+                "update_record_composite: pk_cols ({}) and pk_vals ({}) length mismatch",
+                pk_cols.len(),
+                pk_vals.len()
+            ));
+        }
+        if pk_cols.len() == 1 {
+            let val = pk_vals.into_iter().next().unwrap_or(serde_json::Value::Null);
+            return self
+                .update_record(
+                    params,
+                    table,
+                    &pk_cols[0],
+                    val,
+                    col_name,
+                    new_val,
+                    schema,
+                    max_blob_size,
+                )
+                .await;
+        }
+        Err("Composite primary keys not supported by this driver".into())
+    }
+
     // --- BLOB helpers (optional, built-in drivers only) ---------------------
 
     async fn save_blob_to_file(

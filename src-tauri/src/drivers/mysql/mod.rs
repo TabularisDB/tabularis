@@ -155,6 +155,7 @@ pub async fn get_foreign_keys(
             ref_column: mysql_row_str(r, 3),
             on_update: mysql_row_str_opt(r, 4),
             on_delete: mysql_row_str_opt(r, 5),
+            ..Default::default()
         })
         .collect())
 }
@@ -268,6 +269,7 @@ pub async fn get_all_foreign_keys_batch(
             ref_column: mysql_row_str(row, 4),
             on_update: mysql_row_str_opt(row, 5),
             on_delete: mysql_row_str_opt(row, 6),
+            ..Default::default()
         };
 
         result.entry(table_name).or_insert_with(Vec::new).push(fk);

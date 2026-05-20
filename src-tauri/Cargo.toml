@@ -59,7 +59,7 @@ deadpool-postgres = "0.14.1"
 postgres-native-tls = "0.5.1"
 native-tls = "0.2.13"
 # SQL Server driver (mssql-tiberius-bridge) — tiberius-compatible API over mssql-tds
-mssql-tiberius-bridge = "=0.1.0-preview.3"
+mssql-tiberius-bridge = "=0.1.0-preview.5"
 deadpool = "0.12"
 # rustls is used for the PostgreSQL deadpool TLS path. native-tls (used by
 # sqlx and the MySQL pool) trips macOS Secure Transport's strict EKU checks

@@ -208,14 +208,52 @@ pub struct TableColumn {
     pub character_maximum_length: Option<u64>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ForeignKey {
     pub name: String,
+    /// Legacy single-column form. MySQL/Postgres/SQLite drivers still emit one
+    /// `ForeignKey` row per FK column and populate only this field. The SQL
+    /// Server driver populates both this (= first column of the constraint)
+    /// and the aggregated `columns` / `ref_columns` arrays below.
     pub column_name: String,
     pub ref_table: String,
     pub ref_column: String,
     pub on_delete: Option<String>,
     pub on_update: Option<String>,
+    /// Phase 2: composite-aware columns. Empty when the driver hasn't been
+    /// taught to aggregate (MySQL/Postgres/SQLite today). Order matches the
+    /// constraint definition order — `columns[i]` references `ref_columns[i]`.
+    #[serde(default)]
+    pub columns: Vec<String>,
+    #[serde(default)]
+    pub ref_columns: Vec<String>,
+    /// Optional schema qualifier for the referenced table. Phase 2 SQL Server
+    /// emits this; other drivers leave it `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ref_schema: Option<String>,
+}
+
+impl ForeignKey {
+    /// All local columns participating in the constraint, in definition order.
+    /// Falls back to the legacy single-column form when the driver hasn't
+    /// populated `columns` (MySQL/Postgres/SQLite/legacy JSON).
+    pub fn local_columns(&self) -> Vec<&str> {
+        if self.columns.is_empty() {
+            vec![self.column_name.as_str()]
+        } else {
+            self.columns.iter().map(String::as_str).collect()
+        }
+    }
+
+    /// All referenced columns in the parent table, in definition order. Same
+    /// fallback semantics as [`local_columns`].
+    pub fn referenced_columns(&self) -> Vec<&str> {
+        if self.ref_columns.is_empty() {
+            vec![self.ref_column.as_str()]
+        } else {
+            self.ref_columns.iter().map(String::as_str).collect()
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

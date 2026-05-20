@@ -26,6 +26,7 @@ fn get_mysql_params() -> ConnectionParams {
         ssh_key_passphrase: None,
         save_in_keychain: None,
         connection_id: None,
+        ..Default::default()
     }
 }
 
@@ -51,6 +52,7 @@ fn get_postgres_params() -> ConnectionParams {
         ssh_key_passphrase: None,
         save_in_keychain: None,
         connection_id: None,
+        ..Default::default()
     }
 }
 

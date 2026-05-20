@@ -49,27 +49,76 @@ LEFT JOIN sys.default_constraints dc \
 WHERE c.object_id = OBJECT_ID(@P1) \
 ORDER BY c.column_id";
 
-/// Phase 1 emits one row per FK column (like PG/MySQL drivers). Composite
-/// FK grouping happens client-side by `constraint_name` — Phase 2 switches
-/// the model to multi-column arrays.
-pub const Q_GET_FOREIGN_KEYS: &str = "\
+/// Phase 2 (#146): SQL Server 2017+ FK query using `STRING_AGG` to collapse
+/// every column of a constraint into a single row with comma-separated
+/// `columns` / `ref_columns`. One row per constraint regardless of column
+/// count. Gated by [`crate::drivers::sqlserver::version::ServerVersion::supports_string_agg`].
+pub const Q_GET_FOREIGN_KEYS_STRING_AGG: &str = "\
 SELECT \
-    rc.CONSTRAINT_NAME AS name, \
-    kcu.COLUMN_NAME AS column_name, \
-    kcu2.TABLE_NAME AS ref_table, \
-    kcu2.COLUMN_NAME AS ref_column, \
-    rc.UPDATE_RULE AS on_update, \
-    rc.DELETE_RULE AS on_delete \
-FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc \
-JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu \
-    ON rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME \
-   AND rc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA \
-JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu2 \
-    ON rc.UNIQUE_CONSTRAINT_NAME = kcu2.CONSTRAINT_NAME \
-   AND rc.UNIQUE_CONSTRAINT_SCHEMA = kcu2.CONSTRAINT_SCHEMA \
-   AND kcu.ORDINAL_POSITION = kcu2.ORDINAL_POSITION \
-WHERE kcu.TABLE_SCHEMA = @P1 AND kcu.TABLE_NAME = @P2 \
-ORDER BY rc.CONSTRAINT_NAME, kcu.ORDINAL_POSITION";
+    fk.name AS name, \
+    rs.name AS ref_schema, \
+    rt.name AS ref_table, \
+    STRING_AGG(pc.name, ',') WITHIN GROUP (ORDER BY fkc.constraint_column_id) AS columns, \
+    STRING_AGG(rc.name, ',') WITHIN GROUP (ORDER BY fkc.constraint_column_id) AS ref_columns, \
+    CASE fk.update_referential_action \
+        WHEN 0 THEN 'NO ACTION' WHEN 1 THEN 'CASCADE' \
+        WHEN 2 THEN 'SET NULL' WHEN 3 THEN 'SET DEFAULT' \
+    END AS on_update, \
+    CASE fk.delete_referential_action \
+        WHEN 0 THEN 'NO ACTION' WHEN 1 THEN 'CASCADE' \
+        WHEN 2 THEN 'SET NULL' WHEN 3 THEN 'SET DEFAULT' \
+    END AS on_delete \
+FROM sys.foreign_keys fk \
+JOIN sys.foreign_key_columns fkc ON fk.object_id = fkc.constraint_object_id \
+JOIN sys.tables pt ON fk.parent_object_id = pt.object_id \
+JOIN sys.schemas ps ON pt.schema_id = ps.schema_id \
+JOIN sys.tables rt ON fk.referenced_object_id = rt.object_id \
+JOIN sys.schemas rs ON rt.schema_id = rs.schema_id \
+JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id \
+JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id \
+WHERE ps.name = @P1 AND pt.name = @P2 \
+GROUP BY fk.name, rs.name, rt.name, fk.update_referential_action, fk.delete_referential_action \
+ORDER BY fk.name";
+
+/// Phase 2 (#146): SQL Server 2012-2016 fallback using `STUFF(... FOR XML \
+/// PATH(''))` to aggregate FK columns. Same row shape as
+/// [`Q_GET_FOREIGN_KEYS_STRING_AGG`] so the caller doesn't branch on parsing.
+pub const Q_GET_FOREIGN_KEYS_XML_PATH: &str = "\
+SELECT \
+    fk.name AS name, \
+    rs.name AS ref_schema, \
+    rt.name AS ref_table, \
+    STUFF(( \
+        SELECT ',' + pc.name \
+        FROM sys.foreign_key_columns fkc \
+        JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id \
+        WHERE fkc.constraint_object_id = fk.object_id \
+        ORDER BY fkc.constraint_column_id \
+        FOR XML PATH(''), TYPE \
+    ).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS columns, \
+    STUFF(( \
+        SELECT ',' + rc.name \
+        FROM sys.foreign_key_columns fkc \
+        JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id \
+        WHERE fkc.constraint_object_id = fk.object_id \
+        ORDER BY fkc.constraint_column_id \
+        FOR XML PATH(''), TYPE \
+    ).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS ref_columns, \
+    CASE fk.update_referential_action \
+        WHEN 0 THEN 'NO ACTION' WHEN 1 THEN 'CASCADE' \
+        WHEN 2 THEN 'SET NULL' WHEN 3 THEN 'SET DEFAULT' \
+    END AS on_update, \
+    CASE fk.delete_referential_action \
+        WHEN 0 THEN 'NO ACTION' WHEN 1 THEN 'CASCADE' \
+        WHEN 2 THEN 'SET NULL' WHEN 3 THEN 'SET DEFAULT' \
+    END AS on_delete \
+FROM sys.foreign_keys fk \
+JOIN sys.tables pt ON fk.parent_object_id = pt.object_id \
+JOIN sys.schemas ps ON pt.schema_id = ps.schema_id \
+JOIN sys.tables rt ON fk.referenced_object_id = rt.object_id \
+JOIN sys.schemas rs ON rt.schema_id = rs.schema_id \
+WHERE ps.name = @P1 AND pt.name = @P2 \
+ORDER BY fk.name";
 
 pub const Q_GET_VIEWS: &str = "\
 SELECT v.name \
@@ -132,27 +181,76 @@ LEFT JOIN sys.default_constraints dc \
 WHERE s.name = @P1 \
 ORDER BY t.name, c.column_id";
 
-/// Batch-fetch all FK columns for every table in a schema. One row per FK
-/// column (Phase 1 shape — Phase 2 will aggregate composite FKs).
-pub const Q_GET_ALL_FOREIGN_KEYS_BATCH: &str = "\
+/// Phase 2 (#146): SQL Server 2017+ batch variant — same shape as
+/// [`Q_GET_FOREIGN_KEYS_STRING_AGG`] but groups across every table in the
+/// schema and emits `table_name` so the caller can bucket by parent table.
+pub const Q_GET_ALL_FOREIGN_KEYS_BATCH_STRING_AGG: &str = "\
 SELECT \
-    kcu.TABLE_NAME AS table_name, \
-    rc.CONSTRAINT_NAME AS name, \
-    kcu.COLUMN_NAME AS column_name, \
-    kcu2.TABLE_NAME AS ref_table, \
-    kcu2.COLUMN_NAME AS ref_column, \
-    rc.UPDATE_RULE AS on_update, \
-    rc.DELETE_RULE AS on_delete \
-FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc \
-JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu \
-    ON rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME \
-   AND rc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA \
-JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu2 \
-    ON rc.UNIQUE_CONSTRAINT_NAME = kcu2.CONSTRAINT_NAME \
-   AND rc.UNIQUE_CONSTRAINT_SCHEMA = kcu2.CONSTRAINT_SCHEMA \
-   AND kcu.ORDINAL_POSITION = kcu2.ORDINAL_POSITION \
-WHERE kcu.TABLE_SCHEMA = @P1 \
-ORDER BY kcu.TABLE_NAME, rc.CONSTRAINT_NAME, kcu.ORDINAL_POSITION";
+    pt.name AS table_name, \
+    fk.name AS name, \
+    rs.name AS ref_schema, \
+    rt.name AS ref_table, \
+    STRING_AGG(pc.name, ',') WITHIN GROUP (ORDER BY fkc.constraint_column_id) AS columns, \
+    STRING_AGG(rc.name, ',') WITHIN GROUP (ORDER BY fkc.constraint_column_id) AS ref_columns, \
+    CASE fk.update_referential_action \
+        WHEN 0 THEN 'NO ACTION' WHEN 1 THEN 'CASCADE' \
+        WHEN 2 THEN 'SET NULL' WHEN 3 THEN 'SET DEFAULT' \
+    END AS on_update, \
+    CASE fk.delete_referential_action \
+        WHEN 0 THEN 'NO ACTION' WHEN 1 THEN 'CASCADE' \
+        WHEN 2 THEN 'SET NULL' WHEN 3 THEN 'SET DEFAULT' \
+    END AS on_delete \
+FROM sys.foreign_keys fk \
+JOIN sys.foreign_key_columns fkc ON fk.object_id = fkc.constraint_object_id \
+JOIN sys.tables pt ON fk.parent_object_id = pt.object_id \
+JOIN sys.schemas ps ON pt.schema_id = ps.schema_id \
+JOIN sys.tables rt ON fk.referenced_object_id = rt.object_id \
+JOIN sys.schemas rs ON rt.schema_id = rs.schema_id \
+JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id \
+JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id \
+WHERE ps.name = @P1 \
+GROUP BY pt.name, fk.name, rs.name, rt.name, fk.update_referential_action, fk.delete_referential_action \
+ORDER BY pt.name, fk.name";
+
+/// Phase 2 (#146): SQL Server 2012-2016 batch fallback using STUFF / FOR XML
+/// PATH. Same shape as [`Q_GET_ALL_FOREIGN_KEYS_BATCH_STRING_AGG`].
+pub const Q_GET_ALL_FOREIGN_KEYS_BATCH_XML_PATH: &str = "\
+SELECT \
+    pt.name AS table_name, \
+    fk.name AS name, \
+    rs.name AS ref_schema, \
+    rt.name AS ref_table, \
+    STUFF(( \
+        SELECT ',' + pc.name \
+        FROM sys.foreign_key_columns fkc \
+        JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id \
+        WHERE fkc.constraint_object_id = fk.object_id \
+        ORDER BY fkc.constraint_column_id \
+        FOR XML PATH(''), TYPE \
+    ).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS columns, \
+    STUFF(( \
+        SELECT ',' + rc.name \
+        FROM sys.foreign_key_columns fkc \
+        JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id \
+        WHERE fkc.constraint_object_id = fk.object_id \
+        ORDER BY fkc.constraint_column_id \
+        FOR XML PATH(''), TYPE \
+    ).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS ref_columns, \
+    CASE fk.update_referential_action \
+        WHEN 0 THEN 'NO ACTION' WHEN 1 THEN 'CASCADE' \
+        WHEN 2 THEN 'SET NULL' WHEN 3 THEN 'SET DEFAULT' \
+    END AS on_update, \
+    CASE fk.delete_referential_action \
+        WHEN 0 THEN 'NO ACTION' WHEN 1 THEN 'CASCADE' \
+        WHEN 2 THEN 'SET NULL' WHEN 3 THEN 'SET DEFAULT' \
+    END AS on_delete \
+FROM sys.foreign_keys fk \
+JOIN sys.tables pt ON fk.parent_object_id = pt.object_id \
+JOIN sys.schemas ps ON pt.schema_id = ps.schema_id \
+JOIN sys.tables rt ON fk.referenced_object_id = rt.object_id \
+JOIN sys.schemas rs ON rt.schema_id = rs.schema_id \
+WHERE ps.name = @P1 \
+ORDER BY pt.name, fk.name";
 
 /// Indexes: one row per (index, column) pair. Tabularis' `Index` struct maps
 /// 1:1 to this shape and the frontend groups by `name`.
@@ -250,16 +348,21 @@ pub fn build_table_column(
     }
 }
 
-/// Pure builder for [`ForeignKey`]. Kept alongside [`build_table_column`] so
-/// the two are symmetric and both reachable from tests.
+/// Pure builder for [`ForeignKey`]. Composite-aware: takes the full column
+/// arrays and derives the legacy `column_name` / `ref_column` from the first
+/// entry. Empty arrays yield empty legacy strings — callers should treat that
+/// as a malformed row.
 pub fn build_foreign_key(
     name: String,
-    column_name: String,
+    columns: Vec<String>,
+    ref_schema: Option<String>,
     ref_table: String,
-    ref_column: String,
+    ref_columns: Vec<String>,
     on_update: Option<String>,
     on_delete: Option<String>,
 ) -> ForeignKey {
+    let column_name = columns.first().cloned().unwrap_or_default();
+    let ref_column = ref_columns.first().cloned().unwrap_or_default();
     ForeignKey {
         name,
         column_name,
@@ -267,7 +370,19 @@ pub fn build_foreign_key(
         ref_column,
         on_update,
         on_delete,
+        columns,
+        ref_columns,
+        ref_schema,
     }
+}
+
+/// Split a comma-separated column list returned by `STRING_AGG` /
+/// `FOR XML PATH`. Empty / NULL → empty vec.
+pub fn split_agg_columns(raw: &str) -> Vec<String> {
+    if raw.is_empty() {
+        return Vec::new();
+    }
+    raw.split(',').map(|s| s.to_string()).collect()
 }
 
 /// Whether a given SQL Server type name is a string-like type that should
@@ -388,8 +503,14 @@ pub async fn get_foreign_keys(
     schema: Option<&str>,
 ) -> Result<Vec<ForeignKey>, String> {
     let schema = schema.unwrap_or("dbo");
+    let version = detect_server_version(conn).await;
+    let query = if version.supports_string_agg() {
+        Q_GET_FOREIGN_KEYS_STRING_AGG
+    } else {
+        Q_GET_FOREIGN_KEYS_XML_PATH
+    };
     let rows = conn
-        .query(Q_GET_FOREIGN_KEYS, &[&schema, &table])
+        .query(query, &[&schema, &table])
         .await
         .map_err(|e| e.to_string())?
         .into_first_result();
@@ -399,9 +520,10 @@ pub async fn get_foreign_keys(
         .map(|r| {
             build_foreign_key(
                 row_str(&r, "name"),
-                row_str(&r, "column_name"),
+                split_agg_columns(&row_str(&r, "columns")),
+                row_str_opt(&r, "ref_schema"),
                 row_str(&r, "ref_table"),
-                row_str(&r, "ref_column"),
+                split_agg_columns(&row_str(&r, "ref_columns")),
                 row_str_opt(&r, "on_update"),
                 row_str_opt(&r, "on_delete"),
             )
@@ -440,8 +562,14 @@ pub async fn get_all_foreign_keys_batch(
     conn: &mut BridgeConnection,
     schema: &str,
 ) -> Result<HashMap<String, Vec<ForeignKey>>, String> {
+    let version = detect_server_version(conn).await;
+    let query = if version.supports_string_agg() {
+        Q_GET_ALL_FOREIGN_KEYS_BATCH_STRING_AGG
+    } else {
+        Q_GET_ALL_FOREIGN_KEYS_BATCH_XML_PATH
+    };
     let rows = conn
-        .query(Q_GET_ALL_FOREIGN_KEYS_BATCH, &[&schema])
+        .query(query, &[&schema])
         .await
         .map_err(|e| e.to_string())?
         .into_first_result();
@@ -451,15 +579,62 @@ pub async fn get_all_foreign_keys_batch(
         let table_name = row_str(&r, "table_name");
         let fk = build_foreign_key(
             row_str(&r, "name"),
-            row_str(&r, "column_name"),
+            split_agg_columns(&row_str(&r, "columns")),
+            row_str_opt(&r, "ref_schema"),
             row_str(&r, "ref_table"),
-            row_str(&r, "ref_column"),
+            split_agg_columns(&row_str(&r, "ref_columns")),
             row_str_opt(&r, "on_update"),
             row_str_opt(&r, "on_delete"),
         );
         out.entry(table_name).or_default().push(fk);
     }
     Ok(out)
+}
+
+/// Probe the connected server for its major version. Failures fall back to
+/// [`ServerVersion`] with `DEFAULT_MAJOR` (= SQL Server 2017) — same default
+/// the parser uses, keeps the FK query on the modern STRING_AGG branch.
+pub async fn detect_server_version(
+    conn: &mut BridgeConnection,
+) -> crate::drivers::sqlserver::version::ServerVersion {
+    use crate::drivers::sqlserver::version::{
+        parse_major_version, parse_version_banner, ServerVersion, DEFAULT_MAJOR,
+    };
+
+    // Try SERVERPROPERTY first — cheapest and structured.
+    if let Ok(result) = conn
+        .query(
+            "SELECT CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(128)) AS v",
+            &[],
+        )
+        .await
+    {
+        let rows = result.into_first_result();
+        if let Some(r) = rows.first() {
+            let raw = row_str(r, "v");
+            if !raw.trim().is_empty() {
+                let major = parse_major_version(&raw);
+                return ServerVersion { major, full: raw };
+            }
+        }
+    }
+
+    // Fall back to @@VERSION banner.
+    if let Ok(result) = conn.query("SELECT @@VERSION AS v", &[]).await {
+        let rows = result.into_first_result();
+        if let Some(r) = rows.first() {
+            let raw = row_str(r, "v");
+            if !raw.trim().is_empty() {
+                let major = parse_version_banner(&raw);
+                return ServerVersion { major, full: raw };
+            }
+        }
+    }
+
+    ServerVersion {
+        major: DEFAULT_MAJOR,
+        full: String::new(),
+    }
 }
 
 /// Build the full per-schema snapshot in three round-trips: tables, columns
@@ -621,16 +796,40 @@ mod tests {
     }
 
     #[test]
-    fn q_get_foreign_keys_uses_information_schema() {
-        assert!(Q_GET_FOREIGN_KEYS.contains("INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS"));
-        assert!(Q_GET_FOREIGN_KEYS.contains("INFORMATION_SCHEMA.KEY_COLUMN_USAGE"));
-        assert!(Q_GET_FOREIGN_KEYS.contains("@P1"));
-        assert!(Q_GET_FOREIGN_KEYS.contains("@P2"));
-        assert!(Q_GET_FOREIGN_KEYS.contains("ORDER BY"));
-        // The join must pair parent/unique constraints on ordinal position so
-        // a composite FK yields rows where (col, ref_col) are matched, not
-        // cartesian-producted.
-        assert!(Q_GET_FOREIGN_KEYS.contains("ORDINAL_POSITION"));
+    fn q_get_foreign_keys_string_agg_uses_sys_catalog() {
+        // 2017+ branch must use STRING_AGG with deterministic column ordering,
+        // emit one row per constraint (not per column), and qualify both the
+        // parent table and the schema.
+        assert!(Q_GET_FOREIGN_KEYS_STRING_AGG.contains("sys.foreign_keys"));
+        assert!(Q_GET_FOREIGN_KEYS_STRING_AGG.contains("sys.foreign_key_columns"));
+        assert!(Q_GET_FOREIGN_KEYS_STRING_AGG.contains("STRING_AGG"));
+        assert!(Q_GET_FOREIGN_KEYS_STRING_AGG.contains("WITHIN GROUP"));
+        assert!(Q_GET_FOREIGN_KEYS_STRING_AGG.contains("ORDER BY fkc.constraint_column_id"));
+        assert!(Q_GET_FOREIGN_KEYS_STRING_AGG.contains("AS columns"));
+        assert!(Q_GET_FOREIGN_KEYS_STRING_AGG.contains("AS ref_columns"));
+        assert!(Q_GET_FOREIGN_KEYS_STRING_AGG.contains("rs.name AS ref_schema"));
+        assert!(Q_GET_FOREIGN_KEYS_STRING_AGG.contains("@P1"));
+        assert!(Q_GET_FOREIGN_KEYS_STRING_AGG.contains("@P2"));
+        assert!(Q_GET_FOREIGN_KEYS_STRING_AGG.contains("GROUP BY"));
+        // Action codes must be normalised to the space-form ("NO ACTION", not "NO_ACTION").
+        assert!(Q_GET_FOREIGN_KEYS_STRING_AGG.contains("'NO ACTION'"));
+        assert!(Q_GET_FOREIGN_KEYS_STRING_AGG.contains("'SET NULL'"));
+    }
+
+    #[test]
+    fn q_get_foreign_keys_xml_path_uses_stuff_for_xml() {
+        // 2012-2016 fallback. Same row shape (columns / ref_columns /
+        // ref_schema) so the caller doesn't have to branch on parsing.
+        assert!(Q_GET_FOREIGN_KEYS_XML_PATH.contains("sys.foreign_keys"));
+        assert!(Q_GET_FOREIGN_KEYS_XML_PATH.contains("STUFF("));
+        assert!(Q_GET_FOREIGN_KEYS_XML_PATH.contains("FOR XML PATH('')"));
+        assert!(Q_GET_FOREIGN_KEYS_XML_PATH.contains("ORDER BY fkc.constraint_column_id"));
+        assert!(Q_GET_FOREIGN_KEYS_XML_PATH.contains("AS columns"));
+        assert!(Q_GET_FOREIGN_KEYS_XML_PATH.contains("AS ref_columns"));
+        assert!(Q_GET_FOREIGN_KEYS_XML_PATH.contains("rs.name AS ref_schema"));
+        assert!(Q_GET_FOREIGN_KEYS_XML_PATH.contains("@P1"));
+        assert!(Q_GET_FOREIGN_KEYS_XML_PATH.contains("@P2"));
+        assert!(Q_GET_FOREIGN_KEYS_XML_PATH.contains("'NO ACTION'"));
     }
 
     #[test]
@@ -727,12 +926,28 @@ mod tests {
     }
 
     #[test]
-    fn q_get_all_foreign_keys_batch_emits_table_name() {
-        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH.contains("INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS"));
-        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH.contains("kcu.TABLE_NAME AS table_name"));
-        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH.contains("@P1"));
-        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH.contains("ORDER BY"));
-        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH.contains("ORDINAL_POSITION"));
+    fn q_get_all_foreign_keys_batch_string_agg_emits_table_name() {
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_STRING_AGG.contains("pt.name AS table_name"));
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_STRING_AGG.contains("STRING_AGG"));
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_STRING_AGG.contains("WITHIN GROUP"));
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_STRING_AGG.contains("AS columns"));
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_STRING_AGG.contains("AS ref_columns"));
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_STRING_AGG.contains("@P1"));
+        // No @P2 — batch variant aggregates across every table in the schema.
+        assert!(!Q_GET_ALL_FOREIGN_KEYS_BATCH_STRING_AGG.contains("@P2"));
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_STRING_AGG.contains("GROUP BY"));
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_STRING_AGG.contains("ORDER BY pt.name"));
+    }
+
+    #[test]
+    fn q_get_all_foreign_keys_batch_xml_path_emits_table_name() {
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_XML_PATH.contains("pt.name AS table_name"));
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_XML_PATH.contains("STUFF("));
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_XML_PATH.contains("FOR XML PATH('')"));
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_XML_PATH.contains("AS columns"));
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_XML_PATH.contains("AS ref_columns"));
+        assert!(Q_GET_ALL_FOREIGN_KEYS_BATCH_XML_PATH.contains("@P1"));
+        assert!(!Q_GET_ALL_FOREIGN_KEYS_BATCH_XML_PATH.contains("@P2"));
     }
 
     // --- build_table_column ----------------------------------------------
@@ -809,9 +1024,10 @@ mod tests {
     fn build_foreign_key_assembles_all_fields() {
         let fk = build_foreign_key(
             "FK_orders_customer".into(),
-            "customer_id".into(),
+            vec!["customer_id".into()],
+            Some("dbo".into()),
             "customers".into(),
-            "id".into(),
+            vec!["id".into()],
             Some("NO ACTION".into()),
             Some("CASCADE".into()),
         );
@@ -819,22 +1035,123 @@ mod tests {
         assert_eq!(fk.column_name, "customer_id");
         assert_eq!(fk.ref_table, "customers");
         assert_eq!(fk.ref_column, "id");
+        assert_eq!(fk.ref_schema.as_deref(), Some("dbo"));
         assert_eq!(fk.on_update, Some("NO ACTION".into()));
         assert_eq!(fk.on_delete, Some("CASCADE".into()));
+        assert_eq!(fk.columns, vec!["customer_id"]);
+        assert_eq!(fk.ref_columns, vec!["id"]);
     }
 
     #[test]
     fn build_foreign_key_allows_missing_actions() {
         let fk = build_foreign_key(
             "FK_a".into(),
-            "x".into(),
+            vec!["x".into()],
+            None,
             "t".into(),
-            "y".into(),
+            vec!["y".into()],
             None,
             None,
         );
         assert!(fk.on_update.is_none());
         assert!(fk.on_delete.is_none());
+        assert!(fk.ref_schema.is_none());
+    }
+
+    #[test]
+    fn build_foreign_key_handles_composite_columns() {
+        // The (tenant_id, order_id) -> (tenant_id, id) shape that triggered
+        // #146. The legacy fields must reflect the first column of each side
+        // so frontends that still read column_name/ref_column don't crash;
+        // the full set is exposed via columns / ref_columns.
+        let fk = build_foreign_key(
+            "FK_line_items_orders".into(),
+            vec!["tenant_id".into(), "order_id".into()],
+            Some("dbo".into()),
+            "orders".into(),
+            vec!["tenant_id".into(), "id".into()],
+            Some("NO ACTION".into()),
+            Some("NO ACTION".into()),
+        );
+        assert_eq!(fk.column_name, "tenant_id");
+        assert_eq!(fk.ref_column, "tenant_id");
+        assert_eq!(fk.columns, vec!["tenant_id", "order_id"]);
+        assert_eq!(fk.ref_columns, vec!["tenant_id", "id"]);
+        assert_eq!(fk.local_columns(), vec!["tenant_id", "order_id"]);
+        assert_eq!(fk.referenced_columns(), vec!["tenant_id", "id"]);
+    }
+
+    #[test]
+    fn build_foreign_key_empty_arrays_yield_empty_legacy_fields() {
+        // Defensive: a malformed row with empty STRING_AGG output shouldn't
+        // panic — column_name / ref_column just become "".
+        let fk = build_foreign_key(
+            "FK_bad".into(),
+            vec![],
+            None,
+            "t".into(),
+            vec![],
+            None,
+            None,
+        );
+        assert_eq!(fk.column_name, "");
+        assert_eq!(fk.ref_column, "");
+        assert!(fk.columns.is_empty());
+        assert!(fk.ref_columns.is_empty());
+    }
+
+    #[test]
+    fn split_agg_columns_parses_comma_lists() {
+        assert_eq!(split_agg_columns(""), Vec::<String>::new());
+        assert_eq!(split_agg_columns("a"), vec!["a".to_string()]);
+        assert_eq!(
+            split_agg_columns("tenant_id,order_id"),
+            vec!["tenant_id".to_string(), "order_id".to_string()]
+        );
+    }
+
+    #[test]
+    fn foreign_key_local_columns_falls_back_to_legacy() {
+        // Drivers that haven't migrated (MySQL/Postgres/SQLite today, or old
+        // serialized JSON) leave columns/ref_columns empty. The helpers must
+        // synthesize a single-element vec from the legacy fields.
+        let fk = ForeignKey {
+            name: "fk".into(),
+            column_name: "user_id".into(),
+            ref_table: "users".into(),
+            ref_column: "id".into(),
+            on_delete: None,
+            on_update: None,
+            columns: Vec::new(),
+            ref_columns: Vec::new(),
+            ref_schema: None,
+        };
+        assert_eq!(fk.local_columns(), vec!["user_id"]);
+        assert_eq!(fk.referenced_columns(), vec!["id"]);
+    }
+
+    #[test]
+    fn foreign_key_deserializes_legacy_json_without_composite_fields() {
+        // Regression guard: existing persisted snapshots / IPC payloads that
+        // don't carry columns / ref_columns / ref_schema must still parse via
+        // serde defaults.
+        let raw = r#"{
+            "name": "fk_legacy",
+            "column_name": "user_id",
+            "ref_table": "users",
+            "ref_column": "id",
+            "on_update": null,
+            "on_delete": null
+        }"#;
+        let fk: ForeignKey = serde_json::from_str(raw).expect("legacy JSON must parse");
+        assert_eq!(fk.column_name, "user_id");
+        assert!(fk.columns.is_empty());
+        assert!(fk.ref_columns.is_empty());
+        assert!(fk.ref_schema.is_none());
+        // local_columns/referenced_columns must still return the legacy value
+        // via the fallback path.
+        assert_eq!(fk.local_columns(), vec!["user_id"]);
+        assert_eq!(fk.referenced_columns(), vec!["id"]);
     }
 
     #[test]

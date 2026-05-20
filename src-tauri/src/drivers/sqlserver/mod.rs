@@ -18,11 +18,15 @@ use async_trait::async_trait;
 use crate::drivers::driver_trait::{
     DatabaseDriver, DriverCapabilities, PluginManifest,
 };
+use crate::drivers::sqlserver::helpers::{
+    build_delete_composite_sql, build_update_composite_sql,
+};
 use crate::models::{
     ConnectionParams, DataTypeInfo, ForeignKey, Index, Pagination, QueryResult, RoutineInfo,
     RoutineParameter, TableColumn, TableInfo, TableSchema, ViewInfo,
 };
 use crate::pool_manager::get_sqlserver_pool;
+use mssql_tiberius_bridge::ToSql;
 
 /// Built-in SQL Server driver. Backed by `mssql-tiberius-bridge` + `deadpool`.
 pub struct SqlServerDriver {
@@ -477,6 +481,90 @@ impl DatabaseDriver for SqlServerDriver {
         Err("SQL Server: DELETE disabled in Phase 1 read-only preview".into())
     }
 
+    // --- CRUD: composite primary keys (issue #145) -------------------------
+    //
+    // Phase 1's single-key `delete_record` / `update_record` remain stubbed
+    // out behind `readonly = true`. The composite variants below are the new
+    // entry points the Tauri commands route to when `pk_cols` / `pk_vals` are
+    // supplied (any arity, including length 1). They do all the work
+    // themselves rather than delegating to the legacy single-key methods, so
+    // they're independent of the Phase 1 stubs.
+    //
+    // Row counts: `mssql-tiberius-bridge` currently returns 0 affected rows
+    // for plain DML (upstream issue #1). We surface that as-is — callers
+    // treat a successful `Ok(_)` as confirmation the statement executed; the
+    // returned count is informational only on SQL Server until the bridge
+    // exposes DONE-token row counts.
+
+    async fn delete_record_composite(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        pk_cols: &[String],
+        pk_vals: Vec<serde_json::Value>,
+        schema: Option<&str>,
+    ) -> Result<u64, String> {
+        if pk_cols.is_empty() {
+            return Err("delete_record_composite: pk_cols is empty".into());
+        }
+        if pk_cols.len() != pk_vals.len() {
+            return Err(format!(
+                "delete_record_composite: pk_cols ({}) and pk_vals ({}) length mismatch",
+                pk_cols.len(),
+                pk_vals.len()
+            ));
+        }
+        let sql = build_delete_composite_sql(schema, table, pk_cols)
+            .ok_or_else(|| "delete_record_composite: failed to build SQL".to_string())?;
+
+        let bound: Vec<&dyn ToSql> = pk_vals.iter().map(|v| v as &dyn ToSql).collect();
+
+        let mut conn = acquire(params).await?;
+        let result = conn
+            .execute(sql, &bound)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(result.total())
+    }
+
+    async fn update_record_composite(
+        &self,
+        params: &ConnectionParams,
+        table: &str,
+        pk_cols: &[String],
+        pk_vals: Vec<serde_json::Value>,
+        col_name: &str,
+        new_val: serde_json::Value,
+        schema: Option<&str>,
+        _max_blob_size: u64,
+    ) -> Result<u64, String> {
+        if pk_cols.is_empty() {
+            return Err("update_record_composite: pk_cols is empty".into());
+        }
+        if pk_cols.len() != pk_vals.len() {
+            return Err(format!(
+                "update_record_composite: pk_cols ({}) and pk_vals ({}) length mismatch",
+                pk_cols.len(),
+                pk_vals.len()
+            ));
+        }
+        let sql = build_update_composite_sql(schema, table, col_name, pk_cols)
+            .ok_or_else(|| "update_record_composite: failed to build SQL".to_string())?;
+
+        // Parameter order matches `build_update_composite_sql`: the new value
+        // is `@P1`, the PK values bind to `@P2`..`@P{n+1}`.
+        let bound: Vec<&dyn ToSql> = std::iter::once(&new_val as &dyn ToSql)
+            .chain(pk_vals.iter().map(|v| v as &dyn ToSql))
+            .collect();
+
+        let mut conn = acquire(params).await?;
+        let result = conn
+            .execute(sql, &bound)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(result.total())
+    }
+
     // --- ER diagram batch ---------------------------------------------------
 
     async fn get_schema_snapshot(
@@ -635,6 +723,81 @@ mod tests {
             .await
             .expect_err("create_view must be blocked");
         assert!(create_view_err.contains("read-only"));
+    }
+
+    // --- Composite-PK input validation (issue #145) ------------------------
+    //
+    // These exercise the override's preconditions without talking to a live
+    // server. The actual round-trip behaviour (SQL execution + tiberius
+    // parameter binding) is covered by the unit tests for the SQL builders
+    // and value-to-param helper in `helpers.rs`.
+
+    #[tokio::test]
+    async fn delete_composite_rejects_empty_pk_cols() {
+        let drv = SqlServerDriver::new();
+        let params = make_params(Some("localhost"), Some(1433), "master");
+        let err = drv
+            .delete_record_composite(&params, "Users", &[], Vec::new(), None)
+            .await
+            .expect_err("empty pk_cols must error before touching the network");
+        assert!(err.to_lowercase().contains("empty"), "got {err}");
+    }
+
+    #[tokio::test]
+    async fn delete_composite_rejects_length_mismatch() {
+        let drv = SqlServerDriver::new();
+        let params = make_params(Some("localhost"), Some(1433), "master");
+        let err = drv
+            .delete_record_composite(
+                &params,
+                "Users",
+                &["a".to_string(), "b".to_string()],
+                vec![serde_json::json!(1)],
+                None,
+            )
+            .await
+            .expect_err("length mismatch must error before touching the network");
+        assert!(err.contains("length mismatch"), "got {err}");
+    }
+
+    #[tokio::test]
+    async fn update_composite_rejects_empty_pk_cols() {
+        let drv = SqlServerDriver::new();
+        let params = make_params(Some("localhost"), Some(1433), "master");
+        let err = drv
+            .update_record_composite(
+                &params,
+                "Users",
+                &[],
+                Vec::new(),
+                "email",
+                serde_json::json!("x@y"),
+                None,
+                1024 * 1024,
+            )
+            .await
+            .expect_err("empty pk_cols must error before touching the network");
+        assert!(err.to_lowercase().contains("empty"), "got {err}");
+    }
+
+    #[tokio::test]
+    async fn update_composite_rejects_length_mismatch() {
+        let drv = SqlServerDriver::new();
+        let params = make_params(Some("localhost"), Some(1433), "master");
+        let err = drv
+            .update_record_composite(
+                &params,
+                "Users",
+                &["a".to_string(), "b".to_string()],
+                vec![serde_json::json!(1)],
+                "email",
+                serde_json::json!("x@y"),
+                None,
+                1024 * 1024,
+            )
+            .await
+            .expect_err("length mismatch must error before touching the network");
+        assert!(err.contains("length mismatch"), "got {err}");
     }
 }
 
