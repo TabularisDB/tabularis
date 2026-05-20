@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { TableToolbar } from '../../../src/components/ui/TableToolbar';
+import { useDatabase } from '../../../src/hooks/useDatabase';
+
+vi.mock('../../../src/hooks/useDatabase', () => ({
+  useDatabase: vi.fn(),
+}));
 
 describe('TableToolbar', () => {
   const mockOnUpdate = vi.fn();
@@ -13,6 +18,9 @@ describe('TableToolbar', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useDatabase).mockReturnValue({
+      activeDriver: null,
+    } as ReturnType<typeof useDatabase>);
   });
 
   it('renders with default state', () => {
