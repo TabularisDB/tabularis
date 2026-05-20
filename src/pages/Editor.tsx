@@ -2789,7 +2789,6 @@ export const Editor = () => {
               defaultLimit={settings.resultPageSize || 100}
               columnMetadata={activeTab?.columnMetadata}
               onUpdate={handleToolbarUpdate}
-              driver={activeDriver}
             />
           ) : (
             <div
