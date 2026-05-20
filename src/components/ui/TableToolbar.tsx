@@ -30,6 +30,7 @@ interface TableToolbarProps {
   defaultLimit: number;
   columnMetadata?: TableColumn[];
   onUpdate: (filter: string, sort: string, limit: number | undefined) => void;
+  driver?: string | null;
 }
 
 interface TableToolbarInternalProps extends TableToolbarProps {
@@ -62,6 +63,7 @@ const TableToolbarInternal = ({
   onResetApplied,
   onResetAllApplied,
   onUpdate,
+  driver,
 }: TableToolbarInternalProps) => {
   const { t } = useTranslation();
   const [filterInput, setFilterInput] = useState(initialFilter || "");
@@ -144,11 +146,11 @@ const TableToolbarInternal = ({
   };
 
   const closePanel = useCallback(() => {
-    const clause = buildStructuredFilterClause(structuredFilters);
+    const clause = buildStructuredFilterClause(structuredFilters, driver);
     setFilterInput(clause);
     onPanelOpenChange(false);
     onUpdate(clause, sortInput, getLimitVal(limitInput));
-  }, [structuredFilters, sortInput, limitInput, getLimitVal, onUpdate, onPanelOpenChange]);
+  }, [structuredFilters, sortInput, limitInput, getLimitVal, onUpdate, onPanelOpenChange, driver]);
 
   const togglePanel = () => {
     if (panelOpen) {
@@ -162,7 +164,7 @@ const TableToolbarInternal = ({
 
   // Applies all enabled filters — does NOT close panel
   const handleApplyAll = useCallback(() => {
-    const clause = buildStructuredFilterClause(structuredFilters);
+    const clause = buildStructuredFilterClause(structuredFilters, driver);
     onUpdate(clause, sortInput, getLimitVal(limitInput));
     structuredFilters.forEach((f) => {
       if (f.enabled !== false) {
@@ -171,16 +173,16 @@ const TableToolbarInternal = ({
         onResetApplied(f.id);
       }
     });
-  }, [structuredFilters, sortInput, limitInput, getLimitVal, onUpdate, onTriggerApplied, onResetApplied]);
+  }, [structuredFilters, sortInput, limitInput, getLimitVal, onUpdate, onTriggerApplied, onResetApplied, driver]);
 
   // Applies only that single row's filter — resets Applied on all others
   const handleApplySingle = useCallback(
     (filter: StructuredFilter) => {
-      onUpdate(buildSingleFilterClause(filter), sortInput, getLimitVal(limitInput));
+      onUpdate(buildSingleFilterClause(filter, driver), sortInput, getLimitVal(limitInput));
       onResetAllApplied();
       onTriggerApplied(filter.id);
     },
-    [sortInput, limitInput, getLimitVal, onUpdate, onResetAllApplied, onTriggerApplied]
+    [sortInput, limitInput, getLimitVal, onUpdate, onResetAllApplied, onTriggerApplied, driver]
   );
 
   const handleUnset = () => {
@@ -359,7 +361,7 @@ const TableToolbarInternal = ({
     if (!panelOpen) {
       commitSql(filterInput, sortInput, limitInput);
     } else {
-      onUpdate(buildStructuredFilterClause(structuredFilters), sortInput, getLimitVal(limitInput));
+      onUpdate(buildStructuredFilterClause(structuredFilters, driver), sortInput, getLimitVal(limitInput));
     }
   };
 
@@ -367,7 +369,7 @@ const TableToolbarInternal = ({
     if (!panelOpen) {
       commitSql(filterInput, sortInput, limitInput);
     } else {
-      onUpdate(buildStructuredFilterClause(structuredFilters), sortInput, getLimitVal(limitInput));
+      onUpdate(buildStructuredFilterClause(structuredFilters, driver), sortInput, getLimitVal(limitInput));
     }
   };
 
@@ -455,7 +457,7 @@ const TableToolbarInternal = ({
           <div className="flex items-center gap-1.5 flex-1 px-2 py-1 min-w-0">
             <Filter size={12} className="text-muted shrink-0" />
             <span className="text-xs text-muted font-mono truncate">
-              {buildStructuredFilterClause(structuredFilters) || (
+              {buildStructuredFilterClause(structuredFilters, driver) || (
                 <em className="not-italic opacity-50">{t("toolbar.noActiveFilters")}</em>
               )}
             </span>

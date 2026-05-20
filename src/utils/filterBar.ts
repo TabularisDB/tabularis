@@ -1,4 +1,6 @@
 import type { TableColumn } from "../types/editor";
+import { quoteIdentifier } from "./identifiers";
+
 
 export type FilterOperator =
   | "="
@@ -147,9 +149,15 @@ export function getOperatorsForType(dataType: string): FilterOperator[] {
  * String values are single-quoted. IS NULL / IS NOT NULL ignore the value.
  * BETWEEN uses value AND value2. IN/NOT IN parse comma-separated values.
  */
-export function buildSingleFilterClause(filter: StructuredFilter): string {
-  const col = filter.column;
-  const op = filter.operator;
+export function buildSingleFilterClause(
+  filter: StructuredFilter,
+  driver?: string | null
+): string {
+  const col =
+    driver === 'postgres'
+      ? quoteIdentifier(filter.column, driver)
+      : filter.column;
+    const op = filter.operator;
 
   if (op === "IS NULL") {
     return `${col} IS NULL`;
@@ -198,11 +206,12 @@ function quoteIfNeeded(value: string): string {
  * Returns empty string if filters array is empty.
  */
 export function buildStructuredFilterClause(
-  filters: StructuredFilter[]
+  filters: StructuredFilter[],
+  driver?: string | null
 ): string {
   const clauses = filters
     .filter((f) => f.column && f.enabled !== false)
-    .map(buildSingleFilterClause);
+    .map((f) => buildSingleFilterClause(f, driver));
   return clauses.join(" AND ");
 }
 
