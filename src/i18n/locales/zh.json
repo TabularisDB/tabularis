@@ -721,7 +721,7 @@
     "tabSwitcher": {
       "title": "打开的标签",
       "hint": "Ctrl+Tab",
-      "tabs": "标签",
+      "tabs": "{{count}} 标签",
       "escHint": "按 Esc 关闭"
     },
     "submitChanges": "提交更改",

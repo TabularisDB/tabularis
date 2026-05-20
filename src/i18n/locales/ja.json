@@ -762,7 +762,7 @@
     "tabSwitcher": {
       "title": "開いているタブ",
       "hint": "Ctrl+Tab",
-      "tabs": "タブ",
+      "tabs": "{{count}} タブ",
       "escHint": "Esc で閉じる"
     },
     "submitChanges": "変更を送信",

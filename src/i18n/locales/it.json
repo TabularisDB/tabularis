@@ -751,7 +751,7 @@
     "tabSwitcher": {
       "title": "Tab Aperte",
       "hint": "Ctrl+Tab",
-      "tabs": "tab",
+      "tabs": "{{count}} tab",
       "escHint": "Esc per chiudere"
     },
     "submitChanges": "Invia Modifiche",
