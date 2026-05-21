@@ -244,12 +244,9 @@
     "removeImage": "Quitar",
     "imageHint": "PNG, JPG, WebP o SVG · máx. 512 KB",
     "errors": {
-      "tooLarge": "La imagen supera los 512 KB",
-      "invalidFormat": "Formato de imagen no admitido",
       "invalidEmoji": "Introduce exactamente un emoji",
       "invalidHex": "Introduce un color hex válido como #1a2b3c"
-    },
-    "preview": "Vista previa"
+    }
   },
   "settings": {
     "title": "Configuración",

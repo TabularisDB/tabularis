@@ -243,12 +243,9 @@
     "removeImage": "移除",
     "imageHint": "PNG、JPG、WebP 或 SVG · 最大 512 KB",
     "errors": {
-      "tooLarge": "图片大于 512 KB",
-      "invalidFormat": "不支持的图片格式",
       "invalidEmoji": "请输入正好一个表情",
       "invalidHex": "请输入有效的十六进制颜色，例如 #1a2b3c"
-    },
-    "preview": "预览"
+    }
   },
   "settings": {
     "title": "设置",

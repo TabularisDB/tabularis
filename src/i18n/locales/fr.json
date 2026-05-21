@@ -244,12 +244,9 @@
     "removeImage": "Supprimer",
     "imageHint": "PNG, JPG, WebP ou SVG · max. 512 Ko",
     "errors": {
-      "tooLarge": "L'image dépasse 512 Ko",
-      "invalidFormat": "Format d'image non pris en charge",
       "invalidEmoji": "Veuillez saisir un seul emoji",
       "invalidHex": "Veuillez saisir une couleur hex valide comme #1a2b3c"
-    },
-    "preview": "Aperçu"
+    }
   },
   "settings": {
     "title": "Paramètres",

@@ -257,12 +257,9 @@
     "removeImage": "削除",
     "imageHint": "PNG、JPG、WebP または SVG · 最大 512 KB",
     "errors": {
-      "tooLarge": "画像が 512 KB を超えています",
-      "invalidFormat": "サポートされていない画像形式です",
       "invalidEmoji": "絵文字を 1 つだけ入力してください",
       "invalidHex": "#1a2b3c のような有効な 16 進カラーを入力してください"
-    },
-    "preview": "プレビュー"
+    }
   },
   "settings": {
     "title": "設定",

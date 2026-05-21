@@ -153,7 +153,12 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
             type="button"
             aria-label="custom color"
             aria-expanded={customOpen}
-            onClick={() => setCustomOpen(o => !o)}
+            onClick={() => {
+              setCustomOpen(o => {
+                if (!o) setCustomDraft(value.accentColor ?? "");
+                return !o;
+              });
+            }}
             className="ml-1 text-zinc-400 hover:text-zinc-100 text-sm"
           >
             {t("connectionAppearance.customColor")}
