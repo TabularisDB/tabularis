@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
@@ -38,16 +38,23 @@ export function AppearanceSection({
   const { t } = useTranslation();
   const [customOpen, setCustomOpen] = useState(false);
 
-  // Approach B: derive tab from value.icon, allow user to override
-  // userTab is null until the user explicitly clicks a tab; if null we derive
-  // from the current icon type so re-opening an edited connection shows the
-  // correct tab immediately.
+  // Derive the active tab from the icon type. userTab holds an explicit user
+  // choice; it is reset to null whenever the icon type changes externally so
+  // that re-opening an edited connection always lands on the right tab.
   const [userTab, setUserTab] = useState<IconTab | null>(null);
   const derivedTab: IconTab =
     value.icon?.type === "pack" ? "pack" :
     value.icon?.type === "emoji" ? "emoji" :
     value.icon?.type === "image" ? "image" : "default";
   const tab = userTab ?? derivedTab;
+
+  const prevIconTypeRef = useRef(value.icon?.type);
+  useEffect(() => {
+    if (value.icon?.type !== prevIconTypeRef.current) {
+      prevIconTypeRef.current = value.icon?.type;
+      setUserTab(null);
+    }
+  }, [value.icon?.type]);
 
   const [iconSearch, setIconSearch] = useState("");
   const [imageBusy, setImageBusy] = useState(false);
@@ -112,12 +119,13 @@ export function AppearanceSection({
   }
 
   const previewLabel = connectionName ?? t("connectionAppearance.section");
-  // Build a minimal connection-like object for getConnectionIcon
   const previewConn = { appearance: value };
 
-  const filteredPackIcons = Object.entries(CONNECTION_ICON_PACK).filter(
-    ([id]) => id.toLowerCase().includes(iconSearch.toLowerCase().trim()),
-  );
+  const filteredPackIcons = useMemo(() => {
+    const q = iconSearch.trim().toLowerCase();
+    const entries = Object.entries(CONNECTION_ICON_PACK);
+    return q ? entries.filter(([id]) => id.toLowerCase().includes(q)) : entries;
+  }, [iconSearch]);
 
   return (
     <section className="space-y-3 border-t border-zinc-800/60 pt-4 mt-4">
@@ -298,27 +306,27 @@ export function AppearanceSection({
               {t("connectionAppearance.chooseImage")}
             </button>
             {value.icon?.type === "image" && (
-              <button
-                type="button"
-                aria-label="remove image"
-                onClick={removeImage}
-                className="ml-2 px-3 py-1.5 text-sm text-rose-300 hover:text-rose-200"
-              >
-                {t("connectionAppearance.removeImage")}
-              </button>
-            )}
-            {value.icon?.type === "image" && (
-              <div className="mt-3 inline-block">
-                <ConnectionIconImage
-                  path={value.icon.path}
-                  size={64}
-                  fallback={
-                    <div className="w-16 h-16 bg-zinc-800 rounded flex items-center justify-center text-zinc-500 text-xs">
-                      No preview
-                    </div>
-                  }
-                />
-              </div>
+              <>
+                <button
+                  type="button"
+                  aria-label="remove image"
+                  onClick={removeImage}
+                  className="ml-2 px-3 py-1.5 text-sm text-rose-300 hover:text-rose-200"
+                >
+                  {t("connectionAppearance.removeImage")}
+                </button>
+                <div className="mt-3 inline-block">
+                  <ConnectionIconImage
+                    path={value.icon.path}
+                    size={64}
+                    fallback={
+                      <div className="w-16 h-16 bg-zinc-800 rounded flex items-center justify-center text-zinc-500 text-xs">
+                        {t("connectionAppearance.noPreview", { defaultValue: "No preview" })}
+                      </div>
+                    }
+                  />
+                </div>
+              </>
             )}
             {imageError && (
               <div role="alert" className="mt-1 text-xs text-rose-400">{imageError}</div>

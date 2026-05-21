@@ -198,4 +198,23 @@ describe("AppearanceSection — icon tabs", () => {
     );
     expect(screen.getByRole("tab", { name: /pack/i })).toHaveAttribute("aria-selected", "true");
   });
+
+  it("resets to derived tab when value.icon type changes externally after a user click", () => {
+    const { rerender } = render(
+      <AppearanceSection value={{}} onChange={() => {}} connectionId="1" />
+    );
+    // User explicitly clicks emoji tab
+    fireEvent.click(screen.getByRole("tab", { name: /emoji/i }));
+    expect(screen.getByRole("tab", { name: /emoji/i })).toHaveAttribute("aria-selected", "true");
+    // External change: parent sets a pack icon (different type)
+    rerender(
+      <AppearanceSection
+        value={{ icon: { type: "pack", id: "server" } }}
+        onChange={() => {}}
+        connectionId="1"
+      />
+    );
+    // Tab must follow the new icon type, not stay stuck on the user's previous choice
+    expect(screen.getByRole("tab", { name: /pack/i })).toHaveAttribute("aria-selected", "true");
+  });
 });
