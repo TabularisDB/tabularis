@@ -36,7 +36,9 @@ export function AppearanceSection({ value, onChange }: Props) {
       return;
     }
     setHexError(null);
-    setAccent(customDraft.toLowerCase());
+    const normalized = customDraft.toLowerCase();
+    setCustomDraft(normalized);
+    setAccent(normalized);
   }
 
   return (

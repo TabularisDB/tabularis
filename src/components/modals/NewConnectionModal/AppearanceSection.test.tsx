@@ -62,4 +62,15 @@ describe("AppearanceSection — color", () => {
     fireEvent.blur(input);
     expect(onChange).toHaveBeenCalledWith({ accentColor: "#abc123" });
   });
+
+  it("normalizes uppercase hex input to lowercase", () => {
+    const onChange = vi.fn();
+    render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
+    fireEvent.click(screen.getByRole("button", { name: /custom color/i }));
+    const input = screen.getByPlaceholderText("#rrggbb") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "#ABC123" } });
+    fireEvent.blur(input);
+    expect(onChange).toHaveBeenCalledWith({ accentColor: "#abc123" });
+    expect(input.value).toBe("#abc123");
+  });
 });
