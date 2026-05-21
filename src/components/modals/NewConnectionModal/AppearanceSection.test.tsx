@@ -15,6 +15,22 @@ vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: (s: string) => `tauri://${s}`,
 }));
 
+// Frimousse mock — avoids async data loading in JSDOM
+vi.mock("frimousse", () => ({
+  EmojiPicker: {
+    Root: ({ children, onEmojiSelect }: { children: React.ReactNode; onEmojiSelect: (e: { emoji: string }) => void }) => (
+      <div data-testid="emoji-root" onClick={() => onEmojiSelect({ emoji: "🐘" })}>
+        {children}
+      </div>
+    ),
+    Search: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Viewport: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    List: () => <div />,
+    Loading: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    Empty: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  },
+}));
+
 describe("AppearanceSection — color", () => {
   it("renders 12 swatches", () => {
     render(<AppearanceSection value={{}} onChange={() => {}} connectionId="1" />);
@@ -101,28 +117,6 @@ describe("AppearanceSection — icon tabs", () => {
     expect(onChange).toHaveBeenCalledWith({ icon: { type: "pack", id: "server" } });
   });
 
-  it("accepts a single emoji on blur", () => {
-    const onChange = vi.fn();
-    render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
-    fireEvent.click(screen.getByRole("tab", { name: /emoji/i }));
-    const input = screen.getByLabelText(/emoji input/i);
-    fireEvent.change(input, { target: { value: "🐘" } });
-    fireEvent.blur(input);
-    expect(onChange).toHaveBeenCalledWith({ icon: { type: "emoji", value: "🐘" } });
-  });
-
-  it("rejects multi-grapheme emoji input", () => {
-    const onChange = vi.fn();
-    render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
-    fireEvent.click(screen.getByRole("tab", { name: /emoji/i }));
-    const input = screen.getByLabelText(/emoji input/i);
-    fireEvent.change(input, { target: { value: "🐘🐘" } });
-    fireEvent.blur(input);
-    const errors = screen.queryAllByRole("alert");
-    expect(errors.length).toBeGreaterThan(0);
-    expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ icon: expect.anything() }));
-  });
-
   it("resets icon when default tab is active and Reset is clicked", () => {
     const onChange = vi.fn();
     render(
@@ -157,12 +151,51 @@ describe("AppearanceSection — icon tabs", () => {
     });
   });
 
-  it("does not show emoji error when the field is left untouched", () => {
+  // ── Frimousse emoji picker ──
+
+  it("renders Frimousse emoji picker with search", () => {
+    render(<AppearanceSection value={{}} onChange={() => {}} connectionId="1" />);
+    fireEvent.click(screen.getByRole("tab", { name: /emoji/i }));
+    expect(screen.getByLabelText(/emoji search/i)).toBeInTheDocument();
+  });
+
+  it("emits emoji icon when picker fires onEmojiSelect", () => {
     const onChange = vi.fn();
     render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
     fireEvent.click(screen.getByRole("tab", { name: /emoji/i }));
-    const input = screen.getByLabelText(/emoji input/i);
-    fireEvent.blur(input);
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // Clicking the root div triggers the mock onEmojiSelect({ emoji: "🐘" })
+    fireEvent.click(screen.getByTestId("emoji-root"));
+    expect(onChange).toHaveBeenCalledWith({ icon: { type: "emoji", value: "🐘" } });
+  });
+
+  // ── Icon search ──
+
+  it("filters pack icons by search term", () => {
+    render(<AppearanceSection value={{}} onChange={() => {}} connectionId="1" />);
+    fireEvent.click(screen.getByRole("tab", { name: /pack/i }));
+    const allInitial = screen.getAllByRole("button", { name: /^pick-/i });
+    expect(allInitial.length).toBeGreaterThan(20);
+    const search = screen.getByLabelText(/icon search/i);
+    fireEvent.change(search, { target: { value: "shield" } });
+    const filtered = screen.getAllByRole("button", { name: /^pick-/i });
+    expect(filtered.length).toBeLessThan(allInitial.length);
+    expect(filtered.length).toBeGreaterThan(0);
+  });
+
+  // ── Tab sync (edit mode) ──
+
+  it("switches to matching tab when value.icon changes externally (edit mode)", () => {
+    const { rerender } = render(
+      <AppearanceSection value={{}} onChange={() => {}} connectionId="1" />
+    );
+    expect(screen.getByRole("tab", { name: /default/i })).toHaveAttribute("aria-selected", "true");
+    rerender(
+      <AppearanceSection
+        value={{ icon: { type: "pack", id: "server" } }}
+        onChange={() => {}}
+        connectionId="1"
+      />
+    );
+    expect(screen.getByRole("tab", { name: /pack/i })).toHaveAttribute("aria-selected", "true");
   });
 });
