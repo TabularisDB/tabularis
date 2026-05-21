@@ -103,6 +103,20 @@ describe('TableToolbar', () => {
     expect(mockOnUpdate).toHaveBeenCalledWith('', 'name DESC', undefined);
   });
 
+  it('quotes sort column on commit for postgres driver', () => {
+    vi.mocked(useDatabase).mockReturnValue({
+      activeDriver: 'postgres',
+    } as ReturnType<typeof useDatabase>);
+
+    render(<TableToolbar {...defaultProps} />);
+
+    const sortInput = screen.getByPlaceholderText('created_at DESC');
+    fireEvent.change(sortInput, { target: { value: 'Status DESC' } });
+    fireEvent.keyDown(sortInput, { key: 'Enter' });
+
+    expect(mockOnUpdate).toHaveBeenCalledWith('', '"Status" DESC', undefined);
+  });
+
   it('calls onUpdate when pressing Enter in limit input', () => {
     render(<TableToolbar {...defaultProps} />);
 
