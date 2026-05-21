@@ -54,6 +54,31 @@ export function isForeignKeyValueNavigable(value: unknown): boolean {
   return value !== null && value !== undefined && value !== "";
 }
 
+export interface ForeignKeyPreviewOptions {
+  isPendingDelete?: boolean;
+  isInsertion?: boolean;
+}
+
+/**
+ * Returns the FK for a cell when preview/navigation should be offered.
+ * Returns null when the related-record panel should close or no FK action applies.
+ */
+export function getForeignKeyForPreview(
+  columnName: string,
+  value: unknown,
+  fksByColumn: Map<string, ForeignKey>,
+  options?: ForeignKeyPreviewOptions,
+): ForeignKey | null {
+  if (options?.isPendingDelete || options?.isInsertion) {
+    return null;
+  }
+  const fk = fksByColumn.get(columnName);
+  if (!fk || !isForeignKeyValueNavigable(value)) {
+    return null;
+  }
+  return fk;
+}
+
 /**
  * Build a WHERE-clause fragment that filters the referenced table by the FK value.
  * Output: `"ref_col" = 42` or `"ref_col" = 'escaped''value'`.

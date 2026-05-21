@@ -5,6 +5,7 @@ import {
   isForeignKeyValueNavigable,
   isNumericColumnType,
   buildForeignKeyFilterClause,
+  getForeignKeyForPreview,
 } from "../../src/utils/foreignKeys";
 
 const fk = (
@@ -156,6 +157,62 @@ describe("foreignKeys", () => {
       expect(buildForeignKeyFilterClause(weirdFk, 1, "postgres")).toBe(
         `"""id" = 1`,
       );
+    });
+  });
+
+  describe("getForeignKeyForPreview", () => {
+    const orgFk = fk("fk_org", "org_id", "organizations", "id");
+    const fksByColumn = pickPrimaryForeignKeyByColumn([
+      orgFk,
+      fk("fk_role", "role_id", "roles", "id"),
+    ]);
+
+    it("returns the FK for a navigable value on an FK column", () => {
+      expect(
+        getForeignKeyForPreview("org_id", 42, fksByColumn),
+      ).toEqual(orgFk);
+      expect(
+        getForeignKeyForPreview("org_id", "abc", fksByColumn),
+      ).toEqual(orgFk);
+    });
+
+    it("returns null for a non-FK column", () => {
+      expect(
+        getForeignKeyForPreview("name", 42, fksByColumn),
+      ).toBeNull();
+    });
+
+    it("returns null for null, undefined, and empty string values", () => {
+      expect(
+        getForeignKeyForPreview("org_id", null, fksByColumn),
+      ).toBeNull();
+      expect(
+        getForeignKeyForPreview("org_id", undefined, fksByColumn),
+      ).toBeNull();
+      expect(getForeignKeyForPreview("org_id", "", fksByColumn)).toBeNull();
+    });
+
+    it("returns null when the row is pending delete or an insertion", () => {
+      expect(
+        getForeignKeyForPreview("org_id", 42, fksByColumn, {
+          isPendingDelete: true,
+        }),
+      ).toBeNull();
+      expect(
+        getForeignKeyForPreview("org_id", 42, fksByColumn, {
+          isInsertion: true,
+        }),
+      ).toBeNull();
+    });
+
+    it("returns null for composite FK columns not in the map", () => {
+      const compositeMap = pickPrimaryForeignKeyByColumn([
+        fk("fk_composite", "tenant_id", "memberships", "tenant_id"),
+        fk("fk_composite", "user_id", "memberships", "user_id"),
+      ]);
+      expect(
+        getForeignKeyForPreview("tenant_id", 1, compositeMap),
+      ).toBeNull();
     });
   });
 });
