@@ -13,6 +13,9 @@ pub mod ai_notebook_export_tests;
 pub mod cli;
 pub mod clipboard_import;
 pub mod commands;
+pub mod connection_appearance;
+#[cfg(test)]
+pub mod connection_appearance_tests;
 pub mod config;
 pub mod connection_cache;
 #[cfg(test)]
