@@ -809,6 +809,40 @@ pub async fn duplicate_connection<R: Runtime>(
         new_params.ssh_key_passphrase = None;
     }
 
+    // Copy the icon file so the duplicate owns its own copy.
+    // If the original has an Image icon, the duplicate must not share the same file path —
+    // deleting either connection would otherwise cascade-delete the shared file and break
+    // the other connection's icon. We copy the file; on failure we drop the icon rather
+    // than sharing the path.
+    let new_appearance = {
+        let mut app_earance = original.appearance.clone();
+        if let Some(ref mut a) = app_earance {
+            if let Some(crate::models::IconOverride::Image { ref path }) = a.icon.clone() {
+                if let Ok(app_data) = app.path().app_data_dir() {
+                    match crate::connection_appearance::copy_icon_for_duplicate(&app_data, path, &new_id) {
+                        Ok(new_path) => {
+                            a.icon = Some(crate::models::IconOverride::Image { path: new_path });
+                        }
+                        Err(_) => {
+                            // Couldn't copy — drop the icon to avoid sharing
+                            a.icon = None;
+                            if a.accent_color.is_none() {
+                                app_earance = None;
+                            }
+                        }
+                    }
+                } else {
+                    // Can't determine app_data_dir — drop icon to avoid sharing
+                    a.icon = None;
+                    if a.accent_color.is_none() {
+                        app_earance = None;
+                    }
+                }
+            }
+        }
+        app_earance
+    };
+
     let new_conn = SavedConnection {
         id: new_id,
         name: format!("{} (Copy)", original.name),
@@ -816,7 +850,7 @@ pub async fn duplicate_connection<R: Runtime>(
         group_id: original.group_id.clone(), // Copy to same group as original
         sort_order: None,                    // Will be placed at end of group
         detect_json_in_text_columns: original.detect_json_in_text_columns,
-        appearance: original.appearance.clone(),
+        appearance: new_appearance,
     };
 
     conn_file.connections.push(new_conn.clone());

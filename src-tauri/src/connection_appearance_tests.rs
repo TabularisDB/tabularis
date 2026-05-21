@@ -157,4 +157,53 @@ mod tests {
         // Should NOT return an error — deleting a connection should not fail just because its icon vanished.
         crate::connection_appearance::cascade_delete_if_image(&dir, Some(&appearance)).unwrap();
     }
+
+    #[test]
+    fn cascade_delete_rejects_path_traversal() {
+        use crate::models::{IconOverride, ConnectionAppearance};
+        use crate::connection_appearance::cascade_delete_if_image;
+        let dir = tmp_dir();
+        let icons_dir = dir.join("connection-icons");
+        std::fs::create_dir_all(&icons_dir).unwrap();
+        // Create a "victim" file outside the icons dir
+        let outside = dir.join("victim.txt");
+        std::fs::write(&outside, b"important").unwrap();
+        assert!(outside.exists());
+
+        let appearance = ConnectionAppearance {
+            icon: Some(IconOverride::Image { path: "../victim.txt".into() }),
+            accent_color: None,
+        };
+        cascade_delete_if_image(&dir, Some(&appearance)).unwrap();
+        // Victim must still exist — path-traversal attack must be blocked
+        assert!(outside.exists(), "path-traversal attack should not delete files outside icons dir");
+    }
+
+    #[test]
+    fn copy_icon_for_duplicate_produces_new_filename() {
+        let dir = tmp_dir();
+        let icons_dir = dir.join("connection-icons");
+        std::fs::create_dir_all(&icons_dir).unwrap();
+        // Set up a fake source icon (a tiny PNG)
+        let src_rel = "connection-icons/original-abcd.png";
+        let src_path = dir.join(src_rel);
+        std::fs::write(&src_path, &[0x89, b'P', b'N', b'G', 0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
+
+        let new_rel = crate::connection_appearance::copy_icon_for_duplicate(&dir, src_rel, "newid").unwrap();
+        assert_ne!(new_rel, src_rel);
+        assert!(new_rel.starts_with("connection-icons/newid-"));
+        // Both files must exist: original is preserved, duplicate has its own copy
+        assert!(src_path.exists());
+        assert!(dir.join(&new_rel).exists());
+    }
+
+    #[test]
+    fn copy_icon_for_duplicate_rejects_path_traversal() {
+        use crate::connection_appearance::{copy_icon_for_duplicate, IconError};
+        let dir = tmp_dir();
+        std::fs::create_dir_all(dir.join("connection-icons")).unwrap();
+        std::fs::write(dir.join("victim.txt"), b"important").unwrap();
+        let err = copy_icon_for_duplicate(&dir, "../victim.txt", "newid").unwrap_err();
+        assert!(matches!(err, IconError::InvalidConnectionId | IconError::Io(_)));
+    }
 }
