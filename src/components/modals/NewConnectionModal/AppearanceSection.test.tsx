@@ -65,15 +65,22 @@ describe("AppearanceSection — color", () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ accentColor: "#abc123" }));
   });
 
-  it("ignores invalid hex input", () => {
+  it("filters non-hex characters from input (react-colorful behavior)", () => {
     const onChange = vi.fn();
     render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
     fireEvent.click(screen.getByRole("button", { name: /custom color/i }));
     const input = screen.getByLabelText(/custom hex input/i);
     fireEvent.change(input, { target: { value: "garbage" } });
-    // react-colorful silently rejects — onChange should not have fired with garbage
-    const accentCalls = onChange.mock.calls.filter(c => c[0].accentColor === "garbage");
-    expect(accentCalls).toHaveLength(0);
+    // react-colorful keeps only hex chars: "garbage" → "abae" → truncated to 3 (valid short hex)
+    // Verify: no call ever stored the raw "garbage" string
+    const rawCalls = onChange.mock.calls.filter(c => c[0].accentColor === "garbage");
+    expect(rawCalls).toHaveLength(0);
+    // If a call WAS made, it must be a valid 3-char or 6-char hex prefixed with #
+    for (const [arg] of onChange.mock.calls) {
+      if (arg.accentColor) {
+        expect(arg.accentColor).toMatch(/^#[0-9a-f]{3}([0-9a-f]{3})?$/i);
+      }
+    }
   });
 });
 
