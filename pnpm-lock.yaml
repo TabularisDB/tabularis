@@ -56,6 +56,9 @@ importers:
       dbgate-query-splitter:
         specifier: ^4.12.0
         version: 4.12.0
+      frimousse:
+        specifier: ^0.3.0
+        version: 0.3.0(react@19.2.4)(typescript@5.9.3)
       i18next:
         specifier: ^25.10.10
         version: 25.10.10(typescript@5.9.3)
@@ -1780,6 +1783,15 @@ packages:
 
   fraction.js@5.3.4:
     resolution: {integrity: sha512-1X1NTtiJphryn/uLQz3whtY6jK3fTqoE3ohKs0tT+Ujr1W59oopxmoEh7Lu5p6vBaPbgoM0bzveAW4Qi5RyWDQ==}
+
+  frimousse@0.3.0:
+    resolution: {integrity: sha512-kO6LMoKY/cLAYEhXXtqLRaLIE6L/DagpFPrUZaLv3LsUa1/8Iza3HhwZcgN8eZ+weXnhv69eoclNUPohcCa/IQ==}
+    peerDependencies:
+      react: ^18 || ^19
+      typescript: '>=5.1.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
@@ -4488,6 +4500,12 @@ snapshots:
       is-callable: 1.2.7
 
   fraction.js@5.3.4: {}
+
+  frimousse@0.3.0(react@19.2.4)(typescript@5.9.3):
+    dependencies:
+      react: 19.2.4
+    optionalDependencies:
+      typescript: 5.9.3
 
   fsevents@2.3.3:
     optional: true

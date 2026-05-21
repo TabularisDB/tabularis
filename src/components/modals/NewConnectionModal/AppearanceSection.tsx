@@ -3,8 +3,12 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { HexColorPicker, HexColorInput } from "react-colorful";
+import { EmojiPicker } from "frimousse";
 import type { ConnectionAppearance, IconOverride } from "../../../contexts/DatabaseContext";
+import type { PluginManifest } from "../../../types/plugins";
 import { CONNECTION_ICON_PACK } from "../../../utils/connectionIconPack";
+import { getConnectionIcon } from "../../../utils/driverUI";
+import { ConnectionIconImage } from "../../ConnectionIconImage";
 
 const PALETTE = [
   "#64748b", "#ef4444", "#f97316", "#f59e0b",
@@ -14,37 +18,38 @@ const PALETTE = [
 
 type IconTab = "default" | "pack" | "emoji" | "image";
 
-function graphemeCount(s: string): number {
-  if (s.length === 0) return 0;
-  try {
-    const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-    let n = 0;
-    for (const _ of seg.segment(s)) n++;
-    return n;
-  } catch {
-    // Fallback for older runtimes — counts code points which is close enough for emoji
-    return Array.from(s).length;
-  }
-}
-
 interface Props {
   value: ConnectionAppearance;
   onChange: (next: ConnectionAppearance) => void;
   connectionId: string;
+  /** Optional driver manifest for the preview row icon fallback */
+  driverManifest?: PluginManifest;
+  /** Connection name shown in the preview row */
+  connectionName?: string;
 }
 
-export function AppearanceSection({ value, onChange, connectionId }: Props) {
+export function AppearanceSection({
+  value,
+  onChange,
+  connectionId,
+  driverManifest,
+  connectionName,
+}: Props) {
   const { t } = useTranslation();
   const [customOpen, setCustomOpen] = useState(false);
 
-  const initialTab: IconTab =
+  // Approach B: derive tab from value.icon, allow user to override
+  // userTab is null until the user explicitly clicks a tab; if null we derive
+  // from the current icon type so re-opening an edited connection shows the
+  // correct tab immediately.
+  const [userTab, setUserTab] = useState<IconTab | null>(null);
+  const derivedTab: IconTab =
     value.icon?.type === "pack" ? "pack" :
     value.icon?.type === "emoji" ? "emoji" :
     value.icon?.type === "image" ? "image" : "default";
+  const tab = userTab ?? derivedTab;
 
-  const [tab, setTab] = useState<IconTab>(initialTab);
-  const [emojiDraft, setEmojiDraft] = useState(value.icon?.type === "emoji" ? value.icon.value : "");
-  const [emojiError, setEmojiError] = useState<string | null>(null);
+  const [iconSearch, setIconSearch] = useState("");
   const [imageBusy, setImageBusy] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
 
@@ -73,32 +78,29 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
       const picked = await openFileDialog({
         multiple: false,
         filters: [{ name: "Image", extensions: ["png", "jpg", "jpeg", "webp", "svg"] }],
+      }).catch((e: unknown) => {
+        throw new Error(`Failed to open file dialog: ${e}`);
       });
       if (typeof picked !== "string") return;
-      const stored = await invoke<string>("save_connection_icon", {
-        connectionId,
-        sourcePath: picked,
-      });
+      let stored: string;
+      try {
+        stored = await invoke<string>("save_connection_icon", {
+          connectionId,
+          sourcePath: picked,
+        });
+      } catch (e) {
+        throw new Error(`Failed to save icon: ${e}`);
+      }
       if (previousImagePath && previousImagePath !== stored) {
-        try { await invoke("delete_connection_icon", { relativePath: previousImagePath }); }
-        catch { /* swallow — file may already be gone */ }
+        invoke("delete_connection_icon", { relativePath: previousImagePath }).catch(() => {});
       }
       setIcon({ type: "image", path: stored });
     } catch (e) {
+      console.error("[AppearanceSection] pickImage failed:", e);
       setImageError(String(e));
     } finally {
       setImageBusy(false);
     }
-  }
-
-  function commitEmoji() {
-    if (emojiDraft.length === 0) return;
-    if (graphemeCount(emojiDraft) !== 1) {
-      setEmojiError(t("connectionAppearance.errors.invalidEmoji"));
-      return;
-    }
-    setEmojiError(null);
-    setIcon({ type: "emoji", value: emojiDraft });
   }
 
   async function removeImage() {
@@ -109,9 +111,28 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
     setIcon(undefined);
   }
 
+  const previewLabel = connectionName ?? t("connectionAppearance.section");
+  // Build a minimal connection-like object for getConnectionIcon
+  const previewConn = { appearance: value };
+
+  const filteredPackIcons = Object.entries(CONNECTION_ICON_PACK).filter(
+    ([id]) => id.toLowerCase().includes(iconSearch.toLowerCase().trim()),
+  );
+
   return (
     <section className="space-y-3 border-t border-zinc-800/60 pt-4 mt-4">
       <h3 className="text-sm font-medium text-zinc-200">{t("connectionAppearance.section")}</h3>
+
+      {/* Preview row — shows current accent color + icon + connection name */}
+      <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-zinc-900/40 border border-zinc-800/60">
+        <div
+          className="w-8 h-8 rounded-md flex items-center justify-center shrink-0 text-white"
+          style={{ background: value.accentColor ?? "#3f3f46" }}
+        >
+          {getConnectionIcon(previewConn, driverManifest, 18)}
+        </div>
+        <div className="text-sm text-zinc-300 truncate">{previewLabel}</div>
+      </div>
 
       <div>
         <label className="block text-xs text-zinc-400 mb-2">
@@ -189,7 +210,7 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
               type="button"
               role="tab"
               aria-selected={tab === k}
-              onClick={() => setTab(k)}
+              onClick={() => setUserTab(k)}
               className={`px-3 py-1.5 text-xs ${tab === k ? "text-zinc-100 border-b-2 border-blue-500" : "text-zinc-500 hover:text-zinc-300"}`}
             >
               {t(`connectionAppearance.tabs.${k}`)}
@@ -209,40 +230,60 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
         )}
 
         {tab === "pack" && (
-          <div className="grid grid-cols-6 gap-2">
-            {Object.entries(CONNECTION_ICON_PACK).map(([id, Cmp]) => (
-              <button
-                key={id}
-                type="button"
-                aria-label={`pick-${id}`}
-                aria-pressed={value.icon?.type === "pack" && value.icon.id === id}
-                onClick={() => setIcon({ type: "pack", id })}
-                className={`flex items-center justify-center p-2 rounded transition-colors ${
-                  value.icon?.type === "pack" && value.icon.id === id
-                    ? "bg-blue-500/20 text-blue-300"
-                    : "bg-zinc-800/60 hover:bg-zinc-700 text-zinc-300"
-                }`}
-              >
-                <Cmp size={18} />
-              </button>
-            ))}
+          <div className="space-y-2">
+            <input
+              type="text"
+              value={iconSearch}
+              onChange={e => setIconSearch(e.target.value)}
+              placeholder="Search icons…"
+              aria-label="icon search"
+              className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-blue-500"
+            />
+            <div className="grid grid-cols-6 gap-2">
+              {filteredPackIcons.map(([id, Cmp]) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-label={`pick-${id}`}
+                  aria-pressed={value.icon?.type === "pack" && value.icon.id === id}
+                  onClick={() => setIcon({ type: "pack", id })}
+                  className={`flex items-center justify-center p-2 rounded transition-colors ${
+                    value.icon?.type === "pack" && value.icon.id === id
+                      ? "bg-blue-500/20 text-blue-300"
+                      : "bg-zinc-800/60 hover:bg-zinc-700 text-zinc-300"
+                  }`}
+                >
+                  <Cmp size={18} />
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
         {tab === "emoji" && (
-          <div>
-            <input
-              type="text"
-              aria-label="emoji input"
-              placeholder={t("connectionAppearance.tabs.emoji")}
-              value={emojiDraft}
-              onChange={e => { setEmojiDraft(e.target.value); setEmojiError(null); }}
-              onBlur={commitEmoji}
-              maxLength={8}
-              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm w-32"
+          <EmojiPicker.Root
+            onEmojiSelect={(emoji: { emoji: string }) =>
+              setIcon({ type: "emoji", value: emoji.emoji })
+            }
+            className="w-full"
+          >
+            <EmojiPicker.Search
+              placeholder="Search emoji…"
+              aria-label="emoji search"
+              className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-blue-500 mb-2"
             />
-            {emojiError && <span role="alert" className="ml-2 text-xs text-rose-400">{emojiError}</span>}
-          </div>
+            <EmojiPicker.Viewport className="max-h-72 overflow-y-auto rounded bg-zinc-900 border border-zinc-800">
+              <EmojiPicker.Loading className="p-4 text-xs text-zinc-500 text-center">
+                Loading…
+              </EmojiPicker.Loading>
+              <EmojiPicker.Empty className="p-4 text-xs text-zinc-500 text-center">
+                No emoji found
+              </EmojiPicker.Empty>
+              <EmojiPicker.List
+                className="[--emoji-picker-list-padding:8px] [--emoji-picker-list-gap:4px]"
+              />
+            </EmojiPicker.Viewport>
+          </EmojiPicker.Root>
         )}
 
         {tab === "image" && (
@@ -266,7 +307,22 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
                 {t("connectionAppearance.removeImage")}
               </button>
             )}
-            {imageError && <div role="alert" className="mt-1 text-xs text-rose-400">{imageError}</div>}
+            {value.icon?.type === "image" && (
+              <div className="mt-3 inline-block">
+                <ConnectionIconImage
+                  path={value.icon.path}
+                  size={64}
+                  fallback={
+                    <div className="w-16 h-16 bg-zinc-800 rounded flex items-center justify-center text-zinc-500 text-xs">
+                      No preview
+                    </div>
+                  }
+                />
+              </div>
+            )}
+            {imageError && (
+              <div role="alert" className="mt-1 text-xs text-rose-400">{imageError}</div>
+            )}
             <div className="mt-1 text-xs text-zinc-500">{t("connectionAppearance.imageHint")}</div>
           </div>
         )}

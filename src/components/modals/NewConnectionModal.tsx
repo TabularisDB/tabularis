@@ -919,6 +919,8 @@ export const NewConnectionModal = ({
         value={appearance}
         onChange={setAppearance}
         connectionId={effectiveConnectionId}
+        driverManifest={activeDriver}
+        connectionName={name || t("newConnection.unnamedConnection", { defaultValue: "Unnamed connection" })}
       />
     </div>
   );
