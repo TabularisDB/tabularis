@@ -106,11 +106,10 @@ const TableToolbarInternal = ({
     (filter: string, sort: string, limit: string) => {
       const limitVal = getLimitVal(limit);
       const filterChanged = (filter || "") !== (initialFilter || "");
-      const formattedSort = formatSortClause(sort, activeDriver);
-      const sortChanged = (formattedSort || "") !== (initialSort || "");
+      const sortChanged = (sort || "") !== (initialSort || "");
       const limitChanged = limitVal !== initialLimit;
       if (filterChanged || sortChanged || limitChanged) {
-        onUpdate(filter, formattedSort, limitVal);
+        onUpdate(filter, formatSortClause(sort, activeDriver), limitVal);
       }
     },
     [getLimitVal, initialFilter, initialSort, initialLimit, onUpdate, activeDriver]

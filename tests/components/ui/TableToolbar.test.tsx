@@ -151,6 +151,24 @@ describe('TableToolbar', () => {
     expect(mockOnUpdate).not.toHaveBeenCalled();
   });
 
+  it('does not call onUpdate on sort blur when clause only differs by postgres quoting', () => {
+    vi.mocked(useDatabase).mockReturnValue({
+      activeDriver: 'postgres',
+    } as ReturnType<typeof useDatabase>);
+
+    render(
+      <TableToolbar
+        {...defaultProps}
+        initialSort="Status DESC"
+      />
+    );
+
+    const sortInput = screen.getByDisplayValue('Status DESC');
+    fireEvent.blur(sortInput);
+
+    expect(mockOnUpdate).not.toHaveBeenCalled();
+  });
+
   it('resets component when key changes', () => {
     const { rerender } = render(
       <TableToolbar
