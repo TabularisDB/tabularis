@@ -211,6 +211,40 @@ export const NewConnectionModal = ({
   const generatedId = useMemo(() => crypto.randomUUID(), []);
   const effectiveConnectionId = initialConnection?.id ?? generatedId;
 
+  // ── orphan-icon cleanup on cancel ──
+  // Mirror appearance into a ref so the unmount cleanup can read the latest value
+  // without being re-registered on every render (empty-deps effect).
+  const appearanceRef = useRef(appearance);
+  useEffect(() => { appearanceRef.current = appearance; }, [appearance]);
+
+  // Track whether the modal was successfully saved; if not, delete any
+  // image that was uploaded during this session but not committed.
+  const wasSavedRef = useRef(false);
+  const originalImagePath = useRef<string | null>(
+    initialConnection?.appearance?.icon?.type === "image"
+      ? initialConnection.appearance.icon.path
+      : null,
+  );
+
+  useEffect(() => {
+    // Reset on each open so re-opening the modal starts fresh.
+    wasSavedRef.current = false;
+    originalImagePath.current =
+      initialConnection?.appearance?.icon?.type === "image"
+        ? initialConnection.appearance.icon.path
+        : null;
+
+    return () => {
+      if (wasSavedRef.current) return;
+      const a = appearanceRef.current;
+      const current = a.icon?.type === "image" ? a.icon.path : null;
+      if (current && current !== originalImagePath.current) {
+        invoke("delete_connection_icon", { relativePath: current }).catch(() => {});
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
   // ── capabilities ──
   const noConnectionRequired =
     activeDriver?.capabilities?.no_connection_required === true;
@@ -553,6 +587,7 @@ export const NewConnectionModal = ({
         }
       }
       if (onSave) onSave();
+      wasSavedRef.current = true;
       onClose();
     } catch (err) {
       setStatus("error");

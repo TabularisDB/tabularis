@@ -712,6 +712,22 @@ pub async fn update_connection<R: Runtime>(
     Ok(returned_conn)
 }
 
+/// Pure, testable core of `set_connection_appearance`.
+/// Mutates `file` in place; does not touch disk or Tauri state.
+fn set_appearance_impl(
+    file: &mut ConnectionsFile,
+    id: &str,
+    appearance: Option<crate::models::ConnectionAppearance>,
+) -> Result<(), String> {
+    let conn = file
+        .connections
+        .iter_mut()
+        .find(|c| c.id == id)
+        .ok_or("Connection not found")?;
+    conn.appearance = appearance;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn set_connection_appearance<R: Runtime>(
     app: AppHandle<R>,
@@ -720,14 +736,7 @@ pub async fn set_connection_appearance<R: Runtime>(
 ) -> Result<(), String> {
     let path = get_config_path(&app)?;
     let mut conn_file = persistence::load_connections_file(&path)?;
-
-    let conn = conn_file
-        .connections
-        .iter_mut()
-        .find(|c| c.id == id)
-        .ok_or("Connection not found")?;
-
-    conn.appearance = appearance;
+    set_appearance_impl(&mut conn_file, &id, appearance)?;
     save_connections_and_invalidate(&app, &path, &conn_file)?;
     Ok(())
 }
@@ -1406,6 +1415,65 @@ mod tests {
         let app = updated.appearance.as_ref().expect("appearance must be preserved");
         assert_eq!(app.accent_color.as_deref(), Some("#ff0000"));
         assert!(matches!(&app.icon, Some(IconOverride::Emoji { value }) if value == "🐘"));
+    }
+
+    /// Helper: build a minimal ConnectionsFile with one connection.
+    fn one_conn_file(id: &str, appearance: Option<crate::models::ConnectionAppearance>) -> ConnectionsFile {
+        let conn = SavedConnection {
+            id: id.to_string(),
+            name: "Test".to_string(),
+            params: base_params(),
+            group_id: None,
+            sort_order: None,
+            detect_json_in_text_columns: None,
+            appearance,
+        };
+        ConnectionsFile {
+            groups: vec![],
+            connections: vec![conn],
+        }
+    }
+
+    #[test]
+    fn set_connection_appearance_updates_existing() {
+        use crate::models::{ConnectionAppearance, IconOverride};
+
+        let mut file = one_conn_file("conn-1", None);
+        let new_appearance = ConnectionAppearance {
+            accent_color: Some("#00ff00".to_string()),
+            icon: Some(IconOverride::Emoji { value: "🦀".to_string() }),
+        };
+
+        set_appearance_impl(&mut file, "conn-1", Some(new_appearance)).unwrap();
+
+        let app = file.connections[0].appearance.as_ref().expect("appearance must be set");
+        assert_eq!(app.accent_color.as_deref(), Some("#00ff00"));
+        assert!(matches!(&app.icon, Some(IconOverride::Emoji { value }) if value == "🦀"));
+    }
+
+    #[test]
+    fn set_connection_appearance_clears_with_none() {
+        use crate::models::{ConnectionAppearance, IconOverride};
+
+        let existing_appearance = ConnectionAppearance {
+            accent_color: Some("#ff0000".to_string()),
+            icon: Some(IconOverride::Pack { id: "server".to_string() }),
+        };
+        let mut file = one_conn_file("conn-2", Some(existing_appearance));
+
+        set_appearance_impl(&mut file, "conn-2", None).unwrap();
+
+        assert!(file.connections[0].appearance.is_none());
+    }
+
+    #[test]
+    fn set_connection_appearance_errors_on_missing_id() {
+        let mut file = one_conn_file("conn-real", None);
+
+        let result = set_appearance_impl(&mut file, "conn-does-not-exist", None);
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Connection not found");
     }
 
     #[test]

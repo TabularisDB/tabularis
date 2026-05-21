@@ -82,6 +82,7 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
     if (imageBusy) return;
     setImageError(null);
     setImageBusy(true);
+    const previousImagePath = value.icon?.type === "image" ? value.icon.path : null;
     try {
       const picked = await openFileDialog({
         multiple: false,
@@ -92,6 +93,10 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
         connectionId,
         sourcePath: picked,
       });
+      if (previousImagePath && previousImagePath !== stored) {
+        try { await invoke("delete_connection_icon", { relativePath: previousImagePath }); }
+        catch { /* swallow — file may already be gone */ }
+      }
       setIcon({ type: "image", path: stored });
     } catch (e) {
       setImageError(String(e));
