@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { HexColorPicker, HexColorInput } from "react-colorful";
-import { EmojiPicker } from "frimousse";
+import EmojiPicker, { Theme, EmojiStyle, SuggestionMode, SkinTonePickerLocation, type EmojiClickData } from "emoji-picker-react";
 import type { ConnectionAppearance, IconOverride } from "../../../contexts/DatabaseContext";
 import type { PluginManifest } from "../../../types/plugins";
-import { CONNECTION_ICON_PACK } from "../../../utils/connectionIconPack";
+import { ALL_ICON_NAMES, getLucideIconComponent, camelToKebab } from "../../../utils/connectionIconPack";
 import { getConnectionIcon } from "../../../utils/driverUI";
 import { ConnectionIconImage } from "../../ConnectionIconImage";
 
@@ -120,12 +120,6 @@ export function AppearanceSection({
 
   const previewLabel = connectionName ?? t("connectionAppearance.section");
   const previewConn = { appearance: value };
-
-  const filteredPackIcons = useMemo(() => {
-    const q = iconSearch.trim().toLowerCase();
-    const entries = Object.entries(CONNECTION_ICON_PACK);
-    return q ? entries.filter(([id]) => id.toLowerCase().includes(q)) : entries;
-  }, [iconSearch]);
 
   return (
     <section className="space-y-3 border-t border-zinc-800/60 pt-4 mt-4">
@@ -243,55 +237,76 @@ export function AppearanceSection({
               type="text"
               value={iconSearch}
               onChange={e => setIconSearch(e.target.value)}
-              placeholder="Search icons…"
+              placeholder={t("connectionAppearance.iconSearch", { defaultValue: "Search icons…" })}
               aria-label="icon search"
-              className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-blue-500"
+              className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm"
             />
-            <div className="grid grid-cols-6 gap-2">
-              {filteredPackIcons.map(([id, Cmp]) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-label={`pick-${id}`}
-                  aria-pressed={value.icon?.type === "pack" && value.icon.id === id}
-                  onClick={() => setIcon({ type: "pack", id })}
-                  className={`flex items-center justify-center p-2 rounded transition-colors ${
-                    value.icon?.type === "pack" && value.icon.id === id
-                      ? "bg-blue-500/20 text-blue-300"
-                      : "bg-zinc-800/60 hover:bg-zinc-700 text-zinc-300"
-                  }`}
-                >
-                  <Cmp size={18} />
-                </button>
-              ))}
-            </div>
+            {(() => {
+              const q = iconSearch.toLowerCase().trim();
+              const all = q === "" ? ALL_ICON_NAMES : ALL_ICON_NAMES.filter(n => n.includes(q));
+              const RESULT_LIMIT = 120;
+              const shown = all.slice(0, RESULT_LIMIT);
+              return (
+                <>
+                  <div className="grid grid-cols-8 gap-1 max-h-72 overflow-y-auto pr-1">
+                    {shown.map(id => {
+                      const Cmp = getLucideIconComponent(id);
+                      if (!Cmp) return null;
+                      const selected = value.icon?.type === "pack" &&
+                        (value.icon.id === id || camelToKebab(value.icon.id) === id);
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          aria-label={`pick-${id}`}
+                          aria-pressed={selected}
+                          onClick={() => setIcon({ type: "pack", id })}
+                          className={`flex items-center justify-center p-1.5 rounded transition-colors ${
+                            selected ? "bg-blue-500/20 text-blue-300" : "bg-zinc-800/60 hover:bg-zinc-700 text-zinc-300"
+                          }`}
+                        >
+                          <Suspense fallback={<div className="w-[18px] h-[18px]" />}>
+                            <Cmp size={18} />
+                          </Suspense>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {all.length > RESULT_LIMIT && (
+                    <div className="text-xs text-zinc-500">
+                      {t("connectionAppearance.iconResultsTruncated", {
+                        defaultValue: "Showing {{shown}} of {{total}} — refine search to narrow down.",
+                        shown: RESULT_LIMIT,
+                        total: all.length,
+                      })}
+                    </div>
+                  )}
+                  {all.length === 0 && (
+                    <div className="text-xs text-zinc-500">
+                      {t("connectionAppearance.iconNoResults", { defaultValue: "No icons match." })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 
         {tab === "emoji" && (
-          <EmojiPicker.Root
-            onEmojiSelect={(emoji: { emoji: string }) =>
-              setIcon({ type: "emoji", value: emoji.emoji })
-            }
-            className="w-full"
-          >
-            <EmojiPicker.Search
-              placeholder="Search emoji…"
-              aria-label="emoji search"
-              className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-blue-500 mb-2"
+          <div className="rounded border border-zinc-800 overflow-hidden">
+            <EmojiPicker
+              theme={Theme.DARK}
+              emojiStyle={EmojiStyle.NATIVE}
+              width="100%"
+              height={360}
+              searchPlaceholder={t("connectionAppearance.emojiSearch", { defaultValue: "Search emoji…" })}
+              suggestedEmojisMode={SuggestionMode.RECENT}
+              skinTonePickerLocation={SkinTonePickerLocation.SEARCH}
+              previewConfig={{ showPreview: false }}
+              lazyLoadEmojis
+              onEmojiClick={(data: EmojiClickData) => setIcon({ type: "emoji", value: data.emoji })}
             />
-            <EmojiPicker.Viewport className="max-h-72 overflow-y-auto rounded bg-zinc-900 border border-zinc-800">
-              <EmojiPicker.Loading className="p-4 text-xs text-zinc-500 text-center">
-                Loading…
-              </EmojiPicker.Loading>
-              <EmojiPicker.Empty className="p-4 text-xs text-zinc-500 text-center">
-                No emoji found
-              </EmojiPicker.Empty>
-              <EmojiPicker.List
-                className="[--emoji-picker-list-padding:8px] [--emoji-picker-list-gap:4px]"
-              />
-            </EmojiPicker.Viewport>
-          </EmojiPicker.Root>
+          </div>
         )}
 
         {tab === "image" && (

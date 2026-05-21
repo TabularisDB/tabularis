@@ -1,5 +1,5 @@
 import { Network, Database, FolderOpen, Plug } from "lucide-react";
-import { CONNECTION_ICON_PACK } from "./connectionIconPack";
+import { getLucideIconComponent, camelToKebab } from "./connectionIconPack";
 import { lazy, Suspense } from "react";
 import type { ReactNode } from "react";
 import type { PluginManifest } from "../types/plugins";
@@ -85,8 +85,10 @@ export function getConnectionIcon(
     case "emoji":
       return <span aria-hidden="true" style={{ fontSize: size, lineHeight: 1 }}>{ov.value}</span>;
     case "pack": {
-      const Cmp = CONNECTION_ICON_PACK[ov.id];
-      return Cmp ? <Cmp size={size} /> : getDriverIcon(manifest, size);
+      const Cmp = getLucideIconComponent(ov.id) ?? getLucideIconComponent(camelToKebab(ov.id));
+      return Cmp
+        ? <Suspense fallback={getDriverIcon(manifest, size)}><Cmp size={size} /></Suspense>
+        : getDriverIcon(manifest, size);
     }
     case "image":
       return (

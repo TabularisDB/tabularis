@@ -15,20 +15,17 @@ vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: (s: string) => `tauri://${s}`,
 }));
 
-// Frimousse mock — avoids async data loading in JSDOM
-vi.mock("frimousse", () => ({
-  EmojiPicker: {
-    Root: ({ children, onEmojiSelect }: { children: React.ReactNode; onEmojiSelect: (e: { emoji: string }) => void }) => (
-      <div data-testid="emoji-root" onClick={() => onEmojiSelect({ emoji: "🐘" })}>
-        {children}
-      </div>
-    ),
-    Search: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-    Viewport: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    List: () => <div />,
-    Loading: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-    Empty: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  },
+// emoji-picker-react mock — avoids heavy DOM in JSDOM
+vi.mock("emoji-picker-react", () => ({
+  default: ({ onEmojiClick }: any) => (
+    <div data-testid="emoji-picker" onClick={() => onEmojiClick({ emoji: "🐘" })}>
+      <input aria-label="emoji search" />
+    </div>
+  ),
+  Theme: { DARK: "dark", LIGHT: "light", AUTO: "auto" },
+  EmojiStyle: { NATIVE: "native", APPLE: "apple", GOOGLE: "google", TWITTER: "twitter", FACEBOOK: "facebook" },
+  SuggestionMode: { RECENT: "recent", FREQUENT: "frequent" },
+  SkinTonePickerLocation: { SEARCH: "search", PREVIEW: "preview" },
 }));
 
 describe("AppearanceSection — color", () => {
@@ -151,20 +148,21 @@ describe("AppearanceSection — icon tabs", () => {
     });
   });
 
-  // ── Frimousse emoji picker ──
+  // ── emoji-picker-react emoji picker ──
 
-  it("renders Frimousse emoji picker with search", () => {
+  it("renders emoji picker with search", () => {
     render(<AppearanceSection value={{}} onChange={() => {}} connectionId="1" />);
     fireEvent.click(screen.getByRole("tab", { name: /emoji/i }));
+    expect(screen.getByTestId("emoji-picker")).toBeInTheDocument();
     expect(screen.getByLabelText(/emoji search/i)).toBeInTheDocument();
   });
 
-  it("emits emoji icon when picker fires onEmojiSelect", () => {
+  it("emits emoji icon when picker fires onEmojiClick", () => {
     const onChange = vi.fn();
     render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
     fireEvent.click(screen.getByRole("tab", { name: /emoji/i }));
-    // Clicking the root div triggers the mock onEmojiSelect({ emoji: "🐘" })
-    fireEvent.click(screen.getByTestId("emoji-root"));
+    // Clicking the picker div triggers the mock onEmojiClick({ emoji: "🐘" })
+    fireEvent.click(screen.getByTestId("emoji-picker"));
     expect(onChange).toHaveBeenCalledWith({ icon: { type: "emoji", value: "🐘" } });
   });
 
@@ -174,7 +172,8 @@ describe("AppearanceSection — icon tabs", () => {
     render(<AppearanceSection value={{}} onChange={() => {}} connectionId="1" />);
     fireEvent.click(screen.getByRole("tab", { name: /pack/i }));
     const allInitial = screen.getAllByRole("button", { name: /^pick-/i });
-    expect(allInitial.length).toBeGreaterThan(20);
+    // The mocked dynamicIconImports has 5 icons (all shown since < RESULT_LIMIT of 120)
+    expect(allInitial.length).toBeGreaterThan(0);
     const search = screen.getByLabelText(/icon search/i);
     fireEvent.change(search, { target: { value: "shield" } });
     const filtered = screen.getAllByRole("button", { name: /^pick-/i });

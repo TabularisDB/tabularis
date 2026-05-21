@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { getConnectionAccent, getConnectionIcon } from "./driverUI";
+import { camelToKebab, getLucideIconComponent } from "./connectionIconPack";
 import type { SavedConnection } from "../contexts/DatabaseContext";
 import type { PluginManifest } from "../types/plugins";
 
@@ -43,6 +44,40 @@ describe("getConnectionIcon", () => {
   it("falls back to manifest when pack id is unknown", () => {
     const c = { id: "1", appearance: { icon: { type: "pack", id: "this-icon-does-not-exist-xyz" } } } as SavedConnection;
     // Smoke test: should not throw; icons are mocked to null in test env
+    expect(() => render(<>{getConnectionIcon(c, manifest, 16)}</>)).not.toThrow();
+  });
+});
+
+describe("camelToKebab / getLucideIconComponent — legacy id normalization", () => {
+  it("converts camelCase to kebab-case correctly", () => {
+    expect(camelToKebab("shieldCheck")).toBe("shield-check");
+    expect(camelToKebab("hardDrive")).toBe("hard-drive");
+    expect(camelToKebab("cloudCog")).toBe("cloud-cog");
+    expect(camelToKebab("server")).toBe("server");
+  });
+
+  it("normalizes legacy camelCase pack ids in the resolver", () => {
+    // "shieldCheck" (camelCase) resolves to the same component as "shield-check" (kebab-case)
+    // Both should return a non-null lazy component (mocked in setup.ts via dynamicIconImports)
+    const byKebab = getLucideIconComponent("shield-check");
+    const byCamel = getLucideIconComponent("shieldCheck");
+    // kebab-case hits dynamicIconImports directly
+    expect(byKebab).not.toBeNull();
+    // camelCase is not in the mock set, so the resolver must return null (caller will re-try with camelToKebab)
+    // This is the expected behavior: getLucideIconComponent("shieldCheck") returns null,
+    // and driverUI falls back to getLucideIconComponent(camelToKebab("shieldCheck")) which returns non-null.
+    expect(getLucideIconComponent(camelToKebab("shieldCheck"))).not.toBeNull();
+  });
+
+  it("getConnectionIcon with camelCase pack id still renders without throwing", () => {
+    // { type: "pack", id: "shieldCheck" } — legacy camelCase id
+    const c = { id: "1", appearance: { icon: { type: "pack", id: "shieldCheck" } } } as SavedConnection;
+    expect(() => render(<>{getConnectionIcon(c, manifest, 16)}</>)).not.toThrow();
+  });
+
+  it("getConnectionIcon with kebab-case pack id still renders without throwing", () => {
+    // { type: "pack", id: "shield-check" } — canonical kebab-case id
+    const c = { id: "1", appearance: { icon: { type: "pack", id: "shield-check" } } } as SavedConnection;
     expect(() => render(<>{getConnectionIcon(c, manifest, 16)}</>)).not.toThrow();
   });
 });

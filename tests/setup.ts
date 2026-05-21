@@ -194,5 +194,25 @@ vi.mock("lucide-react", () => ({
   Plug: () => null,
 }));
 
+// Mock lucide-react/dynamicIconImports with a small deterministic set
+vi.mock("lucide-react/dynamicIconImports", () => ({
+  default: new Proxy({}, {
+    get(_t: object, key: string) {
+      // Each entry must be a function returning a Promise resolving to a default-exported component
+      return () => Promise.resolve({ default: () => null });
+    },
+    has(_t: object, key: string) {
+      // Whitelist a few known names for filtering tests
+      return ["shield-check", "shield", "server", "database", "circle"].includes(key);
+    },
+    ownKeys() {
+      return ["shield-check", "shield", "server", "database", "circle"];
+    },
+    getOwnPropertyDescriptor() {
+      return { enumerable: true, configurable: true, value: () => Promise.resolve({ default: () => null }) };
+    },
+  }),
+}));
+
 // Mock scrollIntoView (not available in JSDOM)
 Element.prototype.scrollIntoView = vi.fn();
