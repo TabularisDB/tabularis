@@ -129,7 +129,7 @@ export const NewConnectionModal = ({
     username: "",
     database: "",
     ssl_mode: "",
-    encrypt: "",
+    encrypt: undefined,
     ssh_enabled: false,
     ssh_port: 22,
   });
@@ -369,7 +369,7 @@ export const NewConnectionModal = ({
       password: "",
       database: "",
       ssl_mode: "",
-      encrypt: "",
+      encrypt: undefined,
       ssh_enabled: false,
       ssh_connection_id: undefined,
       ssh_host: undefined,
@@ -485,6 +485,7 @@ export const NewConnectionModal = ({
       if (initialConnection) {
         if (!params.password?.trim()) delete params.password;
         if (!params.ssh_password?.trim()) delete params.ssh_password;
+        if (!params.encrypt?.trim()) delete params.encrypt;
         await invoke("update_connection", {
           id: initialConnection.id,
           name,

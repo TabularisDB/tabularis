@@ -8,6 +8,10 @@ interface ConnectionParams {
   password?: string;
   database: string | string[];
   ssl_mode?: string;
+  // SQL Server
+  encrypt?: string;
+  trust_server_certificate?: boolean;
+  auth_mode?: string;
   ssh_enabled?: boolean;
   ssh_connection_id?: string;
   ssh_host?: string;
