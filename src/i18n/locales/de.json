@@ -683,6 +683,7 @@
     "setDefault": "DEFAULT setzen",
     "setEmpty": "EMPTY setzen",
     "setServerNow": "Aktuellen Zeitstempel einfügen",
+    "previewReferenced": "Verknüpften Datensatz anzeigen",
     "openReferenced": "Referenzierte Zeile in {{table}} öffnen"
   },
   "editRow": {

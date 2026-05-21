@@ -677,6 +677,7 @@
     "copied": "Copiado al portapapeles",
     "duplicateRow": "Duplicar Fila",
     "setServerNow": "Insertar marca de tiempo actual",
+    "previewReferenced": "Vista previa del registro relacionado",
     "openReferenced": "Abrir fila referenciada en {{table}}"
   },
   "editRow": {

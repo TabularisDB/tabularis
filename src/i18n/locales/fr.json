@@ -683,6 +683,7 @@
     "setDefault": "Définir DEFAULT",
     "setEmpty": "Définir EMPTY",
     "setServerNow": "Insérer l'horodatage actuel",
+    "previewReferenced": "Aperçu de l'enregistrement lié",
     "openReferenced": "Ouvrir la ligne référencée dans {{table}}"
   },
   "editRow": {

@@ -696,6 +696,7 @@
     "setDefault": "Set DEFAULT",
     "setEmpty": "Set EMPTY",
     "setServerNow": "Insert Current Timestamp",
+    "previewReferenced": "Preview related record",
     "openReferenced": "Open referenced row in {{table}}"
   },
   "editRow": {

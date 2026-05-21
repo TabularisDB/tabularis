@@ -681,6 +681,7 @@
     "setNull": "Imposta NULL",
     "setDefault": "Imposta DEFAULT",
     "setEmpty": "Imposta VUOTO",
+    "previewReferenced": "Anteprima record correlato",
     "openReferenced": "Apri la riga referenziata in {{table}}"
   },
   "editRow": {
