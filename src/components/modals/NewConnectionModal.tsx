@@ -45,6 +45,9 @@ interface ConnectionParams {
   ssl_ca?: string;
   ssl_cert?: string;
   ssl_key?: string;
+  // SQL Server
+  encrypt?: string;
+  trust_server_certificate?: boolean;
   // SSH
   ssh_enabled?: boolean;
   ssh_connection_id?: string;
@@ -126,6 +129,7 @@ export const NewConnectionModal = ({
     username: "",
     database: "",
     ssl_mode: "",
+    encrypt: "",
     ssh_enabled: false,
     ssh_port: 22,
   });
@@ -365,6 +369,7 @@ export const NewConnectionModal = ({
       password: "",
       database: "",
       ssl_mode: "",
+      encrypt: "",
       ssh_enabled: false,
       ssh_connection_id: undefined,
       ssh_host: undefined,
@@ -693,6 +698,26 @@ export const NewConnectionModal = ({
               placeholder={driver === "mysql" ? "3306" : "5432"}
             />
           </div>
+
+          {/* Encrypt (SQL Server only) */}
+          {driver === "sqlserver" && (
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
+                {t("newConnection.encrypt", { defaultValue: "Encrypt" })}
+              </label>
+              <Select
+                value={formData.encrypt || "yes"}
+                options={["yes", "no", "strict"]}
+                labels={{
+                  yes: t("newConnection.encryptModes.yes", { defaultValue: "Yes" }),
+                  no: t("newConnection.encryptModes.no", { defaultValue: "No" }),
+                  strict: t("newConnection.encryptModes.strict", { defaultValue: "Strict" }),
+                }}
+                onChange={(v) => updateField("encrypt", v)}
+                searchable={false}
+              />
+            </div>
+          )}
 
           {/* User + Password */}
           <div className="grid grid-cols-2 gap-3">
