@@ -447,6 +447,7 @@ pub fn run() {
             // Connection Appearance
             connection_appearance::save_connection_icon,
             connection_appearance::delete_connection_icon,
+            commands::set_connection_appearance,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

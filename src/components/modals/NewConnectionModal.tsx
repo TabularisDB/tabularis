@@ -17,6 +17,8 @@ import {
   EyeOff,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import type { ConnectionAppearance } from "../../contexts/DatabaseContext";
+import { AppearanceSection } from "./NewConnectionModal/AppearanceSection";
 import { open } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import { SshConnectionsModal } from "./SshConnectionsModal";
@@ -65,6 +67,7 @@ interface SavedConnection {
   name: string;
   params: ConnectionParams;
   detect_json_in_text_columns?: boolean;
+  appearance?: ConnectionAppearance;
 }
 
 interface NewConnectionModalProps {
@@ -194,6 +197,19 @@ export const NewConnectionModal = ({
   const [nameError, setNameError] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [databasesTabError, setDatabasesTabError] = useState(false);
+
+  // ── appearance ──
+  const [appearance, setAppearance] = useState<ConnectionAppearance>(
+    initialConnection?.appearance ?? {},
+  );
+  // Stable UUID used as connectionId for icon uploads on new connections.
+  // The backend mints its own id on save_connection, so we use this temp id
+  // for the icon filename. After save, set_connection_appearance persists the
+  // appearance (including the icon path which refs this temp id) under the
+  // real connection id. Because cascade_delete_if_image uses the stored path
+  // directly, cleanup works correctly despite the temp-id prefix in the filename.
+  const generatedId = useMemo(() => crypto.randomUUID(), []);
+  const effectiveConnectionId = initialConnection?.id ?? generatedId;
 
   // ── capabilities ──
   const noConnectionRequired =
@@ -331,6 +347,7 @@ export const NewConnectionModal = ({
         setDetectJsonInTextColumns(
           initialConnection.detect_json_in_text_columns === true,
         );
+        setAppearance(initialConnection.appearance ?? {});
         const db = initialConnection.params.database;
         setSshMode(
           initialConnection.params.ssh_connection_id ? "existing" : "inline",
@@ -375,6 +392,7 @@ export const NewConnectionModal = ({
         setSelectedDatabasesState([]);
         setSshMode("existing");
         setDetectJsonInTextColumns(false);
+        setAppearance({});
       }
 
       await loadSshConnectionsList();
@@ -505,6 +523,9 @@ export const NewConnectionModal = ({
             : selectedDatabasesState
           : formData.database,
       };
+      const appearancePayload =
+        appearance.icon || appearance.accentColor ? appearance : undefined;
+
       if (initialConnection) {
         if (!params.password?.trim()) delete params.password;
         if (!params.ssh_password?.trim()) delete params.ssh_password;
@@ -514,12 +535,22 @@ export const NewConnectionModal = ({
           params,
           detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
         });
+        await invoke("set_connection_appearance", {
+          id: initialConnection.id,
+          appearance: appearancePayload ?? null,
+        });
       } else {
-        await invoke("save_connection", {
+        const saved = await invoke<{ id: string }>("save_connection", {
           name,
           params,
           detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
         });
+        if (appearancePayload) {
+          await invoke("set_connection_appearance", {
+            id: saved.id,
+            appearance: appearancePayload,
+          });
+        }
       }
       if (onSave) onSave();
       onClose();
@@ -848,6 +879,12 @@ export const NewConnectionModal = ({
           </span>
         </span>
       </label>
+
+      <AppearanceSection
+        value={appearance}
+        onChange={setAppearance}
+        connectionId={effectiveConnectionId}
+      />
     </div>
   );
 

@@ -713,6 +713,26 @@ pub async fn update_connection<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn set_connection_appearance<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    appearance: Option<crate::models::ConnectionAppearance>,
+) -> Result<(), String> {
+    let path = get_config_path(&app)?;
+    let mut conn_file = persistence::load_connections_file(&path)?;
+
+    let conn = conn_file
+        .connections
+        .iter_mut()
+        .find(|c| c.id == id)
+        .ok_or("Connection not found")?;
+
+    conn.appearance = appearance;
+    save_connections_and_invalidate(&app, &path, &conn_file)?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn duplicate_connection<R: Runtime>(
     app: AppHandle<R>,
     id: String,
