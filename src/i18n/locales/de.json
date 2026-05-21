@@ -227,6 +227,30 @@
     "exportTitle": "Verbindungen exportieren",
     "exportWarning": "Die exportierte Datei enthält deine Datenbank- und SSH-Passwörter im Klartext. Bewahre sie sicher auf."
   },
+  "connectionAppearance": {
+    "section": "Darstellung",
+    "accentColor": "Akzentfarbe",
+    "customColor": "Benutzerdefiniert",
+    "resetColor": "Auf Treiber-Standard zurücksetzen",
+    "resetIcon": "Auf Treiber-Standard zurücksetzen",
+    "icon": "Symbol",
+    "tabs": {
+      "default": "Standard",
+      "pack": "Symbol",
+      "emoji": "Emoji",
+      "image": "Bild"
+    },
+    "chooseImage": "Bild auswählen…",
+    "removeImage": "Entfernen",
+    "imageHint": "PNG, JPG, WebP oder SVG · max. 512 KB",
+    "errors": {
+      "tooLarge": "Bild ist größer als 512 KB",
+      "invalidFormat": "Nicht unterstütztes Bildformat",
+      "invalidEmoji": "Bitte genau ein Emoji eingeben",
+      "invalidHex": "Bitte einen gültigen Hex-Wert wie #1a2b3c eingeben"
+    },
+    "preview": "Vorschau"
+  },
   "settings": {
     "title": "Einstellungen",
     "general": "Allgemein",

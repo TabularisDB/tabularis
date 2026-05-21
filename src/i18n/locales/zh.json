@@ -226,6 +226,30 @@
     "exportTitle": "导出连接",
     "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。"
   },
+  "connectionAppearance": {
+    "section": "外观",
+    "accentColor": "强调色",
+    "customColor": "自定义",
+    "resetColor": "重置为驱动默认",
+    "resetIcon": "重置为驱动默认",
+    "icon": "图标",
+    "tabs": {
+      "default": "默认",
+      "pack": "图标",
+      "emoji": "表情",
+      "image": "图片"
+    },
+    "chooseImage": "选择图片…",
+    "removeImage": "移除",
+    "imageHint": "PNG、JPG、WebP 或 SVG · 最大 512 KB",
+    "errors": {
+      "tooLarge": "图片大于 512 KB",
+      "invalidFormat": "不支持的图片格式",
+      "invalidEmoji": "请输入正好一个表情",
+      "invalidHex": "请输入有效的十六进制颜色，例如 #1a2b3c"
+    },
+    "preview": "预览"
+  },
   "settings": {
     "title": "设置",
     "general": "通用",

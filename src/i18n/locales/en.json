@@ -240,6 +240,30 @@
     "exportTitle": "Export Connections",
     "exportWarning": "The exported file will contain your database and SSH passwords in plaintext. Please store it securely."
   },
+  "connectionAppearance": {
+    "section": "Appearance",
+    "accentColor": "Accent color",
+    "customColor": "Custom",
+    "resetColor": "Reset to driver default",
+    "resetIcon": "Reset to driver default",
+    "icon": "Icon",
+    "tabs": {
+      "default": "Default",
+      "pack": "Icon",
+      "emoji": "Emoji",
+      "image": "Image"
+    },
+    "chooseImage": "Choose image…",
+    "removeImage": "Remove",
+    "imageHint": "PNG, JPG, WebP or SVG · max 512 KB",
+    "errors": {
+      "tooLarge": "Image is larger than 512 KB",
+      "invalidFormat": "Unsupported image format",
+      "invalidEmoji": "Please enter exactly one emoji",
+      "invalidHex": "Please enter a valid hex color like #1a2b3c"
+    },
+    "preview": "Preview"
+  },
   "settings": {
     "title": "Settings",
     "general": "General",

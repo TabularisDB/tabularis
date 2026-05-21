@@ -227,6 +227,30 @@
     "exportTitle": "Exporter les connexions",
     "exportWarning": "Le fichier exporté contiendra vos mots de passe de base de données et SSH en clair. Conservez-le en lieu sûr."
   },
+  "connectionAppearance": {
+    "section": "Apparence",
+    "accentColor": "Couleur d'accent",
+    "customColor": "Personnalisé",
+    "resetColor": "Réinitialiser au défaut du pilote",
+    "resetIcon": "Réinitialiser au défaut du pilote",
+    "icon": "Icône",
+    "tabs": {
+      "default": "Défaut",
+      "pack": "Icône",
+      "emoji": "Emoji",
+      "image": "Image"
+    },
+    "chooseImage": "Choisir une image…",
+    "removeImage": "Supprimer",
+    "imageHint": "PNG, JPG, WebP ou SVG · max. 512 Ko",
+    "errors": {
+      "tooLarge": "L'image dépasse 512 Ko",
+      "invalidFormat": "Format d'image non pris en charge",
+      "invalidEmoji": "Veuillez saisir un seul emoji",
+      "invalidHex": "Veuillez saisir une couleur hex valide comme #1a2b3c"
+    },
+    "preview": "Aperçu"
+  },
   "settings": {
     "title": "Paramètres",
     "general": "Général",

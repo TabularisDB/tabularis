@@ -227,6 +227,30 @@
     "exportTitle": "Esporta connessioni",
     "exportWarning": "Il file esportato conterrà le password del database e SSH in chiaro. Conservalo in modo sicuro."
   },
+  "connectionAppearance": {
+    "section": "Aspetto",
+    "accentColor": "Colore di accento",
+    "customColor": "Personalizzato",
+    "resetColor": "Ripristina predefinito",
+    "resetIcon": "Ripristina predefinito",
+    "icon": "Icona",
+    "tabs": {
+      "default": "Predefinito",
+      "pack": "Icona",
+      "emoji": "Emoji",
+      "image": "Immagine"
+    },
+    "chooseImage": "Scegli immagine…",
+    "removeImage": "Rimuovi",
+    "imageHint": "PNG, JPG, WebP o SVG · max 512 KB",
+    "errors": {
+      "tooLarge": "L'immagine supera i 512 KB",
+      "invalidFormat": "Formato immagine non supportato",
+      "invalidEmoji": "Inserisci esattamente un emoji",
+      "invalidHex": "Inserisci un colore hex valido come #1a2b3c"
+    },
+    "preview": "Anteprima"
+  },
   "settings": {
     "title": "Impostazioni",
     "general": "Generali",
