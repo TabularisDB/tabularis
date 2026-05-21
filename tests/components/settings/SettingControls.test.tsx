@@ -136,7 +136,9 @@ describe("SettingToggle", () => {
       <SettingToggle checked={false} onChange={() => {}} disabled />,
     );
     const input = screen.getByRole("checkbox");
-    expect(input.className).toContain("cursor-not-allowed");
+    const label = input.closest("label");
+    expect(label).not.toBeNull();
+    expect(label!.className).toContain("cursor-not-allowed");
   });
 });
 

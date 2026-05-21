@@ -5,7 +5,7 @@
   "cells": [
     {
       "type": "markdown",
-      "content": "# Tabularis Notebook — Full Feature Showcase\n\nWelcome! This notebook demonstrates **every major feature** of Tabularis Notebooks using a sample e-commerce analytics database.\n\n> **Setup:** Run `demo/demo-database.sql` on your MariaDB server first to create the `tabularis_demo` database.\n>\n> **Quick Start:** Press `Ctrl+Shift+Enter` (or `Cmd+Shift+Enter` on Mac) to run all SQL cells at once."
+      "content": "# Tabularis Notebook — Full Feature Showcase\n\nWelcome! This notebook demonstrates **every major feature** of Tabularis Notebooks using a sample e-commerce analytics database.\n\n> **Setup:** From the `demo/` folder run `docker compose up -d` to spin up MySQL, PostgreSQL, and SQL Server pre-loaded with the `tabularis_demo` schema. Then import `demo/connections.json` into Tabularis and pick **Demo · MySQL** → `tabularis_demo`.\n>\n> **Quick Start:** Press `Ctrl+Shift+Enter` (or `Cmd+Shift+Enter` on Mac) to run all SQL cells at once."
     },
     {
       "type": "markdown",

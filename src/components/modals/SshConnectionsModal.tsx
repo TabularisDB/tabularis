@@ -9,6 +9,8 @@ import {
   Loader2,
   Zap,
   XCircle,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   loadSshConnections,
@@ -21,6 +23,7 @@ import {
 } from "../../utils/ssh";
 import { toErrorMessage } from "../../utils/errors";
 import { Modal } from "../ui/Modal";
+import clsx from "clsx";
 
 interface SshConnectionsModalProps {
   isOpen: boolean;
@@ -48,16 +51,31 @@ function SshInput({
   placeholder,
   error,
 }: SshInputProps) {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = type === "password";
+
   return (
     <div className="flex flex-col">
       <label className={LabelClass}>{label}</label>
-      <input
-        type={type}
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-        className={InputClass}
-        placeholder={placeholder}
-      />
+      <div className="relative group">
+        <input
+          type={isPassword ? (showPassword ? "text" : "password") : type}
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          className={clsx(InputClass, isPassword && "pr-10")}
+          placeholder={placeholder}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-primary transition-colors focus:outline-none"
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        )}
+      </div>
       {error}
     </div>
   );

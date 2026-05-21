@@ -221,7 +221,11 @@
     "searchPlaceholder": "Rechercher des connexions...",
     "noSearchResults": "Aucune connexion ne correspond à \"{{query}}\"",
     "gridView": "Vue grille",
-    "listView": "Vue liste"
+    "listView": "Vue liste",
+    "export": "Exporter les connexions",
+    "import": "Importer les connexions",
+    "exportTitle": "Exporter les connexions",
+    "exportWarning": "Le fichier exporté contiendra vos mots de passe de base de données et SSH en clair. Conservez-le en lieu sûr."
   },
   "settings": {
     "title": "Paramètres",
@@ -239,6 +243,8 @@
     "delimiterSemicolon": "Point-virgule (;)",
     "delimiterTab": "Tabulation",
     "delimiterPipe": "Barre verticale (|)",
+    "detectJsonInTextColumns": "Détecter le JSON dans les colonnes texte",
+    "detectJsonInTextColumnsDesc": "Affiche le visualiseur JSON lorsqu'une cellule texte non typée contient un objet ou un tableau JSON. Ajoute un petit coût d'analyse par cellule.",
     "appearance": "Apparence",
     "localization": "Localisation",
     "themeSelection": "Choix du thème",
@@ -268,6 +274,8 @@
     "appearance_editorWordWrapDesc": "Retourne les longues lignes dans l’éditeur au lieu d’un défilement horizontal.",
     "appearance_editorShowLineNumbers": "Afficher les numéros de ligne",
     "appearance_editorShowLineNumbersDesc": "Affiche les numéros de ligne dans la marge de l’éditeur.",
+    "appearance_editorAcceptSuggestionOnEnter": "Accepter la suggestion avec Entrée",
+    "appearance_editorAcceptSuggestionOnEnterDesc": "Autorise la touche Entrée (en plus de Tab) à accepter la suggestion d’autocomplétion active. Lorsqu’elle est désactivée, Entrée insère toujours un saut de ligne.",
     "editConfigJson": "Modifier config.json",
     "editConfigJsonDesc": "Modifiez directement le fichier de configuration brut. Un redémarrage est nécessaire pour appliquer les changements.",
     "configJsonModal": {
@@ -616,7 +624,9 @@
       "disable": "Désactiver",
       "allow": "Autoriser",
       "prefer": "Préférer",
-      "require": "Exiger"
+      "require": "Exiger",
+      "verify-ca": "Vérifier CA",
+      "verify-full": "Vérification complète"
     }
   },
   "sshConnections": {
@@ -643,6 +653,7 @@
     "savedInKeychain": "Mot de passe enregistré dans le trousseau système"
   },
   "dataGrid": {
+    "newRow": "NOUVELLE",
     "noData": "Aucune donnée à afficher",
     "editRow": "Modifier la ligne",
     "deleteRow": "Supprimer la ligne",
@@ -671,7 +682,8 @@
     "setNull": "Définir NULL",
     "setDefault": "Définir DEFAULT",
     "setEmpty": "Définir EMPTY",
-    "setServerNow": "Insérer l'horodatage actuel"
+    "setServerNow": "Insérer l'horodatage actuel",
+    "openReferenced": "Ouvrir la ligne référencée dans {{table}}"
   },
   "editRow": {
     "title": "Modifier la ligne",
@@ -743,7 +755,8 @@
     "tabSwitcher": {
       "title": "Onglets ouverts",
       "hint": "Ctrl+Tab",
-      "tabs": "onglets",
+      "tabs_one": "{{count}} onglet",
+      "tabs_other": "{{count}} onglets",
       "escHint": "Esc pour fermer"
     },
     "submitChanges": "Soumettre les modifications",
@@ -1109,7 +1122,27 @@
     "placeholder": "Saisir du JSON...",
     "format": "Formater",
     "valid": "JSON valide",
-    "invalid": "JSON invalide"
+    "invalid": "JSON invalide",
+    "mode": {
+      "code": "Code",
+      "tree": "Arborescence",
+      "raw": "Brut"
+    },
+    "expand": "Développer",
+    "collapse": "Réduire",
+    "search": "Rechercher",
+    "copyPath": "Copier le chemin",
+    "copyValue": "Copier la valeur",
+    "addItem": "Ajouter un élément",
+    "removeItem": "Supprimer l'élément"
+  },
+  "jsonViewer": {
+    "close": "Fermer",
+    "save": "Enregistrer"
+  },
+  "jsonCell": {
+    "expand": "Afficher/masquer l'arbre JSON",
+    "openViewer": "Ouvrir le visualiseur JSON"
   },
   "rowEditor": {
     "title": "Modifier la ligne",
@@ -1119,7 +1152,8 @@
     "enterValue": "Saisir une valeur..."
   },
   "contextMenu": {
-    "openSidebar": "Ouvrir l’éditeur latéral"
+    "openSidebar": "Ouvrir l’éditeur latéral",
+    "openJsonEditor": "Ouvrir dans l’éditeur JSON"
   },
   "blobInput": {
     "noData": "Aucune donnée BLOB",
@@ -1370,5 +1404,11 @@
     "reasonPlaceholder": "ex. Risqué en prod, confirmez…",
     "approve": "Approuver",
     "deny": "Refuser"
+  },
+  "discordCallout": {
+    "title": "Nouvelle communauté Discord !",
+    "body": "Nous venons d’ouvrir une communauté dédiée à Tabularis : entraide, astuces et influence sur la roadmap.",
+    "cta": "Rejoindre maintenant",
+    "dismiss": "Fermer"
   }
 }

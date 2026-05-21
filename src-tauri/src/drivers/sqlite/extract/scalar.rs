@@ -1,5 +1,7 @@
 use sqlx::Row;
 
+use crate::drivers::common::i64_to_json;
+
 pub(super) fn extract_text_value(
     row: &sqlx::sqlite::SqliteRow,
     index: usize,
@@ -14,7 +16,7 @@ pub(super) fn extract_integer_value(
     index: usize,
 ) -> Option<serde_json::Value> {
     if let Ok(value) = row.try_get::<i64, _>(index) {
-        return Some(serde_json::Value::from(value));
+        return Some(i64_to_json(value));
     }
 
     row.try_get::<i32, _>(index)

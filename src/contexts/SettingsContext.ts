@@ -44,6 +44,7 @@ export interface Settings {
   editorTabSize?: number;
   editorWordWrap?: boolean;
   editorShowLineNumbers?: boolean;
+  editorAcceptSuggestionOnEnter?: boolean;
   pingInterval?: number;
   queryHistoryMaxEntries?: number;
   showWelcome?: boolean;
@@ -94,6 +95,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editorTabSize: 2,
   editorWordWrap: true,
   editorShowLineNumbers: true,
+  editorAcceptSuggestionOnEnter: true,
   pingInterval: 30,
   queryHistoryMaxEntries: 500,
   aiAuditEnabled: true,

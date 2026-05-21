@@ -220,7 +220,11 @@
     "searchPlaceholder": "搜索连接...",
     "noSearchResults": "无匹配 \"{{query}}\" 的连接",
     "gridView": "网格视图",
-    "listView": "列表视图"
+    "listView": "列表视图",
+    "export": "导出连接",
+    "import": "导入连接",
+    "exportTitle": "导出连接",
+    "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。"
   },
   "settings": {
     "title": "设置",
@@ -238,6 +242,8 @@
     "delimiterSemicolon": "分号 (;)",
     "delimiterTab": "制表符",
     "delimiterPipe": "管道符 (|)",
+    "detectJsonInTextColumns": "在文本列中检测 JSON",
+    "detectJsonInTextColumnsDesc": "当未带类型的文本单元格包含 JSON 对象或数组时显示 JSON 查看器入口。每单元格会增加少量解析开销。",
     "appearance": "外观",
     "localization": "本地化",
     "themeSelection": "主题选择",
@@ -586,7 +592,9 @@
       "disable": "禁用",
       "allow": "允许",
       "prefer": "首选",
-      "require": "要求"
+      "require": "要求",
+      "verify-ca": "验证 CA",
+      "verify-full": "完全验证"
     }
   },
   "sshConnections": {
@@ -613,6 +621,7 @@
     "savedInKeychain": "密码已保存到系统密钥链"
   },
   "dataGrid": {
+    "newRow": "新建",
     "noData": "无数据显示",
     "editRow": "编辑行",
     "deleteRow": "删除行",
@@ -641,7 +650,8 @@
     "setNull": "设为 NULL",
     "setDefault": "设为 DEFAULT",
     "setEmpty": "设为空",
-    "setServerNow": "插入当前时间戳"
+    "setServerNow": "插入当前时间戳",
+    "openReferenced": "在 {{table}} 中打开引用的行"
   },
   "editRow": {
     "title": "编辑行",
@@ -713,7 +723,7 @@
     "tabSwitcher": {
       "title": "打开的标签",
       "hint": "Ctrl+Tab",
-      "tabs": "标签",
+      "tabs": "{{count}} 标签",
       "escHint": "按 Esc 关闭"
     },
     "submitChanges": "提交更改",
@@ -1057,7 +1067,27 @@
     "placeholder": "输入 JSON...",
     "format": "格式化",
     "valid": "JSON 格式正确",
-    "invalid": "JSON 格式错误"
+    "invalid": "JSON 格式错误",
+    "mode": {
+      "code": "代码",
+      "tree": "树形",
+      "raw": "原始"
+    },
+    "expand": "展开",
+    "collapse": "折叠",
+    "search": "搜索",
+    "copyPath": "复制路径",
+    "copyValue": "复制值",
+    "addItem": "添加项",
+    "removeItem": "删除项"
+  },
+  "jsonViewer": {
+    "close": "关闭",
+    "save": "保存"
+  },
+  "jsonCell": {
+    "expand": "展开/收起 JSON 树",
+    "openViewer": "打开 JSON 查看器"
   },
   "rowEditor": {
     "title": "编辑行",
@@ -1067,7 +1097,8 @@
     "enterValue": "输入值..."
   },
   "contextMenu": {
-    "openSidebar": "打开侧边栏编辑器"
+    "openSidebar": "打开侧边栏编辑器",
+    "openJsonEditor": "在 JSON 编辑器中打开"
   },
   "blobInput": {
     "noData": "无 BLOB 数据",
@@ -1314,5 +1345,11 @@
     "reasonPlaceholder": "例如:在生产环境中风险较大,请确认…",
     "approve": "批准",
     "deny": "拒绝"
+  },
+  "discordCallout": {
+    "title": "全新的 Discord 社区！",
+    "body": "我们为 Tabularis 用户开设了专属社区：获取帮助、分享技巧、共建路线图。",
+    "cta": "立即加入",
+    "dismiss": "关闭"
   }
 }

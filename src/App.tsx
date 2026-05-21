@@ -14,6 +14,7 @@ import { Settings } from "./pages/Settings";
 import { SchemaDiagramPage } from "./pages/SchemaDiagramPage";
 import { TaskManagerPage } from "./pages/TaskManagerPage";
 import { VisualExplainPage } from "./pages/VisualExplainPage";
+import { JsonViewerPage } from "./pages/JsonViewerPage";
 import { ConnectionHealthMonitor } from "./components/ConnectionHealthMonitor";
 import { EditorErrorBoundary } from "./components/ui/EditorErrorBoundary";
 import { UpdateNotificationModal } from "./components/modals/UpdateNotificationModal";
@@ -134,6 +135,7 @@ export function App() {
                     />
                     <Route path="/task-manager" element={<TaskManagerPage />} />
                     <Route path="/visual-explain" element={<VisualExplainPage />} />
+                    <Route path="/json-viewer" element={<JsonViewerPage />} />
                   </Routes>
                 </ConnectionLayoutProvider>
               </PluginModalProvider>

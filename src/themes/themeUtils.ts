@@ -142,10 +142,17 @@ export function applyThemeToCSS(theme: Theme): void {
 export function generateMonacoTheme(theme: Theme): MonacoThemeDefinition {
   const baseColors = theme.monacoTheme.colors || {};
 
+  const stringColor = theme.colors.semantic.string.replace('#', '');
+  const baseRules = theme.monacoTheme.rules ?? [];
+  const sqlStringRules = [
+    { token: 'string.sql', foreground: stringColor },
+    { token: 'string.quote.sql', foreground: stringColor },
+  ];
+
   return {
     base: theme.monacoTheme.base,
     inherit: theme.monacoTheme.inherit,
-    rules: theme.monacoTheme.rules,
+    rules: [...baseRules, ...sqlStringRules],
     colors: {
       // Base editor colors
       "editor.background": theme.colors.bg.base,

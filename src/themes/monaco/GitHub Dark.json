@@ -80,6 +80,10 @@
     },
     {
       "foreground": "79b8ff",
+      "token": "string.sql"
+    },
+    {
+      "foreground": "79b8ff",
       "token": "punctuation.definition.string"
     },
     {

@@ -42,6 +42,8 @@ import {
   Hash,
   Loader2,
   Copy,
+  FileText,
+  FileJson,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -92,11 +94,14 @@ import { useEditor } from "../hooks/useEditor";
 import { useConnectionLayoutContext } from "../hooks/useConnectionLayoutContext";
 import { useKeybindings } from "../hooks/useKeybindings";
 import type {
+  BatchStatementResult,
   QueryResult,
   Tab,
   PendingInsertion,
   TableColumn,
+  ForeignKey,
 } from "../types/editor";
+import { buildForeignKeyFilterClause } from "../utils/foreignKeys";
 import {
   getTabScrollState,
   getAdjacentTabIndex,
@@ -110,6 +115,7 @@ interface EditorState {
   tableName?: string;
   queryName?: string;
   preventAutoRun?: boolean;
+  readOnly?: boolean;
   schema?: string;
   targetConnectionId?: string;
   title?: string;
@@ -497,11 +503,21 @@ export const Editor = () => {
       if (!activeConnectionId) return;
       const effectiveSchema = tabSchema ?? activeSchema;
       try {
-        const cols = await invoke<TableColumn[]>("get_columns", {
-          connectionId: activeConnectionId,
-          tableName: table,
-          ...(effectiveSchema ? { schema: effectiveSchema } : {}),
-        });
+        const [cols, fks] = await Promise.all([
+          invoke<TableColumn[]>("get_columns", {
+            connectionId: activeConnectionId,
+            tableName: table,
+            ...(effectiveSchema ? { schema: effectiveSchema } : {}),
+          }),
+          invoke<ForeignKey[]>("get_foreign_keys", {
+            connectionId: activeConnectionId,
+            tableName: table,
+            ...(effectiveSchema ? { schema: effectiveSchema } : {}),
+          }).catch((e) => {
+            console.warn("Failed to fetch foreign keys:", e);
+            return [] as ForeignKey[];
+          }),
+        ]);
         const pk = cols.find((c) => c.is_pk);
         const autoInc = cols
           .filter((c) => c.is_auto_increment)
@@ -520,6 +536,7 @@ export const Editor = () => {
             defaultValueColumns: defaultVal,
             nullableColumns: nullable,
             columnMetadata: cols,
+            foreignKeys: fks,
           });
       } catch (e) {
         console.error("Failed to fetch PK:", e);
@@ -532,6 +549,7 @@ export const Editor = () => {
             defaultValueColumns: [],
             nullableColumns: [],
             columnMetadata: [],
+            foreignKeys: [],
           });
       }
     },
@@ -682,14 +700,6 @@ export const Editor = () => {
           }
         }
 
-        if (tableName) {
-          // Wait for PK column to be fetched before showing results
-          await fetchPkColumn(tableName, targetTabId, targetTab?.schema ?? undefined);
-        } else {
-          // No table, explicitly set pkColumn to null (read-only mode)
-          updateTab(targetTabId, { pkColumn: null });
-        }
-
         const resultWithCount =
           res.pagination &&
           res.pagination.total_rows === null &&
@@ -709,6 +719,13 @@ export const Editor = () => {
           isLoading: false,
           activeTable: tableName || null,
         });
+
+        if (tableName) {
+          // Fetch column metadata in the background; tab updates when ready
+          fetchPkColumn(tableName, targetTabId, targetTab?.schema ?? undefined);
+        } else {
+          updateTab(targetTabId, { pkColumn: null });
+        }
 
         if (shouldRecordHistory) {
           addHistoryEntry(
@@ -799,14 +816,10 @@ export const Editor = () => {
         || undefined;
 
       const entries = createResultEntries(targetTabId, queries);
-      // Local mutable array shared across concurrent promises.
-      // JS is single-threaded: between each `await` resume and the next
-      // yield point, mutations are atomic — no interleaving can occur.
-      const liveResults = [...entries];
 
       setIsResultsCollapsed(false);
       updateTab(targetTabId, {
-        results: liveResults,
+        results: entries,
         activeResultId: entries[0].id,
         result: null,
         error: "",
@@ -817,66 +830,92 @@ export const Editor = () => {
       const shouldRecordHistory =
         targetTab?.type === "console" || targetTab?.type === "query_builder";
 
-      // Execute all queries concurrently
-      await Promise.allSettled(
-        entries.map(async (entry, idx) => {
-          const start = performance.now();
-          try {
-            const res = await invoke<QueryResult>("execute_query", {
-              connectionId: activeConnectionId,
-              query: entry.query,
-              limit: pageSize,
-              page: 1,
-              ...(schema ? { schema } : {}),
-            });
-            const end = performance.now();
-            const tableName = extractTableName(entry.query) ?? null;
-
-            liveResults[idx] = {
-              ...liveResults[idx],
-              result: res,
-              executionTime: end - start,
-              isLoading: false,
-              activeTable: tableName,
-            };
-            updateTab(targetTabId, { results: [...liveResults] });
-
-            if (shouldRecordHistory) {
-              addHistoryEntry(
-                entry.query,
-                end - start,
-                "success",
-                res.pagination?.total_rows ?? null,
-                null,
-                historyDb,
-              );
-            }
-          } catch (err) {
-            const end = performance.now();
-            liveResults[idx] = {
-              ...liveResults[idx],
-              error:
-                typeof err === "string" ? err : t("editor.queryFailed"),
-              executionTime: end - start,
-              isLoading: false,
-            };
-            updateTab(targetTabId, { results: [...liveResults] });
-
-            if (shouldRecordHistory) {
-              addHistoryEntry(
-                entry.query,
-                end - start,
-                "error",
-                null,
-                typeof err === "string" ? err : t("editor.queryFailed"),
-                historyDb,
-              );
-            }
+      // Run the whole script on a single pooled connection so statements
+      // can share session state (SET @var, LAST_INSERT_ID(), transactions,
+      // TEMP TABLE).
+      const batchStart = performance.now();
+      let batchResults: BatchStatementResult[];
+      try {
+        batchResults = await invoke<BatchStatementResult[]>(
+          "execute_query_batch",
+          {
+            connectionId: activeConnectionId,
+            queries: entries.map((e) => e.query),
+            limit: pageSize,
+            page: 1,
+            ...(schema ? { schema } : {}),
+          },
+        );
+      } catch (err) {
+        // Batch-level failure (e.g. connection acquisition, cancellation):
+        // mark every entry as failed so the UI doesn't sit in "loading".
+        const fallbackElapsed = performance.now() - batchStart;
+        const message = typeof err === "string" ? err : t("editor.queryFailed");
+        const failed = entries.map((entry) => ({
+          ...entry,
+          error: message,
+          executionTime: fallbackElapsed,
+          isLoading: false,
+        }));
+        updateTab(targetTabId, { results: failed, isLoading: false });
+        if (shouldRecordHistory) {
+          for (const entry of entries) {
+            addHistoryEntry(
+              entry.query,
+              fallbackElapsed,
+              "error",
+              null,
+              message,
+              historyDb,
+            );
           }
-        }),
-      );
+        }
+        return;
+      }
 
-      updateTab(targetTabId, { isLoading: false });
+      const liveResults = entries.map((entry, idx) => {
+        const item = batchResults[idx];
+        const execTime = item?.execution_time_ms ?? null;
+        if (item?.error) {
+          if (shouldRecordHistory) {
+            addHistoryEntry(
+              entry.query,
+              execTime,
+              "error",
+              null,
+              item.error,
+              historyDb,
+            );
+          }
+          return {
+            ...entry,
+            error: item.error,
+            executionTime: execTime,
+            isLoading: false,
+          };
+        }
+        const res = item?.result ?? null;
+        const tableName = extractTableName(entry.query) ?? null;
+        if (shouldRecordHistory) {
+          addHistoryEntry(
+            entry.query,
+            execTime,
+            "success",
+            res?.pagination?.total_rows ?? null,
+            null,
+            historyDb,
+          );
+        }
+        return {
+          ...entry,
+          result: res,
+          executionTime: execTime,
+          isLoading: false,
+          activeTable: tableName,
+        };
+      });
+
+      updateTab(targetTabId, { results: liveResults, isLoading: false });
     },
     [activeConnectionId, updateTab, settings.resultPageSize, activeSchema, t, isMultiDb, activeDatabaseName, addHistoryEntry],
   );
@@ -1185,6 +1224,64 @@ export const Editor = () => {
       runQuery(undefined, 1, undefined, undefined, filter, sort, limit);
     },
     [updateTab, runQuery],
+  );
+
+  const handleForeignKeyNavigate = useCallback(
+    (fk: ForeignKey, value: unknown) => {
+      const currentTab = tabsRef.current.find(
+        (tb) => tb.id === activeTabIdRef.current,
+      );
+      if (!currentTab || !activeConnectionId) return;
+
+      const sourceType = currentTab.columnMetadata?.find(
+        (c) => c.name === fk.column_name,
+      )?.data_type;
+      const filterClause = buildForeignKeyFilterClause(
+        fk,
+        value,
+        activeDriver ?? null,
+        sourceType,
+      );
+
+      const targetSchema = activeCapabilities?.schemas
+        ? currentTab.schema
+        : undefined;
+
+      const newTabId = addTab({
+        type: "table",
+        activeTable: fk.ref_table,
+        schema: targetSchema,
+        filterClause,
+        // Reset clauses that may linger on an existing dedup'd tab
+        sortClause: "",
+        limitClause: undefined,
+        // Drop any stale results so the new query renders fresh
+        result: null,
+      });
+      if (!newTabId) return;
+
+      updateTab(newTabId, {
+        filterClause,
+        sortClause: "",
+        limitClause: undefined,
+      });
+
+      // Defer to next tick: addTab uses setTabs (async), and runQuery resolves
+      // the target tab via tabsRef which is only refreshed by the
+      // tabs-tracking effect after React commits. Running synchronously here
+      // misses the freshly created tab and bails out early.
+      setTimeout(() => {
+        runQuery(undefined, 1, newTabId, undefined, filterClause, "", undefined);
+      }, 0);
+    },
+    [
+      activeConnectionId,
+      activeDriver,
+      activeCapabilities?.schemas,
+      addTab,
+      updateTab,
+      runQuery,
+    ],
   );
 
   const handleSort = useCallback(
@@ -2027,16 +2124,27 @@ export const Editor = () => {
   useEffect(() => {
     const state = location.state as EditorState;
     if (activeConnectionId) {
-      if (state?.initialQuery) {
+      if (state?.initialQuery !== undefined) {
         if (
           state.targetConnectionId &&
           state.targetConnectionId !== activeConnectionId
         )
           return;
 
-        const queryKey = `${state.initialQuery}-${state.tableName}-${state.queryName}`;
+        const queryKey = `${state.initialQuery}-${state.tableName}-${state.queryName}-${state.schema}-${state.title}`;
 
-        if (processingRef.current === queryKey) return;
+        if (processingRef.current === queryKey) {
+          // If re-navigating to the same definition with readOnly, patch any
+          // existing tab that was opened without the flag (e.g. before the fix).
+          if (state.readOnly) {
+            const title = state.queryName || state.tableName || "";
+            const existing = tabsRef.current.find(
+              (t) => t.connectionId === activeConnectionId && t.title === title,
+            );
+            if (existing) updateTab(existing.id, { readOnly: true });
+          }
+          return;
+        }
         processingRef.current = queryKey;
 
         const {
@@ -2044,6 +2152,7 @@ export const Editor = () => {
           tableName: table,
           queryName,
           preventAutoRun,
+          readOnly: navReadOnly,
           schema: navSchema,
           title: navTitle,
         } = state;
@@ -2053,6 +2162,7 @@ export const Editor = () => {
           query: sql,
           activeTable: table,
           schema: navSchema,
+          readOnly: navReadOnly,
         });
 
         if (tabId && !preventAutoRun) {
@@ -2078,6 +2188,7 @@ export const Editor = () => {
     location.pathname,
     activeConnectionId,
     addTab,
+    updateTab,
     navigate,
     runQuery,
     t,
@@ -2374,14 +2485,14 @@ export const Editor = () => {
 
       {/* Toolbar — hidden for notebook tabs */}
       {!isNotebookTab && <div className="flex items-center py-2 pl-2 pr-3 border-b border-default bg-elevated gap-2 h-[50px]">
-        {activeTab.isLoading ? (
+        {!activeTab.readOnly && activeTab.isLoading ? (
           <button
             onClick={stopQuery}
             className="flex items-center gap-2 px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-sm font-medium"
           >
             <Square size={16} fill="currentColor" /> {t("editor.stop")}
           </button>
-        ) : (
+        ) : !activeTab.readOnly ? (
           <div className="flex items-center rounded bg-green-700 relative">
             <button
               onClick={handleRunButton}
@@ -2451,7 +2562,7 @@ export const Editor = () => {
               </>
             )}
           </div>
-        )}
+        ) : null}
 
         {/* Params Button */}
         {!isTableTab && (
@@ -2475,9 +2586,24 @@ export const Editor = () => {
           <button
             onClick={() => setExportMenuOpen(!exportMenuOpen)}
             disabled={!activeTab.result || activeTab.result.rows.length === 0}
-            className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary hover:bg-surface text-primary rounded text-sm font-medium disabled:opacity-50 border border-strong"
+            aria-haspopup="menu"
+            aria-expanded={exportMenuOpen}
+            className={clsx(
+              "flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+              exportMenuOpen
+                ? "bg-blue-500/15 border-blue-500/40 text-blue-400"
+                : "bg-surface-secondary enabled:hover:bg-blue-500/15 enabled:hover:border-blue-500/40 enabled:hover:text-blue-400 text-primary border-strong",
+            )}
           >
-            <Download size={16} /> {t("editor.export")}
+            <Download size={16} />
+            {t("editor.export")}
+            <ChevronDown
+              size={14}
+              className={clsx(
+                "transition-transform opacity-70",
+                exportMenuOpen && "rotate-180",
+              )}
+            />
           </button>
           {exportMenuOpen && (
             <>
@@ -2485,18 +2611,27 @@ export const Editor = () => {
                 className="fixed inset-0 z-40"
                 onClick={() => setExportMenuOpen(false)}
               />
-              <div className="absolute top-full left-0 mt-1 w-40 bg-surface-secondary border border-strong rounded shadow-xl z-50 flex flex-col py-1">
+              <div
+                role="menu"
+                className="absolute top-full right-0 mt-1 w-44 bg-elevated border border-strong rounded-md shadow-xl z-50 flex flex-col py-1 overflow-hidden"
+              >
                 <button
+                  role="menuitem"
                   onClick={handleExportCSV}
-                  className="text-left px-4 py-2 text-sm text-secondary hover:bg-surface"
+                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
                 >
-                  CSV (.csv)
+                  <FileText size={14} className="shrink-0 opacity-80" />
+                  <span className="flex-1">CSV</span>
+                  <span className="text-xs text-muted">.csv</span>
                 </button>
                 <button
+                  role="menuitem"
                   onClick={handleExportJSON}
-                  className="text-left px-4 py-2 text-sm text-secondary hover:bg-surface"
+                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
                 >
-                  JSON (.json)
+                  <FileJson size={14} className="shrink-0 opacity-80" />
+                  <span className="flex-1">JSON</span>
+                  <span className="text-xs text-muted">.json</span>
                 </button>
               </div>
             </>
@@ -2614,7 +2749,8 @@ export const Editor = () => {
             {/* Editor overlay buttons — bottom-right */}
             {tab.type !== "query_builder" && (
               <div className="absolute bottom-2 right-6 z-10 flex items-center gap-1">
-                {/* Visual Explain — always available */}
+                {/* Visual Explain — hidden for read-only definition tabs */}
+                {!tab.readOnly && (
                 <button
                   onClick={handleExplainButton}
                   disabled={!activeConnectionId || !tab.query?.trim()}
@@ -2624,6 +2760,7 @@ export const Editor = () => {
                   <Network size={12} />
                   {t("editor.visualExplain.buttonShort")}
                 </button>
+                )}
                 {/* AI dropdown — only if AI enabled */}
                 {settings.aiEnabled && (
                   <AiDropdownButton
@@ -3090,6 +3227,8 @@ export const Editor = () => {
                     defaultValueColumns={activeTab.defaultValueColumns}
                     nullableColumns={activeTab.nullableColumns}
                     columnMetadata={activeTab.columnMetadata}
+                    foreignKeys={activeTab.foreignKeys}
+                    onForeignKeyNavigate={handleForeignKeyNavigate}
                     connectionId={activeConnectionId}
                     onRefresh={handleRefresh}
                     pendingChanges={activeTab.pendingChanges}

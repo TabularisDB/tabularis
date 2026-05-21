@@ -18,7 +18,8 @@ import { Accordion } from "./Accordion";
 import { SidebarTableItem } from "./SidebarTableItem";
 import { SidebarViewItem } from "./SidebarViewItem";
 import { SidebarRoutineItem } from "./SidebarRoutineItem";
-import type { SchemaData, RoutineInfo } from "../../../contexts/DatabaseContext";
+import { SidebarTriggerItem } from "./SidebarTriggerItem";
+import type { SchemaData, RoutineInfo, TriggerInfo } from "../../../contexts/DatabaseContext";
 import type { TableColumn } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
 import type { DriverCapabilities } from "../../../types/plugins";
@@ -40,6 +41,7 @@ interface SidebarDatabaseItemProps {
   onViewClick: (name: string) => void;
   onViewDoubleClick: (name: string, database: string) => void;
   onRoutineDoubleClick: (routine: RoutineInfo, database: string) => void;
+  onTriggerDoubleClick: (trigger: TriggerInfo, database: string) => void;
   onContextMenu: (
     e: React.MouseEvent,
     type: string,
@@ -55,6 +57,7 @@ interface SidebarDatabaseItemProps {
   onDropForeignKey: (tableName: string, fkName: string) => void;
   onCreateTable: () => void;
   onCreateView: () => void;
+  onCreateTrigger: (schema: string) => void;
   onDump?: (database: string) => void;
   onImport?: (database: string) => void;
   onViewDiagram?: (database: string) => void;
@@ -76,6 +79,7 @@ export const SidebarDatabaseItem = ({
   onViewClick,
   onViewDoubleClick,
   onRoutineDoubleClick,
+  onTriggerDoubleClick,
   onContextMenu,
   onAddColumn,
   onEditColumn,
@@ -85,6 +89,7 @@ export const SidebarDatabaseItem = ({
   onDropForeignKey,
   onCreateTable,
   onCreateView,
+  onCreateTrigger,
   onDump,
   onImport,
   onViewDiagram,
@@ -96,9 +101,11 @@ export const SidebarDatabaseItem = ({
   const [tablesOpen, setTablesOpen] = useState(true);
   const [viewsOpen, setViewsOpen] = useState(true);
   const [routinesOpen, setRoutinesOpen] = useState(false);
+  const [triggersOpen, setTriggersOpen] = useState(false);
   const [functionsOpen, setFunctionsOpen] = useState(true);
   const [proceduresOpen, setProceduresOpen] = useState(true);
   const [tableFilter, setTableFilter] = useState("");
+  const [triggerFilter, setTriggerFilter] = useState("");
 
   const tables = databaseData?.tables ?? [];
   const filteredTables = tableFilter
@@ -106,6 +113,10 @@ export const SidebarDatabaseItem = ({
     : tables;
   const views = databaseData?.views ?? [];
   const routines = databaseData?.routines ?? [];
+  const triggers = databaseData?.triggers ?? [];
+  const filteredTriggers = triggerFilter
+    ? triggers.filter((tr) => tr.name.toLowerCase().includes(triggerFilter.toLowerCase()))
+    : triggers;
   const isLoading = databaseData?.isLoading ?? false;
   const isLoaded = databaseData?.isLoaded ?? false;
 
@@ -122,7 +133,7 @@ export const SidebarDatabaseItem = ({
   };
 
   const itemCount = isLoaded
-    ? formatObjectCount(tables.length, views.length, routines.length)
+    ? formatObjectCount(tables.length, views.length, routines.length, triggers.length)
     : "";
 
   return (
@@ -326,6 +337,71 @@ export const SidebarDatabaseItem = ({
                   </div>
                 )}
               </Accordion>
+              )}
+
+              {/* Triggers */}
+              {capabilities?.triggers === true && (
+                <Accordion
+                  title={`${t("sidebar.triggers")} (${triggers.length})`}
+                  isOpen={triggersOpen}
+                  onToggle={() => setTriggersOpen(!triggersOpen)}
+                  actions={
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCreateTrigger(databaseName);
+                        }}
+                        className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                        title={t("sidebar.createTrigger") || "Create New Trigger"}
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  }
+                >
+                  {triggers.length > 0 && (
+                    <div className="px-2 py-1">
+                      <div className="relative flex items-center">
+                        <Search size={11} className="absolute left-2 text-muted pointer-events-none" />
+                        <input
+                          type="text"
+                          value={triggerFilter}
+                          onChange={(e) => setTriggerFilter(e.target.value)}
+                          placeholder={t("sidebar.filterTriggers")}
+                          className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-blue-500/50"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        {triggerFilter && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setTriggerFilter(""); }}
+                            className="absolute right-1.5 text-muted hover:text-primary"
+                          >
+                            <X size={11} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {filteredTriggers.length === 0 ? (
+                    <div className="text-center p-2 text-xs text-muted italic">
+                      {triggerFilter ? t("sidebar.noTriggersMatch") : t("sidebar.noTriggers")}
+                    </div>
+                  ) : (
+                    <div>
+                      {filteredTriggers.map((trigger) => (
+                        <SidebarTriggerItem
+                          key={trigger.name}
+                          trigger={trigger}
+                          connectionId={connectionId}
+                          onContextMenu={onContextMenu}
+                          onDoubleClick={(tr) => onTriggerDoubleClick(tr, databaseName)}
+                          schema={databaseName}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </Accordion>
               )}
 
               {/* Routines */}

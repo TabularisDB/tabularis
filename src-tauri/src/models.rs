@@ -163,6 +163,8 @@ pub struct SavedConnection {
     pub group_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_order: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detect_json_in_text_columns: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -181,6 +183,14 @@ pub struct ConnectionsFile {
     pub groups: Vec<ConnectionGroup>,
     #[serde(default)]
     pub connections: Vec<SavedConnection>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ExportPayload {
+    pub version: i32,
+    pub groups: Vec<ConnectionGroup>,
+    pub connections: Vec<SavedConnection>,
+    pub ssh_connections: Vec<SshConnection>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -283,6 +293,43 @@ pub struct QueryResult {
     pub pagination: Option<Pagination>,
 }
 
+/// One statement's outcome within an `execute_batch` call. Exactly one of
+/// `result` / `error` is `Some` — kept as separate optionals (not a tagged
+/// enum) so the TypeScript side can do `if (item.error) ... else ... item.result`
+/// without a discriminated-union helper. Use [`BatchStatementResult::from_outcome`]
+/// to construct so the invariant is enforced.
+///
+/// `execution_time_ms` is measured server-side because a batch is one
+/// Tauri round-trip but the history UI wants per-statement timings.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BatchStatementResult {
+    pub result: Option<QueryResult>,
+    pub error: Option<String>,
+    pub execution_time_ms: Option<f64>,
+}
+
+impl BatchStatementResult {
+    /// Builds a result from a started `Instant` and the outcome of executing
+    /// one statement. Centralises the `Ok` / `Err` -> struct mapping that
+    /// would otherwise be duplicated across every driver's `execute_batch`
+    /// and the trait default.
+    pub fn from_outcome(start: std::time::Instant, outcome: Result<QueryResult, String>) -> Self {
+        let execution_time_ms = Some(start.elapsed().as_secs_f64() * 1000.0);
+        match outcome {
+            Ok(r) => Self {
+                result: Some(r),
+                error: None,
+                execution_time_ms,
+            },
+            Err(e) => Self {
+                result: None,
+                error: Some(e),
+                execution_time_ms,
+            },
+        }
+    }
+}
+
 /// A single node in a query execution plan tree.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ExplainNode {
@@ -360,6 +407,15 @@ pub struct RoutineParameter {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ViewInfo {
     pub name: String,
+    pub definition: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TriggerInfo {
+    pub name: String,
+    pub table_name: String,
+    pub event: String,   // e.g. "INSERT", "UPDATE", "DELETE", "INSERT OR UPDATE"
+    pub timing: String,  // "BEFORE", "AFTER", "INSTEAD OF"
     pub definition: Option<String>,
 }
 

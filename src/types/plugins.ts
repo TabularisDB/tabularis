@@ -27,6 +27,8 @@ export interface DriverCapabilities {
   manage_tables?: boolean;
   /** When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table/column management is also hidden regardless of manage_tables. Defaults to false. */
   readonly?: boolean;
+  /** Supports listing and managing database triggers. Defaults to false. */
+  triggers?: boolean;
 }
 
 export type PluginSettingType = "string" | "boolean" | "number" | "select";

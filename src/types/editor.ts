@@ -39,6 +39,17 @@ export interface QueryResult {
   pagination?: Pagination;
 }
 
+/// One statement's outcome inside an `execute_query_batch` invocation.
+/// Mirrors `src-tauri/src/models.rs::BatchStatementResult`. Exactly one of
+/// `result` / `error` is non-null; `execution_time_ms` is measured
+/// server-side per statement so the history UI shows accurate timings even
+/// though the whole batch shares one Tauri round-trip.
+export interface BatchStatementResult {
+  result: QueryResult | null;
+  error: string | null;
+  execution_time_ms: number | null;
+}
+
 export interface QueryResultEntry {
   id: string;
   queryIndex: number;
@@ -82,6 +93,7 @@ export interface Tab {
   defaultValueColumns?: string[]; // Names of columns with default values
   nullableColumns?: string[]; // Names of nullable columns
   columnMetadata?: TableColumn[]; // Full column metadata (includes data_type for geometric types, etc.)
+  foreignKeys?: ForeignKey[]; // FK definitions for the active table (used for click-to-navigate)
   isLoading?: boolean;
   connectionId: string;
   flowState?: FlowState;
@@ -98,6 +110,7 @@ export interface Tab {
   limitClause?: number; // SQL LIMIT value
   queryParams?: Record<string, string>; // Saved values for query parameters
   schema?: string; // Schema name (PostgreSQL) for query reconstruction
+  readOnly?: boolean; // Hides the Run button (e.g. for definition views)
   results?: QueryResultEntry[];
   activeResultId?: string;
   notebookId?: string; // Reference to notebook file in config dir

@@ -1,0 +1,71 @@
+{
+  "username": "Tabularis",
+  "avatar_url": "https://raw.githubusercontent.com/debba/tabularis/main/src-tauri/icons/128x128.png",
+  "content": "@everyone **v{{VERSION}}** is out.",
+  "embeds": [
+    {
+      "title": "Tabularis v{{VERSION}}",
+      "url": "{{BLOG_URL}}?utm_src=discord",
+      "description": "{{DESCRIPTION}}\n\n[Read the full release post →]({{BLOG_URL}}?utm_src=discord)",
+      "color": 3901686,
+      "author": {
+        "name": "Tabularis Release",
+        "url": "https://github.com/debba/tabularis",
+        "icon_url": "https://raw.githubusercontent.com/debba/tabularis/main/src-tauri/icons/128x128.png"
+      },
+      "thumbnail": {
+        "url": "https://raw.githubusercontent.com/debba/tabularis/main/src-tauri/icons/128x128@2x.png"
+      },
+      "fields": [
+        {
+          "name": "What's new",
+          "value": "{{FEATURES_BULLETS}}",
+          "inline": false,
+          "_omit_if_value_empty": true
+        },
+        {
+          "name": "Fixes",
+          "value": "{{FIXES_BULLETS}}",
+          "inline": false,
+          "_omit_if_value_empty": true
+        }
+      ],
+      "footer": {
+        "text": "Tabularis · v{{VERSION}}",
+        "icon_url": "https://raw.githubusercontent.com/debba/tabularis/main/src-tauri/icons/128x128.png"
+      },
+      "timestamp": "{{DATE_ISO}}"
+    }
+  ],
+  "components": [
+    {
+      "type": 1,
+      "components": [
+        {
+          "type": 2,
+          "style": 5,
+          "label": "Release post",
+          "url": "{{BLOG_URL}}?utm_src=discord"
+        },
+        {
+          "type": 2,
+          "style": 5,
+          "label": "GitHub Release",
+          "url": "https://github.com/debba/tabularis/releases/tag/v{{VERSION}}"
+        },
+        {
+          "type": 2,
+          "style": 5,
+          "label": "Changelog",
+          "url": "https://github.com/debba/tabularis/blob/main/CHANGELOG.md"
+        },
+        {
+          "type": 2,
+          "style": 5,
+          "label": "Website",
+          "url": "https://tabularis.dev/?utm_src=discord"
+        }
+      ]
+    }
+  ]
+}

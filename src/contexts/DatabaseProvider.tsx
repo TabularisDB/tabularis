@@ -6,6 +6,7 @@ import {
   type TableInfo,
   type ViewInfo,
   type RoutineInfo,
+  type TriggerInfo,
   type SavedConnection,
   type ConnectionData,
   type ConnectionGroup,
@@ -27,9 +28,11 @@ const createEmptyConnectionData = (driver: string = '', name: string = '', dbNam
   tables: [],
   views: [],
   routines: [],
+  triggers: [],
   isLoadingTables: false,
   isLoadingViews: false,
   isLoadingRoutines: false,
+  isLoadingTriggers: false,
   schemas: [],
   isLoadingSchemas: false,
   schemaDataMap: {},
@@ -73,9 +76,11 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const tables = activeData?.tables ?? [];
   const views = activeData?.views ?? [];
   const routines = activeData?.routines ?? [];
+  const triggers = activeData?.triggers ?? [];
   const isLoadingTables = activeData?.isLoadingTables ?? false;
   const isLoadingViews = activeData?.isLoadingViews ?? false;
   const isLoadingRoutines = activeData?.isLoadingRoutines ?? false;
+  const isLoadingTriggers = activeData?.isLoadingTriggers ?? false;
   const schemas = activeData?.schemas ?? [];
   const isLoadingSchemas = activeData?.isLoadingSchemas ?? false;
   const schemaDataMap = activeData?.schemaDataMap ?? {};
@@ -154,6 +159,19 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const refreshTriggers = async (targetConnectionId?: string) => {
+    const connId = targetConnectionId ?? activeConnectionId;
+    if (!connId) return;
+    updateConnectionData(connId, { isLoadingTriggers: true });
+    try {
+      const result = await invoke<TriggerInfo[]>('get_triggers', { connectionId: connId });
+      updateConnectionData(connId, { triggers: result, isLoadingTriggers: false });
+    } catch (e) {
+      console.error('Failed to refresh triggers:', e);
+      updateConnectionData(connId, { isLoadingTriggers: false, error: toErrorMessage(e) });
+    }
+  };
+
   const loadSchemaData = useCallback(async (schema: string, targetConnectionId?: string) => {
     const connId = targetConnectionId ?? activeConnectionId;
     if (!connId) return;
@@ -167,15 +185,16 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     updateConnectionData(connId, {
       schemaDataMap: {
         ...currentData.schemaDataMap,
-        [schema]: { tables: [], views: [], routines: [], isLoading: true, isLoaded: false },
+        [schema]: { tables: [], views: [], routines: [], triggers: [], isLoading: true, isLoaded: false },
       },
     });
 
     try {
-      const [tablesResult, viewsResult, routinesResult] = await Promise.all([
+      const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
         invoke<TableInfo[]>('get_tables', { connectionId: connId, schema }),
         invoke<ViewInfo[]>('get_views', { connectionId: connId, schema }),
         invoke<RoutineInfo[]>('get_routines', { connectionId: connId, schema }),
+        invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
       ]);
 
       const freshData = connectionDataMap[connId];
@@ -187,6 +206,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
               tables: tablesResult,
               views: viewsResult,
               routines: routinesResult,
+              triggers: triggersResult,
               isLoading: false,
               isLoaded: true,
             },
@@ -200,7 +220,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         updateConnectionData(connId, {
           schemaDataMap: {
             ...freshData.schemaDataMap,
-            [schema]: { tables: [], views: [], routines: [], isLoading: false, isLoaded: false },
+            [schema]: { tables: [], views: [], routines: [], triggers: [], isLoading: false, isLoaded: false },
           },
         });
       }
@@ -218,17 +238,18 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       schemaDataMap: {
         ...currentData.schemaDataMap,
         [schema]: {
-          ...(currentData.schemaDataMap[schema] || { tables: [], views: [], routines: [], isLoaded: false }),
+          ...(currentData.schemaDataMap[schema] || { tables: [], views: [], routines: [], triggers: [], isLoaded: false }),
           isLoading: true
         },
       },
     });
 
     try {
-      const [tablesResult, viewsResult, routinesResult] = await Promise.all([
+      const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
         invoke<TableInfo[]>('get_tables', { connectionId: connId, schema }),
         invoke<ViewInfo[]>('get_views', { connectionId: connId, schema }),
         invoke<RoutineInfo[]>('get_routines', { connectionId: connId, schema }),
+        invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
       ]);
 
       const freshData = connectionDataMap[connId];
@@ -240,6 +261,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
               tables: tablesResult,
               views: viewsResult,
               routines: routinesResult,
+              triggers: triggersResult,
               isLoading: false,
               isLoaded: true,
             },
@@ -254,7 +276,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
           schemaDataMap: {
             ...freshData.schemaDataMap,
             [schema]: {
-              ...(freshData.schemaDataMap[schema] || { tables: [], views: [], routines: [], isLoaded: false }),
+              ...(freshData.schemaDataMap[schema] || { tables: [], views: [], routines: [], triggers: [], isLoaded: false }),
               isLoading: false
             },
           },
@@ -276,15 +298,16 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     updateConnectionData(connId, {
       databaseDataMap: {
         ...currentData.databaseDataMap,
-        [database]: { tables: [], views: [], routines: [], isLoading: true, isLoaded: false },
+        [database]: { tables: [], views: [], routines: [], triggers: [], isLoading: true, isLoaded: false },
       },
     });
 
     try {
-      const [tablesResult, viewsResult, routinesResult] = await Promise.all([
+      const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
         invoke<TableInfo[]>('get_tables', { connectionId: connId, schema: database }),
         invoke<ViewInfo[]>('get_views', { connectionId: connId, schema: database }),
         invoke<RoutineInfo[]>('get_routines', { connectionId: connId, schema: database }),
+        invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema: database }).catch(() => [] as TriggerInfo[]),
       ]);
 
       const freshData = connectionDataMap[connId];
@@ -296,6 +319,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
               tables: tablesResult,
               views: viewsResult,
               routines: routinesResult,
+              triggers: triggersResult,
               isLoading: false,
               isLoaded: true,
             },
@@ -309,7 +333,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         updateConnectionData(connId, {
           databaseDataMap: {
             ...freshData.databaseDataMap,
-            [database]: { tables: [], views: [], routines: [], isLoading: false, isLoaded: false },
+            [database]: { tables: [], views: [], routines: [], triggers: [], isLoading: false, isLoaded: false },
           },
         });
       }
@@ -327,17 +351,18 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       databaseDataMap: {
         ...currentData.databaseDataMap,
         [database]: {
-          ...(currentData.databaseDataMap[database] || { tables: [], views: [], routines: [], isLoaded: false }),
+          ...(currentData.databaseDataMap[database] || { tables: [], views: [], routines: [], triggers: [], isLoaded: false }),
           isLoading: true,
         },
       },
     });
 
     try {
-      const [tablesResult, viewsResult, routinesResult] = await Promise.all([
+      const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
         invoke<TableInfo[]>('get_tables', { connectionId: connId, schema: database }),
         invoke<ViewInfo[]>('get_views', { connectionId: connId, schema: database }),
         invoke<RoutineInfo[]>('get_routines', { connectionId: connId, schema: database }),
+        invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema: database }).catch(() => [] as TriggerInfo[]),
       ]);
 
       const freshData = connectionDataMap[connId];
@@ -349,6 +374,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
               tables: tablesResult,
               views: viewsResult,
               routines: routinesResult,
+              triggers: triggersResult,
               isLoading: false,
               isLoaded: true,
             },
@@ -363,7 +389,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
           databaseDataMap: {
             ...freshData.databaseDataMap,
             [database]: {
-              ...(freshData.databaseDataMap[database] || { tables: [], views: [], routines: [], isLoaded: false }),
+              ...(freshData.databaseDataMap[database] || { tables: [], views: [], routines: [], triggers: [], isLoaded: false }),
               isLoading: false,
             },
           },
@@ -511,16 +537,18 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         let initialDbMap: Record<string, import('./DatabaseContext').SchemaData> = {};
         if (firstDb) {
           try {
-            const [tablesResult, viewsResult, routinesResult] = await Promise.all([
+            const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
               invoke<TableInfo[]>('get_tables', { connectionId, schema: firstDb }),
               invoke<ViewInfo[]>('get_views', { connectionId, schema: firstDb }),
               invoke<RoutineInfo[]>('get_routines', { connectionId, schema: firstDb }),
+              invoke<TriggerInfo[]>('get_triggers', { connectionId, schema: firstDb }).catch(() => [] as TriggerInfo[]),
             ]);
             initialDbMap = {
               [firstDb]: {
                 tables: tablesResult,
                 views: viewsResult,
                 routines: routinesResult,
+                triggers: triggersResult,
                 isLoading: false,
                 isLoaded: true,
               },
@@ -536,6 +564,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
           isLoadingTables: false,
           isLoadingViews: false,
           isLoadingRoutines: false,
+          isLoadingTriggers: false,
           isConnecting: false,
           isConnected: true,
         });
@@ -566,10 +595,11 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
               // Ignore - no saved preference exists yet
             }
 
-            const [tablesResult, viewsResult, routinesResult] = await Promise.all([
+            const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
               invoke<TableInfo[]>('get_tables', { connectionId, schema: preferredSchema }),
               invoke<ViewInfo[]>('get_views', { connectionId, schema: preferredSchema }),
               invoke<RoutineInfo[]>('get_routines', { connectionId, schema: preferredSchema }),
+              invoke<TriggerInfo[]>('get_triggers', { connectionId, schema: preferredSchema }).catch(() => [] as TriggerInfo[]),
             ]);
 
             updateConnectionData(connectionId, {
@@ -581,6 +611,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
                   tables: tablesResult,
                   views: viewsResult,
                   routines: routinesResult,
+                  triggers: triggersResult,
                   isLoading: false,
                   isLoaded: true,
                 },
@@ -589,6 +620,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
               isLoadingTables: false,
               isLoadingViews: false,
               isLoadingRoutines: false,
+              isLoadingTriggers: false,
               isConnecting: false,
               isConnected: true,
             });
@@ -600,6 +632,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
               isLoadingTables: false,
               isLoadingViews: false,
               isLoadingRoutines: false,
+              isLoadingTriggers: false,
               isConnecting: false,
               isConnected: true,
             });
@@ -611,24 +644,28 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
             isLoadingTables: false,
             isLoadingViews: false,
             isLoadingRoutines: false,
+            isLoadingTriggers: false,
             isConnecting: false,
             isConnected: true,
           });
         }
       } else {
-        const [tablesResult, viewsResult, routinesResult] = await Promise.all([
+        const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
           invoke<TableInfo[]>('get_tables', { connectionId }),
           invoke<ViewInfo[]>('get_views', { connectionId }),
-          invoke<RoutineInfo[]>('get_routines', { connectionId })
+          invoke<RoutineInfo[]>('get_routines', { connectionId }),
+          invoke<TriggerInfo[]>('get_triggers', { connectionId }).catch(() => [] as TriggerInfo[]),
         ]);
 
         updateConnectionData(connectionId, {
           tables: tablesResult,
           views: viewsResult,
           routines: routinesResult,
+          triggers: triggersResult,
           isLoadingTables: false,
           isLoadingViews: false,
           isLoadingRoutines: false,
+          isLoadingTriggers: false,
           isConnecting: false,
           isConnected: true,
         });
@@ -844,9 +881,11 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       tables,
       views,
       routines,
+      triggers,
       isLoadingTables,
       isLoadingViews,
       isLoadingRoutines,
+      isLoadingTriggers,
       schemas,
       isLoadingSchemas,
       schemaDataMap,
@@ -866,6 +905,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       refreshTables,
       refreshViews,
       refreshRoutines,
+      refreshTriggers,
       loadSchemaData,
       refreshSchemaData,
       setSelectedSchemas,

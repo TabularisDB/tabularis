@@ -43,6 +43,25 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ---
 
+## DigitalOcean
+
+<a href="https://m.do.co/c/f6ab3d158275?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/digitalocean.png" height="40" alt="DigitalOcean" /></a>
+
+**Simple, predictable cloud infrastructure for developers and growing teams.**
+
+🔗 [https://m.do.co/c/f6ab3d158275](https://m.do.co/c/f6ab3d158275?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)
+
+- 💧 Droplets, App Platform, Kubernetes — the full developer cloud
+- 🗄️ Managed PostgreSQL, MySQL, Redis and MongoDB
+- 📦 Spaces — S3-compatible object storage with CDN included
+- 💸 Predictable pricing, no surprise bills at the end of the month
+- ❤️ Open Source Credits Program — supporting maintainers since day one
+
+> **$25 in cloud credits for new accounts**
+> Sign up via the DigitalOcean referral program and get $25 in credit to spend over 60 days — enough to run a plugin registry, a side project, or both.
+
+---
+
 ## Usero
 
 <a href="https://usero.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/usero.png" height="40" alt="Usero" /></a>

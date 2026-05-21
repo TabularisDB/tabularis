@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 409 409" role="img" aria-labelledby="title desc">
+  <title id="title">Tabularis premium logo concept</title>
+  <desc id="desc">A polished isometric T mark with controlled lighting and stronger depth.</desc>
+  <defs>
+    <linearGradient id="pTopA" x1="46" y1="64" x2="365" y2="149" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2b2865"/>
+      <stop offset=".45" stop-color="#25376e"/>
+      <stop offset="1" stop-color="#10d8cc"/>
+    </linearGradient>
+    <linearGradient id="pLeft" x1="52" y1="111" x2="210" y2="381" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#222052"/>
+      <stop offset=".62" stop-color="#29245f"/>
+      <stop offset="1" stop-color="#8d3cc0"/>
+    </linearGradient>
+    <linearGradient id="pRight" x1="213" y1="153" x2="371" y2="348" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#25265d"/>
+      <stop offset=".5" stop-color="#256b99"/>
+      <stop offset="1" stop-color="#10e3d4"/>
+    </linearGradient>
+    <linearGradient id="pShine" x1="92" y1="28" x2="352" y2="202" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".28"/>
+      <stop offset=".42" stop-color="#ffffff" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="pGlow" x="-16%" y="-16%" width="132%" height="132%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#050512" flood-opacity=".42"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#14e5d8" flood-opacity=".36"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#pGlow)" stroke="#070716" stroke-width="5" stroke-linejoin="round">
+    <path fill="url(#pTopA)" d="M120 17 197 57 120 99 43 58Z"/>
+    <path fill="url(#pTopA)" d="M204 61 281 101 204 143 127 102Z"/>
+    <path fill="url(#pTopA)" d="M288 105 365 145 288 187 211 146Z"/>
+
+    <path fill="url(#pLeft)" d="M43 70 120 111 120 183 43 143Z"/>
+    <path fill="url(#pLeft)" d="M127 114 204 155 204 227 127 187Z"/>
+    <path fill="url(#pLeft)" d="M211 158 288 199 288 271 211 231Z"/>
+    <path fill="url(#pRight)" d="M296 199 373 158 373 231 296 271Z"/>
+
+    <path fill="url(#pLeft)" d="M127 203 204 244 204 316 127 276Z"/>
+    <path fill="url(#pRight)" d="M211 247 288 288 211 329Z"/>
+    <path fill="url(#pLeft)" d="M127 292 204 333 204 391 127 350Z"/>
+    <path fill="url(#pRight)" d="M211 333 288 292 288 350 211 391Z"/>
+  </g>
+
+  <g fill="url(#pShine)" opacity=".85">
+    <path d="M120 17 197 57 120 99 43 58Z"/>
+    <path d="M204 61 281 101 204 143 127 102Z"/>
+    <path d="M288 105 365 145 288 187 211 146Z"/>
+  </g>
+</svg>

@@ -2,6 +2,7 @@ use super::helpers::{
     escape_identifier, extract_base_type, is_raw_sql_function, is_wkt_geometry,
     json_array_to_pg_literal, try_parse_pg_array,
 };
+use crate::drivers::common::parse_unsafe_bigint_string;
 use tokio_postgres::types::ToSql;
 
 pub(super) type PgParam = Box<dyn ToSql + Send + Sync>;
@@ -38,6 +39,14 @@ pub(super) fn build_pk_predicate(
         serde_json::Value::String(s) => {
             if let Ok(uuid) = s.parse::<uuid::Uuid>() {
                 Ok((format!("{} = ${}", col, placeholder_idx), Box::new(uuid)))
+            } else if let Some(n) = parse_unsafe_bigint_string(&s) {
+                // Bigint PK values outside JS safe range arrive from the UI as
+                // strings. Cast through bigint so the equality test against an
+                // int8 column does not trip a PostgreSQL type mismatch.
+                Ok((
+                    format!("{} = CAST(${} AS bigint)", col, placeholder_idx),
+                    Box::new(n),
+                ))
             } else {
                 Ok((format!("{} = ${}", col, placeholder_idx), Box::new(s)))
             }
@@ -51,6 +60,22 @@ pub(super) fn bind_pg_value(
     placeholder_idx: usize,
     options: PgValueOptions<'_>,
 ) -> Result<BoundValue, String> {
+    // Bind serde_json::Value directly for json/jsonb — serialize-and-cast trips an OID mismatch.
+    if let Some(ct) = options.column_type {
+        let normalized = extract_base_type(ct);
+        if matches!(normalized.as_str(), "JSON" | "JSONB") {
+            match &value {
+                serde_json::Value::String(_) | serde_json::Value::Null => {}
+                _ => {
+                    return Ok(BoundValue {
+                        sql: format!("${}", placeholder_idx),
+                        param: Some(Box::new(value)),
+                    });
+                }
+            }
+        }
+    }
+
     match value {
         serde_json::Value::Number(n) => bind_pg_number(&n, placeholder_idx),
         serde_json::Value::String(s) => bind_pg_string(&s, placeholder_idx, options),
@@ -66,7 +91,9 @@ pub(super) fn bind_pg_value(
             sql: json_array_to_pg_literal(&arr)?,
             param: None,
         }),
-        _ => Err("Unsupported Value type".into()),
+        serde_json::Value::Object(_) => {
+            Err("Cannot bind a JSON object to a non-JSON column".into())
+        }
     }
 }
 

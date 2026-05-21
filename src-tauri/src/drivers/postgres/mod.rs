@@ -1,5 +1,6 @@
 pub mod types;
 
+pub mod export;
 pub mod extract;
 
 mod binding;
@@ -12,11 +13,11 @@ mod tests;
 
 use crate::models::{
     ConnectionParams, ForeignKey, Index, Pagination, QueryResult, RoutineInfo, RoutineParameter,
-    TableColumn, TableInfo, ViewInfo,
+    TableColumn, TableInfo, TriggerInfo, ViewInfo,
 };
 use crate::pool_manager::get_postgres_pool;
 use binding::{PgValueOptions, bind_pg_value, build_pk_predicate};
-use client::{execute, format_pg_error, query_all, query_one};
+use client::{execute, format_pg_error, get_client, query_all, query_one};
 pub use explain::explain_query;
 use extract::extract_value;
 use helpers::{escape_identifier, extract_base_type, is_implicit_cast_compatible};
@@ -607,12 +608,12 @@ pub async fn insert_record(
 ) -> Result<u64, String> {
     let pool = get_postgres_pool(params).await?;
 
-    let mut cols = Vec::new();
-    let mut vals = Vec::new();
+    // Preserve original column ordering for stable SQL (collect from HashMap once)
+    let mut entries: Vec<(String, serde_json::Value)> = data.into_iter().collect();
 
-    for (k, v) in data {
-        cols.push(format!("\"{}\"", k));
-        vals.push(v);
+    let mut cols = Vec::with_capacity(entries.len());
+    for (name, _) in &entries {
+        cols.push(format!("\"{}\"", name));
     }
 
     // Allow empty inserts for auto-generated values (e.g., auto-increment PKs)
@@ -629,15 +630,34 @@ pub async fn insert_record(
         .await;
     };
 
-    let mut params: Vec<Box<dyn ToSql + Sync + Send>> = Vec::with_capacity(vals.len());
-    let mut vals_set: Vec<String> = Vec::with_capacity(vals.len());
+    // Fetch column types so json/jsonb columns get JSON-aware binding.
+    let col_types: std::collections::HashMap<String, String> =
+        match get_columns(params, table, schema).await {
+            Ok(cols_meta) => cols_meta
+                .into_iter()
+                .map(|c| (c.name, c.data_type))
+                .collect(),
+            Err(err) => {
+                log::debug!(
+                    "Could not load PostgreSQL column metadata for {}.{}: {}",
+                    schema,
+                    table,
+                    err
+                );
+                std::collections::HashMap::new()
+            }
+        };
 
-    for val in vals {
+    let mut params: Vec<Box<dyn ToSql + Sync + Send>> = Vec::with_capacity(entries.len());
+    let mut vals_set: Vec<String> = Vec::with_capacity(entries.len());
+
+    for (col_name, val) in entries.drain(..) {
+        let column_type = col_types.get(&col_name).map(|s| s.as_str());
         let bound = bind_pg_value(
             val,
             params.len() + 1,
             PgValueOptions {
-                column_type: None,
+                column_type,
                 max_blob_size,
                 allow_default: false,
             },
@@ -702,51 +722,71 @@ pub async fn get_table_ddl(
     ))
 }
 
-pub async fn execute_query(
+/// Acquires a single PostgreSQL client from the pool and applies the
+/// optional `search_path` once. Used by both `execute_query` and
+/// `execute_batch`; the latter relies on the schema being set on the
+/// shared connection so all statements in the batch see the same
+/// search_path.
+async fn acquire_pg_client(
     params: &ConnectionParams,
+    schema: Option<&str>,
+) -> Result<deadpool_postgres::Client, String> {
+    let pool = get_postgres_pool(params).await?;
+    let client = get_client(&pool).await?;
+    if let Some(s) = schema {
+        let search_path = format!("SET search_path TO \"{}\"", escape_identifier(s));
+        client
+            .execute(&search_path, &[])
+            .await
+            .map_err(|e| format_pg_error(&e))?;
+    }
+    Ok(client)
+}
+
+/// Runs one statement against an already-acquired client. Pulled out of
+/// `execute_query` so `execute_batch` can reuse it while keeping a single
+/// physical connection open for session-state continuity (`BEGIN`/`COMMIT`,
+/// `SET LOCAL`, `CREATE TEMP TABLE`, `LASTVAL()`, `PREPARE`/`EXECUTE`).
+async fn exec_on_pg_client(
+    client: &tokio_postgres::Client,
     query: &str,
     limit: Option<u32>,
     page: u32,
-    schema: Option<&str>,
 ) -> Result<QueryResult, String> {
-    let pool = get_postgres_pool(params).await?;
+    // Non-result-set statements (INSERT/UPDATE/DELETE/DDL) go through
+    // `client.execute()` so we can return the real affected-row count.
+    // The fetch path below is reserved for SELECT-like statements.
+    if !crate::drivers::common::returns_result_set(query) {
+        let affected = client
+            .execute(query, &[])
+            .await
+            .map_err(|e| format_pg_error(&e))?;
+        return Ok(QueryResult {
+            columns: vec![],
+            rows: vec![],
+            affected_rows: affected,
+            truncated: false,
+            pagination: None,
+        });
+    }
 
-    let is_select = query.trim_start().to_uppercase().starts_with("SELECT");
+    let is_select = crate::drivers::common::is_select_query(query);
     let mut manual_limit = limit;
     let mut truncated = false;
 
-    // Build the paginated data query using LIMIT +1 trick to detect has_more.
-    // No COUNT query is issued; total_rows stays None until explicitly requested.
     let (final_query, pagination_meta) = if is_select && limit.is_some() {
         let l = limit.unwrap();
-
         let data_query = crate::drivers::common::build_paginated_query(query, l, page);
-
         manual_limit = None;
         (data_query, Some((l, page)))
     } else {
         (query.to_string(), None)
     };
 
-    // this comment was for sqlx and i didn't understand it
-    // Acquire main connection for the data fetch (COUNT runs concurrently above)
-    // let mut conn = pool.acquire().await.map_err(map_pg_err)?;
-
-    let client = pool.get().await.map_err(|e| e.to_string())?;
-
-    if let Some(schema) = schema {
-        let search_path = format!("SET search_path TO \"{}\"", escape_identifier(schema));
-        client
-            .execute(&search_path, &[])
-            .await
-            .map_err(|e| format_pg_error(&e))?;
-    }
-
-    let params: Vec<i32> = vec![];
-    // Stream data rows while COUNT runs in the background
+    let pg_params: Vec<i32> = vec![];
     let mut rows_stream = std::pin::pin!(
         client
-            .query_raw(&final_query, &params)
+            .query_raw(&final_query, &pg_params)
             .await
             .map_err(|e| format_pg_error(&e))?
     );
@@ -781,7 +821,6 @@ pub async fn execute_query(
         }
     }
 
-    // Build pagination using LIMIT +1 result: if we got l+1 rows, has_more=true.
     let pagination = if let Some((page_size, p)) = pagination_meta {
         let has_more = json_rows.len() > page_size as usize;
         if has_more {
@@ -805,6 +844,42 @@ pub async fn execute_query(
         truncated,
         pagination,
     })
+}
+
+pub async fn execute_query(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+) -> Result<QueryResult, String> {
+    let client = acquire_pg_client(params, schema).await?;
+    exec_on_pg_client(&client, query, limit, page).await
+}
+
+/// Runs a sequence of statements on a single pooled client so
+/// session-local state survives across them. Per-statement errors are
+/// reported in the slot but do not abort the batch — when the script
+/// uses an explicit transaction, PostgreSQL rejects subsequent
+/// statements with "current transaction is aborted" until `ROLLBACK`,
+/// which surfaces the failure naturally in the per-statement result.
+pub async fn execute_batch(
+    params: &ConnectionParams,
+    queries: &[String],
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+) -> Result<Vec<crate::models::BatchStatementResult>, String> {
+    let client = acquire_pg_client(params, schema).await?;
+    let mut results = Vec::with_capacity(queries.len());
+    for q in queries {
+        let start = std::time::Instant::now();
+        let outcome = exec_on_pg_client(&client, q, limit, page).await;
+        results.push(crate::models::BatchStatementResult::from_outcome(
+            start, outcome,
+        ));
+    }
+    Ok(results)
 }
 
 pub async fn get_views(params: &ConnectionParams, schema: &str) -> Result<Vec<ViewInfo>, String> {
@@ -1121,6 +1196,102 @@ pub async fn get_routine_definition(
     Ok(definition)
 }
 
+pub async fn get_triggers(
+    params: &ConnectionParams,
+    schema: &str,
+) -> Result<Vec<TriggerInfo>, String> {
+    log::debug!(
+        "PostgreSQL: Fetching triggers for database: {} schema: {}",
+        params.database,
+        schema
+    );
+    let pool = get_postgres_pool(params).await?;
+    let query = r#"
+        SELECT
+            t.trigger_name AS name,
+            t.event_object_table AS table_name,
+            string_agg(t.event_manipulation, ' OR ' ORDER BY t.event_manipulation) AS event,
+            t.action_timing AS timing
+        FROM information_schema.triggers t
+        WHERE t.trigger_schema = $1
+        GROUP BY t.trigger_name, t.event_object_table, t.action_timing
+        ORDER BY t.trigger_name
+    "#;
+    let rows = query_all(&pool, query, &[&schema]).await?;
+    let triggers: Vec<TriggerInfo> = rows
+        .iter()
+        .map(|r| TriggerInfo {
+            name: r.try_get("name").unwrap_or_default(),
+            table_name: r.try_get("table_name").unwrap_or_default(),
+            event: r.try_get("event").unwrap_or_default(),
+            timing: r.try_get("timing").unwrap_or_default(),
+            definition: None,
+        })
+        .collect();
+    log::debug!(
+        "PostgreSQL: Found {} triggers in {}",
+        triggers.len(),
+        schema
+    );
+    Ok(triggers)
+}
+
+pub async fn get_trigger_definition(
+    params: &ConnectionParams,
+    trigger_name: &str,
+    table_name: &str,
+    schema: &str,
+) -> Result<String, String> {
+    let pool = get_postgres_pool(params).await?;
+    let query = r#"
+        SELECT pg_get_triggerdef(t.oid, true) AS definition
+        FROM pg_trigger t
+        JOIN pg_class c ON t.tgrelid = c.oid
+        JOIN pg_namespace n ON c.relnamespace = n.oid
+        WHERE t.tgname = $1
+          AND c.relname = $2
+          AND n.nspname = $3
+          AND NOT t.tgisinternal
+        LIMIT 1
+    "#;
+    let row = query_one(&pool, query, &[&trigger_name, &table_name, &schema]).await?;
+    let definition: String = row
+        .try_get("definition")
+        .map_err(|e| format!("Failed to get trigger definition: {}", e))?;
+    Ok(definition)
+}
+
+pub async fn create_trigger(
+    params: &ConnectionParams,
+    trigger_sql: &str,
+    _schema: &str,
+) -> Result<(), String> {
+    let pool = get_postgres_pool(params).await?;
+    execute(&pool, trigger_sql, &[])
+        .await
+        .map_err(|e| format!("Failed to create trigger: {}", e))?;
+    Ok(())
+}
+
+pub async fn drop_trigger(
+    params: &ConnectionParams,
+    trigger_name: &str,
+    table_name: &str,
+    schema: &str,
+) -> Result<(), String> {
+    let pool = get_postgres_pool(params).await?;
+    let sql = format!(
+        "DROP TRIGGER IF EXISTS {} ON {}.{}",
+        escape_identifier(trigger_name),
+        escape_identifier(schema),
+        escape_identifier(table_name),
+    );
+    execute(&pool, &sql, &[])
+        .await
+        .map_err(|e| format!("Failed to drop trigger: {}", e))?;
+    Ok(())
+}
+
 // ============================================================
 // Plugin wrapper
 // ============================================================
@@ -1160,6 +1331,7 @@ impl PostgresDriver {
                     no_connection_required: false,
                     manage_tables: true,
                     readonly: false,
+                    triggers: true,
                 },
                 is_builtin: true,
                 default_username: "postgres".to_string(),
@@ -1367,6 +1539,43 @@ impl DatabaseDriver for PostgresDriver {
         .await
     }
 
+    async fn get_triggers(
+        &self,
+        params: &crate::models::ConnectionParams,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TriggerInfo>, String> {
+        get_triggers(params, self.resolve_schema(schema)).await
+    }
+
+    async fn get_trigger_definition(
+        &self,
+        params: &crate::models::ConnectionParams,
+        trigger_name: &str,
+        table_name: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_trigger_definition(params, trigger_name, table_name, self.resolve_schema(schema)).await
+    }
+
+    async fn create_trigger(
+        &self,
+        params: &crate::models::ConnectionParams,
+        trigger_sql: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        create_trigger(params, trigger_sql, self.resolve_schema(schema)).await
+    }
+
+    async fn drop_trigger(
+        &self,
+        params: &crate::models::ConnectionParams,
+        trigger_name: &str,
+        table_name: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        drop_trigger(params, trigger_name, table_name, self.resolve_schema(schema)).await
+    }
+
     async fn execute_query(
         &self,
         params: &crate::models::ConnectionParams,
@@ -1376,6 +1585,17 @@ impl DatabaseDriver for PostgresDriver {
         schema: Option<&str>,
     ) -> Result<crate::models::QueryResult, String> {
         execute_query(params, query, limit, page, schema).await
+    }
+
+    async fn execute_batch(
+        &self,
+        params: &crate::models::ConnectionParams,
+        queries: &[String],
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::BatchStatementResult>, String> {
+        execute_batch(params, queries, limit, page, schema).await
     }
 
     async fn explain_query(

@@ -197,6 +197,20 @@ export function AppearanceTab() {
                 onChange={(v) => updateSetting("editorShowLineNumbers", v)}
               />
             </SettingRow>
+
+            <SettingRow
+              label={t("settings.appearance_editorAcceptSuggestionOnEnter")}
+              description={t(
+                "settings.appearance_editorAcceptSuggestionOnEnterDesc",
+              )}
+            >
+              <SettingToggle
+                checked={settings.editorAcceptSuggestionOnEnter ?? true}
+                onChange={(v) =>
+                  updateSetting("editorAcceptSuggestionOnEnter", v)
+                }
+              />
+            </SettingRow>
           </SettingSection>
         </>
       )}

@@ -15,6 +15,10 @@
       "token": "string"
     },
     {
+      "foreground": "addb67",
+      "token": "string.sql"
+    },
+    {
       "foreground": "ecc48d",
       "token": "vstring.quoted"
     },

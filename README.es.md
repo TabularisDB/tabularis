@@ -11,12 +11,14 @@
   <a href="./README.es.md">Español</a> |
   <a href="./README.zh-CN.md">中文</a> |
   <a href="./README.fr.md">Français</a> |
-  <a href="./README.de.md">Deutsch</a>
+  <a href="./README.de.md">Deutsch</a> |
+  <a href="./README.ja.md">日本語</a> |
+  <a href="./README.ru.md">Русский</a>
 </p>
 
 Cliente de escritorio open source para bases de datos modernas. Soporta PostgreSQL, MySQL/MariaDB y SQLite, con notebooks SQL, funciones de IA, integración MCP y sistema de plugins externo.
 
-**Discord** - [Únete al servidor](https://discord.gg/YrZPHAwMSG) para hablar con los mantenedores, compartir feedback y pedir ayuda.
+**Discord** - [Únete al servidor](https://discord.com/invite/K2hmhfHRSt) para hablar con los mantenedores, compartir feedback y pedir ayuda.
 
 > Documento traducido. Para la versión de referencia más actualizada, consulta también el [README en inglés](./README.md).
 
@@ -129,6 +131,7 @@ La galería completa está en [tabularis.dev](https://tabularis.dev).
 - Creación, selección y borrado de filas.
 - Exportación a CSV o JSON.
 - Soporte inicial para datos espaciales.
+- Celdas JSON/JSONB con resaltado y ventana de edición dedicada (Árbol / Monaco / Raw). Opcional por conexión: detectar JSON en columnas de texto.
 
 ### Logging
 

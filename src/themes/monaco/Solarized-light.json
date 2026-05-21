@@ -15,6 +15,10 @@
       "token": "string"
     },
     {
+      "foreground": "2aa198",
+      "token": "string.sql"
+    },
+    {
       "foreground": "586e75",
       "token": "string"
     },

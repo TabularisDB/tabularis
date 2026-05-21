@@ -10,6 +10,7 @@ interface ConfirmModalProps {
   confirmLabel?: string;
   confirmClassName?: string;
   onConfirm: () => void;
+  variant?: "danger" | "warning" | "info";
 }
 
 export const ConfirmModal = ({
@@ -18,10 +19,31 @@ export const ConfirmModal = ({
   title,
   message,
   confirmLabel,
-  confirmClassName = "px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-sm font-medium transition-colors",
+  confirmClassName,
   onConfirm,
+  variant = "danger",
 }: ConfirmModalProps) => {
   const { t } = useTranslation();
+
+  const variantStyles = {
+    danger: {
+      icon: <AlertTriangle size={20} className="text-red-400" />,
+      iconBg: "bg-red-900/30",
+      button: "bg-red-600 hover:bg-red-500",
+    },
+    warning: {
+      icon: <AlertTriangle size={20} className="text-amber-400" />,
+      iconBg: "bg-amber-900/30",
+      button: "bg-amber-600 hover:bg-amber-500",
+    },
+    info: {
+      icon: <AlertTriangle size={20} className="text-blue-400" />,
+      iconBg: "bg-blue-900/30",
+      button: "bg-blue-600 hover:bg-blue-500",
+    },
+  };
+
+  const currentVariant = variantStyles[variant];
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -29,8 +51,8 @@ export const ConfirmModal = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-900/30 rounded-lg">
-              <AlertTriangle size={20} className="text-red-400" />
+            <div className={`p-2 ${currentVariant.iconBg} rounded-lg`}>
+              {currentVariant.icon}
             </div>
             <h2 className="text-lg font-semibold text-primary">{title}</h2>
           </div>
@@ -41,7 +63,7 @@ export const ConfirmModal = ({
 
         {/* Content */}
         <div className="p-6">
-          <p className="text-sm text-secondary">{message}</p>
+          <p className="text-sm text-secondary leading-relaxed">{message}</p>
         </div>
 
         {/* Footer */}
@@ -52,8 +74,14 @@ export const ConfirmModal = ({
           >
             {t("common.cancel")}
           </button>
-          <button onClick={onConfirm} className={confirmClassName}>
-            {confirmLabel ?? t("common.delete")}
+          <button
+            onClick={onConfirm}
+            className={
+              confirmClassName ??
+              `px-4 py-2 ${currentVariant.button} text-white rounded-lg text-sm font-medium transition-colors`
+            }
+          >
+            {confirmLabel ?? (variant === "danger" ? t("common.delete") : t("common.ok"))}
           </button>
         </div>
       </div>

@@ -8,6 +8,8 @@ import es from './locales/es.json';
 import zh from './locales/zh.json';
 import fr from './locales/fr.json';
 import de from './locales/de.json';
+import ja from './locales/ja.json';
+import ru from './locales/ru.json';
 
 /**
  * Single source of truth for supported languages.
@@ -20,6 +22,8 @@ export const SUPPORTED_LANGUAGES = [
   { id: "zh", label: "中文", translation: zh },
   { id: "fr", label: "Français", translation: fr },
   { id: "de", label: "Deutsch", translation: de },
+  { id: "ja", label: "日本語", translation: ja },
+  { id: "ru", label: "Русский", translation: ru },
 ] as const;
 
 export type AppLanguage = "auto" | (typeof SUPPORTED_LANGUAGES)[number]["id"];

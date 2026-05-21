@@ -15,6 +15,7 @@ import { OpenConnectionItem } from "./sidebar/OpenConnectionItem";
 import { ConnectionGroupItem } from "./sidebar/ConnectionGroupItem";
 import { ExplorerSidebar, type SidebarTab } from "./ExplorerSidebar";
 import { PanelDatabaseProvider } from "./PanelDatabaseProvider";
+import { DiscordCommunityCallout } from "./sidebar/DiscordCommunityCallout";
 
 // Hooks & Utils
 import { useSidebarResize } from "../../hooks/useSidebarResize";
@@ -263,17 +264,20 @@ export const Sidebar = () => {
         </nav>
 
         <div className="mt-auto">
-          <button
-            onClick={() => openUrl(DISCORD_URL)}
-            className="flex items-center justify-center w-12 h-12 rounded-lg transition-colors mb-2 relative group text-secondary hover:bg-surface-secondary hover:text-indigo-400"
-          >
-            <div className="relative">
-              <DiscordIcon size={24} />
-            </div>
-            <span className="absolute left-14 bg-surface-secondary text-primary text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30 pointer-events-none">
-              Discord
-            </span>
-          </button>
+          <div className="relative mb-2">
+            <button
+              onClick={() => openUrl(DISCORD_URL)}
+              className="flex items-center justify-center w-12 h-12 rounded-lg transition-colors relative group text-secondary hover:bg-surface-secondary hover:text-indigo-400"
+            >
+              <div className="relative">
+                <DiscordIcon size={24} />
+              </div>
+              <span className="absolute left-14 bg-surface-secondary text-primary text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30 pointer-events-none">
+                Discord
+              </span>
+            </button>
+            <DiscordCommunityCallout />
+          </div>
 
           <NavItem
             to="/mcp"

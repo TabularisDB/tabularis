@@ -136,5 +136,5 @@ Tabularis is a lightweight, developer-focused database client built with Tauri, 
 - **Website:** [tabularis.dev](https://tabularis.dev)
 - **Download:** [GitHub Releases](https://github.com/TabularisDB/tabularis/releases)
 - **Wiki:** [tabularis.dev/wiki](https://tabularis.dev/wiki)
-- **Community:** [Discord Server](https://discord.gg/YrZPHAwMSG)
+- **Community:** [Discord Server](https://discord.com/invite/K2hmhfHRSt)
 - **Source Code:** [GitHub Repository](https://github.com/TabularisDB/tabularis)

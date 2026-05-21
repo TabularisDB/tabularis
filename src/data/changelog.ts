@@ -16,15 +16,28 @@ export const versionLinks: Record<string, string> = {
   "0.9.8": "https://tabularis.dev/blog/v098-connection-string-import",
   "0.9.9": "https://tabularis.dev/blog/v099-mcp-multi-client",
   "0.9.10": "https://tabularis.dev/blog/v0910-bugfixes-ui-extensions-wip",
-  "0.9.11": "https://tabularis.dev/blog/v0911-chinese-postgres-arrays-inline-editing",
-  "0.9.12": "https://tabularis.dev/blog/v0912-tokio-postgres-minimax-json-editor",
-  "0.9.13": "https://tabularis.dev/blog/v0913-ui-extensions-postgres-types-settings",
-  "0.9.14": "https://tabularis.dev/blog/v0914-health-check-postgres-types-modals",
+  "0.9.11":
+    "https://tabularis.dev/blog/v0911-chinese-postgres-arrays-inline-editing",
+  "0.9.12":
+    "https://tabularis.dev/blog/v0912-tokio-postgres-minimax-json-editor",
+  "0.9.13":
+    "https://tabularis.dev/blog/v0913-ui-extensions-postgres-types-settings",
+  "0.9.14":
+    "https://tabularis.dev/blog/v0914-health-check-postgres-types-modals",
   "0.9.15": "https://tabularis.dev/blog/v0915-notebooks-multi-query-ai-rename",
   "0.9.16": "https://tabularis.dev/blog/v0916-connection-groups-drag-drop",
   "0.9.17": "https://tabularis.dev/blog/v0917-visual-explain",
   "0.9.18": "https://tabularis.dev/blog/v0918-query-history",
   "0.9.19": "https://tabularis.dev/blog/v0919-polish-french-german",
-  "0.9.20": "https://tabularis.dev/blog/v0920-clipboard-import-visual-explain-videos",
+  "0.9.20":
+    "https://tabularis.dev/blog/v0920-clipboard-import-visual-explain-videos",
   "0.10.0": "https://tabularis.dev/blog/v0100-ai-safety-audit-approval",
+  "0.10.1":
+    "https://tabularis.dev/blog/v0101-pagination-fix-context-menu-postgres-bindings",
+  "0.10.2":
+    "https://tabularis.dev/blog/v0102-postgres-rds-tls-cell-selection-sql-insert",
+  "0.10.3":
+    "https://tabularis.dev/blog/v0103-connection-import-export-editor-error-boundary-firestore",
+  "0.11.0":
+    "https://tabularis.dev/blog/v0110-json-viewer-text-diff-triggers-japanese",
 };

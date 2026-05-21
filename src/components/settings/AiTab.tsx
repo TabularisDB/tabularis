@@ -10,6 +10,8 @@ import {
   X,
   Info,
   ChevronDown,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
@@ -81,6 +83,7 @@ export function AiTab() {
   >({});
   const [keyInput, setKeyInput] = useState("");
   const [editingKey, setEditingKey] = useState(false);
+  const [showKey, setShowKey] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState("");
   const [explainPrompt, setExplainPrompt] = useState("");
   const [cellnamePrompt, setCellnamePrompt] = useState("");
@@ -374,16 +377,25 @@ export function AiTab() {
                 ) : (
                   <div className="space-y-2">
                     <div className="flex gap-2">
-                      <input
-                        type="password"
-                        value={keyInput}
-                        placeholder={t("settings.ai.enterKey", {
-                          provider: getProviderLabel(settings.aiProvider),
-                        })}
-                        className="flex-1 bg-base border border-strong rounded-lg px-3 py-2 text-primary text-sm focus:outline-none focus:border-blue-500 transition-colors"
-                        onChange={(e) => setKeyInput(e.target.value)}
-                        autoFocus={editingKey}
-                      />
+                      <div className="relative flex-1 group">
+                        <input
+                          type={showKey ? "text" : "password"}
+                          value={keyInput}
+                          placeholder={t("settings.ai.enterKey", {
+                            provider: getProviderLabel(settings.aiProvider),
+                          })}
+                          className="w-full bg-base border border-strong rounded-lg pl-3 pr-10 py-2 text-primary text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                          onChange={(e) => setKeyInput(e.target.value)}
+                          autoFocus={editingKey}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowKey(!showKey)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-primary transition-colors focus:outline-none"
+                        >
+                          {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
                       <button
                         onClick={() =>
                           handleSaveKey(settings.aiProvider!)
@@ -398,6 +410,7 @@ export function AiTab() {
                           onClick={() => {
                             setEditingKey(false);
                             setKeyInput("");
+                            setShowKey(false);
                           }}
                           className="px-3 py-2 bg-surface-secondary hover:bg-surface-tertiary text-secondary border border-strong rounded-lg text-sm font-medium transition-colors"
                         >

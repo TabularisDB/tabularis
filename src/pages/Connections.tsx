@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { NewConnectionModal } from "../components/modals/NewConnectionModal";
 import { ConfirmModal } from "../components/modals/ConfirmModal";
 import { invoke } from "@tauri-apps/api/core";
+import { save, open } from "@tauri-apps/plugin-dialog";
+import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import {
   Database,
   Plus,
@@ -16,6 +18,8 @@ import {
   List,
   FolderPlus,
   Folder,
+  Download,
+  Upload,
 } from "lucide-react";
 import { useDatabase } from "../hooks/useDatabase";
 import { useDrivers } from "../hooks/useDrivers";
@@ -76,6 +80,9 @@ export const Connections = () => {
   const [confirmModal, setConfirmModal] = useState<{
     title: string;
     message: string;
+    confirmLabel?: string;
+    confirmClassName?: string;
+    variant?: "danger" | "warning" | "info";
     onConfirm: () => void;
   } | null>(null);
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
@@ -152,6 +159,49 @@ export const Connections = () => {
       return next;
     });
     await toggleGroupCollapsed(groupId);
+  };
+
+  const handleExport = async () => {
+    setConfirmModal({
+      title: t("connections.exportTitle"),
+      message: t("connections.exportWarning"),
+      confirmLabel: t("common.save"),
+      variant: "warning",
+      confirmClassName: "px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors",
+      onConfirm: async () => {
+        try {
+          const payload = await invoke("export_connections_payload");
+          const path = await save({
+            defaultPath: "tabularis-connections.json",
+            filters: [{ name: "JSON", extensions: ["json"] }],
+          });
+          if (path) {
+            await writeTextFile(path, JSON.stringify(payload, null, 2));
+          }
+        } catch (e) {
+          console.error("Export failed:", e);
+          setError(toErrorMessage(e));
+        }
+      },
+    });
+  };
+
+  const handleImport = async () => {
+    try {
+      const selected = await open({
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        multiple: false,
+      });
+      if (selected && !Array.isArray(selected)) {
+        const content = await readTextFile(selected);
+        const payload = JSON.parse(content);
+        await invoke("import_connections_payload", { payload });
+        await loadConnections();
+      }
+    } catch (e) {
+      console.error("Import failed:", e);
+      setError(toErrorMessage(e));
+    }
   };
 
   const handleRenameGroup = async (groupId: string) => {
@@ -502,16 +552,25 @@ export const Connections = () => {
             <p className="text-sm text-muted mb-6 max-w-xs leading-relaxed">
               {t("connections.noConnectionsHint")}
             </p>
-            <button
-              onClick={() => {
-                setEditingConnection(null);
-                setIsModalOpen(true);
-              }}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/20 hover:-translate-y-px"
-            >
-              <Plus size={14} />
-              {t("connections.createFirst")}
-            </button>
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={() => {
+                  setEditingConnection(null);
+                  setIsModalOpen(true);
+                }}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/20 hover:-translate-y-px"
+              >
+                <Plus size={14} />
+                {t("connections.createFirst")}
+              </button>
+              <button
+                onClick={handleImport}
+                className="flex items-center gap-2 bg-elevated border border-strong hover:border-blue-500/50 text-secondary hover:text-blue-400 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
+              >
+                <Upload size={14} />
+                {t("connections.import")}
+              </button>
+            </div>
           </div>
         ) : (
           <>
@@ -586,6 +645,24 @@ export const Connections = () => {
                   </span>
                 </button>
               )}
+
+              {/* Export/Import buttons */}
+              <div className="flex items-center gap-1.5 px-1 py-1 bg-elevated border border-strong rounded-xl shrink-0">
+                <button
+                  onClick={handleImport}
+                  className="p-1.5 rounded-lg text-muted hover:text-blue-400 hover:bg-blue-500/10 transition-all duration-150"
+                  title={t("connections.import")}
+                >
+                  <Upload size={14} />
+                </button>
+                <button
+                  onClick={handleExport}
+                  className="p-1.5 rounded-lg text-muted hover:text-blue-400 hover:bg-blue-500/10 transition-all duration-150"
+                  title={t("connections.export")}
+                >
+                  <Download size={14} />
+                </button>
+              </div>
 
               {/* View toggle */}
               <div className="flex items-center gap-0.5 bg-elevated border border-strong rounded-xl p-1 shrink-0">
@@ -767,7 +844,13 @@ export const Connections = () => {
         onClose={() => setConfirmModal(null)}
         title={confirmModal?.title ?? ""}
         message={confirmModal?.message ?? ""}
-        onConfirm={() => confirmModal?.onConfirm()}
+        confirmLabel={confirmModal?.confirmLabel}
+        confirmClassName={confirmModal?.confirmClassName}
+        variant={confirmModal?.variant}
+        onConfirm={() => {
+          confirmModal?.onConfirm();
+          setConfirmModal(null);
+        }}
       />
 
       {/* Group context menu */}

@@ -19,6 +19,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Braces,
   Copy,
   CopyPlus,
   Clock,
@@ -31,6 +32,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useAlert } from "../../hooks/useAlert";
 import {
   USE_DEFAULT_SENTINEL,
@@ -46,7 +48,12 @@ import {
 } from "../../utils/dataGrid";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
-import { isJsonColumn } from "../../utils/json";
+import { isJsonColumn, isJsonContent } from "../../utils/json";
+import { isLongTextCellTarget } from "../../utils/text";
+import {
+  pickPrimaryForeignKeyByColumn,
+  isForeignKeyValueNavigable,
+} from "../../utils/foreignKeys";
 import {
   getDateInputMode,
   parseDateTime,
@@ -55,6 +62,10 @@ import {
 import { GeometryInput } from "./GeometryInput";
 import { DateInput } from "./DateInput";
 import { RowEditorSidebar } from "./RowEditorSidebar";
+import { JsonCell } from "./JsonCell";
+import { JsonExpansionEditor } from "./JsonExpansionEditor";
+import { TextCell } from "./TextCell";
+import { TextExpansionEditor } from "./TextExpansionEditor";
 import { useDatabase } from "../../hooks/useDatabase";
 import {
   rowsToCSV,
@@ -63,7 +74,11 @@ import {
   getSelectedRows,
   copyTextToClipboard,
 } from "../../utils/clipboard";
-import type { PendingInsertion, TableColumn } from "../../types/editor";
+import type {
+  PendingInsertion,
+  TableColumn,
+  ForeignKey,
+} from "../../types/editor";
 
 interface DataGridProps {
   columns: string[];
@@ -74,6 +89,8 @@ interface DataGridProps {
   defaultValueColumns?: string[];
   nullableColumns?: string[];
   columnMetadata?: TableColumn[];
+  foreignKeys?: ForeignKey[];
+  onForeignKeyNavigate?: (fk: ForeignKey, value: unknown) => void;
   connectionId?: string | null;
   onRefresh?: () => void;
   pendingChanges?: Record<
@@ -112,6 +129,8 @@ export const DataGrid = React.memo(
     defaultValueColumns,
     nullableColumns,
     columnMetadata,
+    foreignKeys,
+    onForeignKeyNavigate,
     connectionId,
     onRefresh,
     pendingChanges,
@@ -133,8 +152,16 @@ export const DataGrid = React.memo(
     readonly: readonlyProp,
   }: DataGridProps) => {
     const { t } = useTranslation();
-    const { activeSchema } = useDatabase();
+    const { activeSchema, connections } = useDatabase();
     const { showAlert } = useAlert();
+
+    const detectJsonInTextColumns = useMemo(() => {
+      if (!connectionId) return false;
+      return (
+        connections.find((c) => c.id === connectionId)
+          ?.detect_json_in_text_columns === true
+      );
+    }, [connections, connectionId]);
 
     const [contextMenu, setContextMenu] = useState<{
       x: number;
@@ -167,6 +194,15 @@ export const DataGrid = React.memo(
       rowIndex: number;
       focusField?: string;
     } | null>(null);
+    const [expandedCell, setExpandedCell] = useState<{
+      rowIndex: number;
+      colIndex: number;
+      kind: "json" | "text";
+    } | null>(null);
+
+    useEffect(() => {
+      setExpandedCell(null);
+    }, [data]);
 
     const [internalSelectedRowIndices, setInternalSelectedRowIndices] =
       useState<Set<number>>(new Set());
@@ -178,6 +214,9 @@ export const DataGrid = React.memo(
       colIndex: number;
     } | null>(null);
     const editInputRef = useRef<HTMLInputElement>(null);
+    const pendingJsonSessions = useRef<
+      Map<string, { colName: string; rowData: unknown[]; isInsertion: boolean; tempId?: string }>
+    >(new Map());
 
     const selectedRowIndices =
       externalSelectedRows || internalSelectedRowIndices;
@@ -213,6 +252,105 @@ export const DataGrid = React.memo(
         columnMetadata.map((col) => [col.name, col.character_maximum_length]),
       );
     }, [columnMetadata]);
+
+    const isJsonCellTarget = useCallback(
+      (colType: string | undefined, value: unknown): boolean => {
+        if (colType && isJsonColumn(colType)) return true;
+        if (!detectJsonInTextColumns) return false;
+        if (Array.isArray(value)) return true;
+        if (isJsonContent(value)) return true;
+        return false;
+      },
+      [detectJsonInTextColumns],
+    );
+
+    const buildRowLabel = useCallback(
+      (rowData: unknown[], rowIndex: number, isInsertion: boolean): string => {
+        if (isInsertion) return t("dataGrid.newRow", { defaultValue: "NEW" });
+        if (pkColumn && pkIndexMap !== null) {
+          const pkVal = rowData[pkIndexMap];
+          if (pkVal !== null && pkVal !== undefined && pkVal !== "") {
+            return `${pkColumn}=${String(pkVal)}`;
+          }
+        }
+        return `Row ${rowIndex + 1}`;
+      },
+      [pkColumn, pkIndexMap, t],
+    );
+
+    const openJsonViewerWindow = useCallback(
+      async (
+        value: unknown,
+        originalValue: unknown,
+        colName: string,
+        rowData: unknown[],
+        rowIndex: number,
+        isInsertion: boolean,
+        tempId: string | undefined,
+        readOnly: boolean,
+      ) => {
+        try {
+          const rowLabel = buildRowLabel(rowData, rowIndex, isInsertion);
+          let cellKey: string | null = null;
+          const canSaveBack =
+            (isInsertion && !!tempId) ||
+            (!isInsertion && pkIndexMap !== null);
+          if (isInsertion && tempId) {
+            cellKey = `ins:${tempId}:${colName}`;
+          } else if (!isInsertion && pkIndexMap !== null) {
+            const pkVal = rowData[pkIndexMap];
+            if (pkVal !== null && pkVal !== undefined && pkVal !== "") {
+              cellKey = `pk:${String(pkVal)}:${colName}`;
+            }
+          }
+          const sessionId = await invoke<string>("open_json_viewer_window", {
+            value,
+            originalValue,
+            colName,
+            rowLabel,
+            readOnly: readOnly || !canSaveBack,
+            cellKey,
+          });
+          pendingJsonSessions.current.set(sessionId, {
+            colName,
+            rowData,
+            isInsertion,
+            tempId,
+          });
+        } catch (e) {
+          console.error("Failed to open JSON viewer window:", e);
+        }
+      },
+      [buildRowLabel, pkIndexMap],
+    );
+
+    useEffect(() => {
+      const unlistenPromise = listen<{ session_id: string; value: unknown }>(
+        "json-viewer:saved",
+        (event) => {
+          const { session_id, value } = event.payload;
+          const session = pendingJsonSessions.current.get(session_id);
+          if (!session) return;
+          pendingJsonSessions.current.delete(session_id);
+
+          const { colName, rowData, isInsertion, tempId } = session;
+          if (isInsertion && onPendingInsertionChange && tempId) {
+            onPendingInsertionChange(tempId, colName, value);
+          } else if (!isInsertion && onPendingChange && pkIndexMap !== null) {
+            const pkVal = rowData[pkIndexMap];
+            onPendingChange(pkVal, colName, value);
+          }
+        },
+      );
+      return () => {
+        unlistenPromise.then((fn) => fn());
+      };
+    }, [onPendingChange, onPendingInsertionChange, pkIndexMap]);
+
+    const fksByColumn = useMemo(
+      () => pickPrimaryForeignKeyByColumn(foreignKeys),
+      [foreignKeys],
+    );
 
     // Merge existing rows with pending insertions
     const mergedRows = useMemo(() => {
@@ -325,15 +463,17 @@ export const DataGrid = React.memo(
       }
 
       if (colType && isJsonColumn(colType)) {
-        setSidebarRowData({
-          data: buildRowDataWithPending(
-            mergedRow.rowData,
-            mergedRow.type === "insertion",
-          ),
+        const isInsertion = mergedRow.type === "insertion";
+        openJsonViewerWindow(
+          value,
+          mergedRow.rowData[colIndex],
+          colName,
+          mergedRow.rowData,
           rowIndex,
-          focusField: colName,
-        });
-        setSidebarOpen(true);
+          isInsertion,
+          mergedRow.tempId,
+          readonlyProp ?? false,
+        );
         return;
       }
 
@@ -582,6 +722,17 @@ export const DataGrid = React.memo(
     );
 
     const parentRef = useRef<HTMLDivElement>(null);
+    const [parentViewportWidth, setParentViewportWidth] = useState(0);
+
+    useEffect(() => {
+      const el = parentRef.current;
+      if (!el) return;
+      const update = () => setParentViewportWidth(el.clientWidth);
+      update();
+      const ro = new ResizeObserver(update);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }, []);
 
     // Memoize table data to prevent unnecessary re-renders
     const tableData = useMemo(
@@ -695,17 +846,7 @@ export const DataGrid = React.memo(
       pendingDeletions,
     ]);
 
-    const deleteSelectedRow = useCallback(() => {
-      if (!contextMenu) return;
-
-      // If the right-clicked row is part of a multi-selection, delete all selected rows.
-      // Otherwise fall back to deleting just the right-clicked row.
-      const rightClickedIsSelected = selectedRowIndices.has(contextMenu.rowIndex);
-      const indicesToDelete =
-        rightClickedIsSelected && selectedRowIndices.size > 1
-          ? Array.from(selectedRowIndices)
-          : [contextMenu.rowIndex];
-
+    const deleteRowsByIndices = useCallback((indicesToDelete: number[]) => {
       const pkVals: unknown[] = [];
       for (const idx of indicesToDelete) {
         const mergedRow = mergedRows[idx];
@@ -726,18 +867,22 @@ export const DataGrid = React.memo(
           pkVals.forEach((v) => onMarkForDeletion(v));
         }
       }
+    }, [mergedRows, onDiscardInsertion, onMarkForDeletion, onMarkMultipleForDeletion, pkColumn, pkIndexMap]);
 
+    const deleteSelectedRow = useCallback(() => {
+      if (!contextMenu) return;
+
+      // If the right-clicked row is part of a multi-selection, delete all selected rows.
+      // Otherwise fall back to deleting just the right-clicked row.
+      const rightClickedIsSelected = selectedRowIndices.has(contextMenu.rowIndex);
+      const indicesToDelete =
+        rightClickedIsSelected && selectedRowIndices.size > 1
+          ? Array.from(selectedRowIndices)
+          : [contextMenu.rowIndex];
+
+      deleteRowsByIndices(indicesToDelete);
       setContextMenu(null);
-    }, [
-      contextMenu,
-      selectedRowIndices,
-      mergedRows,
-      onDiscardInsertion,
-      onMarkForDeletion,
-      onMarkMultipleForDeletion,
-      pkColumn,
-      pkIndexMap,
-    ]);
+    }, [contextMenu, selectedRowIndices, deleteRowsByIndices]);
 
     const duplicateSelectedRow = useCallback(() => {
       if (!contextMenu || !onDuplicateRow) return;
@@ -786,6 +931,23 @@ export const DataGrid = React.memo(
       setSidebarOpen(true);
       setContextMenu(null);
     }, [contextMenu, buildRowDataWithPending]);
+
+    const openJsonEditor = useCallback(() => {
+      if (!contextMenu) return;
+      const isInsertion = contextMenu.mergedRow?.type === "insertion";
+
+      openJsonViewerWindow(
+        contextMenu.row[contextMenu.colIndex],
+        contextMenu.row[contextMenu.colIndex],
+        contextMenu.colName,
+        contextMenu.row,
+        contextMenu.rowIndex,
+        isInsertion,
+        contextMenu.mergedRow?.tempId,
+        readonlyProp ?? false,
+      );
+      setContextMenu(null);
+    }, [contextMenu, openJsonViewerWindow, readonlyProp]);
 
     // Unified handler for setting cell values from context menu actions
     const setCellValue = useCallback(
@@ -950,11 +1112,17 @@ export const DataGrid = React.memo(
             }
           }
         }
+
+        // Delete / Backspace — delete selected rows
+        if ((e.key === "Delete" || e.key === "Backspace") && !editingCell && !readonlyProp && selectedRowIndices.size > 0) {
+          e.preventDefault();
+          deleteRowsByIndices(Array.from(selectedRowIndices));
+        }
       };
 
       document.addEventListener("keydown", handleKeyDown);
       return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [editingCell, selectedRowIndices, focusedCell, copyCellValue, copySelectedCells]);
+    }, [editingCell, selectedRowIndices, focusedCell, copyCellValue, copySelectedCells, readonlyProp, deleteRowsByIndices]);
 
     // Show "no data" if there are no columns (even with pending insertions, we can't render without column info)
     // OR if there are columns but no data and no pending insertions
@@ -1039,10 +1207,12 @@ export const DataGrid = React.memo(
                     !isInsertion && pkVal
                       ? pendingDeletions?.[pkVal] !== undefined
                       : false;
+                  const expansionMatchesRow =
+                    expandedCell?.rowIndex === rowIndex;
 
                   return (
+                    <React.Fragment key={row.id}>
                     <tr
-                      key={row.id}
                       data-index={virtualRow.index}
                       ref={rowVirtualizer.measureElement}
                       className={`transition-colors group ${
@@ -1109,6 +1279,19 @@ export const DataGrid = React.memo(
                           isDefaultValuePlaceholder,
                         } = resolved;
 
+                        const colTypeForCell = columnTypeMap?.get(colName);
+                        const rawCellValue = cell.getValue();
+                        const isJsonCell =
+                          isJsonCellTarget(colTypeForCell, rawCellValue) &&
+                          !isPendingDelete;
+                        const isLongTextCell =
+                          !isJsonCell &&
+                          !isPendingDelete &&
+                          isLongTextCellTarget(
+                            colTypeForCell,
+                            hasPendingChange ? displayValue : rawCellValue,
+                          );
+
                         const stateClass = getCellStateClass({
                           isPendingDelete,
                           isSelected,
@@ -1116,6 +1299,7 @@ export const DataGrid = React.memo(
                           isAutoIncrementPlaceholder,
                           isDefaultValuePlaceholder,
                           isModified,
+                          isJsonCell,
                         });
 
                         const isFocused =
@@ -1155,7 +1339,16 @@ export const DataGrid = React.memo(
                               )
                             }
                             className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-mono ${isEditing ? "relative" : "whitespace-nowrap truncate max-w-[300px]"} cursor-text ${stateClass} ${isFocused ? "ring-2 ring-inset ring-blue-400" : ""}`}
-                            title={!isEditing ? String(displayValue) : ""}
+                            title={
+                              !isEditing
+                                ? formatCellValue(
+                                    displayValue,
+                                    t("dataGrid.null"),
+                                    colTypeForCell,
+                                    columnLengthMap?.get(colName),
+                                  )
+                                : ""
+                            }
                           >
                             {isEditing
                               ? (() => {
@@ -1283,14 +1476,91 @@ export const DataGrid = React.memo(
                                     </>
                                   );
                                 })()
-                              : hasPendingChange
-                                ? String(displayValue)
-                                : (() => {
-                                    const colType = columnTypeMap?.get(colName);
+                              : (() => {
+                                    const formattedDisplay = formatCellValue(
+                                      displayValue,
+                                      t("dataGrid.null"),
+                                      colTypeForCell,
+                                      columnLengthMap?.get(colName),
+                                    );
+
+                                    if (isJsonCell) {
+                                      const isExpanded =
+                                        expandedCell?.kind === "json" &&
+                                        expandedCell?.rowIndex === rowIndex &&
+                                        expandedCell?.colIndex === colIndex;
+                                      return (
+                                        <JsonCell
+                                          value={displayValue}
+                                          displayText={formattedDisplay}
+                                          isExpanded={isExpanded}
+                                          isPendingDelete={isPendingDelete}
+                                          onToggleExpand={() =>
+                                            setExpandedCell(
+                                              isExpanded
+                                                ? null
+                                                : {
+                                                    rowIndex,
+                                                    colIndex,
+                                                    kind: "json",
+                                                  },
+                                            )
+                                          }
+                                          onOpenViewer={() => {
+                                            const mergedRow =
+                                              mergedRows[rowIndex];
+                                            if (!mergedRow) return;
+                                            const isInsertion =
+                                              mergedRow.type === "insertion";
+                                            openJsonViewerWindow(
+                                              displayValue,
+                                              rawCellValue,
+                                              colName,
+                                              mergedRow.rowData,
+                                              rowIndex,
+                                              isInsertion,
+                                              mergedRow.tempId,
+                                              readonlyProp ?? false,
+                                            );
+                                          }}
+                                        />
+                                      );
+                                    }
+
+                                    if (isLongTextCell) {
+                                      const isExpanded =
+                                        expandedCell?.kind === "text" &&
+                                        expandedCell?.rowIndex === rowIndex &&
+                                        expandedCell?.colIndex === colIndex;
+                                      return (
+                                        <TextCell
+                                          value={displayValue}
+                                          displayText={formattedDisplay}
+                                          isExpanded={isExpanded}
+                                          isPendingDelete={isPendingDelete}
+                                          onToggleExpand={() =>
+                                            setExpandedCell(
+                                              isExpanded
+                                                ? null
+                                                : {
+                                                    rowIndex,
+                                                    colIndex,
+                                                    kind: "text",
+                                                  },
+                                            )
+                                          }
+                                        />
+                                      );
+                                    }
+
+                                    if (hasPendingChange) {
+                                      return formattedDisplay;
+                                    }
+
                                     if (
-                                      colType &&
+                                      colTypeForCell &&
                                       (isBlobColumn(
-                                        colType,
+                                        colTypeForCell,
                                         columnLengthMap?.get(colName),
                                       ) ||
                                         isBlobWireFormat(displayValue)) &&
@@ -1330,6 +1600,43 @@ export const DataGrid = React.memo(
                                         </span>
                                       );
                                     }
+
+                                    const fkForCol = fksByColumn.get(colName);
+                                    if (
+                                      fkForCol &&
+                                      onForeignKeyNavigate &&
+                                      !isPendingDelete &&
+                                      !isInsertion &&
+                                      isForeignKeyValueNavigable(rawCellValue)
+                                    ) {
+                                      return (
+                                        <span className="flex items-center gap-1 group/fkcell w-full">
+                                          <span className="truncate flex-1">
+                                            {flexRender(
+                                              cell.column.columnDef.cell,
+                                              cell.getContext(),
+                                            )}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onForeignKeyNavigate(
+                                                fkForCol,
+                                                rawCellValue,
+                                              );
+                                            }}
+                                            className="opacity-0 group-hover/fkcell:opacity-100 transition-opacity p-0.5 rounded text-muted hover:text-blue-400 hover:bg-surface-tertiary flex-shrink-0"
+                                            title={t("dataGrid.openReferenced", {
+                                              table: fkForCol.ref_table,
+                                            })}
+                                          >
+                                            <ExternalLink size={11} />
+                                          </button>
+                                        </span>
+                                      );
+                                    }
+
                                     return flexRender(
                                       cell.column.columnDef.cell,
                                       cell.getContext(),
@@ -1339,6 +1646,95 @@ export const DataGrid = React.memo(
                         );
                       })}
                     </tr>
+                    {expansionMatchesRow && expandedCell && (() => {
+                      const expColName = columns[expandedCell.colIndex];
+                      const mergedRow = mergedRows[rowIndex];
+                      const pendingExpansionValue = (() => {
+                        if (!mergedRow) return undefined;
+                        if (
+                          mergedRow.type === "existing" &&
+                          pkIndexMap !== null
+                        ) {
+                          const pkVal = mergedRow.rowData[pkIndexMap];
+                          const pendingVal =
+                            pkVal !== null &&
+                            pkVal !== undefined &&
+                            pkVal !== ""
+                              ? pendingChanges?.[String(pkVal)]?.changes?.[
+                                  expColName
+                                ]
+                              : undefined;
+                          if (pendingVal !== undefined) return pendingVal;
+                        }
+                        return mergedRow.rowData?.[expandedCell.colIndex];
+                      })();
+                      const expansionOriginalValue =
+                        mergedRow?.type === "existing"
+                          ? mergedRow?.rowData?.[expandedCell.colIndex]
+                          : undefined;
+                      const persistExpansionSave = (next: unknown) => {
+                        if (!mergedRow || !expandedCell) return;
+                        if (
+                          mergedRow.type === "insertion" &&
+                          onPendingInsertionChange &&
+                          mergedRow.tempId
+                        ) {
+                          onPendingInsertionChange(
+                            mergedRow.tempId,
+                            expColName,
+                            next,
+                          );
+                        } else if (
+                          mergedRow.type === "existing" &&
+                          onPendingChange &&
+                          pkIndexMap !== null
+                        ) {
+                          const pkVal = mergedRow.rowData[pkIndexMap];
+                          onPendingChange(pkVal, expColName, next);
+                        }
+                        setExpandedCell(null);
+                      };
+                      return (
+                        <tr
+                          ref={rowVirtualizer.measureElement}
+                          data-expansion-for={virtualRow.index}
+                        >
+                          <td
+                            colSpan={columns.length + 1}
+                            className="p-0 border-b border-default"
+                          >
+                            <div
+                              className="sticky left-0 bg-base/60 p-3"
+                              style={{
+                                width:
+                                  parentViewportWidth > 0
+                                    ? `${parentViewportWidth}px`
+                                    : "100%",
+                              }}
+                            >
+                              {expandedCell.kind === "json" ? (
+                                <JsonExpansionEditor
+                                  value={pendingExpansionValue}
+                                  originalValue={expansionOriginalValue}
+                                  readOnly={readonlyProp ?? false}
+                                  onCancel={() => setExpandedCell(null)}
+                                  onSave={persistExpansionSave}
+                                />
+                              ) : (
+                                <TextExpansionEditor
+                                  value={pendingExpansionValue}
+                                  originalValue={expansionOriginalValue}
+                                  readOnly={readonlyProp ?? false}
+                                  onCancel={() => setExpandedCell(null)}
+                                  onSave={persistExpansionSave}
+                                />
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })()}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -1417,11 +1813,40 @@ export const DataGrid = React.memo(
                     action: setCellServerNow,
                   });
                 }
+                if (isJsonColumn(colDataType)) {
+                  menuItems.push({
+                    label: t("contextMenu.openJsonEditor"),
+                    icon: Braces,
+                    action: openJsonEditor,
+                  });
+                }
 
                 // Separator before row actions
                 if (menuItems.length > 0) {
                   menuItems.push({ separator: true });
                 }
+              }
+
+              const fkForContextCol = fksByColumn.get(contextMenu.colName);
+              const fkContextValue =
+                contextMenu.row[contextMenu.colIndex];
+              if (
+                fkForContextCol &&
+                onForeignKeyNavigate &&
+                !isInsertion &&
+                isForeignKeyValueNavigable(fkContextValue)
+              ) {
+                menuItems.push({
+                  label: t("dataGrid.openReferenced", {
+                    table: fkForContextCol.ref_table,
+                  }),
+                  icon: ExternalLink,
+                  action: () => {
+                    onForeignKeyNavigate(fkForContextCol, fkContextValue);
+                    setContextMenu(null);
+                  },
+                });
+                menuItems.push({ separator: true });
               }
 
               menuItems.push({
@@ -1522,6 +1947,13 @@ export const DataGrid = React.memo(
             (() => {
               const mergedRow = mergedRows[sidebarRowData.rowIndex];
               const isInsertion = mergedRow?.type === "insertion";
+              const originalRowData =
+                mergedRow && mergedRow.type === "existing"
+                  ? columns.reduce<Record<string, unknown>>((acc, col, idx) => {
+                      acc[col] = mergedRow.rowData[idx];
+                      return acc;
+                    }, {})
+                  : undefined;
 
               return (
                 <RowEditorSidebar
@@ -1531,6 +1963,8 @@ export const DataGrid = React.memo(
                     setSidebarRowData(null);
                   }}
                   rowData={sidebarRowData.data}
+                  originalRowData={originalRowData}
+                  detectJsonInTextColumns={detectJsonInTextColumns}
                   rowIndex={sidebarRowData.rowIndex}
                   isInsertion={isInsertion}
                   columns={columns.map((colName, index) => ({

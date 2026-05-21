@@ -105,6 +105,19 @@
     "procedures": "Procedures",
     "noRoutines": "No routines found",
     "refreshRoutines": "Refresh Routines",
+    "triggers": "Triggers",
+    "noTriggers": "No triggers found",
+    "filterTriggers": "Filter triggers...",
+    "noTriggersMatch": "No triggers match your filter",
+    "createTrigger": "Create New Trigger",
+    "editTrigger": "Edit Trigger",
+    "dropTrigger": "Drop Trigger",
+    "dropTriggerConfirm": "Are you sure you want to drop trigger \"{{trigger}}\"?",
+    "viewTriggerDefinition": "View Definition",
+    "failDropTrigger": "Failed to drop trigger: ",
+    "failGetTriggerDefinition": "Failed to get trigger definition: ",
+    "refreshTriggers": "Refresh Triggers",
+    "onTable": "on {{table}}",
     "objectSummary": "Objects",
     "databases": "Databases",
     "failGetRoutineDefinition": "Failed to get routine definition: ",
@@ -221,7 +234,11 @@
     "searchPlaceholder": "Search connections...",
     "noSearchResults": "No connections match \"{{query}}\"",
     "gridView": "Grid view",
-    "listView": "List view"
+    "listView": "List view",
+    "export": "Export Connections",
+    "import": "Import Connections",
+    "exportTitle": "Export Connections",
+    "exportWarning": "The exported file will contain your database and SSH passwords in plaintext. Please store it securely."
   },
   "settings": {
     "title": "Settings",
@@ -239,6 +256,8 @@
     "delimiterSemicolon": "Semicolon (;)",
     "delimiterTab": "Tab",
     "delimiterPipe": "Pipe (|)",
+    "detectJsonInTextColumns": "Detect JSON in text columns",
+    "detectJsonInTextColumnsDesc": "Show the JSON viewer affordance when a non-typed text cell contains a JSON object or array. Adds a small per-cell parse cost.",
     "appearance": "Appearance",
     "localization": "Localization",
     "themeSelection": "Theme Selection",
@@ -268,6 +287,8 @@
     "appearance_editorWordWrapDesc": "Wrap long lines in the editor instead of scrolling horizontally.",
     "appearance_editorShowLineNumbers": "Show Line Numbers",
     "appearance_editorShowLineNumbersDesc": "Display line numbers in the editor gutter.",
+    "appearance_editorAcceptSuggestionOnEnter": "Accept Suggestion with Enter",
+    "appearance_editorAcceptSuggestionOnEnterDesc": "Allow Enter (in addition to Tab) to accept the active autocomplete suggestion. When off, Enter always inserts a newline.",
     "editConfigJson": "Edit config.json",
     "editConfigJsonDesc": "Directly edit the raw configuration file. A restart is required to apply changes.",
     "configJsonModal": {
@@ -616,7 +637,9 @@
       "disable": "Disable",
       "allow": "Allow",
       "prefer": "Prefer",
-      "require": "Require"
+      "require": "Require",
+      "verify-ca": "Verify CA",
+      "verify-full": "Verify Full"
     }
   },
   "sshConnections": {
@@ -643,6 +666,7 @@
     "savedInKeychain": "Password saved in system keychain"
   },
   "dataGrid": {
+    "newRow": "NEW",
     "noData": "No data to display",
     "editRow": "Edit Row",
     "deleteRow": "Delete Row",
@@ -671,7 +695,8 @@
     "setNull": "Set NULL",
     "setDefault": "Set DEFAULT",
     "setEmpty": "Set EMPTY",
-    "setServerNow": "Insert Current Timestamp"
+    "setServerNow": "Insert Current Timestamp",
+    "openReferenced": "Open referenced row in {{table}}"
   },
   "editRow": {
     "title": "Edit Row",
@@ -743,7 +768,8 @@
     "tabSwitcher": {
       "title": "Open Tabs",
       "hint": "Ctrl+Tab",
-      "tabs": "tabs",
+      "tabs_one": "{{count}} tab",
+      "tabs_other": "{{count}} tabs",
       "escHint": "Esc to close"
     },
     "submitChanges": "Submit Changes",
@@ -1051,6 +1077,34 @@
     "saveError": "Failed to save view: ",
     "confirmAlter": "Are you sure you want to modify view \"{{view}}\"?"
   },
+  "triggers": {
+    "createTrigger": "Create Trigger",
+    "editTrigger": "Edit Trigger",
+    "createSubtitle": "Create a new database trigger",
+    "editSubtitle": "Editing trigger: {{name}}",
+    "triggerName": "Trigger Name",
+    "triggerNamePlaceholder": "e.g. before_insert_user",
+    "tableName": "Table Name",
+    "tableNamePlaceholder": "e.g. users",
+    "timing": "Timing",
+    "events": "Events",
+    "body": "Trigger Body (SQL)",
+    "sqlPreview": "Generated SQL Preview",
+    "rawSql": "Raw SQL",
+    "guidedMode": "Guided",
+    "rawSqlMode": "Raw SQL",
+    "loading": "Loading trigger definition...",
+    "create": "Create Trigger",
+    "save": "Save Changes",
+    "sqlRequired": "Trigger SQL is required",
+    "failLoadDefinition": "Failed to load trigger definition: ",
+    "dropError": "Failed to drop existing trigger: ",
+    "saveError": "Failed to save trigger: ",
+    "createSuccess": "Trigger created successfully",
+    "updateSuccess": "Trigger updated successfully",
+    "recreateTrigger": "Recreate Trigger",
+    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?"
+  },
   "community": {
     "title": "Join the Community",
     "subtitle": "Help tabularis grow",
@@ -1109,7 +1163,39 @@
     "placeholder": "Enter JSON...",
     "format": "Format",
     "valid": "Valid JSON",
-    "invalid": "Invalid JSON"
+    "invalid": "Invalid JSON",
+    "mode": {
+      "code": "Code",
+      "tree": "Tree",
+      "raw": "Raw"
+    },
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "search": "Search",
+    "copyPath": "Copy Path",
+    "copyValue": "Copy Value",
+    "addItem": "Add Item",
+    "removeItem": "Remove Item",
+    "diff": "Diff",
+    "sideBySide": "Side by side"
+  },
+  "jsonViewer": {
+    "close": "Close",
+    "save": "Save"
+  },
+  "jsonCell": {
+    "expand": "Toggle inline JSON tree",
+    "openViewer": "Open JSON viewer"
+  },
+  "textCell": {
+    "expand": "Toggle inline text editor"
+  },
+  "textInput": {
+    "diff": "Diff",
+    "sideBySide": "Side by side"
+  },
+  "textViewer": {
+    "save": "Save"
   },
   "rowEditor": {
     "title": "Edit Row",
@@ -1119,7 +1205,8 @@
     "enterValue": "Enter value..."
   },
   "contextMenu": {
-    "openSidebar": "Open Sidebar Editor"
+    "openSidebar": "Open Sidebar Editor",
+    "openJsonEditor": "Open in JSON Editor"
   },
   "blobInput": {
     "noData": "No BLOB data",
@@ -1370,5 +1457,11 @@
     "reasonPlaceholder": "e.g. Looks risky on prod, please confirm…",
     "approve": "Approve",
     "deny": "Deny"
+  },
+  "discordCallout": {
+    "title": "Brand-new Discord community!",
+    "body": "We just launched a dedicated home for Tabularis users. Get help, share tips, shape the roadmap.",
+    "cta": "Join now",
+    "dismiss": "Dismiss"
   }
 }

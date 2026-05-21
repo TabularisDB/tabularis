@@ -10,9 +10,10 @@ use uuid::Uuid;
 use crate::credential_cache;
 use crate::keychain_utils;
 use crate::models::{
-    ColumnDefinition, ConnectionGroup, ConnectionParams, ConnectionsFile, ExplainPlan, ForeignKey,
-    Index, QueryResult, RoutineInfo, RoutineParameter, SavedConnection, SshConnection,
-    SshConnectionInput, SshTestParams, TableColumn, TableInfo, TestConnectionRequest,
+    BatchStatementResult, ColumnDefinition, ConnectionGroup, ConnectionParams, ConnectionsFile,
+    ExplainPlan, ExportPayload, ForeignKey, Index, QueryResult, RoutineInfo, RoutineParameter,
+    SavedConnection, SshConnection, SshConnectionInput, SshTestParams, TableColumn, TableInfo,
+    TestConnectionRequest, TriggerInfo,
 };
 use crate::persistence;
 use crate::ssh_tunnel::{get_tunnels, SshTunnel};
@@ -30,8 +31,17 @@ async fn driver_for(
 const DEFAULT_MYSQL_PORT: u16 = 3306;
 const DEFAULT_POSTGRES_PORT: u16 = 5432;
 
+/// Per-slot collection of abort handles for in-flight cancellable tasks.
+/// Used by `QueryCancellationState`, `ExportCancellationState`, and
+/// `DumpCancellationState`.
+pub(crate) type AbortHandleMap = HashMap<String, Vec<Arc<AbortHandle>>>;
+
+/// Tracks abort handles for in-flight queries keyed by connection id. A
+/// slot can hold multiple handles when the UI fires several queries (or
+/// an EXPLAIN alongside a query) against the same connection concurrently
+/// — `cancel_query` must abort all of them, not just the most recent.
 pub struct QueryCancellationState {
-    pub handles: Arc<Mutex<HashMap<String, AbortHandle>>>,
+    pub handles: Arc<Mutex<AbortHandleMap>>,
 }
 
 impl Default for QueryCancellationState {
@@ -40,6 +50,50 @@ impl Default for QueryCancellationState {
             handles: Arc::new(Mutex::new(HashMap::new())),
         }
     }
+}
+
+/// Push `handle` into the slot for `key`, first pruning any handles that
+/// have already finished so the Vec does not grow unboundedly across many
+/// sequential queries on the same connection.
+pub(crate) fn register_abort_handle(
+    handles: &Mutex<AbortHandleMap>,
+    key: String,
+    handle: Arc<AbortHandle>,
+) {
+    let mut guard = handles.lock().unwrap();
+    let entry = guard.entry(key).or_default();
+    entry.retain(|h| !h.is_finished());
+    entry.push(handle);
+}
+
+/// Remove the specific handle (matched by Arc identity) that a completing
+/// task registered, so it cannot fire on a future query that happens to
+/// reuse the same slot.
+pub(crate) fn unregister_abort_handle(
+    handles: &Mutex<AbortHandleMap>,
+    key: &str,
+    handle: &Arc<AbortHandle>,
+) {
+    let mut guard = handles.lock().unwrap();
+    if let Some(entry) = guard.get_mut(key) {
+        entry.retain(|h| !Arc::ptr_eq(h, handle));
+        if entry.is_empty() {
+            guard.remove(key);
+        }
+    }
+}
+
+/// Trims trailing semicolons and normalises Unicode smart quotes that some
+/// editors insert when the user pastes a query. Called on every query the
+/// UI hands off to a driver.
+fn sanitize_user_query(query: &str) -> String {
+    query
+        .trim()
+        .trim_end_matches(';')
+        .replace('\u{2018}', "'")
+        .replace('\u{2019}', "'")
+        .replace('\u{201C}', "\"")
+        .replace('\u{201D}', "\"")
 }
 
 // --- Persistence Helpers ---
@@ -256,17 +310,25 @@ pub fn find_connection_by_id<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
 ) -> Result<SavedConnection, String> {
-    let path = get_config_path(app)?;
-    if !path.exists() {
-        return Err("Connection not found".into());
-    }
-    // Use persistence module to properly load connections (handles both old and new formats)
-    let conn_file = persistence::load_connections_file(&path)?;
-    let mut conn = conn_file
-        .connections
-        .into_iter()
-        .find(|c| c.id == id)
-        .ok_or_else(|| "Connection not found".to_string())?;
+    let conn_cache =
+        app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>();
+
+    let mut conn = match conn_cache.lookup(id) {
+        crate::connection_cache::CacheLookup::Hit(c) => c,
+        crate::connection_cache::CacheLookup::Miss => {
+            return Err("Connection not found".to_string())
+        }
+        crate::connection_cache::CacheLookup::Cold => {
+            let path = get_config_path(app)?;
+            let conn_file = persistence::load_connections_file(&path).unwrap_or_default();
+            conn_cache.populate(&conn_file.connections);
+            conn_file
+                .connections
+                .into_iter()
+                .find(|c| c.id == id)
+                .ok_or_else(|| "Connection not found".to_string())?
+        }
+    };
 
     // Load passwords from keychain if needed, via the in-memory cache.
     // On a warm cache hit this is a HashMap lookup (nanoseconds); on a cold miss
@@ -297,6 +359,19 @@ pub fn find_connection_by_id<R: Runtime>(
     }
 
     Ok(conn)
+}
+
+/// Write the connections file and invalidate the in-memory connection cache so
+/// the next `find_connection_by_id` call re-reads fresh data from disk.
+fn save_connections_and_invalidate<R: Runtime>(
+    app: &AppHandle<R>,
+    path: &std::path::Path,
+    file: &crate::models::ConnectionsFile,
+) -> Result<(), String> {
+    persistence::save_connections_file(path, file)?;
+    app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>()
+        .invalidate();
+    Ok(())
 }
 
 // --- Commands ---
@@ -422,6 +497,7 @@ pub async fn save_connection<R: Runtime>(
     app: AppHandle<R>,
     name: String,
     params: ConnectionParams,
+    detect_json_in_text_columns: Option<bool>,
 ) -> Result<SavedConnection, String> {
     log::info!("Saving new connection: {}", name);
 
@@ -461,9 +537,10 @@ pub async fn save_connection<R: Runtime>(
         params: params_to_save,
         group_id: None,
         sort_order: None,
+        detect_json_in_text_columns,
     };
     conn_file.connections.push(new_conn.clone());
-    persistence::save_connections_file(&path, &conn_file)?;
+    save_connections_and_invalidate(&app, &path, &conn_file)?;
 
     log::info!("Connection saved successfully: {} (ID: {})", name, id);
 
@@ -495,7 +572,7 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     credential_cache::invalidate_all_for_connection(&cache, &id);
 
-    persistence::save_connections_file(&path, &conn_file)?;
+    save_connections_and_invalidate(&app, &path, &conn_file)?;
 
     // Clean up query history for this connection
     if let Err(e) = crate::query_history::remove_history_for_connection(&app, &id) {
@@ -517,6 +594,7 @@ pub async fn update_connection<R: Runtime>(
     id: String,
     name: String,
     params: ConnectionParams,
+    detect_json_in_text_columns: Option<bool>,
 ) -> Result<SavedConnection, String> {
     let path = get_config_path(&app)?;
     let mut conn_file = persistence::load_connections_file(&path)?;
@@ -573,11 +651,12 @@ pub async fn update_connection<R: Runtime>(
         params: params_to_save,
         group_id: original_group_id,
         sort_order: original_sort_order,
+        detect_json_in_text_columns,
     };
 
     conn_file.connections[conn_idx] = updated.clone();
 
-    persistence::save_connections_file(&path, &conn_file)?;
+    save_connections_and_invalidate(&app, &path, &conn_file)?;
 
     // On single→multi transition, associate existing favorites/history (with no
     // database set) to the original single database name.
@@ -688,11 +767,12 @@ pub async fn duplicate_connection<R: Runtime>(
         params: new_params,
         group_id: original.group_id.clone(), // Copy to same group as original
         sort_order: None,                    // Will be placed at end of group
+        detect_json_in_text_columns: original.detect_json_in_text_columns,
     };
 
     conn_file.connections.push(new_conn.clone());
 
-    persistence::save_connections_file(&path, &conn_file)?;
+    save_connections_and_invalidate(&app, &path, &conn_file)?;
 
     let mut returned_conn = new_conn;
     // Return with passwords for frontend consistency
@@ -836,7 +916,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
 
     // Save migrated connections using new format (preserving groups)
     conn_file.connections = migrated_connections;
-    persistence::save_connections_file(&conn_path, &conn_file)?;
+    save_connections_and_invalidate(app, &conn_path, &conn_file)?;
 
     println!(
         "[Migration] Successfully migrated {} SSH connections",
@@ -1238,6 +1318,7 @@ mod tests {
             },
             group_id: None,
             sort_order: None,
+            detect_json_in_text_columns: None,
         }
     }
 
@@ -1673,6 +1754,191 @@ mod tests {
             params.port = Some(33060);
             let url = build_connection_url(&params).await.unwrap();
             assert!(url.contains("192.168.1.100:33060"));
+        }
+    }
+
+    mod cancellation_state {
+        use super::super::{
+            cancel_query_impl, register_abort_handle, unregister_abort_handle,
+            QueryCancellationState,
+        };
+        use std::sync::Arc;
+        use std::time::Duration;
+
+        async fn spawn_sleeper() -> tokio::task::JoinHandle<()> {
+            tokio::spawn(async { tokio::time::sleep(Duration::from_secs(10)).await })
+        }
+
+        #[tokio::test]
+        async fn registers_multiple_handles_under_same_slot() {
+            let state = QueryCancellationState::default();
+            let task_a = spawn_sleeper().await;
+            let task_b = spawn_sleeper().await;
+            let handle_a = Arc::new(task_a.abort_handle());
+            let handle_b = Arc::new(task_b.abort_handle());
+
+            register_abort_handle(&state.handles, "conn-1".into(), handle_a);
+            register_abort_handle(&state.handles, "conn-1".into(), handle_b);
+
+            assert_eq!(
+                state.handles.lock().unwrap().get("conn-1").unwrap().len(),
+                2
+            );
+
+            task_a.abort();
+            task_b.abort();
+            let _ = task_a.await;
+            let _ = task_b.await;
+        }
+
+        #[tokio::test]
+        async fn cancel_aborts_all_handles_in_slot() {
+            let state = QueryCancellationState::default();
+            let task_a = spawn_sleeper().await;
+            let task_b = spawn_sleeper().await;
+            register_abort_handle(
+                &state.handles,
+                "conn-1".into(),
+                Arc::new(task_a.abort_handle()),
+            );
+            register_abort_handle(
+                &state.handles,
+                "conn-1".into(),
+                Arc::new(task_b.abort_handle()),
+            );
+
+            let drained = state
+                .handles
+                .lock()
+                .unwrap()
+                .remove("conn-1")
+                .unwrap_or_default();
+            for h in &drained {
+                h.abort();
+            }
+
+            assert!(task_a.await.unwrap_err().is_cancelled());
+            assert!(task_b.await.unwrap_err().is_cancelled());
+        }
+
+        #[tokio::test]
+        async fn unregister_only_removes_matching_handle() {
+            let state = QueryCancellationState::default();
+            let task_a = spawn_sleeper().await;
+            let task_b = spawn_sleeper().await;
+            let handle_a = Arc::new(task_a.abort_handle());
+            let handle_b = Arc::new(task_b.abort_handle());
+
+            register_abort_handle(&state.handles, "conn-1".into(), handle_a.clone());
+            register_abort_handle(&state.handles, "conn-1".into(), handle_b.clone());
+
+            unregister_abort_handle(&state.handles, "conn-1", &handle_a);
+
+            {
+                let remaining = state.handles.lock().unwrap();
+                let slot = remaining.get("conn-1").expect("slot kept while B in flight");
+                assert_eq!(slot.len(), 1);
+                assert!(Arc::ptr_eq(&slot[0], &handle_b));
+            }
+
+            task_a.abort();
+            task_b.abort();
+            let _ = task_a.await;
+            let _ = task_b.await;
+        }
+
+        #[tokio::test]
+        async fn unregister_drops_empty_slot() {
+            let state = QueryCancellationState::default();
+            let task = spawn_sleeper().await;
+            let handle = Arc::new(task.abort_handle());
+
+            register_abort_handle(&state.handles, "conn-1".into(), handle.clone());
+            unregister_abort_handle(&state.handles, "conn-1", &handle);
+
+            assert!(state.handles.lock().unwrap().get("conn-1").is_none());
+
+            task.abort();
+            let _ = task.await;
+        }
+
+        #[tokio::test]
+        async fn register_prunes_finished_handles() {
+            let state = QueryCancellationState::default();
+
+            let finished_task = tokio::spawn(async {});
+            let finished_handle = Arc::new(finished_task.abort_handle());
+            let _ = finished_task.await;
+            assert!(finished_handle.is_finished());
+
+            register_abort_handle(&state.handles, "conn-1".into(), finished_handle);
+
+            let live_task = spawn_sleeper().await;
+            let live_handle = Arc::new(live_task.abort_handle());
+            register_abort_handle(&state.handles, "conn-1".into(), live_handle.clone());
+
+            {
+                let guard = state.handles.lock().unwrap();
+                let slot = guard.get("conn-1").unwrap();
+                assert_eq!(slot.len(), 1);
+                assert!(Arc::ptr_eq(&slot[0], &live_handle));
+            }
+
+            live_task.abort();
+            let _ = live_task.await;
+        }
+
+        #[tokio::test]
+        async fn cancel_query_returns_err_when_no_slot() {
+            let state = QueryCancellationState::default();
+            let err = cancel_query_impl(&state, "conn-1").unwrap_err();
+            assert_eq!(err, "No running query found");
+        }
+
+        #[tokio::test]
+        async fn cancel_query_aborts_every_handle_in_slot() {
+            let state = QueryCancellationState::default();
+            let task_a = spawn_sleeper().await;
+            let task_b = spawn_sleeper().await;
+            register_abort_handle(
+                &state.handles,
+                "conn-1".into(),
+                Arc::new(task_a.abort_handle()),
+            );
+            register_abort_handle(
+                &state.handles,
+                "conn-1".into(),
+                Arc::new(task_b.abort_handle()),
+            );
+
+            cancel_query_impl(&state, "conn-1").unwrap();
+
+            assert!(task_a.await.unwrap_err().is_cancelled());
+            assert!(task_b.await.unwrap_err().is_cancelled());
+            assert!(state.handles.lock().unwrap().get("conn-1").is_none());
+        }
+
+        #[tokio::test]
+        async fn cancel_query_aborts_query_and_explain_sharing_the_slot() {
+            let state = QueryCancellationState::default();
+            let query_task = spawn_sleeper().await;
+            let explain_task = spawn_sleeper().await;
+            register_abort_handle(
+                &state.handles,
+                "conn-1".into(),
+                Arc::new(query_task.abort_handle()),
+            );
+            register_abort_handle(
+                &state.handles,
+                "conn-1".into(),
+                Arc::new(explain_task.abort_handle()),
+            );
+
+            cancel_query_impl(&state, "conn-1").unwrap();
+
+            assert!(query_task.await.unwrap_err().is_cancelled());
+            assert!(explain_task.await.unwrap_err().is_cancelled());
+            assert!(state.handles.lock().unwrap().get("conn-1").is_none());
         }
     }
 }
@@ -2158,18 +2424,29 @@ pub async fn insert_record<R: Runtime>(
         .await
 }
 
+pub(crate) fn cancel_query_impl(
+    state: &QueryCancellationState,
+    connection_id: &str,
+) -> Result<(), String> {
+    let entries = {
+        let mut handles = state.handles.lock().unwrap();
+        handles.remove(connection_id).unwrap_or_default()
+    };
+    if entries.is_empty() {
+        return Err("No running query found".into());
+    }
+    for handle in entries {
+        handle.abort();
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn cancel_query(
     state: State<'_, QueryCancellationState>,
     connection_id: String,
 ) -> Result<(), String> {
-    let mut handles = state.handles.lock().unwrap();
-    if let Some(handle) = handles.remove(&connection_id) {
-        handle.abort();
-        Ok(())
-    } else {
-        Err("No running query found".into())
-    }
+    cancel_query_impl(&state, &connection_id)
 }
 
 #[tauri::command]
@@ -2188,21 +2465,12 @@ pub async fn execute_query<R: Runtime>(
         query
     );
 
-    // 1. Sanitize Query (Ignore trailing semicolon + normalize smart quotes)
-    let sanitized_query = query
-        .trim()
-        .trim_end_matches(';')
-        .replace('\u{2018}', "'") // Left single quotation mark
-        .replace('\u{2019}', "'") // Right single quotation mark
-        .replace('\u{201C}', "\"") // Left double quotation mark
-        .replace('\u{201D}', "\"") // Right double quotation mark
-        .to_string();
+    let sanitized_query = sanitize_user_query(&query);
 
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
 
-    // 2. Spawn Cancellable Task
     let drv = driver_for(&saved_conn.params.driver).await?;
     let task = tokio::spawn(async move {
         drv.execute_query(
@@ -2215,24 +2483,12 @@ pub async fn execute_query<R: Runtime>(
         .await
     });
 
-    // 3. Register Abort Handle
-    let abort_handle = task.abort_handle();
-    {
-        let mut handles = state.handles.lock().unwrap();
-        // If a query is already running for this connection, we overwrite the handle.
-        // Ideally we should cancel the previous one, but the UI should prevent double run.
-        handles.insert(connection_id.clone(), abort_handle);
-    }
+    let abort_handle = Arc::new(task.abort_handle());
+    register_abort_handle(&state.handles, connection_id.clone(), abort_handle.clone());
 
-    // 4. Await & Handle Cancellation
     let result = task.await;
 
-    // 5. Cleanup
-    {
-        let mut handles = state.handles.lock().unwrap();
-        // Only remove if it matches (edge case: multiple queries, but connection_id is unique per tab usually)
-        handles.remove(&connection_id);
-    }
+    unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
 
     match result {
         Ok(Ok(query_result)) => {
@@ -2248,6 +2504,77 @@ pub async fn execute_query<R: Runtime>(
         }
         Err(_) => {
             log::warn!("Query was cancelled");
+            Err("Query cancelled".into())
+        }
+    }
+}
+
+/// Runs a sequence of statements that share a single physical database
+/// connection. Use this — not multiple parallel `execute_query` calls —
+/// whenever statements depend on connection-local session state
+/// (`SET @var`, `LAST_INSERT_ID()` / `LASTVAL()`, `BEGIN`/`COMMIT`,
+/// `TEMPORARY TABLE`, `PREPARE`/`EXECUTE`, `SET FOREIGN_KEY_CHECKS = 0`).
+///
+/// The whole batch shares one cancellation handle so `cancel_query`
+/// aborts the entire batch atomically.
+#[tauri::command]
+pub async fn execute_query_batch<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, QueryCancellationState>,
+    connection_id: String,
+    queries: Vec<String>,
+    limit: Option<u32>,
+    page: Option<u32>,
+    schema: Option<String>,
+) -> Result<Vec<BatchStatementResult>, String> {
+    log::info!(
+        "Executing query batch on connection: {} | {} statement(s)",
+        connection_id,
+        queries.len()
+    );
+
+    let sanitized_queries: Vec<String> = queries.iter().map(|q| sanitize_user_query(q)).collect();
+
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    let task = tokio::spawn(async move {
+        drv.execute_batch(
+            &params,
+            &sanitized_queries,
+            limit,
+            page.unwrap_or(1),
+            schema.as_deref(),
+        )
+        .await
+    });
+
+    let abort_handle = Arc::new(task.abort_handle());
+    register_abort_handle(&state.handles, connection_id.clone(), abort_handle.clone());
+
+    let result = task.await;
+
+    unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
+
+    match result {
+        Ok(Ok(batch_results)) => {
+            let success_count = batch_results.iter().filter(|r| r.result.is_some()).count();
+            log::info!(
+                "Batch executed: {} succeeded, {} failed (of {} total)",
+                success_count,
+                batch_results.len() - success_count,
+                batch_results.len()
+            );
+            Ok(batch_results)
+        }
+        Ok(Err(e)) => {
+            log::error!("Batch execution failed at setup: {}", e);
+            Err(e)
+        }
+        Err(_) => {
+            log::warn!("Batch was cancelled");
             Err("Query cancelled".into())
         }
     }
@@ -2271,14 +2598,7 @@ pub async fn explain_query_plan<R: Runtime>(
         query
     );
 
-    let sanitized_query = query
-        .trim()
-        .trim_end_matches(';')
-        .replace('\u{2018}', "'")
-        .replace('\u{2019}', "'")
-        .replace('\u{201C}', "\"")
-        .replace('\u{201D}', "\"")
-        .to_string();
+    let sanitized_query = sanitize_user_query(&query);
 
     if !crate::drivers::common::is_explainable_query(&sanitized_query) {
         return Err(
@@ -2297,18 +2617,12 @@ pub async fn explain_query_plan<R: Runtime>(
             .await
     });
 
-    let abort_handle = task.abort_handle();
-    {
-        let mut handles = state.handles.lock().unwrap();
-        handles.insert(format!("explain_{}", connection_id), abort_handle);
-    }
+    let abort_handle = Arc::new(task.abort_handle());
+    register_abort_handle(&state.handles, connection_id.clone(), abort_handle.clone());
 
     let result = task.await;
 
-    {
-        let mut handles = state.handles.lock().unwrap();
-        handles.remove(&format!("explain_{}", connection_id));
-    }
+    unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
 
     match result {
         Ok(Ok(plan)) => {
@@ -2749,6 +3063,109 @@ pub async fn get_view_columns<R: Runtime>(
     result
 }
 
+#[tauri::command]
+pub async fn get_triggers<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    schema: Option<String>,
+) -> Result<Vec<TriggerInfo>, String> {
+    log::info!("Fetching triggers for connection: {}", connection_id);
+
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    let result = drv.get_triggers(&params, schema.as_deref()).await;
+
+    match &result {
+        Ok(triggers) => log::info!("Retrieved {} triggers", triggers.len()),
+        Err(e) => log::error!("Failed to get triggers: {}", e),
+    }
+
+    result
+}
+
+#[tauri::command]
+pub async fn get_trigger_definition<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    trigger_name: String,
+    table_name: String,
+    schema: Option<String>,
+) -> Result<String, String> {
+    log::info!(
+        "Fetching trigger definition for: {} on connection: {}",
+        trigger_name,
+        connection_id
+    );
+
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    drv.get_trigger_definition(&params, &trigger_name, &table_name, schema.as_deref())
+        .await
+}
+
+#[tauri::command]
+pub async fn create_trigger<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    trigger_sql: String,
+    schema: Option<String>,
+) -> Result<(), String> {
+    log::info!("Creating trigger on connection: {}", connection_id);
+
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    let result = drv
+        .create_trigger(&params, &trigger_sql, schema.as_deref())
+        .await;
+
+    match &result {
+        Ok(_) => log::info!("Successfully created trigger"),
+        Err(e) => log::error!("Failed to create trigger: {}", e),
+    }
+
+    result
+}
+
+#[tauri::command]
+pub async fn drop_trigger<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    trigger_name: String,
+    table_name: String,
+    schema: Option<String>,
+) -> Result<(), String> {
+    log::info!(
+        "Dropping trigger: {} on connection: {}",
+        trigger_name,
+        connection_id
+    );
+
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    let result = drv
+        .drop_trigger(&params, &trigger_name, &table_name, schema.as_deref())
+        .await;
+
+    match &result {
+        Ok(_) => log::info!("Successfully dropped trigger: {}", trigger_name),
+        Err(e) => log::error!("Failed to drop trigger {}: {}", trigger_name, e),
+    }
+
+    result
+}
+
 /// Register a connection as active for health-check pinging.
 #[tauri::command]
 pub async fn register_active_connection(connection_id: String) {
@@ -3001,7 +3418,7 @@ pub async fn create_connection_group<R: Runtime>(
     };
 
     file.groups.push(group.clone());
-    persistence::save_connections_file(&path, &file)?;
+    save_connections_and_invalidate(&app, &path, &file)?;
 
     Ok(group)
 }
@@ -3034,7 +3451,7 @@ pub async fn update_connection_group<R: Runtime>(
     }
 
     let updated = group.clone();
-    persistence::save_connections_file(&path, &file)?;
+    save_connections_and_invalidate(&app, &path, &file)?;
 
     Ok(updated)
 }
@@ -3056,7 +3473,7 @@ pub async fn delete_connection_group<R: Runtime>(
 
     // Remove the group
     file.groups.retain(|g| g.id != id);
-    persistence::save_connections_file(&path, &file)?;
+    save_connections_and_invalidate(&app, &path, &file)?;
 
     Ok(())
 }
@@ -3083,7 +3500,7 @@ pub async fn move_connection_to_group<R: Runtime>(
     }
 
     let updated = conn.clone();
-    persistence::save_connections_file(&path, &file)?;
+    save_connections_and_invalidate(&app, &path, &file)?;
 
     Ok(updated)
 }
@@ -3102,7 +3519,7 @@ pub async fn reorder_groups<R: Runtime>(
         }
     }
 
-    persistence::save_connections_file(&path, &file)?;
+    save_connections_and_invalidate(&app, &path, &file)?;
     Ok(())
 }
 
@@ -3120,7 +3537,7 @@ pub async fn reorder_connections_in_group<R: Runtime>(
         }
     }
 
-    persistence::save_connections_file(&path, &file)?;
+    save_connections_and_invalidate(&app, &path, &file)?;
     Ok(())
 }
 
@@ -3150,4 +3567,164 @@ pub async fn get_server_now<R: Runtime>(
             other => other.to_string(),
         })
         .ok_or_else(|| "No timestamp returned from server".to_string())
+}
+
+#[tauri::command]
+pub async fn export_connections_payload<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<ExportPayload, String> {
+    let conn_path = get_config_path(&app)?;
+    let ssh_path = get_ssh_config_path(&app)?;
+
+    let mut conn_file = persistence::load_connections_file(&conn_path)?;
+    let mut ssh_connections = if ssh_path.exists() {
+        let content = fs::read_to_string(&ssh_path).map_err(|e| e.to_string())?;
+        serde_json::from_str::<Vec<SshConnection>>(&content).unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    let cache = app
+        .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
+        .inner()
+        .clone();
+
+    // Resolve passwords for database connections
+    for conn in &mut conn_file.connections {
+        if conn.params.save_in_keychain.unwrap_or(false) {
+            if let Ok(pwd) = credential_cache::get_db_password_cached(&cache, &conn.id) {
+                conn.params.password = Some(pwd);
+            }
+            if conn.params.ssh_enabled.unwrap_or(false) {
+                if let Ok(ssh_pwd) = credential_cache::get_ssh_password_cached(&cache, &conn.id) {
+                    conn.params.ssh_password = Some(ssh_pwd);
+                }
+                if let Ok(ssh_passphrase) =
+                    credential_cache::get_ssh_key_passphrase_cached(&cache, &conn.id)
+                {
+                    conn.params.ssh_key_passphrase = Some(ssh_passphrase);
+                }
+            }
+        }
+    }
+
+    // Resolve passwords for SSH connections
+    for ssh in &mut ssh_connections {
+        if ssh.save_in_keychain.unwrap_or(false) {
+            if let Ok(pwd) = credential_cache::get_ssh_password_cached(&cache, &ssh.id) {
+                ssh.password = Some(pwd);
+            }
+            if let Ok(passphrase) = credential_cache::get_ssh_key_passphrase_cached(&cache, &ssh.id)
+            {
+                ssh.key_passphrase = Some(passphrase);
+            }
+        }
+    }
+
+    Ok(ExportPayload {
+        version: 1,
+        groups: conn_file.groups,
+        connections: conn_file.connections,
+        ssh_connections,
+    })
+}
+
+#[tauri::command]
+pub async fn import_connections_payload<R: Runtime>(
+    app: AppHandle<R>,
+    payload: ExportPayload,
+) -> Result<(), String> {
+    let conn_path = get_config_path(&app)?;
+    let ssh_path = get_ssh_config_path(&app)?;
+
+    let mut current_file = persistence::load_connections_file(&conn_path).unwrap_or_default();
+    let mut current_ssh = if ssh_path.exists() {
+        let content = fs::read_to_string(&ssh_path).map_err(|e| e.to_string())?;
+        serde_json::from_str::<Vec<SshConnection>>(&content).unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    let cache = app
+        .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
+        .inner()
+        .clone();
+
+    // Merge groups
+    for new_group in payload.groups {
+        if let Some(existing) = current_file.groups.iter_mut().find(|g| g.id == new_group.id) {
+            *existing = new_group;
+        } else {
+            current_file.groups.push(new_group);
+        }
+    }
+
+    // Merge connections and handle passwords
+    for mut new_conn in payload.connections {
+        // Handle passwords in keychain
+        if new_conn.params.save_in_keychain.unwrap_or(false) {
+            if let Some(pwd) = &new_conn.params.password {
+                keychain_utils::set_db_password(&new_conn.id, pwd)?;
+                credential_cache::set_db_password_cached(&cache, &new_conn.id, pwd);
+            }
+            if new_conn.params.ssh_enabled.unwrap_or(false) {
+                if let Some(ssh_pwd) = &new_conn.params.ssh_password {
+                    keychain_utils::set_ssh_password(&new_conn.id, ssh_pwd)?;
+                    credential_cache::set_ssh_password_cached(&cache, &new_conn.id, ssh_pwd);
+                }
+                if let Some(ssh_passphrase) = &new_conn.params.ssh_key_passphrase {
+                    keychain_utils::set_ssh_key_passphrase(&new_conn.id, ssh_passphrase)?;
+                    credential_cache::set_ssh_key_passphrase_cached(
+                        &cache,
+                        &new_conn.id,
+                        ssh_passphrase,
+                    );
+                }
+            }
+            // Clear passwords from struct before saving to disk
+            new_conn.params.password = None;
+            new_conn.params.ssh_password = None;
+            new_conn.params.ssh_key_passphrase = None;
+        }
+
+        if let Some(existing) = current_file
+            .connections
+            .iter_mut()
+            .find(|c| c.id == new_conn.id)
+        {
+            *existing = new_conn;
+        } else {
+            current_file.connections.push(new_conn);
+        }
+    }
+
+    // Merge SSH connections and handle passwords
+    for mut new_ssh in payload.ssh_connections {
+        if new_ssh.save_in_keychain.unwrap_or(false) {
+            if let Some(pwd) = &new_ssh.password {
+                keychain_utils::set_ssh_password(&new_ssh.id, pwd)?;
+                credential_cache::set_ssh_password_cached(&cache, &new_ssh.id, pwd);
+            }
+            if let Some(passphrase) = &new_ssh.key_passphrase {
+                keychain_utils::set_ssh_key_passphrase(&new_ssh.id, passphrase)?;
+                credential_cache::set_ssh_key_passphrase_cached(&cache, &new_ssh.id, passphrase);
+            }
+            // Clear passwords from struct before saving to disk
+            new_ssh.password = None;
+            new_ssh.key_passphrase = None;
+        }
+
+        if let Some(existing) = current_ssh.iter_mut().find(|s| s.id == new_ssh.id) {
+            *existing = new_ssh;
+        } else {
+            current_ssh.push(new_ssh);
+        }
+    }
+
+    // Save files
+    save_connections_and_invalidate(&app, &conn_path, &current_file)?;
+    let ssh_json = serde_json::to_string_pretty(&current_ssh).map_err(|e| e.to_string())?;
+    fs::write(ssh_path, ssh_json).map_err(|e| e.to_string())?;
+
+    Ok(())
 }

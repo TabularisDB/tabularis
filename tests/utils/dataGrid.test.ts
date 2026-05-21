@@ -61,6 +61,25 @@ describe('dataGrid utils', () => {
       expect(formatCellValue(nested)).toBe('{"user":{"name":"John","address":{"city":"NYC"}}}');
     });
 
+    it('should JSON-encode scalar strings in jsonb columns', () => {
+      expect(formatCellValue('🦊', 'NULL', 'jsonb')).toBe('"🦊"');
+      expect(formatCellValue('hello', 'NULL', 'json')).toBe('"hello"');
+    });
+
+    it('should JSON-encode scalar numbers in jsonb columns', () => {
+      expect(formatCellValue(42, 'NULL', 'jsonb')).toBe('42');
+      expect(formatCellValue(3.14, 'NULL', 'json')).toBe('3.14');
+    });
+
+    it('should JSON-encode scalar booleans in jsonb columns', () => {
+      expect(formatCellValue(true, 'NULL', 'jsonb')).toBe('true');
+      expect(formatCellValue(false, 'NULL', 'json')).toBe('false');
+    });
+
+    it('should keep null label for null values in jsonb columns', () => {
+      expect(formatCellValue(null, 'NULL', 'jsonb')).toBe('NULL');
+    });
+
     it('should handle empty objects and arrays', () => {
       expect(formatCellValue({})).toBe('{}');
       expect(formatCellValue([])).toBe('[]');

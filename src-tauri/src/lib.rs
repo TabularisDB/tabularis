@@ -14,6 +14,9 @@ pub mod cli;
 pub mod clipboard_import;
 pub mod commands;
 pub mod config;
+pub mod connection_cache;
+#[cfg(test)]
+pub mod connection_cache_tests;
 pub mod credential_cache;
 pub mod dump_commands; // Added
 #[cfg(test)]
@@ -23,10 +26,13 @@ pub mod explain_import;
 #[cfg(test)]
 pub mod explain_import_tests;
 pub mod export;
+#[cfg(test)]
+pub mod export_import_tests;
 pub mod health_check;
 pub mod heartbeat;
 #[cfg(test)]
 pub mod heartbeat_tests;
+pub mod json_viewer;
 pub mod keychain_utils;
 pub mod log_commands;
 pub mod logger;
@@ -159,7 +165,11 @@ pub fn run() {
         .manage(std::sync::Arc::new(
             credential_cache::CredentialCache::default(),
         ))
+        .manage(std::sync::Arc::new(
+            connection_cache::ConnectionCache::default(),
+        ))
         .manage(explain_import::PendingExplainFile::default())
+        .manage(json_viewer::JsonViewerStore::default())
         .setup(move |app| {
             // Read persisted config to know which external plugins are enabled.
             // `None` means no preference has been saved yet → load all installed plugins.
@@ -262,6 +272,8 @@ pub fn run() {
             commands::move_connection_to_group,
             commands::reorder_groups,
             commands::reorder_connections_in_group,
+            commands::export_connections_payload,
+            commands::import_connections_payload,
             commands::get_schemas,
             commands::get_available_databases,
             commands::get_tables,
@@ -279,6 +291,7 @@ pub fn run() {
             commands::get_file_stats,
             commands::read_file_as_data_url,
             commands::execute_query,
+            commands::execute_query_batch,
             commands::get_server_now,
             commands::explain_query_plan,
             commands::count_query,
@@ -356,6 +369,11 @@ pub fn run() {
             commands::get_routines,
             commands::get_routine_parameters,
             commands::get_routine_definition,
+            // Triggers
+            commands::get_triggers,
+            commands::get_trigger_definition,
+            commands::create_trigger,
+            commands::drop_trigger,
             // MCP
             mcp::install::get_mcp_status,
             mcp::install::install_mcp_config,
@@ -415,6 +433,10 @@ pub fn run() {
             plugins::commands::get_plugin_dir,
             plugins::commands::read_plugin_file,
             plugins::manager::get_plugin_startup_errors,
+            // JSON Viewer
+            json_viewer::open_json_viewer_window,
+            json_viewer::get_json_viewer_session,
+            json_viewer::complete_json_viewer_session,
             // Task Manager
             task_manager::get_process_list,
             task_manager::get_system_stats,

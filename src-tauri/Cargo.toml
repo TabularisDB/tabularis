@@ -1,6 +1,6 @@
 [package]
 name = "tabularis"
-version = "0.10.2"
+version = "0.11.0"
 description = "tabularis - A database manager for developers"
 authors = ["Debba"]
 edition = "2021"
@@ -70,6 +70,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "logg
 rustls-pemfile = "2"
 rustls-platform-verifier = "0.6"
 notify = "6"
+ulid = "1.2.1"
 
 # GTK dependencies for Wayland window title workaround (Linux only)
 [target.'cfg(target_os = "linux")'.dependencies]

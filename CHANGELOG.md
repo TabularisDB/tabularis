@@ -1,3 +1,74 @@
+# [0.11.0](https://github.com/TabularisDB/tabularis/compare/v0.10.3...v0.11.0) (2026-05-18)
+
+
+* feat(editor)!: enable Enter-accepts-suggestion by default ([67a008d](https://github.com/TabularisDB/tabularis/commit/67a008d06193be743a4a8c0893020601db7b74db)), closes [#186](https://github.com/TabularisDB/tabularis/issues/186)
+
+
+### Bug Fixes
+
+* **commands:** preserve all in-flight abort handles per connection ([4521335](https://github.com/TabularisDB/tabularis/commit/452133565fdd098223aa93fdbb8281a5254eb4ae)), closes [#201](https://github.com/TabularisDB/tabularis/issues/201)
+* **demo:** set utf8mb4 client charset on MySQL seeds ([e4cd824](https://github.com/TabularisDB/tabularis/commit/e4cd824c5d89eecbc67bc147fea27cb0cb4c5093))
+* **diff:** word-wrap the original pane in side-by-side mode ([a666586](https://github.com/TabularisDB/tabularis/commit/a666586c7f5fab74cd2154a1ac89f2c97c81766c)), closes [#4454](https://github.com/TabularisDB/tabularis/issues/4454) [#4701](https://github.com/TabularisDB/tabularis/issues/4701) [#3346](https://github.com/TabularisDB/tabularis/issues/3346)
+* **drivers:** share a single connection across multi-statement scripts ([8eed14b](https://github.com/TabularisDB/tabularis/commit/8eed14b20135a7e6a091f3ce404d484d16635a6e)), closes [#199](https://github.com/TabularisDB/tabularis/issues/199)
+* **editor:** restore correct SQL string color across all themes ([c3f21c4](https://github.com/TabularisDB/tabularis/commit/c3f21c4f1165361541208360bbacc1e05e87e48c))
+* **export,dump:** apply same per-slot abort-handle fix to export/dump/import ([975d943](https://github.com/TabularisDB/tabularis/commit/975d9431de5e8ff1a587d8710ea4035ac3c2e3c2)), closes [#201](https://github.com/TabularisDB/tabularis/issues/201)
+* **export:** expand SSH params and refactor into testable utilities ([888a6be](https://github.com/TabularisDB/tabularis/commit/888a6be92395b2b11fd669306aaae13db2983345)), closes [#184](https://github.com/TabularisDB/tabularis/issues/184)
+* incorrect get_app_config_dir when running in mpc mode in windows ([cc57d0a](https://github.com/TabularisDB/tabularis/commit/cc57d0a6fde55e0b468cfa0b07977b2e06d438e7))
+* **json:** bound the sidebar tree view so long strings stop overlapping ([506f0fc](https://github.com/TabularisDB/tabularis/commit/506f0fc37ff39308c090c01015da5d815d4efab1))
+* **json:** cast JsonTreeView container style spread to satisfy tsc -b ([715a030](https://github.com/TabularisDB/tabularis/commit/715a030700cf2af3a1adbb8810acf8afa27c0124))
+* **json:** compute missing-session-id error during render, not in effect ([1751421](https://github.com/TabularisDB/tabularis/commit/17514211f64d7a9625ce89d48b27e895c9a89871))
+* **postgres:** bind JSON/JSONB columns natively + JSON-encode scalars ([05def65](https://github.com/TabularisDB/tabularis/commit/05def657c35dcb1f5452f280f27cbd0bc6ff9707))
+* **test:** repair test suite after main merge ([01b5568](https://github.com/TabularisDB/tabularis/commit/01b55688502b00299e613345aac5f9b073a53e37))
+
+
+### Features
+
+* **branding:** add logo SVG files to public ([f562cd6](https://github.com/TabularisDB/tabularis/commit/f562cd619d3aba986756088c159589397e85d764))
+* database trigger management (PostgreSQL, MySQL, SQLite) ([fd66558](https://github.com/TabularisDB/tabularis/commit/fd66558298ea08e5e55e10806352a13416de5020))
+* **demo:** add Docker Compose demo with seeded databases ([55b4db8](https://github.com/TabularisDB/tabularis/commit/55b4db82857875c39072940293c0084fd688d4c3))
+* **demo:** seed json_demo table in postgres + mysql init ([38dbaca](https://github.com/TabularisDB/tabularis/commit/38dbaca299df7cec1e0e4238a8c5c10edff2227e))
+* **demo:** seed text_demo table for issue [#207](https://github.com/TabularisDB/tabularis/issues/207) manual testing ([626cc76](https://github.com/TabularisDB/tabularis/commit/626cc766d164cea6df675eea840f6053061320ac))
+* **editor:** foreign key click-to-navigate in result grid ([a7a12ad](https://github.com/TabularisDB/tabularis/commit/a7a12ad4301d956ee9fae0feb836ffa7064d143c))
+* **editor:** make Enter accept autocomplete suggestion configurable ([4e07b82](https://github.com/TabularisDB/tabularis/commit/4e07b825b0a59e101938798d01708555e3d3a5b1))
+* **i18n:** add export/import translations and export warning in locales ([a75a065](https://github.com/TabularisDB/tabularis/commit/a75a06504a9a8fd300d08e50b2d3a320db211448))
+* **i18n:** add Japanese (ja) translation ([b81bcb1](https://github.com/TabularisDB/tabularis/commit/b81bcb19775bd2039c1d43d8320e66e5b15d9246))
+* **json:** in-cell JSON highlighting (JsonCell) + inline expansion editor ([7132b70](https://github.com/TabularisDB/tabularis/commit/7132b70c867da571d86d52fa0844c544d5565b96))
+* **json:** inline diff for pending changes + fix JSON cell highlight ([e136112](https://github.com/TabularisDB/tabularis/commit/e13611288abab7f182a7259d1eeafffb5ddca030))
+* **json:** multi-mode JsonInput (Code / Tree / Raw editors) ([2a482c2](https://github.com/TabularisDB/tabularis/commit/2a482c28de725dbbccfe92404eca6a8a93313505))
+* **json:** native Tauri JSON viewer window with bounds memory + per-cell dedup ([b9809b6](https://github.com/TabularisDB/tabularis/commit/b9809b6c17151d4be087098992d9bbb3d4c746be))
+* **json:** per-connection "detect JSON in text columns" setting ([1fbd460](https://github.com/TabularisDB/tabularis/commit/1fbd4603c0eae372ac04d9de2d062bb4a452140c))
+* **json:** sidebar gets diff toggle + detect-JSON-in-text support ([d2facd1](https://github.com/TabularisDB/tabularis/commit/d2facd18a5bb6ad64a0bb9bc9107aac647ac7c43))
+* **plugins:** add firestore plugin to registry ([24e36c8](https://github.com/TabularisDB/tabularis/commit/24e36c892f06b366a9e97645019e049ac95df38f))
+* **sidebar:** drag-resizable row editor ([04269bf](https://github.com/TabularisDB/tabularis/commit/04269bfc049acdf1cbb3274684ec584ea4c60062))
+* **tabularis-discord-release:** add tabularis-discord-release skill and ([f41cfdf](https://github.com/TabularisDB/tabularis/commit/f41cfdff17ab120db5abb8aa2179d3178825cb81))
+* **text:** chevron expand + Monaco diff for long text/longtext cells ([d9212c7](https://github.com/TabularisDB/tabularis/commit/d9212c7c0f245e5dbad641fc458f564986a60df2)), closes [#181](https://github.com/TabularisDB/tabularis/issues/181)
+* **utils:** add newConsole helper, tests, and wire to sidebar ([f7e6b0b](https://github.com/TabularisDB/tabularis/commit/f7e6b0b16f4bf248d4bc203d9867c7b869e0743a))
+
+
+### BREAKING CHANGES
+
+* Pressing Enter while an autocomplete suggestion is
+highlighted now accepts it instead of inserting a newline. Users who
+preferred the previous behaviour can turn it off under
+Appearance -> Editor -> "Accept Suggestion with Enter".
+
+This matches what most code editors do out of the box and is the
+
+## [0.10.3](https://github.com/debba/tabularis/compare/v0.10.2...v0.10.3) (2026-05-11)
+
+
+### Bug Fixes
+
+* **DataGrid:** handle empty column names from drivers ([b015b35](https://github.com/debba/tabularis/commit/b015b3507a92516a365c772f09731c4fedfdcbfa))
+* **notebook:** render db selector dropdown via portal to avoid clipping ([b0f51ed](https://github.com/debba/tabularis/commit/b0f51ed6a48a6a1b3ea3bb69e5c9acfdc85de354))
+
+### Features
+
+* Add connection export and import functionality ([aee7df1](https://github.com/debba/tabularis/commit/aee7df1718542a5b3ad6ff9e6e5d5f9bfe41fc6e))
+* **connections:** add import button to empty state ([b1f9844](https://github.com/debba/tabularis/commit/b1f9844f9bf38644de8ddb03bc9447f25a9a294d))
+* **editor:** add editor error boundary and tests ([3001409](https://github.com/debba/tabularis/commit/30014098d03f5b129ad3f9314de4d07d89e161c1))
+* **sidebar:** add Discord community callout and update links ([26643cf](https://github.com/debba/tabularis/commit/26643cfb7df7c4ef941e7d3ba9e28806e7c1b43b))
+
 ## [0.10.2](https://github.com/debba/tabularis/compare/v0.10.1...v0.10.2) (2026-05-08)
 
 
@@ -965,6 +1036,3 @@ requires_length and requires_precision and adds default_length
 * **settings:** implement query limit UI and backend streaming support ([9fd89f3](https://github.com/debba/debba.sql/commit/9fd89f3c3b3538b0d09fe8324e89ba4172339100))
 * **ssh:** add SSH tunnel support with connection edit/delete UI ([3a9fc49](https://github.com/debba/debba.sql/commit/3a9fc495d44cdd907d5f561a73d5734d0ccb0590))
 * **ssh:** add system SSH backend and URL encoding for DB URLs ([5e93ea3](https://github.com/debba/debba.sql/commit/5e93ea38f1a74966ab1a41f5ddda4e8cb13bb23c))
-
-
-

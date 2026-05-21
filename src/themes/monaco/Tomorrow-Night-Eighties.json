@@ -104,6 +104,10 @@
     },
     {
       "foreground": "99cc99",
+      "token": "string.sql"
+    },
+    {
+      "foreground": "99cc99",
       "token": "constant.other.symbol"
     },
     {

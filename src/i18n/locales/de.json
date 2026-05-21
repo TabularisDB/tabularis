@@ -221,7 +221,11 @@
     "searchPlaceholder": "Verbindungen suchen...",
     "noSearchResults": "Keine Verbindung entspricht \"{{query}}\"",
     "gridView": "Rasteransicht",
-    "listView": "Listenansicht"
+    "listView": "Listenansicht",
+    "export": "Verbindungen exportieren",
+    "import": "Verbindungen importieren",
+    "exportTitle": "Verbindungen exportieren",
+    "exportWarning": "Die exportierte Datei enthält deine Datenbank- und SSH-Passwörter im Klartext. Bewahre sie sicher auf."
   },
   "settings": {
     "title": "Einstellungen",
@@ -239,6 +243,8 @@
     "delimiterSemicolon": "Semikolon (;)",
     "delimiterTab": "Tabulator",
     "delimiterPipe": "Pipe (|)",
+    "detectJsonInTextColumns": "JSON in Text-Spalten erkennen",
+    "detectJsonInTextColumnsDesc": "Zeigt JSON-Viewer-Bedienelemente, wenn eine nicht typisierte Text-Zelle ein JSON-Objekt oder -Array enthält. Verursacht kleine Parse-Kosten pro Zelle.",
     "appearance": "Darstellung",
     "localization": "Lokalisierung",
     "themeSelection": "Themaauswahl",
@@ -268,6 +274,8 @@
     "appearance_editorWordWrapDesc": "Lange Zeilen im Editor umbrechen statt horizontal zu scrollen.",
     "appearance_editorShowLineNumbers": "Zeilennummern anzeigen",
     "appearance_editorShowLineNumbersDesc": "Zeigt Zeilennummern im Rand des Editors an.",
+    "appearance_editorAcceptSuggestionOnEnter": "Vorschlag mit Eingabetaste übernehmen",
+    "appearance_editorAcceptSuggestionOnEnterDesc": "Erlaubt der Eingabetaste (zusätzlich zu Tab), den aktiven Autovervollständigungsvorschlag zu übernehmen. Bei deaktivierter Option fügt Enter immer einen Zeilenumbruch ein.",
     "editConfigJson": "config.json bearbeiten",
     "editConfigJsonDesc": "Bearbeite die rohe Konfigurationsdatei direkt. Ein Neustart ist erforderlich, um Änderungen anzuwenden.",
     "configJsonModal": {
@@ -616,7 +624,9 @@
       "disable": "Deaktivieren",
       "allow": "Erlauben",
       "prefer": "Bevorzugen",
-      "require": "Erforderlich"
+      "require": "Erforderlich",
+      "verify-ca": "CA prüfen",
+      "verify-full": "Vollständig prüfen"
     }
   },
   "sshConnections": {
@@ -643,6 +653,7 @@
     "savedInKeychain": "Passwort im System-Keychain gespeichert"
   },
   "dataGrid": {
+    "newRow": "NEU",
     "noData": "Keine Daten zum Anzeigen",
     "editRow": "Zeile bearbeiten",
     "deleteRow": "Zeile löschen",
@@ -671,7 +682,8 @@
     "setNull": "NULL setzen",
     "setDefault": "DEFAULT setzen",
     "setEmpty": "EMPTY setzen",
-    "setServerNow": "Aktuellen Zeitstempel einfügen"
+    "setServerNow": "Aktuellen Zeitstempel einfügen",
+    "openReferenced": "Referenzierte Zeile in {{table}} öffnen"
   },
   "editRow": {
     "title": "Zeile bearbeiten",
@@ -743,7 +755,8 @@
     "tabSwitcher": {
       "title": "Geöffnete Tabs",
       "hint": "Ctrl+Tab",
-      "tabs": "Tabs",
+      "tabs_one": "{{count}} Tab",
+      "tabs_other": "{{count}} Tabs",
       "escHint": "Esc zum Schließen"
     },
     "submitChanges": "Änderungen übernehmen",
@@ -1109,7 +1122,27 @@
     "placeholder": "JSON eingeben...",
     "format": "Formatieren",
     "valid": "Gültiges JSON",
-    "invalid": "Ungültiges JSON"
+    "invalid": "Ungültiges JSON",
+    "mode": {
+      "code": "Code",
+      "tree": "Baum",
+      "raw": "Rohtext"
+    },
+    "expand": "Aufklappen",
+    "collapse": "Zuklappen",
+    "search": "Suchen",
+    "copyPath": "Pfad kopieren",
+    "copyValue": "Wert kopieren",
+    "addItem": "Element hinzufügen",
+    "removeItem": "Element entfernen"
+  },
+  "jsonViewer": {
+    "close": "Schließen",
+    "save": "Speichern"
+  },
+  "jsonCell": {
+    "expand": "JSON-Baum ein-/ausklappen",
+    "openViewer": "JSON-Viewer öffnen"
   },
   "rowEditor": {
     "title": "Zeile bearbeiten",
@@ -1119,7 +1152,8 @@
     "enterValue": "Wert eingeben..."
   },
   "contextMenu": {
-    "openSidebar": "Seitenleisten-Editor öffnen"
+    "openSidebar": "Seitenleisten-Editor öffnen",
+    "openJsonEditor": "Im JSON-Editor öffnen"
   },
   "blobInput": {
     "noData": "Keine BLOB-Daten",
@@ -1370,5 +1404,11 @@
     "reasonPlaceholder": "z.B. In Prod riskant, bestätigen…",
     "approve": "Freigeben",
     "deny": "Ablehnen"
+  },
+  "discordCallout": {
+    "title": "Neue Discord-Community!",
+    "body": "Wir haben einen eigenen Treffpunkt für Tabularis-Nutzer eröffnet: Hilfe, Tipps und Mitgestaltung der Roadmap.",
+    "cta": "Jetzt beitreten",
+    "dismiss": "Schließen"
   }
 }

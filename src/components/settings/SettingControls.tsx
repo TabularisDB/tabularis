@@ -72,11 +72,6 @@ export function SettingRow({
 
 /* ── Toggle ── */
 
-const TOGGLE_CLASS =
-  "w-10 h-6 rounded-full appearance-none relative transition-colors bg-base border border-strong " +
-  "after:content-[''] after:absolute after:top-1 after:left-1 after:w-4 after:h-4 after:bg-white after:rounded-full after:transition-transform " +
-  "checked:bg-blue-600 checked:border-blue-600 checked:after:translate-x-4";
-
 interface SettingToggleProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
@@ -89,16 +84,28 @@ export function SettingToggle({
   disabled,
 }: SettingToggleProps) {
   return (
-    <input
-      type="checkbox"
-      checked={checked}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.checked)}
+    <label
       className={clsx(
-        TOGGLE_CLASS,
+        "relative inline-flex items-center w-10 h-6 shrink-0",
         disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
       )}
-    />
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        className="peer sr-only"
+      />
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 rounded-full bg-base border border-strong transition-colors peer-checked:bg-blue-600 peer-checked:border-blue-600"
+      />
+      <span
+        aria-hidden="true"
+        className="relative ml-1 w-4 h-4 rounded-full bg-white transition-transform peer-checked:translate-x-4"
+      />
+    </label>
   );
 }
 

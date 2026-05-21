@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 409 409" role="img" aria-labelledby="title desc">
+  <title id="title">Tabularis grid logo concept</title>
+  <desc id="desc">An isometric T mark where blocks read like database cells.</desc>
+  <defs>
+    <linearGradient id="cellTop" x1="50" y1="72" x2="360" y2="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#26245c"/>
+      <stop offset=".5" stop-color="#2a3a73"/>
+      <stop offset="1" stop-color="#12d8ca"/>
+    </linearGradient>
+    <linearGradient id="cellLeft" x1="69" y1="123" x2="221" y2="345" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#222051"/>
+      <stop offset=".72" stop-color="#322468"/>
+      <stop offset="1" stop-color="#7934ad"/>
+    </linearGradient>
+    <linearGradient id="cellRight" x1="222" y1="168" x2="354" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#25255a"/>
+      <stop offset=".5" stop-color="#4f42b1"/>
+      <stop offset="1" stop-color="#0fd5c8"/>
+    </linearGradient>
+    <filter id="soft" x="-12%" y="-12%" width="124%" height="124%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#050512" flood-opacity=".35"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#soft)" stroke="#070715" stroke-width="6" stroke-linejoin="round">
+    <path fill="url(#cellTop)" d="M120 18 195 57 120 97 45 57Z"/>
+    <path fill="url(#cellTop)" d="M204 62 279 101 204 141 129 101Z"/>
+    <path fill="url(#cellTop)" d="M288 106 363 145 288 185 213 145Z"/>
+
+    <path fill="url(#cellLeft)" d="M45 70 120 109 120 181 45 142Z"/>
+    <path fill="url(#cellLeft)" d="M129 114 204 153 204 225 129 186Z"/>
+    <path fill="url(#cellRight)" d="M213 158 288 197 288 269 213 230Z"/>
+    <path fill="url(#cellRight)" d="M297 197 372 158 372 230 297 269Z"/>
+
+    <path fill="url(#cellLeft)" d="M129 203 204 242 204 314 129 275Z"/>
+    <path fill="url(#cellRight)" d="M213 247 288 286 213 326Z"/>
+    <path fill="url(#cellLeft)" d="M129 292 204 331 204 388 129 349Z"/>
+    <path fill="url(#cellRight)" d="M213 331 288 292 288 349 213 388Z"/>
+  </g>
+
+  <g fill="none" stroke="#7cf7ef" stroke-width="2" stroke-linecap="round" opacity=".55">
+    <path d="M73 57 120 82 167 57"/>
+    <path d="M157 101 204 126 251 101"/>
+    <path d="M241 145 288 170 335 145"/>
+    <path d="M151 223 181 239"/>
+    <path d="M151 261 181 277"/>
+    <path d="M235 267 265 283"/>
+    <path d="M151 328 181 344"/>
+    <path d="M235 328 265 312"/>
+  </g>
+</svg>

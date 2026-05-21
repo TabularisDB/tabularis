@@ -1,0 +1,84 @@
+name: tabularis-demo
+
+services:
+  # ---------------------------------------------------------------------------
+  # MySQL 8 — Common demo + Blog demo
+  # ---------------------------------------------------------------------------
+  mysql:
+    image: mysql:8.4
+    container_name: tabularis-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: Tabularis_Demo_2026!
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init/mysql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pTabularis_Demo_2026!"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16 — Common demo + Analytics demo (JSONB)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16
+    container_name: tabularis-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Tabularis_Demo_2026!
+      POSTGRES_DB: tabularis_demo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tabularis_demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ---------------------------------------------------------------------------
+  # SQL Server 2022 — Common demo + Finance demo
+  # The base image does NOT auto-run init scripts, so a sidecar runs them
+  # via sqlcmd once the server is healthy. Scripts are idempotent.
+  # On Apple Silicon, platform: linux/amd64 lets it run under Rosetta.
+  # ---------------------------------------------------------------------------
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: tabularis-mssql
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: Tabularis_Demo_2026!
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+
+  mssql-init:
+    image: mcr.microsoft.com/mssql-tools
+    container_name: tabularis-mssql-init
+    platform: linux/amd64
+    depends_on:
+      - mssql
+    environment:
+      MSSQL_HOST: mssql
+      MSSQL_USER: sa
+      MSSQL_PASSWORD: Tabularis_Demo_2026!
+    volumes:
+      - ./init/mssql:/init:ro
+    entrypoint: ["/bin/bash", "/init/run-init.sh"]
+    restart: "no"
+
+volumes:
+  mysql_data:
+  postgres_data:
+  mssql_data:

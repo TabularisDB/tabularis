@@ -8,10 +8,10 @@ import type { ReactNode } from 'react';
 vi.mock('@monaco-editor/react', async () => {
   return {
     default: ({ onChange, onMount, defaultValue, options }: any) => {
-      // Simulate Monaco editor behavior
       return (
         <textarea
           data-testid="monaco-editor"
+          data-accept-suggestion-on-enter={options?.acceptSuggestionOnEnter}
           defaultValue={defaultValue}
           onChange={(e) => onChange?.(e.target.value)}
         />
@@ -223,5 +223,51 @@ describe('SqlEditorWrapper', () => {
     );
 
     expect(container).toBeInTheDocument();
+  });
+
+  describe('acceptSuggestionOnEnter mapping', () => {
+    const renderWith = (editorAcceptSuggestionOnEnter: boolean | undefined, key: string) => {
+      const ctx = {
+        settings: { ...DEFAULT_SETTINGS, editorAcceptSuggestionOnEnter },
+        updateSetting: vi.fn(),
+        isLoading: false,
+      };
+      const localWrapper = ({ children }: { children: ReactNode }) => (
+        <SettingsContext.Provider value={ctx}>{children}</SettingsContext.Provider>
+      );
+      return render(
+        <SqlEditorWrapper
+          initialValue=""
+          onChange={mockOnChange}
+          onRun={mockOnRun}
+          editorKey={key}
+        />,
+        { wrapper: localWrapper }
+      );
+    };
+
+    it('passes "off" to Monaco when the setting is false', () => {
+      renderWith(false, 'accept-off');
+      expect(screen.getByTestId('monaco-editor')).toHaveAttribute(
+        'data-accept-suggestion-on-enter',
+        'off'
+      );
+    });
+
+    it('passes "smart" to Monaco when the setting is true', () => {
+      renderWith(true, 'accept-on');
+      expect(screen.getByTestId('monaco-editor')).toHaveAttribute(
+        'data-accept-suggestion-on-enter',
+        'smart'
+      );
+    });
+
+    it('defaults to "smart" when the setting is undefined', () => {
+      renderWith(undefined, 'accept-undefined');
+      expect(screen.getByTestId('monaco-editor')).toHaveAttribute(
+        'data-accept-suggestion-on-enter',
+        'smart'
+      );
+    });
   });
 });

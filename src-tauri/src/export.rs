@@ -1,20 +1,32 @@
-use crate::commands::{find_connection_by_id, resolve_connection_params};
-use crate::drivers::mysql::extract::extract_value as extract_mysql_value;
-use crate::drivers::postgres::extract::extract_value as extract_postgres_value;
-use crate::drivers::sqlite::extract::extract_value as extract_sqlite_value;
-use crate::pool_manager::{get_mysql_pool, get_postgres_pool, get_sqlite_pool};
-use futures::StreamExt;
-use serde::Serialize;
-use sqlx::{Column, Row};
+mod format;
+mod progress;
+mod sink;
+
+#[cfg(test)]
+mod tests;
+
+pub use format::{parse_csv_delimiter, value_to_csv_string, ExportFormat, DEFAULT_CSV_DELIMITER};
+pub use progress::{ProgressEmitter, DEFAULT_INTERVAL as DEFAULT_PROGRESS_INTERVAL};
+pub use sink::{CsvSink, JsonSink, RowSink};
+
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufWriter, Write};
+use std::io::BufWriter;
 use std::sync::{Arc, Mutex};
+
+use serde::Serialize;
+use serde_json::Value;
 use tauri::{AppHandle, Emitter, Runtime, State};
-use tokio::task::AbortHandle;
+
+use crate::commands::{
+    expand_ssh_connection_params, find_connection_by_id, register_abort_handle,
+    resolve_connection_params_with_id, unregister_abort_handle, AbortHandleMap,
+};
+use crate::drivers::{mysql, postgres, sqlite};
+use crate::models::ConnectionParams;
 
 pub struct ExportCancellationState {
-    pub handles: Arc<Mutex<HashMap<String, AbortHandle>>>,
+    pub handles: Arc<Mutex<AbortHandleMap>>,
 }
 
 impl Default for ExportCancellationState {
@@ -26,94 +38,14 @@ impl Default for ExportCancellationState {
 }
 
 #[derive(Clone, Serialize)]
-struct ExportProgress {
+struct ExportProgressPayload {
     rows_processed: u64,
 }
 
-fn value_to_string(val: serde_json::Value) -> String {
-    match val {
-        serde_json::Value::String(s) => s,
-        serde_json::Value::Null => "NULL".to_string(),
-        v => v.to_string(),
-    }
-}
+const EXPORT_PROGRESS_EVENT: &str = "export_progress";
 
-macro_rules! export_rows {
-    ($rows:expr, $extract_fn:expr, $format:expr, $delimiter_byte:expr, $writer:expr, $app:expr) => {{
-        let mut count = 0u64;
-
-        if $format == "csv" {
-            let mut csv_wtr = csv::WriterBuilder::new()
-                .delimiter($delimiter_byte)
-                .from_writer($writer);
-            let mut headers_written = false;
-
-            while let Some(row_res) = $rows.next().await {
-                let row = row_res.map_err(|e| e.to_string())?;
-
-                if !headers_written {
-                    let headers: Vec<String> =
-                        row.columns().iter().map(|c| c.name().to_string()).collect();
-                    csv_wtr.write_record(&headers).map_err(|e| e.to_string())?;
-                    headers_written = true;
-                }
-
-                let record: Vec<String> = (0..row.columns().len())
-                    .map(|i| value_to_string($extract_fn(&row, i, None)))
-                    .collect();
-                csv_wtr.write_record(&record).map_err(|e| e.to_string())?;
-
-                count += 1;
-                if count % 100 == 0 {
-                    $app.emit(
-                        "export_progress",
-                        ExportProgress {
-                            rows_processed: count,
-                        },
-                    )
-                    .unwrap_or(());
-                }
-            }
-            csv_wtr.flush().map_err(|e| e.to_string())?;
-        } else {
-            let mut writer = $writer;
-            writer.write_all(b"[").map_err(|e| e.to_string())?;
-            let mut first = true;
-
-            while let Some(row_res) = $rows.next().await {
-                let row = row_res.map_err(|e| e.to_string())?;
-
-                if !first {
-                    writer.write_all(b",").map_err(|e| e.to_string())?;
-                }
-                first = false;
-
-                let mut obj = serde_json::Map::new();
-                let columns = row.columns();
-                for i in 0..columns.len() {
-                    let name = columns[i].name().to_string();
-                    let val = $extract_fn(&row, i, None);
-                    obj.insert(name, val);
-                }
-                serde_json::to_writer(&mut writer, &obj).map_err(|e| e.to_string())?;
-
-                count += 1;
-                if count % 100 == 0 {
-                    $app.emit(
-                        "export_progress",
-                        ExportProgress {
-                            rows_processed: count,
-                        },
-                    )
-                    .unwrap_or(());
-                }
-            }
-            writer.write_all(b"]").map_err(|e| e.to_string())?;
-            writer.flush().map_err(|e| e.to_string())?;
-        }
-
-        Ok::<(), String>(())
-    }};
+fn sanitize_query(query: &str) -> String {
+    query.trim().trim_end_matches(';').to_string()
 }
 
 #[tauri::command]
@@ -121,13 +53,14 @@ pub async fn cancel_export(
     state: State<'_, ExportCancellationState>,
     connection_id: String,
 ) -> Result<(), String> {
-    let mut handles = state.handles.lock().unwrap();
-    if let Some(handle) = handles.remove(&connection_id) {
+    let entries = {
+        let mut handles = state.handles.lock().unwrap();
+        handles.remove(&connection_id).unwrap_or_default()
+    };
+    for handle in entries {
         handle.abort();
-        Ok(())
-    } else {
-        Ok(())
     }
+    Ok(())
 }
 
 #[tauri::command]
@@ -140,83 +73,110 @@ pub async fn export_query_to_file<R: Runtime>(
     format: String,
     csv_delimiter: Option<String>,
 ) -> Result<(), String> {
-    let sanitized_query = query.trim().trim_end_matches(';').to_string();
+    let sanitized_query = sanitize_query(&query);
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let params = resolve_connection_params(&saved_conn.params)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let driver = saved_conn.params.driver.clone();
 
-    let delimiter_byte = csv_delimiter.and_then(|d| d.bytes().next()).unwrap_or(b',');
+    let export_format = ExportFormat::parse(&format)?;
+    let delimiter = parse_csv_delimiter(csv_delimiter.as_deref());
+
+    let app_for_task = app.clone();
+    let task_connection_id = connection_id.clone();
 
     let task = tokio::spawn(async move {
         let file = File::create(&file_path).map_err(|e| e.to_string())?;
         let writer = BufWriter::new(file);
-
-        match driver.as_str() {
-            "mysql" => {
-                let pool = get_mysql_pool(&params).await?;
-                let mut rows = sqlx::query(&sanitized_query).fetch(&pool);
-                export_rows!(
-                    rows,
-                    extract_mysql_value,
-                    format,
-                    delimiter_byte,
-                    writer,
-                    app
-                )
-            }
-            "postgres" => {
-                let pool = get_postgres_pool(&params).await?;
-                let client = pool
-                    .get()
-                    .await
-                    .map_err(|e| format!("failed to get postgres client: {:?}", e))?;
-
-                let params: Vec<i32> = vec![];
-                let mut rows = std::pin::pin!(client
-                    .query_raw(&sanitized_query, &params)
-                    .await
-                    .map_err(|e| format!("failed to execute postgres query: {:?}", e))?);
-
-                export_rows!(
-                    rows,
-                    extract_postgres_value,
-                    format,
-                    delimiter_byte,
-                    writer,
-                    app
-                )
-            }
-            "sqlite" => {
-                let pool = get_sqlite_pool(&params).await?;
-                let mut rows = sqlx::query(&sanitized_query).fetch(&pool);
-                export_rows!(
-                    rows,
-                    extract_sqlite_value,
-                    format,
-                    delimiter_byte,
-                    writer,
-                    app
-                )
-            }
-            _ => Err("Unsupported driver".into()),
-        }
+        run_export(
+            app_for_task,
+            &driver,
+            &params,
+            &sanitized_query,
+            writer,
+            export_format,
+            delimiter,
+        )
+        .await
     });
 
-    let abort_handle = task.abort_handle();
-    {
-        let mut handles = state.handles.lock().unwrap();
-        handles.insert(connection_id.clone(), abort_handle);
-    }
+    let abort_handle = Arc::new(task.abort_handle());
+    register_abort_handle(
+        &state.handles,
+        task_connection_id.clone(),
+        abort_handle.clone(),
+    );
 
     let result = task.await;
 
-    {
-        let mut handles = state.handles.lock().unwrap();
-        handles.remove(&connection_id);
-    }
+    unregister_abort_handle(&state.handles, &task_connection_id, &abort_handle);
 
     match result {
         Ok(res) => res,
         Err(_) => Err("Export cancelled".into()),
+    }
+}
+
+/// Wires the driver stream, the row sink, and the progress emitter together.
+/// Kept as a free function so the spawned task body stays linear and the
+/// pieces remain individually unit-testable.
+async fn run_export<R: Runtime>(
+    app: AppHandle<R>,
+    driver: &str,
+    params: &ConnectionParams,
+    query: &str,
+    writer: BufWriter<File>,
+    format: ExportFormat,
+    delimiter: u8,
+) -> Result<(), String> {
+    let app_for_progress = app.clone();
+    let mut progress = ProgressEmitter::new(DEFAULT_PROGRESS_INTERVAL, move |count| {
+        let _ = app_for_progress.emit(
+            EXPORT_PROGRESS_EVENT,
+            ExportProgressPayload {
+                rows_processed: count,
+            },
+        );
+    });
+
+    match format {
+        ExportFormat::Csv => {
+            let mut sink = CsvSink::new(writer, delimiter);
+            stream_to_sink(driver, params, query, &mut sink, &mut progress).await?;
+            sink.finish()?;
+        }
+        ExportFormat::Json => {
+            let mut sink = JsonSink::new(writer);
+            stream_to_sink(driver, params, query, &mut sink, &mut progress).await?;
+            sink.finish()?;
+        }
+    }
+
+    progress.finish();
+    Ok(())
+}
+
+async fn stream_to_sink<S, F>(
+    driver: &str,
+    params: &ConnectionParams,
+    query: &str,
+    sink: &mut S,
+    progress: &mut ProgressEmitter<F>,
+) -> Result<(), String>
+where
+    S: RowSink + Send,
+    F: FnMut(u64) + Send,
+{
+    let mut on_row = |headers: &[String], values: &[Value]| -> Result<(), String> {
+        sink.write_row(headers, values)?;
+        progress.tick();
+        Ok(())
+    };
+
+    match driver {
+        "mysql" => mysql::export::stream_query(params, query, &mut on_row).await,
+        "postgres" => postgres::export::stream_query(params, query, &mut on_row).await,
+        "sqlite" => sqlite::export::stream_query(params, query, &mut on_row).await,
+        other => Err(format!("Unsupported driver for export: {}", other)),
     }
 }

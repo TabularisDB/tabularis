@@ -221,7 +221,11 @@
     "searchPlaceholder": "Cerca connessioni...",
     "noSearchResults": "Nessuna connessione corrisponde a \"{{query}}\"",
     "gridView": "Vista griglia",
-    "listView": "Vista lista"
+    "listView": "Vista lista",
+    "export": "Esporta connessioni",
+    "import": "Importa connessioni",
+    "exportTitle": "Esporta connessioni",
+    "exportWarning": "Il file esportato conterrà le password del database e SSH in chiaro. Conservalo in modo sicuro."
   },
   "settings": {
     "title": "Impostazioni",
@@ -239,6 +243,8 @@
     "delimiterSemicolon": "Punto e virgola (;)",
     "delimiterTab": "Tab",
     "delimiterPipe": "Pipe (|)",
+    "detectJsonInTextColumns": "Rileva JSON nelle colonne di testo",
+    "detectJsonInTextColumnsDesc": "Mostra il visualizzatore JSON quando una cella di testo non tipizzata contiene un oggetto o un array JSON. Aggiunge un piccolo costo di analisi per cella.",
     "appearance": "Aspetto",
     "localization": "Localizzazione",
     "themeSelection": "Selezione Tema",
@@ -268,6 +274,8 @@
     "appearance_editorWordWrapDesc": "Manda a capo le righe lunghe nell'editor invece di scorrere orizzontalmente.",
     "appearance_editorShowLineNumbers": "Mostra Numeri di Riga",
     "appearance_editorShowLineNumbersDesc": "Visualizza i numeri di riga nel margine dell'editor.",
+    "appearance_editorAcceptSuggestionOnEnter": "Accetta Suggerimento con Invio",
+    "appearance_editorAcceptSuggestionOnEnterDesc": "Permetti al tasto Invio (oltre a Tab) di accettare il suggerimento di autocompletamento attivo. Quando disattivato, Invio inserisce sempre una nuova riga.",
     "editConfigJson": "Modifica config.json",
     "editConfigJsonDesc": "Modifica direttamente il file di configurazione grezzo. È necessario un riavvio per applicare le modifiche.",
     "configJsonModal": {
@@ -616,7 +624,9 @@
       "disable": "Disabilitato",
       "allow": "Permetti",
       "prefer": "Preferito",
-      "require": "Richiesto"
+      "require": "Richiesto",
+      "verify-ca": "Verifica CA",
+      "verify-full": "Verifica completa"
     }
   },
   "sshConnections": {
@@ -643,6 +653,7 @@
     "savedInKeychain": "Password salvata nel portachiavi di sistema"
   },
   "dataGrid": {
+    "newRow": "NUOVA",
     "noData": "Nessun dato da visualizzare",
     "editRow": "Modifica riga",
     "deleteRow": "Elimina riga",
@@ -669,7 +680,8 @@
     "setGenerate": "Imposta GENERATED",
     "setNull": "Imposta NULL",
     "setDefault": "Imposta DEFAULT",
-    "setEmpty": "Imposta VUOTO"
+    "setEmpty": "Imposta VUOTO",
+    "openReferenced": "Apri la riga referenziata in {{table}}"
   },
   "editRow": {
     "title": "Modifica riga",
@@ -741,7 +753,7 @@
     "tabSwitcher": {
       "title": "Tab Aperte",
       "hint": "Ctrl+Tab",
-      "tabs": "tab",
+      "tabs": "{{count}} tab",
       "escHint": "Esc per chiudere"
     },
     "submitChanges": "Invia Modifiche",
@@ -1107,7 +1119,27 @@
     "placeholder": "Inserisci JSON...",
     "format": "Formatta",
     "valid": "JSON valido",
-    "invalid": "JSON non valido"
+    "invalid": "JSON non valido",
+    "mode": {
+      "code": "Codice",
+      "tree": "Albero",
+      "raw": "Grezzo"
+    },
+    "expand": "Espandi",
+    "collapse": "Comprimi",
+    "search": "Cerca",
+    "copyPath": "Copia percorso",
+    "copyValue": "Copia valore",
+    "addItem": "Aggiungi elemento",
+    "removeItem": "Rimuovi elemento"
+  },
+  "jsonViewer": {
+    "close": "Chiudi",
+    "save": "Salva"
+  },
+  "jsonCell": {
+    "expand": "Espandi/comprimi albero JSON",
+    "openViewer": "Apri visualizzatore JSON"
   },
   "rowEditor": {
     "title": "Modifica Riga",
@@ -1117,7 +1149,8 @@
     "enterValue": "Inserisci valore..."
   },
   "contextMenu": {
-    "openSidebar": "Apri Barra Laterale"
+    "openSidebar": "Apri Barra Laterale",
+    "openJsonEditor": "Apri nell'editor JSON"
   },
   "blobInput": {
     "noData": "Nessun dato BLOB",
@@ -1349,5 +1382,11 @@
     "reasonPlaceholder": "es. Sembra rischiosa in produzione, conferma…",
     "approve": "Approva",
     "deny": "Nega"
+  },
+  "discordCallout": {
+    "title": "Nuova community Discord!",
+    "body": "Abbiamo una community Discord dedicata a Tabularis: ricevi aiuto, scambia consigli e influenza la roadmap.",
+    "cta": "Entra subito",
+    "dismiss": "Chiudi"
   }
 }

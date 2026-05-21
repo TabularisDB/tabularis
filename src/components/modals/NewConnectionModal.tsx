@@ -13,6 +13,8 @@ import {
   Square,
   Plug,
   Info,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -62,6 +64,7 @@ interface SavedConnection {
   id: string;
   name: string;
   params: ConnectionParams;
+  detect_json_in_text_columns?: boolean;
 }
 
 interface NewConnectionModalProps {
@@ -87,25 +90,45 @@ const FieldInput = ({
   placeholder?: string;
   autoFocus?: boolean;
   className?: string;
-}) => (
-  <div className={clsx("flex flex-col gap-1", className)}>
-    <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-      {label}
-    </label>
-    <input
-      type={type}
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      autoFocus={autoFocus}
-      autoCorrect="off"
-      autoCapitalize="off"
-      autoComplete="off"
-      spellCheck={false}
-      className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors"
-    />
-  </div>
-);
+}) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = type === "password";
+
+  return (
+    <div className={clsx("flex flex-col gap-1", className)}>
+      <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
+        {label}
+      </label>
+      <div className="relative group">
+        <input
+          type={isPassword ? (showPassword ? "text" : "password") : type}
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoFocus={autoFocus}
+          autoCorrect="off"
+          autoCapitalize="off"
+          autoComplete="off"
+          spellCheck={false}
+          className={clsx(
+            "w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors",
+            isPassword && "pr-10"
+          )}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted hover:text-primary transition-colors focus:outline-none"
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export const NewConnectionModal = ({
   isOpen,
@@ -133,6 +156,7 @@ export const NewConnectionModal = ({
     string[]
   >([]);
   const [dbSearchQuery, setDbSearchQuery] = useState("");
+  const [detectJsonInTextColumns, setDetectJsonInTextColumns] = useState(false);
   const [passwordDirty, setPasswordDirty] = useState(false);
   const [sshPasswordDirty, setSshPasswordDirty] = useState(false);
   const [connectionString, setConnectionString] = useState("");
@@ -304,6 +328,9 @@ export const NewConnectionModal = ({
       if (initialConnection) {
         setName(initialConnection.name);
         setDriver(initialConnection.params.driver);
+        setDetectJsonInTextColumns(
+          initialConnection.detect_json_in_text_columns === true,
+        );
         const db = initialConnection.params.database;
         setSshMode(
           initialConnection.params.ssh_connection_id ? "existing" : "inline",
@@ -347,6 +374,7 @@ export const NewConnectionModal = ({
         });
         setSelectedDatabasesState([]);
         setSshMode("existing");
+        setDetectJsonInTextColumns(false);
       }
 
       await loadSshConnectionsList();
@@ -484,9 +512,14 @@ export const NewConnectionModal = ({
           id: initialConnection.id,
           name,
           params,
+          detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
         });
       } else {
-        await invoke("save_connection", { name, params });
+        await invoke("save_connection", {
+          name,
+          params,
+          detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
+        });
       }
       if (onSave) onSave();
       onClose();
@@ -799,6 +832,22 @@ export const NewConnectionModal = ({
           </label>
         </>
       )}
+
+      {/* Detect JSON in text columns (per-connection opt-in) */}
+      <label className="flex items-start gap-2 cursor-pointer select-none w-fit">
+        <input
+          type="checkbox"
+          checked={detectJsonInTextColumns}
+          onChange={(e) => setDetectJsonInTextColumns(e.target.checked)}
+          className="accent-blue-500 w-3.5 h-3.5 rounded mt-0.5"
+        />
+        <span className="text-xs text-secondary leading-snug">
+          <span className="block">{t("settings.detectJsonInTextColumns")}</span>
+          <span className="block text-muted">
+            {t("settings.detectJsonInTextColumnsDesc")}
+          </span>
+        </span>
+      </label>
     </div>
   );
 
@@ -954,7 +1003,7 @@ export const NewConnectionModal = ({
           value={formData.ssl_mode || (driver === "postgres" ? "prefer" : "required")}
           options={
             driver === "postgres"
-              ? ["disable", "allow", "prefer", "require"]
+              ? ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"]
               : ["disabled", "preferred", "required", "verify_ca", "verify_identity"]
           }
           labels={
@@ -964,6 +1013,8 @@ export const NewConnectionModal = ({
                   allow: t("newConnection.sslModes.allow", { defaultValue: "Allow" }),
                   prefer: t("newConnection.sslModes.prefer", { defaultValue: "Prefer" }),
                   require: t("newConnection.sslModes.require", { defaultValue: "Require" }),
+                  "verify-ca": t("newConnection.sslModes.verify-ca", { defaultValue: "Verify CA" }),
+                  "verify-full": t("newConnection.sslModes.verify-full", { defaultValue: "Verify Full" }),
                 }
               : {
                   disabled: t("newConnection.sslModes.disabled", { defaultValue: "Disabled" }),

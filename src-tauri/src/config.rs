@@ -51,6 +51,11 @@ pub struct AppConfig {
     pub editor_tab_size: Option<u32>,
     pub editor_word_wrap: Option<bool>,
     pub editor_show_line_numbers: Option<bool>,
+    /// Whether the Enter key accepts the active autocomplete suggestion in the
+    /// SQL editor. Maps to Monaco's `acceptSuggestionOnEnter` setting: `true`
+    /// becomes `"smart"` (the safer variant), `false` becomes `"off"`.
+    /// Default: `true` — matches the behaviour users expect from most editors.
+    pub editor_accept_suggestion_on_enter: Option<bool>,
     /// Connection health check interval in seconds. 0 = disabled. Default: 30.
     pub ping_interval: Option<u32>,
     /// Maximum number of query history entries per connection. Default: 500.
@@ -274,6 +279,10 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.editor_show_line_numbers.is_some() {
             existing_config.editor_show_line_numbers = config.editor_show_line_numbers;
+        }
+        if config.editor_accept_suggestion_on_enter.is_some() {
+            existing_config.editor_accept_suggestion_on_enter =
+                config.editor_accept_suggestion_on_enter;
         }
         if config.ping_interval.is_some() {
             let old_interval = existing_config.ping_interval;
@@ -725,6 +734,7 @@ mod tests {
         assert!(config.editor_tab_size.is_none());
         assert!(config.editor_word_wrap.is_none());
         assert!(config.editor_show_line_numbers.is_none());
+        assert!(config.editor_accept_suggestion_on_enter.is_none());
     }
 
     #[test]
@@ -737,6 +747,7 @@ mod tests {
         config.editor_word_wrap = Some(false);
         config.editor_show_line_numbers = Some(true);
         config.editor_theme = Some("tabularis-light".to_string());
+        config.editor_accept_suggestion_on_enter = Some(true);
 
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("editorFontFamily"));
@@ -746,8 +757,10 @@ mod tests {
         assert!(json.contains("editorWordWrap"));
         assert!(json.contains("editorShowLineNumbers"));
         assert!(json.contains("editorTheme"));
+        assert!(json.contains("editorAcceptSuggestionOnEnter"));
         // snake_case must not appear
         assert!(!json.contains("editor_font_family"));
+        assert!(!json.contains("editor_accept_suggestion_on_enter"));
     }
 
     #[test]
@@ -759,7 +772,8 @@ mod tests {
             "editorTabSize": 2,
             "editorWordWrap": true,
             "editorShowLineNumbers": true,
-            "editorTheme": "tabularis-dark"
+            "editorTheme": "tabularis-dark",
+            "editorAcceptSuggestionOnEnter": true
         }"#;
 
         let config: AppConfig = serde_json::from_str(json).unwrap();
@@ -769,6 +783,7 @@ mod tests {
         assert_eq!(config.editor_word_wrap, Some(true));
         assert_eq!(config.editor_show_line_numbers, Some(true));
         assert_eq!(config.editor_theme.as_deref(), Some("tabularis-dark"));
+        assert_eq!(config.editor_accept_suggestion_on_enter, Some(true));
     }
 
     #[test]

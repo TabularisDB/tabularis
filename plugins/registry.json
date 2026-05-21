@@ -193,6 +193,27 @@
           }
         }
       ]
+    },
+    {
+      "id": "firestore",
+      "name": "Firestore",
+      "description": "Google Cloud Firestore driver plugin for Tabularis — schema sampling, SQL subset queries, ER diagrams, EXPLAIN/ANALYZE.",
+      "author": "NewtTheWolf <https://codeberg.org/NewtTheWolf>",
+      "homepage": "https://codeberg.org/NewtTheWolf/firestore-tabularis",
+      "latest_version": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "min_tabularis_version": "0.9.21",
+          "assets": {
+            "linux-x64": "https://codeberg.org/NewtTheWolf/firestore-tabularis/releases/download/v0.1.0/firestore-plugin-linux-x64.zip",
+            "linux-arm64": "https://codeberg.org/NewtTheWolf/firestore-tabularis/releases/download/v0.1.0/firestore-plugin-linux-arm64.zip",
+            "darwin-x64": "https://codeberg.org/NewtTheWolf/firestore-tabularis/releases/download/v0.1.0/firestore-plugin-darwin-x64.zip",
+            "darwin-arm64": "https://codeberg.org/NewtTheWolf/firestore-tabularis/releases/download/v0.1.0/firestore-plugin-darwin-arm64.zip",
+            "win-x64": "https://codeberg.org/NewtTheWolf/firestore-tabularis/releases/download/v0.1.0/firestore-plugin-win-x64.zip"
+          }
+        }
+      ]
     }
   ]
 }

@@ -1,3 +1,4 @@
+pub mod export;
 pub mod extract;
 pub mod types;
 
@@ -7,9 +8,10 @@ mod helpers;
 #[cfg(test)]
 mod tests;
 
+use crate::drivers::common::parse_unsafe_bigint_string;
 use crate::models::{
     ConnectionParams, ForeignKey, Index, Pagination, QueryResult, RoutineInfo, RoutineParameter,
-    TableColumn, TableInfo, ViewInfo,
+    TableColumn, TableInfo, TriggerInfo, ViewInfo,
 };
 use crate::pool_manager::get_mysql_pool;
 pub use explain::explain_query;
@@ -461,6 +463,11 @@ pub async fn update_record(
                 qb.push("ST_GeomFromText(");
                 qb.push_bind(s);
                 qb.push(")");
+            } else if let Some(n) = parse_unsafe_bigint_string(&s) {
+                // Bigints outside JS safe range come back from the UI as strings
+                // (see drivers::common::i64_to_json). Bind them as native i64 so
+                // BIGINT columns receive the exact value.
+                qb.push_bind(n);
             } else {
                 qb.push_bind(s);
             }
@@ -490,7 +497,11 @@ pub async fn update_record(
             }
         }
         serde_json::Value::String(s) => {
-            qb.push_bind(s);
+            if let Some(n) = parse_unsafe_bigint_string(&s) {
+                qb.push_bind(n);
+            } else {
+                qb.push_bind(s);
+            }
         }
         _ => return Err("Unsupported PK type".into()),
     }
@@ -552,6 +563,8 @@ pub async fn insert_record(
                         separated.push_unseparated("ST_GeomFromText(");
                         separated.push_bind_unseparated(s);
                         separated.push_unseparated(")");
+                    } else if let Some(n) = parse_unsafe_bigint_string(&s) {
+                        separated.push_bind(n);
                     } else {
                         separated.push_bind(s);
                     }
@@ -846,30 +859,89 @@ pub async fn get_routine_definition(
     Ok(definition)
 }
 
-pub async fn execute_query(
+/// Acquires a single MySQL connection from the pool, honouring the optional
+/// schema override (which routes to a per-database pool to avoid invalidating
+/// the prepared-statement cache via `USE`).
+async fn acquire_mysql_conn(
     params: &ConnectionParams,
-    query: &str,
-    limit: Option<u32>,
-    page: u32,
     schema: Option<&str>,
-) -> Result<QueryResult, String> {
-    // Use a per-database pool when a schema override is requested to avoid
-    // polluting the shared pool's prepared-statement cache (MySQL invalidates
-    // all cached handles on a `USE <db>` command).
-    let effective_params;
+) -> Result<sqlx::pool::PoolConnection<sqlx::MySql>, String> {
     let pool = if let Some(db) = schema {
-        effective_params = {
-            let mut p = params.clone();
-            p.database = crate::models::DatabaseSelection::Single(db.to_string());
-            p
-        };
-        get_mysql_pool(&effective_params).await?
+        let mut p = params.clone();
+        p.database = crate::models::DatabaseSelection::Single(db.to_string());
+        get_mysql_pool(&p).await?
     } else {
         get_mysql_pool(params).await?
     };
-    let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
+    pool.acquire().await.map_err(|e| e.to_string())
+}
 
-    let is_select = query.trim_start().to_uppercase().starts_with("SELECT");
+/// Statements that MySQL refuses on the prepared-statement protocol
+/// (server error 1295: "This command is not supported in the prepared
+/// statement protocol yet"). `sqlx::query()` always goes through
+/// `COM_STMT_PREPARE` + `COM_STMT_EXECUTE`, so these have to be routed
+/// through `sqlx::raw_sql()` which uses `COM_QUERY` (text protocol)
+/// instead. Without this, explicit transactions inside a multi-statement
+/// script (`BEGIN; … COMMIT;`) silently fail — which would defeat the
+/// point of `execute_batch` even after sharing a single connection.
+fn is_text_protocol_stmt(query: &str) -> bool {
+    let head = crate::drivers::common::strip_leading_sql_comments(query).to_uppercase();
+    head.starts_with("BEGIN")
+        || head.starts_with("START TRANSACTION")
+        || head.starts_with("COMMIT")
+        || head.starts_with("ROLLBACK")
+        || head.starts_with("SAVEPOINT")
+        || head.starts_with("RELEASE SAVEPOINT")
+        || head.starts_with("LOCK TABLES")
+        || head.starts_with("UNLOCK TABLES")
+}
+
+/// Executes one statement on an already-acquired connection. Used by both
+/// `execute_query` (one statement, one connection) and `execute_batch`
+/// (many statements, one shared connection — required for session-local
+/// state like `SET @var`, `LAST_INSERT_ID()`, transactions, temp tables).
+async fn exec_on_mysql_conn(
+    conn: &mut sqlx::MySqlConnection,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+) -> Result<QueryResult, String> {
+    // Transaction-control statements have to bypass the prepared-statement
+    // protocol — see `is_text_protocol_stmt`. They never return a result
+    // set, so we can short-circuit with an empty `QueryResult`.
+    if is_text_protocol_stmt(query) {
+        use sqlx::Executor;
+        let exec_result = conn
+            .execute(sqlx::raw_sql(query))
+            .await
+            .map_err(|e| e.to_string())?;
+        return Ok(QueryResult {
+            columns: vec![],
+            rows: vec![],
+            affected_rows: exec_result.rows_affected(),
+            truncated: false,
+            pagination: None,
+        });
+    }
+
+    // Non-result-set statements (INSERT / UPDATE / DELETE / DDL) go through
+    // `execute()` so we can return the actual `rows_affected`.
+    if !crate::drivers::common::returns_result_set(query) {
+        use sqlx::Executor;
+        let exec_result = conn
+            .execute(sqlx::query(query))
+            .await
+            .map_err(|e| e.to_string())?;
+        return Ok(QueryResult {
+            columns: vec![],
+            rows: vec![],
+            affected_rows: exec_result.rows_affected(),
+            truncated: false,
+            pagination: None,
+        });
+    }
+
+    let is_select = crate::drivers::common::is_select_query(query);
     let mut pagination: Option<Pagination> = None;
     let final_query: String;
     let mut manual_limit = limit;
@@ -895,7 +967,7 @@ pub async fn execute_query(
     let mut columns: Vec<String> = Vec::new();
     let mut json_rows = Vec::new();
 
-    // Scope the stream so `conn` borrow is released before the restore step
+    // Scope the stream so `conn` borrow is released before returning
     {
         use futures::stream::StreamExt;
         let mut rows_stream = sqlx::query(&final_query).fetch(&mut *conn);
@@ -946,6 +1018,137 @@ pub async fn execute_query(
         truncated,
         pagination,
     })
+}
+
+pub async fn execute_query(
+    params: &ConnectionParams,
+    query: &str,
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+) -> Result<QueryResult, String> {
+    let mut conn = acquire_mysql_conn(params, schema).await?;
+    exec_on_mysql_conn(&mut *conn, query, limit, page).await
+}
+
+/// Runs a sequence of statements on a single pooled connection so that
+/// session-local state (user variables, `LAST_INSERT_ID()`, transactions,
+/// `TEMPORARY TABLE`, `PREPARE`/`EXECUTE`) is preserved across statements.
+///
+/// Statements run sequentially in input order. A failed statement is
+/// reported in its `BatchStatementResult` slot but does NOT abort the batch
+/// — later statements still run, mirroring MySQL CLI's `--force` behaviour.
+/// When the script uses transactions, MySQL itself will refuse subsequent
+/// statements inside the aborted transaction, surfacing the error.
+pub async fn execute_batch(
+    params: &ConnectionParams,
+    queries: &[String],
+    limit: Option<u32>,
+    page: u32,
+    schema: Option<&str>,
+) -> Result<Vec<crate::models::BatchStatementResult>, String> {
+    let mut conn = acquire_mysql_conn(params, schema).await?;
+    let mut results = Vec::with_capacity(queries.len());
+    for q in queries {
+        let start = std::time::Instant::now();
+        let outcome = exec_on_mysql_conn(&mut *conn, q, limit, page).await;
+        results.push(crate::models::BatchStatementResult::from_outcome(
+            start, outcome,
+        ));
+    }
+    Ok(results)
+}
+
+pub async fn get_triggers(
+    params: &ConnectionParams,
+    schema: Option<&str>,
+) -> Result<Vec<TriggerInfo>, String> {
+    let db_name = schema.unwrap_or_else(|| params.database.primary());
+    log::debug!("MySQL: Fetching triggers for database: {}", db_name);
+    let pool = get_mysql_pool(params).await?;
+    let query = r#"
+        SELECT trigger_name, event_object_table, event_manipulation, action_timing
+        FROM information_schema.triggers
+        WHERE trigger_schema = ?
+        ORDER BY trigger_name ASC
+    "#;
+    let rows = sqlx::query(query)
+        .bind(db_name)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    let triggers: Vec<TriggerInfo> = rows
+        .iter()
+        .map(|r| TriggerInfo {
+            name: mysql_row_str(r, 0),
+            table_name: mysql_row_str(r, 1),
+            event: mysql_row_str(r, 2),
+            timing: mysql_row_str(r, 3),
+            definition: None,
+        })
+        .collect();
+    log::debug!("MySQL: Found {} triggers in {}", triggers.len(), db_name);
+    Ok(triggers)
+}
+
+pub async fn get_trigger_definition(
+    params: &ConnectionParams,
+    trigger_name: &str,
+    schema: Option<&str>,
+) -> Result<String, String> {
+    let pool = get_mysql_pool(params).await?;
+    let qualified = match schema {
+        Some(s) => format!("`{}`.`{}`", escape_identifier(s), escape_identifier(trigger_name)),
+        None => format!("`{}`", escape_identifier(trigger_name)),
+    };
+    let query = format!("SHOW CREATE TRIGGER {}", qualified);
+    let row = sqlx::query(&query)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| format!("Failed to get trigger definition: {}", e))?;
+    // SHOW CREATE TRIGGER returns: Trigger, sql_mode, SQL Original Statement, ...
+    Ok(mysql_row_str(&row, 2))
+}
+
+pub async fn create_trigger(
+    params: &ConnectionParams,
+    trigger_sql: &str,
+    schema: Option<&str>,
+) -> Result<(), String> {
+    let effective_params;
+    let use_params = if let Some(s) = schema {
+        effective_params = ConnectionParams {
+            database: crate::models::DatabaseSelection::Single(s.to_string()),
+            ..params.clone()
+        };
+        &effective_params
+    } else {
+        params
+    };
+    let pool = get_mysql_pool(use_params).await?;
+    sqlx::raw_sql(trigger_sql)
+        .execute(&pool)
+        .await
+        .map_err(|e| format!("Failed to create trigger: {}", e))?;
+    Ok(())
+}
+
+pub async fn drop_trigger(
+    params: &ConnectionParams,
+    trigger_name: &str,
+    schema: Option<&str>,
+) -> Result<(), String> {
+    let pool = get_mysql_pool(params).await?;
+    let qualified = match schema {
+        Some(s) => format!("`{}`.`{}`", escape_identifier(s), escape_identifier(trigger_name)),
+        None => format!("`{}`", escape_identifier(trigger_name)),
+    };
+    let query = format!("DROP TRIGGER IF EXISTS {}", qualified);
+    sqlx::raw_sql(&query)
+        .execute(&pool)
+        .await
+        .map_err(|e| format!("Failed to drop trigger: {}", e))?;
+    Ok(())
 }
 
 // ============================================================
@@ -1019,6 +1222,7 @@ impl MysqlDriver {
                     no_connection_required: false,
                     manage_tables: true,
                     readonly: false,
+                    triggers: true,
                 },
                 is_builtin: true,
                 default_username: "root".to_string(),
@@ -1270,6 +1474,43 @@ impl DatabaseDriver for MysqlDriver {
         get_routine_definition(params, routine_name, routine_type).await
     }
 
+    async fn get_triggers(
+        &self,
+        params: &crate::models::ConnectionParams,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TriggerInfo>, String> {
+        get_triggers(params, schema).await
+    }
+
+    async fn get_trigger_definition(
+        &self,
+        params: &crate::models::ConnectionParams,
+        trigger_name: &str,
+        _table_name: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_trigger_definition(params, trigger_name, schema).await
+    }
+
+    async fn create_trigger(
+        &self,
+        params: &crate::models::ConnectionParams,
+        trigger_sql: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        create_trigger(params, trigger_sql, schema).await
+    }
+
+    async fn drop_trigger(
+        &self,
+        params: &crate::models::ConnectionParams,
+        trigger_name: &str,
+        _table_name: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        drop_trigger(params, trigger_name, schema).await
+    }
+
     async fn execute_query(
         &self,
         params: &crate::models::ConnectionParams,
@@ -1279,6 +1520,17 @@ impl DatabaseDriver for MysqlDriver {
         schema: Option<&str>,
     ) -> Result<crate::models::QueryResult, String> {
         execute_query(params, query, limit, page, schema).await
+    }
+
+    async fn execute_batch(
+        &self,
+        params: &crate::models::ConnectionParams,
+        queries: &[String],
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::BatchStatementResult>, String> {
+        execute_batch(params, queries, limit, page, schema).await
     }
 
     async fn explain_query(

@@ -1,5 +1,6 @@
 mod blob;
 mod query;
+mod safe_int;
 
 #[cfg(test)]
 mod tests;
@@ -10,6 +11,9 @@ pub use blob::{
 };
 pub use query::{
     build_paginated_query, build_paginated_query_dialect, calculate_offset, extract_user_limit,
-    is_explainable_query, is_select_query, strip_leading_sql_comments, strip_limit_offset,
-    PaginationDialect,
+    is_explainable_query, is_select_query, returns_result_set, strip_leading_sql_comments,
+    strip_limit_offset, PaginationDialect,
+};
+pub use safe_int::{
+    i64_to_json, parse_unsafe_bigint_string, u64_to_json, JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT,
 };

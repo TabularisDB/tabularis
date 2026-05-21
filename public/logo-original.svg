@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 409 409" role="img" aria-labelledby="title desc">
+  <title id="title">Tabularis logo</title>
+  <desc id="desc">Vector recreation of the Tabularis isometric cube logo.</desc>
+  <defs>
+    <linearGradient id="topA" x1="48" y1="50" x2="192" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#222154"/>
+      <stop offset=".55" stop-color="#29285e"/>
+      <stop offset="1" stop-color="#20204b"/>
+    </linearGradient>
+    <linearGradient id="topB" x1="133" y1="94" x2="277" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#252359"/>
+      <stop offset=".58" stop-color="#26366f"/>
+      <stop offset="1" stop-color="#0cb9bf"/>
+    </linearGradient>
+    <linearGradient id="topC" x1="217" y1="135" x2="361" y2="132" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#23315f"/>
+      <stop offset=".48" stop-color="#1b6f93"/>
+      <stop offset="1" stop-color="#0cdccf"/>
+    </linearGradient>
+    <linearGradient id="leftA" x1="38" y1="116" x2="113" y2="116" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#25245d"/>
+      <stop offset="1" stop-color="#1e1b4a"/>
+    </linearGradient>
+    <linearGradient id="frontA" x1="123" y1="158" x2="198" y2="158" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#28245d"/>
+      <stop offset="1" stop-color="#211d4b"/>
+    </linearGradient>
+    <linearGradient id="frontB" x1="210" y1="200" x2="284" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#29255d"/>
+      <stop offset="1" stop-color="#24204f"/>
+    </linearGradient>
+    <linearGradient id="sideC" x1="295" y1="200" x2="370" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#26315f"/>
+      <stop offset=".55" stop-color="#1a8aa2"/>
+      <stop offset="1" stop-color="#0de7d2"/>
+    </linearGradient>
+    <linearGradient id="stemA" x1="122" y1="246" x2="198" y2="246" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2b2661"/>
+      <stop offset="1" stop-color="#211f50"/>
+    </linearGradient>
+    <linearGradient id="smallB" x1="210" y1="267" x2="278" y2="267" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#28265e"/>
+      <stop offset=".55" stop-color="#4b49b7"/>
+      <stop offset="1" stop-color="#10d6cf"/>
+    </linearGradient>
+    <linearGradient id="bottomA" x1="122" y1="334" x2="198" y2="334" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2a235c"/>
+      <stop offset=".56" stop-color="#4b2d8f"/>
+      <stop offset="1" stop-color="#a842bd"/>
+    </linearGradient>
+    <linearGradient id="bottomB" x1="210" y1="334" x2="286" y2="334" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5c35b7"/>
+      <stop offset=".57" stop-color="#7746c8"/>
+      <stop offset="1" stop-color="#0fd7cc"/>
+    </linearGradient>
+  </defs>
+
+  <g stroke="#080715" stroke-width="1.25" stroke-linejoin="round" stroke-linecap="round">
+    <path fill="url(#topA)" d="M48 51 120 11 192 48 119 88Z"/>
+    <path fill="url(#leftA)" d="M38 61 113 99 113 170 38 134Z"/>
+    <path fill="url(#topB)" d="M133 94 206 54 277 90 204 130Z"/>
+    <path fill="url(#frontA)" d="M123 103 198 140 198 213 123 176Z"/>
+    <path fill="url(#topC)" d="M217 135 289 96 361 132 289 171Z"/>
+    <path fill="url(#frontB)" d="M210 145 284 182 284 256 210 220Z"/>
+    <path fill="url(#sideC)" d="M295 181 370 141 370 216 295 257Z"/>
+    <path fill="url(#stemA)" d="M122 190 198 228 198 302 122 264Z"/>
+    <path fill="url(#smallB)" d="M210 232 278 266 210 303Z"/>
+    <path fill="url(#bottomA)" d="M122 278 198 316 198 391 122 352Z"/>
+    <path fill="url(#bottomB)" d="M210 316 286 276 286 344 210 391Z"/>
+  </g>
+</svg>

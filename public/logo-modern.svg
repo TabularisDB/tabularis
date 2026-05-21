@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 409 409" role="img" aria-labelledby="title desc">
+  <title id="title">Tabularis modern logo concept</title>
+  <desc id="desc">A cleaner isometric T mark made of modular blocks.</desc>
+  <defs>
+    <linearGradient id="top" x1="64" y1="73" x2="350" y2="134" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#29265f"/>
+      <stop offset=".54" stop-color="#284075"/>
+      <stop offset="1" stop-color="#12dacb"/>
+    </linearGradient>
+    <linearGradient id="left" x1="52" y1="152" x2="226" y2="293" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#242258"/>
+      <stop offset="1" stop-color="#33236f"/>
+    </linearGradient>
+    <linearGradient id="right" x1="222" y1="172" x2="358" y2="282" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#26285f"/>
+      <stop offset=".58" stop-color="#166f98"/>
+      <stop offset="1" stop-color="#10dfcf"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="131" y1="300" x2="279" y2="363" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4d2a91"/>
+      <stop offset=".55" stop-color="#7b3fc3"/>
+      <stop offset="1" stop-color="#13cfc6"/>
+    </linearGradient>
+  </defs>
+
+  <g stroke="#080717" stroke-width="8" stroke-linejoin="round">
+    <path fill="url(#top)" d="M121 24 198 64 121 105 44 64Z"/>
+    <path fill="url(#top)" d="M205 67 282 107 205 148 128 107Z"/>
+    <path fill="url(#top)" d="M289 110 366 150 289 191 212 150Z"/>
+
+    <path fill="url(#left)" d="M44 74 121 114 121 190 44 150Z"/>
+    <path fill="url(#left)" d="M128 117 205 157 205 233 128 193Z"/>
+    <path fill="url(#left)" d="M212 160 289 200 289 276 212 236Z"/>
+    <path fill="url(#right)" d="M296 200 373 160 373 236 296 276Z"/>
+
+    <path fill="url(#left)" d="M128 207 205 247 205 323 128 283Z"/>
+    <path fill="url(#accent)" d="M212 250 289 290 212 331Z"/>
+    <path fill="url(#accent)" d="M128 297 205 337 205 389 128 349Z"/>
+    <path fill="url(#accent)" d="M212 337 289 297 289 349 212 389Z"/>
+  </g>
+</svg>

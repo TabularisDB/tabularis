@@ -20,6 +20,7 @@ export interface CleanedTab {
   queryParams?: Record<string, string>;
   notebookId?: string;
   schema?: string;
+  readOnly?: boolean;
 }
 
 /**
@@ -48,6 +49,7 @@ export function cleanTabForStorage(tab: Tab): CleanedTab {
     queryParams: tab.queryParams,
     notebookId: tab.notebookId,
     schema: tab.schema,
+    readOnly: tab.readOnly,
   };
 }
 

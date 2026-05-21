@@ -962,6 +962,10 @@
       "token": "string"
     },
     {
+      "foreground": "#98c379",
+      "token": "string.sql"
+    },
+    {
       "foreground": "#56b6c2",
       "token": "constant.other.symbol"
     },

@@ -6,7 +6,7 @@ use serde_json::Value as JsonValue;
 use tokio_postgres::types::{FromSql, Type};
 use uuid::Uuid;
 
-use crate::drivers::common::encode_blob;
+use crate::drivers::common::{encode_blob, i64_to_json};
 
 use super::advanced_types;
 
@@ -22,7 +22,9 @@ pub fn extract_or_null(ty: &Type, buf: &[u8]) -> JsonValue {
         Type::CHAR => JsonValue::from(from_sql_or_none::<i8>(ty, buf)), // this mapped to `i8`
         Type::INT2 => JsonValue::from(from_sql_or_none::<i16>(ty, buf)),
         Type::INT4 => JsonValue::from(from_sql_or_none::<i32>(ty, buf)),
-        Type::INT8 => JsonValue::from(from_sql_or_none::<i64>(ty, buf)),
+        Type::INT8 => from_sql_or_none::<i64>(ty, buf)
+            .map(i64_to_json)
+            .unwrap_or(JsonValue::Null),
         Type::FLOAT4 => JsonValue::from(from_sql_or_none::<f32>(ty, buf)),
         Type::FLOAT8 => JsonValue::from(from_sql_or_none::<f64>(ty, buf)),
         Type::NUMERIC => {
@@ -252,6 +254,25 @@ mod tests {
         assert_eq!(
             extract_or_null(&Type::INT8, &buf),
             JsonValue::Number((-42).into())
+        );
+    }
+
+    #[test]
+    fn test_int8_above_js_safe_becomes_string() {
+        // Snowflake id from issue #210 — must survive without precision loss.
+        let buf = 844_197_938_335_842_304i64.to_be_bytes();
+        assert_eq!(
+            extract_or_null(&Type::INT8, &buf),
+            JsonValue::String("844197938335842304".to_string())
+        );
+    }
+
+    #[test]
+    fn test_int8_below_js_safe_becomes_string() {
+        let buf = (-9_007_199_254_740_992i64).to_be_bytes();
+        assert_eq!(
+            extract_or_null(&Type::INT8, &buf),
+            JsonValue::String("-9007199254740992".to_string())
         );
     }
 
@@ -539,6 +560,17 @@ mod tests {
     }
 
     #[test]
+    fn test_xid8_above_js_safe_becomes_string() {
+        // Large u64 transaction id beyond JS_MAX_SAFE_INTEGER.
+        let large: u64 = u64::MAX;
+        let buf = (large as i64).to_be_bytes();
+        assert_eq!(
+            extract_or_null(&Type::XID8, &buf),
+            JsonValue::String(large.to_string())
+        );
+    }
+
+    #[test]
     fn test_regclass() {
         let buf = 12345u32.to_be_bytes();
         assert_eq!(
@@ -677,6 +709,17 @@ mod tests {
         assert_eq!(
             extract_or_null(&Type::MONEY, &buf),
             JsonValue::Number(12345.into())
+        );
+    }
+
+    #[test]
+    fn test_money_above_js_safe_becomes_string() {
+        // Money is stored as an i64 of fractional units — a real value, but a
+        // valid postgres value still has to round-trip without precision loss.
+        let buf = 9_007_199_254_740_993i64.to_be_bytes();
+        assert_eq!(
+            extract_or_null(&Type::MONEY, &buf),
+            JsonValue::String("9007199254740993".to_string())
         );
     }
 

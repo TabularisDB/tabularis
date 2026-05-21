@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
   ChevronUp,
@@ -118,7 +119,28 @@ export function NotebookCellHeader({
   const [isDbOpen, setIsDbOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(cellName ?? "");
+  const dbButtonRef = useRef<HTMLButtonElement>(null);
+  const [dbDropdownPosition, setDbDropdownPosition] = useState({ top: 0, left: 0 });
   const showDbSelector = cellType === "sql" && selectedDatabases && selectedDatabases.length > 1 && activeSchema && onSchemaChange;
+
+  const updateDbDropdownPosition = useCallback(() => {
+    if (dbButtonRef.current) {
+      const rect = dbButtonRef.current.getBoundingClientRect();
+      setDbDropdownPosition({ top: rect.bottom + 4, left: rect.left });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isDbOpen) return;
+    updateDbDropdownPosition();
+    const handle = () => updateDbDropdownPosition();
+    window.addEventListener("scroll", handle, true);
+    window.addEventListener("resize", handle);
+    return () => {
+      window.removeEventListener("scroll", handle, true);
+      window.removeEventListener("resize", handle);
+    };
+  }, [isDbOpen, updateDbDropdownPosition]);
 
   return (
     <div className="flex items-center justify-between px-3 py-1.5 bg-elevated border-b border-default relative z-10">
@@ -188,8 +210,12 @@ export function NotebookCellHeader({
         {showDbSelector && (
           <div className="relative">
             <button
+              ref={dbButtonRef}
               type="button"
-              onClick={() => setIsDbOpen((v) => !v)}
+              onClick={() => {
+                if (!isDbOpen) updateDbDropdownPosition();
+                setIsDbOpen((v) => !v);
+              }}
               className="flex items-center gap-1 px-1.5 py-0.5 bg-surface-secondary border border-strong rounded text-[10px] text-secondary hover:text-primary hover:bg-surface transition-colors"
               title={t("editor.activeDatabase")}
             >
@@ -197,34 +223,39 @@ export function NotebookCellHeader({
               <span className="max-w-[100px] truncate">{activeSchema}</span>
               <ChevronDown size={10} className="text-muted shrink-0" />
             </button>
-            {isDbOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setIsDbOpen(false)}
-                />
-                <div className="absolute top-full left-0 mt-1 min-w-[120px] max-h-[230px] overflow-y-auto bg-surface-secondary border border-strong rounded shadow-xl z-50 flex flex-col py-1">
-                  {selectedDatabases.map((db) => (
-                    <button
-                      key={db}
-                      type="button"
-                      onClick={() => {
-                        onSchemaChange(db);
-                        setIsDbOpen(false);
-                      }}
-                      className={`text-left px-2.5 py-1 text-[11px] hover:bg-surface transition-colors flex items-center gap-1.5 ${
-                        activeSchema === db
-                          ? "text-white font-medium"
-                          : "text-secondary"
-                      }`}
-                    >
-                      <Database size={10} className="text-muted shrink-0" />
-                      {db}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
+            {isDbOpen &&
+              createPortal(
+                <>
+                  <div
+                    className="fixed inset-0 z-[150]"
+                    onClick={() => setIsDbOpen(false)}
+                  />
+                  <div
+                    className="fixed min-w-[120px] max-h-[230px] overflow-y-auto bg-surface-secondary border border-strong rounded shadow-xl z-[200] flex flex-col py-1"
+                    style={{ top: dbDropdownPosition.top, left: dbDropdownPosition.left }}
+                  >
+                    {selectedDatabases.map((db) => (
+                      <button
+                        key={db}
+                        type="button"
+                        onClick={() => {
+                          onSchemaChange(db);
+                          setIsDbOpen(false);
+                        }}
+                        className={`text-left px-2.5 py-1 text-[11px] hover:bg-surface transition-colors flex items-center gap-1.5 ${
+                          activeSchema === db
+                            ? "text-white font-medium"
+                            : "text-secondary"
+                        }`}
+                      >
+                        <Database size={10} className="text-muted shrink-0" />
+                        {db}
+                      </button>
+                    ))}
+                  </div>
+                </>,
+                document.body,
+              )}
           </div>
         )}
       </div>

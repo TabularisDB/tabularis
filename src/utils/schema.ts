@@ -1,14 +1,20 @@
 /**
- * Formats the count of database objects (tables, views, routines) into a compact summary string.
+ * Formats the count of database objects (tables, views, routines, triggers) into a compact summary string.
  *
  * @example formatObjectCount(3, 2, 1) // "3T / 2V / 1R"
+ * @example formatObjectCount(3, 2, 1, 4) // "3T / 2V / 1R / 4Tr"
  */
 export function formatObjectCount(
   tables: number,
   views: number,
   routines: number,
+  triggers?: number,
 ): string {
-  return `${tables}T / ${views}V / ${routines}R`;
+  let result = `${tables}T / ${views}V / ${routines}R`;
+  if (triggers && triggers > 0) {
+    result += ` / ${triggers}Tr`;
+  }
+  return result;
 }
 
 /**
