@@ -1,5 +1,5 @@
 import { Network, Database, FolderOpen, Plug } from "lucide-react";
-import * as LucideIcons from "lucide-react";
+import { CONNECTION_ICON_PACK } from "./connectionIconPack";
 import { lazy, Suspense } from "react";
 import type { ReactNode } from "react";
 import type { PluginManifest } from "../types/plugins";
@@ -75,7 +75,7 @@ export function getConnectionAccent(
  * override if present, otherwise falling back to the driver manifest icon.
  */
 export function getConnectionIcon(
-  connection: Pick<SavedConnection, "id" | "appearance"> | undefined | null,
+  connection: Pick<SavedConnection, "appearance"> | undefined | null,
   manifest: PluginManifest | undefined | null,
   size = 14,
 ): ReactNode {
@@ -83,12 +83,9 @@ export function getConnectionIcon(
   if (!ov) return getDriverIcon(manifest, size);
   switch (ov.type) {
     case "emoji":
-      return <span style={{ fontSize: size, lineHeight: 1 }}>{ov.value}</span>;
+      return <span aria-hidden="true" style={{ fontSize: size, lineHeight: 1 }}>{ov.value}</span>;
     case "pack": {
-      // lucide exports icons as PascalCase (e.g., "ShieldCheck"). Convert id from camelCase to PascalCase.
-      const key = ov.id.charAt(0).toUpperCase() + ov.id.slice(1);
-      const icons = LucideIcons as unknown as Record<string, React.ComponentType<{ size: number }> | undefined>;
-      const Cmp = Object.prototype.hasOwnProperty.call(icons, key) ? icons[key] : undefined;
+      const Cmp = CONNECTION_ICON_PACK[ov.id];
       return Cmp ? <Cmp size={size} /> : getDriverIcon(manifest, size);
     }
     case "image":

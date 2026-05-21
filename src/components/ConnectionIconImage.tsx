@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { appDataDir, join } from "@tauri-apps/api/path";
 
@@ -11,9 +11,14 @@ interface Props {
 export function ConnectionIconImage({ path, size, fallback }: Props) {
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   useEffect(() => {
     let cancelled = false;
+    setSrc(null);
+    setFailed(false);
     (async () => {
       try {
         const abs = await join(await appDataDir(), path);
@@ -33,7 +38,7 @@ export function ConnectionIconImage({ path, size, fallback }: Props) {
       width={size}
       height={size}
       alt=""
-      onError={() => setFailed(true)}
+      onError={() => { if (mountedRef.current) setFailed(true); }}
       style={{ objectFit: "contain", borderRadius: 4 }}
     />
   );
