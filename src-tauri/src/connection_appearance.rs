@@ -100,6 +100,23 @@ pub fn save_icon_impl(dest_dir: &Path, connection_id: &str, source: &Path) -> Re
     Ok(format!("connection-icons/{filename}"))
 }
 
+/// Deletes the icon file from disk if the connection appearance points to an
+/// `Image` variant. All other cases (no appearance, no icon, non-image icon)
+/// are silently ignored. A missing file is also silently ignored so that
+/// deleting a connection never fails just because its icon file vanished.
+pub fn cascade_delete_if_image(
+    app_data_dir: &Path,
+    appearance: Option<&crate::models::ConnectionAppearance>,
+) -> Result<(), IconError> {
+    let Some(a) = appearance else { return Ok(()) };
+    let Some(crate::models::IconOverride::Image { path }) = a.icon.as_ref() else { return Ok(()) };
+    let full = app_data_dir.join(path);
+    if full.exists() {
+        fs::remove_file(&full).map_err(|e| IconError::Io(e.to_string()))?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn save_connection_icon(
     app: AppHandle,

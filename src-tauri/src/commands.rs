@@ -561,6 +561,13 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
 
     let mut conn_file = persistence::load_connections_file(&path)?;
 
+    // Capture the appearance before retain so we can cascade-delete the icon file.
+    let appearance_to_delete = conn_file
+        .connections
+        .iter()
+        .find(|c| c.id == id)
+        .and_then(|c| c.appearance.clone());
+
     let initial_count = conn_file.connections.len();
     conn_file.connections.retain(|c| c.id != id);
     let deleted = conn_file.connections.len() < initial_count;
@@ -574,6 +581,14 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
     credential_cache::invalidate_all_for_connection(&cache, &id);
 
     save_connections_and_invalidate(&app, &path, &conn_file)?;
+
+    // Cascade-delete the custom icon file if the connection used one.
+    if let Ok(app_data) = app.path().app_data_dir() {
+        let _ = crate::connection_appearance::cascade_delete_if_image(
+            &app_data,
+            appearance_to_delete.as_ref(),
+        );
+    }
 
     // Clean up query history for this connection
     if let Err(e) = crate::query_history::remove_history_for_connection(&app, &id) {

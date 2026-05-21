@@ -112,4 +112,49 @@ mod tests {
         let b = save_icon_impl(&dir.join("out"), "abc", &src).unwrap();
         assert_eq!(a, b);
     }
+
+    #[test]
+    fn cascade_delete_removes_image_icon() {
+        use crate::models::{IconOverride, ConnectionAppearance};
+        let dir = tmp_dir();
+        // Create the file under <dir>/connection-icons/foo.png
+        let icons_dir = dir.join("connection-icons");
+        std::fs::create_dir_all(&icons_dir).unwrap();
+        let file = icons_dir.join("foo.png");
+        std::fs::write(&file, b"x").unwrap();
+        assert!(file.exists());
+
+        let appearance = ConnectionAppearance {
+            icon: Some(IconOverride::Image { path: "connection-icons/foo.png".into() }),
+            accent_color: None,
+        };
+        crate::connection_appearance::cascade_delete_if_image(&dir, Some(&appearance)).unwrap();
+        assert!(!file.exists());
+    }
+
+    #[test]
+    fn cascade_delete_noop_when_no_image() {
+        use crate::models::{IconOverride, ConnectionAppearance};
+        let dir = tmp_dir();
+        // Pack variant — should not touch any file.
+        let appearance = ConnectionAppearance {
+            icon: Some(IconOverride::Pack { id: "server".into() }),
+            accent_color: Some("#ff0000".into()),
+        };
+        crate::connection_appearance::cascade_delete_if_image(&dir, Some(&appearance)).unwrap();
+        // No-op cases also: appearance is None, or icon is None.
+        crate::connection_appearance::cascade_delete_if_image(&dir, None).unwrap();
+    }
+
+    #[test]
+    fn cascade_delete_silently_ignores_missing_file() {
+        use crate::models::{IconOverride, ConnectionAppearance};
+        let dir = tmp_dir();
+        let appearance = ConnectionAppearance {
+            icon: Some(IconOverride::Image { path: "connection-icons/does-not-exist.png".into() }),
+            accent_color: None,
+        };
+        // Should NOT return an error — deleting a connection should not fail just because its icon vanished.
+        crate::connection_appearance::cascade_delete_if_image(&dir, Some(&appearance)).unwrap();
+    }
 }
