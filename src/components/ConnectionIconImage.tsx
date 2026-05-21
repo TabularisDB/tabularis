@@ -38,7 +38,12 @@ export function ConnectionIconImage({ path, size, fallback }: Props) {
       width={size}
       height={size}
       alt=""
-      onError={() => { if (mountedRef.current) setFailed(true); }}
+      onError={() => {
+        if (import.meta.env.DEV) {
+          console.error("[ConnectionIconImage] Failed to load icon from path:", path, "src:", src);
+        }
+        if (mountedRef.current) setFailed(true);
+      }}
       style={{ objectFit: "contain", borderRadius: 4 }}
     />
   );
