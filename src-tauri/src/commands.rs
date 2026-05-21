@@ -538,6 +538,7 @@ pub async fn save_connection<R: Runtime>(
         group_id: None,
         sort_order: None,
         detect_json_in_text_columns,
+        appearance: None,
     };
     conn_file.connections.push(new_conn.clone());
     save_connections_and_invalidate(&app, &path, &conn_file)?;
@@ -652,6 +653,7 @@ pub async fn update_connection<R: Runtime>(
         group_id: original_group_id,
         sort_order: original_sort_order,
         detect_json_in_text_columns,
+        appearance: None,
     };
 
     conn_file.connections[conn_idx] = updated.clone();
@@ -768,6 +770,7 @@ pub async fn duplicate_connection<R: Runtime>(
         group_id: original.group_id.clone(), // Copy to same group as original
         sort_order: None,                    // Will be placed at end of group
         detect_json_in_text_columns: original.detect_json_in_text_columns,
+        appearance: original.appearance.clone(),
     };
 
     conn_file.connections.push(new_conn.clone());
@@ -1318,6 +1321,7 @@ mod tests {
             group_id: None,
             sort_order: None,
             detect_json_in_text_columns: None,
+            appearance: None,
         }
     }
 
