@@ -68,6 +68,24 @@ mod tests {
     }
 
     #[test]
+    fn rejects_svg_with_spaced_onclick() {
+        let dir = tmp_dir();
+        let src = dir.join("evil3.svg");
+        std::fs::write(&src, b"<svg onclick = \"alert(1)\"></svg>").unwrap();
+        let err = save_icon_impl(&dir.join("out"), "abc", &src).unwrap_err();
+        assert!(matches!(err, IconError::UnsafeSvg));
+    }
+
+    #[test]
+    fn rejects_svg_with_chained_onload() {
+        let dir = tmp_dir();
+        let src = dir.join("evil4.svg");
+        std::fs::write(&src, b"<svg x=onload=alert(1)></svg>").unwrap();
+        let err = save_icon_impl(&dir.join("out"), "abc", &src).unwrap_err();
+        assert!(matches!(err, IconError::UnsafeSvg));
+    }
+
+    #[test]
     fn accepts_clean_svg() {
         let dir = tmp_dir();
         let src = dir.join("clean.svg");

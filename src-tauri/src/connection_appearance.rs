@@ -4,7 +4,6 @@ use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager};
 
 pub(crate) const MAX_ICON_BYTES: u64 = 512 * 1024;
-const ALLOWED_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "svg"];
 
 #[derive(Debug)]
 pub enum IconError {
@@ -49,14 +48,21 @@ fn svg_is_safe(content: &str) -> bool {
     let lower = content.to_ascii_lowercase();
     if lower.contains("<script") { return false; }
     if lower.contains("javascript:") { return false; }
-    // Detect any occurrence of `on<word>=` after whitespace or `<`.
+    // Detect any occurrence of `on<word>=` after whitespace, `<`, quotes, or `=`.
     let bytes = lower.as_bytes();
     let mut i = 0;
     while i + 3 < bytes.len() {
-        let prev_ok = i == 0 || matches!(bytes[i - 1], b' ' | b'\t' | b'\n' | b'\r' | b'<' | b'"' | b'\'');
+        let prev_ok = i == 0 || matches!(
+            bytes[i - 1],
+            b' ' | b'\t' | b'\n' | b'\r' | b'<' | b'"' | b'\'' | b'='
+        );
         if prev_ok && bytes[i] == b'o' && bytes[i + 1] == b'n' && bytes[i + 2].is_ascii_alphabetic() {
             let mut j = i + 2;
             while j < bytes.len() && bytes[j].is_ascii_alphabetic() {
+                j += 1;
+            }
+            // skip optional whitespace before '='
+            while j < bytes.len() && matches!(bytes[j], b' ' | b'\t' | b'\n' | b'\r') {
                 j += 1;
             }
             if j < bytes.len() && bytes[j] == b'=' {
@@ -76,7 +82,6 @@ pub fn save_icon_impl(dest_dir: &Path, connection_id: &str, source: &Path) -> Re
     if meta.len() > MAX_ICON_BYTES { return Err(IconError::TooLarge); }
     let bytes = fs::read(source).map_err(|e| IconError::Io(e.to_string()))?;
     let ext = sniff_ext(&bytes).ok_or(IconError::UnsupportedFormat)?;
-    if !ALLOWED_EXTS.contains(&ext) { return Err(IconError::UnsupportedFormat); }
     if ext == "svg" {
         let text = std::str::from_utf8(&bytes).map_err(|_| IconError::UnsupportedFormat)?;
         if !svg_is_safe(text) { return Err(IconError::UnsafeSvg); }
@@ -88,7 +93,10 @@ pub fn save_icon_impl(dest_dir: &Path, connection_id: &str, source: &Path) -> Re
     let dest = dest_dir.join(&filename);
     let tmp = dest.with_extension(format!("{ext}.tmp"));
     fs::write(&tmp, &bytes).map_err(|e| IconError::Io(e.to_string()))?;
-    fs::rename(&tmp, &dest).map_err(|e| IconError::Io(e.to_string()))?;
+    fs::rename(&tmp, &dest).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        IconError::Io(e.to_string())
+    })?;
     Ok(format!("connection-icons/{filename}"))
 }
 
