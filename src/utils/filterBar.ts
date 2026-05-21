@@ -1,5 +1,5 @@
 import type { TableColumn } from "../types/editor";
-import { quoteIdentifier } from "./identifiers";
+import { formatSqlIdentifier } from "./identifiers";
 
 
 export type FilterOperator =
@@ -153,10 +153,7 @@ export function buildSingleFilterClause(
   filter: StructuredFilter,
   driver?: string | null
 ): string {
-  const col =
-    driver === 'postgres'
-      ? quoteIdentifier(filter.column, driver)
-      : filter.column;
+  const col = formatSqlIdentifier(filter.column, driver);
     const op = filter.operator;
 
   if (op === "IS NULL") {
