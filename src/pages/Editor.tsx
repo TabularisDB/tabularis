@@ -3262,6 +3262,7 @@ export const Editor = () => {
                       foreignKeys={activeTab.foreignKeys}
                       onForeignKeyNavigate={handleForeignKeyNavigate}
                       onForeignKeyShowPanel={handleForeignKeyShowPanel}
+                      onForeignKeyHidePanel={() => setActiveFkQuery(null)}
                       connectionId={activeConnectionId}
                       onRefresh={handleRefresh}
                       pendingChanges={activeTab.pendingChanges}

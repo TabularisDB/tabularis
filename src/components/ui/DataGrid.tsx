@@ -30,6 +30,7 @@ import {
   Ban,
   FileDigit,
   ExternalLink,
+  PanelBottomOpen,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -53,6 +54,7 @@ import { isLongTextCellTarget } from "../../utils/text";
 import {
   pickPrimaryForeignKeyByColumn,
   isForeignKeyValueNavigable,
+  getForeignKeyForPreview,
 } from "../../utils/foreignKeys";
 import {
   getDateInputMode,
@@ -92,6 +94,7 @@ interface DataGridProps {
   foreignKeys?: ForeignKey[];
   onForeignKeyNavigate?: (fk: ForeignKey, value: unknown) => void;
   onForeignKeyShowPanel?: (fk: ForeignKey, value: unknown) => void;
+  onForeignKeyHidePanel?: () => void;
   connectionId?: string | null;
   onRefresh?: () => void;
   pendingChanges?: Record<
@@ -133,6 +136,7 @@ export const DataGrid = React.memo(
     foreignKeys,
     onForeignKeyNavigate,
     onForeignKeyShowPanel,
+    onForeignKeyHidePanel,
     connectionId,
     onRefresh,
     pendingChanges,
@@ -419,13 +423,19 @@ export const DataGrid = React.memo(
 
     const handleSelectAll = useCallback(() => {
       setFocusedCell(null);
+      onForeignKeyHidePanel?.();
       if (selectedRowIndices.size === mergedRows.length) {
         updateSelection(new Set());
       } else {
         const allIndices = new Set(mergedRows.map((_, i) => i));
         updateSelection(allIndices);
       }
-    }, [selectedRowIndices.size, mergedRows, updateSelection]);
+    }, [
+      selectedRowIndices.size,
+      mergedRows,
+      updateSelection,
+      onForeignKeyHidePanel,
+    ]);
 
     useEffect(() => {
       if (editingCell && editInputRef.current) {
@@ -1230,6 +1240,7 @@ export const DataGrid = React.memo(
                       <td
                         onClick={(e) => {
                           setFocusedCell(null);
+                          onForeignKeyHidePanel?.();
                           handleRowClick(rowIndex, e);
                         }}
                         className={`px-2 py-1.5 text-xs text-center border-b border-r border-default sticky left-0 z-10 cursor-pointer select-none w-[50px] min-w-[50px] ${
@@ -1308,6 +1319,13 @@ export const DataGrid = React.memo(
                           focusedCell?.rowIndex === rowIndex &&
                           focusedCell?.colIndex === colIndex;
 
+                        const fkForPreview = getForeignKeyForPreview(
+                          colName,
+                          rawCellValue,
+                          fksByColumn,
+                          { isPendingDelete, isInsertion },
+                        );
+
                         return (
                           <td
                             key={cell.id}
@@ -1320,16 +1338,13 @@ export const DataGrid = React.memo(
                               setFocusedCell({ rowIndex, colIndex });
                               updateSelection(new Set());
 
-                              // Single-click on foreign key shows reference table in bottom panel
-                              const fkForCol = fksByColumn.get(colName);
-                              if (
-                                fkForCol &&
-                                onForeignKeyShowPanel &&
-                                !isPendingDelete &&
-                                !isInsertion &&
-                                isForeignKeyValueNavigable(rawCellValue)
-                              ) {
-                                onForeignKeyShowPanel(fkForCol, rawCellValue);
+                              if (fkForPreview && onForeignKeyShowPanel) {
+                                onForeignKeyShowPanel(
+                                  fkForPreview,
+                                  rawCellValue,
+                                );
+                              } else {
+                                onForeignKeyHidePanel?.();
                               }
                             }}
                             onDoubleClick={() =>
@@ -1352,7 +1367,7 @@ export const DataGrid = React.memo(
                                 colName,
                               )
                             }
-                            className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-mono ${isEditing ? "relative" : "whitespace-nowrap truncate max-w-[300px]"} cursor-text ${stateClass} ${isFocused ? "ring-2 ring-inset ring-blue-400" : ""}`}
+                            className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-mono ${isEditing ? "relative" : "whitespace-nowrap truncate max-w-[300px]"} ${fkForPreview ? "cursor-pointer" : "cursor-text"} ${stateClass} ${isFocused ? "ring-2 ring-inset ring-blue-400" : ""}`}
                             title={
                               !isEditing
                                 ? formatCellValue(
@@ -1615,14 +1630,7 @@ export const DataGrid = React.memo(
                                       );
                                     }
 
-                                    const fkForCol = fksByColumn.get(colName);
-                                    if (
-                                      fkForCol &&
-                                      onForeignKeyNavigate &&
-                                      !isPendingDelete &&
-                                      !isInsertion &&
-                                      isForeignKeyValueNavigable(rawCellValue)
-                                    ) {
+                                    if (fkForPreview && onForeignKeyNavigate) {
                                       return (
                                         <span className="inline-flex items-center gap-1 group/fkcell w-full min-w-0">
                                           <span className="truncate flex-1 min-w-0">
@@ -1636,13 +1644,13 @@ export const DataGrid = React.memo(
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               onForeignKeyNavigate(
-                                                fkForCol,
+                                                fkForPreview,
                                                 rawCellValue,
                                               );
                                             }}
                                             className="opacity-0 group-hover/fkcell:opacity-100 transition-opacity p-0.5 rounded text-muted hover:text-blue-400 hover:bg-surface-tertiary flex-shrink-0"
                                             title={t("dataGrid.openReferenced", {
-                                              table: fkForCol.ref_table,
+                                              table: fkForPreview.ref_table,
                                             })}
                                           >
                                             <ExternalLink size={11} />
@@ -1841,26 +1849,46 @@ export const DataGrid = React.memo(
                 }
               }
 
-              const fkForContextCol = fksByColumn.get(contextMenu.colName);
               const fkContextValue =
                 contextMenu.row[contextMenu.colIndex];
-              if (
-                fkForContextCol &&
-                onForeignKeyNavigate &&
-                !isInsertion &&
-                isForeignKeyValueNavigable(fkContextValue)
-              ) {
-                menuItems.push({
-                  label: t("dataGrid.openReferenced", {
-                    table: fkForContextCol.ref_table,
-                  }),
-                  icon: ExternalLink,
-                  action: () => {
-                    onForeignKeyNavigate(fkForContextCol, fkContextValue);
-                    setContextMenu(null);
-                  },
-                });
-                menuItems.push({ separator: true });
+              const fkForContextPreview = getForeignKeyForPreview(
+                contextMenu.colName,
+                fkContextValue,
+                fksByColumn,
+                { isInsertion },
+              );
+              if (fkForContextPreview) {
+                if (onForeignKeyShowPanel) {
+                  menuItems.push({
+                    label: t("dataGrid.previewReferenced"),
+                    icon: PanelBottomOpen,
+                    action: () => {
+                      onForeignKeyShowPanel(
+                        fkForContextPreview,
+                        fkContextValue,
+                      );
+                      setContextMenu(null);
+                    },
+                  });
+                }
+                if (onForeignKeyNavigate) {
+                  menuItems.push({
+                    label: t("dataGrid.openReferenced", {
+                      table: fkForContextPreview.ref_table,
+                    }),
+                    icon: ExternalLink,
+                    action: () => {
+                      onForeignKeyNavigate(
+                        fkForContextPreview,
+                        fkContextValue,
+                      );
+                      setContextMenu(null);
+                    },
+                  });
+                }
+                if (onForeignKeyShowPanel || onForeignKeyNavigate) {
+                  menuItems.push({ separator: true });
+                }
               }
 
               menuItems.push({
