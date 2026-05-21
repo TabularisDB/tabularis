@@ -444,6 +444,9 @@ pub fn run() {
             task_manager::kill_plugin_process,
             task_manager::restart_plugin_process,
             task_manager::open_task_manager_window,
+            // Connection Appearance
+            connection_appearance::save_connection_icon,
+            connection_appearance::delete_connection_icon,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
