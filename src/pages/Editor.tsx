@@ -102,6 +102,7 @@ import type {
   ForeignKey,
 } from "../types/editor";
 import { buildForeignKeyFilterClause } from "../utils/foreignKeys";
+import { formatSqlIdentifier } from "../utils/identifiers";
 import { RelatedRecordsPanel } from "../components/ui/RelatedRecordsPanel";
 import {
   getTabScrollState,
@@ -1324,21 +1325,22 @@ export const Editor = () => {
 
       let newSort = "";
 
+      const sortCol = parts[0]?.replace(/^["`]|["`]$/g, "") ?? "";
+
       // Check if we are currently sorting by this column
-      if (parts[0] === colName && parts.length <= 2) {
-        // Toggle logic
+      if (sortCol === colName && parts.length <= 2) {
         const currentDir = parts[1]?.toUpperCase();
 
         if (!currentDir || currentDir === "ASC") {
           // ASC -> DESC
-          newSort = `${colName} DESC`;
+          newSort = `${formatSqlIdentifier(colName, activeDriver)} DESC`;
         } else {
           // DESC -> None (Clear)
           newSort = "";
         }
       } else {
         // New column -> ASC
-        newSort = `${colName} ASC`;
+        newSort = `${formatSqlIdentifier(colName, activeDriver)} ASC`;
       }
 
       handleToolbarUpdate(
@@ -1347,7 +1349,7 @@ export const Editor = () => {
         activeTab.limitClause,
       );
     },
-    [activeTab, handleToolbarUpdate],
+    [activeTab, activeDriver, handleToolbarUpdate],
   );
 
   const handlePendingChange = useCallback(
@@ -2128,10 +2130,6 @@ export const Editor = () => {
         }
       },
     });
-    editor.addCommand(
-      monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-      handleRunButton,
-    );
   };
 
   useEffect(() => {

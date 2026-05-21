@@ -749,7 +749,8 @@
     "tabSwitcher": {
       "title": "Pestañas Abiertas",
       "hint": "Ctrl+Tab",
-      "tabs": "pestañas",
+      "tabs_one": "{{count}} pestaña",
+      "tabs_other": "{{count}} pestañas",
       "escHint": "Esc para cerrar"
     },
     "submitChanges": "Enviar Cambios",

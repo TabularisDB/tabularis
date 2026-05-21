@@ -189,6 +189,12 @@ describe('dataGrid utils', () => {
       expect(getColumnSortState('name', 'name   ASC')).toBe('asc');
       expect(getColumnSortState('name', 'name  desc')).toBe('desc');
     });
+
+    it('should detect sort for quoted postgres column names', () => {
+      expect(getColumnSortState('Status', '"Status" DESC')).toBe('desc');
+      expect(getColumnSortState('Status', '"Status" ASC')).toBe('asc');
+      expect(getColumnSortState('UserName', '"Status" ASC, "UserName" DESC')).toBe('desc');
+    });
   });
 
   describe('calculateSelectionRange', () => {

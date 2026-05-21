@@ -769,7 +769,8 @@
     "tabSwitcher": {
       "title": "Open Tabs",
       "hint": "Ctrl+Tab",
-      "tabs": "tabs",
+      "tabs_one": "{{count}} tab",
+      "tabs_other": "{{count}} tabs",
       "escHint": "Esc to close"
     },
     "submitChanges": "Submit Changes",

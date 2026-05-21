@@ -7,6 +7,7 @@ import {
   formatLimitInput,
   generateWherePlaceholder,
   generateOrderByPlaceholder,
+  formatSortClause,
 } from '../../src/utils/tableToolbar';
 
 describe('tableToolbar utils', () => {
@@ -204,6 +205,32 @@ describe('tableToolbar utils', () => {
     it('should generate placeholder with column name', () => {
       expect(generateOrderByPlaceholder('id')).toBe('id DESC');
       expect(generateOrderByPlaceholder('created_at')).toBe('created_at DESC');
+    });
+  });
+
+  describe('formatSortClause', () => {
+    it('should quote column names for postgres', () => {
+      expect(formatSortClause('Status DESC', 'postgres')).toBe('"Status" DESC');
+    });
+
+    it('should quote multiple comma-separated terms for postgres', () => {
+      expect(formatSortClause('Status ASC, UserName DESC', 'postgres')).toBe(
+        '"Status" ASC, "UserName" DESC',
+      );
+    });
+
+    it('should leave already-quoted terms unchanged for postgres', () => {
+      expect(formatSortClause('"Status" DESC', 'postgres')).toBe('"Status" DESC');
+    });
+
+    it('should leave clause unchanged for non-postgres drivers', () => {
+      expect(formatSortClause('Status DESC', 'mysql')).toBe('Status DESC');
+      expect(formatSortClause('Status DESC', null)).toBe('Status DESC');
+    });
+
+    it('should return empty clause unchanged', () => {
+      expect(formatSortClause('', 'postgres')).toBe('');
+      expect(formatSortClause('   ', 'postgres')).toBe('   ');
     });
   });
 

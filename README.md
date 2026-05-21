@@ -12,7 +12,8 @@
   <a href="./README.zh-CN.md">中文</a> |
   <a href="./README.fr.md">Français</a> |
   <a href="./README.de.md">Deutsch</a> |
-  <a href="./README.ja.md">日本語</a>
+  <a href="./README.ja.md">日本語</a> |
+  <a href="./README.ru.md">Русский</a>
 </p>
 
 <p align="center">
@@ -33,7 +34,7 @@
 
 An open-source desktop client for modern databases. Supports PostgreSQL, MySQL/MariaDB and SQLite and is hackable with plugins, with notebooks, AI, and MCP built in.
 
-**Available in:** English, Italian, Spanish, Chinese (Simplified), French, German, Japanese
+**Available in:** English, Italian, Spanish, Chinese (Simplified), French, German, Japanese, Russian
 
 **Discord** - [Join our Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with the maintainers, share feedback, and get help from the community.
 
@@ -53,6 +54,7 @@ An open-source desktop client for modern databases. Supports PostgreSQL, MySQL/M
 
 - <a href="https://www.serversmtp.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/turbosmtp_compact.png" height="28" alt="turboSMTP" /></a> **[turboSMTP](https://www.serversmtp.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Professional SMTP relay — your emails delivered straight to the inbox, never to spam
 - <a href="https://www.kilo.ai/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/kilocode_compact.png" height="28" alt="Kilo Code" /></a> **[Kilo Code](https://www.kilo.ai/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Open source AI coding agent — build, ship, and iterate faster with 500+ models
+- <a href="https://m.do.co/c/f6ab3d158275?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/digitalocean_compact.png" height="28" alt="DigitalOcean" /></a> **[DigitalOcean](https://m.do.co/c/f6ab3d158275?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Simple, predictable cloud infrastructure for developers and growing teams.
 - <a href="https://usero.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/usero_compact.png" height="28" alt="Usero" /></a> **[Usero](https://usero.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Feedback becomes code. Automatically.
 - <a href="https://devglobe.xyz/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/devglobe_compact.png" height="28" alt="DevGlobe" /></a> **[DevGlobe](https://devglobe.xyz/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Connect your IDE, show up on the globe, and showcase your projects to a community of builders.
 
@@ -344,7 +346,7 @@ This approach ensures fast startup times while preserving your workspace layout 
 - `theme`: Theme ID (e.g., `"tabularis-dark"`, `"monokai"`).
 - `fontFamily`: Editor font family.
 - `fontSize`: Editor font size (px).
-- `language`: `"auto"`, `"en"` (English), `"it"` (Italian), `"es"` (Spanish), `"zh"` (Chinese Simplified), `"fr"` (French), `"de"` (German).
+- `language`: `"auto"`, `"en"` (English), `"it"` (Italian), `"es"` (Spanish), `"zh"` (Chinese Simplified), `"fr"` (French), `"de"` (German), `"ja"` (Japanese), `"ru"` (Russian).
 - `resultPageSize`: Default rows per page.
 - `aiEnabled`: Enable/Disable AI features.
 - `customRegistryUrl`: Custom URL for the plugin registry (overrides the default official registry).

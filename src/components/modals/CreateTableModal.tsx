@@ -8,6 +8,7 @@ import { useDataTypes } from '../../hooks/useDataTypes';
 import { Modal } from '../ui/Modal';
 import { Select } from '../ui/Select';
 import { getRequiredExtensions } from '../../utils/columnTypes';
+import { resolveCreateTableSchema } from '../../utils/createTable';
 
 interface ColumnDef {
   id: string; // Internal ID for React keys
@@ -23,12 +24,14 @@ interface ColumnDef {
 interface CreateTableModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
+  schema?: string | null;
 }
 
-export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModalProps) => {
+export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateTableModalProps) => {
   const { t } = useTranslation();
   const { activeConnectionId, activeDriver, activeSchema } = useDatabase();
+  const targetSchema = resolveCreateTableSchema(schema, activeSchema);
   const currentDriver = activeDriver || "sqlite";
   const { dataTypes } = useDataTypes(currentDriver);
 
@@ -70,13 +73,13 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
         connectionId: activeConnectionId,
         tableName,
         columns: colDefs,
-        ...(activeSchema ? { schema: activeSchema } : {}),
+        ...(targetSchema ? { schema: targetSchema } : {}),
       });
       setSqlPreview(stmts.map(s => s + ';').join('\n'));
     } catch (e) {
       setSqlPreview('-- ' + String(e));
     }
-  }, [tableName, columns, activeConnectionId, activeSchema, t]);
+  }, [tableName, columns, activeConnectionId, targetSchema, t]);
 
   useEffect(() => {
     const timer = setTimeout(generatePreview, 300);
@@ -129,18 +132,18 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess }: CreateTableModa
           connectionId: activeConnectionId,
           tableName,
           columns: colDefs,
-          ...(activeSchema ? { schema: activeSchema } : {}),
+          ...(targetSchema ? { schema: targetSchema } : {}),
         });
 
         for (const sql of stmts) {
           await invoke('execute_query', {
             connectionId: activeConnectionId,
             query: sql,
-            ...(activeSchema ? { schema: activeSchema } : {}),
+            ...(targetSchema ? { schema: targetSchema } : {}),
           });
         }
 
-        onSuccess();
+        await onSuccess();
         onClose();
         setTableName('');
         setColumns([{ id: '1', name: 'id', type: 'INTEGER', length: '', isPk: true, isNullable: false, isAutoInc: true, defaultValue: '' }]);

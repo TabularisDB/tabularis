@@ -756,7 +756,8 @@
     "tabSwitcher": {
       "title": "Onglets ouverts",
       "hint": "Ctrl+Tab",
-      "tabs": "onglets",
+      "tabs_one": "{{count}} onglet",
+      "tabs_other": "{{count}} onglets",
       "escHint": "Esc pour fermer"
     },
     "submitChanges": "Soumettre les modifications",
