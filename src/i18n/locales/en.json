@@ -124,6 +124,8 @@
     "schemas": "Schemas",
     "noSchemas": "No schemas found",
     "loadingSchemas": "Loading schemas...",
+    "schemaLoadError": "Failed to load schemas",
+    "retry": "Try again",
     "expandExplorer": "Expand Explorer",
     "selectSchemas": "Select Schemas",
     "selectSchemasHint": "Select schemas to load:",

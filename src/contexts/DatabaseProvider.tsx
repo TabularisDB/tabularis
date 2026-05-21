@@ -647,6 +647,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
             isLoadingTriggers: false,
             isConnecting: false,
             isConnected: true,
+            error: toErrorMessage(e),
+            schemas: [],
+            needsSchemaSelection: false,
           });
         }
       } else {

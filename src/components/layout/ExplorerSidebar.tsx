@@ -21,6 +21,7 @@ import {
   Upload,
   ChevronDown,
   RefreshCw,
+  AlertCircle,
   ChevronRight,
   Settings2,
   Check,
@@ -125,7 +126,13 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     loadDatabaseData,
     refreshDatabaseData,
     connectionDataMap,
+    connect,
   } = useDatabase();
+
+  const schemaLoadError =
+    activeCapabilities?.schemas === true && schemas.length === 0 && activeConnectionId
+      ? connectionDataMap[activeConnectionId]?.error
+      : undefined;
   const { queries, deleteQuery, updateQuery, saveQuery } = useSavedQueries();
   const { entries: historyEntries, isLoading: isHistoryLoading, deleteEntry: deleteHistoryEntry, clearHistory } = useQueryHistory();
   const { showAlert } = useAlert();
@@ -666,8 +673,22 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
               </div>
             ) : (
               <>
-              {/* Schema-capable driver: Schema tree layout */}
-              {activeCapabilities?.schemas === true && schemas.length > 0 ? (
+              {/* Schema fetch failed: surface the error instead of a silently empty tree */}
+              {schemaLoadError ? (
+                <div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
+                  <AlertCircle size={18} className="text-red-500" />
+                  <span className="text-sm font-medium text-red-500">{t("sidebar.schemaLoadError")}</span>
+                  <span className="text-xs text-muted break-words">{schemaLoadError}</span>
+                  <button
+                    onClick={() => { if (activeConnectionId) connect(activeConnectionId); }}
+                    className="mt-1 flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium bg-surface-secondary text-secondary hover:bg-surface-tertiary transition-colors"
+                  >
+                    <RefreshCw size={12} />
+                    {t("sidebar.retry")}
+                  </button>
+                </div>
+              ) : /* Schema-capable driver: Schema tree layout */
+              activeCapabilities?.schemas === true && schemas.length > 0 ? (
                 /* Postgres schema layout (unchanged) */
                 <div>
                   {needsSchemaSelection ? (
