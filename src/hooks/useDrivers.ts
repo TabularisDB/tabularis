@@ -118,8 +118,8 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
   {
     id: "sqlserver",
     name: "SQL Server",
-    version: "0.1.0",
-    description: "Microsoft SQL Server (read-only preview)",
+    version: "0.2.0",
+    description: "Microsoft SQL Server",
     default_port: 1433,
     is_builtin: true,
     default_username: "sa",
@@ -141,8 +141,8 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
       inline_pk: false,
       alter_column: false,
       create_foreign_keys: false,
-      manage_tables: false,
-      readonly: true,
+      manage_tables: true,
+      readonly: false,
     },
   },
 ];

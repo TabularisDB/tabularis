@@ -1,9 +1,10 @@
 //! Microsoft SQL Server driver (built-in).
 //!
-//! Phase 1 scope: read-only preview. `DriverCapabilities.readonly = true`
-//! keeps the UI from calling CRUD routes; the trait still requires the methods
-//! to exist, so the unimplemented ones return a descriptive error until later
-//! days fill them in.
+//! Phase 2 scope: editing-ready. `DriverCapabilities.readonly = false` and
+//! `manage_tables = true` so the UI exposes INSERT / UPDATE / DELETE routes
+//! for tables (single-PK, composite-PK, and IDENTITY-PK shapes). DDL for
+//! `alter_column` / `create_foreign_keys` is still gated off — that lands in
+//! Phase 3.
 
 pub mod extract;
 pub mod helpers;
@@ -39,8 +40,8 @@ impl SqlServerDriver {
             manifest: PluginManifest {
                 id: "sqlserver".to_string(),
                 name: "SQL Server".to_string(),
-                version: "0.1.0".to_string(),
-                description: "Microsoft SQL Server (read-only preview)".to_string(),
+                version: "0.2.0".to_string(),
+                description: "Microsoft SQL Server".to_string(),
                 default_port: Some(1433),
                 capabilities: DriverCapabilities {
                     schemas: true,
@@ -60,8 +61,8 @@ impl SqlServerDriver {
                     alter_column: false,
                     create_foreign_keys: false,
                     no_connection_required: false,
-                    manage_tables: false,
-                    readonly: true,
+                    manage_tables: true,
+                    readonly: false,
                 },
                 is_builtin: true,
                 default_username: "sa".to_string(),
@@ -572,16 +573,28 @@ mod tests {
     }
 
     #[test]
-    fn manifest_has_phase1_capabilities() {
+    fn manifest_has_phase2_capabilities() {
         let drv = SqlServerDriver::new();
         let m = drv.manifest();
         assert_eq!(m.id, "sqlserver");
+        assert_eq!(m.version, "0.2.0", "Phase 2 bumps the driver version");
         assert_eq!(m.default_port, Some(1433));
         assert!(m.is_builtin);
-        assert!(m.capabilities.readonly, "Phase 1 must ship readonly");
         assert!(
-            !m.capabilities.manage_tables,
-            "Phase 1 must hide CREATE TABLE UI"
+            !m.capabilities.readonly,
+            "Phase 2 enables editing (readonly = false)"
+        );
+        assert!(
+            m.capabilities.manage_tables,
+            "Phase 2 exposes CREATE TABLE UI (manage_tables = true)"
+        );
+        assert!(
+            !m.capabilities.alter_column,
+            "Phase 3 owns ALTER COLUMN — keep gated off"
+        );
+        assert!(
+            !m.capabilities.create_foreign_keys,
+            "Phase 3 owns CREATE FOREIGN KEY — keep gated off"
         );
         assert!(m.capabilities.schemas);
         assert!(m.capabilities.views);
