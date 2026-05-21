@@ -155,4 +155,13 @@ describe("AppearanceSection — icon tabs", () => {
       });
     });
   });
+
+  it("does not show emoji error when the field is left untouched", () => {
+    const onChange = vi.fn();
+    render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
+    fireEvent.click(screen.getByRole("tab", { name: /emoji/i }));
+    const input = screen.getByLabelText(/emoji input/i);
+    fireEvent.blur(input);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });

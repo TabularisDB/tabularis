@@ -79,14 +79,15 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
   }
 
   async function pickImage() {
+    if (imageBusy) return;
     setImageError(null);
+    setImageBusy(true);
     try {
       const picked = await openFileDialog({
         multiple: false,
         filters: [{ name: "Image", extensions: ["png", "jpg", "jpeg", "webp", "svg"] }],
       });
       if (typeof picked !== "string") return;
-      setImageBusy(true);
       const stored = await invoke<string>("save_connection_icon", {
         connectionId,
         sourcePath: picked,
@@ -100,6 +101,7 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
   }
 
   function commitEmoji() {
+    if (emojiDraft.length === 0) return;
     if (graphemeCount(emojiDraft) !== 1) {
       setEmojiError(t("connectionAppearance.errors.invalidEmoji"));
       return;
@@ -260,6 +262,7 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
             {value.icon?.type === "image" && (
               <button
                 type="button"
+                aria-label="remove image"
                 onClick={removeImage}
                 className="ml-2 px-3 py-1.5 text-sm text-rose-300 hover:text-rose-200"
               >
