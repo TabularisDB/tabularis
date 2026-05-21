@@ -13,7 +13,7 @@ import { useDrivers } from "../../hooks/useDrivers";
 import type { ExplainPlan } from "../../types/explain";
 import { isDataModifyingQuery } from "../../utils/explainPlan";
 import { isExplainableQuery } from "../../utils/sql";
-import { getDriverIcon } from "../../utils/driverUI";
+import { getConnectionIcon } from "../../utils/driverUI";
 import { VisualExplainView } from "../explain/VisualExplainView";
 import type { ExplainViewMode } from "./visual-explain/ExplainSummaryBar";
 
@@ -39,7 +39,7 @@ export const VisualExplainModal = ({
 }: VisualExplainModalProps) => {
   const { t } = useTranslation();
   const { settings } = useSettings();
-  const { getConnectionData } = useDatabase();
+  const { getConnectionData, connections } = useDatabase();
   const { allDrivers } = useDrivers();
   const [plan, setPlan] = useState<ExplainPlan | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -54,6 +54,7 @@ export const VisualExplainModal = ({
     connectionData?.driver ?? plan?.driver ?? "sqlite";
   const driverManifest =
     allDrivers.find((driver) => driver.id === effectiveDriver) ?? null;
+  const savedConnection = connections.find(c => c.id === connectionId) ?? null;
   const driverLabel = driverManifest?.name ?? effectiveDriver;
   const resolvedConnectionLabel =
     connectionData?.connectionName ?? connectionLabel ?? connectionId;
@@ -115,7 +116,7 @@ export const VisualExplainModal = ({
               </h2>
               <div className="flex flex-wrap items-center gap-2 mt-1">
                 <div className="inline-flex items-center gap-2 rounded-lg border border-default bg-surface-secondary/50 px-2.5 py-1 text-xs text-secondary">
-                  <span className="text-primary">{getDriverIcon(driverManifest, 14)}</span>
+                  <span className="text-primary">{getConnectionIcon(savedConnection, driverManifest, 14)}</span>
                   <span className="font-medium text-primary">
                     {resolvedConnectionLabel}
                   </span>
