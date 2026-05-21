@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ConnectionAppearance } from "../../../contexts/DatabaseContext";
+import { invoke } from "@tauri-apps/api/core";
+import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
+import type { ConnectionAppearance, IconOverride } from "../../../contexts/DatabaseContext";
+import { CONNECTION_ICON_PACK } from "../../../utils/connectionIconPack";
 
 const PALETTE = [
   "#64748b", "#ef4444", "#f97316", "#f59e0b",
@@ -10,17 +13,43 @@ const PALETTE = [
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
+type IconTab = "default" | "pack" | "emoji" | "image";
+
+function graphemeCount(s: string): number {
+  if (s.length === 0) return 0;
+  try {
+    const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+    let n = 0;
+    for (const _ of seg.segment(s)) n++;
+    return n;
+  } catch {
+    // Fallback for older runtimes — counts code points which is close enough for emoji
+    return Array.from(s).length;
+  }
+}
+
 interface Props {
   value: ConnectionAppearance;
   onChange: (next: ConnectionAppearance) => void;
   connectionId: string;
 }
 
-export function AppearanceSection({ value, onChange }: Props) {
+export function AppearanceSection({ value, onChange, connectionId }: Props) {
   const { t } = useTranslation();
   const [customOpen, setCustomOpen] = useState(false);
   const [customDraft, setCustomDraft] = useState(value.accentColor ?? "");
   const [hexError, setHexError] = useState<string | null>(null);
+
+  const initialTab: IconTab =
+    value.icon?.type === "pack" ? "pack" :
+    value.icon?.type === "emoji" ? "emoji" :
+    value.icon?.type === "image" ? "image" : "default";
+
+  const [tab, setTab] = useState<IconTab>(initialTab);
+  const [emojiDraft, setEmojiDraft] = useState(value.icon?.type === "emoji" ? value.icon.value : "");
+  const [emojiError, setEmojiError] = useState<string | null>(null);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   function setAccent(c: string | undefined) {
     const next: ConnectionAppearance = { ...value };
@@ -39,6 +68,52 @@ export function AppearanceSection({ value, onChange }: Props) {
     const normalized = customDraft.toLowerCase();
     setCustomDraft(normalized);
     setAccent(normalized);
+  }
+
+  function setIcon(icon: IconOverride | undefined) {
+    const next: ConnectionAppearance = { ...value };
+    if (icon) next.icon = icon;
+    else delete next.icon;
+    const isEmpty = !next.accentColor && !next.icon;
+    onChange(isEmpty ? {} : next);
+  }
+
+  async function pickImage() {
+    setImageError(null);
+    try {
+      const picked = await openFileDialog({
+        multiple: false,
+        filters: [{ name: "Image", extensions: ["png", "jpg", "jpeg", "webp", "svg"] }],
+      });
+      if (typeof picked !== "string") return;
+      setImageBusy(true);
+      const stored = await invoke<string>("save_connection_icon", {
+        connectionId,
+        sourcePath: picked,
+      });
+      setIcon({ type: "image", path: stored });
+    } catch (e) {
+      setImageError(String(e));
+    } finally {
+      setImageBusy(false);
+    }
+  }
+
+  function commitEmoji() {
+    if (graphemeCount(emojiDraft) !== 1) {
+      setEmojiError(t("connectionAppearance.errors.invalidEmoji"));
+      return;
+    }
+    setEmojiError(null);
+    setIcon({ type: "emoji", value: emojiDraft });
+  }
+
+  async function removeImage() {
+    if (value.icon?.type === "image") {
+      try { await invoke("delete_connection_icon", { relativePath: value.icon.path }); }
+      catch { /* swallow — file may already be gone */ }
+    }
+    setIcon(undefined);
   }
 
   return (
@@ -101,6 +176,99 @@ export function AppearanceSection({ value, onChange }: Props) {
           >
             {t("connectionAppearance.resetColor")}
           </button>
+        )}
+      </div>
+
+      <div className="mt-2">
+        <label className="block text-xs text-zinc-400 mb-2">
+          {t("connectionAppearance.icon")}
+        </label>
+        <div role="tablist" className="flex gap-1 mb-3 border-b border-zinc-800/60">
+          {(["default", "pack", "emoji", "image"] as IconTab[]).map(k => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={tab === k}
+              onClick={() => setTab(k)}
+              className={`px-3 py-1.5 text-xs ${tab === k ? "text-zinc-100 border-b-2 border-blue-500" : "text-zinc-500 hover:text-zinc-300"}`}
+            >
+              {t(`connectionAppearance.tabs.${k}`)}
+            </button>
+          ))}
+        </div>
+
+        {tab === "default" && (
+          <button
+            type="button"
+            aria-label="reset icon"
+            onClick={() => setIcon(undefined)}
+            className="text-xs text-zinc-500 hover:text-zinc-300 underline"
+          >
+            {t("connectionAppearance.resetIcon")}
+          </button>
+        )}
+
+        {tab === "pack" && (
+          <div className="grid grid-cols-6 gap-2">
+            {Object.entries(CONNECTION_ICON_PACK).map(([id, Cmp]) => (
+              <button
+                key={id}
+                type="button"
+                aria-label={`pick-${id}`}
+                aria-pressed={value.icon?.type === "pack" && value.icon.id === id}
+                onClick={() => setIcon({ type: "pack", id })}
+                className={`flex items-center justify-center p-2 rounded transition-colors ${
+                  value.icon?.type === "pack" && value.icon.id === id
+                    ? "bg-blue-500/20 text-blue-300"
+                    : "bg-zinc-800/60 hover:bg-zinc-700 text-zinc-300"
+                }`}
+              >
+                <Cmp size={18} />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {tab === "emoji" && (
+          <div>
+            <input
+              type="text"
+              aria-label="emoji input"
+              placeholder={t("connectionAppearance.tabs.emoji")}
+              value={emojiDraft}
+              onChange={e => { setEmojiDraft(e.target.value); setEmojiError(null); }}
+              onBlur={commitEmoji}
+              maxLength={8}
+              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm w-32"
+            />
+            {emojiError && <span role="alert" className="ml-2 text-xs text-rose-400">{emojiError}</span>}
+          </div>
+        )}
+
+        {tab === "image" && (
+          <div>
+            <button
+              type="button"
+              aria-label="choose image"
+              disabled={imageBusy}
+              onClick={pickImage}
+              className="px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded disabled:opacity-50"
+            >
+              {t("connectionAppearance.chooseImage")}
+            </button>
+            {value.icon?.type === "image" && (
+              <button
+                type="button"
+                onClick={removeImage}
+                className="ml-2 px-3 py-1.5 text-sm text-rose-300 hover:text-rose-200"
+              >
+                {t("connectionAppearance.removeImage")}
+              </button>
+            )}
+            {imageError && <div role="alert" className="mt-1 text-xs text-rose-400">{imageError}</div>}
+            <div className="mt-1 text-xs text-zinc-500">{t("connectionAppearance.imageHint")}</div>
+          </div>
         )}
       </div>
     </section>
