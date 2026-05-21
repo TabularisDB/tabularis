@@ -26,8 +26,9 @@ export function camelToKebab(s: string): string {
 // Maps the previous 30-icon kebab-case ids to themselves (lucide uses kebab-case in dynamicIconImports).
 // If callers used camelCase (e.g. "shieldCheck"), translate that here.
 export const CONNECTION_ICON_PACK = new Proxy({} as Record<string, LazyExoticComponent<LucideIcon>>, {
-  get(_target, key: string) {
-    return getLucideIconComponent(key) ?? getLucideIconComponent(camelToKebab(key)) ?? null;
+  get(_target, key) {
+    if (typeof key !== "string") return undefined;
+    return getLucideIconComponent(key) ?? getLucideIconComponent(camelToKebab(key)) ?? undefined;
   },
 });
 

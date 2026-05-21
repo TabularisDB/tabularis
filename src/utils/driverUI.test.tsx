@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { getConnectionAccent, getConnectionIcon } from "./driverUI";
-import { camelToKebab, getLucideIconComponent } from "./connectionIconPack";
+import { camelToKebab, getLucideIconComponent, CONNECTION_ICON_PACK } from "./connectionIconPack";
 import type { SavedConnection } from "../contexts/DatabaseContext";
 import type { PluginManifest } from "../types/plugins";
 
@@ -79,5 +79,23 @@ describe("camelToKebab / getLucideIconComponent — legacy id normalization", ()
     // { type: "pack", id: "shield-check" } — canonical kebab-case id
     const c = { id: "1", appearance: { icon: { type: "pack", id: "shield-check" } } } as SavedConnection;
     expect(() => render(<>{getConnectionIcon(c, manifest, 16)}</>)).not.toThrow();
+  });
+});
+
+describe("CONNECTION_ICON_PACK Proxy — Symbol safety", () => {
+  it("does not throw on Symbol property access (e.g. Object.prototype.toString)", () => {
+    expect(() => Object.prototype.toString.call(CONNECTION_ICON_PACK)).not.toThrow();
+  });
+
+  it("returns undefined for Symbol.toStringTag instead of throwing", () => {
+    // Previously the proxy had `key: string` type annotation which would throw when
+    // JS passed a Symbol (e.g. Symbol.toStringTag). The fix guards with typeof check.
+    const result = (CONNECTION_ICON_PACK as any)[Symbol.toStringTag];
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined for Symbol.iterator instead of throwing", () => {
+    const result = (CONNECTION_ICON_PACK as any)[Symbol.iterator];
+    expect(result).toBeUndefined();
   });
 });
