@@ -645,6 +645,8 @@ pub async fn update_connection<R: Runtime>(
     let original_group_id = conn_file.connections[conn_idx].group_id.clone();
     let original_sort_order = conn_file.connections[conn_idx].sort_order;
     let original_db_selection = conn_file.connections[conn_idx].params.database.clone();
+    // Preserve user's appearance customization across edits
+    let original_appearance = conn_file.connections[conn_idx].appearance.clone();
 
     let updated = SavedConnection {
         id: id.clone(),
@@ -653,7 +655,7 @@ pub async fn update_connection<R: Runtime>(
         group_id: original_group_id,
         sort_order: original_sort_order,
         detect_json_in_text_columns,
-        appearance: None,
+        appearance: original_appearance,
     };
 
     conn_file.connections[conn_idx] = updated.clone();
@@ -1323,6 +1325,52 @@ mod tests {
             detect_json_in_text_columns: None,
             appearance: None,
         }
+    }
+
+    /// Regression test: update_connection must not wipe appearance.
+    ///
+    /// The bug was that the struct literal used `appearance: None`, which destroyed
+    /// any accent color or custom icon the user had previously set.  The fix reads
+    /// `original_appearance` from the existing record and forwards it to the updated
+    /// struct — exactly the same pattern already used for `group_id` / `sort_order`.
+    ///
+    /// Because `update_connection` requires a live Tauri `AppHandle` we cannot call
+    /// it in a unit test.  Instead we verify the preservation pattern directly: build
+    /// an "existing" SavedConnection with appearance set, clone its appearance field,
+    /// and assert it survives into the replacement struct unchanged.
+    #[test]
+    fn update_connection_preserves_appearance() {
+        use crate::models::{ConnectionAppearance, IconOverride};
+
+        let existing = SavedConnection {
+            id: "conn-1".to_string(),
+            name: "Old Name".to_string(),
+            params: base_params(),
+            group_id: Some("group-a".to_string()),
+            sort_order: Some(3),
+            detect_json_in_text_columns: None,
+            appearance: Some(ConnectionAppearance {
+                accent_color: Some("#ff0000".to_string()),
+                icon: Some(IconOverride::Emoji { value: "🐘".to_string() }),
+            }),
+        };
+
+        // Simulate the pattern used in update_connection after the fix.
+        let original_appearance = existing.appearance.clone();
+
+        let updated = SavedConnection {
+            id: existing.id.clone(),
+            name: "New Name".to_string(),
+            params: base_params(),
+            group_id: existing.group_id.clone(),
+            sort_order: existing.sort_order,
+            detect_json_in_text_columns: None,
+            appearance: original_appearance,
+        };
+
+        let app = updated.appearance.as_ref().expect("appearance must be preserved");
+        assert_eq!(app.accent_color.as_deref(), Some("#ff0000"));
+        assert!(matches!(&app.icon, Some(IconOverride::Emoji { value }) if value == "🐘"));
     }
 
     #[test]

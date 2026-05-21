@@ -440,6 +440,8 @@ mod appearance_tests {
         let v = IconOverride::Emoji { value: "🐘".into() };
         let s = serde_json::to_string(&v).unwrap();
         assert_eq!(s, r#"{"type":"emoji","value":"🐘"}"#);
+        let back: IconOverride = serde_json::from_str(&s).unwrap();
+        assert!(matches!(back, IconOverride::Emoji { value } if value == "🐘"));
     }
 
     #[test]
@@ -447,6 +449,8 @@ mod appearance_tests {
         let v = IconOverride::Image { path: "connection-icons/abc.png".into() };
         let s = serde_json::to_string(&v).unwrap();
         assert_eq!(s, r#"{"type":"image","path":"connection-icons/abc.png"}"#);
+        let back: IconOverride = serde_json::from_str(&s).unwrap();
+        assert!(matches!(back, IconOverride::Image { path } if path == "connection-icons/abc.png"));
     }
 
     #[test]
