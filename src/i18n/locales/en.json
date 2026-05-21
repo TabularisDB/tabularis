@@ -617,6 +617,12 @@
       "allow": "Allow",
       "prefer": "Prefer",
       "require": "Require"
+    },
+    "encrypt": "Encrypt",
+    "encryptModes": {
+      "yes": "Yes",
+      "no": "No",
+      "strict": "Strict"
     }
   },
   "sshConnections": {
