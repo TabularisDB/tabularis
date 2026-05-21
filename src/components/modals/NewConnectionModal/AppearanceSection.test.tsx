@@ -148,6 +148,31 @@ describe("AppearanceSection — icon tabs", () => {
     });
   });
 
+  it("does not eagerly delete previous image on pick", async () => {
+    const onChange = vi.fn();
+    const onImageUploaded = vi.fn();
+    const { invoke } = await import("@tauri-apps/api/core");
+    vi.mocked(invoke).mockClear();
+    render(
+      <AppearanceSection
+        value={{ icon: { type: "image", path: "connection-icons/old-1234.png" } }}
+        onChange={onChange}
+        connectionId="conn1"
+        onImageUploaded={onImageUploaded}
+      />
+    );
+    fireEvent.click(screen.getByRole("tab", { name: /image/i }));
+    fireEvent.click(screen.getByRole("button", { name: /choose image/i }));
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("save_connection_icon", expect.any(Object));
+    });
+    // The previous image must NOT be deleted as part of the pick
+    const deleteCalls = vi.mocked(invoke).mock.calls.filter(c => c[0] === "delete_connection_icon");
+    expect(deleteCalls).toHaveLength(0);
+    // onImageUploaded callback should have been called with the new path
+    expect(onImageUploaded).toHaveBeenCalledWith("connection-icons/1-abcd.png");
+  });
+
   // ── emoji-picker-react emoji picker ──
 
   it("renders emoji picker with search", () => {

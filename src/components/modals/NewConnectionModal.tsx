@@ -218,17 +218,24 @@ export const NewConnectionModal = ({
   useEffect(() => { appearanceRef.current = appearance; }, [appearance]);
 
   // Track whether the modal was successfully saved; if not, delete any
-  // image that was uploaded during this session but not committed.
+  // images that were uploaded during this session but not committed.
   const wasSavedRef = useRef(false);
   const originalImagePath = useRef<string | null>(
     initialConnection?.appearance?.icon?.type === "image"
       ? initialConnection.appearance.icon.path
       : null,
   );
+  // All icon paths uploaded during this modal session (may include superseded picks).
+  const uploadedPathsRef = useRef<string[]>([]);
+
+  const handleImageUploaded = useCallback((path: string) => {
+    uploadedPathsRef.current.push(path);
+  }, []);
 
   useEffect(() => {
     // Reset on each open so re-opening the modal starts fresh.
     wasSavedRef.current = false;
+    uploadedPathsRef.current = [];
     originalImagePath.current =
       initialConnection?.appearance?.icon?.type === "image"
         ? initialConnection.appearance.icon.path
@@ -236,11 +243,13 @@ export const NewConnectionModal = ({
 
     return () => {
       if (wasSavedRef.current) return;
-      const a = appearanceRef.current;
-      const current = a.icon?.type === "image" ? a.icon.path : null;
-      if (current && current !== originalImagePath.current) {
-        invoke("delete_connection_icon", { relativePath: current }).catch(() => {});
-      }
+      // On cancel: delete EVERY path uploaded this session except the original
+      // (the one the modal opened with). Handles "pick A then B then C then cancel".
+      const original = originalImagePath.current;
+      const toDelete = uploadedPathsRef.current.filter(p => p !== original);
+      toDelete.forEach(p =>
+        invoke("delete_connection_icon", { relativePath: p }).catch(() => {})
+      );
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -588,6 +597,22 @@ export const NewConnectionModal = ({
       }
       if (onSave) onSave();
       wasSavedRef.current = true;
+
+      // On save: delete every uploaded path EXCEPT the one currently set on the connection,
+      // and also delete the original image if the user replaced it.
+      const finalImagePath = appearanceRef.current.icon?.type === "image"
+        ? appearanceRef.current.icon.path
+        : null;
+      const toDelete = uploadedPathsRef.current.filter(p => p !== finalImagePath);
+      const original = originalImagePath.current;
+      if (original && original !== finalImagePath && !toDelete.includes(original)) {
+        toDelete.push(original);
+      }
+      await Promise.all(toDelete.map(p =>
+        invoke("delete_connection_icon", { relativePath: p }).catch(() => {})
+      ));
+      uploadedPathsRef.current = [];
+
       onClose();
     } catch (err) {
       setStatus("error");
@@ -921,6 +946,7 @@ export const NewConnectionModal = ({
         connectionId={effectiveConnectionId}
         driverManifest={activeDriver}
         connectionName={name || t("newConnection.unnamedConnection", { defaultValue: "Unnamed connection" })}
+        onImageUploaded={handleImageUploaded}
       />
     </div>
   );

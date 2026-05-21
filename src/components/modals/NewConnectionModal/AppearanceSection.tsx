@@ -26,6 +26,11 @@ interface Props {
   driverManifest?: PluginManifest;
   /** Connection name shown in the preview row */
   connectionName?: string;
+  /**
+   * Called after every successful image upload with the new relative path.
+   * The parent uses this to track all session uploads for deferred cleanup.
+   */
+  onImageUploaded?: (path: string) => void;
 }
 
 export function AppearanceSection({
@@ -34,6 +39,7 @@ export function AppearanceSection({
   connectionId,
   driverManifest,
   connectionName,
+  onImageUploaded,
 }: Props) {
   const { t } = useTranslation();
   const [customOpen, setCustomOpen] = useState(false);
@@ -80,7 +86,6 @@ export function AppearanceSection({
     if (imageBusy) return;
     setImageError(null);
     setImageBusy(true);
-    const previousImagePath = value.icon?.type === "image" ? value.icon.path : null;
     try {
       const picked = await openFileDialog({
         multiple: false,
@@ -98,9 +103,9 @@ export function AppearanceSection({
       } catch (e) {
         throw new Error(`Failed to save icon: ${e}`);
       }
-      if (previousImagePath && previousImagePath !== stored) {
-        invoke("delete_connection_icon", { relativePath: previousImagePath }).catch(() => {});
-      }
+      // Deletion of the previous image is deferred to the parent (save or cancel).
+      // This prevents data loss when the user picks multiple images then cancels.
+      onImageUploaded?.(stored);
       setIcon({ type: "image", path: stored });
     } catch (e) {
       console.error("[AppearanceSection] pickImage failed:", e);
@@ -110,11 +115,8 @@ export function AppearanceSection({
     }
   }
 
-  async function removeImage() {
-    if (value.icon?.type === "image") {
-      try { await invoke("delete_connection_icon", { relativePath: value.icon.path }); }
-      catch { /* swallow — file may already be gone */ }
-    }
+  function removeImage() {
+    // Deletion is deferred to the parent (save or cancel).
     setIcon(undefined);
   }
 
@@ -182,6 +184,7 @@ export function AppearanceSection({
                 color={value.accentColor ?? ""}
                 onChange={(c) => setAccent(c ? c.toLowerCase() : undefined)}
                 placeholder="rrggbb"
+                prefixed={false}
                 aria-label="custom hex input"
                 className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm w-28 font-mono"
               />
