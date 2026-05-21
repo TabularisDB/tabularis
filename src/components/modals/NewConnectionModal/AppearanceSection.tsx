@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
+import { HexColorPicker, HexColorInput } from "react-colorful";
 import type { ConnectionAppearance, IconOverride } from "../../../contexts/DatabaseContext";
 import { CONNECTION_ICON_PACK } from "../../../utils/connectionIconPack";
 
@@ -10,8 +11,6 @@ const PALETTE = [
   "#eab308", "#84cc16", "#10b981", "#14b8a6",
   "#0ea5e9", "#6366f1", "#8b5cf6", "#ec4899",
 ];
-
-const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
 type IconTab = "default" | "pack" | "emoji" | "image";
 
@@ -37,8 +36,6 @@ interface Props {
 export function AppearanceSection({ value, onChange, connectionId }: Props) {
   const { t } = useTranslation();
   const [customOpen, setCustomOpen] = useState(false);
-  const [customDraft, setCustomDraft] = useState(value.accentColor ?? "");
-  const [hexError, setHexError] = useState<string | null>(null);
 
   const initialTab: IconTab =
     value.icon?.type === "pack" ? "pack" :
@@ -57,17 +54,6 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
     else delete next.accentColor;
     const isEmpty = !next.accentColor && !next.icon;
     onChange(isEmpty ? {} : next);
-  }
-
-  function commitCustom() {
-    if (!HEX_RE.test(customDraft)) {
-      setHexError(t("connectionAppearance.errors.invalidHex"));
-      return;
-    }
-    setHexError(null);
-    const normalized = customDraft.toLowerCase();
-    setCustomDraft(normalized);
-    setAccent(normalized);
   }
 
   function setIcon(icon: IconOverride | undefined) {
@@ -153,12 +139,7 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
             type="button"
             aria-label="custom color"
             aria-expanded={customOpen}
-            onClick={() => {
-              setCustomOpen(o => {
-                if (!o) setCustomDraft(value.accentColor ?? "");
-                return !o;
-              });
-            }}
+            onClick={() => setCustomOpen(o => !o)}
             className="ml-1 text-zinc-400 hover:text-zinc-100 text-sm"
           >
             {t("connectionAppearance.customColor")}
@@ -166,16 +147,22 @@ export function AppearanceSection({ value, onChange, connectionId }: Props) {
         </div>
 
         {customOpen && (
-          <div className="mt-2 flex items-center gap-2">
-            <input
-              type="text"
-              placeholder="#rrggbb"
-              value={customDraft}
-              onChange={e => { setCustomDraft(e.target.value); setHexError(null); }}
-              onBlur={commitCustom}
-              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm w-28 font-mono"
+          <div className="mt-2 space-y-2">
+            <HexColorPicker
+              color={value.accentColor ?? "#64748b"}
+              onChange={(c) => setAccent(c.toLowerCase())}
+              style={{ width: "100%", maxWidth: 220, height: 140 }}
             />
-            {hexError && <span role="alert" className="text-xs text-rose-400">{hexError}</span>}
+            <div className="flex items-center gap-2">
+              <span className="text-zinc-500 text-sm">#</span>
+              <HexColorInput
+                color={value.accentColor ?? ""}
+                onChange={(c) => setAccent(c ? c.toLowerCase() : undefined)}
+                placeholder="rrggbb"
+                aria-label="custom hex input"
+                className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm w-28 font-mono"
+              />
+            </div>
           </div>
         )}
 

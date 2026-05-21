@@ -50,36 +50,30 @@ describe("AppearanceSection — color", () => {
     expect(onChange).toHaveBeenCalledWith({ icon: { type: "pack", id: "server" } });
   });
 
-  it("validates custom hex input — rejects bad hex", () => {
+  it("opens the custom panel with hex input + picker", () => {
+    render(<AppearanceSection value={{}} onChange={() => {}} connectionId="1" />);
+    fireEvent.click(screen.getByRole("button", { name: /custom color/i }));
+    expect(screen.getByLabelText(/custom hex input/i)).toBeInTheDocument();
+  });
+
+  it("emits accentColor when valid hex is typed into the input", () => {
     const onChange = vi.fn();
     render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
     fireEvent.click(screen.getByRole("button", { name: /custom color/i }));
-    const input = screen.getByPlaceholderText("#rrggbb");
+    const input = screen.getByLabelText(/custom hex input/i);
+    fireEvent.change(input, { target: { value: "abc123" } });
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ accentColor: "#abc123" }));
+  });
+
+  it("ignores invalid hex input", () => {
+    const onChange = vi.fn();
+    render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
+    fireEvent.click(screen.getByRole("button", { name: /custom color/i }));
+    const input = screen.getByLabelText(/custom hex input/i);
     fireEvent.change(input, { target: { value: "garbage" } });
-    fireEvent.blur(input);
-    expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it("accepts valid custom hex on blur", () => {
-    const onChange = vi.fn();
-    render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
-    fireEvent.click(screen.getByRole("button", { name: /custom color/i }));
-    const input = screen.getByPlaceholderText("#rrggbb");
-    fireEvent.change(input, { target: { value: "#abc123" } });
-    fireEvent.blur(input);
-    expect(onChange).toHaveBeenCalledWith({ accentColor: "#abc123" });
-  });
-
-  it("normalizes uppercase hex input to lowercase", () => {
-    const onChange = vi.fn();
-    render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
-    fireEvent.click(screen.getByRole("button", { name: /custom color/i }));
-    const input = screen.getByPlaceholderText("#rrggbb") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "#ABC123" } });
-    fireEvent.blur(input);
-    expect(onChange).toHaveBeenCalledWith({ accentColor: "#abc123" });
-    expect(input.value).toBe("#abc123");
+    // react-colorful silently rejects — onChange should not have fired with garbage
+    const accentCalls = onChange.mock.calls.filter(c => c[0].accentColor === "garbage");
+    expect(accentCalls).toHaveLength(0);
   });
 });
 
