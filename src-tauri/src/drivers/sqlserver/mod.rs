@@ -9,6 +9,7 @@ pub mod extract;
 pub mod helpers;
 pub mod introspection;
 pub mod pool;
+pub mod types;
 pub mod version;
 
 use std::collections::HashMap;
@@ -19,11 +20,11 @@ use crate::drivers::driver_trait::{
     DatabaseDriver, DriverCapabilities, PluginManifest,
 };
 use crate::drivers::sqlserver::helpers::{
-    build_delete_composite_sql, build_update_composite_sql,
+    bracket_quote, build_delete_composite_sql, build_update_composite_sql, qualify,
 };
 use crate::models::{
-    ConnectionParams, DataTypeInfo, ForeignKey, Index, Pagination, QueryResult, RoutineInfo,
-    RoutineParameter, TableColumn, TableInfo, TableSchema, ViewInfo,
+    ColumnDefinition, ConnectionParams, DataTypeInfo, ForeignKey, Index, Pagination, QueryResult,
+    RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema, ViewInfo,
 };
 use crate::pool_manager::get_sqlserver_pool;
 use mssql_tiberius_bridge::ToSql;
@@ -95,9 +96,7 @@ impl DatabaseDriver for SqlServerDriver {
     }
 
     fn get_data_types(&self) -> Vec<DataTypeInfo> {
-        // Populated in Phase 1 Day 5+; empty vec keeps clipboard-import UI
-        // inert for now (the readonly flag already hides editing surfaces).
-        Vec::new()
+        types::get_data_types()
     }
 
     fn map_inferred_type(&self, kind: &str) -> String {
@@ -512,6 +511,46 @@ impl DatabaseDriver for SqlServerDriver {
 
     // --- ER diagram batch ---------------------------------------------------
 
+    async fn get_create_table_sql(
+        &self,
+        table_name: &str,
+        columns: Vec<ColumnDefinition>,
+        schema: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        let mut col_defs = Vec::new();
+        let mut pk_cols = Vec::new();
+
+        for col in &columns {
+            let mut def = format!("{} {}", bracket_quote(&col.name), col.data_type);
+            if col.is_auto_increment {
+                def.push_str(" IDENTITY(1,1)");
+            }
+            if col.is_nullable {
+                def.push_str(" NULL");
+            } else {
+                def.push_str(" NOT NULL");
+            }
+            if let Some(default) = &col.default_value {
+                def.push_str(&format!(" DEFAULT {}", default));
+            }
+            col_defs.push(def);
+            if col.is_pk {
+                pk_cols.push(bracket_quote(&col.name));
+            }
+        }
+
+        if !pk_cols.is_empty() {
+            col_defs.push(format!("PRIMARY KEY ({})", pk_cols.join(", ")));
+        }
+
+        let table_ref = qualify(schema, table_name);
+        Ok(vec![format!(
+            "CREATE TABLE {} (\n  {}\n)",
+            table_ref,
+            col_defs.join(",\n  ")
+        )])
+    }
+
     async fn get_schema_snapshot(
         &self,
         params: &ConnectionParams,
@@ -635,10 +674,14 @@ mod tests {
     }
 
     #[test]
-    fn get_data_types_empty_in_phase1() {
-        // Phase 1 is read-only; clipboard-import types are populated in Phase 2.
+    fn get_data_types_includes_core_types() {
         let drv = SqlServerDriver::new();
-        assert!(drv.get_data_types().is_empty());
+        let types = drv.get_data_types();
+        assert!(!types.is_empty());
+        assert!(types.iter().any(|t| t.name == "INT"));
+        assert!(types.iter().any(|t| t.name == "NVARCHAR"));
+        assert!(types.iter().any(|t| t.name == "DATETIME2"));
+        assert!(types.iter().any(|t| t.name == "UNIQUEIDENTIFIER"));
     }
 
     #[tokio::test]
