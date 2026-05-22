@@ -162,26 +162,44 @@ pub async fn get_foreign_keys(
 
     let query = r#"
         SELECT
-            tc.constraint_name,
-            kcu.column_name,
-            ccu.table_name AS foreign_table_name,
-            ccu.column_name AS foreign_column_name,
-            rc.update_rule,
-            rc.delete_rule
-        FROM
-            information_schema.table_constraints AS tc
-            JOIN information_schema.key_column_usage AS kcu
-            ON tc.constraint_name = kcu.constraint_name
-            AND tc.table_schema = kcu.table_schema
-            JOIN information_schema.constraint_column_usage AS ccu
-            ON ccu.constraint_name = tc.constraint_name
-            AND ccu.table_schema = tc.table_schema
-            JOIN information_schema.referential_constraints AS rc
-            ON rc.constraint_name = tc.constraint_name
-            AND rc.constraint_schema = tc.table_schema
-        WHERE tc.constraint_type = 'FOREIGN KEY'
-        AND tc.table_schema = $1
-        AND tc.table_name = $2
+            con.conname::text AS constraint_name,
+            src_att.attname::text AS column_name,
+            ref_nsp.nspname::text AS foreign_schema_name,
+            ref_cl.relname::text AS foreign_table_name,
+            ref_att.attname::text AS foreign_column_name,
+            CASE con.confupdtype
+                WHEN 'a' THEN 'NO ACTION'
+                WHEN 'r' THEN 'RESTRICT'
+                WHEN 'c' THEN 'CASCADE'
+                WHEN 'n' THEN 'SET NULL'
+                WHEN 'd' THEN 'SET DEFAULT'
+            END::text AS update_rule,
+            CASE con.confdeltype
+                WHEN 'a' THEN 'NO ACTION'
+                WHEN 'r' THEN 'RESTRICT'
+                WHEN 'c' THEN 'CASCADE'
+                WHEN 'n' THEN 'SET NULL'
+                WHEN 'd' THEN 'SET DEFAULT'
+            END::text AS delete_rule
+        FROM pg_constraint con
+        JOIN pg_class src_cl ON src_cl.oid = con.conrelid
+        JOIN pg_namespace src_nsp ON src_nsp.oid = src_cl.relnamespace
+        JOIN pg_class ref_cl ON ref_cl.oid = con.confrelid
+        JOIN pg_namespace ref_nsp ON ref_nsp.oid = ref_cl.relnamespace
+        JOIN unnest(con.conkey, con.confkey) AS cols(src_attnum, ref_attnum) ON true
+        JOIN pg_attribute src_att
+            ON src_att.attrelid = src_cl.oid
+            AND src_att.attnum = cols.src_attnum
+            AND NOT src_att.attisdropped
+        JOIN pg_attribute ref_att
+            ON ref_att.attrelid = ref_cl.oid
+            AND ref_att.attnum = cols.ref_attnum
+            AND NOT ref_att.attisdropped
+        WHERE con.contype = 'f'
+          AND con.conparentid = 0
+          AND src_nsp.nspname = $1
+          AND src_cl.relname = $2
+        ORDER BY con.conname, cols.src_attnum
     "#;
 
     let rows = query_all(&pool, &query, &[&schema, &table_name]).await?;
@@ -287,26 +305,44 @@ pub async fn get_all_foreign_keys_batch(
 
     let query = r#"
         SELECT
-            tc.table_name,
-            tc.constraint_name,
-            kcu.column_name,
-            ccu.table_name AS foreign_table_name,
-            ccu.column_name AS foreign_column_name,
-            rc.update_rule,
-            rc.delete_rule
-        FROM
-            information_schema.table_constraints AS tc
-            JOIN information_schema.key_column_usage AS kcu
-            ON tc.constraint_name = kcu.constraint_name
-            AND tc.table_schema = kcu.table_schema
-            JOIN information_schema.constraint_column_usage AS ccu
-            ON ccu.constraint_name = tc.constraint_name
-            AND ccu.table_schema = tc.table_schema
-            JOIN information_schema.referential_constraints AS rc
-            ON rc.constraint_name = tc.constraint_name
-            AND rc.constraint_schema = tc.table_schema
-        WHERE tc.constraint_type = 'FOREIGN KEY'
-        AND tc.table_schema = $1
+            src_cl.relname::text AS table_name,
+            con.conname::text AS constraint_name,
+            src_att.attname::text AS column_name,
+            ref_nsp.nspname::text AS foreign_schema_name,
+            ref_cl.relname::text AS foreign_table_name,
+            ref_att.attname::text AS foreign_column_name,
+            CASE con.confupdtype
+                WHEN 'a' THEN 'NO ACTION'
+                WHEN 'r' THEN 'RESTRICT'
+                WHEN 'c' THEN 'CASCADE'
+                WHEN 'n' THEN 'SET NULL'
+                WHEN 'd' THEN 'SET DEFAULT'
+            END::text AS update_rule,
+            CASE con.confdeltype
+                WHEN 'a' THEN 'NO ACTION'
+                WHEN 'r' THEN 'RESTRICT'
+                WHEN 'c' THEN 'CASCADE'
+                WHEN 'n' THEN 'SET NULL'
+                WHEN 'd' THEN 'SET DEFAULT'
+            END::text AS delete_rule
+        FROM pg_constraint con
+        JOIN pg_class src_cl ON src_cl.oid = con.conrelid
+        JOIN pg_namespace src_nsp ON src_nsp.oid = src_cl.relnamespace
+        JOIN pg_class ref_cl ON ref_cl.oid = con.confrelid
+        JOIN pg_namespace ref_nsp ON ref_nsp.oid = ref_cl.relnamespace
+        JOIN unnest(con.conkey, con.confkey) AS cols(src_attnum, ref_attnum) ON true
+        JOIN pg_attribute src_att
+            ON src_att.attrelid = src_cl.oid
+            AND src_att.attnum = cols.src_attnum
+            AND NOT src_att.attisdropped
+        JOIN pg_attribute ref_att
+            ON ref_att.attrelid = ref_cl.oid
+            AND ref_att.attnum = cols.ref_attnum
+            AND NOT ref_att.attisdropped
+        WHERE con.contype = 'f'
+        AND con.conparentid = 0
+        AND src_nsp.nspname = $1
+        ORDER BY src_cl.relname, con.conname, cols.src_attnum
     "#;
 
     let rows = query_all(&pool, &query, &[&schema]).await?;
