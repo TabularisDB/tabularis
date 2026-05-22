@@ -620,3 +620,104 @@ async fn test_concurrent_cancel_aborts_all_in_flight_queries() {
         "slot should be cleared after cancellation"
     );
 }
+
+// ---------------------------------------------------------------------------
+// get_foreign_keys / get_all_foreign_keys_batch — pg_catalog must resolve
+// cross-schema references and composite keys (information_schema can miss or
+// misreport these).
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_postgres_foreign_keys_via_pg_catalog() {
+    let params = get_postgres_params();
+    if !wait_for_postgres(&params).await {
+        eprintln!("SKIPPING: Postgres not reachable on 54320");
+        return;
+    }
+
+    let setup: Vec<String> = [
+        "DROP TABLE IF EXISTS public.test_fk_child",
+        "DROP TABLE IF EXISTS fk_ref.test_fk_parent",
+        "DROP SCHEMA IF EXISTS fk_ref CASCADE",
+        "CREATE SCHEMA fk_ref",
+        "CREATE TABLE fk_ref.test_fk_parent (id SERIAL PRIMARY KEY)",
+        "CREATE TABLE public.test_fk_child (
+            parent_id INT NOT NULL,
+            CONSTRAINT test_fk_child_parent_fk
+                FOREIGN KEY (parent_id)
+                REFERENCES fk_ref.test_fk_parent (id)
+                ON DELETE CASCADE
+                ON UPDATE RESTRICT
+        )",
+        "DROP TABLE IF EXISTS public.test_fk_comp_child",
+        "DROP TABLE IF EXISTS public.test_fk_comp_parent",
+        "CREATE TABLE public.test_fk_comp_parent (a INT NOT NULL, b INT NOT NULL, PRIMARY KEY (a, b))",
+        "CREATE TABLE public.test_fk_comp_child (
+            x INT NOT NULL,
+            y INT NOT NULL,
+            CONSTRAINT test_fk_comp_pair
+                FOREIGN KEY (x, y) REFERENCES public.test_fk_comp_parent (a, b)
+        )",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+
+    for sql in &setup {
+        postgres::execute_query(&params, sql, None, 1, None)
+            .await
+            .unwrap_or_else(|e| panic!("setup failed on {sql:?}: {e}"));
+    }
+
+    let single = postgres::get_foreign_keys(&params, "test_fk_child", "public")
+        .await
+        .expect("get_foreign_keys should succeed");
+    assert_eq!(single.len(), 1, "expected one single-column FK row");
+    let fk = &single[0];
+    assert_eq!(fk.name, "test_fk_child_parent_fk");
+    assert_eq!(fk.column_name, "parent_id");
+    assert_eq!(fk.ref_table, "test_fk_parent");
+    assert_eq!(fk.ref_column, "id");
+    assert_eq!(fk.on_delete.as_deref(), Some("CASCADE"));
+    assert_eq!(fk.on_update.as_deref(), Some("RESTRICT"));
+
+    let batch = postgres::get_all_foreign_keys_batch(&params, "public")
+        .await
+        .expect("get_all_foreign_keys_batch should succeed");
+    let batch_single = batch
+        .get("test_fk_child")
+        .expect("batch should include test_fk_child");
+    assert_eq!(batch_single.len(), 1);
+    assert_eq!(batch_single[0].ref_table, "test_fk_parent");
+
+    let composite = postgres::get_foreign_keys(&params, "test_fk_comp_child", "public")
+        .await
+        .expect("composite get_foreign_keys should succeed");
+    assert_eq!(
+        composite.len(),
+        2,
+        "composite FK should expand to one row per column"
+    );
+    assert!(
+        composite.iter().all(|r| r.name == "test_fk_comp_pair"),
+        "both composite rows must share the constraint name"
+    );
+    let cols: Vec<_> = composite.iter().map(|r| r.column_name.as_str()).collect();
+    assert!(cols.contains(&"x"));
+    assert!(cols.contains(&"y"));
+
+    let teardown: Vec<String> = [
+        "DROP TABLE IF EXISTS public.test_fk_child",
+        "DROP TABLE IF EXISTS fk_ref.test_fk_parent",
+        "DROP SCHEMA IF EXISTS fk_ref CASCADE",
+        "DROP TABLE IF EXISTS public.test_fk_comp_child",
+        "DROP TABLE IF EXISTS public.test_fk_comp_parent",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    for sql in &teardown {
+        let _ = postgres::execute_query(&params, sql, None, 1, None).await;
+    }
+}
