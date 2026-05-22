@@ -53,7 +53,6 @@ import { isJsonColumn, isJsonContent } from "../../utils/json";
 import { isLongTextCellTarget } from "../../utils/text";
 import {
   pickPrimaryForeignKeyByColumn,
-  isForeignKeyValueNavigable,
   getForeignKeyForPreview,
 } from "../../utils/foreignKeys";
 import {
