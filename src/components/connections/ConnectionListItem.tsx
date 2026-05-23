@@ -85,6 +85,11 @@ export const ConnectionListItem = ({
             <Shield size={8} /> SSH
           </span>
         )}
+        {conn.params.k8s_enabled && (
+          <span className="flex items-center gap-0.5 text-[10px] font-bold text-blue-400 bg-blue-400/10 border border-blue-400/20 px-1.5 py-0.5 rounded-md">
+            <Shield size={8} /> K8s
+          </span>
+        )}
         {!isDriverEnabled && (
           <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-1.5 py-0.5 rounded-md">
             <PlugZap size={8} /> {t('connections.pluginDisabled')}

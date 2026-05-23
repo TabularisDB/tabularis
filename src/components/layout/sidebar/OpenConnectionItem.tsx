@@ -160,9 +160,16 @@ export const OpenConnectionItem = ({
           )}
 
           {/* SSH badge */}
-          {sshEnabled && !showShortcutHint && (
+          {sshEnabled && !showShortcutHint && !connection.k8sEnabled && (
             <div className="absolute top-1 right-1">
               <Shield size={9} className="text-emerald-400 fill-emerald-400/20" />
+            </div>
+          )}
+
+          {/* K8s badge */}
+          {connection.k8sEnabled && !showShortcutHint && (
+            <div className="absolute top-1 right-1">
+              <Shield size={9} className="text-blue-400 fill-blue-400/20" />
             </div>
           )}
 
