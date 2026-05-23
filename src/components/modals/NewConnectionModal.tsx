@@ -399,6 +399,9 @@ export const NewConnectionModal = ({
         setSshMode(
           initialConnection.params.ssh_connection_id ? "existing" : "inline",
         );
+        setK8sMode(
+          initialConnection.params.k8s_connection_id ? "existing" : "inline",
+        );
 
         let params = initialConnection.params;
         try {
