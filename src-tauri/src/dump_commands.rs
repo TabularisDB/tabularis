@@ -1,6 +1,7 @@
 use crate::commands::{
-    expand_ssh_connection_params, find_connection_by_id, register_abort_handle,
-    resolve_connection_params_with_id, unregister_abort_handle, AbortHandleMap,
+    expand_k8s_connection_params, expand_ssh_connection_params, find_connection_by_id,
+    register_abort_handle, resolve_connection_params_with_id, unregister_abort_handle,
+    AbortHandleMap,
 };
 use crate::drivers::{mysql, postgres, sqlite};
 use crate::dump_utils::{drop_table_if_exists, format_table_ref, insert_into_statement};
@@ -63,6 +64,7 @@ pub async fn dump_database<R: Runtime>(
 ) -> Result<(), String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let driver = saved_conn.params.driver.clone();
     let schema = schema.unwrap_or_else(|| "public".to_string());
@@ -436,6 +438,7 @@ pub async fn import_database<R: Runtime>(
 ) -> Result<(), String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let driver = saved_conn.params.driver.clone();
     let pg_schema = schema.unwrap_or_else(|| "public".to_string());

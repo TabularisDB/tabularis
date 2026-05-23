@@ -142,6 +142,8 @@ async fn ping_single_connection(app: &tauri::AppHandle, connection_id: &str) -> 
 
     let expanded_params =
         crate::commands::expand_ssh_connection_params(app, &saved_conn.params).await?;
+    let expanded_params =
+        crate::commands::expand_k8s_connection_params(app, &expanded_params).await?;
     let params =
         crate::commands::resolve_connection_params_with_id(&expanded_params, connection_id)?;
 
@@ -171,9 +173,10 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
         if let Ok(expanded) =
             crate::commands::expand_ssh_connection_params(app, &saved_conn.params).await
         {
-            if let Ok(params) =
-                crate::commands::resolve_connection_params_with_id(&expanded, connection_id)
-            {
+            let expanded = crate::commands::expand_k8s_connection_params(app, &expanded).await;
+            if let Ok(params) = expanded.and_then(|params| {
+                crate::commands::resolve_connection_params_with_id(&params, connection_id)
+            }) {
                 crate::pool_manager::close_pool_with_id(&params, Some(connection_id)).await;
             }
         }

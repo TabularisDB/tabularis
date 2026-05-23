@@ -19,8 +19,9 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter, Runtime, State};
 
 use crate::commands::{
-    expand_ssh_connection_params, find_connection_by_id, register_abort_handle,
-    resolve_connection_params_with_id, unregister_abort_handle, AbortHandleMap,
+    expand_k8s_connection_params, expand_ssh_connection_params, find_connection_by_id,
+    register_abort_handle, resolve_connection_params_with_id, unregister_abort_handle,
+    AbortHandleMap,
 };
 use crate::drivers::{mysql, postgres, sqlite};
 use crate::models::ConnectionParams;
@@ -76,6 +77,7 @@ pub async fn export_query_to_file<R: Runtime>(
     let sanitized_query = sanitize_query(&query);
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let driver = saved_conn.params.driver.clone();
 
