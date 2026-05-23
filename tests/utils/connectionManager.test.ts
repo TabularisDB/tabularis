@@ -74,6 +74,7 @@ describe('connectionManager', () => {
         database: 'mydb',
         host: 'localhost',
         sshEnabled: false,
+        k8sEnabled: false,
         isOpen: true,
         isActive: true,
         isConnecting: false,
