@@ -305,6 +305,27 @@ export const NewConnectionModal = ({
     }
   };
 
+  // ── K8s cascading dropdown loading ──
+  useEffect(() => {
+    if (formData.k8s_context) {
+      loadK8sNamespacesList(formData.k8s_context);
+    } else {
+      setK8sNamespaces([]);
+    }
+  }, [formData.k8s_context]);
+
+  useEffect(() => {
+    if (formData.k8s_context && formData.k8s_namespace && formData.k8s_resource_type) {
+      loadK8sResourcesList(
+        formData.k8s_context,
+        formData.k8s_namespace,
+        formData.k8s_resource_type,
+      );
+    } else {
+      setK8sResources([]);
+    }
+  }, [formData.k8s_context, formData.k8s_namespace, formData.k8s_resource_type]);
+
   const updateField = (
     field: keyof ConnectionParams,
     value: string | number | boolean | undefined,
@@ -1545,9 +1566,6 @@ export const NewConnectionModal = ({
                   value={formData.k8s_context || ""}
                   onChange={(e) => {
                     updateField("k8s_context", e.target.value);
-                    if (e.target.value) loadK8sNamespacesList(e.target.value);
-                    setK8sNamespaces([]);
-                    setK8sResources([]);
                   }}
                   className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary focus:border-blue-500 focus:outline-none appearance-auto cursor-pointer transition-colors"
                 >
@@ -1578,14 +1596,6 @@ export const NewConnectionModal = ({
                   value={formData.k8s_namespace || ""}
                   onChange={(e) => {
                     updateField("k8s_namespace", e.target.value);
-                    if (e.target.value && formData.k8s_context && formData.k8s_resource_type) {
-                      loadK8sResourcesList(
-                        formData.k8s_context,
-                        e.target.value,
-                        formData.k8s_resource_type
-                      );
-                    }
-                    setK8sResources([]);
                   }}
                   className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary focus:border-blue-500 focus:outline-none appearance-auto cursor-pointer transition-colors"
                 >
@@ -1617,13 +1627,6 @@ export const NewConnectionModal = ({
                     value={formData.k8s_resource_type || ""}
                     onChange={(e) => {
                       updateField("k8s_resource_type", e.target.value);
-                      if (e.target.value && formData.k8s_context && formData.k8s_namespace) {
-                        loadK8sResourcesList(
-                          formData.k8s_context,
-                          formData.k8s_namespace,
-                          e.target.value
-                        );
-                      }
                     }}
                     className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary focus:border-blue-500 focus:outline-none appearance-auto cursor-pointer transition-colors"
                   >
