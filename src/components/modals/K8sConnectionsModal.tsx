@@ -80,30 +80,42 @@ export function K8sConnectionsModal({
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
-      loadConnections();
-      loadContexts();
-    }
+    if (!isOpen) return;
+
+    void (async () => {
+      await loadConnections();
+      await loadContexts();
+    })();
   }, [isOpen, loadConnections, loadContexts]);
 
   useEffect(() => {
-    if (context) {
-      getK8sNamespaces(context)
-        .then(setNamespaces)
-        .catch(() => setNamespaces([]));
-    } else {
-      setNamespaces([]);
-    }
+    void (async () => {
+      if (!context) {
+        setNamespaces([]);
+        return;
+      }
+
+      try {
+        setNamespaces(await getK8sNamespaces(context));
+      } catch {
+        setNamespaces([]);
+      }
+    })();
   }, [context]);
 
   useEffect(() => {
-    if (context && namespace && resourceType) {
-      getK8sResources(context, namespace, resourceType)
-        .then(setResources)
-        .catch(() => setResources([]));
-    } else {
-      setResources([]);
-    }
+    void (async () => {
+      if (!context || !namespace || !resourceType) {
+        setResources([]);
+        return;
+      }
+
+      try {
+        setResources(await getK8sResources(context, namespace, resourceType));
+      } catch {
+        setResources([]);
+      }
+    })();
   }, [context, namespace, resourceType]);
 
   const resetForm = () => {
@@ -195,8 +207,6 @@ export function K8sConnectionsModal({
       setTestMessage(toErrorMessage(error));
     }
   };
-
-  const isEditing = isCreating || editingId !== null;
 
   return (
     <Modal

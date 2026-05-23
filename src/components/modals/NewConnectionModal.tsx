@@ -198,7 +198,6 @@ export const NewConnectionModal = ({
   const [k8sContexts, setK8sContexts] = useState<string[]>([]);
   const [k8sNamespaces, setK8sNamespaces] = useState<string[]>([]);
   const [k8sResources, setK8sResources] = useState<string[]>([]);
-  const [k8sLoading, setK8sLoading] = useState(false);
 
   // ── databases ──
   const [availableDatabases, setAvailableDatabases] = useState<string[]>([]);
@@ -282,26 +281,20 @@ export const NewConnectionModal = ({
   };
 
   const loadK8sNamespacesList = async (context: string) => {
-    setK8sLoading(true);
     try {
       const result = await getK8sNamespaces(context);
       setK8sNamespaces(result);
     } catch {
       setK8sNamespaces([]);
-    } finally {
-      setK8sLoading(false);
     }
   };
 
   const loadK8sResourcesList = async (context: string, namespace: string, resourceType: string) => {
-    setK8sLoading(true);
     try {
       const result = await getK8sResources(context, namespace, resourceType);
       setK8sResources(result);
     } catch {
       setK8sResources([]);
-    } finally {
-      setK8sLoading(false);
     }
   };
 
