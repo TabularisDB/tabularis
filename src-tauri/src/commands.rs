@@ -249,6 +249,7 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
         if let Some(tunnel) = tunnels.get(&map_key) {
             log::debug!("Reusing existing K8s tunnel on port {}", tunnel.local_port);
             let mut new_params = params.clone();
+            new_params.k8s_enabled = Some(false);
             new_params.host = Some("127.0.0.1".to_string());
             new_params.port = Some(tunnel.local_port);
             return Ok(new_params);
@@ -277,6 +278,7 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
     }
 
     let mut new_params = params.clone();
+    new_params.k8s_enabled = Some(false);
     new_params.host = Some("127.0.0.1".to_string());
     new_params.port = Some(local_port);
     Ok(new_params)
@@ -1324,6 +1326,9 @@ fn get_k8s_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String
         .path()
         .app_config_dir()
         .map_err(|e| format!("Failed to get config dir: {}", e))?;
+    if !config_dir.exists() {
+        fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
+    }
     Ok(config_dir.join("k8s_connections.json"))
 }
 
@@ -1537,6 +1542,7 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
                 tunnel.local_port
             );
             let mut new_params = params.clone();
+            new_params.k8s_enabled = Some(false);
             new_params.host = Some("127.0.0.1".to_string());
             new_params.port = Some(tunnel.local_port);
             return Ok(new_params);
@@ -1574,6 +1580,7 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
     }
 
     let mut new_params = params.clone();
+    new_params.k8s_enabled = Some(false);
     new_params.host = Some("127.0.0.1".to_string());
     new_params.port = Some(local_port);
     Ok(new_params)
