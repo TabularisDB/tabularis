@@ -11,9 +11,9 @@ use crate::credential_cache;
 use crate::keychain_utils;
 use crate::models::{
     BatchStatementResult, ColumnDefinition, ConnectionGroup, ConnectionParams, ConnectionsFile,
-    ExplainPlan, ExportPayload, ForeignKey, Index, QueryResult, RoutineInfo, RoutineParameter,
-    SavedConnection, SshConnection, SshConnectionInput, SshTestParams, TableColumn, TableInfo,
-    TestConnectionRequest, TriggerInfo,
+    ExplainPlan, ExportPayload, ForeignKey, Index, K8sConnection, K8sConnectionInput, QueryResult,
+    RoutineInfo, RoutineParameter, SavedConnection, SshConnection, SshConnectionInput, SshTestParams,
+    TableColumn, TableInfo, TestConnectionRequest, TriggerInfo,
 };
 use crate::persistence;
 use crate::ssh_tunnel::{get_tunnels, SshTunnel};
@@ -219,7 +219,83 @@ fn build_tunnel_map_key(
     crate::ssh_tunnel::build_tunnel_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port)
 }
 
+/// Resolve K8s tunnel params synchronously (no saved-connection lookup; uses inline fields only).
+fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
+    let context = params
+        .k8s_context
+        .as_deref()
+        .ok_or("Missing K8s context")?;
+    let namespace = params
+        .k8s_namespace
+        .as_deref()
+        .ok_or("Missing K8s namespace")?;
+    let resource_type = params
+        .k8s_resource_type
+        .as_deref()
+        .ok_or("Missing K8s resource type")?;
+    let resource_name = params
+        .k8s_resource_name
+        .as_deref()
+        .ok_or("Missing K8s resource name")?;
+    let port = params.k8s_port.ok_or("Missing K8s port")?;
+
+    let map_key = crate::k8s_tunnel::build_tunnel_key(
+        context, namespace, resource_type, resource_name, port,
+    );
+
+    // Check for existing tunnel
+    {
+        let tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
+        if let Some(tunnel) = tunnels.get(&map_key) {
+            log::debug!("Reusing existing K8s tunnel on port {}", tunnel.local_port);
+            let mut new_params = params.clone();
+            new_params.host = Some("127.0.0.1".to_string());
+            new_params.port = Some(tunnel.local_port);
+            return Ok(new_params);
+        }
+    }
+
+    log::info!(
+        "Creating new K8s tunnel for {}/{} in {}:{} (context: {})",
+        resource_type, resource_name, namespace, port, context
+    );
+
+    let tunnel = crate::k8s_tunnel::K8sTunnel::new(
+        context, namespace, resource_type, resource_name, port,
+    )
+    .map_err(|e| {
+        eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);
+        e
+    })?;
+
+    let local_port = tunnel.local_port;
+    log::info!("K8s tunnel created successfully on port {}", local_port);
+
+    {
+        let mut tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
+        tunnels.insert(map_key, tunnel);
+    }
+
+    let mut new_params = params.clone();
+    new_params.host = Some("127.0.0.1".to_string());
+    new_params.port = Some(local_port);
+    Ok(new_params)
+}
+
 pub fn resolve_connection_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
+    // K8s and SSH are mutually exclusive
+    if params.k8s_enabled.unwrap_or(false) && params.ssh_enabled.unwrap_or(false) {
+        return Err(
+            "Kubernetes and SSH tunnel cannot both be enabled for the same connection".to_string()
+        );
+    }
+
+    // Handle K8s tunnel
+    if params.k8s_enabled.unwrap_or(false) {
+        return resolve_k8s_params(params);
+    }
+
+    // Handle SSH tunnel (existing logic)
     if !params.ssh_enabled.unwrap_or(false) {
         return Ok(params.clone());
     }
@@ -1220,6 +1296,301 @@ pub async fn test_ssh_connection<R: Runtime>(
     )
 }
 
+// ---------------------------------------------------------------------------
+// Kubernetes Connections
+// ---------------------------------------------------------------------------
+
+/// Load K8s connections synchronously from the config file.
+fn load_k8s_connections_sync<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<Vec<K8sConnection>, String> {
+    let path = get_k8s_config_path(app)?;
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    Ok(serde_json::from_str(&content).unwrap_or_default())
+}
+
+/// Get the path to the k8s_connections.json file.
+fn get_k8s_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Failed to get config dir: {}", e))?;
+    Ok(config_dir.join("k8s_connections.json"))
+}
+
+#[tauri::command]
+pub async fn get_k8s_connections<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<Vec<K8sConnection>, String> {
+    let path = get_k8s_config_path(&app)?;
+    if !path.exists() {
+        return Ok(vec![]);
+    }
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let connections: Vec<K8sConnection> =
+        serde_json::from_str(&content).unwrap_or_default();
+    Ok(connections)
+}
+
+#[tauri::command]
+pub async fn save_k8s_connection<R: Runtime>(
+    app: AppHandle<R>,
+    k8s: K8sConnectionInput,
+) -> Result<K8sConnection, String> {
+    let path = get_k8s_config_path(&app)?;
+    let mut connections: Vec<K8sConnection> = if path.exists() {
+        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        serde_json::from_str(&content).unwrap_or_default()
+    } else {
+        vec![]
+    };
+
+    let id = Uuid::new_v4().to_string();
+    let connection = K8sConnection {
+        id: id.clone(),
+        name: k8s.name,
+        context: k8s.context,
+        namespace: k8s.namespace,
+        resource_type: k8s.resource_type,
+        resource_name: k8s.resource_name,
+        port: k8s.port,
+    };
+
+    connections.push(connection.clone());
+    let json =
+        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+
+    Ok(connection)
+}
+
+#[tauri::command]
+pub async fn update_k8s_connection<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    k8s: K8sConnectionInput,
+) -> Result<K8sConnection, String> {
+    let path = get_k8s_config_path(&app)?;
+    let mut connections: Vec<K8sConnection> = if path.exists() {
+        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        serde_json::from_str(&content).unwrap_or_default()
+    } else {
+        return Err("No K8s connections file found".to_string());
+    };
+
+    let idx = connections
+        .iter()
+        .position(|c| c.id == id)
+        .ok_or_else(|| format!("K8s connection with ID {} not found", id))?;
+
+    let connection = K8sConnection {
+        id: id.clone(),
+        name: k8s.name,
+        context: k8s.context,
+        namespace: k8s.namespace,
+        resource_type: k8s.resource_type,
+        resource_name: k8s.resource_name,
+        port: k8s.port,
+    };
+
+    connections[idx] = connection.clone();
+    let json =
+        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+
+    Ok(connection)
+}
+
+#[tauri::command]
+pub async fn delete_k8s_connection<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+) -> Result<(), String> {
+    let path = get_k8s_config_path(&app)?;
+    let mut connections: Vec<K8sConnection> = if path.exists() {
+        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        serde_json::from_str(&content).unwrap_or_default()
+    } else {
+        return Ok(());
+    };
+
+    connections.retain(|c| c.id != id);
+    let json =
+        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn test_k8s_connection_cmd<R: Runtime>(
+    _app: AppHandle<R>,
+    context: String,
+    namespace: String,
+) -> Result<String, String> {
+    crate::k8s_tunnel::test_k8s_connection(&context, &namespace)
+}
+
+#[tauri::command]
+pub async fn get_k8s_contexts_cmd<R: Runtime>(
+    _app: AppHandle<R>,
+) -> Result<Vec<String>, String> {
+    crate::k8s_tunnel::get_k8s_contexts()
+}
+
+#[tauri::command]
+pub async fn get_k8s_namespaces_cmd<R: Runtime>(
+    _app: AppHandle<R>,
+    context: String,
+) -> Result<Vec<String>, String> {
+    crate::k8s_tunnel::get_k8s_namespaces(&context)
+}
+
+#[tauri::command]
+pub async fn get_k8s_resources_cmd<R: Runtime>(
+    _app: AppHandle<R>,
+    context: String,
+    namespace: String,
+    resource_type: String,
+) -> Result<Vec<String>, String> {
+    crate::k8s_tunnel::get_k8s_resources(&context, &namespace, &resource_type)
+}
+
+/// Expand K8s connection params by loading saved config and creating/reusing a tunnel.
+pub async fn expand_k8s_connection_params<R: Runtime>(
+    app: &AppHandle<R>,
+    params: &ConnectionParams,
+) -> Result<ConnectionParams, String> {
+    if !params.k8s_enabled.unwrap_or(false) {
+        return Ok(params.clone());
+    }
+
+    // Mutual exclusion: K8s and SSH cannot both be active
+    if params.ssh_enabled.unwrap_or(false) {
+        return Err(
+            "Kubernetes and SSH tunnel cannot both be enabled for the same connection".to_string()
+        );
+    }
+
+    // Resolve K8s params from saved connection if using connection_id
+    let (context, namespace, resource_type, resource_name, port) =
+        if let Some(k8s_id) = &params.k8s_connection_id {
+            let k8s_conn = get_k8s_connection_by_id(app, k8s_id).await?;
+            (
+                k8s_conn.context,
+                k8s_conn.namespace,
+                k8s_conn.resource_type,
+                k8s_conn.resource_name,
+                k8s_conn.port,
+            )
+        } else {
+            let ctx = params
+                .k8s_context
+                .as_deref()
+                .ok_or("Missing K8s context")?
+                .to_string();
+            let ns = params
+                .k8s_namespace
+                .as_deref()
+                .ok_or("Missing K8s namespace")?
+                .to_string();
+            let rt = params
+                .k8s_resource_type
+                .as_deref()
+                .ok_or("Missing K8s resource type")?
+                .to_string();
+            let rn = params
+                .k8s_resource_name
+                .as_deref()
+                .ok_or("Missing K8s resource name")?
+                .to_string();
+            let p = params.k8s_port.ok_or("Missing K8s port")?;
+            (ctx, ns, rt, rn, p)
+        };
+
+    let _remote_host = params.host.as_deref().unwrap_or("localhost");
+    let _remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
+
+    let map_key = crate::k8s_tunnel::build_tunnel_key(
+        &context,
+        &namespace,
+        &resource_type,
+        &resource_name,
+        port,
+    );
+
+    // Check for existing tunnel
+    {
+        let tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
+        if let Some(tunnel) = tunnels.get(&map_key) {
+            log::debug!(
+                "Reusing existing K8s tunnel on port {}",
+                tunnel.local_port
+            );
+            let mut new_params = params.clone();
+            new_params.host = Some("127.0.0.1".to_string());
+            new_params.port = Some(tunnel.local_port);
+            return Ok(new_params);
+        }
+    }
+
+    // Create new tunnel
+    log::info!(
+        "Creating new K8s tunnel for {}/{} in {}:{} (context: {})",
+        resource_type,
+        resource_name,
+        namespace,
+        port,
+        context
+    );
+
+    let tunnel = crate::k8s_tunnel::K8sTunnel::new(
+        &context,
+        &namespace,
+        &resource_type,
+        &resource_name,
+        port,
+    )
+    .map_err(|e| {
+        eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);
+        e
+    })?;
+
+    let local_port = tunnel.local_port;
+    log::info!("K8s tunnel created successfully on port {}", local_port);
+
+    {
+        let mut tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
+        tunnels.insert(map_key, tunnel);
+    }
+
+    let mut new_params = params.clone();
+    new_params.host = Some("127.0.0.1".to_string());
+    new_params.port = Some(local_port);
+    Ok(new_params)
+}
+
+/// Load a K8s connection by ID from the config file.
+async fn get_k8s_connection_by_id<R: Runtime>(
+    app: &AppHandle<R>,
+    k8s_id: &str,
+) -> Result<K8sConnection, String> {
+    let path = get_k8s_config_path(app)?;
+    if !path.exists() {
+        return Err(format!("K8s connection with ID {} not found", k8s_id));
+    }
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let connections: Vec<K8sConnection> =
+        serde_json::from_str(&content).unwrap_or_default();
+    connections
+        .into_iter()
+        .find(|c| c.id == k8s_id)
+        .ok_or_else(|| format!("K8s connection with ID {} not found", k8s_id))
+}
+
 #[tauri::command]
 pub async fn test_connection<R: Runtime>(
     app: AppHandle<R>,
@@ -1231,6 +1602,7 @@ pub async fn test_connection<R: Runtime>(
     );
 
     let mut expanded_params = expand_ssh_connection_params(&app, &request.params).await?;
+    expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
 
     if request.params.password.is_none() && expanded_params.password.is_none() {
         let saved_conn = match &request.connection_id {
@@ -1287,22 +1659,8 @@ mod tests {
             host: Some("localhost".to_string()),
             port: Some(3306),
             username: Some("root".to_string()),
-            password: None,
             database: DatabaseSelection::Single("testdb".to_string()),
-            ssl_mode: None,
-            ssl_ca: None,
-            ssl_cert: None,
-            ssl_key: None,
-            ssh_enabled: None,
-            ssh_connection_id: None,
-            ssh_host: None,
-            ssh_port: None,
-            ssh_user: None,
-            ssh_password: None,
-            ssh_key_file: None,
-            ssh_key_passphrase: None,
-            save_in_keychain: None,
-            connection_id: None,
+            ..Default::default()
         }
     }
 
@@ -1374,20 +1732,7 @@ mod tests {
                 username: Some(username.to_string()),
                 password: password.map(|p| p.to_string()),
                 database: DatabaseSelection::Single(database.to_string()),
-                ssl_mode: None,
-                ssl_ca: None,
-                ssl_cert: None,
-                ssl_key: None,
-                ssh_enabled: None,
-                ssh_connection_id: None,
-                ssh_host: None,
-                ssh_port: None,
-                ssh_user: None,
-                ssh_password: None,
-                ssh_key_file: None,
-                ssh_key_passphrase: None,
-                save_in_keychain: None,
-                connection_id: None,
+                ..Default::default()
             }
         }
 
@@ -1655,20 +2000,12 @@ mod tests {
                 username: Some("dbuser".to_string()),
                 password: Some("dbpass".to_string()),
                 database: DatabaseSelection::Single("testdb".to_string()),
-                ssl_mode: None,
-                ssl_ca: None,
-                ssl_cert: None,
-                ssl_key: None,
                 ssh_enabled: Some(true),
-                ssh_connection_id: None,
                 ssh_host: Some(ssh_host.to_string()),
                 ssh_port: Some(ssh_port),
                 ssh_user: Some(ssh_user.to_string()),
-                ssh_password: None,
                 ssh_key_file: Some("/home/user/.ssh/id_rsa".to_string()),
-                ssh_key_passphrase: None,
-                save_in_keychain: None,
-                connection_id: None,
+                ..Default::default()
             }
         }
 
@@ -1696,6 +2033,88 @@ mod tests {
             let result = resolve_connection_params(&params);
             assert!(result.is_err());
             assert!(result.unwrap_err().contains("SSH User"));
+        }
+    }
+
+    mod resolve_k8s_params_tests {
+        use super::*;
+
+        fn create_k8s_params(
+            context: &str,
+            namespace: &str,
+            resource_type: &str,
+            resource_name: &str,
+            port: u16,
+        ) -> ConnectionParams {
+            ConnectionParams {
+                driver: "mysql".to_string(),
+                host: Some("localhost".to_string()),
+                port: Some(3306),
+                username: Some("root".to_string()),
+                database: DatabaseSelection::Single("testdb".to_string()),
+                k8s_enabled: Some(true),
+                k8s_context: Some(context.to_string()),
+                k8s_namespace: Some(namespace.to_string()),
+                k8s_resource_type: Some(resource_type.to_string()),
+                k8s_resource_name: Some(resource_name.to_string()),
+                k8s_port: Some(port),
+                ..Default::default()
+            }
+        }
+
+        #[test]
+        fn test_k8s_and_ssh_mutual_exclusion() {
+            let mut params = create_k8s_params("my-ctx", "default", "service", "my-db", 3306);
+            params.ssh_enabled = Some(true);
+            params.ssh_host = Some("jump.host".to_string());
+            let result = resolve_connection_params(&params);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().contains("cannot both be enabled"));
+        }
+
+        #[test]
+        fn test_k8s_requires_context() {
+            let mut params = create_k8s_params("my-ctx", "default", "service", "my-db", 3306);
+            params.k8s_context = None;
+            let result = resolve_k8s_params(&params);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().contains("K8s context"));
+        }
+
+        #[test]
+        fn test_k8s_requires_namespace() {
+            let mut params = create_k8s_params("my-ctx", "default", "service", "my-db", 3306);
+            params.k8s_namespace = None;
+            let result = resolve_k8s_params(&params);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().contains("K8s namespace"));
+        }
+
+        #[test]
+        fn test_k8s_requires_resource_type() {
+            let mut params = create_k8s_params("my-ctx", "default", "service", "my-db", 3306);
+            params.k8s_resource_type = None;
+            let result = resolve_k8s_params(&params);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().contains("K8s resource type"));
+        }
+
+        #[test]
+        fn test_k8s_requires_resource_name() {
+            let mut params = create_k8s_params("my-ctx", "default", "service", "my-db", 3306);
+            params.k8s_resource_name = None;
+            let result = resolve_k8s_params(&params);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().contains("K8s resource name"));
+        }
+
+        #[test]
+        fn test_k8s_requires_port() {
+            let mut params = create_k8s_params("my-ctx", "default", "service", "my-db", 3306);
+            params.k8s_port = None;
+            let result = resolve_k8s_params(&params);
+            assert!(result.is_err());
+            assert!(result.unwrap_err().contains("K8s port"));
         }
     }
 
@@ -3568,6 +3987,7 @@ pub async fn export_connections_payload<R: Runtime>(
         groups: conn_file.groups,
         connections: conn_file.connections,
         ssh_connections,
+        k8s_connections: load_k8s_connections_sync(&app)?,
     })
 }
 
@@ -3667,6 +4087,19 @@ pub async fn import_connections_payload<R: Runtime>(
     save_connections_and_invalidate(&app, &conn_path, &current_file)?;
     let ssh_json = serde_json::to_string_pretty(&current_ssh).map_err(|e| e.to_string())?;
     fs::write(ssh_path, ssh_json).map_err(|e| e.to_string())?;
+
+    // Merge K8s connections
+    let k8s_path = get_k8s_config_path(&app)?;
+    let mut current_k8s = load_k8s_connections_sync(&app)?;
+    for new_k8s in payload.k8s_connections {
+        if let Some(existing) = current_k8s.iter_mut().find(|k| k.id == new_k8s.id) {
+            *existing = new_k8s;
+        } else {
+            current_k8s.push(new_k8s);
+        }
+    }
+    let k8s_json = serde_json::to_string_pretty(&current_k8s).map_err(|e| e.to_string())?;
+    fs::write(k8s_path, k8s_json).map_err(|e| e.to_string())?;
 
     Ok(())
 }

@@ -34,6 +34,7 @@ pub mod heartbeat;
 pub mod heartbeat_tests;
 pub mod json_viewer;
 pub mod keychain_utils;
+pub mod k8s_tunnel;
 pub mod log_commands;
 pub mod logger;
 pub mod mcp;
@@ -260,6 +261,15 @@ pub fn run() {
             commands::update_ssh_connection,
             commands::delete_ssh_connection,
             commands::test_ssh_connection,
+            // K8s Connections
+            commands::get_k8s_connections,
+            commands::save_k8s_connection,
+            commands::update_k8s_connection,
+            commands::delete_k8s_connection,
+            commands::test_k8s_connection_cmd,
+            commands::get_k8s_contexts_cmd,
+            commands::get_k8s_namespaces_cmd,
+            commands::get_k8s_resources_cmd,
             // Connection Groups
             commands::get_connection_groups,
             commands::get_connections_with_groups,
