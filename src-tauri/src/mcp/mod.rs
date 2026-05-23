@@ -9,7 +9,7 @@ use crate::config::{
 use crate::credential_cache;
 use crate::drivers::{mysql, postgres, sqlite};
 use crate::heartbeat;
-use crate::models::{ConnectionParams, SshConnection};
+use crate::models::{ConnectionParams, K8sConnection, SshConnection};
 use crate::paths;
 use crate::persistence;
 use serde_json::{json, Value};
@@ -153,6 +153,65 @@ async fn expand_ssh_params_for_mcp(
     Ok(expanded)
 }
 
+/// MCP-mode equivalent of K8s saved-connection expansion.
+async fn expand_k8s_params_for_mcp(
+    params: &ConnectionParams,
+) -> Result<ConnectionParams, JsonRpcError> {
+    let mut expanded = params.clone();
+
+    if !params.k8s_enabled.unwrap_or(false) {
+        return Ok(expanded);
+    }
+
+    let k8s_id = match &params.k8s_connection_id {
+        Some(id) => id.clone(),
+        None => return Ok(expanded),
+    };
+
+    let k8s_path = paths::get_app_config_dir().join("k8s_connections.json");
+    if !k8s_path.exists() {
+        return Err(JsonRpcError {
+            code: -32000,
+            message: format!("K8s connection {} not found", k8s_id),
+            data: None,
+        });
+    }
+
+    let content = tokio::task::spawn_blocking({
+        let p = k8s_path.clone();
+        move || std::fs::read_to_string(p).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| JsonRpcError {
+        code: -32000,
+        message: e.to_string(),
+        data: None,
+    })?
+    .map_err(|e| JsonRpcError {
+        code: -32000,
+        message: e,
+        data: None,
+    })?;
+
+    let k8s: K8sConnection = serde_json::from_str::<Vec<K8sConnection>>(&content)
+        .unwrap_or_default()
+        .into_iter()
+        .find(|k| k.id == k8s_id)
+        .ok_or_else(|| JsonRpcError {
+            code: -32000,
+            message: format!("K8s connection {} not found", k8s_id),
+            data: None,
+        })?;
+
+    expanded.k8s_context = Some(k8s.context);
+    expanded.k8s_namespace = Some(k8s.namespace);
+    expanded.k8s_resource_type = Some(k8s.resource_type);
+    expanded.k8s_resource_name = Some(k8s.resource_name);
+    expanded.k8s_port = Some(k8s.port);
+
+    Ok(expanded)
+}
+
 fn find_connection(conn_id: &str) -> Result<crate::models::SavedConnection, JsonRpcError> {
     let config_path = paths::get_app_config_dir().join("connections.json");
     let connections = persistence::load_connections(&config_path).map_err(|e| JsonRpcError {
@@ -199,6 +258,7 @@ async fn resolve_db_params(
     }
 
     let expanded = expand_ssh_params_for_mcp(&conn.params).await?;
+    let expanded = expand_k8s_params_for_mcp(&expanded).await?;
     let db_params = commands::resolve_connection_params(&expanded).map_err(|e| JsonRpcError {
         code: -32000,
         message: e,
@@ -425,12 +485,13 @@ async fn handle_read_resource(params: Option<Value>) -> Result<Value, JsonRpcErr
                 data: None,
             })?;
 
-        let params =
-            commands::resolve_connection_params(&conn.params).map_err(|e| JsonRpcError {
-                code: -32000,
-                message: e,
-                data: None,
-            })?;
+        let expanded = expand_ssh_params_for_mcp(&conn.params).await?;
+        let expanded = expand_k8s_params_for_mcp(&expanded).await?;
+        let params = commands::resolve_connection_params(&expanded).map_err(|e| JsonRpcError {
+            code: -32000,
+            message: e,
+            data: None,
+        })?;
 
         let tables = match conn.params.driver.as_str() {
             "mysql" => mysql::get_tables(&params, None).await,
