@@ -31,3 +31,4 @@ devdiary
 coverage
 plugins/**/target
 .gitnexus
+.pi/
