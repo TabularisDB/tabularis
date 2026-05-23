@@ -15,24 +15,7 @@ async fn setup_test_db() -> (ConnectionParams, NamedTempFile) {
     let params = ConnectionParams {
         driver: "sqlite".to_string(),
         database: DatabaseSelection::Single(path.clone()),
-        host: None,
-        port: None,
-        username: None,
-        password: None,
-        ssl_mode: None,
-        ssl_ca: None,
-        ssl_cert: None,
-        ssl_key: None,
-        ssh_enabled: None,
-        ssh_connection_id: None,
-        ssh_host: None,
-        ssh_port: None,
-        ssh_user: None,
-        ssh_password: None,
-        ssh_key_file: None,
-        ssh_key_passphrase: None,
-        save_in_keychain: None,
-        connection_id: None,
+        ..Default::default()
     };
 
     // Initialize DB with a table

@@ -51,19 +51,7 @@ mod postgres_ssl_config_tests {
             password: Some("test".to_string()),
             database: DatabaseSelection::Single("testdb".to_string()),
             ssl_mode: Some(mode.to_string()),
-            ssl_ca: None,
-            ssl_cert: None,
-            ssl_key: None,
-            ssh_enabled: None,
-            ssh_connection_id: None,
-            ssh_host: None,
-            ssh_port: None,
-            ssh_user: None,
-            ssh_password: None,
-            ssh_key_file: None,
-            ssh_key_passphrase: None,
-            save_in_keychain: None,
-            connection_id: None,
+            ..Default::default()
         }
     }
 
@@ -75,20 +63,7 @@ mod postgres_ssl_config_tests {
             username: Some("test".to_string()),
             password: Some("test".to_string()),
             database: DatabaseSelection::Single("testdb".to_string()),
-            ssl_mode: None,
-            ssl_ca: None,
-            ssl_cert: None,
-            ssl_key: None,
-            ssh_enabled: None,
-            ssh_connection_id: None,
-            ssh_host: None,
-            ssh_port: None,
-            ssh_user: None,
-            ssh_password: None,
-            ssh_key_file: None,
-            ssh_key_passphrase: None,
-            save_in_keychain: None,
-            connection_id: None,
+            ..Default::default()
         }
     }
 
@@ -179,19 +154,7 @@ mod postgres_tls_connector_tests {
             password: Some("test".to_string()),
             database: DatabaseSelection::Single("testdb".to_string()),
             ssl_mode: Some(mode.to_string()),
-            ssl_ca: None,
-            ssl_cert: None,
-            ssl_key: None,
-            ssh_enabled: None,
-            ssh_connection_id: None,
-            ssh_host: None,
-            ssh_port: None,
-            ssh_user: None,
-            ssh_password: None,
-            ssh_key_file: None,
-            ssh_key_passphrase: None,
-            save_in_keychain: None,
-            connection_id: None,
+            ..Default::default()
         }
     }
 
@@ -261,18 +224,7 @@ mod postgres_tls_connector_tests {
             database: DatabaseSelection::Single("testdb".to_string()),
             ssl_mode: Some("verify-ca".to_string()),
             ssl_ca: Some(file_path.to_str().unwrap().to_string()),
-            ssl_cert: None,
-            ssl_key: None,
-            ssh_enabled: None,
-            ssh_connection_id: None,
-            ssh_host: None,
-            ssh_port: None,
-            ssh_user: None,
-            ssh_password: None,
-            ssh_key_file: None,
-            ssh_key_passphrase: None,
-            save_in_keychain: None,
-            connection_id: None,
+            ..Default::default()
         };
         let result = build_postgres_tls_connector(&params);
         assert!(result.is_ok());

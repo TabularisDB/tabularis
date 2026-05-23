@@ -22,20 +22,9 @@ mod tests {
                     username: Some("root".to_string()),
                     password: Some("password".to_string()),
                     database: DatabaseSelection::Single("test".to_string()),
-                    ssl_mode: None,
-                    ssl_ca: None,
-                    ssl_cert: None,
-                    ssl_key: None,
                     ssh_enabled: Some(false),
-                    ssh_connection_id: None,
-                    ssh_host: None,
-                    ssh_port: None,
-                    ssh_user: None,
-                    ssh_password: None,
-                    ssh_key_file: None,
-                    ssh_key_passphrase: None,
                     save_in_keychain: Some(true),
-                    connection_id: None,
+                    ..Default::default()
                 },
                 group_id: Some("group1".to_string()),
                 sort_order: Some(0),
@@ -53,6 +42,7 @@ mod tests {
                 key_passphrase: None,
                 save_in_keychain: Some(true),
             }],
+            k8s_connections: vec![],
         };
 
         let json = serde_json::to_string(&payload).unwrap();
