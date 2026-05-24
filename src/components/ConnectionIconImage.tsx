@@ -9,16 +9,23 @@ interface Props {
 }
 
 export function ConnectionIconImage({ path, size, fallback }: Props) {
+  // Reset src/failed when path changes by keying state to the current path.
+  // This avoids calling setState inside an effect body (react-hooks/set-state-in-effect).
+  const [loadedPath, setLoadedPath] = useState<string>(path);
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const mountedRef = useRef(true);
 
   useEffect(() => () => { mountedRef.current = false; }, []);
 
-  useEffect(() => {
-    let cancelled = false;
+  if (loadedPath !== path) {
+    setLoadedPath(path);
     setSrc(null);
     setFailed(false);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const abs = await join(await appDataDir(), path);

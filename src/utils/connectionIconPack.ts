@@ -2,6 +2,8 @@ import dynamicIconImports from "lucide-react/dynamicIconImports";
 import type { LucideIcon } from "lucide-react";
 import { lazy, type LazyExoticComponent } from "react";
 
+type IconLoader = () => Promise<{ default: LucideIcon }>;
+
 // All icon names available in lucide-react. Static keys, lazy-loaded values.
 export const ALL_ICON_NAMES: string[] = Object.keys(dynamicIconImports).sort();
 
@@ -12,7 +14,8 @@ export function getLucideIconComponent(name: string): LazyExoticComponent<Lucide
   if (!(name in dynamicIconImports)) return null;
   let cmp = cache.get(name);
   if (!cmp) {
-    cmp = lazy(dynamicIconImports[name as keyof typeof dynamicIconImports] as any) as LazyExoticComponent<LucideIcon>;
+    const loader = dynamicIconImports[name as keyof typeof dynamicIconImports] as IconLoader;
+    cmp = lazy(loader);
     cache.set(name, cmp);
   }
   return cmp;

@@ -1,4 +1,4 @@
-import "@testing-library/jest-dom";
+import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { vi } from "vitest";
@@ -197,7 +197,7 @@ vi.mock("lucide-react", () => ({
 // Mock lucide-react/dynamicIconImports with a small deterministic set
 vi.mock("lucide-react/dynamicIconImports", () => ({
   default: new Proxy({}, {
-    get(_t: object, key: string) {
+    get(_t: object, _key: string) {
       // Each entry must be a function returning a Promise resolving to a default-exported component
       return () => Promise.resolve({ default: () => null });
     },

@@ -60,12 +60,11 @@ describe("camelToKebab / getLucideIconComponent — legacy id normalization", ()
     // "shieldCheck" (camelCase) resolves to the same component as "shield-check" (kebab-case)
     // Both should return a non-null lazy component (mocked in setup.ts via dynamicIconImports)
     const byKebab = getLucideIconComponent("shield-check");
-    const byCamel = getLucideIconComponent("shieldCheck");
     // kebab-case hits dynamicIconImports directly
     expect(byKebab).not.toBeNull();
     // camelCase is not in the mock set, so the resolver must return null (caller will re-try with camelToKebab)
-    // This is the expected behavior: getLucideIconComponent("shieldCheck") returns null,
-    // and driverUI falls back to getLucideIconComponent(camelToKebab("shieldCheck")) which returns non-null.
+    expect(getLucideIconComponent("shieldCheck")).toBeNull();
+    // …and the fallback (kebab translation) resolves correctly.
     expect(getLucideIconComponent(camelToKebab("shieldCheck"))).not.toBeNull();
   });
 
@@ -90,12 +89,12 @@ describe("CONNECTION_ICON_PACK Proxy — Symbol safety", () => {
   it("returns undefined for Symbol.toStringTag instead of throwing", () => {
     // Previously the proxy had `key: string` type annotation which would throw when
     // JS passed a Symbol (e.g. Symbol.toStringTag). The fix guards with typeof check.
-    const result = (CONNECTION_ICON_PACK as any)[Symbol.toStringTag];
+    const result = (CONNECTION_ICON_PACK as unknown as Record<symbol, unknown>)[Symbol.toStringTag];
     expect(result).toBeUndefined();
   });
 
   it("returns undefined for Symbol.iterator instead of throwing", () => {
-    const result = (CONNECTION_ICON_PACK as any)[Symbol.iterator];
+    const result = (CONNECTION_ICON_PACK as unknown as Record<symbol, unknown>)[Symbol.iterator];
     expect(result).toBeUndefined();
   });
 });

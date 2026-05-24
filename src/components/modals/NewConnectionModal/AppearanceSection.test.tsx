@@ -17,7 +17,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 // emoji-picker-react mock — avoids heavy DOM in JSDOM
 vi.mock("emoji-picker-react", () => ({
-  default: ({ onEmojiClick }: any) => (
+  default: ({ onEmojiClick }: { onEmojiClick: (e: { emoji: string }) => void }) => (
     <div data-testid="emoji-picker" onClick={() => onEmojiClick({ emoji: "🐘" })}>
       <input aria-label="emoji search" />
     </div>
