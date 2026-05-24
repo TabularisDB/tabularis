@@ -1,7 +1,8 @@
 use super::{
-    build_paginated_query, decode_blob_wire_format, encode_blob, encode_blob_full,
-    is_explainable_query, is_select_query, strip_leading_sql_comments, strip_limit_offset,
-    DEFAULT_MAX_BLOB_SIZE, MAX_BLOB_PREVIEW_SIZE,
+    build_paginated_query, decode_blob_wire_format, encode_blob, encode_blob_full, i64_to_json,
+    is_explainable_query, is_select_query, parse_unsafe_bigint_string, strip_leading_sql_comments,
+    strip_limit_offset, u64_to_json, DEFAULT_MAX_BLOB_SIZE, JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT,
+    MAX_BLOB_PREVIEW_SIZE,
 };
 
 #[test]
@@ -144,6 +145,18 @@ fn test_is_select_query() {
     assert!(!is_select_query("UPDATE users SET name = 'test'"));
     assert!(!is_select_query("DELETE FROM users"));
     assert!(!is_select_query("INSERT INTO users VALUES (1)"));
+}
+
+#[test]
+fn test_is_select_query_with_leading_comments() {
+    assert!(is_select_query("-- header\nSELECT * FROM users"));
+    assert!(is_select_query("-- l1\n-- l2\n\nSELECT id FROM posts"));
+    assert!(is_select_query("/* block comment */SELECT * FROM users"));
+    assert!(is_select_query(
+        "-- ============\n-- title\n-- ============\n\nSELECT 1"
+    ));
+    assert!(!is_select_query("-- header\nUPDATE users SET name = 't'"));
+    assert!(!is_select_query("/* sel */ INSERT INTO t VALUES (1)"));
 }
 
 #[test]
@@ -323,6 +336,41 @@ fn test_build_paginated_query_subquery_with_limit() {
 }
 
 #[test]
+fn test_build_paginated_query_with_leading_comments() {
+    let q = "-- header\nSELECT * FROM t ORDER BY id";
+    let result = build_paginated_query(q, 100, 1);
+    assert_eq!(
+        result,
+        "-- header\nSELECT * FROM t ORDER BY id LIMIT 101 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_multiline_comments_with_user_limit() {
+    // Leading-comment newlines must survive `strip_limit_offset` so the
+    // appended `LIMIT … OFFSET …` lands on its own line rather than
+    // being swallowed into the `--` header as comment text.
+    let q = "-- ============\n-- title\n-- ============\n\nSELECT * FROM t ORDER BY id LIMIT 50";
+    let result = build_paginated_query(q, 100, 1);
+    assert_eq!(
+        result,
+        "-- ============\n-- title\n-- ============\n\nSELECT * FROM t ORDER BY id LIMIT 50 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_strip_limit_offset_preserves_leading_comments() {
+    assert_eq!(
+        strip_limit_offset("-- header\nSELECT * FROM t LIMIT 10"),
+        "-- header\nSELECT * FROM t"
+    );
+    assert_eq!(
+        strip_limit_offset("-- l1\n-- l2\nSELECT * FROM t"),
+        "-- l1\n-- l2\nSELECT * FROM t"
+    );
+}
+
+#[test]
 fn test_encode_blob_full_preserves_all_data() {
     // 8KB of data — encode_blob would truncate, encode_blob_full must not
     let data: Vec<u8> = (0u8..=255u8).cycle().take(8192).collect();
@@ -354,4 +402,123 @@ fn test_encode_blob_full_roundtrip_large() {
     let decoded = decode_blob_wire_format(&wire, DEFAULT_MAX_BLOB_SIZE)
         .expect("should decode 50KB wire format");
     assert_eq!(decoded, data);
+}
+
+#[test]
+fn test_i64_to_json_small_values_stay_numbers() {
+    assert_eq!(i64_to_json(0), serde_json::json!(0));
+    assert_eq!(i64_to_json(42), serde_json::json!(42));
+    assert_eq!(i64_to_json(-42), serde_json::json!(-42));
+    assert_eq!(i64_to_json(1_000_000), serde_json::json!(1_000_000));
+}
+
+#[test]
+fn test_i64_to_json_at_safe_boundary_stays_number() {
+    assert_eq!(
+        i64_to_json(JS_MAX_SAFE_INTEGER),
+        serde_json::json!(JS_MAX_SAFE_INTEGER)
+    );
+    assert_eq!(
+        i64_to_json(-JS_MAX_SAFE_INTEGER),
+        serde_json::json!(-JS_MAX_SAFE_INTEGER)
+    );
+}
+
+#[test]
+fn test_i64_to_json_above_safe_becomes_string() {
+    // The snowflake id from issue #210 — it must come back exactly.
+    let snowflake: i64 = 844_197_938_335_842_304;
+    assert_eq!(
+        i64_to_json(snowflake),
+        serde_json::Value::String("844197938335842304".to_string())
+    );
+
+    // One past the safe boundary on both sides.
+    assert_eq!(
+        i64_to_json(JS_MAX_SAFE_INTEGER + 1),
+        serde_json::Value::String("9007199254740992".to_string())
+    );
+    assert_eq!(
+        i64_to_json(-JS_MAX_SAFE_INTEGER - 1),
+        serde_json::Value::String("-9007199254740992".to_string())
+    );
+
+    // Extremes of i64.
+    assert_eq!(
+        i64_to_json(i64::MAX),
+        serde_json::Value::String(i64::MAX.to_string())
+    );
+    assert_eq!(
+        i64_to_json(i64::MIN),
+        serde_json::Value::String(i64::MIN.to_string())
+    );
+}
+
+#[test]
+fn test_u64_to_json_small_values_stay_numbers() {
+    assert_eq!(u64_to_json(0), serde_json::json!(0));
+    assert_eq!(u64_to_json(123), serde_json::json!(123));
+}
+
+#[test]
+fn test_u64_to_json_at_safe_boundary_stays_number() {
+    assert_eq!(
+        u64_to_json(JS_MAX_SAFE_UINT),
+        serde_json::json!(JS_MAX_SAFE_UINT)
+    );
+}
+
+#[test]
+fn test_u64_to_json_above_safe_becomes_string() {
+    assert_eq!(
+        u64_to_json(JS_MAX_SAFE_UINT + 1),
+        serde_json::Value::String("9007199254740992".to_string())
+    );
+    assert_eq!(
+        u64_to_json(u64::MAX),
+        serde_json::Value::String(u64::MAX.to_string())
+    );
+}
+
+#[test]
+fn test_parse_unsafe_bigint_string_ignores_safe_values() {
+    // Inside JS safe range — caller should keep these as JSON numbers,
+    // not coerce text-looking-like-int into an integer bind.
+    assert_eq!(parse_unsafe_bigint_string("42"), None);
+    assert_eq!(parse_unsafe_bigint_string("-42"), None);
+    assert_eq!(parse_unsafe_bigint_string("0"), None);
+    assert_eq!(
+        parse_unsafe_bigint_string(&JS_MAX_SAFE_INTEGER.to_string()),
+        None
+    );
+}
+
+#[test]
+fn test_parse_unsafe_bigint_string_returns_outside_safe_range() {
+    // The snowflake id from issue #210.
+    assert_eq!(
+        parse_unsafe_bigint_string("844197938335842304"),
+        Some(844_197_938_335_842_304)
+    );
+    assert_eq!(
+        parse_unsafe_bigint_string("9007199254740992"),
+        Some(JS_MAX_SAFE_INTEGER + 1)
+    );
+    assert_eq!(
+        parse_unsafe_bigint_string("-9007199254740992"),
+        Some(-JS_MAX_SAFE_INTEGER - 1)
+    );
+    assert_eq!(parse_unsafe_bigint_string(&i64::MAX.to_string()), Some(i64::MAX));
+}
+
+#[test]
+fn test_parse_unsafe_bigint_string_ignores_non_integer_strings() {
+    assert_eq!(parse_unsafe_bigint_string(""), None);
+    assert_eq!(parse_unsafe_bigint_string("hello"), None);
+    assert_eq!(parse_unsafe_bigint_string("3.14"), None);
+    assert_eq!(parse_unsafe_bigint_string("1e10"), None);
+    // u64 values that overflow i64 stay strings — they exist in MySQL
+    // (BIGINT UNSIGNED) but write-back to such columns is rare and the
+    // driver-level cast still handles them via implicit conversion.
+    assert_eq!(parse_unsafe_bigint_string("18446744073709551615"), None);
 }

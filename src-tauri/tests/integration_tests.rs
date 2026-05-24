@@ -546,3 +546,77 @@ async fn test_postgres_affected_rows_reported_correctly() {
 
     let _ = postgres::execute_query(&params, "DROP TABLE test_affected", None, 1, None).await;
 }
+
+// ---------------------------------------------------------------------------
+// cancel_query — when several queries share the same connection_id slot,
+// a single cancel must abort all of them, not just the most recently
+// registered handle. This guards against the prior bug where the second
+// `handles.insert(connection_id, ...)` orphaned the first abort handle.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+#[ignore]
+async fn test_concurrent_cancel_aborts_all_in_flight_queries() {
+    use std::sync::Arc;
+    use tabularis_lib::commands::QueryCancellationState;
+    use tokio::task::AbortHandle;
+
+    let params = get_mysql_params();
+    if mysql::get_tables(&params, None).await.is_err() {
+        eprintln!("SKIPPING concurrent-cancel test: MySQL container not reachable on 33060");
+        return;
+    }
+
+    let state = QueryCancellationState::default();
+    let connection_id = "concurrent-cancel-test".to_string();
+
+    let p_a = params.clone();
+    let task_a = tokio::spawn(async move {
+        mysql::execute_query(&p_a, "SELECT SLEEP(5)", None, 1, None).await
+    });
+    let p_b = params.clone();
+    let task_b = tokio::spawn(async move {
+        mysql::execute_query(&p_b, "SELECT SLEEP(5)", None, 1, None).await
+    });
+
+    let handle_a: Arc<AbortHandle> = Arc::new(task_a.abort_handle());
+    let handle_b: Arc<AbortHandle> = Arc::new(task_b.abort_handle());
+    {
+        let mut guard = state.handles.lock().unwrap();
+        guard
+            .entry(connection_id.clone())
+            .or_default()
+            .push(handle_a.clone());
+        guard
+            .entry(connection_id.clone())
+            .or_default()
+            .push(handle_b.clone());
+    }
+
+    sleep(Duration::from_millis(300)).await;
+
+    let drained: Vec<Arc<AbortHandle>> = state
+        .handles
+        .lock()
+        .unwrap()
+        .remove(&connection_id)
+        .unwrap_or_default();
+    assert_eq!(
+        drained.len(),
+        2,
+        "Both abort handles must survive in the slot; only one survived = handles map was overwritten"
+    );
+    for h in &drained {
+        h.abort();
+    }
+
+    let r_a = task_a.await.expect_err("task A must be cancelled");
+    let r_b = task_b.await.expect_err("task B must be cancelled");
+    assert!(r_a.is_cancelled(), "task A should report cancellation");
+    assert!(r_b.is_cancelled(), "task B should report cancellation");
+
+    assert!(
+        state.handles.lock().unwrap().get(&connection_id).is_none(),
+        "slot should be cleared after cancellation"
+    );
+}

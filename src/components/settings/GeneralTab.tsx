@@ -73,6 +73,7 @@ export function GeneralTab() {
             ]}
           />
         </SettingRow>
+
       </SettingSection>
 
       <SettingSection title={t("settings.connectionHealthCheck")}>

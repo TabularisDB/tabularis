@@ -7,6 +7,7 @@ mod explain;
 #[cfg(test)]
 mod tests;
 
+use crate::drivers::common::parse_unsafe_bigint_string;
 use crate::models::{
     ConnectionParams, ForeignKey, Index, Pagination, QueryResult, RoutineInfo, RoutineParameter,
     TableColumn, TableInfo, TriggerInfo, ViewInfo,
@@ -385,6 +386,10 @@ pub async fn update_record(
                 // Blob wire format: decode to raw bytes so the DB stores binary data,
                 // not the internal wire format string.
                 qb.push_bind(bytes);
+            } else if let Some(n) = parse_unsafe_bigint_string(&s) {
+                // Bigints outside JS safe range come back from the UI as strings
+                // (see drivers::common::i64_to_json). Bind them as native i64.
+                qb.push_bind(n);
             } else {
                 qb.push_bind(s);
             }
@@ -409,7 +414,11 @@ pub async fn update_record(
             }
         }
         serde_json::Value::String(s) => {
-            qb.push_bind(s);
+            if let Some(n) = parse_unsafe_bigint_string(&s) {
+                qb.push_bind(n);
+            } else {
+                qb.push_bind(s);
+            }
         }
         _ => return Err("Unsupported PK type".into()),
     }
@@ -461,6 +470,8 @@ pub async fn insert_record(
                     {
                         // Blob wire format: decode to raw bytes so the DB stores binary data.
                         separated.push_bind(bytes);
+                    } else if let Some(n) = parse_unsafe_bigint_string(&s) {
+                        separated.push_bind(n);
                     } else {
                         separated.push_bind(s);
                     }

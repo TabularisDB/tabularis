@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use serde_json::{Number as JsonNumber, Value as JsonValue};
 use tokio_postgres::types::{FromSql, Type};
 
-use crate::drivers::common::encode_blob;
+use crate::drivers::common::{encode_blob, i64_to_json, u64_to_json};
 
 // System Identifiers & Object References (The "Reg" Types)
 
@@ -75,7 +75,7 @@ impl<'a> FromSql<'a> for Xid8 {
 impl From<Xid8> for JsonValue {
     #[inline(always)]
     fn from(value: Xid8) -> Self {
-        JsonValue::Number(JsonNumber::from(value.0))
+        u64_to_json(value.0)
     }
 }
 
@@ -943,7 +943,7 @@ impl<'a> FromSql<'a> for Money {
 
 impl From<Money> for JsonValue {
     fn from(value: Money) -> Self {
-        JsonValue::Number(JsonNumber::from(value.0))
+        i64_to_json(value.0)
     }
 }
 

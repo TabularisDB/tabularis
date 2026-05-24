@@ -243,6 +243,8 @@
     "delimiterSemicolon": "Point-virgule (;)",
     "delimiterTab": "Tabulation",
     "delimiterPipe": "Barre verticale (|)",
+    "detectJsonInTextColumns": "Détecter le JSON dans les colonnes texte",
+    "detectJsonInTextColumnsDesc": "Affiche le visualiseur JSON lorsqu'une cellule texte non typée contient un objet ou un tableau JSON. Ajoute un petit coût d'analyse par cellule.",
     "appearance": "Apparence",
     "localization": "Localisation",
     "themeSelection": "Choix du thème",
@@ -622,7 +624,9 @@
       "disable": "Désactiver",
       "allow": "Autoriser",
       "prefer": "Préférer",
-      "require": "Exiger"
+      "require": "Exiger",
+      "verify-ca": "Vérifier CA",
+      "verify-full": "Vérification complète"
     }
   },
   "sshConnections": {
@@ -649,6 +653,7 @@
     "savedInKeychain": "Mot de passe enregistré dans le trousseau système"
   },
   "dataGrid": {
+    "newRow": "NOUVELLE",
     "noData": "Aucune donnée à afficher",
     "editRow": "Modifier la ligne",
     "deleteRow": "Supprimer la ligne",
@@ -750,7 +755,8 @@
     "tabSwitcher": {
       "title": "Onglets ouverts",
       "hint": "Ctrl+Tab",
-      "tabs": "onglets",
+      "tabs_one": "{{count}} onglet",
+      "tabs_other": "{{count}} onglets",
       "escHint": "Esc pour fermer"
     },
     "submitChanges": "Soumettre les modifications",
@@ -1116,7 +1122,27 @@
     "placeholder": "Saisir du JSON...",
     "format": "Formater",
     "valid": "JSON valide",
-    "invalid": "JSON invalide"
+    "invalid": "JSON invalide",
+    "mode": {
+      "code": "Code",
+      "tree": "Arborescence",
+      "raw": "Brut"
+    },
+    "expand": "Développer",
+    "collapse": "Réduire",
+    "search": "Rechercher",
+    "copyPath": "Copier le chemin",
+    "copyValue": "Copier la valeur",
+    "addItem": "Ajouter un élément",
+    "removeItem": "Supprimer l'élément"
+  },
+  "jsonViewer": {
+    "close": "Fermer",
+    "save": "Enregistrer"
+  },
+  "jsonCell": {
+    "expand": "Afficher/masquer l'arbre JSON",
+    "openViewer": "Ouvrir le visualiseur JSON"
   },
   "rowEditor": {
     "title": "Modifier la ligne",
@@ -1126,7 +1152,8 @@
     "enterValue": "Saisir une valeur..."
   },
   "contextMenu": {
-    "openSidebar": "Ouvrir l’éditeur latéral"
+    "openSidebar": "Ouvrir l’éditeur latéral",
+    "openJsonEditor": "Ouvrir dans l’éditeur JSON"
   },
   "blobInput": {
     "noData": "Aucune donnée BLOB",

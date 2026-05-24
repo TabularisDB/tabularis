@@ -3,6 +3,8 @@
  * Pure functions for managing toolbar state and changes
  */
 
+import { formatSqlIdentifier } from "./identifiers";
+
 export interface TableToolbarState {
   filterInput: string;
   sortInput: string;
@@ -91,4 +93,36 @@ export function generateWherePlaceholder(column: string): string {
  */
 export function generateOrderByPlaceholder(column: string): string {
   return `${column} DESC`;
+}
+
+/**
+ * Quotes column names in ORDER BY input for PostgreSQL (e.g. `Status DESC` → `"Status" DESC`).
+ */
+export function formatSortClause(
+  clause: string,
+  driver?: string | null,
+): string {
+  if (!clause.trim() || driver !== "postgres") {
+    return clause;
+  }
+
+  return clause
+    .split(",")
+    .map((term) => {
+      const parts = term.trim().split(/\s+/);
+
+      // Skip empty terms
+      if (!parts[0]) return term.trim();
+
+      // Already quoted, no need to format
+      if (parts[0].startsWith('"') || parts[0].startsWith("`")) {
+        return term.trim();
+      }
+
+      // Format the column identifier and preserve the direction (ASC/DESC) if present
+      const col = formatSqlIdentifier(parts[0], driver);
+      const dir = parts[1]?.toUpperCase();
+      return dir ? `${col} ${dir}` : col;
+    })
+    .join(", ");
 }

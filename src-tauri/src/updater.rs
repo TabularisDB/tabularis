@@ -401,10 +401,12 @@ mod tests {
     }
 
     // Mutex to serialize env var mutations across parallel tests
+    #[cfg(target_os = "linux")]
     static ENV_MUTEX: std::sync::LazyLock<std::sync::Mutex<()>> =
         std::sync::LazyLock::new(|| std::sync::Mutex::new(()));
 
     // Installation source detection tests
+    #[cfg(target_os = "linux")]
     #[test]
     fn test_detect_installation_source_snap() {
         let _lock = ENV_MUTEX.lock().unwrap();
@@ -415,6 +417,7 @@ mod tests {
         assert_eq!(source.as_deref(), Some("snap"));
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     fn test_detect_installation_source_flatpak() {
         let _lock = ENV_MUTEX.lock().unwrap();
@@ -425,6 +428,7 @@ mod tests {
         assert_eq!(source.as_deref(), Some("flatpak"));
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     fn test_detect_installation_source_direct() {
         let _lock = ENV_MUTEX.lock().unwrap();

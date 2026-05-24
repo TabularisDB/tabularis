@@ -635,7 +635,9 @@
       "disable": "無効",
       "allow": "許可",
       "prefer": "優先",
-      "require": "必須"
+      "require": "必須",
+      "verify-ca": "CAを検証",
+      "verify-full": "完全検証"
     }
   },
   "sshConnections": {
@@ -762,7 +764,7 @@
     "tabSwitcher": {
       "title": "開いているタブ",
       "hint": "Ctrl+Tab",
-      "tabs": "タブ",
+      "tabs": "{{count}} タブ",
       "escHint": "Esc で閉じる"
     },
     "submitChanges": "変更を送信",

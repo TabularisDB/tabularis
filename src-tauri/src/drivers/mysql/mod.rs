@@ -8,6 +8,7 @@ mod helpers;
 #[cfg(test)]
 mod tests;
 
+use crate::drivers::common::parse_unsafe_bigint_string;
 use crate::models::{
     ConnectionParams, ForeignKey, Index, Pagination, QueryResult, RoutineInfo, RoutineParameter,
     TableColumn, TableInfo, TriggerInfo, ViewInfo,
@@ -460,6 +461,11 @@ pub async fn update_record(
                 qb.push("ST_GeomFromText(");
                 qb.push_bind(s);
                 qb.push(")");
+            } else if let Some(n) = parse_unsafe_bigint_string(&s) {
+                // Bigints outside JS safe range come back from the UI as strings
+                // (see drivers::common::i64_to_json). Bind them as native i64 so
+                // BIGINT columns receive the exact value.
+                qb.push_bind(n);
             } else {
                 qb.push_bind(s);
             }
@@ -489,7 +495,11 @@ pub async fn update_record(
             }
         }
         serde_json::Value::String(s) => {
-            qb.push_bind(s);
+            if let Some(n) = parse_unsafe_bigint_string(&s) {
+                qb.push_bind(n);
+            } else {
+                qb.push_bind(s);
+            }
         }
         _ => return Err("Unsupported PK type".into()),
     }
@@ -551,6 +561,8 @@ pub async fn insert_record(
                         separated.push_unseparated("ST_GeomFromText(");
                         separated.push_bind_unseparated(s);
                         separated.push_unseparated(")");
+                    } else if let Some(n) = parse_unsafe_bigint_string(&s) {
+                        separated.push_bind(n);
                     } else {
                         separated.push_bind(s);
                     }

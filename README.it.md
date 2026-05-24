@@ -11,7 +11,9 @@
   <a href="./README.es.md">Español</a> |
   <a href="./README.zh-CN.md">中文</a> |
   <a href="./README.fr.md">Français</a> |
-  <a href="./README.de.md">Deutsch</a>
+  <a href="./README.de.md">Deutsch</a> |
+  <a href="./README.ja.md">日本語</a> |
+  <a href="./README.ru.md">Русский</a>
 </p>
 
 Client desktop open source per database moderni. Supporta PostgreSQL, MySQL/MariaDB e SQLite, con notebook SQL, funzioni AI, integrazione MCP e un sistema plugin esterno.
@@ -129,6 +131,7 @@ La galleria completa è disponibile su [tabularis.dev](https://tabularis.dev).
 - Creazione, selezione ed eliminazione righe.
 - Export in CSV o JSON.
 - Supporto iniziale a dati spaziali.
+- Celle JSON/JSONB con evidenziazione e finestra di editing dedicata (Tree / Monaco / Raw). Opzionale per connessione: rileva JSON nelle colonne di testo.
 
 ### Logging
 

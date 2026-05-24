@@ -11,7 +11,9 @@
   <a href="./README.es.md">Español</a> |
   <a href="./README.zh-CN.md">中文</a> |
   <a href="./README.fr.md">Français</a> |
-  <a href="./README.de.md">Deutsch</a>
+  <a href="./README.de.md">Deutsch</a> |
+  <a href="./README.ja.md">日本語</a> |
+  <a href="./README.ru.md">Русский</a>
 </p>
 
 面向现代数据库的开源桌面客户端。支持 PostgreSQL、MySQL/MariaDB 和 SQLite，内置 SQL 笔记本、AI 功能、MCP 集成以及外部插件系统。

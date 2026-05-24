@@ -606,12 +606,12 @@ pub async fn insert_record(
 ) -> Result<u64, String> {
     let pool = get_postgres_pool(params).await?;
 
-    let mut cols = Vec::new();
-    let mut vals = Vec::new();
+    // Preserve original column ordering for stable SQL (collect from HashMap once)
+    let mut entries: Vec<(String, serde_json::Value)> = data.into_iter().collect();
 
-    for (k, v) in data {
-        cols.push(format!("\"{}\"", k));
-        vals.push(v);
+    let mut cols = Vec::with_capacity(entries.len());
+    for (name, _) in &entries {
+        cols.push(format!("\"{}\"", name));
     }
 
     // Allow empty inserts for auto-generated values (e.g., auto-increment PKs)
@@ -628,15 +628,34 @@ pub async fn insert_record(
         .await;
     };
 
-    let mut params: Vec<Box<dyn ToSql + Sync + Send>> = Vec::with_capacity(vals.len());
-    let mut vals_set: Vec<String> = Vec::with_capacity(vals.len());
+    // Fetch column types so json/jsonb columns get JSON-aware binding.
+    let col_types: std::collections::HashMap<String, String> =
+        match get_columns(params, table, schema).await {
+            Ok(cols_meta) => cols_meta
+                .into_iter()
+                .map(|c| (c.name, c.data_type))
+                .collect(),
+            Err(err) => {
+                log::debug!(
+                    "Could not load PostgreSQL column metadata for {}.{}: {}",
+                    schema,
+                    table,
+                    err
+                );
+                std::collections::HashMap::new()
+            }
+        };
 
-    for val in vals {
+    let mut params: Vec<Box<dyn ToSql + Sync + Send>> = Vec::with_capacity(entries.len());
+    let mut vals_set: Vec<String> = Vec::with_capacity(entries.len());
+
+    for (col_name, val) in entries.drain(..) {
+        let column_type = col_types.get(&col_name).map(|s| s.as_str());
         let bound = bind_pg_value(
             val,
             params.len() + 1,
             PgValueOptions {
-                column_type: None,
+                column_type,
                 max_blob_size,
                 allow_default: false,
             },

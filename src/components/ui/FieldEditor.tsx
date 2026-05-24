@@ -5,9 +5,11 @@ import { GeometryInput } from "./GeometryInput";
 import { BlobInput } from "./BlobInput";
 import { DateInput } from "./DateInput";
 import { JsonInput } from "./JsonInput";
+import { TextInput } from "./TextInput";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn } from "../../utils/blob";
-import { isJsonColumn } from "../../utils/json";
+import { isJsonColumn, isJsonContent } from "../../utils/json";
+import { isLongTextValue, isTextColumn } from "../../utils/text";
 import { getDateInputMode } from "../../utils/dateInput";
 import { USE_DEFAULT_SENTINEL } from "../../utils/dataGrid";
 
@@ -23,7 +25,8 @@ export interface FieldEditorProps {
   isAutoIncrement?: boolean;
   hasDefault?: boolean;
   isNullable?: boolean;
-  // Connection context forwarded to BlobInput for downloading truncated BLOBs
+  originalValue?: unknown;
+  detectJsonInTextColumns?: boolean;
   connectionId?: string | null;
   tableName?: string | null;
   pkCol?: string | null;
@@ -47,6 +50,8 @@ export const FieldEditor = ({
   isAutoIncrement = false,
   hasDefault = false,
   isNullable = false,
+  originalValue,
+  detectJsonInTextColumns = false,
   connectionId,
   tableName,
   pkCol,
@@ -56,8 +61,24 @@ export const FieldEditor = ({
   const { t } = useTranslation();
   const isGeometric = type && isGeometricType(type);
   const isBlob = type && isBlobColumn(type, characterMaximumLength);
-  const isJson = type && isJsonColumn(type);
-  const dateMode = type ? getDateInputMode(type) : null;
+  const isJsonByType = !!(type && isJsonColumn(type));
+  const detectedJson =
+    !isBlob &&
+    !isGeometric &&
+    detectJsonInTextColumns &&
+    (Array.isArray(value) ||
+      Array.isArray(originalValue) ||
+      isJsonContent(value) ||
+      isJsonContent(originalValue));
+  const isJson = isJsonByType || detectedJson;
+  const dateMode = !isJson && type ? getDateInputMode(type) : null;
+  const isLongText =
+    !isBlob &&
+    !isGeometric &&
+    !isJson &&
+    !dateMode &&
+    isTextColumn(type) &&
+    (isLongTextValue(value) || isLongTextValue(originalValue));
 
   const defaultPlaceholder = placeholder || t("rowEditor.enterValue");
 
@@ -100,6 +121,7 @@ export const FieldEditor = ({
   ) : isJson ? (
     <JsonInput
       value={value}
+      originalValue={originalValue}
       onChange={(newValue) => onChange(newValue)}
       placeholder={defaultPlaceholder}
       className={className}
@@ -109,6 +131,14 @@ export const FieldEditor = ({
       value={String(value ?? "")}
       mode={dateMode}
       onChange={(newValue) => onChange(newValue)}
+      className={className}
+    />
+  ) : isLongText ? (
+    <TextInput
+      value={value}
+      originalValue={originalValue}
+      onChange={(newValue) => onChange(newValue)}
+      placeholder={defaultPlaceholder}
       className={className}
     />
   ) : (

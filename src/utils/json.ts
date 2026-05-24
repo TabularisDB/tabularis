@@ -61,3 +61,23 @@ export function parseJsonEditorValue(text: string): unknown {
     return text;
   }
 }
+
+/**
+ * Heuristic detector: returns true if `value` is a string that parses as a
+ * JSON object or array. Scalars (numbers, booleans, null, quoted strings)
+ * are intentionally rejected — only structured JSON triggers JSON-cell
+ * affordances in non-typed columns.
+ */
+export function isJsonContent(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  const first = trimmed[0];
+  if (first !== "{" && first !== "[") return false;
+  try {
+    JSON.parse(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}

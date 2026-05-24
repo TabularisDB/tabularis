@@ -5,6 +5,11 @@
     "url": "https://github.com/TabularisDB/tabularis/issues/47"
   },
   {
+    "label": "JSON/JSONB Editor & Viewer",
+    "done": true,
+    "url": "https://github.com/TabularisDB/tabularis/issues/24"
+  },
+  {
     "label": "Visual Explain Analyze",
     "done": true,
     "url": "https://github.com/TabularisDB/tabularis/issues/22"
@@ -43,11 +48,6 @@
     "label": "Command Palette",
     "done": false,
     "url": "https://github.com/TabularisDB/tabularis/issues/25"
-  },
-  {
-    "label": "JSON/JSONB Editor & Viewer",
-    "done": false,
-    "url": "https://github.com/TabularisDB/tabularis/issues/24"
   },
   {
     "label": "SQL Formatting / Prettier",

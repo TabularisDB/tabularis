@@ -1,7 +1,15 @@
 use crate::models::ConnectionParams;
 use deadpool_postgres::{Manager as PgPoolManager, Pool as PgPool};
 use once_cell::sync::Lazy;
-use rustls::{ClientConfig, RootCertStore};
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::client::{verify_server_cert_signed_by_trust_anchor, WebPkiServerVerifier};
+use rustls::crypto::verify_tls12_signature;
+use rustls::crypto::verify_tls13_signature;
+use rustls::crypto::CryptoProvider;
+use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use rustls::server::ParsedCertificate;
+use rustls::{DigitallySignedStruct};
+use rustls::{ClientConfig, Error as TlsError, RootCertStore};
 use rustls_platform_verifier::BuilderVerifierExt;
 use sqlx::{sqlite::SqliteConnectOptions, MySql, Pool, Sqlite};
 use std::collections::HashMap;
@@ -136,7 +144,7 @@ fn build_mysql_options(
     Ok(options)
 }
 
-fn build_postgres_configurations(params: &ConnectionParams) -> PgConfig {
+pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> PgConfig {
     let mut cfg = PgConfig::new();
     cfg.user(params.username.as_deref().unwrap_or_default())
         .password(params.password.as_deref().unwrap_or_default())
@@ -149,11 +157,18 @@ fn build_postgres_configurations(params: &ConnectionParams) -> PgConfig {
             "disable" => {
                 cfg.ssl_mode(PgSslMode::Disable);
             }
-            "require" => {
-                cfg.ssl_mode(PgSslMode::Require);
+            // tokio_postgres does not have SslMode::Allow.
+            // "allow" (try non-SSL first, fallback to SSL) requires application-level
+            // logic that this codebase does not implement. For now, map to Prefer
+            // which at least allows both SSL and non-SSL connections.
+            "allow" => {
+                cfg.ssl_mode(PgSslMode::Prefer);
             }
             "prefer" => {
                 cfg.ssl_mode(PgSslMode::Prefer);
+            }
+            "require" | "verify-ca" | "verify-full" => {
+                cfg.ssl_mode(PgSslMode::Require);
             }
             _ => {}
         };
@@ -180,37 +195,246 @@ fn build_postgres_configurations(params: &ConnectionParams) -> PgConfig {
 /// out-of-the-box RDS support can pull a fresh bundle at packaging time
 /// (e.g. via a Dockerfile `RUN curl ...` or a build script that drops it
 /// into `src-tauri/assets/`) and point users at the resulting path.
-fn build_postgres_tls_connector(params: &ConnectionParams) -> Result<MakeRustlsConnect, String> {
+///
+/// SSL modes:
+/// - `disable`: no TLS
+/// - `allow`/`prefer`: TLS without certificate verification
+/// - `require`: force TLS without certificate verification
+///   NOTE: Prior to v0.10.3, `require` validated the certificate chain.
+///   It now matches libpq behavior (TLS without validation). Users who
+///   need certificate validation should use `verify-ca` or `verify-full`.
+/// - `verify-ca`: force TLS, validate certificate chain, skip hostname check.
+///   Requires an explicit CA file — platform roots are not used to avoid
+///   macOS Secure Transport EKU incompatibilities.
+/// - `verify-full`: force TLS, validate certificate chain and hostname
+pub(crate) fn build_postgres_tls_connector(
+    params: &ConnectionParams,
+) -> Result<MakeRustlsConnect, String> {
     ensure_rustls_crypto_provider();
-    let builder = ClientConfig::builder();
+    let ssl_mode = params.ssl_mode.as_deref().unwrap_or("prefer");
     let user_ca = params.ssl_ca.as_deref().filter(|s| !s.trim().is_empty());
-    let config = match user_ca {
-        Some(ca_path) => {
-            let pem = std::fs::read(ca_path)
-                .map_err(|e| format!("Failed to read ssl_ca file '{}': {}", ca_path, e))?;
-            let mut roots = RootCertStore::empty();
-            let mut cursor = std::io::Cursor::new(&pem[..]);
-            for cert in rustls_pemfile::certs(&mut cursor) {
-                let cert = cert
-                    .map_err(|e| format!("Failed to parse ssl_ca '{}': {}", ca_path, e))?;
-                roots.add(cert).map_err(|e| {
-                    format!("Failed to add ssl_ca cert from '{}': {}", ca_path, e)
-                })?;
-            }
-            if roots.is_empty() {
-                return Err(format!(
-                    "ssl_ca '{}' contained no PEM CERTIFICATE blocks",
-                    ca_path
-                ));
-            }
-            builder.with_root_certificates(roots).with_no_client_auth()
+
+    let config = match ssl_mode {
+        "disable" | "allow" | "prefer" => {
+            // No certificate verification for these modes.
+            // The PgSslMode setting handles whether TLS is attempted.
+            let verifier = Arc::new(NoCertVerifier::new());
+            ClientConfig::builder()
+                .dangerous()
+                .with_custom_certificate_verifier(verifier)
+                .with_no_client_auth()
         }
-        None => builder
-            .with_platform_verifier()
-            .map_err(|e| format!("Failed to build platform TLS verifier: {}", e))?
-            .with_no_client_auth(),
+        "require" => {
+            // Force TLS but skip all certificate validation.
+            let verifier = Arc::new(NoCertVerifier::new());
+            ClientConfig::builder()
+                .dangerous()
+                .with_custom_certificate_verifier(verifier)
+                .with_no_client_auth()
+        }
+        "verify-ca" => {
+            // Validate certificate chain but skip hostname verification.
+            // Requires an explicit CA file — we deliberately do NOT fall back
+            // to platform roots because macOS Secure Transport applies strict
+            // id-kp-serverAuth EKU checks that reject valid CA certificates
+            // (e.g. the AWS RDS bundle). This matches libpq's behavior where
+            // sslmode=verify-ca expects root certs to be supplied explicitly.
+            let ca_path = user_ca.ok_or_else(|| {
+                "verify-ca mode requires an explicit CA file via the connection's \
+                CA Certificate field. On macOS, platform root certificates are \
+                not compatible with strict EKU checks. For automatic platform \
+                trust, use verify-full instead."
+                    .to_string()
+            })?;
+            let roots = load_roots_from_pem(ca_path)?;
+            let verifier = Arc::new(VerifyCaCertVerifier::new(roots)?);
+            ClientConfig::builder()
+                .dangerous()
+                .with_custom_certificate_verifier(verifier)
+                .with_no_client_auth()
+        }
+        "verify-full" => {
+            // Validate certificate chain AND hostname.
+            if user_ca.is_none() {
+                // Use platform verifier for full validation.
+                ClientConfig::builder()
+                    .with_platform_verifier()
+                    .map_err(|e| format!("Failed to build platform TLS verifier: {}", e))?
+                    .with_no_client_auth()
+            } else {
+                // Use custom CA with full hostname verification.
+                let roots = load_roots_from_pem(user_ca.unwrap())?;
+                let verifier = WebPkiServerVerifier::builder(Arc::new(roots))
+                    .build()
+                    .map_err(|e| format!("Failed to build certificate verifier: {e}"))?;
+                ClientConfig::builder()
+                    .dangerous()
+                    .with_custom_certificate_verifier(verifier)
+                    .with_no_client_auth()
+            }
+        }
+        _ => {
+            // Unknown mode, fall back to no verification.
+            let verifier = Arc::new(NoCertVerifier::new());
+            ClientConfig::builder()
+                .dangerous()
+                .with_custom_certificate_verifier(verifier)
+                .with_no_client_auth()
+        }
     };
     Ok(MakeRustlsConnect::new(config))
+}
+
+/// Load root certificates from a PEM file.
+pub(crate) fn load_roots_from_pem(path: &str) -> Result<RootCertStore, String> {
+    let pem =
+        std::fs::read(path).map_err(|e| format!("Failed to read ssl_ca file '{}': {}", path, e))?;
+    let mut roots = RootCertStore::empty();
+    let mut cursor = std::io::Cursor::new(&pem[..]);
+    for cert in rustls_pemfile::certs(&mut cursor) {
+        let cert = cert.map_err(|e| format!("Failed to parse ssl_ca '{}': {}", path, e))?;
+        roots
+            .add(cert)
+            .map_err(|e| format!("Failed to add ssl_ca cert from '{}': {}", path, e))?;
+    }
+    if roots.is_empty() {
+        return Err(format!(
+            "ssl_ca '{}' contained no PEM CERTIFICATE blocks",
+            path
+        ));
+    }
+    Ok(roots)
+}
+
+/// A certificate verifier that skips certificate validation entirely.
+/// Used for sslmode=require, prefer, allow.
+#[derive(Debug)]
+struct NoCertVerifier {
+    supported: rustls::crypto::WebPkiSupportedAlgorithms,
+}
+
+impl NoCertVerifier {
+    fn new() -> Self {
+        let provider = CryptoProvider::get_default()
+            .expect("rustls CryptoProvider not installed");
+        Self {
+            supported: provider.signature_verification_algorithms,
+        }
+    }
+}
+
+impl ServerCertVerifier for NoCertVerifier {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &CertificateDer<'_>,
+        _intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: UnixTime,
+    ) -> Result<ServerCertVerified, TlsError> {
+        Ok(ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer<'_>,
+        _dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TlsError> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &CertificateDer<'_>,
+        _dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TlsError> {
+        Ok(HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        self.supported.supported_schemes()
+    }
+}
+
+/// A certificate verifier that validates the certificate chain against
+/// a custom root store but skips hostname verification.
+/// Matches libpq `sslmode=verify-ca` behavior.
+///
+/// Uses `verify_server_cert_signed_by_trust_anchor` directly rather than
+/// wrapping `WebPkiServerVerifier` — this makes the "skip hostname check"
+/// intent explicit, avoids double-verifying the chain, and prevents the
+/// fragile `.or(Ok(...))` error-recovery pattern.
+#[derive(Debug)]
+struct VerifyCaCertVerifier {
+    roots: Arc<RootCertStore>,
+    supported: rustls::crypto::WebPkiSupportedAlgorithms,
+}
+
+impl VerifyCaCertVerifier {
+    fn new(roots: RootCertStore) -> Result<Self, String> {
+        if roots.is_empty() {
+            return Err(
+                "No root certificates available. For verify-ca mode, \
+                you must specify an explicit CA file via the connection's \
+                CA Certificate field. On macOS, the system keychain does \
+                not provide root anchors compatible with strict EKU checks."
+                    .to_string(),
+            );
+        }
+        let provider = CryptoProvider::get_default()
+            .ok_or("No rustls CryptoProvider installed")?;
+        Ok(Self {
+            roots: Arc::new(roots),
+            supported: provider.signature_verification_algorithms,
+        })
+    }
+}
+
+impl ServerCertVerifier for VerifyCaCertVerifier {
+    fn verify_server_cert(
+        &self,
+        end_entity: &CertificateDer<'_>,
+        intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        now: UnixTime,
+    ) -> Result<ServerCertVerified, TlsError> {
+        // Validate the certificate chain against our root store.
+        // We intentionally skip hostname verification (verify-ca semantics).
+        let cert = ParsedCertificate::try_from(end_entity)?;
+        verify_server_cert_signed_by_trust_anchor(
+            &cert,
+            &self.roots,
+            intermediates,
+            now,
+            self.supported.all,
+        )?;
+        Ok(ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TlsError> {
+        verify_tls12_signature(message, cert, dss, &self.supported)
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, TlsError> {
+        verify_tls13_signature(message, cert, dss, &self.supported)
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        self.supported.supported_schemes()
+    }
 }
 
 fn build_sqlite_connectoptions(params: &ConnectionParams) -> SqliteConnectOptions {
@@ -287,9 +511,9 @@ async fn get_mysql_pool_for_database_with_id(
         )
     })?
     .map_err(|e| {
-            log::error!("Failed to create MySQL connection pool: {}", e);
-            e.to_string()
-        })?;
+        log::error!("Failed to create MySQL connection pool: {}", e);
+        e.to_string()
+    })?;
 
     log::info!(
         "MySQL connection pool created successfully for: {} (key: {})",

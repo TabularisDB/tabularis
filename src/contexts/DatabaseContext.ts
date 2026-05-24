@@ -39,6 +39,8 @@ export interface SavedConnection {
   };
   group_id?: string;
   sort_order?: number;
+  /** Per-connection opt-in: detect JSON in plain text columns. */
+  detect_json_in_text_columns?: boolean;
 }
 
 export interface ConnectionGroup {

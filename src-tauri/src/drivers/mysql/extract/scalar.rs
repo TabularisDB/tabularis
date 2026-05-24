@@ -3,7 +3,7 @@ use rust_decimal::Decimal;
 use sqlx::Row;
 use uuid::Uuid;
 
-use crate::drivers::common::encode_blob;
+use crate::drivers::common::{encode_blob, i64_to_json, u64_to_json};
 
 pub(super) fn extract_decimal_value(
     row: &sqlx::mysql::MySqlRow,
@@ -43,7 +43,7 @@ pub(super) fn extract_fallback_value(
     }
 
     if let Ok(value) = row.try_get::<u64, _>(index) {
-        return Some(serde_json::Value::from(value));
+        return Some(u64_to_json(value));
     }
     if let Ok(value) = row.try_get::<u32, _>(index) {
         return Some(serde_json::Value::from(value));
@@ -55,7 +55,7 @@ pub(super) fn extract_fallback_value(
         return Some(serde_json::Value::from(value));
     }
     if let Ok(value) = row.try_get::<i64, _>(index) {
-        return Some(serde_json::Value::from(value));
+        return Some(i64_to_json(value));
     }
     if let Ok(value) = row.try_get::<i32, _>(index) {
         return Some(serde_json::Value::from(value));

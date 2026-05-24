@@ -17,16 +17,16 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Runtime, State};
-use tokio::task::AbortHandle;
 
 use crate::commands::{
-    expand_ssh_connection_params, find_connection_by_id, resolve_connection_params_with_id,
+    expand_ssh_connection_params, find_connection_by_id, register_abort_handle,
+    resolve_connection_params_with_id, unregister_abort_handle, AbortHandleMap,
 };
 use crate::drivers::{mysql, postgres, sqlite};
 use crate::models::ConnectionParams;
 
 pub struct ExportCancellationState {
-    pub handles: Arc<Mutex<HashMap<String, AbortHandle>>>,
+    pub handles: Arc<Mutex<AbortHandleMap>>,
 }
 
 impl Default for ExportCancellationState {
@@ -53,8 +53,11 @@ pub async fn cancel_export(
     state: State<'_, ExportCancellationState>,
     connection_id: String,
 ) -> Result<(), String> {
-    let mut handles = state.handles.lock().unwrap();
-    if let Some(handle) = handles.remove(&connection_id) {
+    let entries = {
+        let mut handles = state.handles.lock().unwrap();
+        handles.remove(&connection_id).unwrap_or_default()
+    };
+    for handle in entries {
         handle.abort();
     }
     Ok(())
@@ -97,18 +100,16 @@ pub async fn export_query_to_file<R: Runtime>(
         .await
     });
 
-    let abort_handle = task.abort_handle();
-    {
-        let mut handles = state.handles.lock().unwrap();
-        handles.insert(task_connection_id.clone(), abort_handle);
-    }
+    let abort_handle = Arc::new(task.abort_handle());
+    register_abort_handle(
+        &state.handles,
+        task_connection_id.clone(),
+        abort_handle.clone(),
+    );
 
     let result = task.await;
 
-    {
-        let mut handles = state.handles.lock().unwrap();
-        handles.remove(&task_connection_id);
-    }
+    unregister_abort_handle(&state.handles, &task_connection_id, &abort_handle);
 
     match result {
         Ok(res) => res,

@@ -422,6 +422,74 @@ mod bind_pg_value_tests {
         assert_eq!(bound.sql, "ARRAY['a', 'b']");
         assert!(bound.param.is_none());
     }
+
+    #[test]
+    fn json_object_into_jsonb_column_bound_as_value() {
+        let bound = bind_pg_value(
+            serde_json::json!({"key": "value", "n": 42}),
+            1,
+            PgValueOptions {
+                column_type: Some("jsonb"),
+                max_blob_size: 1024,
+                allow_default: false,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(bound.sql, "$1");
+        assert!(bound.param.is_some());
+    }
+
+    #[test]
+    fn json_array_into_json_column_bound_as_value_not_pg_array() {
+        let bound = bind_pg_value(
+            serde_json::json!([1, 2, 3]),
+            1,
+            PgValueOptions {
+                column_type: Some("json"),
+                max_blob_size: 1024,
+                allow_default: false,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(bound.sql, "$1");
+        assert!(bound.param.is_some());
+    }
+
+    #[test]
+    fn json_null_into_jsonb_column_stays_sql_null() {
+        let bound = bind_pg_value(
+            serde_json::Value::Null,
+            1,
+            PgValueOptions {
+                column_type: Some("jsonb"),
+                max_blob_size: 1024,
+                allow_default: false,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(bound.sql, "NULL");
+        assert!(bound.param.is_none());
+    }
+
+    #[test]
+    fn json_object_into_non_json_column_returns_clear_error() {
+        let err = match bind_pg_value(
+            serde_json::json!({"key": "value"}),
+            1,
+            PgValueOptions {
+                column_type: Some("text"),
+                max_blob_size: 1024,
+                allow_default: false,
+            },
+        ) {
+            Ok(_) => panic!("expected error binding JSON object to non-JSON column"),
+            Err(err) => err,
+        };
+        assert!(err.contains("JSON object"));
+    }
 }
 
 mod build_pk_predicate_tests {

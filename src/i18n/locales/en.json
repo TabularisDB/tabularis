@@ -256,6 +256,8 @@
     "delimiterSemicolon": "Semicolon (;)",
     "delimiterTab": "Tab",
     "delimiterPipe": "Pipe (|)",
+    "detectJsonInTextColumns": "Detect JSON in text columns",
+    "detectJsonInTextColumnsDesc": "Show the JSON viewer affordance when a non-typed text cell contains a JSON object or array. Adds a small per-cell parse cost.",
     "appearance": "Appearance",
     "localization": "Localization",
     "themeSelection": "Theme Selection",
@@ -635,7 +637,9 @@
       "disable": "Disable",
       "allow": "Allow",
       "prefer": "Prefer",
-      "require": "Require"
+      "require": "Require",
+      "verify-ca": "Verify CA",
+      "verify-full": "Verify Full"
     }
   },
   "sshConnections": {
@@ -662,6 +666,7 @@
     "savedInKeychain": "Password saved in system keychain"
   },
   "dataGrid": {
+    "newRow": "NEW",
     "noData": "No data to display",
     "editRow": "Edit Row",
     "deleteRow": "Delete Row",
@@ -763,7 +768,8 @@
     "tabSwitcher": {
       "title": "Open Tabs",
       "hint": "Ctrl+Tab",
-      "tabs": "tabs",
+      "tabs_one": "{{count}} tab",
+      "tabs_other": "{{count}} tabs",
       "escHint": "Esc to close"
     },
     "submitChanges": "Submit Changes",
@@ -1157,7 +1163,39 @@
     "placeholder": "Enter JSON...",
     "format": "Format",
     "valid": "Valid JSON",
-    "invalid": "Invalid JSON"
+    "invalid": "Invalid JSON",
+    "mode": {
+      "code": "Code",
+      "tree": "Tree",
+      "raw": "Raw"
+    },
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "search": "Search",
+    "copyPath": "Copy Path",
+    "copyValue": "Copy Value",
+    "addItem": "Add Item",
+    "removeItem": "Remove Item",
+    "diff": "Diff",
+    "sideBySide": "Side by side"
+  },
+  "jsonViewer": {
+    "close": "Close",
+    "save": "Save"
+  },
+  "jsonCell": {
+    "expand": "Toggle inline JSON tree",
+    "openViewer": "Open JSON viewer"
+  },
+  "textCell": {
+    "expand": "Toggle inline text editor"
+  },
+  "textInput": {
+    "diff": "Diff",
+    "sideBySide": "Side by side"
+  },
+  "textViewer": {
+    "save": "Save"
   },
   "rowEditor": {
     "title": "Edit Row",
@@ -1167,7 +1205,8 @@
     "enterValue": "Enter value..."
   },
   "contextMenu": {
-    "openSidebar": "Open Sidebar Editor"
+    "openSidebar": "Open Sidebar Editor",
+    "openJsonEditor": "Open in JSON Editor"
   },
   "blobInput": {
     "noData": "No BLOB data",

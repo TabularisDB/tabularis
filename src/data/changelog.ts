@@ -38,4 +38,6 @@ export const versionLinks: Record<string, string> = {
     "https://tabularis.dev/blog/v0102-postgres-rds-tls-cell-selection-sql-insert",
   "0.10.3":
     "https://tabularis.dev/blog/v0103-connection-import-export-editor-error-boundary-firestore",
+  "0.11.0":
+    "https://tabularis.dev/blog/v0110-json-viewer-text-diff-triggers-japanese",
 };

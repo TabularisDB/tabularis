@@ -156,6 +156,8 @@ pub struct SavedConnection {
     pub group_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_order: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detect_json_in_text_columns: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
