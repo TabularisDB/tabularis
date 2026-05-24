@@ -8,15 +8,11 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: "PR number to build (from any fork). Leave empty to build current ref."
+        description: "PR number to build (from any fork). Builds from refs/pull/<N>/head and is ALWAYS marked as prerelease so it bypasses AUR/Snap/Winget."
         required: false
       tag_name:
         description: "Tag/release name (e.g. v0.10.0-json-beta.1). Required when pr_number is set."
         required: false
-      prerelease:
-        description: "Mark as prerelease (skips AUR/Snap/Winget downstream)."
-        type: boolean
-        default: false
 
 jobs:
   publish-tauri:
@@ -48,17 +44,17 @@ jobs:
               exit 1
             fi
             echo "tag=${{ inputs.tag_name }}" >> "$GITHUB_OUTPUT"
+            # Fork PR builds are ALWAYS prerelease — release bits must come from main, not a fork.
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
             echo "tag=${{ inputs.tag_name || github.ref_name }}" >> "$GITHUB_OUTPUT"
-          fi
-          # Auto-flag prerelease when tag contains a "-" suffix (semver pre-release).
-          if [ "${{ inputs.prerelease }}" = "true" ]; then
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ inputs.tag_name || github.ref_name }}" == *-* ]]; then
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            # Auto-flag prerelease when tag contains a "-" suffix (semver pre-release).
+            if [[ "${{ inputs.tag_name || github.ref_name }}" == *-* ]]; then
+              echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
       - uses: actions/checkout@v6
