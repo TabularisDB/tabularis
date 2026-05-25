@@ -247,8 +247,9 @@ export interface NotebookFilePayload {
 export function defaultExportFilename(
   sessionId: string,
   exportData: AiNotebookExport,
+  timeZone?: string,
 ): string {
-  const dateOnly = formatLocalTimestamp(exportData.createdAt).slice(0, 10);
+  const dateOnly = formatLocalTimestamp(exportData.createdAt, timeZone).slice(0, 10);
   const slug = sessionId.slice(0, 8);
   return `ai-session-${dateOnly}-${slug}.tabularis-notebook`;
 }

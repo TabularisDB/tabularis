@@ -300,6 +300,23 @@ describe("defaultExportFilename (pinned to Asia/Tokyo, UTC+9)", () => {
       "ai-session-2026-04-25-abcdef12.tabularis-notebook",
     );
   });
+
+  it("derives the date from the explicit display timezone when given one", () => {
+    const exp: AiNotebookExport = {
+      version: 1,
+      title: "t",
+      createdAt: "2026-04-24T22:00:00Z",
+      cells: [],
+    };
+    // Tokyo rolls to the 25th; New York (UTC-4) stays on the 24th — deterministic
+    // regardless of the machine timezone.
+    expect(defaultExportFilename("abcdef1234567890", exp, "Asia/Tokyo")).toBe(
+      "ai-session-2026-04-25-abcdef12.tabularis-notebook",
+    );
+    expect(defaultExportFilename("abcdef1234567890", exp, "America/New_York")).toBe(
+      "ai-session-2026-04-24-abcdef12.tabularis-notebook",
+    );
+  });
 });
 
 describe("groupBySession", () => {

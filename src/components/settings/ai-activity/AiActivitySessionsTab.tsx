@@ -182,7 +182,7 @@ function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
       const exp = await exportSessionAsNotebook(session.sessionId);
       const file = notebookFileFromExport(exp);
       const target = await saveDialog({
-        defaultPath: defaultExportFilename(session.sessionId, exp),
+        defaultPath: defaultExportFilename(session.sessionId, exp, settings.displayTimezone),
         filters: [
           {
             name: "Tabularis Notebook",
