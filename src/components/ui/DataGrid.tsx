@@ -1862,6 +1862,11 @@ export const DataGrid = React.memo(
                     label: t("dataGrid.previewReferenced"),
                     icon: PanelBottomOpen,
                     action: () => {
+                      setFocusedCell({
+                        rowIndex: contextMenu.rowIndex,
+                        colIndex: contextMenu.colIndex,
+                      });
+                      updateSelection(new Set());
                       onForeignKeyShowPanel(
                         fkForContextPreview,
                         fkContextValue,
