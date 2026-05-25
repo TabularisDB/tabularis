@@ -125,6 +125,8 @@
     "noSchemas": "No schemas found",
     "loadingSchemas": "Loading schemas...",
     "schemaLoadError": "Failed to load schemas",
+    "errorDetails": "Details",
+    "copyError": "Copy error message",
     "retry": "Try again",
     "expandExplorer": "Expand Explorer",
     "selectSchemas": "Select Schemas",

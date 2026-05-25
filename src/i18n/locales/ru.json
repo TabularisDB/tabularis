@@ -125,6 +125,8 @@
     "noSchemas": "Схемы не найдены",
     "loadingSchemas": "Загрузка схем...",
     "schemaLoadError": "Не удалось загрузить схемы",
+    "errorDetails": "Подробности",
+    "copyError": "Скопировать сообщение об ошибке",
     "retry": "Повторить",
     "expandExplorer": "Развернуть проводник",
     "selectSchemas": "Выбрать схемы",

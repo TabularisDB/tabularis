@@ -145,6 +145,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const { showAlert } = useAlert();
   const navigate = useNavigate();
   const [schemaVersion, setSchemaVersion] = useState(0);
+  const [schemaErrorExpanded, setSchemaErrorExpanded] = useState(false);
+  const [schemaErrorCopied, setSchemaErrorCopied] = useState(false);
 
   const { splitView, isSplitVisible, explorerConnectionId, setExplorerConnectionId } = useConnectionLayoutContext();
 
@@ -687,7 +689,32 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                 <div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
                   <AlertCircle size={18} className="text-red-500" />
                   <span className="text-sm font-medium text-red-500">{t("sidebar.schemaLoadError")}</span>
-                  <span className="text-xs text-muted break-words">{schemaLoadError}</span>
+                  <span className="text-xs text-muted break-words line-clamp-2">{schemaLoadError.split("\n\n")[0]}</span>
+                  <button
+                    onClick={() => setSchemaErrorExpanded((v) => !v)}
+                    className="flex items-center gap-1 text-xs text-muted hover:text-secondary transition-colors"
+                  >
+                    {schemaErrorExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    {t("sidebar.errorDetails")}
+                  </button>
+                  {schemaErrorExpanded && (
+                    <div className="relative w-full">
+                      <pre className="text-xs text-muted bg-surface-secondary rounded p-2 pr-8 text-left whitespace-pre-wrap break-words max-h-40 overflow-auto select-text">
+                        {schemaLoadError}
+                      </pre>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(schemaLoadError);
+                          setSchemaErrorCopied(true);
+                          setTimeout(() => setSchemaErrorCopied(false), 1500);
+                        }}
+                        title={t("sidebar.copyError")}
+                        className="absolute top-1.5 right-1.5 p-1 rounded hover:bg-surface-tertiary text-muted hover:text-secondary transition-colors"
+                      >
+                        {schemaErrorCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                      </button>
+                    </div>
+                  )}
                   <button
                     onClick={() => { if (activeConnectionId) connect(activeConnectionId); }}
                     className="mt-1 flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium bg-surface-secondary text-secondary hover:bg-surface-tertiary transition-colors"
