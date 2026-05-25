@@ -624,6 +624,7 @@
     "loadDatabases": "Load Databases",
     "loadingDatabases": "Loading...",
     "selectDatabases": "Select Databases",
+    "appearance": "Appearance",
     "noDatabasesSelected": "Select at least one database",
     "selectedDatabases": "{{count}} database(s) selected",
     "selectDatabase": "Select a database",

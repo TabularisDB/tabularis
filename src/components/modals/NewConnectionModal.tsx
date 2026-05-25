@@ -168,7 +168,7 @@ export const NewConnectionModal = ({
   >(null);
 
   // ── tab ──
-  const [activeTab, setActiveTab] = useState<"general" | "databases" | "ssh" | "ssl">(
+  const [activeTab, setActiveTab] = useState<"general" | "databases" | "ssh" | "ssl" | "appearance">(
     "general",
   );
 
@@ -940,15 +940,19 @@ export const NewConnectionModal = ({
         </span>
       </label>
 
-      <AppearanceSection
-        value={appearance}
-        onChange={setAppearance}
-        connectionId={effectiveConnectionId}
-        driverManifest={activeDriver}
-        connectionName={name || t("newConnection.unnamedConnection", { defaultValue: "Unnamed connection" })}
-        onImageUploaded={handleImageUploaded}
-      />
     </div>
+  );
+
+  // ── rendered Appearance tab content (per-connection icon + accent color) ──
+  const appearanceTabContent = (
+    <AppearanceSection
+      value={appearance}
+      onChange={setAppearance}
+      connectionId={effectiveConnectionId}
+      driverManifest={activeDriver}
+      connectionName={name || t("newConnection.unnamedConnection", { defaultValue: "Unnamed connection" })}
+      onImageUploaded={handleImageUploaded}
+    />
   );
 
   // ── rendered Databases tab content (multi-db selection) ──
@@ -1560,7 +1564,13 @@ export const NewConnectionModal = ({
                     ? [{ id: "ssl", label: "SSL" }]
                     : []),
                   ...(isNetworkDriver ? [{ id: "ssh", label: "SSH" }] : []),
-                ] as { id: "general" | "databases" | "ssh" | "ssl"; label: string }[]
+                  {
+                    id: "appearance",
+                    label: t("newConnection.appearance", {
+                      defaultValue: "Appearance",
+                    }),
+                  },
+                ] as { id: "general" | "databases" | "ssh" | "ssl" | "appearance"; label: string }[]
               ).map((tab) => (
                 <button
                   key={tab.id}
@@ -1596,7 +1606,9 @@ export const NewConnectionModal = ({
                   ? databasesTabContent
                   : activeTab === "ssl"
                     ? sslTabContent
-                    : sshTabContent}
+                    : activeTab === "ssh"
+                      ? sshTabContent
+                      : appearanceTabContent}
             </div>
           </div>
         </div>

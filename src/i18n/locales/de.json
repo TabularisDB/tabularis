@@ -611,6 +611,7 @@
     "loadDatabases": "Datenbanken laden",
     "loadingDatabases": "Wird geladen...",
     "selectDatabases": "Datenbanken auswählen",
+    "appearance": "Erscheinungsbild",
     "noDatabasesSelected": "Wähle mindestens eine Datenbank aus",
     "selectedDatabases": "{{count}} Datenbank(en) ausgewählt",
     "selectDatabase": "Datenbank auswählen",

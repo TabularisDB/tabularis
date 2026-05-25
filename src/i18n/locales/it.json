@@ -611,6 +611,7 @@
     "loadDatabases": "Carica Database",
     "loadingDatabases": "Caricamento...",
     "selectDatabases": "Seleziona Database",
+    "appearance": "Aspetto",
     "noDatabasesSelected": "Seleziona almeno un database",
     "selectedDatabases": "{{count}} database selezionato/i",
     "selectDatabase": "Seleziona un database",
