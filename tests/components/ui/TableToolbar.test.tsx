@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { TableToolbar } from '../../../src/components/ui/TableToolbar';
+import { useDatabase } from '../../../src/hooks/useDatabase';
+
+vi.mock('../../../src/hooks/useDatabase', () => ({
+  useDatabase: vi.fn(),
+}));
 
 describe('TableToolbar', () => {
   const mockOnUpdate = vi.fn();
@@ -13,6 +18,9 @@ describe('TableToolbar', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useDatabase).mockReturnValue({
+      activeDriver: null,
+    } as ReturnType<typeof useDatabase>);
   });
 
   it('renders with default state', () => {
@@ -95,6 +103,20 @@ describe('TableToolbar', () => {
     expect(mockOnUpdate).toHaveBeenCalledWith('', 'name DESC', undefined);
   });
 
+  it('quotes sort column on commit for postgres driver', () => {
+    vi.mocked(useDatabase).mockReturnValue({
+      activeDriver: 'postgres',
+    } as ReturnType<typeof useDatabase>);
+
+    render(<TableToolbar {...defaultProps} />);
+
+    const sortInput = screen.getByPlaceholderText('created_at DESC');
+    fireEvent.change(sortInput, { target: { value: 'Status DESC' } });
+    fireEvent.keyDown(sortInput, { key: 'Enter' });
+
+    expect(mockOnUpdate).toHaveBeenCalledWith('', '"Status" DESC', undefined);
+  });
+
   it('calls onUpdate when pressing Enter in limit input', () => {
     render(<TableToolbar {...defaultProps} />);
 
@@ -125,6 +147,24 @@ describe('TableToolbar', () => {
 
     const filterInput = screen.getByDisplayValue('existing filter');
     fireEvent.blur(filterInput);
+
+    expect(mockOnUpdate).not.toHaveBeenCalled();
+  });
+
+  it('does not call onUpdate on sort blur when clause only differs by postgres quoting', () => {
+    vi.mocked(useDatabase).mockReturnValue({
+      activeDriver: 'postgres',
+    } as ReturnType<typeof useDatabase>);
+
+    render(
+      <TableToolbar
+        {...defaultProps}
+        initialSort="Status DESC"
+      />
+    );
+
+    const sortInput = screen.getByDisplayValue('Status DESC');
+    fireEvent.blur(sortInput);
 
     expect(mockOnUpdate).not.toHaveBeenCalled();
   });

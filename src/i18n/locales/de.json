@@ -705,6 +705,7 @@
     "setDefault": "DEFAULT setzen",
     "setEmpty": "EMPTY setzen",
     "setServerNow": "Aktuellen Zeitstempel einfügen",
+    "previewReferenced": "Verknüpften Datensatz anzeigen",
     "openReferenced": "Referenzierte Zeile in {{table}} öffnen"
   },
   "editRow": {
@@ -777,7 +778,8 @@
     "tabSwitcher": {
       "title": "Geöffnete Tabs",
       "hint": "Ctrl+Tab",
-      "tabs": "Tabs",
+      "tabs_one": "{{count}} Tab",
+      "tabs_other": "{{count}} Tabs",
       "escHint": "Esc zum Schließen"
     },
     "submitChanges": "Änderungen übernehmen",

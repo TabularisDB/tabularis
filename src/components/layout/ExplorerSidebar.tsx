@@ -75,6 +75,11 @@ import { SqlHighlight } from "../ui/SqlHighlight";
 import { isMultiDatabaseCapable } from "../../utils/database";
 import { supportsManageTables } from "../../utils/driverCapabilities";
 import { newConsoleForDatabase, newConsoleForTable } from "../../utils/newConsole";
+import {
+  DEFAULT_CREATE_TABLE_TARGET,
+  getCreateTableRefreshPlan,
+  type CreateTableTarget,
+} from "../../utils/createTable";
 
 export type SidebarTab = "structure" | "favorites" | "history";
 
@@ -139,6 +144,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   } | null>(null);
   const [schemaModal, setSchemaModal] = useState<{ tableName: string; schema?: string } | null>(null);
   const [isCreateTableModalOpen, setIsCreateTableModalOpen] = useState(false);
+  const [createTableTarget, setCreateTableTarget] = useState<CreateTableTarget>(DEFAULT_CREATE_TABLE_TARGET);
   const [isClipboardImportOpen, setIsClipboardImportOpen] = useState(false);
   const [modifyColumnModal, setModifyColumnModal] = useState<{
     isOpen: boolean;
@@ -203,6 +209,24 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   }>({ isOpen: false });
 
   const groupedRoutines = routines ? groupRoutinesByType(routines) : { procedures: [], functions: [] };
+
+  const openCreateTableModal = (target: CreateTableTarget) => {
+    setCreateTableTarget(target);
+    setIsCreateTableModalOpen(true);
+  };
+
+  const refreshAfterCreateTable = async () => {
+    const refreshPlan = getCreateTableRefreshPlan(createTableTarget);
+
+    if (refreshPlan.scope === "schema") {
+      await refreshSchemaData(refreshPlan.schema);
+    } else if (refreshPlan.scope === "database") {
+      await refreshDatabaseData(refreshPlan.schema);
+    } else if (refreshTables) {
+      await refreshTables();
+    }
+    setSchemaVersion((v) => v + 1);
+  };
 
   const runQuery = (sql: string, queryName?: string, tableName?: string, preventAutoRun: boolean = false, schema?: string, readOnly?: boolean) => {
     navigate("/editor", {
@@ -912,7 +936,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               }
                             }
                           }}
-                          onCreateTable={() => setIsCreateTableModalOpen(true)}
+                          onCreateTable={() => openCreateTableModal({ kind: "schema", schema: schemaName })}
                           onCreateView={() =>
                             setViewEditorModal({ isOpen: true, isNewView: true })
                           }
@@ -1139,7 +1163,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         }
                       }}
                       capabilities={activeCapabilities}
-                      onCreateTable={() => setIsCreateTableModalOpen(true)}
+                      onCreateTable={() => openCreateTableModal({ kind: "database", schema: dbName })}
                       onCreateView={() =>
                         setViewEditorModal({ isOpen: true, isNewView: true })
                       }
@@ -1208,7 +1232,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setIsCreateTableModalOpen(true);
+                            openCreateTableModal({ kind: "connection", schema: null });
                           }}
                           className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
                           title="Create New Table"
@@ -2053,10 +2077,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         <CreateTableModal
           isOpen={isCreateTableModalOpen}
           onClose={() => setIsCreateTableModalOpen(false)}
-          onSuccess={() => {
-            if (refreshTables) refreshTables();
-            setSchemaVersion((v) => v + 1);
-          }}
+          onSuccess={refreshAfterCreateTable}
+          schema={createTableTarget.schema}
         />
       )}
 

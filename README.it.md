@@ -12,7 +12,8 @@
   <a href="./README.zh-CN.md">中文</a> |
   <a href="./README.fr.md">Français</a> |
   <a href="./README.de.md">Deutsch</a> |
-  <a href="./README.ja.md">日本語</a>
+  <a href="./README.ja.md">日本語</a> |
+  <a href="./README.ru.md">Русский</a>
 </p>
 
 Client desktop open source per database moderni. Supporta PostgreSQL, MySQL/MariaDB e SQLite, con notebook SQL, funzioni AI, integrazione MCP e un sistema plugin esterno.

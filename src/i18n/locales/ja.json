@@ -714,7 +714,9 @@
     "setNull": "NULL に設定",
     "setDefault": "DEFAULT に設定",
     "setEmpty": "EMPTY に設定",
-    "setServerNow": "現在のタイムスタンプを挿入"
+    "setServerNow": "現在のタイムスタンプを挿入",
+    "previewReferenced": "関連レコードをプレビュー",
+    "openReferenced": "{{table}} で参照行を開く"
   },
   "editRow": {
     "title": "行を編集",
@@ -786,7 +788,7 @@
     "tabSwitcher": {
       "title": "開いているタブ",
       "hint": "Ctrl+Tab",
-      "tabs": "タブ",
+      "tabs": "{{count}} タブ",
       "escHint": "Esc で閉じる"
     },
     "submitChanges": "変更を送信",

@@ -53,9 +53,6 @@ importers:
       dagre:
         specifier: ^0.8.5
         version: 0.8.5
-      dbgate-query-splitter:
-        specifier: ^4.12.0
-        version: 4.12.0
       emoji-picker-react:
         specifier: ^4.19.1
         version: 4.19.1(react@19.2.4)
@@ -1566,9 +1563,6 @@ packages:
   data-urls@7.0.0:
     resolution: {integrity: sha512-23XHcCF+coGYevirZceTVD7NdJOqVn+49IHyxgszm+JIiHLoB2TkmPtsYkNWT1pvRSGkc35L6NHs0yHkN2SumA==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
-
-  dbgate-query-splitter@4.12.0:
-    resolution: {integrity: sha512-gHxH+QdFg488X8XXDHsWM0k1LwA+K5xcgp0YaA9wWye8A/zMCqaSDc4U6PMUu4LbKNchkIoTvFD4DJNXSsYVcw==}
 
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
@@ -4259,8 +4253,6 @@ snapshots:
       whatwg-url: 16.0.1
     transitivePeerDependencies:
       - '@noble/hashes'
-
-  dbgate-query-splitter@4.12.0: {}
 
   debug@4.4.3:
     dependencies:

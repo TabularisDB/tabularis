@@ -673,6 +673,7 @@
     "setDefault": "设为 DEFAULT",
     "setEmpty": "设为空",
     "setServerNow": "插入当前时间戳",
+    "previewReferenced": "预览相关记录",
     "openReferenced": "在 {{table}} 中打开引用的行"
   },
   "editRow": {
@@ -745,7 +746,7 @@
     "tabSwitcher": {
       "title": "打开的标签",
       "hint": "Ctrl+Tab",
-      "tabs": "标签",
+      "tabs": "{{count}} 标签",
       "escHint": "按 Esc 关闭"
     },
     "submitChanges": "提交更改",

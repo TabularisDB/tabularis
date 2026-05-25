@@ -538,6 +538,16 @@ describe('visualQuery utils', () => {
     it('should return empty string for empty orderBy', () => {
       expect(generateOrderByClause([])).toBe('');
     });
+
+    it('should quote column names for postgres driver', () => {
+      const orderBy: OrderByClause[] = [
+        { id: '1', column: 'Status', direction: 'DESC' },
+      ];
+
+      expect(generateOrderByClause(orderBy, 'postgres')).toBe(
+        '\nORDER BY\n  "Status" DESC',
+      );
+    });
   });
 
   describe('generateLimitClause', () => {

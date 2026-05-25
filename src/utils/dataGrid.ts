@@ -95,12 +95,13 @@ export function getColumnSortState(
 ): SortDirection {
   if (!sortClause) return null;
 
-  // Normalize for case-insensitive comparison
-  const normalizedClause = sortClause.toLowerCase();
+  // Strip identifier quotes so postgres clauses like "Status" DESC match column names
+  const clauseForMatch = sortClause
+    .replace(/"([^"]*)"/g, "$1")
+    .replace(/`([^`]*)`/g, "$1");
+  const normalizedClause = clauseForMatch.toLowerCase();
   const normalizedCol = columnName.toLowerCase();
 
-  // Check if column appears in sort clause
-  // Handle patterns like: "name ASC", "name asc", "table.name ASC", etc.
   const patterns = [
     new RegExp(`\\b${escapeRegExp(normalizedCol)}\\s+(asc|desc)\\b`),
     new RegExp(`\\b${escapeRegExp(normalizedCol)}\\b`),
@@ -109,17 +110,16 @@ export function getColumnSortState(
   for (const pattern of patterns) {
     const match = normalizedClause.match(pattern);
     if (match) {
-      // Check if explicit ASC/DESC was captured
       if (match[1]) {
         return match[1] === "asc" ? "asc" : "desc";
       }
-      // Default to ASC if no direction specified
       return "asc";
     }
   }
 
   return null;
 }
+
 
 /**
  * Calculates a range of indices for shift-click selection

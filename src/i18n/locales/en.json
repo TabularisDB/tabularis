@@ -718,6 +718,7 @@
     "setDefault": "Set DEFAULT",
     "setEmpty": "Set EMPTY",
     "setServerNow": "Insert Current Timestamp",
+    "previewReferenced": "Preview related record",
     "openReferenced": "Open referenced row in {{table}}"
   },
   "editRow": {
@@ -790,7 +791,8 @@
     "tabSwitcher": {
       "title": "Open Tabs",
       "hint": "Ctrl+Tab",
-      "tabs": "tabs",
+      "tabs_one": "{{count}} tab",
+      "tabs_other": "{{count}} tabs",
       "escHint": "Esc to close"
     },
     "submitChanges": "Submit Changes",

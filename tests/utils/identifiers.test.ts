@@ -3,6 +3,7 @@ import {
   getQuoteChar,
   quoteIdentifier,
   quoteTableRef,
+  formatSqlIdentifier,
 } from '../../src/utils/identifiers';
 
 describe('getQuoteChar', () => {
@@ -98,5 +99,22 @@ describe('quoteTableRef', () => {
 
   it('should escape special chars in both schema and table', () => {
     expect(quoteTableRef('my"table', 'postgres', 'my"schema')).toBe('"my""schema"."my""table"');
+  });
+});
+
+describe('formatSqlIdentifier', () => {
+  it('should quote identifiers for postgres', () => {
+    expect(formatSqlIdentifier('Status', 'postgres')).toBe('"Status"');
+    expect(formatSqlIdentifier('user_status', 'postgres')).toBe('"user_status"');
+  });
+
+  it('should leave identifiers unchanged for mysql', () => {
+    expect(formatSqlIdentifier('Status', 'mysql')).toBe('Status');
+    expect(formatSqlIdentifier('user_status', 'mariadb')).toBe('user_status');
+  });
+
+  it('should leave identifiers unchanged for sqlite and unknown drivers', () => {
+    expect(formatSqlIdentifier('Status', 'sqlite')).toBe('Status');
+    expect(formatSqlIdentifier('Status', null)).toBe('Status');
   });
 });

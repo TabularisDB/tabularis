@@ -17,7 +17,18 @@ vi.mock("@monaco-editor/react", () => ({
 vi.mock("../../../src/hooks/useTheme", () => ({
   useTheme: vi.fn(() => ({
     currentTheme: { id: "tabularis-dark" },
+    allThemes: [{ id: "tabularis-dark" }],
   })),
+}));
+
+vi.mock("../../../src/hooks/useSettings", () => ({
+  useSettings: vi.fn(() => ({
+    settings: {},
+  })),
+}));
+
+vi.mock("../../../src/themes/themeUtils", () => ({
+  loadMonacoTheme: vi.fn(),
 }));
 
 describe("QueryModal", () => {

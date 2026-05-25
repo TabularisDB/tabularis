@@ -703,6 +703,7 @@
     "setNull": "Imposta NULL",
     "setDefault": "Imposta DEFAULT",
     "setEmpty": "Imposta VUOTO",
+    "previewReferenced": "Anteprima record correlato",
     "openReferenced": "Apri la riga referenziata in {{table}}"
   },
   "editRow": {
@@ -775,7 +776,7 @@
     "tabSwitcher": {
       "title": "Tab Aperte",
       "hint": "Ctrl+Tab",
-      "tabs": "tab",
+      "tabs": "{{count}} tab",
       "escHint": "Esc per chiudere"
     },
     "submitChanges": "Invia Modifiche",

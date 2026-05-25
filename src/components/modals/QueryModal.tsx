@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
-import MonacoEditor from '@monaco-editor/react';
+import MonacoEditor, { type BeforeMount } from '@monaco-editor/react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../hooks/useTheme';
+import { useSettings } from '../../hooks/useSettings';
+import { loadMonacoTheme } from '../../themes/themeUtils';
 import { Modal } from '../ui/Modal';
 import { Select } from '../ui/Select';
 
@@ -24,7 +26,16 @@ export const QueryModal = ({ isOpen, onClose, onSave, initialName = '', initialS
   const [database, setDatabase] = useState<string | null>(initialDatabase ?? null);
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const { currentTheme } = useTheme();
+  const { currentTheme, allThemes } = useTheme();
+  const { settings } = useSettings();
+
+  const editorTheme = settings.editorTheme
+    ? (allThemes.find((t) => t.id === settings.editorTheme) ?? currentTheme)
+    : currentTheme;
+
+  const handleBeforeMount: BeforeMount = (monaco) => {
+    loadMonacoTheme(editorTheme, monaco);
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -99,7 +110,8 @@ export const QueryModal = ({ isOpen, onClose, onSave, initialName = '', initialS
                 <MonacoEditor
                     height="100%"
                     defaultLanguage="sql"
-                    theme={currentTheme.id}
+                    theme={editorTheme.id}
+                    beforeMount={handleBeforeMount}
                     value={sql}
                     onChange={(val) => setSql(val || '')}
                     options={{

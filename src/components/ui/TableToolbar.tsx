@@ -18,8 +18,11 @@ import {
   createEmptyFilter,
 } from "../../utils/filterBar";
 import type { StructuredFilter } from "../../utils/filterBar";
+import { formatSqlIdentifier } from "../../utils/identifiers";
+import { formatSortClause } from "../../utils/tableToolbar";
 import { FilterRow } from "./FilterRow";
 import { SlotAnchor } from "./SlotAnchor";
+import { useDatabase } from "../../hooks/useDatabase";
 
 interface TableToolbarProps {
   initialFilter?: string;
@@ -64,6 +67,7 @@ const TableToolbarInternal = ({
   onUpdate,
 }: TableToolbarInternalProps) => {
   const { t } = useTranslation();
+  const { activeDriver } = useDatabase();
   const [filterInput, setFilterInput] = useState(initialFilter || "");
   const [sortInput, setSortInput] = useState(initialSort || "");
   const [limitInput, setLimitInput] = useState(
@@ -105,10 +109,10 @@ const TableToolbarInternal = ({
       const sortChanged = (sort || "") !== (initialSort || "");
       const limitChanged = limitVal !== initialLimit;
       if (filterChanged || sortChanged || limitChanged) {
-        onUpdate(filter, sort, limitVal);
+        onUpdate(filter, formatSortClause(sort, activeDriver), limitVal);
       }
     },
-    [getLimitVal, initialFilter, initialSort, initialLimit, onUpdate]
+    [getLimitVal, initialFilter, initialSort, initialLimit, onUpdate, activeDriver]
   );
 
   // ── click outside to close panel ─────────────────────────────────────────────
@@ -144,11 +148,11 @@ const TableToolbarInternal = ({
   };
 
   const closePanel = useCallback(() => {
-    const clause = buildStructuredFilterClause(structuredFilters);
+    const clause = buildStructuredFilterClause(structuredFilters, activeDriver);
     setFilterInput(clause);
     onPanelOpenChange(false);
-    onUpdate(clause, sortInput, getLimitVal(limitInput));
-  }, [structuredFilters, sortInput, limitInput, getLimitVal, onUpdate, onPanelOpenChange]);
+    onUpdate(clause, formatSortClause(sortInput, activeDriver), getLimitVal(limitInput));
+  }, [structuredFilters, sortInput, limitInput, getLimitVal, onUpdate, onPanelOpenChange, activeDriver]);
 
   const togglePanel = () => {
     if (panelOpen) {
@@ -162,8 +166,8 @@ const TableToolbarInternal = ({
 
   // Applies all enabled filters — does NOT close panel
   const handleApplyAll = useCallback(() => {
-    const clause = buildStructuredFilterClause(structuredFilters);
-    onUpdate(clause, sortInput, getLimitVal(limitInput));
+    const clause = buildStructuredFilterClause(structuredFilters, activeDriver);
+    onUpdate(clause, formatSortClause(sortInput, activeDriver), getLimitVal(limitInput));
     structuredFilters.forEach((f) => {
       if (f.enabled !== false) {
         onTriggerApplied(f.id);
@@ -171,21 +175,25 @@ const TableToolbarInternal = ({
         onResetApplied(f.id);
       }
     });
-  }, [structuredFilters, sortInput, limitInput, getLimitVal, onUpdate, onTriggerApplied, onResetApplied]);
+  }, [structuredFilters, sortInput, limitInput, getLimitVal, onUpdate, onTriggerApplied, onResetApplied, activeDriver]);
 
   // Applies only that single row's filter — resets Applied on all others
   const handleApplySingle = useCallback(
     (filter: StructuredFilter) => {
-      onUpdate(buildSingleFilterClause(filter), sortInput, getLimitVal(limitInput));
+      onUpdate(
+        buildSingleFilterClause(filter, activeDriver),
+        formatSortClause(sortInput, activeDriver),
+        getLimitVal(limitInput),
+      );
       onResetAllApplied();
       onTriggerApplied(filter.id);
     },
-    [sortInput, limitInput, getLimitVal, onUpdate, onResetAllApplied, onTriggerApplied]
+    [sortInput, limitInput, getLimitVal, onUpdate, onResetAllApplied, onTriggerApplied, activeDriver]
   );
 
   const handleUnset = () => {
     onStructuredFiltersChange([]);
-    onUpdate("", sortInput, getLimitVal(limitInput));
+    onUpdate("", formatSortClause(sortInput, activeDriver), getLimitVal(limitInput));
   };
 
   const handleAddFilter = () => {
@@ -256,7 +264,8 @@ const TableToolbarInternal = ({
   const acceptSuggestion = (col: TableColumn) => {
     const input = filterInputRef.current;
     const cursorPos = input?.selectionStart ?? filterInput.length;
-    const newValue = replaceCurrentWord(filterInput, cursorPos, col.name);
+    const replacement = formatSqlIdentifier(col.name, activeDriver);
+    const newValue = replaceCurrentWord(filterInput, cursorPos, replacement);
     setFilterInput(newValue);
     setAutocompleteOpen(false);
 
@@ -266,7 +275,7 @@ const TableToolbarInternal = ({
         const before = filterInput.slice(0, cursorPos);
         const wordMatch = before.match(/[a-zA-Z0-9_]+$/);
         const wordStart = wordMatch ? cursorPos - wordMatch[0].length : cursorPos;
-        input.setSelectionRange(wordStart + col.name.length, wordStart + col.name.length);
+        input.setSelectionRange(wordStart + replacement.length, wordStart + replacement.length);
       }
     }, 0);
   };
@@ -325,7 +334,8 @@ const TableToolbarInternal = ({
   const acceptSortSuggestion = (col: TableColumn) => {
     const input = sortInputRef.current;
     const cursorPos = input?.selectionStart ?? sortInput.length;
-    const newValue = replaceCurrentWord(sortInput, cursorPos, col.name);
+    const replacement = formatSqlIdentifier(col.name, activeDriver);
+    const newValue = replaceCurrentWord(sortInput, cursorPos, replacement);
     setSortInput(newValue);
     setSortAcOpen(false);
     setTimeout(() => {
@@ -334,7 +344,7 @@ const TableToolbarInternal = ({
         const before = sortInput.slice(0, cursorPos);
         const wordMatch = before.match(/[a-zA-Z0-9_]+$/);
         const wordStart = wordMatch ? cursorPos - wordMatch[0].length : cursorPos;
-        input.setSelectionRange(wordStart + col.name.length, wordStart + col.name.length);
+        input.setSelectionRange(wordStart + replacement.length, wordStart + replacement.length);
       }
     }, 0);
   };
@@ -359,7 +369,11 @@ const TableToolbarInternal = ({
     if (!panelOpen) {
       commitSql(filterInput, sortInput, limitInput);
     } else {
-      onUpdate(buildStructuredFilterClause(structuredFilters), sortInput, getLimitVal(limitInput));
+      onUpdate(
+        buildStructuredFilterClause(structuredFilters, activeDriver),
+        formatSortClause(sortInput, activeDriver),
+        getLimitVal(limitInput),
+      );
     }
   };
 
@@ -367,7 +381,11 @@ const TableToolbarInternal = ({
     if (!panelOpen) {
       commitSql(filterInput, sortInput, limitInput);
     } else {
-      onUpdate(buildStructuredFilterClause(structuredFilters), sortInput, getLimitVal(limitInput));
+      onUpdate(
+        buildStructuredFilterClause(structuredFilters, activeDriver),
+        formatSortClause(sortInput, activeDriver),
+        getLimitVal(limitInput),
+      );
     }
   };
 
@@ -455,7 +473,7 @@ const TableToolbarInternal = ({
           <div className="flex items-center gap-1.5 flex-1 px-2 py-1 min-w-0">
             <Filter size={12} className="text-muted shrink-0" />
             <span className="text-xs text-muted font-mono truncate">
-              {buildStructuredFilterClause(structuredFilters) || (
+              {buildStructuredFilterClause(structuredFilters, activeDriver) || (
                 <em className="not-italic opacity-50">{t("toolbar.noActiveFilters")}</em>
               )}
             </span>
