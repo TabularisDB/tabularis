@@ -115,22 +115,63 @@ export function formatDurationMs(ms: number): string {
   return `${minutes}m ${seconds}s`;
 }
 
-const pad2 = (n: number): string => n.toString().padStart(2, "0");
-
 // Backend stores timestamps as RFC3339 in UTC via `chrono::Utc::now().to_rfc3339()`,
 // which emits a numeric `+00:00` offset with fractional seconds
 // (e.g. `2026-04-24T10:00:00.123456789+00:00`). `new Date()` parses both that and
-// the `Z` form as UTC. These helpers render them in the user's local timezone.
-export function formatLocalTimestamp(iso: string): string {
+// the `Z` form as UTC. These helpers render them in the chosen display timezone:
+// `timeZone` is an optional IANA name (e.g. "Asia/Tokyo"); when omitted, "auto",
+// or unrecognised, the OS local timezone is used.
+type LocalTimeParts = {
+  year: string;
+  month: string;
+  day: string;
+  hour: string;
+  minute: string;
+  second: string;
+};
+
+function localTimeParts(iso: string, timeZone?: string): LocalTimeParts | null {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+  if (Number.isNaN(d.getTime())) return null;
+  const zone = timeZone && timeZone !== "auto" ? timeZone : undefined;
+  const opts: Intl.DateTimeFormatOptions = {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  };
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-CA", { ...opts, timeZone: zone }).formatToParts(d);
+  } catch {
+    // Unrecognised IANA name — fall back to the OS local timezone.
+    parts = new Intl.DateTimeFormat("en-CA", opts).formatToParts(d);
+  }
+  const get = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((p) => p.type === type)?.value ?? "";
+  return {
+    year: get("year"),
+    month: get("month"),
+    day: get("day"),
+    hour: get("hour"),
+    minute: get("minute"),
+    second: get("second"),
+  };
 }
 
-export function formatLocalTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+export function formatLocalTimestamp(iso: string, timeZone?: string): string {
+  const p = localTimeParts(iso, timeZone);
+  if (!p) return iso;
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+}
+
+export function formatLocalTime(iso: string, timeZone?: string): string {
+  const p = localTimeParts(iso, timeZone);
+  if (!p) return iso;
+  return `${p.hour}:${p.minute}:${p.second}`;
 }
 
 export function eventsToCsvLines(events: AiActivityEvent[]): string[] {

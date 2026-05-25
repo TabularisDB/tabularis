@@ -49,7 +49,7 @@ mod tests {
                 "dev",
             ),
         );
-        let nb = export_session_in(tmp.path(), "s").unwrap();
+        let nb = export_session_in(tmp.path(), "s", None).unwrap();
         // 1 header + 1 SQL cell.
         assert_eq!(nb.cells.len(), 2);
         assert_eq!(nb.cells[0].cell_type, "markdown");
@@ -57,6 +57,29 @@ mod tests {
         assert_eq!(nb.cells[1].cell_type, "sql");
         assert_eq!(nb.cells[1].content, "SELECT 1");
         assert_eq!(nb.cells[1].schema.as_deref(), Some("dev"));
+    }
+
+    #[test]
+    fn header_renders_started_ended_in_requested_timezone() {
+        let tmp = TempDir::new().unwrap();
+        append(
+            tmp.path(),
+            ev(
+                "1",
+                "s",
+                "run_query",
+                "2026-04-24T10:00:00Z",
+                Some("SELECT 1"),
+                "dev",
+            ),
+        );
+        // Asia/Tokyo is UTC+9 (no DST): 10:00Z renders as 19:00 local.
+        let nb = export_session_in(tmp.path(), "s", Some("Asia/Tokyo")).unwrap();
+        let header = &nb.cells[0].content;
+        assert!(
+            header.contains("2026-04-24T19:00:00+09:00"),
+            "header should show Tokyo-local time, got:\n{header}"
+        );
     }
 
     #[test]
@@ -88,7 +111,7 @@ mod tests {
                 "dev",
             ),
         );
-        let nb = export_session_in(tmp.path(), "s").unwrap();
+        let nb = export_session_in(tmp.path(), "s", None).unwrap();
         // header + list_tables md + describe_table md + sql cell.
         assert_eq!(nb.cells.len(), 4);
         assert_eq!(nb.cells[1].cell_type, "markdown");
@@ -101,7 +124,7 @@ mod tests {
     #[test]
     fn export_unknown_session_returns_error() {
         let tmp = TempDir::new().unwrap();
-        let err = export_session_in(tmp.path(), "missing").unwrap_err();
+        let err = export_session_in(tmp.path(), "missing", None).unwrap_err();
         assert!(err.contains("missing"));
     }
 
@@ -130,7 +153,7 @@ mod tests {
                 "dev",
             ),
         );
-        let nb = export_session_in(tmp.path(), "s").unwrap();
+        let nb = export_session_in(tmp.path(), "s", None).unwrap();
         // Skip header at index 0.
         assert_eq!(nb.cells[1].content, "SELECT 1");
         assert_eq!(nb.cells[2].content, "SELECT 2");
@@ -211,7 +234,7 @@ mod tests {
                 "dev",
             ),
         );
-        let nb = export_session_in(tmp.path(), "s").unwrap();
+        let nb = export_session_in(tmp.path(), "s", None).unwrap();
         assert!(nb.cells[0].content.contains("dev, staging"));
     }
 }

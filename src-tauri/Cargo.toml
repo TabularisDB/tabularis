@@ -34,6 +34,7 @@ openssl = { version = "0.10", features = ["vendored"] }
 uuid = { version = "1.20.0", features = ["v4", "serde"] }
 rust_decimal = { version = "1.36", features = ["db-tokio-postgres", "serde"] }
 chrono = { version = "0.4.43", features = ["serde"] }
+chrono-tz = "0.10"
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
 russh = "0.43"

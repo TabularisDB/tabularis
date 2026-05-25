@@ -4,6 +4,7 @@ import { Search, Trash2, Loader2, Database } from "lucide-react";
 import { groupByDate, formatHistoryTime } from "../../../utils/dateGroups";
 import { SqlHighlight } from "../../ui/SqlHighlight";
 import { formatSqlPreview } from "../../../utils/sqlHighlight";
+import { useSettings } from "../../../hooks/useSettings";
 import type { QueryHistoryEntry } from "../../../types/queryHistory";
 
 interface QueryHistorySectionProps {
@@ -25,6 +26,7 @@ export function QueryHistorySection({
   onClearAll,
 }: QueryHistorySectionProps) {
   const { t } = useTranslation();
+  const { settings } = useSettings();
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -35,8 +37,8 @@ export function QueryHistorySection({
   }, [entries, search]);
 
   const groupedEntries = useMemo(
-    () => groupByDate(filteredEntries, (e) => e.executedAt),
-    [filteredEntries],
+    () => groupByDate(filteredEntries, (e) => e.executedAt, settings.displayTimezone),
+    [filteredEntries, settings.displayTimezone],
   );
 
   const formatDuration = (ms: number | null): string => {
@@ -125,7 +127,7 @@ export function QueryHistorySection({
               >
                 <div className="flex items-center justify-between gap-2 mb-0.5">
                   <div className="flex items-center gap-1 text-[10px] text-muted min-w-0">
-                    <span>{formatHistoryTime(entry.executedAt)}</span>
+                    <span>{formatHistoryTime(entry.executedAt, settings.displayTimezone)}</span>
                     {entry.executionTimeMs !== null && (
                       <span className="text-muted/60">{formatDuration(entry.executionTimeMs)}</span>
                     )}

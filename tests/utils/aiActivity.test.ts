@@ -111,8 +111,8 @@ describe("formatDurationMs", () => {
 });
 
 // Pin the timezone to Asia/Tokyo (UTC+9) so we can assert exact local-time
-// strings. Node honours runtime changes to process.env.TZ for subsequently
-// constructed Date objects.
+// strings instead of mirroring the implementation. Node honours runtime
+// changes to process.env.TZ for subsequently constructed Date objects.
 describe("local timezone formatting (pinned to Asia/Tokyo, UTC+9)", () => {
   const originalTz = process.env.TZ;
   beforeAll(() => {
@@ -128,11 +128,16 @@ describe("local timezone formatting (pinned to Asia/Tokyo, UTC+9)", () => {
 
   describe("formatLocalTimestamp", () => {
     it("converts a UTC timestamp to local time (10:00Z + 9h = 19:00)", () => {
-      expect(formatLocalTimestamp("2026-04-24T10:00:00Z")).toBe("2026-04-24 19:00:00");
+      expect(formatLocalTimestamp("2026-04-24T10:00:00Z")).toBe(
+        "2026-04-24 19:00:00",
+      );
     });
 
     it("rolls over to the next local day when crossing midnight", () => {
-      expect(formatLocalTimestamp("2026-04-24T22:00:00Z")).toBe("2026-04-25 07:00:00");
+      // 22:00Z is 07:00 next-day in JST — guards against getUTCDate misuse.
+      expect(formatLocalTimestamp("2026-04-24T22:00:00Z")).toBe(
+        "2026-04-25 07:00:00",
+      );
     });
 
     it("handles the backend's real +00:00 offset form with fractional seconds", () => {
@@ -154,6 +159,47 @@ describe("local timezone formatting (pinned to Asia/Tokyo, UTC+9)", () => {
     it("returns the input string when given an invalid timestamp", () => {
       expect(formatLocalTime("nope")).toBe("nope");
     });
+  });
+});
+
+// These exercise the explicit `timeZone` argument and are fully deterministic
+// regardless of the machine timezone (no env pinning needed).
+describe("display timezone argument", () => {
+  it("formatLocalTimestamp renders in the given IANA zone", () => {
+    expect(formatLocalTimestamp("2026-04-24T10:00:00Z", "Asia/Tokyo")).toBe(
+      "2026-04-24 19:00:00",
+    );
+    expect(formatLocalTimestamp("2026-04-24T10:00:00Z", "America/New_York")).toBe(
+      "2026-04-24 06:00:00",
+    );
+  });
+
+  it("formatLocalTimestamp rolls the date across midnight in the given zone", () => {
+    // 22:00Z is next-day 07:00 in Tokyo, but still 18:00 same-day in New York.
+    expect(formatLocalTimestamp("2026-04-24T22:00:00Z", "Asia/Tokyo")).toBe(
+      "2026-04-25 07:00:00",
+    );
+    expect(formatLocalTimestamp("2026-04-24T22:00:00Z", "America/New_York")).toBe(
+      "2026-04-24 18:00:00",
+    );
+  });
+
+  it("formatLocalTime renders HH:MM:SS in the given zone", () => {
+    expect(formatLocalTime("2026-04-24T10:00:00Z", "Asia/Tokyo")).toBe("19:00:00");
+    expect(formatLocalTime("2026-04-24T10:00:00Z", "America/New_York")).toBe(
+      "06:00:00",
+    );
+  });
+
+  it("treats 'auto' and undefined identically (OS local timezone)", () => {
+    const iso = "2026-04-24T10:00:00Z";
+    expect(formatLocalTimestamp(iso, "auto")).toBe(formatLocalTimestamp(iso));
+    expect(formatLocalTime(iso, "auto")).toBe(formatLocalTime(iso));
+  });
+
+  it("falls back to OS local timezone for an unrecognised zone name", () => {
+    const iso = "2026-04-24T10:00:00Z";
+    expect(formatLocalTimestamp(iso, "Not/AZone")).toBe(formatLocalTimestamp(iso));
   });
 });
 
@@ -214,7 +260,22 @@ describe("notebookFileFromExport", () => {
   });
 });
 
-describe("defaultExportFilename", () => {
+// Pinned to Asia/Tokyo (UTC+9): defaultExportFilename now derives the date from
+// the local calendar day, so the assertions are timezone-dependent and must run
+// against a fixed zone.
+describe("defaultExportFilename (pinned to Asia/Tokyo, UTC+9)", () => {
+  const originalTz = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Asia/Tokyo";
+  });
+  afterAll(() => {
+    if (originalTz === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = originalTz;
+    }
+  });
+
   it("composes date + slug", () => {
     const exp: AiNotebookExport = {
       version: 1,
@@ -224,6 +285,19 @@ describe("defaultExportFilename", () => {
     };
     expect(defaultExportFilename("abcdef1234567890", exp)).toBe(
       "ai-session-2026-04-24-abcdef12.tabularis-notebook",
+    );
+  });
+
+  it("uses the local calendar date, rolling over past UTC midnight", () => {
+    const exp: AiNotebookExport = {
+      version: 1,
+      title: "t",
+      // 22:00Z is the next day (07:00) in JST.
+      createdAt: "2026-04-24T22:00:00Z",
+      cells: [],
+    };
+    expect(defaultExportFilename("abcdef1234567890", exp)).toBe(
+      "ai-session-2026-04-25-abcdef12.tabularis-notebook",
     );
   });
 });

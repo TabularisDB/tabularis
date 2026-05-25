@@ -16,6 +16,7 @@ import {
   useAiSessions,
 } from "../../../hooks/useAiActivity";
 import { useAlert } from "../../../hooks/useAlert";
+import { useSettings } from "../../../hooks/useSettings";
 import {
   defaultExportFilename,
   formatDurationMs,
@@ -174,6 +175,7 @@ interface SessionCardProps {
 function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
   const { t } = useTranslation();
   const { showAlert } = useAlert();
+  const { settings } = useSettings();
 
   const handleExport = async () => {
     try {
@@ -235,7 +237,7 @@ function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
                 </span>
               )}
               <span>
-                {formatLocalTimestamp(session.startedAt)}
+                {formatLocalTimestamp(session.startedAt, settings.displayTimezone)}
               </span>
             </div>
           </div>
@@ -258,6 +260,7 @@ function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
 
 function SessionEventList({ sessionId }: { sessionId: string }) {
   const { t } = useTranslation();
+  const { settings } = useSettings();
   const { events, loading } = useAiSessionEvents(sessionId);
   if (loading) {
     return (
@@ -279,7 +282,7 @@ function SessionEventList({ sessionId }: { sessionId: string }) {
           className="flex items-center gap-3 px-4 py-2 text-xs border-b border-default last:border-b-0"
         >
           <span className="text-muted font-mono whitespace-nowrap w-32">
-            {formatLocalTime(ev.timestamp)}
+            {formatLocalTime(ev.timestamp, settings.displayTimezone)}
           </span>
           <span className="text-primary font-mono w-32 shrink-0">{ev.tool}</span>
           <span className="text-secondary font-mono truncate flex-1">

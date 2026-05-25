@@ -37,6 +37,7 @@ import {
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { toErrorMessage } from "../../utils/errors";
 import { useAlert } from "../../hooks/useAlert";
+import { useSettings } from "../../hooks/useSettings";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useSavedQueries } from "../../hooks/useSavedQueries";
 import { useQueryHistory } from "../../hooks/useQueryHistory";
@@ -93,6 +94,7 @@ interface ExplorerSidebarProps {
 
 export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebarTab, onSidebarTabChange }: ExplorerSidebarProps) => {
   const { t } = useTranslation();
+  const { settings } = useSettings();
   const {
     activeConnectionId,
     activeDriver,
@@ -565,7 +567,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
             const filteredQueries = favoritesFilter.trim()
               ? sorted.filter((q) => q.name.toLowerCase().includes(favoritesFilter.toLowerCase()) || q.sql.toLowerCase().includes(favoritesFilter.toLowerCase()))
               : sorted;
-            const groupedFavorites = groupByDate(filteredQueries, (q) => q.updated_at ?? "1970-01-01");
+            const groupedFavorites = groupByDate(filteredQueries, (q) => q.updated_at ?? "1970-01-01", settings.displayTimezone);
 
             return queries.length === 0 ? (
               <div className="text-center p-4 text-xs text-muted italic">
@@ -628,7 +630,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 </span>
                               )}
                               {q.updated_at && (
-                                <span>{formatHistoryTime(q.updated_at)}</span>
+                                <span>{formatHistoryTime(q.updated_at, settings.displayTimezone)}</span>
                               )}
                             </div>
                           </div>
