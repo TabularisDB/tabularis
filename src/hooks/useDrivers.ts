@@ -30,6 +30,7 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
       inline_pk: false,
       alter_column: true,
       create_foreign_keys: true,
+      sql_dialect: "postgres",
     },
   },
   {
@@ -87,6 +88,7 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
       inline_pk: false,
       alter_column: true,
       create_foreign_keys: true,
+      sql_dialect: "mysql",
     },
   },
   {
@@ -113,6 +115,7 @@ const FALLBACK_DRIVERS: PluginManifest[] = [
       inline_pk: true,
       alter_column: false,
       create_foreign_keys: false,
+      sql_dialect: "sqlite",
     },
   },
 ];

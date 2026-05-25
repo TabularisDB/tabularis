@@ -3,6 +3,8 @@
  * Pure functions for generating SQL from visual query state
  */
 
+import { formatSqlIdentifier } from "./identifiers";
+
 export interface TableNodeData {
   label: string;
   columns: { name: string; type: string }[];
@@ -292,10 +294,15 @@ export function generateHavingClause(conditions: WhereCondition[]): string {
 /**
  * Generates ORDER BY clause
  */
-export function generateOrderByClause(orderBy: OrderByClause[]): string {
+export function generateOrderByClause(
+  orderBy: OrderByClause[],
+  driver?: string | null,
+): string {
   if (orderBy.length === 0) return '';
 
-  const clauses = orderBy.map((o) => `${o.column} ${o.direction}`);
+  const clauses = orderBy.map(
+    (o) => `${formatSqlIdentifier(o.column, driver)} ${o.direction}`,
+  );
   return '\nORDER BY\n  ' + clauses.join(',\n  ');
 }
 
@@ -316,7 +323,8 @@ export function generateVisualQuerySQL(
   whereConditions: WhereCondition[],
   orderBy: OrderByClause[],
   groupBy: string[],
-  limit: string
+  limit: string,
+  driver?: string | null,
 ): string {
   if (nodes.length === 0) return '';
 
@@ -329,7 +337,7 @@ export function generateVisualQuerySQL(
   sql += generateWhereClause(whereConditions);
   sql += generateGroupByClause(hasAggregation, nonAggregatedCols, groupBy);
   sql += generateHavingClause(whereConditions);
-  sql += generateOrderByClause(orderBy);
+  sql += generateOrderByClause(orderBy, driver);
   sql += generateLimitClause(limit);
 
   return sql;

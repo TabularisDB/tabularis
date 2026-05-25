@@ -566,8 +566,8 @@ cp ui/dist/*.js "$PLUGIN_DIR/ui/dist/"
 chmod +x "$PLUGIN_DIR/google-sheets-plugin"
 ```
 
-(macOS: `~/Library/Application Support/com.debba.tabularis/plugins/google-sheets/`.
-Windows: `%APPDATA%\com.debba.tabularis\plugins\google-sheets\`.)
+(macOS: `~/Library/Application Support/tabularis/plugins/google-sheets/`.
+Windows: `%APPDATA%\tabularis\plugins\google-sheets\`.)
 
 Now:
 

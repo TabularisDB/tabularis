@@ -1,3 +1,36 @@
+# [0.12.0](https://github.com/debba/tabularis/compare/v0.11.0...v0.12.0) (2026-05-25)
+
+
+### Bug Fixes
+
+* Ctrl+Enter always runs query in the last opened console tab ([#240](https://github.com/debba/tabularis/issues/240)) ([d8f9feb](https://github.com/debba/tabularis/commit/d8f9febd334d88909877683ca6307b7d380eee98))
+* **drivers:** preserve i64/u64 precision past Number.MAX_SAFE_INTEGER ([b1a6d9d](https://github.com/debba/tabularis/commit/b1a6d9d0154fb3e58b70625a4fe7b2130f0ce5a2)), closes [#210](https://github.com/debba/tabularis/issues/210)
+* **drivers:** show pagination for SELECTs with leading SQL comments ([a0a52f4](https://github.com/debba/tabularis/commit/a0a52f498712fdea2e1134898a4a02e66eb8fa29))
+* **pg:** correct handling of TLS/SSL modes in PostgreSQL connection ([e836109](https://github.com/debba/tabularis/commit/e836109a2abb5bb75377c0a28d21d5b07f0dd96c))
+* refresh table list after creating table ([#239](https://github.com/debba/tabularis/issues/239)) ([63ebeaf](https://github.com/debba/tabularis/commit/63ebeaf63f41e1d7ac6eccc103cf1b6af421130d))
+* Save Query modal no longer overrides editor theme globally ([#248](https://github.com/debba/tabularis/issues/248)) ([d1d93d3](https://github.com/debba/tabularis/commit/d1d93d3d0dbe15154f2ba67cfe1b1d83d971efcc)), closes [#247](https://github.com/debba/tabularis/issues/247)
+* **settings:** center SettingToggle knob ([d9febbe](https://github.com/debba/tabularis/commit/d9febbefcc314a7fcd45919806150b1b98e0ebf5))
+
+
+### Features
+
+* Delete selected rows with keyboard shortcut ([5190443](https://github.com/debba/tabularis/commit/51904436dc3411996b85d28455713497232a96e9))
+* **demo:** add MySQL triggers demo and bump version to 0.11.0 ([02a23ef](https://github.com/debba/tabularis/commit/02a23ef9aa662555bd0c20a9de8a218ef1dbc72e))
+* **demo:** seed bigint_demo table for issue [#210](https://github.com/debba/tabularis/issues/210) manual testing ([245f6b6](https://github.com/debba/tabularis/commit/245f6b645fa02281238260c3b0daee7c9cb0d591))
+* **i18n:** add Russian locale and count-based tab pluralization ([78bf343](https://github.com/debba/tabularis/commit/78bf3437039a9841cfb2b473bd175e181f345d25))
+* per-connection icon & accent color override ([#189](https://github.com/debba/tabularis/issues/189)) ([#241](https://github.com/debba/tabularis/issues/241)) ([287c2b6](https://github.com/debba/tabularis/commit/287c2b6cdc882b3e6466e4d8888784389d33a43a))
+* **sql:** first-party splitter + per-driver dialect ([#225](https://github.com/debba/tabularis/issues/225)) ([b4f225a](https://github.com/debba/tabularis/commit/b4f225ab53b3cb633f0549662de4341f8cea3dcb))
+
+
+### Performance Improvements
+
+* eliminate per-query disk I/O and unblock result display from metadata fetch ([788a068](https://github.com/debba/tabularis/commit/788a068f72a502e6c2883490c03be1c0dbbd339c))
+
+
+### Reverts
+
+* remove unintended CHANGELOG changes ([2ddfb58](https://github.com/debba/tabularis/commit/2ddfb5859af01d44a9a9a2976d4354dc49e69516))
+
 # [0.11.0](https://github.com/TabularisDB/tabularis/compare/v0.10.3...v0.11.0) (2026-05-18)
 
 

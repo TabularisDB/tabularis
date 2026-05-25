@@ -29,6 +29,8 @@ const SqlEditorInternal = ({
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
+  const onRunRef = useRef(onRun);
+  onRunRef.current = onRun;
   const { currentTheme, allThemes } = useTheme();
   const { settings } = useSettings();
 
@@ -135,11 +137,11 @@ const SqlEditorInternal = ({
         }
       }
 
-      // Bind Ctrl+Enter to Run
+      // Bind Ctrl+Enter to Run — use ref so the closure never goes stale
       editor.addCommand(
         monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
         () => {
-            onRun();
+          onRunRef.current();
         }
       );
 

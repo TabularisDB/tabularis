@@ -152,6 +152,9 @@
     "noHistorySearchResults": "検索に一致するクエリがありません",
     "searchHistory": "履歴を検索...",
     "clearAllHistory": "すべての履歴を削除",
+    "historyRecoveredTitle": "クエリ履歴をリセットしました",
+    "historyRecoveredBody": "履歴ファイルが破損していたためバックアップに移動しました。新しいクエリは通常どおり記録されます。バックアップ ファイル:",
+    "historyRecoveredDismiss": "閉じる",
     "confirmDeleteHistoryEntry": "このクエリを履歴から削除してもよろしいですか？",
     "confirmClearHistory": "この接続のクエリ履歴をすべて削除してもよろしいですか？",
     "confirmClearHistoryTitle": "クエリ履歴を削除",
@@ -239,6 +242,27 @@
     "import": "接続をインポート",
     "exportTitle": "接続をエクスポート",
     "exportWarning": "エクスポートされたファイルには、データベースおよび SSH のパスワードが平文で含まれます。安全な場所に保管してください。"
+  },
+  "connectionAppearance": {
+    "section": "外観",
+    "accentColor": "アクセントカラー",
+    "customColor": "カスタム",
+    "resetColor": "ドライバーの初期設定に戻す",
+    "resetIcon": "ドライバーの初期設定に戻す",
+    "icon": "アイコン",
+    "tabs": {
+      "default": "デフォルト",
+      "pack": "アイコン",
+      "emoji": "絵文字",
+      "image": "画像"
+    },
+    "chooseImage": "画像を選択…",
+    "removeImage": "削除",
+    "imageHint": "PNG、JPG、WebP または SVG · 最大 512 KB",
+    "errors": {
+      "invalidEmoji": "絵文字を 1 つだけ入力してください",
+      "invalidHex": "#1a2b3c のような有効な 16 進カラーを入力してください"
+    }
   },
   "settings": {
     "title": "設定",
@@ -601,6 +625,7 @@
     "loadDatabases": "データベースを読み込み",
     "loadingDatabases": "読み込み中...",
     "selectDatabases": "データベースを選択",
+    "appearance": "外観",
     "noDatabasesSelected": "少なくとも 1 つのデータベースを選択してください",
     "selectedDatabases": "{{count}} 個のデータベースを選択中",
     "selectDatabase": "データベースを選択",
@@ -692,7 +717,9 @@
     "setNull": "NULL に設定",
     "setDefault": "DEFAULT に設定",
     "setEmpty": "EMPTY に設定",
-    "setServerNow": "現在のタイムスタンプを挿入"
+    "setServerNow": "現在のタイムスタンプを挿入",
+    "previewReferenced": "関連レコードをプレビュー",
+    "openReferenced": "{{table}} で参照行を開く"
   },
   "editRow": {
     "title": "行を編集",

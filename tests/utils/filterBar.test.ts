@@ -296,6 +296,26 @@ describe("filterBar utils", () => {
       };
       expect(buildSingleFilterClause(filter)).toBe("price >= 9.99");
     });
+
+    it("should quote the column name with double quotes for postgres driver", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "user_status",
+        operator: "=",
+        value: "active",
+      };
+      expect(buildSingleFilterClause(filter, "postgres")).toBe('"user_status" = \'active\'');
+    });
+
+    it("should not quote the column name for mysql driver", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "user_status",
+        operator: "=",
+        value: "active",
+      };
+      expect(buildSingleFilterClause(filter, "mysql")).toBe("user_status = 'active'");
+    });
   });
 
   describe("buildStructuredFilterClause", () => {
@@ -317,6 +337,16 @@ describe("filterBar utils", () => {
       ];
       expect(buildStructuredFilterClause(filters)).toBe(
         "status = 'active' AND age > 18"
+      );
+    });
+
+    it("should quote columns for postgres in structured filters", () => {
+      const filters: StructuredFilter[] = [
+        { id: "1", column: "status", operator: "=", value: "active" },
+        { id: "2", column: "age", operator: ">", value: "18" },
+      ];
+      expect(buildStructuredFilterClause(filters, "postgres")).toBe(
+        '"status" = \'active\' AND "age" > 18'
       );
     });
 

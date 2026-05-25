@@ -64,7 +64,7 @@ import {
   ExportProgressModal,
   type ExportStatus,
 } from "../components/modals/ExportProgressModal";
-import { splitQueries, extractTableName, getExplainableQueries } from "../utils/sql";
+import { splitQueries, extractTableName, getExplainableQueries, statementLabel } from "../utils/sql";
 import {
   createResultEntries,
   updateResultEntry,
@@ -102,6 +102,8 @@ import type {
   ForeignKey,
 } from "../types/editor";
 import { buildForeignKeyFilterClause } from "../utils/foreignKeys";
+import { formatSqlIdentifier } from "../utils/identifiers";
+import { RelatedRecordsPanel } from "../components/ui/RelatedRecordsPanel";
 import {
   getTabScrollState,
   getAdjacentTabIndex,
@@ -169,6 +171,7 @@ export const Editor = () => {
   const navigate = useNavigate();
 
   const driverReadonly = isReadonly(activeCapabilities);
+  const activeDialect = activeCapabilities?.sql_dialect;
 
   const [tabContextMenu, setTabContextMenu] = useState<{
     x: number;
@@ -193,6 +196,16 @@ export const Editor = () => {
     rowsProcessed: 0,
     fileName: "",
   });
+
+  const [activeFkQuery, setActiveFkQuery] = useState<{
+    fk: ForeignKey;
+    value: unknown;
+    sourceColumnType?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    setActiveFkQuery(null);
+  }, [activeTabId]);
 
   useEffect(() => {
     const unlisten = listen<ExportProgress>("export_progress", (event) => {
@@ -385,6 +398,7 @@ export const Editor = () => {
   const runQueryRef = useRef<typeof runQuery>(null!);
   const runMultipleQueriesRef = useRef<typeof runMultipleQueries>(null!);
   const openExplainForQueryRef = useRef<(query: string) => void>(null!);
+  const activeDialectRef = useRef<typeof activeDialect>(undefined);
   const tabScrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -1038,7 +1052,7 @@ export const Editor = () => {
     if (!editorsRef.current[activeTab.id]) {
       // Fallback: use saved query when editor ref is not available (e.g. after tab restore)
       if (activeTab.query?.trim()) {
-        const queries = splitQueries(activeTab.query);
+        const queries = splitQueries(activeTab.query, activeDialect);
         if (queries.length <= 1) runQuery(queries[0] || activeTab.query, 1);
         else {
           setSelectableQueries(queries);
@@ -1054,11 +1068,11 @@ export const Editor = () => {
       : undefined;
 
     if (selectedText && selection && !selection.isEmpty()) {
-      const selectedQueries = splitQueries(selectedText);
+      const selectedQueries = splitQueries(selectedText, activeDialect);
       if (selectedQueries.length > 1) {
         runMultipleQueries(selectedQueries);
       } else {
-        runQuery(selectedText, 1);
+        runQuery(selectedQueries[0] || selectedText, 1);
       }
       return;
     }
@@ -1066,13 +1080,13 @@ export const Editor = () => {
     const fullText = editor.getValue();
     if (!fullText.trim()) return;
 
-    const queries = splitQueries(fullText);
+    const queries = splitQueries(fullText, activeDialect);
     if (queries.length <= 1) runQuery(queries[0] || fullText, 1);
     else {
       setSelectableQueries(queries);
       setIsQuerySelectionModalOpen(true);
     }
-  }, [activeTab, runQuery, runMultipleQueries]);
+  }, [activeTab, activeDialect, runQuery, runMultipleQueries]);
 
   const openExplainForQuery = useCallback((query: string) => {
     setVisualExplainQuery(query);
@@ -1097,7 +1111,7 @@ export const Editor = () => {
 
     if (!text) return;
 
-    const explainable = getExplainableQueries(text);
+    const explainable = getExplainableQueries(text, activeDialect);
     if (explainable.length === 0) {
       // No explainable queries — open modal with full text so it shows the error
       openExplainForQuery(text);
@@ -1107,12 +1121,13 @@ export const Editor = () => {
       setExplainSelectableQueries(explainable);
       setIsExplainSelectionOpen(true);
     }
-  }, [activeTab, activeConnectionId, openExplainForQuery]);
+  }, [activeTab, activeConnectionId, activeDialect, openExplainForQuery]);
 
   // Keep stable refs in sync for Monaco actions (closure-captured at mount time)
   runQueryRef.current = runQuery;
   runMultipleQueriesRef.current = runMultipleQueries;
   openExplainForQueryRef.current = openExplainForQuery;
+  activeDialectRef.current = activeDialect;
 
   // Global Ctrl/Command+F5 shortcut for Run
   useEffect(() => {
@@ -1226,6 +1241,26 @@ export const Editor = () => {
     [updateTab, runQuery],
   );
 
+  const handleForeignKeyShowPanel = useCallback(
+    (fk: ForeignKey, value: unknown) => {
+      const currentTab = tabsRef.current.find(
+        (tb) => tb.id === activeTabIdRef.current,
+      );
+      if (!currentTab || !activeConnectionId) return;
+
+      const sourceType = currentTab.columnMetadata?.find(
+        (c) => c.name === fk.column_name,
+      )?.data_type;
+
+      setActiveFkQuery({
+        fk,
+        value,
+        sourceColumnType: sourceType,
+      });
+    },
+    [activeConnectionId],
+  );
+
   const handleForeignKeyNavigate = useCallback(
     (fk: ForeignKey, value: unknown) => {
       const currentTab = tabsRef.current.find(
@@ -1293,21 +1328,22 @@ export const Editor = () => {
 
       let newSort = "";
 
+      const sortCol = parts[0]?.replace(/^["`]|["`]$/g, "") ?? "";
+
       // Check if we are currently sorting by this column
-      if (parts[0] === colName && parts.length <= 2) {
-        // Toggle logic
+      if (sortCol === colName && parts.length <= 2) {
         const currentDir = parts[1]?.toUpperCase();
 
         if (!currentDir || currentDir === "ASC") {
           // ASC -> DESC
-          newSort = `${colName} DESC`;
+          newSort = `${formatSqlIdentifier(colName, activeDriver)} DESC`;
         } else {
           // DESC -> None (Clear)
           newSort = "";
         }
       } else {
         // New column -> ASC
-        newSort = `${colName} ASC`;
+        newSort = `${formatSqlIdentifier(colName, activeDriver)} ASC`;
       }
 
       handleToolbarUpdate(
@@ -1316,7 +1352,7 @@ export const Editor = () => {
         activeTab.limitClause,
       );
     },
-    [activeTab, handleToolbarUpdate],
+    [activeTab, activeDriver, handleToolbarUpdate],
   );
 
   const handlePendingChange = useCallback(
@@ -2067,7 +2103,7 @@ export const Editor = () => {
           : undefined;
         const text = (selectedText || ed.getValue()).trim();
         if (!text) return;
-        const queries = splitQueries(text);
+        const queries = splitQueries(text, activeDialectRef.current);
         if (queries.length > 1) {
           runMultipleQueriesRef.current(queries);
         } else {
@@ -2087,20 +2123,17 @@ export const Editor = () => {
           : undefined;
         const text = (selectedText || ed.getValue()).trim();
         if (!text) return;
-        const explainable = getExplainableQueries(text);
+        const explainable = getExplainableQueries(text, activeDialectRef.current);
         if (explainable.length === 0) {
           openExplainForQueryRef.current(text);
         } else if (explainable.length === 1) {
           openExplainForQueryRef.current(explainable[0].query);
         } else {
-          openExplainForQueryRef.current(explainable[0].query);
+          setExplainSelectableQueries(explainable);
+          setIsExplainSelectionOpen(true);
         }
       },
     });
-    editor.addCommand(
-      monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-      handleRunButton,
-    );
   };
 
   useEffect(() => {
@@ -2328,22 +2361,22 @@ export const Editor = () => {
             : undefined;
 
           if (selectedText && selection && !selection.isEmpty()) {
-            const queries = splitQueries(selectedText);
+            const queries = splitQueries(selectedText, activeDialect);
             setSelectableQueries(queries);
           } else {
             const text = editor.getValue();
-            const queries = splitQueries(text);
+            const queries = splitQueries(text, activeDialect);
             setSelectableQueries(queries);
           }
         } else if (activeTab.query?.trim()) {
           // Fallback: use saved query when editor ref is not available
-          const queries = splitQueries(activeTab.query);
+          const queries = splitQueries(activeTab.query, activeDialect);
           setSelectableQueries(queries);
         }
       }
     }
     setIsRunDropdownOpen((prev) => !prev);
-  }, [isRunDropdownOpen, activeTab]);
+  }, [isRunDropdownOpen, activeTab, activeDialect]);
 
   if (!activeTab) {
     return (
@@ -2527,7 +2560,9 @@ export const Editor = () => {
                           {t("editor.noValidQueries")}
                         </div>
                       ) : (
-                        dropdownQueries.map((q, i) => (
+                        dropdownQueries.map((q, i) => {
+                          const label = statementLabel(q);
+                          return (
                           <div
                             key={i}
                             className="flex items-center border-b border-strong/50 last:border-0 hover:bg-surface-tertiary/50 transition-colors group"
@@ -2540,7 +2575,7 @@ export const Editor = () => {
                               className="text-left px-4 py-2 text-xs font-mono text-secondary hover:text-white flex-1 truncate"
                               title={q}
                             >
-                              {q}
+                              {label}
                             </button>
                             <button
                               onClick={(e) => {
@@ -2554,7 +2589,8 @@ export const Editor = () => {
                               <Save size={14} />
                             </button>
                           </div>
-                        ))
+                          );
+                        })
                       )}
                     </div>
                   </>
@@ -3216,44 +3252,58 @@ export const Editor = () => {
                   </div>
                 )}
 
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  <DataGrid
-                    key={`${activeTab.id}-${activeTab.sortClause || "none"}-${activeTab.filterClause || "none"}-${activeTab.result?.rows.length || 0}-${Object.keys(activeTab.pendingInsertions || {}).length}`}
-                    columns={activeTab.result?.columns || []}
-                    data={activeTab.result?.rows || []}
-                    tableName={activeTab.activeTable}
-                    pkColumn={activeTab.pkColumn}
-                    autoIncrementColumns={activeTab.autoIncrementColumns}
-                    defaultValueColumns={activeTab.defaultValueColumns}
-                    nullableColumns={activeTab.nullableColumns}
-                    columnMetadata={activeTab.columnMetadata}
-                    foreignKeys={activeTab.foreignKeys}
-                    onForeignKeyNavigate={handleForeignKeyNavigate}
-                    connectionId={activeConnectionId}
-                    onRefresh={handleRefresh}
-                    pendingChanges={activeTab.pendingChanges}
-                    pendingDeletions={activeTab.pendingDeletions}
-                    pendingInsertions={activeTab.pendingInsertions}
-                    onPendingChange={handlePendingChange}
-                    onPendingInsertionChange={handlePendingInsertionChange}
-                    onDiscardInsertion={handleDiscardInsertion}
-                    onRevertDeletion={handleRevertDeletion}
-                    onMarkForDeletion={handleMarkForDeletion}
-                    onMarkMultipleForDeletion={handleMarkMultipleForDeletion}
-                    onDuplicateRow={handleDuplicateRow}
-                    selectedRows={new Set(activeTab.selectedRows || [])}
-                    onSelectionChange={handleSelectionChange}
-                    copyFormat={copyFormat}
-                    csvDelimiter={csvDelimiter}
-                    sortClause={activeTab.sortClause}
-                    onSort={
-                      activeTab.type === "table" &&
-                      (activeTab.result?.rows.length ?? 0) > 0
-                        ? handleSort
-                        : undefined
-                    }
-                    readonly={driverReadonly}
-                  />
+                <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    <DataGrid
+                      key={`${activeTab.id}-${activeTab.sortClause || "none"}-${activeTab.filterClause || "none"}-${activeTab.result?.rows.length || 0}-${Object.keys(activeTab.pendingInsertions || {}).length}`}
+                      columns={activeTab.result?.columns || []}
+                      data={activeTab.result?.rows || []}
+                      tableName={activeTab.activeTable}
+                      pkColumn={activeTab.pkColumn}
+                      autoIncrementColumns={activeTab.autoIncrementColumns}
+                      defaultValueColumns={activeTab.defaultValueColumns}
+                      nullableColumns={activeTab.nullableColumns}
+                      columnMetadata={activeTab.columnMetadata}
+                      foreignKeys={activeTab.foreignKeys}
+                      onForeignKeyNavigate={handleForeignKeyNavigate}
+                      onForeignKeyShowPanel={handleForeignKeyShowPanel}
+                      onForeignKeyHidePanel={() => setActiveFkQuery(null)}
+                      connectionId={activeConnectionId}
+                      onRefresh={handleRefresh}
+                      pendingChanges={activeTab.pendingChanges}
+                      pendingDeletions={activeTab.pendingDeletions}
+                      pendingInsertions={activeTab.pendingInsertions}
+                      onPendingChange={handlePendingChange}
+                      onPendingInsertionChange={handlePendingInsertionChange}
+                      onDiscardInsertion={handleDiscardInsertion}
+                      onRevertDeletion={handleRevertDeletion}
+                      onMarkForDeletion={handleMarkForDeletion}
+                      onMarkMultipleForDeletion={handleMarkMultipleForDeletion}
+                      onDuplicateRow={handleDuplicateRow}
+                      selectedRows={new Set(activeTab.selectedRows || [])}
+                      onSelectionChange={handleSelectionChange}
+                      copyFormat={copyFormat}
+                      csvDelimiter={csvDelimiter}
+                      sortClause={activeTab.sortClause}
+                      onSort={
+                        activeTab.type === "table" &&
+                        (activeTab.result?.rows.length ?? 0) > 0
+                          ? handleSort
+                          : undefined
+                      }
+                      readonly={driverReadonly}
+                    />
+                  </div>
+                  {activeFkQuery && activeConnectionId && (
+                    <RelatedRecordsPanel
+                      activeFkQuery={activeFkQuery}
+                      connectionId={activeConnectionId}
+                      driver={activeDriver}
+                      schema={activeSchema}
+                      onClose={() => setActiveFkQuery(null)}
+                      onNavigateToTab={handleForeignKeyNavigate}
+                    />
+                  )}
                 </div>
               </div>
             ) : (

@@ -1,6 +1,9 @@
 import { Network, Database, FolderOpen, Plug } from "lucide-react";
+import { getLucideIconComponent, camelToKebab } from "./connectionIconPack";
+import { lazy, Suspense } from "react";
 import type { ReactNode } from "react";
 import type { PluginManifest } from "../types/plugins";
+import type { SavedConnection } from "../contexts/DatabaseContext";
 import { PostgreSQLIcon, MySQLIcon, SQLiteIcon } from "./driverIcons";
 
 const FALLBACK_COLOR = "#64748b"; // slate-500
@@ -48,4 +51,50 @@ export function getDriverIcon(manifest: PluginManifest | undefined | null, size 
  */
 export function getDriverColorStyle(manifest: PluginManifest | undefined | null): { backgroundColor: string } {
   return { backgroundColor: getDriverColor(manifest) };
+}
+
+// Lazy because ConnectionIconImage transitively imports @tauri-apps/api/path,
+// which we don't want to pull into the bundle until an image override is used.
+const ConnectionIconImage = lazy(() =>
+  import("../components/ConnectionIconImage").then(m => ({ default: m.ConnectionIconImage }))
+);
+
+/**
+ * Returns the accent color for a connection, using the per-connection override
+ * if present, otherwise falling back to the driver manifest color.
+ */
+export function getConnectionAccent(
+  connection: Pick<SavedConnection, "appearance"> | undefined | null,
+  manifest: PluginManifest | undefined | null,
+): string {
+  return connection?.appearance?.accentColor ?? getDriverColor(manifest);
+}
+
+/**
+ * Returns a ReactNode icon for a connection, using the per-connection icon
+ * override if present, otherwise falling back to the driver manifest icon.
+ */
+export function getConnectionIcon(
+  connection: Pick<SavedConnection, "appearance"> | undefined | null,
+  manifest: PluginManifest | undefined | null,
+  size = 14,
+): ReactNode {
+  const ov = connection?.appearance?.icon;
+  if (!ov) return getDriverIcon(manifest, size);
+  switch (ov.type) {
+    case "emoji":
+      return <span aria-hidden="true" style={{ fontSize: size, lineHeight: 1 }}>{ov.value}</span>;
+    case "pack": {
+      const Cmp = getLucideIconComponent(ov.id) ?? getLucideIconComponent(camelToKebab(ov.id));
+      return Cmp
+        ? <Suspense fallback={getDriverIcon(manifest, size)}><Cmp size={size} /></Suspense>
+        : getDriverIcon(manifest, size);
+    }
+    case "image":
+      return (
+        <Suspense fallback={getDriverIcon(manifest, size)}>
+          <ConnectionIconImage path={ov.path} size={size} fallback={getDriverIcon(manifest, size)} />
+        </Suspense>
+      );
+  }
 }

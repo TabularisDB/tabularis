@@ -139,6 +139,9 @@
     "noHistorySearchResults": "Aucune requête ne correspond à votre recherche",
     "searchHistory": "Rechercher dans l’historique...",
     "clearAllHistory": "Effacer tout l’historique",
+    "historyRecoveredTitle": "Historique des requêtes réinitialisé",
+    "historyRecoveredBody": "Le fichier d’historique était corrompu et a été mis de côté. Les nouvelles requêtes seront enregistrées normalement. Fichier de sauvegarde :",
+    "historyRecoveredDismiss": "Fermer",
     "confirmDeleteHistoryEntry": "Voulez-vous vraiment supprimer cette requête de l’historique ?",
     "confirmClearHistory": "Voulez-vous vraiment effacer tout l’historique des requêtes pour cette connexion ?",
     "confirmClearHistoryTitle": "Effacer l’historique des requêtes",
@@ -226,6 +229,27 @@
     "import": "Importer les connexions",
     "exportTitle": "Exporter les connexions",
     "exportWarning": "Le fichier exporté contiendra vos mots de passe de base de données et SSH en clair. Conservez-le en lieu sûr."
+  },
+  "connectionAppearance": {
+    "section": "Apparence",
+    "accentColor": "Couleur d'accent",
+    "customColor": "Personnalisé",
+    "resetColor": "Réinitialiser au défaut du pilote",
+    "resetIcon": "Réinitialiser au défaut du pilote",
+    "icon": "Icône",
+    "tabs": {
+      "default": "Défaut",
+      "pack": "Icône",
+      "emoji": "Emoji",
+      "image": "Image"
+    },
+    "chooseImage": "Choisir une image…",
+    "removeImage": "Supprimer",
+    "imageHint": "PNG, JPG, WebP ou SVG · max. 512 Ko",
+    "errors": {
+      "invalidEmoji": "Veuillez saisir un seul emoji",
+      "invalidHex": "Veuillez saisir une couleur hex valide comme #1a2b3c"
+    }
   },
   "settings": {
     "title": "Paramètres",
@@ -590,6 +614,7 @@
     "loadDatabases": "Charger les bases de données",
     "loadingDatabases": "Chargement...",
     "selectDatabases": "Sélectionner les bases de données",
+    "appearance": "Apparence",
     "noDatabasesSelected": "Sélectionnez au moins une base de données",
     "selectedDatabases": "{{count}} base(s) de données sélectionnée(s)",
     "selectDatabase": "Sélectionner une base de données",
@@ -683,6 +708,7 @@
     "setDefault": "Définir DEFAULT",
     "setEmpty": "Définir EMPTY",
     "setServerNow": "Insérer l'horodatage actuel",
+    "previewReferenced": "Aperçu de l'enregistrement lié",
     "openReferenced": "Ouvrir la ligne référencée dans {{table}}"
   },
   "editRow": {

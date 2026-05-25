@@ -29,6 +29,26 @@ export function getQuoteChar(
  * quoteIdentifier("my table", "mysql") // returns: `my table`
  * quoteIdentifier("my_table", "postgres") // returns: "my_table"
  */
+/** True when identifiers in generated SQL fragments should be double-quoted (PostgreSQL). */
+export function shouldQuoteIdentifiers(
+  driver: string | null | undefined,
+): boolean {
+  return driver === "postgres";
+}
+
+/**
+ * Formats a SQL identifier for WHERE / ORDER BY fragments.
+ * Quotes only when required (PostgreSQL); otherwise returns the name unchanged.
+ */
+export function formatSqlIdentifier(
+  identifier: string,
+  driver: string | null | undefined,
+): string {
+  return shouldQuoteIdentifiers(driver)
+    ? quoteIdentifier(identifier, driver)
+    : identifier;
+}
+
 export function quoteIdentifier(
   identifier: string,
   driver: string | null | undefined,

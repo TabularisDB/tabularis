@@ -138,6 +138,9 @@
     "noHistorySearchResults": "没有匹配的查询",
     "searchHistory": "搜索历史...",
     "clearAllHistory": "清除所有历史",
+    "historyRecoveredTitle": "查询历史已重置",
+    "historyRecoveredBody": "历史文件已损坏并被移至备份。新的查询将正常记录。备份文件：",
+    "historyRecoveredDismiss": "关闭",
     "confirmDeleteHistoryEntry": "确定要从历史中删除此查询吗？",
     "confirmClearHistory": "确定要清除此连接的所有查询历史吗？",
     "confirmClearHistoryTitle": "清除查询历史",
@@ -225,6 +228,27 @@
     "import": "导入连接",
     "exportTitle": "导出连接",
     "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。"
+  },
+  "connectionAppearance": {
+    "section": "外观",
+    "accentColor": "强调色",
+    "customColor": "自定义",
+    "resetColor": "重置为驱动默认",
+    "resetIcon": "重置为驱动默认",
+    "icon": "图标",
+    "tabs": {
+      "default": "默认",
+      "pack": "图标",
+      "emoji": "表情",
+      "image": "图片"
+    },
+    "chooseImage": "选择图片…",
+    "removeImage": "移除",
+    "imageHint": "PNG、JPG、WebP 或 SVG · 最大 512 KB",
+    "errors": {
+      "invalidEmoji": "请输入正好一个表情",
+      "invalidHex": "请输入有效的十六进制颜色，例如 #1a2b3c"
+    }
   },
   "settings": {
     "title": "设置",
@@ -558,6 +582,7 @@
     "loadDatabases": "加载数据库",
     "loadingDatabases": "加载中...",
     "selectDatabases": "选择数据库",
+    "appearance": "外观",
     "noDatabasesSelected": "请至少选择一个数据库",
     "selectedDatabases": "已选择 {{count}} 个数据库",
     "selectDatabase": "选择一个数据库",
@@ -651,6 +676,7 @@
     "setDefault": "设为 DEFAULT",
     "setEmpty": "设为空",
     "setServerNow": "插入当前时间戳",
+    "previewReferenced": "预览相关记录",
     "openReferenced": "在 {{table}} 中打开引用的行"
   },
   "editRow": {
