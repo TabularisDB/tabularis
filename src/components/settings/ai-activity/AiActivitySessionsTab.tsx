@@ -19,6 +19,8 @@ import { useAlert } from "../../../hooks/useAlert";
 import {
   defaultExportFilename,
   formatDurationMs,
+  formatLocalTime,
+  formatLocalTimestamp,
   notebookFileFromExport,
   sessionMatchesSearch,
   sortAiSessions,
@@ -233,7 +235,7 @@ function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
                 </span>
               )}
               <span>
-                {session.startedAt.replace("T", " ").slice(0, 19)}
+                {formatLocalTimestamp(session.startedAt)}
               </span>
             </div>
           </div>
@@ -277,7 +279,7 @@ function SessionEventList({ sessionId }: { sessionId: string }) {
           className="flex items-center gap-3 px-4 py-2 text-xs border-b border-default last:border-b-0"
         >
           <span className="text-muted font-mono whitespace-nowrap w-32">
-            {ev.timestamp.replace("T", " ").slice(11, 19)}
+            {formatLocalTime(ev.timestamp)}
           </span>
           <span className="text-primary font-mono w-32 shrink-0">{ev.tool}</span>
           <span className="text-secondary font-mono truncate flex-1">

@@ -589,3 +589,12 @@ pub fn new_uuid() -> String {
 pub fn now_iso8601() -> String {
     chrono::Utc::now().to_rfc3339()
 }
+
+/// Convert a stored UTC RFC3339 timestamp to the OS local timezone, so exports
+/// and human-readable summaries match what the UI shows. Falls back to the raw
+/// value if it cannot be parsed.
+pub fn to_local_rfc3339(ts: &str) -> String {
+    chrono::DateTime::parse_from_rfc3339(ts)
+        .map(|dt| dt.with_timezone(&chrono::Local).to_rfc3339())
+        .unwrap_or_else(|_| ts.to_string())
+}

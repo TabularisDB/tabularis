@@ -4,7 +4,7 @@ mod tests {
         append_event_in, classify_query_kind, clear_in, compute_or_rotate_session_id_in,
         load_session_state_in, read_events_in, read_session_events_in, read_sessions_in,
         rotate_if_needed_in, save_session_state_in, set_client_hint_in,
-        strip_strings_and_comments, AiActivityEvent, EventFilter, SessionState,
+        strip_strings_and_comments, to_local_rfc3339, AiActivityEvent, EventFilter, SessionState,
     };
     use std::path::Path;
     use tempfile::TempDir;
@@ -541,5 +541,21 @@ mod tests {
         let state = load_session_state_in(tmp.path()).unwrap();
         assert_eq!(state.client_hint.as_deref(), Some("windsurf"));
         assert!(!state.session_id.is_empty());
+    }
+
+    #[test]
+    fn to_local_rfc3339_preserves_the_instant() {
+        // The output is the same point in time as the input, regardless of the
+        // machine's timezone — so we compare instants, not literal strings.
+        let input = "2026-04-24T10:00:00Z";
+        let out = to_local_rfc3339(input);
+        let in_instant = chrono::DateTime::parse_from_rfc3339(input).unwrap();
+        let out_instant = chrono::DateTime::parse_from_rfc3339(&out).unwrap();
+        assert_eq!(in_instant, out_instant);
+    }
+
+    #[test]
+    fn to_local_rfc3339_returns_input_when_unparseable() {
+        assert_eq!(to_local_rfc3339("not-a-date"), "not-a-date");
     }
 }

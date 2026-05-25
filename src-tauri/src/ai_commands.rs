@@ -44,7 +44,8 @@ pub async fn export_ai_activity_json() -> Result<String, String> {
             .await
             .map_err(|e| e.to_string())??;
     let mut out = String::new();
-    for ev in events {
+    for mut ev in events {
+        ev.timestamp = ai_activity::to_local_rfc3339(&ev.timestamp);
         let line = serde_json::to_string(&ev).map_err(|e| e.to_string())?;
         out.push_str(&line);
         out.push('\n');
@@ -77,10 +78,11 @@ pub async fn export_ai_activity_csv() -> Result<String, String> {
     ])
     .map_err(|e| e.to_string())?;
     for ev in events {
+        let timestamp = ai_activity::to_local_rfc3339(&ev.timestamp);
         wtr.write_record([
             ev.id,
             ev.session_id,
-            ev.timestamp,
+            timestamp,
             ev.tool,
             ev.connection_id.unwrap_or_default(),
             ev.connection_name.unwrap_or_default(),

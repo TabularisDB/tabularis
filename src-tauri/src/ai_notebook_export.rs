@@ -89,15 +89,21 @@ fn build_notebook(session_id: &str, events: &[AiActivityEvent]) -> NotebookExpor
 }
 
 fn build_header_cell(session_id: &str, events: &[AiActivityEvent]) -> NotebookCellExport {
+    // Timestamps are stored as UTC; render the human-readable Started/Ended
+    // values in the OS local timezone to match the rest of the UI. The min/max
+    // run on the raw UTC strings (uniform offset keeps them ordered) before
+    // converting the chosen endpoints.
     let started = events
         .iter()
         .map(|e| e.timestamp.clone())
         .min()
+        .map(|ts| crate::ai_activity::to_local_rfc3339(&ts))
         .unwrap_or_default();
     let ended = events
         .iter()
         .map(|e| e.timestamp.clone())
         .max()
+        .map(|ts| crate::ai_activity::to_local_rfc3339(&ts))
         .unwrap_or_default();
     let client_hint = events
         .iter()

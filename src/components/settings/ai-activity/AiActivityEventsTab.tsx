@@ -22,6 +22,7 @@ import {
 } from "../../../hooks/useAiActivity";
 import {
   formatDurationMs,
+  formatLocalTimestamp,
   sortAiEvents,
   truncateQuery,
   type EventSortField,
@@ -415,7 +416,7 @@ function EventsTable({
                 className="border-t border-default transition-colors hover:bg-surface-tertiary/25"
               >
                 <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted">
-                  {ev.timestamp.replace("T", " ").slice(0, 19)}
+                  {formatLocalTimestamp(ev.timestamp)}
                 </td>
                 <td className="truncate px-3 py-2.5 font-mono text-primary">
                   {ev.tool}

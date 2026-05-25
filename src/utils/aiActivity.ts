@@ -115,6 +115,24 @@ export function formatDurationMs(ms: number): string {
   return `${minutes}m ${seconds}s`;
 }
 
+const pad2 = (n: number): string => n.toString().padStart(2, "0");
+
+// Backend stores timestamps as RFC3339 in UTC via `chrono::Utc::now().to_rfc3339()`,
+// which emits a numeric `+00:00` offset with fractional seconds
+// (e.g. `2026-04-24T10:00:00.123456789+00:00`). `new Date()` parses both that and
+// the `Z` form as UTC. These helpers render them in the user's local timezone.
+export function formatLocalTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
+export function formatLocalTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
 export function eventsToCsvLines(events: AiActivityEvent[]): string[] {
   const header = [
     "id",
@@ -189,7 +207,7 @@ export function defaultExportFilename(
   sessionId: string,
   exportData: AiNotebookExport,
 ): string {
-  const dateOnly = exportData.createdAt.slice(0, 10);
+  const dateOnly = formatLocalTimestamp(exportData.createdAt).slice(0, 10);
   const slug = sessionId.slice(0, 8);
   return `ai-session-${dateOnly}-${slug}.tabularis-notebook`;
 }

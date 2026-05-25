@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   buildVisualExplainDeepLink,
   defaultExportFilename,
   eventsToCsvLines,
   formatDurationMs,
+  formatLocalTime,
+  formatLocalTimestamp,
   getQueryKindBadgeStyle,
   getStatusBadgeStyle,
   groupBySession,
@@ -105,6 +107,53 @@ describe("formatDurationMs", () => {
 
   it("uses minutes+seconds above 1 minute", () => {
     expect(formatDurationMs(125_000)).toBe("2m 5s");
+  });
+});
+
+// Pin the timezone to Asia/Tokyo (UTC+9) so we can assert exact local-time
+// strings. Node honours runtime changes to process.env.TZ for subsequently
+// constructed Date objects.
+describe("local timezone formatting (pinned to Asia/Tokyo, UTC+9)", () => {
+  const originalTz = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Asia/Tokyo";
+  });
+  afterAll(() => {
+    if (originalTz === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = originalTz;
+    }
+  });
+
+  describe("formatLocalTimestamp", () => {
+    it("converts a UTC timestamp to local time (10:00Z + 9h = 19:00)", () => {
+      expect(formatLocalTimestamp("2026-04-24T10:00:00Z")).toBe("2026-04-24 19:00:00");
+    });
+
+    it("rolls over to the next local day when crossing midnight", () => {
+      expect(formatLocalTimestamp("2026-04-24T22:00:00Z")).toBe("2026-04-25 07:00:00");
+    });
+
+    it("handles the backend's real +00:00 offset form with fractional seconds", () => {
+      expect(formatLocalTimestamp("2026-04-24T10:00:00.123456789+00:00")).toBe(
+        "2026-04-24 19:00:00",
+      );
+    });
+
+    it("returns the input string when given an invalid timestamp", () => {
+      expect(formatLocalTimestamp("not-a-date")).toBe("not-a-date");
+    });
+  });
+
+  describe("formatLocalTime", () => {
+    it("renders only HH:MM:SS in local time (10:00Z = 19:00 JST)", () => {
+      expect(formatLocalTime("2026-04-24T10:00:00Z")).toBe("19:00:00");
+    });
+
+    it("returns the input string when given an invalid timestamp", () => {
+      expect(formatLocalTime("nope")).toBe("nope");
+    });
   });
 });
 
