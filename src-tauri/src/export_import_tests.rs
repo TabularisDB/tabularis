@@ -40,6 +40,7 @@ mod tests {
                 group_id: Some("group1".to_string()),
                 sort_order: Some(0),
                 detect_json_in_text_columns: None,
+                appearance: None,
             }],
             ssh_connections: vec![SshConnection {
                 id: "ssh1".to_string(),

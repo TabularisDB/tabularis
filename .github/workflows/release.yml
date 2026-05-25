@@ -6,6 +6,13 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to build (from any fork). Builds from refs/pull/<N>/head and is ALWAYS marked as prerelease so it bypasses AUR/Snap/Winget."
+        required: false
+      tag_name:
+        description: "Tag/release name (e.g. v0.10.0-json-beta.1). Required when pr_number is set."
+        required: false
 
 jobs:
   publish-tauri:
@@ -26,7 +33,33 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     steps:
+      - name: Resolve build ref + tag
+        id: meta
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.pr_number }}" ]; then
+            echo "ref=refs/pull/${{ inputs.pr_number }}/head" >> "$GITHUB_OUTPUT"
+            if [ -z "${{ inputs.tag_name }}" ]; then
+              echo "::error::tag_name is required when pr_number is provided"
+              exit 1
+            fi
+            echo "tag=${{ inputs.tag_name }}" >> "$GITHUB_OUTPUT"
+            # Fork PR builds are ALWAYS prerelease — release bits must come from main, not a fork.
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ inputs.tag_name || github.ref_name }}" >> "$GITHUB_OUTPUT"
+            # Auto-flag prerelease when tag contains a "-" suffix (semver pre-release).
+            if [[ "${{ inputs.tag_name || github.ref_name }}" == *-* ]]; then
+              echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.meta.outputs.ref }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
@@ -86,11 +119,11 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
+          tagName: ${{ steps.meta.outputs.tag }}
           releaseName: "v__VERSION__"
           releaseBody: "See the assets to download this version and install."
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
           tauriScript: ${{ matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'pnpm tauri' }}
           args: ${{ matrix.args }}
 
@@ -98,8 +131,8 @@ jobs:
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart('v')
+          $version = "${{ steps.meta.outputs.tag }}".TrimStart('v')
           $src = "src-tauri\target\release\tabularis.exe"
           $portable = "tabularis_${version}_x64-portable.exe"
           Copy-Item $src $portable
-          gh release upload "${{ github.ref_name }}" $portable --clobber
+          gh release upload "${{ steps.meta.outputs.tag }}" $portable --clobber

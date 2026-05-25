@@ -5,6 +5,10 @@ import {
   QueryHistoryContext,
   type QueryHistoryEntry,
 } from "./QueryHistoryContext";
+import type {
+  QueryHistoryRecoveryNotice,
+  QueryHistoryResponse,
+} from "../types/queryHistory";
 
 export const QueryHistoryProvider = ({
   children,
@@ -14,19 +18,32 @@ export const QueryHistoryProvider = ({
   const { activeConnectionId } = useDatabase();
   const [entries, setEntries] = useState<QueryHistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [recoveryNotice, setRecoveryNotice] =
+    useState<QueryHistoryRecoveryNotice | null>(null);
 
   const refreshHistory = useCallback(async () => {
     if (!activeConnectionId) {
       setEntries([]);
+      setRecoveryNotice(null);
       return;
     }
 
     setIsLoading(true);
     try {
-      const result = await invoke<QueryHistoryEntry[]>("get_query_history", {
+      const result = await invoke<QueryHistoryResponse>("get_query_history", {
         connectionId: activeConnectionId,
       });
-      setEntries(result);
+      setEntries(result.entries);
+      if (result.recoveredBackupPath) {
+        setRecoveryNotice({
+          connectionId: activeConnectionId,
+          backupPath: result.recoveredBackupPath,
+        });
+      } else {
+        setRecoveryNotice((prev) =>
+          prev && prev.connectionId === activeConnectionId ? prev : null,
+        );
+      }
     } catch (e) {
       console.error("Failed to load query history:", e);
     } finally {
@@ -99,11 +116,17 @@ export const QueryHistoryProvider = ({
     }
   };
 
+  const dismissRecoveryNotice = useCallback(() => {
+    setRecoveryNotice(null);
+  }, []);
+
   return (
     <QueryHistoryContext.Provider
       value={{
         entries,
         isLoading,
+        recoveryNotice,
+        dismissRecoveryNotice,
         addEntry,
         deleteEntry,
         clearHistory,

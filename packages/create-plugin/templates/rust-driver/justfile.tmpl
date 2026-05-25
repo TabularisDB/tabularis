@@ -71,19 +71,19 @@ dev-install: build
 
 [macos]
 dev-install: build
-    mkdir -p "$HOME/Library/Application Support/com.debba.tabularis/plugins/${ID}"
-    cp target/debug/${BIN_NAME} "$HOME/Library/Application Support/com.debba.tabularis/plugins/${ID}/"
-    cp manifest.json "$HOME/Library/Application Support/com.debba.tabularis/plugins/${ID}/"
+    mkdir -p "$HOME/Library/Application Support/tabularis/plugins/${ID}"
+    cp target/debug/${BIN_NAME} "$HOME/Library/Application Support/tabularis/plugins/${ID}/"
+    cp manifest.json "$HOME/Library/Application Support/tabularis/plugins/${ID}/"
     @if [ -f ui/dist/index.js ]; then \
-        mkdir -p "$HOME/Library/Application Support/com.debba.tabularis/plugins/${ID}/ui/dist"; \
-        cp ui/dist/index.js "$HOME/Library/Application Support/com.debba.tabularis/plugins/${ID}/ui/dist/"; \
+        mkdir -p "$HOME/Library/Application Support/tabularis/plugins/${ID}/ui/dist"; \
+        cp ui/dist/index.js "$HOME/Library/Application Support/tabularis/plugins/${ID}/ui/dist/"; \
     fi
-    @echo "Installed to ~/Library/Application Support/com.debba.tabularis/plugins/${ID}"
+    @echo "Installed to ~/Library/Application Support/tabularis/plugins/${ID}"
     @echo "Restart Tabularis (or toggle the plugin in Settings) to pick up changes."
 
 [windows]
 dev-install: build
-    $dest = Join-Path $env:APPDATA "com.debba.tabularis\plugins\${ID}"
+    $dest = Join-Path $env:APPDATA "tabularis\plugins\${ID}"
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
     Copy-Item "target\debug\${BIN_NAME}.exe" $dest
     Copy-Item "manifest.json" $dest
@@ -101,9 +101,9 @@ uninstall:
 
 [macos]
 uninstall:
-    rm -rf "$HOME/Library/Application Support/com.debba.tabularis/plugins/${ID}"
+    rm -rf "$HOME/Library/Application Support/tabularis/plugins/${ID}"
 
 [windows]
 uninstall:
-    $dest = Join-Path $env:APPDATA "com.debba.tabularis\plugins\${ID}"
+    $dest = Join-Path $env:APPDATA "tabularis\plugins\${ID}"
     if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }

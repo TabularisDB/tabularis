@@ -33,7 +33,6 @@ export const OPEN_SOURCE_LIBRARY_SECTIONS: readonly OpenSourceLibrarySection[] =
       { name: "buffer", version: "^6.0.3" },
       { name: "clsx", version: "^2.1.1" },
       { name: "dagre", version: "^0.8.5" },
-      { name: "dbgate-query-splitter", version: "^4.12.0" },
       { name: "i18next", version: "^25.10.10" },
       { name: "i18next-browser-languagedetector", version: "^8.2.1" },
       { name: "lucide-react", version: "^0.563.0" },

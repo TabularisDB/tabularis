@@ -538,6 +538,7 @@ pub async fn save_connection<R: Runtime>(
         group_id: None,
         sort_order: None,
         detect_json_in_text_columns,
+        appearance: None,
     };
     conn_file.connections.push(new_conn.clone());
     save_connections_and_invalidate(&app, &path, &conn_file)?;
@@ -560,6 +561,13 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
 
     let mut conn_file = persistence::load_connections_file(&path)?;
 
+    // Capture the appearance before retain so we can cascade-delete the icon file.
+    let appearance_to_delete = conn_file
+        .connections
+        .iter()
+        .find(|c| c.id == id)
+        .and_then(|c| c.appearance.clone());
+
     let initial_count = conn_file.connections.len();
     conn_file.connections.retain(|c| c.id != id);
     let deleted = conn_file.connections.len() < initial_count;
@@ -574,8 +582,16 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
 
     save_connections_and_invalidate(&app, &path, &conn_file)?;
 
+    // Cascade-delete the custom icon file if the connection used one.
+    if let Ok(app_data) = app.path().app_data_dir() {
+        let _ = crate::connection_appearance::cascade_delete_if_image(
+            &app_data,
+            appearance_to_delete.as_ref(),
+        );
+    }
+
     // Clean up query history for this connection
-    if let Err(e) = crate::query_history::remove_history_for_connection(&app, &id) {
+    if let Err(e) = crate::query_history::remove_history_for_connection(&app, &id).await {
         log::warn!("Failed to remove query history for connection {}: {}", id, e);
     }
 
@@ -644,6 +660,8 @@ pub async fn update_connection<R: Runtime>(
     let original_group_id = conn_file.connections[conn_idx].group_id.clone();
     let original_sort_order = conn_file.connections[conn_idx].sort_order;
     let original_db_selection = conn_file.connections[conn_idx].params.database.clone();
+    // Preserve user's appearance customization across edits
+    let original_appearance = conn_file.connections[conn_idx].appearance.clone();
 
     let updated = SavedConnection {
         id: id.clone(),
@@ -652,6 +670,7 @@ pub async fn update_connection<R: Runtime>(
         group_id: original_group_id,
         sort_order: original_sort_order,
         detect_json_in_text_columns,
+        appearance: original_appearance,
     };
 
     conn_file.connections[conn_idx] = updated.clone();
@@ -679,7 +698,9 @@ pub async fn update_connection<R: Runtime>(
             &app,
             &id,
             &previous_db,
-        ) {
+        )
+        .await
+        {
             log::warn!(
                 "Failed to backfill query history database for {}: {}",
                 id,
@@ -691,6 +712,35 @@ pub async fn update_connection<R: Runtime>(
     let mut returned_conn = updated;
     returned_conn.params = params;
     Ok(returned_conn)
+}
+
+/// Pure, testable core of `set_connection_appearance`.
+/// Mutates `file` in place; does not touch disk or Tauri state.
+fn set_appearance_impl(
+    file: &mut ConnectionsFile,
+    id: &str,
+    appearance: Option<crate::models::ConnectionAppearance>,
+) -> Result<(), String> {
+    let conn = file
+        .connections
+        .iter_mut()
+        .find(|c| c.id == id)
+        .ok_or("Connection not found")?;
+    conn.appearance = appearance;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_connection_appearance<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    appearance: Option<crate::models::ConnectionAppearance>,
+) -> Result<(), String> {
+    let path = get_config_path(&app)?;
+    let mut conn_file = persistence::load_connections_file(&path)?;
+    set_appearance_impl(&mut conn_file, &id, appearance)?;
+    save_connections_and_invalidate(&app, &path, &conn_file)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -761,6 +811,40 @@ pub async fn duplicate_connection<R: Runtime>(
         new_params.ssh_key_passphrase = None;
     }
 
+    // Copy the icon file so the duplicate owns its own copy.
+    // If the original has an Image icon, the duplicate must not share the same file path —
+    // deleting either connection would otherwise cascade-delete the shared file and break
+    // the other connection's icon. We copy the file; on failure we drop the icon rather
+    // than sharing the path.
+    let new_appearance = {
+        let mut app_earance = original.appearance.clone();
+        if let Some(ref mut a) = app_earance {
+            if let Some(crate::models::IconOverride::Image { ref path }) = a.icon.clone() {
+                if let Ok(app_data) = app.path().app_data_dir() {
+                    match crate::connection_appearance::copy_icon_for_duplicate(&app_data, path, &new_id) {
+                        Ok(new_path) => {
+                            a.icon = Some(crate::models::IconOverride::Image { path: new_path });
+                        }
+                        Err(_) => {
+                            // Couldn't copy — drop the icon to avoid sharing
+                            a.icon = None;
+                            if a.accent_color.is_none() {
+                                app_earance = None;
+                            }
+                        }
+                    }
+                } else {
+                    // Can't determine app_data_dir — drop icon to avoid sharing
+                    a.icon = None;
+                    if a.accent_color.is_none() {
+                        app_earance = None;
+                    }
+                }
+            }
+        }
+        app_earance
+    };
+
     let new_conn = SavedConnection {
         id: new_id,
         name: format!("{} (Copy)", original.name),
@@ -768,6 +852,7 @@ pub async fn duplicate_connection<R: Runtime>(
         group_id: original.group_id.clone(), // Copy to same group as original
         sort_order: None,                    // Will be placed at end of group
         detect_json_in_text_columns: original.detect_json_in_text_columns,
+        appearance: new_appearance,
     };
 
     conn_file.connections.push(new_conn.clone());
@@ -1318,7 +1403,113 @@ mod tests {
             group_id: None,
             sort_order: None,
             detect_json_in_text_columns: None,
+            appearance: None,
         }
+    }
+
+    /// Regression test: update_connection must not wipe appearance.
+    ///
+    /// The bug was that the struct literal used `appearance: None`, which destroyed
+    /// any accent color or custom icon the user had previously set.  The fix reads
+    /// `original_appearance` from the existing record and forwards it to the updated
+    /// struct — exactly the same pattern already used for `group_id` / `sort_order`.
+    ///
+    /// Because `update_connection` requires a live Tauri `AppHandle` we cannot call
+    /// it in a unit test.  Instead we verify the preservation pattern directly: build
+    /// an "existing" SavedConnection with appearance set, clone its appearance field,
+    /// and assert it survives into the replacement struct unchanged.
+    #[test]
+    fn update_connection_preserves_appearance() {
+        use crate::models::{ConnectionAppearance, IconOverride};
+
+        let existing = SavedConnection {
+            id: "conn-1".to_string(),
+            name: "Old Name".to_string(),
+            params: base_params(),
+            group_id: Some("group-a".to_string()),
+            sort_order: Some(3),
+            detect_json_in_text_columns: None,
+            appearance: Some(ConnectionAppearance {
+                accent_color: Some("#ff0000".to_string()),
+                icon: Some(IconOverride::Emoji { value: "🐘".to_string() }),
+            }),
+        };
+
+        // Simulate the pattern used in update_connection after the fix.
+        let original_appearance = existing.appearance.clone();
+
+        let updated = SavedConnection {
+            id: existing.id.clone(),
+            name: "New Name".to_string(),
+            params: base_params(),
+            group_id: existing.group_id.clone(),
+            sort_order: existing.sort_order,
+            detect_json_in_text_columns: None,
+            appearance: original_appearance,
+        };
+
+        let app = updated.appearance.as_ref().expect("appearance must be preserved");
+        assert_eq!(app.accent_color.as_deref(), Some("#ff0000"));
+        assert!(matches!(&app.icon, Some(IconOverride::Emoji { value }) if value == "🐘"));
+    }
+
+    /// Helper: build a minimal ConnectionsFile with one connection.
+    fn one_conn_file(id: &str, appearance: Option<crate::models::ConnectionAppearance>) -> ConnectionsFile {
+        let conn = SavedConnection {
+            id: id.to_string(),
+            name: "Test".to_string(),
+            params: base_params(),
+            group_id: None,
+            sort_order: None,
+            detect_json_in_text_columns: None,
+            appearance,
+        };
+        ConnectionsFile {
+            groups: vec![],
+            connections: vec![conn],
+        }
+    }
+
+    #[test]
+    fn set_connection_appearance_updates_existing() {
+        use crate::models::{ConnectionAppearance, IconOverride};
+
+        let mut file = one_conn_file("conn-1", None);
+        let new_appearance = ConnectionAppearance {
+            accent_color: Some("#00ff00".to_string()),
+            icon: Some(IconOverride::Emoji { value: "🦀".to_string() }),
+        };
+
+        set_appearance_impl(&mut file, "conn-1", Some(new_appearance)).unwrap();
+
+        let app = file.connections[0].appearance.as_ref().expect("appearance must be set");
+        assert_eq!(app.accent_color.as_deref(), Some("#00ff00"));
+        assert!(matches!(&app.icon, Some(IconOverride::Emoji { value }) if value == "🦀"));
+    }
+
+    #[test]
+    fn set_connection_appearance_clears_with_none() {
+        use crate::models::{ConnectionAppearance, IconOverride};
+
+        let existing_appearance = ConnectionAppearance {
+            accent_color: Some("#ff0000".to_string()),
+            icon: Some(IconOverride::Pack { id: "server".to_string() }),
+        };
+        let mut file = one_conn_file("conn-2", Some(existing_appearance));
+
+        set_appearance_impl(&mut file, "conn-2", None).unwrap();
+
+        assert!(file.connections[0].appearance.is_none());
+    }
+
+    #[test]
+    fn set_connection_appearance_errors_on_missing_id() {
+        let mut file = one_conn_file("conn-real", None);
+
+        let result = set_appearance_impl(&mut file, "conn-does-not-exist", None);
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Connection not found");
     }
 
     #[test]

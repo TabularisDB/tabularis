@@ -127,7 +127,14 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     connectionDataMap,
   } = useDatabase();
   const { queries, deleteQuery, updateQuery, saveQuery } = useSavedQueries();
-  const { entries: historyEntries, isLoading: isHistoryLoading, deleteEntry: deleteHistoryEntry, clearHistory } = useQueryHistory();
+  const {
+    entries: historyEntries,
+    isLoading: isHistoryLoading,
+    deleteEntry: deleteHistoryEntry,
+    clearHistory,
+    recoveryNotice: historyRecoveryNotice,
+    dismissRecoveryNotice: dismissHistoryRecoveryNotice,
+  } = useQueryHistory();
   const { showAlert } = useAlert();
   const navigate = useNavigate();
   const [schemaVersion, setSchemaVersion] = useState(0);
@@ -647,6 +654,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
             <div className="animate-fade-in"><QueryHistorySection
               entries={historyEntries}
               isLoading={isHistoryLoading}
+              recoveryNotice={historyRecoveryNotice}
+              onDismissRecoveryNotice={dismissHistoryRecoveryNotice}
               onDoubleClick={(entry) => {
                 runQuery(entry.sql, undefined, undefined, false, entry.database ?? undefined);
               }}

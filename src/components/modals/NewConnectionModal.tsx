@@ -17,6 +17,8 @@ import {
   EyeOff,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import type { ConnectionAppearance } from "../../contexts/DatabaseContext";
+import { AppearanceSection } from "./NewConnectionModal/AppearanceSection";
 import { open } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import { SshConnectionsModal } from "./SshConnectionsModal";
@@ -65,6 +67,7 @@ interface SavedConnection {
   name: string;
   params: ConnectionParams;
   detect_json_in_text_columns?: boolean;
+  appearance?: ConnectionAppearance;
 }
 
 interface NewConnectionModalProps {
@@ -165,7 +168,7 @@ export const NewConnectionModal = ({
   >(null);
 
   // ── tab ──
-  const [activeTab, setActiveTab] = useState<"general" | "databases" | "ssh" | "ssl">(
+  const [activeTab, setActiveTab] = useState<"general" | "databases" | "ssh" | "ssl" | "appearance">(
     "general",
   );
 
@@ -194,6 +197,62 @@ export const NewConnectionModal = ({
   const [nameError, setNameError] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [databasesTabError, setDatabasesTabError] = useState(false);
+
+  // ── appearance ──
+  const [appearance, setAppearance] = useState<ConnectionAppearance>(
+    initialConnection?.appearance ?? {},
+  );
+  // Stable UUID used as connectionId for icon uploads on new connections.
+  // The backend mints its own id on save_connection, so we use this temp id
+  // for the icon filename. After save, set_connection_appearance persists the
+  // appearance (including the icon path which refs this temp id) under the
+  // real connection id. Because cascade_delete_if_image uses the stored path
+  // directly, cleanup works correctly despite the temp-id prefix in the filename.
+  const generatedId = useMemo(() => crypto.randomUUID(), []);
+  const effectiveConnectionId = initialConnection?.id ?? generatedId;
+
+  // ── orphan-icon cleanup on cancel ──
+  // Mirror appearance into a ref so the unmount cleanup can read the latest value
+  // without being re-registered on every render (empty-deps effect).
+  const appearanceRef = useRef(appearance);
+  useEffect(() => { appearanceRef.current = appearance; }, [appearance]);
+
+  // Track whether the modal was successfully saved; if not, delete any
+  // images that were uploaded during this session but not committed.
+  const wasSavedRef = useRef(false);
+  const originalImagePath = useRef<string | null>(
+    initialConnection?.appearance?.icon?.type === "image"
+      ? initialConnection.appearance.icon.path
+      : null,
+  );
+  // All icon paths uploaded during this modal session (may include superseded picks).
+  const uploadedPathsRef = useRef<string[]>([]);
+
+  const handleImageUploaded = useCallback((path: string) => {
+    uploadedPathsRef.current.push(path);
+  }, []);
+
+  useEffect(() => {
+    // Reset on each open so re-opening the modal starts fresh.
+    wasSavedRef.current = false;
+    uploadedPathsRef.current = [];
+    originalImagePath.current =
+      initialConnection?.appearance?.icon?.type === "image"
+        ? initialConnection.appearance.icon.path
+        : null;
+
+    return () => {
+      if (wasSavedRef.current) return;
+      // On cancel: delete EVERY path uploaded this session except the original
+      // (the one the modal opened with). Handles "pick A then B then C then cancel".
+      const original = originalImagePath.current;
+      const toDelete = uploadedPathsRef.current.filter(p => p !== original);
+      toDelete.forEach(p =>
+        invoke("delete_connection_icon", { relativePath: p }).catch(() => {})
+      );
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // ── capabilities ──
   const noConnectionRequired =
@@ -331,6 +390,7 @@ export const NewConnectionModal = ({
         setDetectJsonInTextColumns(
           initialConnection.detect_json_in_text_columns === true,
         );
+        setAppearance(initialConnection.appearance ?? {});
         const db = initialConnection.params.database;
         setSshMode(
           initialConnection.params.ssh_connection_id ? "existing" : "inline",
@@ -375,6 +435,7 @@ export const NewConnectionModal = ({
         setSelectedDatabasesState([]);
         setSshMode("existing");
         setDetectJsonInTextColumns(false);
+        setAppearance({});
       }
 
       await loadSshConnectionsList();
@@ -505,6 +566,9 @@ export const NewConnectionModal = ({
             : selectedDatabasesState
           : formData.database,
       };
+      const appearancePayload =
+        appearance.icon || appearance.accentColor ? appearance : undefined;
+
       if (initialConnection) {
         if (!params.password?.trim()) delete params.password;
         if (!params.ssh_password?.trim()) delete params.ssh_password;
@@ -514,14 +578,41 @@ export const NewConnectionModal = ({
           params,
           detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
         });
+        await invoke("set_connection_appearance", {
+          id: initialConnection.id,
+          appearance: appearancePayload ?? null,
+        });
       } else {
-        await invoke("save_connection", {
+        const saved = await invoke<{ id: string }>("save_connection", {
           name,
           params,
           detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
         });
+        if (appearancePayload) {
+          await invoke("set_connection_appearance", {
+            id: saved.id,
+            appearance: appearancePayload,
+          });
+        }
       }
       if (onSave) onSave();
+      wasSavedRef.current = true;
+
+      // On save: delete every uploaded path EXCEPT the one currently set on the connection,
+      // and also delete the original image if the user replaced it.
+      const finalImagePath = appearanceRef.current.icon?.type === "image"
+        ? appearanceRef.current.icon.path
+        : null;
+      const toDelete = uploadedPathsRef.current.filter(p => p !== finalImagePath);
+      const original = originalImagePath.current;
+      if (original && original !== finalImagePath && !toDelete.includes(original)) {
+        toDelete.push(original);
+      }
+      await Promise.all(toDelete.map(p =>
+        invoke("delete_connection_icon", { relativePath: p }).catch(() => {})
+      ));
+      uploadedPathsRef.current = [];
+
       onClose();
     } catch (err) {
       setStatus("error");
@@ -848,7 +939,20 @@ export const NewConnectionModal = ({
           </span>
         </span>
       </label>
+
     </div>
+  );
+
+  // ── rendered Appearance tab content (per-connection icon + accent color) ──
+  const appearanceTabContent = (
+    <AppearanceSection
+      value={appearance}
+      onChange={setAppearance}
+      connectionId={effectiveConnectionId}
+      driverManifest={activeDriver}
+      connectionName={name || t("newConnection.unnamedConnection", { defaultValue: "Unnamed connection" })}
+      onImageUploaded={handleImageUploaded}
+    />
   );
 
   // ── rendered Databases tab content (multi-db selection) ──
@@ -1460,7 +1564,13 @@ export const NewConnectionModal = ({
                     ? [{ id: "ssl", label: "SSL" }]
                     : []),
                   ...(isNetworkDriver ? [{ id: "ssh", label: "SSH" }] : []),
-                ] as { id: "general" | "databases" | "ssh" | "ssl"; label: string }[]
+                  {
+                    id: "appearance",
+                    label: t("newConnection.appearance", {
+                      defaultValue: "Appearance",
+                    }),
+                  },
+                ] as { id: "general" | "databases" | "ssh" | "ssl" | "appearance"; label: string }[]
               ).map((tab) => (
                 <button
                   key={tab.id}
@@ -1496,7 +1606,9 @@ export const NewConnectionModal = ({
                   ? databasesTabContent
                   : activeTab === "ssl"
                     ? sslTabContent
-                    : sshTabContent}
+                    : activeTab === "ssh"
+                      ? sshTabContent
+                      : appearanceTabContent}
             </div>
           </div>
         </div>

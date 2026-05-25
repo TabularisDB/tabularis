@@ -91,6 +91,7 @@ yay -S tabularis-bin
 - 接続プロファイルをローカルに保存。
 - SSH トンネルとシステムキーチェーンによるパスワード保存。
 - グリッド／リスト表示とリアルタイム検索を備えた接続ページ。
+- 接続ごとの外観カスタマイズ：アイコン（Lucide／絵文字／画像）とアクセントカラーを個別に設定可能。
 
 ### データベースエクスプローラー
 
@@ -162,6 +163,7 @@ yay -S tabularis-bin
 - `config.json`
 - `themes/`
 - `preferences/`
+- `connection-icons/`（接続アイコン用のカスタム画像）
 
 `config.json` の `language` フィールドは `auto`、`en`、`it`、`es`、`zh`、`fr`、`de` をサポートします。
 
