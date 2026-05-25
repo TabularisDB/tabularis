@@ -192,6 +192,12 @@ vi.mock("lucide-react", () => ({
   TestTube: () => null,
   Briefcase: () => null,
   Plug: () => null,
+  // AppearanceSection tab icons
+  Grid3x3: () => null,
+  Smile: () => null,
+  Image: () => null,
+  Pipette: () => null,
+  Upload: () => null,
 }));
 
 // Mock lucide-react/dynamicIconImports with a small deterministic set

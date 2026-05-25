@@ -4,6 +4,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { HexColorPicker, HexColorInput } from "react-colorful";
 import EmojiPicker, { Theme, EmojiStyle, SuggestionMode, SkinTonePickerLocation, type EmojiClickData } from "emoji-picker-react";
+import clsx from "clsx";
+import { Check, Sparkles, Grid3x3, Smile, Image as ImageIcon, Pipette, Upload, Trash2 } from "lucide-react";
 import type { ConnectionAppearance, IconOverride } from "../../../contexts/DatabaseContext";
 import type { PluginManifest } from "../../../types/plugins";
 import { ALL_ICON_NAMES, getLucideIconComponent, camelToKebab } from "../../../utils/connectionIconPack";
@@ -17,6 +19,13 @@ const PALETTE = [
 ];
 
 type IconTab = "default" | "pack" | "emoji" | "image";
+
+const TAB_ICONS: Record<IconTab, typeof Sparkles> = {
+  default: Sparkles,
+  pack: Grid3x3,
+  emoji: Smile,
+  image: ImageIcon,
+};
 
 interface Props {
   value: ConnectionAppearance;
@@ -123,115 +132,166 @@ export function AppearanceSection({
   const previewLabel = connectionName ?? t("connectionAppearance.section");
   const previewConn = { appearance: value };
 
-  return (
-    <section className="space-y-3 border-t border-zinc-800/60 pt-4 mt-4">
-      <h3 className="text-sm font-medium text-zinc-200">{t("connectionAppearance.section")}</h3>
+  const accent = value.accentColor ?? "#3f3f46";
 
+  return (
+    <div className="space-y-5">
       {/* Preview row — shows current accent color + icon + connection name */}
-      <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-zinc-900/40 border border-zinc-800/60">
-        <div
-          className="w-8 h-8 rounded-md flex items-center justify-center shrink-0 text-white"
-          style={{ background: value.accentColor ?? "#3f3f46" }}
-        >
-          {getConnectionIcon(previewConn, driverManifest, 18)}
+      <div className="relative overflow-hidden rounded-lg border border-default bg-base">
+        {value.accentColor && (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 pointer-events-none opacity-25"
+            style={{
+              background: `linear-gradient(135deg, ${value.accentColor} 0%, transparent 65%)`,
+            }}
+          />
+        )}
+        <div className="relative flex items-center gap-3 px-3.5 py-3">
+          <div
+            className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0 text-white shadow-md ring-1 ring-black/10"
+            style={{ background: accent }}
+          >
+            {getConnectionIcon(previewConn, driverManifest, 22)}
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[9px] uppercase font-semibold tracking-widest text-muted">
+              {t("connectionAppearance.previewLabel", { defaultValue: "Preview" })}
+            </span>
+            <span className="text-sm font-medium text-primary truncate">{previewLabel}</span>
+          </div>
         </div>
-        <div className="text-sm text-zinc-300 truncate">{previewLabel}</div>
       </div>
 
-      <div>
-        <label className="block text-xs text-zinc-400 mb-2">
-          {t("connectionAppearance.accentColor")}
-        </label>
-        <div className="flex flex-wrap gap-2 items-center" role="group">
-          {PALETTE.map(c => (
+      {/* Accent color */}
+      <div className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
+            {t("connectionAppearance.accentColor")}
+          </label>
+          {value.accentColor && (
             <button
-              key={c}
               type="button"
-              aria-label={`color swatch ${c}`}
-              aria-pressed={value.accentColor === c}
-              onClick={() => setAccent(c)}
-              className="rounded-full transition-transform hover:scale-110"
-              style={{
-                background: c,
-                width: 24,
-                height: 24,
-                outline: value.accentColor === c ? "2px solid white" : "1px solid rgba(255,255,255,0.15)",
-                outlineOffset: 0,
-              }}
-            />
-          ))}
+              aria-label="reset color"
+              onClick={() => setAccent(undefined)}
+              className="text-xs text-muted hover:text-primary transition-colors"
+            >
+              {t("connectionAppearance.resetColor")}
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2 items-center" role="group">
+          {PALETTE.map(c => {
+            const selected = value.accentColor === c;
+            return (
+              <button
+                key={c}
+                type="button"
+                aria-label={`color swatch ${c}`}
+                aria-pressed={selected}
+                onClick={() => setAccent(c)}
+                className={clsx(
+                  "relative w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150",
+                  "shadow-[inset_0_-1px_0_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.18)]",
+                  selected
+                    ? "scale-110 ring-2 ring-white/95 ring-offset-2 ring-offset-elevated"
+                    : "ring-1 ring-white/10 hover:scale-110 hover:ring-white/30",
+                )}
+                style={{ background: c }}
+              >
+                {selected && (
+                  <Check size={14} strokeWidth={3} className="text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.4)]" />
+                )}
+              </button>
+            );
+          })}
           <button
             type="button"
             aria-label="custom color"
             aria-expanded={customOpen}
             onClick={() => setCustomOpen(o => !o)}
-            className="ml-1 text-zinc-400 hover:text-zinc-100 text-sm"
+            className={clsx(
+              "ml-1 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors",
+              customOpen
+                ? "bg-blue-500/15 border-blue-500/40 text-blue-400"
+                : "bg-elevated border-strong text-secondary hover:text-primary hover:bg-surface-secondary",
+            )}
           >
-            {t("connectionAppearance.customColor")}
+            <Pipette size={12} />
+            <span>{t("connectionAppearance.customColor")}</span>
           </button>
         </div>
 
         {customOpen && (
-          <div className="mt-2 space-y-2">
+          <div className="space-y-3 p-3 rounded-md border border-default bg-base">
             <HexColorPicker
               color={value.accentColor ?? "#64748b"}
               onChange={(c) => setAccent(c.toLowerCase())}
-              style={{ width: "100%", maxWidth: 220, height: 140 }}
+              style={{ width: "100%", maxWidth: 240, height: 150 }}
             />
             <div className="flex items-center gap-2">
-              <span className="text-zinc-500 text-sm">#</span>
+              <div
+                className="w-7 h-7 rounded-md shrink-0 ring-1 ring-white/10 shadow-inner"
+                style={{ background: value.accentColor ?? "#64748b" }}
+              />
+              <span className="text-muted text-sm font-mono">#</span>
               <HexColorInput
                 color={value.accentColor ?? ""}
                 onChange={(c) => setAccent(c ? c.toLowerCase() : undefined)}
                 placeholder="rrggbb"
                 prefixed={false}
                 aria-label="custom hex input"
-                className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm w-28 font-mono"
+                className="px-3 py-1.5 bg-elevated border border-strong rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors font-mono w-28 uppercase"
               />
             </div>
           </div>
         )}
-
-        {value.accentColor && (
-          <button
-            type="button"
-            aria-label="reset color"
-            onClick={() => setAccent(undefined)}
-            className="mt-2 text-xs text-zinc-500 hover:text-zinc-300 underline"
-          >
-            {t("connectionAppearance.resetColor")}
-          </button>
-        )}
       </div>
 
-      <div className="mt-2">
-        <label className="block text-xs text-zinc-400 mb-2">
+      {/* Icon */}
+      <div className="flex flex-col gap-2.5">
+        <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
           {t("connectionAppearance.icon")}
         </label>
-        <div role="tablist" className="flex gap-1 mb-3 border-b border-zinc-800/60">
-          {(["default", "pack", "emoji", "image"] as IconTab[]).map(k => (
-            <button
-              key={k}
-              type="button"
-              role="tab"
-              aria-selected={tab === k}
-              onClick={() => setUserTab(k)}
-              className={`px-3 py-1.5 text-xs ${tab === k ? "text-zinc-100 border-b-2 border-blue-500" : "text-zinc-500 hover:text-zinc-300"}`}
-            >
-              {t(`connectionAppearance.tabs.${k}`)}
-            </button>
-          ))}
+
+        <div role="tablist" className="inline-flex rounded-md border border-strong overflow-hidden w-fit bg-elevated">
+          {(["default", "pack", "emoji", "image"] as IconTab[]).map(k => {
+            const TabIcon = TAB_ICONS[k];
+            const isActive = tab === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => {
+                  setUserTab(k);
+                  // Switching to "default" is the act of clearing the override.
+                  if (k === "default" && value.icon) setIcon(undefined);
+                }}
+                className={clsx(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
+                  isActive
+                    ? "bg-blue-600 text-white"
+                    : "text-secondary hover:text-primary hover:bg-surface-secondary",
+                )}
+              >
+                <TabIcon size={13} />
+                <span>{t(`connectionAppearance.tabs.${k}`)}</span>
+              </button>
+            );
+          })}
         </div>
 
         {tab === "default" && (
-          <button
-            type="button"
-            aria-label="reset icon"
-            onClick={() => setIcon(undefined)}
-            className="text-xs text-zinc-500 hover:text-zinc-300 underline"
-          >
-            {t("connectionAppearance.resetIcon")}
-          </button>
+          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-md border border-dashed border-default bg-base">
+            <Sparkles size={14} className="text-muted shrink-0" />
+            <p className="text-xs text-muted">
+              {t("connectionAppearance.defaultHint", {
+                defaultValue: "Using the driver's default icon.",
+              })}
+            </p>
+          </div>
         )}
 
         {tab === "pack" && (
@@ -242,7 +302,11 @@ export function AppearanceSection({
               onChange={e => setIconSearch(e.target.value)}
               placeholder={t("connectionAppearance.iconSearch", { defaultValue: "Search icons…" })}
               aria-label="icon search"
-              className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm"
+              autoCorrect="off"
+              autoCapitalize="off"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors"
             />
             {(() => {
               const q = iconSearch.toLowerCase().trim();
@@ -251,7 +315,7 @@ export function AppearanceSection({
               const shown = all.slice(0, RESULT_LIMIT);
               return (
                 <>
-                  <div className="grid grid-cols-8 gap-1 max-h-72 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-8 gap-1.5 max-h-72 overflow-y-auto pr-1 p-2 rounded-md border border-default bg-base">
                     {shown.map(id => {
                       const Cmp = getLucideIconComponent(id);
                       if (!Cmp) return null;
@@ -263,10 +327,14 @@ export function AppearanceSection({
                           type="button"
                           aria-label={`pick-${id}`}
                           aria-pressed={selected}
+                          title={id}
                           onClick={() => setIcon({ type: "pack", id })}
-                          className={`flex items-center justify-center p-1.5 rounded transition-colors ${
-                            selected ? "bg-blue-500/20 text-blue-300" : "bg-zinc-800/60 hover:bg-zinc-700 text-zinc-300"
-                          }`}
+                          className={clsx(
+                            "aspect-square flex items-center justify-center rounded-md transition-all",
+                            selected
+                              ? "bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/50 shadow-[0_0_0_2px_rgba(59,130,246,0.15)]"
+                              : "text-secondary hover:bg-surface-secondary hover:text-primary",
+                          )}
                         >
                           <Suspense fallback={<div className="w-[18px] h-[18px]" />}>
                             <Cmp size={18} />
@@ -276,7 +344,7 @@ export function AppearanceSection({
                     })}
                   </div>
                   {all.length > RESULT_LIMIT && (
-                    <div className="text-xs text-zinc-500">
+                    <div className="text-xs text-muted">
                       {t("connectionAppearance.iconResultsTruncated", {
                         defaultValue: "Showing {{shown}} of {{total}} — refine search to narrow down.",
                         shown: RESULT_LIMIT,
@@ -285,7 +353,7 @@ export function AppearanceSection({
                     </div>
                   )}
                   {all.length === 0 && (
-                    <div className="text-xs text-zinc-500">
+                    <div className="text-xs text-muted">
                       {t("connectionAppearance.iconNoResults", { defaultValue: "No icons match." })}
                     </div>
                   )}
@@ -296,63 +364,107 @@ export function AppearanceSection({
         )}
 
         {tab === "emoji" && (
-          <div className="rounded border border-zinc-800 overflow-hidden">
-            <EmojiPicker
-              theme={Theme.DARK}
-              emojiStyle={EmojiStyle.NATIVE}
-              width="100%"
-              height={360}
-              searchPlaceholder={t("connectionAppearance.emojiSearch", { defaultValue: "Search emoji…" })}
-              suggestedEmojisMode={SuggestionMode.RECENT}
-              skinTonePickerLocation={SkinTonePickerLocation.SEARCH}
-              previewConfig={{ showPreview: false }}
-              lazyLoadEmojis
-              onEmojiClick={(data: EmojiClickData) => setIcon({ type: "emoji", value: data.emoji })}
-            />
+          <div className="space-y-2">
+            {value.icon?.type === "emoji" && (
+              <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-md border border-default bg-base">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-md bg-elevated border border-strong flex items-center justify-center text-2xl leading-none shrink-0">
+                    {value.icon.value}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[9px] uppercase font-semibold tracking-widest text-muted">
+                      {t("connectionAppearance.emojiSelected", { defaultValue: "Selected emoji" })}
+                    </span>
+                    <span className="text-xs text-secondary truncate">
+                      {t("connectionAppearance.emojiHint", {
+                        defaultValue: "Click another emoji below to change.",
+                      })}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="clear emoji"
+                  onClick={() => setIcon(undefined)}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors shrink-0"
+                >
+                  <Trash2 size={12} />
+                  <span>{t("connectionAppearance.removeEmoji", { defaultValue: "Clear" })}</span>
+                </button>
+              </div>
+            )}
+            <div className="rounded-md border border-default overflow-hidden shadow-sm emoji-picker-wrap">
+              <EmojiPicker
+                theme={Theme.DARK}
+                emojiStyle={EmojiStyle.NATIVE}
+                width="100%"
+                height={340}
+                searchPlaceholder={t("connectionAppearance.emojiSearch", { defaultValue: "Search emoji…" })}
+                suggestedEmojisMode={SuggestionMode.RECENT}
+                skinTonePickerLocation={SkinTonePickerLocation.SEARCH}
+                previewConfig={{ showPreview: false }}
+                lazyLoadEmojis
+                onEmojiClick={(data: EmojiClickData) => setIcon({ type: "emoji", value: data.emoji })}
+              />
+            </div>
           </div>
         )}
 
         {tab === "image" && (
-          <div>
-            <button
-              type="button"
-              aria-label="choose image"
-              disabled={imageBusy}
-              onClick={pickImage}
-              className="px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded disabled:opacity-50"
-            >
-              {t("connectionAppearance.chooseImage")}
-            </button>
-            {value.icon?.type === "image" && (
-              <>
-                <button
-                  type="button"
-                  aria-label="remove image"
-                  onClick={removeImage}
-                  className="ml-2 px-3 py-1.5 text-sm text-rose-300 hover:text-rose-200"
-                >
-                  {t("connectionAppearance.removeImage")}
-                </button>
-                <div className="mt-3 inline-block">
-                  <ConnectionIconImage
-                    path={value.icon.path}
-                    size={64}
-                    fallback={
-                      <div className="w-16 h-16 bg-zinc-800 rounded flex items-center justify-center text-zinc-500 text-xs">
-                        {t("connectionAppearance.noPreview", { defaultValue: "No preview" })}
-                      </div>
-                    }
-                  />
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 p-3 rounded-md border border-default bg-base">
+              {value.icon?.type === "image" ? (
+                <ConnectionIconImage
+                  path={value.icon.path}
+                  size={64}
+                  fallback={
+                    <div className="w-16 h-16 bg-elevated border border-strong rounded-md flex items-center justify-center text-muted text-[10px] text-center px-1">
+                      {t("connectionAppearance.noPreview", { defaultValue: "No preview" })}
+                    </div>
+                  }
+                />
+              ) : (
+                <div className="w-16 h-16 bg-elevated border border-dashed border-strong rounded-md flex items-center justify-center text-muted shrink-0">
+                  <ImageIcon size={22} />
                 </div>
-              </>
-            )}
+              )}
+              <div className="flex-1 flex flex-col gap-2 min-w-0">
+                <p className="text-xs text-muted leading-snug">
+                  {t("connectionAppearance.imageHint")}
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    aria-label="choose image"
+                    disabled={imageBusy}
+                    onClick={pickImage}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-elevated hover:bg-surface-secondary border border-strong rounded-md text-xs font-medium text-secondary hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Upload size={12} />
+                    <span>{t("connectionAppearance.chooseImage")}</span>
+                  </button>
+                  {value.icon?.type === "image" && (
+                    <button
+                      type="button"
+                      aria-label="remove image"
+                      onClick={removeImage}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-md transition-colors"
+                    >
+                      <Trash2 size={12} />
+                      <span>{t("connectionAppearance.removeImage")}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
             {imageError && (
-              <div role="alert" className="mt-1 text-xs text-rose-400">{imageError}</div>
+              <div role="alert" className="text-xs text-rose-400 flex items-center gap-1">
+                {imageError}
+              </div>
             )}
-            <div className="mt-1 text-xs text-zinc-500">{t("connectionAppearance.imageHint")}</div>
           </div>
         )}
       </div>
-    </section>
+    </div>
   );
 }

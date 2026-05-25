@@ -114,7 +114,7 @@ describe("AppearanceSection — icon tabs", () => {
     expect(onChange).toHaveBeenCalledWith({ icon: { type: "pack", id: "server" } });
   });
 
-  it("resets icon when default tab is active and Reset is clicked", () => {
+  it("clears the icon override when the Default tab is clicked", () => {
     const onChange = vi.fn();
     render(
       <AppearanceSection
@@ -124,8 +124,15 @@ describe("AppearanceSection — icon tabs", () => {
       />
     );
     fireEvent.click(screen.getByRole("tab", { name: /default/i }));
-    fireEvent.click(screen.getByRole("button", { name: /reset icon/i }));
+    // Clicking the Default tab is itself the reset action — no extra button click needed.
     expect(onChange).toHaveBeenCalledWith({});
+  });
+
+  it("does not call onChange when Default tab is clicked with no existing override", () => {
+    const onChange = vi.fn();
+    render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
+    fireEvent.click(screen.getByRole("tab", { name: /default/i }));
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("uploads an image and stores the returned path", async () => {

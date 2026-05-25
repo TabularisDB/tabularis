@@ -240,6 +240,11 @@
       "emoji": "Emoji",
       "image": "Imagen"
     },
+    "previewLabel": "Vista previa",
+    "defaultHint": "Usando el icono predeterminado del driver.",
+    "emojiSelected": "Emoji seleccionado",
+    "emojiHint": "Haz clic en otro emoji abajo para cambiarlo.",
+    "removeEmoji": "Quitar",
     "chooseImage": "Elegir imagen…",
     "removeImage": "Quitar",
     "imageHint": "PNG, JPG, WebP o SVG · máx. 512 KB",
