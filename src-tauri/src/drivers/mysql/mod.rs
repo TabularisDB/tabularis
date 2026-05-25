@@ -1154,7 +1154,7 @@ pub async fn drop_trigger(
 // ============================================================
 
 use crate::drivers::driver_trait::{
-    DatabaseDriver, DriverCapabilities, PluginManifest, PluginSettingDefinition,
+    DatabaseDriver, DriverCapabilities, PluginManifest, PluginSettingDefinition, SqlDialect,
 };
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -1221,6 +1221,7 @@ impl MysqlDriver {
                     manage_tables: true,
                     readonly: false,
                     triggers: true,
+                    sql_dialect: SqlDialect::Mysql,
                 },
                 is_builtin: true,
                 default_username: "root".to_string(),

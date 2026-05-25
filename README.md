@@ -46,7 +46,7 @@ An open-source desktop client for modern databases. Supports PostgreSQL, MySQL/M
 
 ## Release Download:
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.11.0/tabularis_0.11.0_x64-setup.exe) [![macOS](https://img.shields.io/badge/macOS-Download-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.11.0/tabularis_0.11.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.11.0/tabularis_0.11.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.11.0/tabularis_0.11.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.11.0/tabularis-0.9.7-1.x86_64.rpm)
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.12.0/tabularis_0.12.0_x64-setup.exe) [![macOS](https://img.shields.io/badge/macOS-Download-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.12.0/tabularis_0.12.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.12.0/tabularis_0.12.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.12.0/tabularis_0.12.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.12.0/tabularis-0.9.7-1.x86_64.rpm)
 
 <!-- SPONSORS:START -->
 
@@ -199,6 +199,7 @@ Join our [Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with th
 - **Multi-Database Selection:** Select multiple MySQL/MariaDB databases in a single connection — each appears as its own collapsible node in the sidebar.
 - Save, manage, and clone connection profiles with secure local persistence.
 - **Redesigned Connections Page:** Grid and list view modes, real-time search, branded driver icons (PostgreSQL elephant, MySQL dolphin, SQLite cylinder) in their official colors.
+- **Per-Connection Appearance:** Override the icon and accent color of each saved connection. Choose any [Lucide icon](https://lucide.dev/icons/) (~1900, searchable), an emoji from the full Unicode picker, or upload a custom image (PNG/JPEG/WebP/GIF/SVG, ≤512 KB). Color is picked from a 12-swatch palette or a full hex picker.
 - **Open in Editor:** Right-click any connection in the sidebar to open it directly in the editor via context menu.
 - Manage **SSH Connections** from the connection manager.
 - Optional secure password storage in system **Keychain**.
@@ -226,7 +227,7 @@ Join our [Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with th
 - **Split View:** Open multiple database connections side-by-side in a resizable split-pane layout.
 - **Multi-Statement Execution:** Run All, Run Selected, or pick individual queries from a multi-statement script. Results from each query appear in separate tabs with independent pagination and error handling.
 - **Multi-Result Tabs:** Close, rename, re-run, and manage result tabs via context menu. Query parameters are collected once across all queries.
-- **Smart Query Splitting:** Powered by `dbgate-query-splitter` — correctly handles stored procedures, functions, and `$$`-delimited blocks.
+- **Smart Query Splitting:** Correctly handles stored procedures, functions, and `$$`-delimited blocks.
 - **Saved Queries:** Persist frequently used SQL.
 - **AI Assist Overlay:** AI assistance buttons accessible as a floating overlay directly in the editor.
 
@@ -315,6 +316,7 @@ Configuration is stored in `~/.config/tabularis/` (Linux), `~/Library/Applicatio
 - `config.json`: App settings (theme, language, page size).
 - `themes/`: Custom themes.
 - `preferences/`: Editor preferences per connection (tabs, queries, layout).
+- `connection-icons/`: Custom images uploaded as per-connection icons (see [Per-Connection Appearance](#connection-management)).
 
 #### Editor Preferences
 

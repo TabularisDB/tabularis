@@ -8,7 +8,7 @@ import {
 describe("openSourceLibraries", () => {
   it("should expose all direct dependencies declared by the project manifests", () => {
     expect(OPEN_SOURCE_LIBRARY_SECTIONS).toHaveLength(4);
-    expect(getOpenSourceLibraryTotal()).toBe(92);
+    expect(getOpenSourceLibraryTotal()).toBe(91);
   });
 
   it("should keep section counts aligned with manifest groups", () => {
@@ -20,7 +20,7 @@ describe("openSourceLibraries", () => {
     );
 
     expect(counts).toEqual({
-      "npm-runtime": 29,
+      "npm-runtime": 28,
       "npm-tooling": 24,
       "cargo-runtime": 37,
       "cargo-tooling": 2,

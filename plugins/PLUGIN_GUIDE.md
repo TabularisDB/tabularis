@@ -20,8 +20,8 @@ An external plugin in Tabularis is a separate executable (binary or script) that
 
 1. Tabularis discovers plugins in its data folder at startup:
    - **Linux:** `~/.local/share/tabularis/plugins/`
-   - **macOS:** `~/Library/Application Support/com.debba.tabularis/plugins/`
-   - **Windows:** `%APPDATA%\com.debba.tabularis\plugins\`
+   - **macOS:** `~/Library/Application Support/tabularis/plugins/`
+   - **Windows:** `%APPDATA%\tabularis\plugins\`
 2. It reads the `manifest.json` for each plugin to discover its capabilities and data types.
 3. The plugin is registered as a driver and appears in the "Database Type" list.
 4. When the user opens a connection using the plugin's driver, Tabularis spawns the executable and begins sending JSON-RPC messages.
@@ -1121,8 +1121,8 @@ You should see a valid JSON-RPC response on stdout.
 
 1. Create the plugin directory in Tabularis's data folder:
    - **Linux:** `~/.local/share/tabularis/plugins/myplugin/`
-   - **macOS:** `~/Library/Application Support/com.debba.tabularis/plugins/myplugin/`
-   - **Windows:** `%APPDATA%\com.debba.tabularis\plugins\myplugin\`
+   - **macOS:** `~/Library/Application Support/tabularis/plugins/myplugin/`
+   - **Windows:** `%APPDATA%\tabularis\plugins\myplugin\`
 2. Place your `manifest.json` and the compiled executable in that directory.
 3. On Linux/macOS, make the executable runnable: `chmod +x myplugin`
 4. Restart Tabularis (or install via Settings to hot-reload without restart).

@@ -1,3 +1,5 @@
+import type { Dialect } from "../utils/sqlSplitter";
+
 export interface DriverCapabilities {
   schemas: boolean;
   views: boolean;
@@ -29,6 +31,12 @@ export interface DriverCapabilities {
   readonly?: boolean;
   /** Supports listing and managing database triggers. Defaults to false. */
   triggers?: boolean;
+  /**
+   * SQL dialect for the statement splitter / classifier. Plugins that
+   * omit the field fall back to "postgres" (the dialect everyone got
+   * implicitly via the previous splitter).
+   */
+  sql_dialect?: Dialect;
 }
 
 export type PluginSettingType = "string" | "boolean" | "number" | "select";

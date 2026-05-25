@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Play, Check, ListChecks } from 'lucide-react';
 import { Modal } from '../ui/Modal';
+import { statementLabel } from '../../utils/sql';
 
 interface QuerySelectionModalProps {
   isOpen: boolean;
@@ -139,7 +140,7 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
               {/* SQL + run-single on click */}
               <div className="flex-1 min-w-0" onClick={() => onSelect(q)}>
                 <pre className="text-[13px] font-mono text-secondary leading-relaxed overflow-hidden whitespace-pre-wrap break-all line-clamp-3 group-hover:text-primary transition-colors">
-                  {q}
+                  {statementLabel(q)}
                 </pre>
               </div>
 

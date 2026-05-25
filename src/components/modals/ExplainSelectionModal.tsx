@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Network } from 'lucide-react';
 import { Modal } from '../ui/Modal';
+import { statementLabel } from '../../utils/sql';
 
 interface ExplainSelectionModalProps {
   isOpen: boolean;
@@ -102,7 +103,7 @@ const ExplainSelectionContent = ({
               {/* SQL */}
               <div className="flex-1 min-w-0">
                 <pre className="text-[13px] font-mono text-secondary leading-relaxed overflow-hidden whitespace-pre-wrap break-all line-clamp-3 group-hover:text-primary transition-colors">
-                  {entry.query}
+                  {statementLabel(entry.query)}
                 </pre>
               </div>
 

@@ -11,6 +11,7 @@ mod tests {
             group_id: None,
             sort_order: None,
             detect_json_in_text_columns: None,
+            appearance: None,
         }
     }
 

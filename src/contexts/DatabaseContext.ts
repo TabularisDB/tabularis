@@ -24,6 +24,16 @@ export interface TriggerInfo {
   definition?: string;
 }
 
+export type IconOverride =
+  | { type: "pack";  id: string }
+  | { type: "emoji"; value: string }
+  | { type: "image"; path: string };
+
+export interface ConnectionAppearance {
+  icon?: IconOverride;
+  accentColor?: string;
+}
+
 export interface SavedConnection {
   id: string;
   name: string;
@@ -41,6 +51,7 @@ export interface SavedConnection {
   sort_order?: number;
   /** Per-connection opt-in: detect JSON in plain text columns. */
   detect_json_in_text_columns?: boolean;
+  appearance?: ConnectionAppearance;
 }
 
 export interface ConnectionGroup {

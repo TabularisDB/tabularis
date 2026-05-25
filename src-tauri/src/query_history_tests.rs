@@ -1,6 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use crate::query_history::{backfill_missing_database, QueryHistoryEntry};
+    use crate::query_history::{
+        atomic_write, backfill_missing_database, backup_corrupt_file, QueryHistoryEntry,
+    };
+    use std::fs;
+    use tempfile::tempdir;
 
     fn make_entry(id: &str, database: Option<&str>) -> QueryHistoryEntry {
         QueryHistoryEntry {
@@ -52,5 +56,59 @@ mod tests {
         let updated = backfill_missing_database(&mut entries, "app");
         assert_eq!(updated, 0);
         assert_eq!(entries[0].database.as_deref(), Some(""));
+    }
+
+    #[test]
+    fn atomic_write_truncates_prior_longer_content() {
+        // Reproduces the failure mode that produced the corrupt file in
+        // production: a longer write followed by a shorter one must end up
+        // with the shorter content only — no trailing bytes from the prior
+        // write leaking past the new end-of-file.
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("history.json");
+
+        let longer = b"[\"AAAAAAAAAAAAAAAAAAAA\",\"BBBBBBBBBBBBBBBBBBBB\"]";
+        atomic_write(&path, longer).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), longer);
+
+        let shorter = b"[\"only\"]";
+        atomic_write(&path, shorter).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), shorter);
+    }
+
+    #[test]
+    fn atomic_write_leaves_no_tmp_files_on_success() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("history.json");
+        atomic_write(&path, b"[]").unwrap();
+
+        let leftovers: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n != "history.json")
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "expected only the target file, found: {:?}",
+            leftovers
+        );
+    }
+
+    #[test]
+    fn backup_corrupt_file_renames_with_timestamp_suffix() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("history.json");
+        fs::write(&path, b"]not valid json[").unwrap();
+
+        let backup = backup_corrupt_file(&path).unwrap();
+        assert!(!path.exists(), "original should be moved aside");
+        assert!(backup.exists(), "backup should exist at returned path");
+        let name = backup.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(
+            name.starts_with("history.json.corrupt-"),
+            "unexpected backup name: {}",
+            name
+        );
+        assert_eq!(fs::read(&backup).unwrap(), b"]not valid json[");
     }
 }

@@ -1294,7 +1294,7 @@ pub async fn drop_trigger(
 // Plugin wrapper
 // ============================================================
 
-use crate::drivers::driver_trait::{DatabaseDriver, DriverCapabilities, PluginManifest};
+use crate::drivers::driver_trait::{DatabaseDriver, DriverCapabilities, PluginManifest, SqlDialect};
 use async_trait::async_trait;
 use std::collections::HashMap;
 
@@ -1330,6 +1330,7 @@ impl PostgresDriver {
                     manage_tables: true,
                     readonly: false,
                     triggers: true,
+                    sql_dialect: SqlDialect::Postgres,
                 },
                 is_builtin: true,
                 default_username: "postgres".to_string(),

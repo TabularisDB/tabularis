@@ -91,6 +91,7 @@ La galerie complète est disponible sur [tabularis.dev](https://tabularis.dev).
 - Profils de connexion enregistrés localement.
 - Tunnels SSH et stockage des mots de passe dans le trousseau système.
 - Page de connexions avec vues grille/liste et recherche en temps réel.
+- Apparence personnalisée par connexion : icône (Lucide, emoji ou image) et couleur d'accent.
 
 ### Explorateur de base de données
 
@@ -162,6 +163,7 @@ Fichiers principaux :
 - `config.json`
 - `themes/`
 - `preferences/`
+- `connection-icons/` (images personnalisées pour les icônes de connexion)
 
 Dans `config.json`, le champ `language` prend en charge `auto`, `en`, `it`, `es`, `zh`, `fr`, `de`.
 
