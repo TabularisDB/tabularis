@@ -24,7 +24,7 @@ Tabularis is a lightweight, developer-focused database client built with Tauri, 
 
 - Monaco-based editor with syntax highlighting, autocomplete, and tabbed interface
 - Run All, Run Selected, or pick individual statements — results land in independent tabs
-- Smart splitting (via `dbgate-query-splitter`) handles stored procedures and `$$`-delimited blocks
+- Smart splitting handles stored procedures and `$$`-delimited blocks
 - Saved queries, clipboard paste into multi-cursor, floating AI-assist overlay
 
 ### 📓 SQL Notebooks

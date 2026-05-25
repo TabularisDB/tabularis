@@ -227,7 +227,7 @@ Join our [Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with th
 - **Split View:** Open multiple database connections side-by-side in a resizable split-pane layout.
 - **Multi-Statement Execution:** Run All, Run Selected, or pick individual queries from a multi-statement script. Results from each query appear in separate tabs with independent pagination and error handling.
 - **Multi-Result Tabs:** Close, rename, re-run, and manage result tabs via context menu. Query parameters are collected once across all queries.
-- **Smart Query Splitting:** Powered by `dbgate-query-splitter` — correctly handles stored procedures, functions, and `$$`-delimited blocks.
+- **Smart Query Splitting:** Correctly handles stored procedures, functions, and `$$`-delimited blocks.
 - **Saved Queries:** Persist frequently used SQL.
 - **AI Assist Overlay:** AI assistance buttons accessible as a floating overlay directly in the editor.
 
