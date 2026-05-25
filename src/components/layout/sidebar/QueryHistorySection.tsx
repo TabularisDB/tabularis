@@ -5,7 +5,6 @@ import { groupByDate, formatHistoryTime } from "../../../utils/dateGroups";
 import { SqlHighlight } from "../../ui/SqlHighlight";
 import { formatSqlPreview } from "../../../utils/sqlHighlight";
 import { useSettings } from "../../../hooks/useSettings";
-import type { QueryHistoryEntry } from "../../../types/queryHistory";
 import type {
   QueryHistoryEntry,
   QueryHistoryRecoveryNotice,
