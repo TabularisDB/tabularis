@@ -1,7 +1,39 @@
 import { describe, it, expect } from 'vitest';
-import { extractQueryParams, interpolateQueryParams } from '../../src/utils/queryParameters';
+import { extractQueryParams, interpolateQueryParams, toBindParamName } from '../../src/utils/queryParameters';
 
 describe('queryParameters', () => {
+  describe('toBindParamName', () => {
+    it('should keep valid identifiers unchanged', () => {
+      expect(toBindParamName('user_id')).toBe('user_id');
+      expect(toBindParamName('email')).toBe('email');
+    });
+
+    it('should replace spaces and special characters with underscores', () => {
+      expect(toBindParamName('user name')).toBe('user_name');
+      expect(toBindParamName('email-address')).toBe('email_address');
+      expect(toBindParamName('order.total')).toBe('order_total');
+    });
+
+    it('should prefix identifiers starting with a digit', () => {
+      expect(toBindParamName('123')).toBe('_123');
+      expect(toBindParamName('2nd_column')).toBe('_2nd_column');
+    });
+
+    it('should handle empty input', () => {
+      expect(toBindParamName('')).toBe('_');
+    });
+
+    it('should always produce an editor-recognised :param name', () => {
+      const pattern = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+      for (const name of ['user name', '123', '', 'a-b-c', 'données', '€']) {
+        const param = toBindParamName(name);
+        expect(param).toMatch(pattern);
+        // The generated name must round-trip through the editor's extractor.
+        expect(extractQueryParams(`SELECT * FROM t WHERE c = :${param}`)).toEqual([param]);
+      }
+    });
+  });
+
   describe('extractQueryParams', () => {
     it('should extract simple parameters', () => {
       const sql = 'SELECT * FROM users WHERE id = :id AND name = :name';

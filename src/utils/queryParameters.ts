@@ -1,3 +1,19 @@
+/**
+ * Converts an arbitrary identifier (e.g. a column name) into a valid named
+ * bind-parameter name compatible with the editor's `:param` syntax.
+ * The result always matches /^[a-zA-Z_][a-zA-Z0-9_]*$/, so that
+ * extractQueryParams / interpolateQueryParams recognise it.
+ */
+export const toBindParamName = (name: string): string => {
+  // Replace every character that is not a letter, digit or underscore.
+  const sanitized = name.replace(/[^a-zA-Z0-9_]/g, "_");
+  // A bind-parameter name must start with a letter or underscore, never a digit.
+  if (sanitized === "" || /^[0-9]/.test(sanitized)) {
+    return `_${sanitized}`;
+  }
+  return sanitized;
+};
+
 export const extractQueryParams = (sql: string): string[] => {
   if (!sql) return [];
   // Matches :paramName but ignores ::cast (Postgres)

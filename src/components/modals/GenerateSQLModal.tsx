@@ -14,6 +14,7 @@ import {
   type ForeignKey,
   type Index,
 } from "../../utils/sqlGenerator";
+import { toBindParamName } from "../../utils/queryParameters";
 
 interface GenerateSQLModalProps {
   isOpen: boolean;
@@ -106,8 +107,10 @@ export const GenerateSQLModal = ({
       }
       case "update": {
         if (columns.length === 0)
-          return `UPDATE ${tableName}\nSET column = ?\nWHERE 1 = 0;`;
-        const setClauses = columns.map((c) => `  ${c.name} = ?`).join(",\n");
+          return `UPDATE ${tableName}\nSET column = :column\nWHERE 1 = 0;`;
+        const setClauses = columns
+          .map((c) => `  ${c.name} = :${toBindParamName(c.name)}`)
+          .join(",\n");
         return `UPDATE ${tableName}\nSET\n${setClauses}\nWHERE 1 = 0;`;
       }
       case "delete":
