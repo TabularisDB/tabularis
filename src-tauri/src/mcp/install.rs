@@ -127,7 +127,11 @@ fn is_command_client_installed(path: &PathBuf) -> bool {
         return false;
     }
     fs::read_to_string(path)
-        .map(|c| c.contains("\"tabularis\""))
+        .map(|c| {
+            c.contains("\"tabularis\"")
+                || c.contains("[mcp_servers.tabularis]")
+                || c.contains("[mcp_servers.\"tabularis\"]")
+        })
         .unwrap_or(false)
 }
 
@@ -319,5 +323,22 @@ mod tests {
                 "claude mcp add --scope user tabularis /Applications/Tabularis.app/tabularis -- --mcp"
             )
         );
+    }
+
+    #[test]
+    fn detects_codex_toml_config() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+        fs::write(
+            &config_path,
+            r#"
+[mcp_servers.tabularis]
+command = "/Applications/Tabularis.app/tabularis"
+args = ["--mcp"]
+"#,
+        )
+        .unwrap();
+
+        assert!(is_command_client_installed(&config_path));
     }
 }
