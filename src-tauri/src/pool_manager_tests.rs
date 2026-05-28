@@ -1,6 +1,32 @@
 #[cfg(test)]
 mod tests {
-    use crate::pool_manager::format_error_chain;
+    use crate::models::{ConnectionParams, DatabaseSelection};
+    use crate::pool_manager::{build_connection_key, format_error_chain};
+
+    fn mysql_params(ssl_mode: &str) -> ConnectionParams {
+        ConnectionParams {
+            driver: "mysql".to_string(),
+            host: Some("127.0.0.1".to_string()),
+            port: Some(3306),
+            username: Some("dec".to_string()),
+            password: Some("secret".to_string()),
+            database: DatabaseSelection::Single("dec".to_string()),
+            ssl_mode: Some(ssl_mode.to_string()),
+            ssl_ca: None,
+            ssl_cert: None,
+            ssl_key: None,
+            ssh_enabled: Some(true),
+            ssh_connection_id: Some("ssh-1".to_string()),
+            ssh_host: Some("149.202.85.42".to_string()),
+            ssh_port: Some(2222),
+            ssh_user: Some("julien".to_string()),
+            ssh_password: None,
+            ssh_key_file: Some("/Users/julienbarbe/.ssh/id_rsa".to_string()),
+            ssh_key_passphrase: None,
+            save_in_keychain: None,
+            connection_id: Some("conn-1".to_string()),
+        }
+    }
 
     #[test]
     fn format_error_chain_walks_sources() {
@@ -32,6 +58,17 @@ mod tests {
         assert_eq!(
             format_error_chain(&Outer(Inner)),
             "outer message -> inner cause"
+        );
+    }
+
+    #[test]
+    fn mysql_pool_key_changes_when_ssl_mode_changes() {
+        let required = mysql_params("required");
+        let disabled = mysql_params("disabled");
+
+        assert_ne!(
+            build_connection_key(&required, Some("conn-1")),
+            build_connection_key(&disabled, Some("conn-1"))
         );
     }
 }

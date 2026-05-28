@@ -79,18 +79,33 @@ fn mysql_numeric_setting(key: &str, default: u64) -> u64 {
 /// Build a stable connection key that works with SSH tunnels.
 /// If connection_id is provided (from saved connections), use it for stable pooling.
 /// Otherwise fall back to host:port:database (for ad-hoc connections).
-fn build_connection_key(params: &ConnectionParams, connection_id: Option<&str>) -> String {
+pub(crate) fn build_connection_key(
+    params: &ConnectionParams,
+    connection_id: Option<&str>,
+) -> String {
+    let tls_key = format!(
+        "ssl:{}:{}:{}:{}",
+        params.ssl_mode.as_deref().unwrap_or("default"),
+        params.ssl_ca.as_deref().unwrap_or(""),
+        params.ssl_cert.as_deref().unwrap_or(""),
+        params.ssl_key.as_deref().unwrap_or("")
+    );
+
     if let Some(conn_id) = connection_id {
         // Include database in key so different databases on the same connection use separate pools
-        format!("{}:conn:{}:{}", params.driver, conn_id, params.database)
+        format!(
+            "{}:conn:{}:{}:{}",
+            params.driver, conn_id, params.database, tls_key
+        )
     } else {
         // Fall back to host:port:database for ad-hoc connections
         format!(
-            "{}:{}:{}:{}",
+            "{}:{}:{}:{}:{}",
             params.driver,
             params.host.as_deref().unwrap_or("localhost"),
             params.port.unwrap_or(0),
-            params.database
+            params.database,
+            tls_key
         )
     }
 }

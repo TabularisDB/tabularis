@@ -1,5 +1,39 @@
 use super::explain::parse_mysql_query_block;
+use super::MysqlDriver;
+use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::ExplainNode;
+use crate::models::{ConnectionParams, DatabaseSelection};
+
+#[test]
+fn build_connection_url_includes_disabled_ssl_mode() {
+    let driver = MysqlDriver::new();
+    let params = ConnectionParams {
+        driver: "mysql".to_string(),
+        host: Some("127.0.0.1".to_string()),
+        port: Some(3306),
+        username: Some("root".to_string()),
+        password: Some("secret".to_string()),
+        database: DatabaseSelection::Single("dec".to_string()),
+        ssl_mode: Some("disabled".to_string()),
+        ssl_ca: None,
+        ssl_cert: None,
+        ssl_key: None,
+        ssh_enabled: None,
+        ssh_connection_id: None,
+        ssh_host: None,
+        ssh_port: None,
+        ssh_user: None,
+        ssh_password: None,
+        ssh_key_file: None,
+        ssh_key_passphrase: None,
+        save_in_keychain: None,
+        connection_id: None,
+    };
+
+    let url = driver.build_connection_url(&params).unwrap();
+
+    assert!(url.contains("ssl-mode=disabled"), "url was: {url}");
+}
 
 /// Helper: parse a MariaDB ANALYZE FORMAT=JSON string and return the root node.
 fn parse_json(json: &str) -> ExplainNode {

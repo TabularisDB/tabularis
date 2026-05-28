@@ -1313,8 +1313,16 @@ impl DatabaseDriver for MysqlDriver {
         let connect_timeout =
             mysql_numeric_setting("connectTimeout", DEFAULT_MYSQL_CONNECT_TIMEOUT_MS);
         let timezone = mysql_string_setting("timezone", DEFAULT_MYSQL_TIMEZONE);
+        let ssl_mode = match params.ssl_mode.as_deref() {
+            Some("disabled") | Some("disable") => "disabled",
+            Some("preferred") | Some("prefer") => "preferred",
+            Some("required") | Some("require") => "required",
+            Some("verify_ca") | Some("verify-ca") => "verify_ca",
+            Some("verify_identity") | Some("verify-identity") => "verify_identity",
+            _ => "required",
+        };
         Ok(format!(
-            "mysql://{}@{}:{}/{}?maxAllowedPacket={}&socketTimeout={}&connectTimeout={}&timezone={}",
+            "mysql://{}@{}:{}/{}?maxAllowedPacket={}&socketTimeout={}&connectTimeout={}&timezone={}&ssl-mode={}",
             credentials,
             params.host.as_deref().unwrap_or("localhost"),
             params.port.unwrap_or(3306),
@@ -1323,6 +1331,7 @@ impl DatabaseDriver for MysqlDriver {
             socket_timeout,
             connect_timeout,
             encode(&timezone),
+            ssl_mode,
         ))
     }
 
