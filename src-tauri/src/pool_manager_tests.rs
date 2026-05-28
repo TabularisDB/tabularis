@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod tests {
     use crate::models::{ConnectionParams, DatabaseSelection};
-    use crate::pool_manager::{build_connection_key, format_error_chain};
+    use crate::pool_manager::{build_connection_key, build_mysql_options, format_error_chain};
+    use sqlx::mysql::MySqlSslMode;
 
     fn mysql_params(ssl_mode: &str) -> ConnectionParams {
         ConnectionParams {
@@ -70,6 +71,25 @@ mod tests {
             build_connection_key(&required, Some("conn-1")),
             build_connection_key(&disabled, Some("conn-1"))
         );
+    }
+
+    #[test]
+    fn mysql_options_accept_kebab_case_verify_ssl_modes() {
+        let verify_ca = mysql_params("verify-ca");
+        let verify_identity = mysql_params("verify-identity");
+
+        assert!(matches!(
+            build_mysql_options(&verify_ca, None)
+                .unwrap()
+                .get_ssl_mode(),
+            MySqlSslMode::VerifyCa
+        ));
+        assert!(matches!(
+            build_mysql_options(&verify_identity, None)
+                .unwrap()
+                .get_ssl_mode(),
+            MySqlSslMode::VerifyIdentity
+        ));
     }
 }
 

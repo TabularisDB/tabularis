@@ -110,7 +110,7 @@ pub(crate) fn build_connection_key(
     }
 }
 
-fn build_mysql_options(
+pub(crate) fn build_mysql_options(
     params: &ConnectionParams,
     override_db: Option<&str>,
 ) -> Result<sqlx::mysql::MySqlConnectOptions, String> {
@@ -139,8 +139,8 @@ fn build_mysql_options(
         "disabled" | "disable" => MySqlSslMode::Disabled,
         "preferred" | "prefer" => MySqlSslMode::Preferred,
         "required" | "require" => MySqlSslMode::Required,
-        "verify_ca" => MySqlSslMode::VerifyCa,
-        "verify_identity" => MySqlSslMode::VerifyIdentity,
+        "verify_ca" | "verify-ca" => MySqlSslMode::VerifyCa,
+        "verify_identity" | "verify-identity" => MySqlSslMode::VerifyIdentity,
         _ => MySqlSslMode::Required,
     };
     options = options.ssl_mode(ssl_mode);
