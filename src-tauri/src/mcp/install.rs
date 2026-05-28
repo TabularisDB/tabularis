@@ -18,6 +18,7 @@ pub struct McpClientStatus {
     pub config_path: Option<String>,
     pub executable_path: String,
     pub client_type: String,
+    pub manual_command: Option<String>,
 }
 
 struct McpClient {
@@ -53,6 +54,10 @@ fn get_all_clients() -> Vec<McpClient> {
     // Claude Code stores user-scope MCP in ~/.claude.json
     let claude_code_path = base.as_ref().map(|b| b.home_dir().join(".claude.json"));
 
+    let codex_path = base
+        .as_ref()
+        .map(|b| b.home_dir().join(".codex/config.toml"));
+
     let cursor_path = base.as_ref().map(|b| b.home_dir().join(".cursor/mcp.json"));
 
     let windsurf_path = base
@@ -74,6 +79,12 @@ fn get_all_clients() -> Vec<McpClient> {
             id: "claude_code",
             name: "Claude Code",
             config_path: claude_code_path,
+            client_type: "command",
+        },
+        McpClient {
+            id: "codex",
+            name: "Codex",
+            config_path: codex_path,
             client_type: "command",
         },
         McpClient {
@@ -109,15 +120,53 @@ fn is_tabularis_in_mcp_servers(path: &PathBuf) -> bool {
         .unwrap_or(false)
 }
 
-/// For Claude Code: tabularis is installed if ~/.claude.json contains "tabularis"
-/// anywhere in its mcpServers hierarchy (user or project scope).
-fn is_claude_code_installed(path: &PathBuf) -> bool {
+/// Command-driven clients store MCP config in different formats; for status
+/// purposes, consider Tabularis installed when their config references it.
+fn is_command_client_installed(path: &PathBuf) -> bool {
     if !path.exists() {
         return false;
     }
     fs::read_to_string(path)
         .map(|c| c.contains("\"tabularis\""))
         .unwrap_or(false)
+}
+
+fn build_command_client_invocation(
+    client_id: &str,
+    exe_str: &str,
+) -> Option<(String, Vec<String>)> {
+    match client_id {
+        "claude_code" => Some((
+            "claude".to_string(),
+            vec![
+                "mcp".to_string(),
+                "add".to_string(),
+                "--scope".to_string(),
+                "user".to_string(),
+                "tabularis".to_string(),
+                exe_str.to_string(),
+                "--".to_string(),
+                "--mcp".to_string(),
+            ],
+        )),
+        "codex" => Some((
+            "codex".to_string(),
+            vec![
+                "mcp".to_string(),
+                "add".to_string(),
+                "tabularis".to_string(),
+                "--".to_string(),
+                exe_str.to_string(),
+                "--mcp".to_string(),
+            ],
+        )),
+        _ => None,
+    }
+}
+
+fn build_manual_command(client_id: &str, exe_str: &str) -> Option<String> {
+    let (program, args) = build_command_client_invocation(client_id, exe_str)?;
+    Some(format!("{} {}", program, args.join(" ")))
 }
 
 #[tauri::command]
@@ -137,7 +186,7 @@ pub async fn get_mcp_status<R: Runtime>(
                 "command" => c
                     .config_path
                     .as_ref()
-                    .map(|p| is_claude_code_installed(p))
+                    .map(|p| is_command_client_installed(p))
                     .unwrap_or(false),
                 _ => c
                     .config_path
@@ -152,6 +201,7 @@ pub async fn get_mcp_status<R: Runtime>(
                 config_path: c.config_path.map(|p| p.to_string_lossy().to_string()),
                 executable_path: exe_path.clone(),
                 client_type: c.client_type.to_string(),
+                manual_command: build_manual_command(c.id, &exe_path),
             }
         })
         .collect();
@@ -175,20 +225,23 @@ pub async fn install_mcp_config<R: Runtime>(
         .ok_or_else(|| format!("Unknown client: {}", client_id))?;
 
     if client.client_type == "command" {
-        // Claude Code: use `claude mcp add --scope user`
-        let output = std::process::Command::new("claude")
-            .args(["mcp", "add", "--scope", "user", "tabularis", &exe_str, "--", "--mcp"])
+        let (program, args) = build_command_client_invocation(client.id, &exe_str)
+            .ok_or_else(|| format!("Unsupported command client: {}", client.id))?;
+        let manual_command = build_manual_command(client.id, &exe_str)
+            .unwrap_or_else(|| format!("{} {}", program, args.join(" ")));
+        let output = std::process::Command::new(&program)
+            .args(&args)
             .output()
             .map_err(|e| {
                 format!(
-                    "claude CLI not found. Run manually:\nclaude mcp add --scope user tabularis {} -- --mcp\n(Error: {})",
-                    exe_str, e
+                    "{} CLI not found. Run manually:\n{}\n(Error: {})",
+                    client.name, manual_command, e
                 )
             })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("claude mcp add failed: {}", stderr));
+            return Err(format!("{} mcp add failed: {}", program, stderr));
         }
 
         return Ok(client.name.to_string());
@@ -224,4 +277,47 @@ pub async fn install_mcp_config<R: Runtime>(
     fs::write(config_path, new_content).map_err(|e| e.to_string())?;
 
     Ok(client.name.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lists_codex_as_command_client() {
+        let clients = get_all_clients();
+        let codex = clients
+            .iter()
+            .find(|client| client.id == "codex")
+            .expect("Codex should be listed as an MCP client");
+
+        assert_eq!(codex.name, "Codex");
+        assert_eq!(codex.client_type, "command");
+        assert!(
+            codex
+                .config_path
+                .as_ref()
+                .is_some_and(|path| path.ends_with(".codex/config.toml")),
+            "Codex config path should point to ~/.codex/config.toml"
+        );
+    }
+
+    #[test]
+    fn builds_codex_manual_command() {
+        assert_eq!(
+            build_manual_command("codex", "/Applications/Tabularis.app/tabularis").as_deref(),
+            Some("codex mcp add tabularis -- /Applications/Tabularis.app/tabularis --mcp")
+        );
+    }
+
+    #[test]
+    fn builds_claude_code_manual_command() {
+        assert_eq!(
+            build_manual_command("claude_code", "/Applications/Tabularis.app/tabularis")
+                .as_deref(),
+            Some(
+                "claude mcp add --scope user tabularis /Applications/Tabularis.app/tabularis -- --mcp"
+            )
+        );
+    }
 }

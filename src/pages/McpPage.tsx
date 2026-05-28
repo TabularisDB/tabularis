@@ -15,6 +15,7 @@ import {
   AnthropicIcon,
   AntigravityIcon,
   CursorIcon,
+  OpenAIIcon,
   WindsurfIcon,
 } from "../components/icons/ClientIcons";
 import { AiActivityPanel } from "../components/settings/AiActivityPanel";
@@ -30,6 +31,7 @@ interface McpClientStatus {
   config_path: string | null;
   executable_path: string;
   client_type: string;
+  manual_command?: string | null;
 }
 
 type McpPageTab = "setup" | "activity" | "safety";
@@ -51,6 +53,8 @@ const ClientIcon = ({
       return <WindsurfIcon size={size} className="text-white" />;
     case "antigravity":
       return <AntigravityIcon size={size} />;
+    case "codex":
+      return <OpenAIIcon size={size} className="text-[#10a37f]" />;
     default:
       return <Cpu size={size} />;
   }
@@ -157,10 +161,11 @@ function McpSetupPanel() {
 
   const cliCommand = useMemo(
     () =>
+      selectedClient?.manual_command ||
       `claude mcp add --scope user tabularis ${
         selectedClient?.executable_path || "tabularis"
       } -- --mcp`,
-    [selectedClient?.executable_path],
+    [selectedClient?.executable_path, selectedClient?.manual_command],
   );
 
   const loadStatus = useCallback(async () => {
