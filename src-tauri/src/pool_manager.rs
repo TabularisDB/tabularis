@@ -83,30 +83,34 @@ pub(crate) fn build_connection_key(
     params: &ConnectionParams,
     connection_id: Option<&str>,
 ) -> String {
-    let tls_key = format!(
-        "ssl:{}:{}:{}:{}",
-        params.ssl_mode.as_deref().unwrap_or("default"),
-        params.ssl_ca.as_deref().unwrap_or(""),
-        params.ssl_cert.as_deref().unwrap_or(""),
-        params.ssl_key.as_deref().unwrap_or("")
-    );
-
-    if let Some(conn_id) = connection_id {
-        // Include database in key so different databases on the same connection use separate pools
+    let tls_key = (params.driver == "mysql").then(|| {
         format!(
-            "{}:conn:{}:{}:{}",
-            params.driver, conn_id, params.database, tls_key
+            "ssl:{}:{}:{}:{}",
+            params.ssl_mode.as_deref().unwrap_or("default"),
+            params.ssl_ca.as_deref().unwrap_or(""),
+            params.ssl_cert.as_deref().unwrap_or(""),
+            params.ssl_key.as_deref().unwrap_or("")
         )
+    });
+
+    let base_key = if let Some(conn_id) = connection_id {
+        // Include database in key so different databases on the same connection use separate pools
+        format!("{}:conn:{}:{}", params.driver, conn_id, params.database)
     } else {
         // Fall back to host:port:database for ad-hoc connections
         format!(
-            "{}:{}:{}:{}:{}",
+            "{}:{}:{}:{}",
             params.driver,
             params.host.as_deref().unwrap_or("localhost"),
             params.port.unwrap_or(0),
-            params.database,
-            tls_key
+            params.database
         )
+    };
+
+    if let Some(tls_key) = tls_key {
+        format!("{base_key}:{tls_key}")
+    } else {
+        base_key
     }
 }
 
@@ -139,8 +143,8 @@ pub(crate) fn build_mysql_options(
         "disabled" | "disable" => MySqlSslMode::Disabled,
         "preferred" | "prefer" => MySqlSslMode::Preferred,
         "required" | "require" => MySqlSslMode::Required,
-        "verify_ca" | "verify-ca" => MySqlSslMode::VerifyCa,
-        "verify_identity" | "verify-identity" => MySqlSslMode::VerifyIdentity,
+        "verify_ca" => MySqlSslMode::VerifyCa,
+        "verify_identity" => MySqlSslMode::VerifyIdentity,
         _ => MySqlSslMode::Required,
     };
     options = options.ssl_mode(ssl_mode);

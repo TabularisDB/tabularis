@@ -28,6 +28,7 @@ fn build_connection_url_includes_disabled_ssl_mode() {
         ssh_key_passphrase: None,
         save_in_keychain: None,
         connection_id: None,
+        ..Default::default()
     };
 
     let url = driver.build_connection_url(&params).unwrap();

@@ -1317,8 +1317,8 @@ impl DatabaseDriver for MysqlDriver {
             Some("disabled") | Some("disable") => "disabled",
             Some("preferred") | Some("prefer") => "preferred",
             Some("required") | Some("require") => "required",
-            Some("verify_ca") | Some("verify-ca") => "verify_ca",
-            Some("verify_identity") | Some("verify-identity") => "verify_identity",
+            Some("verify_ca") => "verify_ca",
+            Some("verify_identity") => "verify_identity",
             _ => "required",
         };
         Ok(format!(

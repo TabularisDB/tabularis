@@ -4,15 +4,19 @@ mod tests {
     use crate::pool_manager::{build_connection_key, build_mysql_options, format_error_chain};
     use sqlx::mysql::MySqlSslMode;
 
-    fn mysql_params(ssl_mode: &str) -> ConnectionParams {
+    fn connection_params(driver: &str, ssl_mode: Option<&str>) -> ConnectionParams {
         ConnectionParams {
-            driver: "mysql".to_string(),
+            driver: driver.to_string(),
             host: Some("127.0.0.1".to_string()),
-            port: Some(3306),
+            port: Some(match driver {
+                "postgres" => 5432,
+                "mysql" => 3306,
+                _ => 0,
+            }),
             username: Some("dec".to_string()),
             password: Some("secret".to_string()),
             database: DatabaseSelection::Single("dec".to_string()),
-            ssl_mode: Some(ssl_mode.to_string()),
+            ssl_mode: ssl_mode.map(ToOwned::to_owned),
             ssl_ca: None,
             ssl_cert: None,
             ssl_key: None,
@@ -26,7 +30,12 @@ mod tests {
             ssh_key_passphrase: None,
             save_in_keychain: None,
             connection_id: Some("conn-1".to_string()),
+            ..Default::default()
         }
+    }
+
+    fn mysql_params(ssl_mode: &str) -> ConnectionParams {
+        connection_params("mysql", Some(ssl_mode))
     }
 
     #[test]
@@ -74,9 +83,31 @@ mod tests {
     }
 
     #[test]
-    fn mysql_options_accept_kebab_case_verify_ssl_modes() {
-        let verify_ca = mysql_params("verify-ca");
-        let verify_identity = mysql_params("verify-identity");
+    fn postgres_pool_key_ignores_mysql_ssl_key_fields() {
+        let required = connection_params("postgres", Some("required"));
+        let disabled = connection_params("postgres", Some("disabled"));
+
+        assert_eq!(
+            build_connection_key(&required, Some("conn-1")),
+            build_connection_key(&disabled, Some("conn-1"))
+        );
+    }
+
+    #[test]
+    fn sqlite_pool_key_ignores_mysql_ssl_key_fields() {
+        let required = connection_params("sqlite", Some("required"));
+        let disabled = connection_params("sqlite", Some("disabled"));
+
+        assert_eq!(
+            build_connection_key(&required, Some("conn-1")),
+            build_connection_key(&disabled, Some("conn-1"))
+        );
+    }
+
+    #[test]
+    fn mysql_options_accept_snake_case_verify_ssl_modes() {
+        let verify_ca = mysql_params("verify_ca");
+        let verify_identity = mysql_params("verify_identity");
 
         assert!(matches!(
             build_mysql_options(&verify_ca, None)
