@@ -74,59 +74,53 @@ export function MiniResultGrid({ columns, rows, loading, message }: MiniResultGr
   return (
     <div className="h-full flex flex-col overflow-hidden text-sm">
       <div className="flex-1 overflow-auto" ref={parentRef}>
-        <table className="w-full border-collapse">
-          <thead className="sticky top-0 z-10 bg-elevated">
-            <tr>
-              {columns.map((col) => (
-                <th
-                  key={col}
-                  className="text-left px-3 py-1.5 text-xs font-semibold text-secondary border-b border-strong whitespace-nowrap cursor-pointer select-none hover:text-primary transition-colors"
-                  onClick={() => handleSort(col)}
+        <div className="w-full min-w-max">
+          {/* Header */}
+          <div className="sticky top-0 z-10 bg-elevated border-b border-strong flex">
+            {columns.map((col) => (
+              <div
+                key={col}
+                className="text-left px-3 py-2 text-xs font-semibold text-secondary flex-1 min-w-[80px] whitespace-nowrap cursor-pointer select-none hover:text-primary transition-colors flex items-center gap-1 overflow-hidden"
+                onClick={() => handleSort(col)}
+                title={col}
+              >
+                <span className="truncate flex-1 min-w-0">{col}</span>
+                <ArrowUpDown size={12} className={sortCol === col ? 'text-blue-400 flex-shrink-0' : 'text-muted opacity-50 flex-shrink-0'} />
+              </div>
+            ))}
+          </div>
+
+          {/* Body */}
+          <div style={{ position: 'relative', height: `${virtualizer.getTotalSize()}px` }}>
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const row = displayRows[virtualRow.index];
+              return (
+                <div
+                  key={virtualRow.key}
+                  className="flex absolute left-0 w-full border-b border-strong/30 hover:bg-surface-secondary/50 transition-colors"
+                  style={{
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
                 >
-                  <div className="flex items-center gap-1">
-                    {col}
-                    <ArrowUpDown size={12} className={sortCol === col ? 'text-blue-400' : 'text-muted opacity-50'} />
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr style={{ height: virtualizer.getTotalSize() }}>
-              <td colSpan={columns.length} className="p-0">
-                <div style={{ position: 'relative', height: `${virtualizer.getTotalSize()}px` }}>
-                  {virtualizer.getVirtualItems().map((virtualRow) => {
-                    const row = displayRows[virtualRow.index];
+                  {columns.map((col, colIdx) => {
+                    const value = row[colIdx];
+                    const display = value === null ? 'NULL' : String(value);
                     return (
                       <div
-                        key={virtualRow.key}
-                        className="flex absolute left-0 w-full border-b border-strong/30 hover:bg-surface-secondary/50 transition-colors"
-                        style={{
-                          height: `${virtualRow.size}px`,
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
+                        key={col}
+                        className="px-3 py-1.5 text-primary whitespace-nowrap overflow-hidden text-ellipsis flex-1 min-w-[80px]"
+                        title={display}
                       >
-                        {columns.map((col, colIdx) => {
-                          const value = row[colIdx];
-                          const display = value === null ? 'NULL' : String(value);
-                          return (
-                            <div
-                              key={col}
-                              className="px-3 py-1.5 text-primary whitespace-nowrap overflow-hidden text-ellipsis flex-1 min-w-[80px]"
-                              title={display}
-                            >
-                              <span className={value === null ? 'text-muted italic' : ''}>{display}</span>
-                            </div>
-                          );
-                        })}
+                        <span className={value === null ? 'text-muted italic' : ''}>{display}</span>
                       </div>
                     );
                   })}
                 </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              );
+            })}
+          </div>
+        </div>
       </div>
       <div className="px-3 py-1.5 text-xs text-muted border-t border-strong bg-elevated flex items-center justify-between shrink-0">
         <span>{rows.length} rows</span>

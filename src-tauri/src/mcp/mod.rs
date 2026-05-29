@@ -7,13 +7,17 @@ use crate::config::{
     DEFAULT_MCP_APPROVAL_TIMEOUT_SECONDS, DEFAULT_MCP_PREFLIGHT_EXPLAIN,
 };
 use crate::credential_cache;
+use crate::drivers::driver_trait::DatabaseDriver;
+use crate::drivers::registry as driver_registry;
 use crate::drivers::{mysql, postgres, sqlite};
 use crate::heartbeat;
 use crate::models::{ConnectionParams, K8sConnection, SshConnection};
 use crate::paths;
 use crate::persistence;
+use crate::plugins;
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
+use std::sync::Arc;
 
 pub mod install;
 pub mod preflight;
@@ -267,8 +271,51 @@ async fn resolve_db_params(
     Ok((conn, db_params))
 }
 
+/// Populate the driver registry for the standalone MCP subprocess: the three
+/// built-in drivers plus any installed plugin drivers, honoring the user's
+/// `active_external_drivers` preference. Without this, MCP can only reach
+/// mysql/postgres/sqlite connections — every other driver fails with
+/// "Unsupported driver".
+async fn register_drivers_for_mcp() {
+    driver_registry::register_driver(mysql::MysqlDriver::new()).await;
+    driver_registry::register_driver(postgres::PostgresDriver::new()).await;
+    driver_registry::register_driver(sqlite::SqliteDriver::new()).await;
+
+    let app_config = config::load_config_from_disk();
+    let plugin_configs = app_config.plugins.unwrap_or_default();
+    let enabled_ids = app_config.active_external_drivers;
+    plugins::manager::load_plugins_with_configs(plugin_configs, enabled_ids.as_deref()).await;
+}
+
+/// Resolve the driver for an MCP-known connection. Returns the connection,
+/// the resolved DB params, and the registered driver. Errors with a JSON-RPC
+/// "Unsupported driver" payload when no driver matches the connection's
+/// `driver` id (e.g. the plugin failed to load).
+async fn resolve_db_driver(
+    conn_id: &str,
+) -> Result<
+    (
+        crate::models::SavedConnection,
+        ConnectionParams,
+        Arc<dyn DatabaseDriver>,
+    ),
+    JsonRpcError,
+> {
+    let (conn, db_params) = resolve_db_params(conn_id).await?;
+    let driver = driver_registry::get_driver(&conn.params.driver)
+        .await
+        .ok_or_else(|| JsonRpcError {
+            code: -32000,
+            message: format!("Unsupported driver: {}", conn.params.driver),
+            data: None,
+        })?;
+    Ok((conn, db_params, driver))
+}
+
 pub async fn run_mcp_server() {
     eprintln!("[MCP] Starting Tabularis MCP Server...");
+
+    register_drivers_for_mcp().await;
 
     let stdin = io::stdin();
     let mut stdout = io::stdout();
@@ -288,12 +335,20 @@ pub async fn run_mcp_server() {
                     Ok(request) => {
                         let response = handle_request(request).await;
                         if let Some(resp) = response {
-                            let json = serde_json::to_string(&resp).unwrap();
+                            let json = serde_json::to_string(&resp)
+                                .expect("serializing a JsonRpcResponse cannot fail");
                             // Log output to stderr
                             eprintln!("[MCP] Sending: {}", json);
-                            stdout.write_all(json.as_bytes()).unwrap();
-                            stdout.write_all(b"\n").unwrap();
-                            stdout.flush().unwrap();
+                            // Stop cleanly if the client has gone away (BrokenPipe)
+                            // rather than panicking the whole server.
+                            if let Err(e) = stdout
+                                .write_all(json.as_bytes())
+                                .and_then(|_| stdout.write_all(b"\n"))
+                                .and_then(|_| stdout.flush())
+                            {
+                                eprintln!("[MCP] Failed to write response, stopping: {}", e);
+                                break;
+                            }
                         }
                     }
                     Err(e) => {
@@ -462,48 +517,22 @@ async fn handle_read_resource(params: Option<Value>) -> Result<Value, JsonRpcErr
         }
         let conn_id = parts[2];
 
-        let config_path = paths::get_app_config_dir().join("connections.json");
-        let connections =
-            persistence::load_connections(&config_path).map_err(|e| JsonRpcError {
+        // Resolve through the same path as the tools so keychain passwords and
+        // SSH tunnels are applied — not just the raw saved params.
+        let (conn, params, driver) = resolve_db_driver(conn_id).await?;
+        let schema = if conn.params.driver == "postgres" {
+            Some("public")
+        } else {
+            None
+        };
+        let tables = driver
+            .get_tables(&params, schema)
+            .await
+            .map_err(|e| JsonRpcError {
                 code: -32000,
                 message: e,
                 data: None,
             })?;
-
-        // Try to find by ID or exact name (case-insensitive) first, then partial name match
-        let conn = connections
-            .iter()
-            .find(|c| c.id == conn_id || c.name.eq_ignore_ascii_case(conn_id))
-            .or_else(|| {
-                connections
-                    .iter()
-                    .find(|c| c.name.to_lowercase().contains(&conn_id.to_lowercase()))
-            })
-            .ok_or(JsonRpcError {
-                code: -32000,
-                message: format!("Connection not found: {}", conn_id),
-                data: None,
-            })?;
-
-        let expanded = expand_ssh_params_for_mcp(&conn.params).await?;
-        let expanded = expand_k8s_params_for_mcp(&expanded).await?;
-        let params = commands::resolve_connection_params(&expanded).map_err(|e| JsonRpcError {
-            code: -32000,
-            message: e,
-            data: None,
-        })?;
-
-        let tables = match conn.params.driver.as_str() {
-            "mysql" => mysql::get_tables(&params, None).await,
-            "postgres" => postgres::get_tables(&params, "public").await,
-            "sqlite" => sqlite::get_tables(&params).await,
-            _ => Err("Unsupported driver".into()),
-        }
-        .map_err(|e| JsonRpcError {
-            code: -32000,
-            message: e,
-            data: None,
-        })?;
 
         // Format as simplified DDL or JSON
         let schema_json = serde_json::to_string_pretty(&tables).unwrap();
@@ -761,23 +790,22 @@ async fn tool_list_tables(
 
     audit.connection_id = Some(conn_id.to_string());
 
-    let (conn, db_params) = resolve_db_params(conn_id).await?;
+    let (conn, db_params, driver) = resolve_db_driver(conn_id).await?;
     audit.connection_name = Some(conn.name.clone());
 
-    let tables = match conn.params.driver.as_str() {
-        "mysql" => mysql::get_tables(&db_params, schema).await,
-        "postgres" => {
-            let s = schema.unwrap_or("public");
-            postgres::get_tables(&db_params, s).await
-        }
-        "sqlite" => sqlite::get_tables(&db_params).await,
-        _ => Err("Unsupported driver".into()),
-    }
-    .map_err(|e| JsonRpcError {
-        code: -32000,
-        message: e,
-        data: None,
-    })?;
+    let effective_schema = if conn.params.driver == "postgres" {
+        Some(schema.unwrap_or("public"))
+    } else {
+        schema
+    };
+    let tables = driver
+        .get_tables(&db_params, effective_schema)
+        .await
+        .map_err(|e| JsonRpcError {
+            code: -32000,
+            message: e,
+            data: None,
+        })?;
 
     let names: Vec<&str> = tables.iter().map(|t| t.name.as_str()).collect();
     audit.rows = Some(names.len());
@@ -813,37 +841,22 @@ async fn tool_describe_table(
 
     audit.connection_id = Some(conn_id.to_string());
 
-    let (conn, db_params) = resolve_db_params(conn_id).await?;
+    let (conn, db_params, driver) = resolve_db_driver(conn_id).await?;
     audit.connection_name = Some(conn.name.clone());
 
-    let (columns, foreign_keys, indexes) = match conn.params.driver.as_str() {
-        "mysql" => {
-            let cols = mysql::get_columns(&db_params, table_name, schema).await;
-            let fks = mysql::get_foreign_keys(&db_params, table_name, schema).await;
-            let idxs = mysql::get_indexes(&db_params, table_name, schema).await;
-            (cols, fks, idxs)
-        }
-        "postgres" => {
-            let s = schema.unwrap_or("public");
-            let cols = postgres::get_columns(&db_params, table_name, s).await;
-            let fks = postgres::get_foreign_keys(&db_params, table_name, s).await;
-            let idxs = postgres::get_indexes(&db_params, table_name, s).await;
-            (cols, fks, idxs)
-        }
-        "sqlite" => {
-            let cols = sqlite::get_columns(&db_params, table_name).await;
-            let fks = sqlite::get_foreign_keys(&db_params, table_name).await;
-            let idxs = sqlite::get_indexes(&db_params, table_name).await;
-            (cols, fks, idxs)
-        }
-        _ => {
-            return Err(JsonRpcError {
-                code: -32000,
-                message: "Unsupported driver".to_string(),
-                data: None,
-            })
-        }
+    let effective_schema = if conn.params.driver == "postgres" {
+        Some(schema.unwrap_or("public"))
+    } else {
+        schema
     };
+    // Run the three metadata fetches concurrently so a slow driver costs one
+    // round-trip's worth of latency, not three (and at most one call timeout
+    // rather than three sequential ones blocking the MCP request loop).
+    let (columns, foreign_keys, indexes) = tokio::join!(
+        driver.get_columns(&db_params, table_name, effective_schema),
+        driver.get_foreign_keys(&db_params, table_name, effective_schema),
+        driver.get_indexes(&db_params, table_name, effective_schema),
+    );
 
     let result = json!({
         "table": table_name,
@@ -893,7 +906,7 @@ async fn tool_run_query(
     let kind = ai_activity::classify_query_kind(query);
     audit.query_kind = Some(kind.to_string());
 
-    let (conn, db_params) = resolve_db_params(conn_id).await?;
+    let (conn, db_params, driver) = resolve_db_driver(conn_id).await?;
     audit.connection_name = Some(conn.name.clone());
 
     // Read-only enforcement (fail-closed: unknown counts as write).
@@ -1052,21 +1065,14 @@ async fn tool_run_query(
         }
     }
 
-    let result = match conn.params.driver.as_str() {
-        "mysql" => {
-            mysql::execute_query(&db_params, &effective_query, Some(max_rows), 1, None).await
-        }
-        "postgres" => {
-            postgres::execute_query(&db_params, &effective_query, Some(max_rows), 1, None).await
-        }
-        "sqlite" => sqlite::execute_query(&db_params, &effective_query, Some(max_rows), 1).await,
-        _ => Err("Unsupported driver".into()),
-    }
-    .map_err(|e| JsonRpcError {
-        code: -32000,
-        message: e,
-        data: None,
-    })?;
+    let result = driver
+        .execute_query(&db_params, &effective_query, Some(max_rows), 1, None)
+        .await
+        .map_err(|e| JsonRpcError {
+            code: -32000,
+            message: e,
+            data: None,
+        })?;
 
     audit.rows = Some(result.rows.len());
 

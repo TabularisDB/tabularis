@@ -34,20 +34,24 @@ pub struct NotebookExport {
     pub cells: Vec<NotebookCellExport>,
 }
 
-pub fn export_session_in(dir: &Path, session_id: &str) -> Result<NotebookExport, String> {
+pub fn export_session_in(
+    dir: &Path,
+    session_id: &str,
+    tz: Option<&str>,
+) -> Result<NotebookExport, String> {
     let events = read_session_events_in(dir, session_id)?;
     if events.is_empty() {
         return Err(format!("No events found for session {}", session_id));
     }
-    Ok(build_notebook(session_id, &events))
+    Ok(build_notebook(session_id, &events, tz))
 }
 
-pub fn export_session(session_id: &str) -> Result<NotebookExport, String> {
-    export_session_in(&get_app_config_dir(), session_id)
+pub fn export_session(session_id: &str, tz: Option<&str>) -> Result<NotebookExport, String> {
+    export_session_in(&get_app_config_dir(), session_id, tz)
 }
 
-fn build_notebook(session_id: &str, events: &[AiActivityEvent]) -> NotebookExport {
-    let header = build_header_cell(session_id, events);
+fn build_notebook(session_id: &str, events: &[AiActivityEvent], tz: Option<&str>) -> NotebookExport {
+    let header = build_header_cell(session_id, events, tz);
     let mut cells: Vec<NotebookCellExport> = vec![header];
 
     let mut query_index = 1usize;
@@ -88,16 +92,26 @@ fn build_notebook(session_id: &str, events: &[AiActivityEvent]) -> NotebookExpor
     }
 }
 
-fn build_header_cell(session_id: &str, events: &[AiActivityEvent]) -> NotebookCellExport {
+fn build_header_cell(
+    session_id: &str,
+    events: &[AiActivityEvent],
+    tz: Option<&str>,
+) -> NotebookCellExport {
+    // Timestamps are stored as UTC; render the human-readable Started/Ended
+    // values in the user's display timezone to match the rest of the UI. The
+    // min/max run on the raw UTC strings (uniform offset keeps them ordered)
+    // before converting the chosen endpoints.
     let started = events
         .iter()
         .map(|e| e.timestamp.clone())
         .min()
+        .map(|ts| crate::ai_activity::to_local_rfc3339(&ts, tz))
         .unwrap_or_default();
     let ended = events
         .iter()
         .map(|e| e.timestamp.clone())
         .max()
+        .map(|ts| crate::ai_activity::to_local_rfc3339(&ts, tz))
         .unwrap_or_default();
     let client_hint = events
         .iter()

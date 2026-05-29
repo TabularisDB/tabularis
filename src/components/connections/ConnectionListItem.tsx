@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import type { SavedConnection } from '../../contexts/DatabaseContext';
 import type { PluginManifest } from '../../types/plugins';
 import { useDatabase } from '../../hooks/useDatabase';
-import { getDriverColor, getDriverIcon } from '../../utils/driverUI';
+import { getConnectionAccent, getConnectionIcon } from '../../utils/driverUI';
 import { getCapabilitiesForDriver } from '../../utils/driverCapabilities';
 import { connectionSubtitle, getCardClass } from '../../utils/connections';
 import { StatusBadge } from './StatusBadge';
@@ -47,7 +47,7 @@ export const ConnectionListItem = ({
   const driverManifest = allDrivers.find(d => d.id === conn.params.driver);
   const capabilities = getCapabilitiesForDriver(conn.params.driver, allDrivers);
   const subtitle = connectionSubtitle(conn, capabilities);
-  const driverColor = getDriverColor(driverManifest);
+  const driverColor = getConnectionAccent(conn, driverManifest);
 
   return (
     <div
@@ -65,7 +65,7 @@ export const ConnectionListItem = ({
         className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm"
         style={{ backgroundColor: driverColor }}
       >
-        {getDriverIcon(driverManifest, 14)}
+        {getConnectionIcon(conn, driverManifest, 14)}
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-sm text-primary truncate leading-snug">{conn.name}</p>

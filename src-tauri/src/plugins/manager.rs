@@ -8,6 +8,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
+use crate::config::PluginConfig;
 use crate::drivers::driver_trait::{DriverCapabilities, PluginManifest, PluginSettingDefinition};
 use crate::models::DataTypeInfo;
 use crate::plugins::driver::RpcDriver;
@@ -65,7 +66,16 @@ pub async fn load_plugins<R: tauri::Runtime>(app: &AppHandle<R>, enabled_ids: Op
     let plugin_configs = crate::config::load_config_internal(app)
         .plugins
         .unwrap_or_default();
+    load_plugins_with_configs(plugin_configs, enabled_ids).await;
+}
 
+/// Variant of [`load_plugins`] that takes plugin configs directly. Used by the
+/// standalone `--mcp` subprocess which has no Tauri `AppHandle` but needs to
+/// register the same drivers so MCP tools can reach plugin-driven connections.
+pub async fn load_plugins_with_configs(
+    plugin_configs: HashMap<String, PluginConfig>,
+    enabled_ids: Option<&[String]>,
+) {
     let proj_dirs = match ProjectDirs::from("com", "debba", "tabularis") {
         Some(d) => d,
         None => return,
@@ -145,6 +155,18 @@ pub async fn load_plugin_from_dir(
 
     let config: ConfigManifest = serde_json::from_str(&manifest_str)
         .map_err(|e| format!("Failed to parse plugin manifest {:?}: {}", manifest_path, e))?;
+
+    // Refuse plugins that claim a built-in driver id. Registration is a plain
+    // insert keyed by id, so otherwise a plugin with id "mysql"/"postgres"/
+    // "sqlite" would shadow the built-in driver and receive existing
+    // connections' resolved credentials.
+    const BUILTIN_DRIVER_IDS: [&str; 3] = ["mysql", "postgres", "sqlite"];
+    if BUILTIN_DRIVER_IDS.contains(&config.id.as_str()) {
+        return Err(format!(
+            "Plugin id '{}' collides with a built-in driver and was refused",
+            config.id
+        ));
+    }
 
     let manifest = PluginManifest {
         id: config.id,

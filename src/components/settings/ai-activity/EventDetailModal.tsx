@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import type { AiActivityEvent } from "../../../types/ai";
-import { formatDurationMs } from "../../../utils/aiActivity";
+import { formatDurationMs, formatLocalTimestamp } from "../../../utils/aiActivity";
+import { useSettings } from "../../../hooks/useSettings";
 import { StatusBadge } from "./StatusBadge";
 import { QueryKindBadge } from "./QueryKindBadge";
 
@@ -12,6 +13,7 @@ interface EventDetailModalProps {
 
 export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
   const { t } = useTranslation();
+  const { settings } = useSettings();
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] backdrop-blur-sm">
       <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[640px] max-h-[80vh] overflow-hidden flex flex-col">
@@ -30,7 +32,10 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
           </button>
         </div>
         <div className="p-5 space-y-3 overflow-y-auto text-sm">
-          <DetailRow label={t("aiActivity.col.timestamp")} value={event.timestamp} />
+          <DetailRow
+            label={t("aiActivity.col.timestamp")}
+            value={formatLocalTimestamp(event.timestamp, settings.displayTimezone)}
+          />
           <DetailRow label={t("aiActivity.col.tool")} value={event.tool} />
           <DetailRow
             label={t("aiActivity.col.connection")}

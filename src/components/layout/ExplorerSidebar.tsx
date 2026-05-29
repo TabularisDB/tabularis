@@ -21,6 +21,7 @@ import {
   Upload,
   ChevronDown,
   RefreshCw,
+  AlertCircle,
   ChevronRight,
   Settings2,
   Check,
@@ -37,6 +38,7 @@ import {
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { toErrorMessage } from "../../utils/errors";
 import { useAlert } from "../../hooks/useAlert";
+import { useSettings } from "../../hooks/useSettings";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useSavedQueries } from "../../hooks/useSavedQueries";
 import { useQueryHistory } from "../../hooks/useQueryHistory";
@@ -93,6 +95,7 @@ interface ExplorerSidebarProps {
 
 export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebarTab, onSidebarTabChange }: ExplorerSidebarProps) => {
   const { t } = useTranslation();
+  const { settings } = useSettings();
   const {
     activeConnectionId,
     activeDriver,
@@ -125,12 +128,27 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     loadDatabaseData,
     refreshDatabaseData,
     connectionDataMap,
+    connect,
   } = useDatabase();
+
+  const schemaLoadError =
+    activeCapabilities?.schemas === true && schemas.length === 0 && activeConnectionId
+      ? connectionDataMap[activeConnectionId]?.error
+      : undefined;
   const { queries, deleteQuery, updateQuery, saveQuery } = useSavedQueries();
-  const { entries: historyEntries, isLoading: isHistoryLoading, deleteEntry: deleteHistoryEntry, clearHistory } = useQueryHistory();
+  const {
+    entries: historyEntries,
+    isLoading: isHistoryLoading,
+    deleteEntry: deleteHistoryEntry,
+    clearHistory,
+    recoveryNotice: historyRecoveryNotice,
+    dismissRecoveryNotice: dismissHistoryRecoveryNotice,
+  } = useQueryHistory();
   const { showAlert } = useAlert();
   const navigate = useNavigate();
   const [schemaVersion, setSchemaVersion] = useState(0);
+  const [schemaErrorExpanded, setSchemaErrorExpanded] = useState(false);
+  const [schemaErrorCopied, setSchemaErrorCopied] = useState(false);
 
   const { splitView, isSplitVisible, explorerConnectionId, setExplorerConnectionId } = useConnectionLayoutContext();
 
@@ -565,7 +583,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
             const filteredQueries = favoritesFilter.trim()
               ? sorted.filter((q) => q.name.toLowerCase().includes(favoritesFilter.toLowerCase()) || q.sql.toLowerCase().includes(favoritesFilter.toLowerCase()))
               : sorted;
-            const groupedFavorites = groupByDate(filteredQueries, (q) => q.updated_at ?? "1970-01-01");
+            const groupedFavorites = groupByDate(filteredQueries, (q) => q.updated_at ?? "1970-01-01", settings.displayTimezone);
 
             return queries.length === 0 ? (
               <div className="text-center p-4 text-xs text-muted italic">
@@ -628,7 +646,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 </span>
                               )}
                               {q.updated_at && (
-                                <span>{formatHistoryTime(q.updated_at)}</span>
+                                <span>{formatHistoryTime(q.updated_at, settings.displayTimezone)}</span>
                               )}
                             </div>
                           </div>
@@ -647,6 +665,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
             <div className="animate-fade-in"><QueryHistorySection
               entries={historyEntries}
               isLoading={isHistoryLoading}
+              recoveryNotice={historyRecoveryNotice}
+              onDismissRecoveryNotice={dismissHistoryRecoveryNotice}
               onDoubleClick={(entry) => {
                 runQuery(entry.sql, undefined, undefined, false, entry.database ?? undefined);
               }}
@@ -666,8 +686,47 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
               </div>
             ) : (
               <>
-              {/* Schema-capable driver: Schema tree layout */}
-              {activeCapabilities?.schemas === true && schemas.length > 0 ? (
+              {/* Schema fetch failed: surface the error instead of a silently empty tree */}
+              {schemaLoadError ? (
+                <div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
+                  <AlertCircle size={18} className="text-red-500" />
+                  <span className="text-sm font-medium text-red-500">{t("sidebar.schemaLoadError")}</span>
+                  <span className="text-xs text-muted break-words line-clamp-2">{schemaLoadError.split("\n\n")[0]}</span>
+                  <button
+                    onClick={() => setSchemaErrorExpanded((v) => !v)}
+                    className="flex items-center gap-1 text-xs text-muted hover:text-secondary transition-colors"
+                  >
+                    {schemaErrorExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    {t("sidebar.errorDetails")}
+                  </button>
+                  {schemaErrorExpanded && (
+                    <div className="relative w-full">
+                      <pre className="text-xs text-muted bg-surface-secondary rounded p-2 pr-8 text-left whitespace-pre-wrap break-words max-h-40 overflow-auto select-text">
+                        {schemaLoadError}
+                      </pre>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(schemaLoadError);
+                          setSchemaErrorCopied(true);
+                          setTimeout(() => setSchemaErrorCopied(false), 1500);
+                        }}
+                        title={t("sidebar.copyError")}
+                        className="absolute top-1.5 right-1.5 p-1 rounded hover:bg-surface-tertiary text-muted hover:text-secondary transition-colors"
+                      >
+                        {schemaErrorCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => { if (activeConnectionId) connect(activeConnectionId); }}
+                    className="mt-1 flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium bg-surface-secondary text-secondary hover:bg-surface-tertiary transition-colors"
+                  >
+                    <RefreshCw size={12} />
+                    {t("sidebar.retry")}
+                  </button>
+                </div>
+              ) : /* Schema-capable driver: Schema tree layout */
+              activeCapabilities?.schemas === true && schemas.length > 0 ? (
                 /* Postgres schema layout (unchanged) */
                 <div>
                   {needsSchemaSelection ? (

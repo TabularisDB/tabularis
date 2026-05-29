@@ -4,7 +4,7 @@ mod tests {
         append_event_in, classify_query_kind, clear_in, compute_or_rotate_session_id_in,
         load_session_state_in, read_events_in, read_session_events_in, read_sessions_in,
         rotate_if_needed_in, save_session_state_in, set_client_hint_in,
-        strip_strings_and_comments, AiActivityEvent, EventFilter, SessionState,
+        strip_strings_and_comments, to_local_rfc3339, AiActivityEvent, EventFilter, SessionState,
     };
     use std::path::Path;
     use tempfile::TempDir;
@@ -541,5 +541,40 @@ mod tests {
         let state = load_session_state_in(tmp.path()).unwrap();
         assert_eq!(state.client_hint.as_deref(), Some("windsurf"));
         assert!(!state.session_id.is_empty());
+    }
+
+    #[test]
+    fn to_local_rfc3339_preserves_the_instant() {
+        // The output is the same point in time as the input, regardless of the
+        // machine's timezone — so we compare instants, not literal strings.
+        let input = "2026-04-24T10:00:00Z";
+        let out = to_local_rfc3339(input, None);
+        let in_instant = chrono::DateTime::parse_from_rfc3339(input).unwrap();
+        let out_instant = chrono::DateTime::parse_from_rfc3339(&out).unwrap();
+        assert_eq!(in_instant, out_instant);
+    }
+
+    #[test]
+    fn to_local_rfc3339_uses_an_explicit_iana_timezone() {
+        // Asia/Tokyo is UTC+9 with no DST, so this is fully deterministic
+        // regardless of the machine timezone.
+        let out = to_local_rfc3339("2026-04-24T10:00:00Z", Some("Asia/Tokyo"));
+        assert_eq!(out, "2026-04-24T19:00:00+09:00");
+    }
+
+    #[test]
+    fn to_local_rfc3339_falls_back_to_local_for_auto_or_unknown_zone() {
+        let input = "2026-04-24T10:00:00Z";
+        let in_instant = chrono::DateTime::parse_from_rfc3339(input).unwrap();
+        for tz in [Some("auto"), Some("Not/AZone"), Some(""), None] {
+            let out = to_local_rfc3339(input, tz);
+            let out_instant = chrono::DateTime::parse_from_rfc3339(&out).unwrap();
+            assert_eq!(in_instant, out_instant, "tz={:?} should preserve instant", tz);
+        }
+    }
+
+    #[test]
+    fn to_local_rfc3339_returns_input_when_unparseable() {
+        assert_eq!(to_local_rfc3339("not-a-date", Some("Asia/Tokyo")), "not-a-date");
     }
 }

@@ -12,6 +12,33 @@ use crate::models::{
     TableSchema, TriggerInfo, ViewInfo,
 };
 
+/// SQL dialect declaration used by the frontend statement splitter
+/// (`src/utils/sqlSplitter/`) to pick per-dialect tokenizer rules:
+/// string-literal quoting, identifier quoting (backticks vs brackets),
+/// dollar-quoted strings, `DELIMITER` / `GO` directives, etc.
+///
+/// Typed at the trait boundary so plugin manifests are validated at
+/// install time rather than crashing the splitter on an unknown value.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SqlDialect {
+    Postgres,
+    Mysql,
+    Mssql,
+    Sqlite,
+    Oracle,
+    Generic,
+}
+
+impl Default for SqlDialect {
+    /// Preserves the behavior shipped before `sql_dialect` was introduced:
+    /// every driver — including PG-compat plugins already in the wild —
+    /// went through postgres-flavored splitting via `postgreSplitterOptions`.
+    fn default() -> Self {
+        Self::Postgres
+    }
+}
+
 /// Capabilities advertised by a driver.
 /// The frontend uses these flags to decide which UI sections to show.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -78,6 +105,11 @@ pub struct DriverCapabilities {
     /// Defaults to `false`.
     #[serde(default)]
     pub readonly: bool,
+    /// SQL dialect for the statement splitter / classifier. Plugins that
+    /// omit the field fall back to `postgres` (matches pre-existing
+    /// behavior shipped via the previous `postgreSplitterOptions`).
+    #[serde(default)]
+    pub sql_dialect: SqlDialect,
 }
 
 fn default_double_quote() -> String {

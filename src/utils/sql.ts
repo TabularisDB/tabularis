@@ -1,65 +1,47 @@
-import { splitQuery, postgreSplitterOptions } from 'dbgate-query-splitter';
+import {
+  type Dialect,
+  splitStatements,
+  stripLeadingComments,
+  isExplainable,
+} from './sqlSplitter';
 
-export function splitQueries(sql: string): string[] {
-  return splitQuery(sql, postgreSplitterOptions).map(item => typeof item == "string" ? item : item.text);
-}
+export type SqlDialect = Dialect;
 
-/**
- * Strip leading SQL comments (single-line and block comments) and whitespace
- * so that the first keyword of the actual statement is at position 0.
- */
-export function stripLeadingSqlComments(query: string): string {
-  let s = query;
-  for (;;) {
-    s = s.trimStart();
-    if (s.startsWith("--")) {
-      const nl = s.indexOf("\n");
-      s = nl === -1 ? "" : s.slice(nl + 1);
-    } else if (s.startsWith("/*")) {
-      const end = s.indexOf("*/");
-      s = end === -1 ? "" : s.slice(end + 2);
-    } else {
-      break;
-    }
-  }
-  return s;
-}
+export { splitQueries } from './sqlSplitter';
 
-/**
- * Check if a SQL statement supports EXPLAIN.
- *
- * EXPLAIN works with DML statements (SELECT, INSERT, UPDATE, DELETE, REPLACE)
- * and CTEs (WITH). DDL statements (CREATE, DROP, ALTER, TRUNCATE, etc.) are not supported.
- * Leading SQL comments are stripped before checking.
- */
-export function isExplainableQuery(query: string): boolean {
-  const upper = stripLeadingSqlComments(query).toUpperCase();
-  return (
-    upper.startsWith("SELECT") ||
-    upper.startsWith("INSERT") ||
-    upper.startsWith("UPDATE") ||
-    upper.startsWith("DELETE") ||
-    upper.startsWith("REPLACE") ||
-    upper.startsWith("WITH") ||
-    upper.startsWith("TABLE")
-  );
-}
+export const stripLeadingSqlComments = stripLeadingComments;
+
+export const isExplainableQuery = isExplainable;
 
 /**
  * Splits a SQL text into individual queries and returns only those
  * that are explainable (DML: SELECT, INSERT, UPDATE, DELETE, REPLACE, WITH, TABLE).
- * Each returned entry carries its 1-based index in the original split.
+ *
+ * `index` is 1-based and counts *all* statements emitted by the splitter,
+ * including non-explainable ones (DDL etc.). Example: for
+ * `CREATE TABLE t (...); SELECT * FROM t;` the SELECT gets `index: 2`,
+ * matching its position in the run-button dropdown.
+ *
+ * Comment-only fragments are folded into adjacent statements by the
+ * splitter and do not consume an index slot.
  */
 export function getExplainableQueries(
   sql: string,
+  dialect?: SqlDialect,
 ): { query: string; index: number }[] {
-  return splitQueries(sql).reduce<{ query: string; index: number }[]>(
-    (acc, q, i) => {
-      if (isExplainableQuery(q)) acc.push({ query: q, index: i + 1 });
-      return acc;
-    },
-    [],
+  return splitStatements(sql, dialect).flatMap((s, i) =>
+    s.isExplainable ? [{ query: s.text, index: i + 1 }] : [],
   );
+}
+
+/**
+ * Returns the user-facing label for a SQL statement in dropdowns and
+ * pickers. Strips leading comments so the first keyword surfaces, and
+ * falls back to the raw text when the statement is entirely comments
+ * (so the label is never blank).
+ */
+export function statementLabel(query: string): string {
+  return stripLeadingComments(query) || query;
 }
 
 /**
@@ -110,7 +92,7 @@ export function extractTableName(sql: string): string | null {
   // Match FROM clause with optional quotes
   // Matches: FROM table, FROM `table`, FROM "table", FROM 'table'
   const fromMatch = cleaned.match(/\bFROM\s+([`"']?)(\w+)\1/i);
-  
+
   if (fromMatch && fromMatch[2]) {
     return fromMatch[2];
   }

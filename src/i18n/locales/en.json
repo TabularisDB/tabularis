@@ -124,6 +124,10 @@
     "schemas": "Schemas",
     "noSchemas": "No schemas found",
     "loadingSchemas": "Loading schemas...",
+    "schemaLoadError": "Failed to load schemas",
+    "errorDetails": "Details",
+    "copyError": "Copy error message",
+    "retry": "Try again",
     "expandExplorer": "Expand Explorer",
     "selectSchemas": "Select Schemas",
     "selectSchemasHint": "Select schemas to load:",
@@ -152,6 +156,9 @@
     "noHistorySearchResults": "No queries match your search",
     "searchHistory": "Search history...",
     "clearAllHistory": "Clear All History",
+    "historyRecoveredTitle": "Query history was reset",
+    "historyRecoveredBody": "The history file was corrupted and has been moved aside. New queries will be recorded as usual. Backup file:",
+    "historyRecoveredDismiss": "Dismiss",
     "confirmDeleteHistoryEntry": "Are you sure you want to delete this query from history?",
     "confirmClearHistory": "Are you sure you want to clear all query history for this connection?",
     "confirmClearHistoryTitle": "Clear Query History",
@@ -240,6 +247,32 @@
     "exportTitle": "Export Connections",
     "exportWarning": "The exported file will contain your database and SSH passwords in plaintext. Please store it securely."
   },
+  "connectionAppearance": {
+    "section": "Appearance",
+    "accentColor": "Accent color",
+    "customColor": "Custom",
+    "resetColor": "Reset to driver default",
+    "resetIcon": "Reset to driver default",
+    "icon": "Icon",
+    "tabs": {
+      "default": "Default",
+      "pack": "Icon",
+      "emoji": "Emoji",
+      "image": "Image"
+    },
+    "previewLabel": "Preview",
+    "defaultHint": "Using the driver's default icon.",
+    "emojiSelected": "Selected emoji",
+    "emojiHint": "Click another emoji below to change.",
+    "removeEmoji": "Clear",
+    "chooseImage": "Choose image…",
+    "removeImage": "Remove",
+    "imageHint": "PNG, JPG, WebP or SVG · max 512 KB",
+    "errors": {
+      "invalidEmoji": "Please enter exactly one emoji",
+      "invalidHex": "Please enter a valid hex color like #1a2b3c"
+    }
+  },
   "settings": {
     "title": "Settings",
     "general": "General",
@@ -303,6 +336,9 @@
     "language": "Language",
     "languageDesc": "Choose your preferred language. 'Auto' will use your system language.",
     "auto": "Auto (System)",
+    "timezone": "Timezone",
+    "timezoneDesc": "Timezone used to display timestamps and exports. 'Auto' follows your system timezone.",
+    "timezoneSearch": "Search timezones...",
     "english": "English",
     "italian": "Italiano",
     "spanish": "Spanish",
@@ -603,6 +639,7 @@
     "loadDatabases": "Load Databases",
     "loadingDatabases": "Loading...",
     "selectDatabases": "Select Databases",
+    "appearance": "Appearance",
     "noDatabasesSelected": "Select at least one database",
     "selectedDatabases": "{{count}} database(s) selected",
     "selectDatabase": "Select a database",
@@ -718,6 +755,7 @@
     "setDefault": "Set DEFAULT",
     "setEmpty": "Set EMPTY",
     "setServerNow": "Insert Current Timestamp",
+    "previewReferenced": "Preview related record",
     "openReferenced": "Open referenced row in {{table}}"
   },
   "editRow": {

@@ -1,4 +1,4 @@
-import "@testing-library/jest-dom";
+import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { vi } from "vitest";
@@ -168,6 +168,56 @@ vi.mock("lucide-react", () => ({
   ChevronsUpDown: () => null,
   AlertTriangle: () => null,
   Home: () => null,
+  // CONNECTION_ICON_PACK icons
+  Server: () => null,
+  HardDrive: () => null,
+  Cloud: () => null,
+  CloudCog: () => null,
+  ShieldCheck: () => null,
+  Flame: () => null,
+  Bug: () => null,
+  Beaker: () => null,
+  Wrench: () => null,
+  Hammer: () => null,
+  Heart: () => null,
+  Flag: () => null,
+  Bookmark: () => null,
+  Box: () => null,
+  Archive: () => null,
+  Activity: () => null,
+  Zap: () => null,
+  Layers: () => null,
+  Truck: () => null,
+  Rocket: () => null,
+  TestTube: () => null,
+  Briefcase: () => null,
+  Plug: () => null,
+  // AppearanceSection tab icons
+  Grid3x3: () => null,
+  Smile: () => null,
+  Image: () => null,
+  Pipette: () => null,
+  Upload: () => null,
+}));
+
+// Mock lucide-react/dynamicIconImports with a small deterministic set
+vi.mock("lucide-react/dynamicIconImports", () => ({
+  default: new Proxy({}, {
+    get(_t: object, _key: string) {
+      // Each entry must be a function returning a Promise resolving to a default-exported component
+      return () => Promise.resolve({ default: () => null });
+    },
+    has(_t: object, key: string) {
+      // Whitelist a few known names for filtering tests
+      return ["shield-check", "shield", "server", "database", "circle"].includes(key);
+    },
+    ownKeys() {
+      return ["shield-check", "shield", "server", "database", "circle"];
+    },
+    getOwnPropertyDescriptor() {
+      return { enumerable: true, configurable: true, value: () => Promise.resolve({ default: () => null }) };
+    },
+  }),
 }));
 
 // Mock scrollIntoView (not available in JSDOM)

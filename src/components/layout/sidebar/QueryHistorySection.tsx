@@ -1,14 +1,20 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, Trash2, Loader2, Database } from "lucide-react";
+import { Search, Trash2, Loader2, Database, AlertTriangle, X } from "lucide-react";
 import { groupByDate, formatHistoryTime } from "../../../utils/dateGroups";
 import { SqlHighlight } from "../../ui/SqlHighlight";
 import { formatSqlPreview } from "../../../utils/sqlHighlight";
-import type { QueryHistoryEntry } from "../../../types/queryHistory";
+import { useSettings } from "../../../hooks/useSettings";
+import type {
+  QueryHistoryEntry,
+  QueryHistoryRecoveryNotice,
+} from "../../../types/queryHistory";
 
 interface QueryHistorySectionProps {
   entries: QueryHistoryEntry[];
   isLoading: boolean;
+  recoveryNotice: QueryHistoryRecoveryNotice | null;
+  onDismissRecoveryNotice: () => void;
   onDoubleClick: (entry: QueryHistoryEntry) => void;
   onContextMenu: (
     e: React.MouseEvent,
@@ -20,11 +26,14 @@ interface QueryHistorySectionProps {
 export function QueryHistorySection({
   entries,
   isLoading,
+  recoveryNotice,
+  onDismissRecoveryNotice,
   onDoubleClick,
   onContextMenu,
   onClearAll,
 }: QueryHistorySectionProps) {
   const { t } = useTranslation();
+  const { settings } = useSettings();
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -35,8 +44,8 @@ export function QueryHistorySection({
   }, [entries, search]);
 
   const groupedEntries = useMemo(
-    () => groupByDate(filteredEntries, (e) => e.executedAt),
-    [filteredEntries],
+    () => groupByDate(filteredEntries, (e) => e.executedAt, settings.displayTimezone),
+    [filteredEntries, settings.displayTimezone],
   );
 
   const formatDuration = (ms: number | null): string => {
@@ -44,6 +53,37 @@ export function QueryHistorySection({
     if (ms < 1000) return `${Math.round(ms)}ms`;
     return `${(ms / 1000).toFixed(1)}s`;
   };
+
+  const recoveryBanner = recoveryNotice ? (
+    <div className="m-2 p-2.5 bg-amber-500/10 border border-amber-500/40 rounded text-[11px] text-amber-200 leading-snug">
+      <div className="flex items-start gap-2">
+        <AlertTriangle size={14} className="shrink-0 mt-0.5 text-amber-400" />
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold mb-1">
+            {t("sidebar.historyRecoveredTitle")}
+          </div>
+          <div className="text-amber-200/80">
+            {t("sidebar.historyRecoveredBody")}
+          </div>
+          <div
+            className="mt-1 font-mono text-[10px] text-amber-300/70 break-all"
+            title={recoveryNotice.backupPath}
+          >
+            {recoveryNotice.backupPath}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onDismissRecoveryNotice}
+          className="shrink-0 text-amber-300/60 hover:text-amber-200 transition-colors"
+          title={t("sidebar.historyRecoveredDismiss")}
+          aria-label={t("sidebar.historyRecoveredDismiss")}
+        >
+          <X size={12} />
+        </button>
+      </div>
+    </div>
+  ) : null;
 
   if (isLoading) {
     return (
@@ -56,14 +96,18 @@ export function QueryHistorySection({
 
   if (entries.length === 0) {
     return (
-      <div className="text-center p-4 text-xs text-muted italic">
-        {t("sidebar.noQueryHistory")}
+      <div>
+        {recoveryBanner}
+        <div className="text-center p-4 text-xs text-muted italic">
+          {t("sidebar.noQueryHistory")}
+        </div>
       </div>
     );
   }
 
   return (
     <div>
+      {recoveryBanner}
       {/* Header with search and clear */}
       <div className="px-2 pb-1.5 flex items-center gap-1">
         <div className="relative flex-1">
@@ -125,7 +169,7 @@ export function QueryHistorySection({
               >
                 <div className="flex items-center justify-between gap-2 mb-0.5">
                   <div className="flex items-center gap-1 text-[10px] text-muted min-w-0">
-                    <span>{formatHistoryTime(entry.executedAt)}</span>
+                    <span>{formatHistoryTime(entry.executedAt, settings.displayTimezone)}</span>
                     {entry.executionTimeMs !== null && (
                       <span className="text-muted/60">{formatDuration(entry.executionTimeMs)}</span>
                     )}

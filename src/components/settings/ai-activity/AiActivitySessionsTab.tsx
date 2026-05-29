@@ -16,9 +16,12 @@ import {
   useAiSessions,
 } from "../../../hooks/useAiActivity";
 import { useAlert } from "../../../hooks/useAlert";
+import { useSettings } from "../../../hooks/useSettings";
 import {
   defaultExportFilename,
   formatDurationMs,
+  formatLocalTime,
+  formatLocalTimestamp,
   notebookFileFromExport,
   sessionMatchesSearch,
   sortAiSessions,
@@ -172,13 +175,14 @@ interface SessionCardProps {
 function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
   const { t } = useTranslation();
   const { showAlert } = useAlert();
+  const { settings } = useSettings();
 
   const handleExport = async () => {
     try {
       const exp = await exportSessionAsNotebook(session.sessionId);
       const file = notebookFileFromExport(exp);
       const target = await saveDialog({
-        defaultPath: defaultExportFilename(session.sessionId, exp),
+        defaultPath: defaultExportFilename(session.sessionId, exp, settings.displayTimezone),
         filters: [
           {
             name: "Tabularis Notebook",
@@ -233,7 +237,7 @@ function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
                 </span>
               )}
               <span>
-                {session.startedAt.replace("T", " ").slice(0, 19)}
+                {formatLocalTimestamp(session.startedAt, settings.displayTimezone)}
               </span>
             </div>
           </div>
@@ -256,6 +260,7 @@ function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
 
 function SessionEventList({ sessionId }: { sessionId: string }) {
   const { t } = useTranslation();
+  const { settings } = useSettings();
   const { events, loading } = useAiSessionEvents(sessionId);
   if (loading) {
     return (
@@ -277,7 +282,7 @@ function SessionEventList({ sessionId }: { sessionId: string }) {
           className="flex items-center gap-3 px-4 py-2 text-xs border-b border-default last:border-b-0"
         >
           <span className="text-muted font-mono whitespace-nowrap w-32">
-            {ev.timestamp.replace("T", " ").slice(11, 19)}
+            {formatLocalTime(ev.timestamp, settings.displayTimezone)}
           </span>
           <span className="text-primary font-mono w-32 shrink-0">{ev.tool}</span>
           <span className="text-secondary font-mono truncate flex-1">

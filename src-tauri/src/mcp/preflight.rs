@@ -10,7 +10,7 @@
 
 use serde_json::Value;
 
-use crate::drivers::{mysql, postgres, sqlite};
+use crate::drivers::registry as driver_registry;
 use crate::models::ConnectionParams;
 
 /// Result of a pre-flight EXPLAIN attempt.
@@ -26,17 +26,16 @@ pub async fn preflight_explain(
     query: &str,
     schema: Option<&str>,
 ) -> PreflightOutcome {
-    let plan_result = match driver {
-        "postgres" => postgres::explain_query(params, query, false, schema).await,
-        "mysql" => mysql::explain_query(params, query, false, schema).await,
-        "sqlite" => sqlite::explain_query(params, query).await,
-        other => {
+    let registered = match driver_registry::get_driver(driver).await {
+        Some(d) => d,
+        None => {
             return PreflightOutcome {
                 plan: None,
-                error: Some(format!("EXPLAIN not supported for driver: {}", other)),
+                error: Some(format!("EXPLAIN not supported for driver: {}", driver)),
             };
         }
     };
+    let plan_result = registered.explain_query(params, query, false, schema).await;
 
     match plan_result {
         Ok(plan) => match serde_json::to_value(&plan) {

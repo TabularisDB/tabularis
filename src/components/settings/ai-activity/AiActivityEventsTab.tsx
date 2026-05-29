@@ -22,6 +22,7 @@ import {
 } from "../../../hooks/useAiActivity";
 import {
   formatDurationMs,
+  formatLocalTimestamp,
   sortAiEvents,
   truncateQuery,
   type EventSortField,
@@ -29,6 +30,7 @@ import {
 } from "../../../utils/aiActivity";
 import type { AiActivityEvent, AiEventFilter } from "../../../types/ai";
 import { useAlert } from "../../../hooks/useAlert";
+import { useSettings } from "../../../hooks/useSettings";
 import { StatusBadge } from "./StatusBadge";
 import { QueryKindBadge } from "./QueryKindBadge";
 import { EventDetailModal } from "./EventDetailModal";
@@ -314,6 +316,7 @@ function EventsTable({
   onOpenInVisualExplain,
 }: EventsTableProps) {
   const { t } = useTranslation();
+  const { settings } = useSettings();
   const [sortField, setSortField] = useState<EventSortField>("timestamp");
   const [sortDir, setSortDir] = useState<SortDirection>("desc");
 
@@ -415,7 +418,7 @@ function EventsTable({
                 className="border-t border-default transition-colors hover:bg-surface-tertiary/25"
               >
                 <td className="whitespace-nowrap px-3 py-2.5 font-mono text-muted">
-                  {ev.timestamp.replace("T", " ").slice(0, 19)}
+                  {formatLocalTimestamp(ev.timestamp, settings.displayTimezone)}
                 </td>
                 <td className="truncate px-3 py-2.5 font-mono text-primary">
                   {ev.tool}

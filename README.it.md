@@ -91,6 +91,7 @@ La galleria completa è disponibile su [tabularis.dev](https://tabularis.dev).
 - Profili connessione salvati localmente.
 - Tunneling SSH e archiviazione password nel keychain di sistema.
 - Pagina connessioni con vista griglia/lista e ricerca in tempo reale.
+- Aspetto personalizzato per ogni connessione: icona (Lucide, emoji o immagine) e colore di accento.
 
 ### Esplora database
 
@@ -162,6 +163,7 @@ File principali:
 - `config.json`
 - `themes/`
 - `preferences/`
+- `connection-icons/` (immagini personalizzate per le icone di connessione)
 
 In `config.json`, il campo `language` supporta `auto`, `en`, `it`, `es`, `zh`, `fr`, `de`.
 

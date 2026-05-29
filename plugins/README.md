@@ -43,8 +43,8 @@ Built-in drivers (MySQL, PostgreSQL, SQLite) are compiled into the binary. All a
 | OS      | Path |
 |---------|------|
 | Linux   | `~/.local/share/tabularis/plugins/` |
-| macOS   | `~/Library/Application Support/com.debba.tabularis/plugins/` |
-| Windows | `%APPDATA%\com.debba.tabularis\plugins\` |
+| macOS   | `~/Library/Application Support/tabularis/plugins/` |
+| Windows | `%APPDATA%\tabularis\plugins\` |
 
 Each plugin lives in its own subdirectory:
 

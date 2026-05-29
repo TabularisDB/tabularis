@@ -100,6 +100,9 @@ fn test_is_explainable_query_dml() {
         "WITH cte AS (SELECT 1) SELECT * FROM cte"
     ));
     assert!(is_explainable_query("TABLE users"));
+    assert!(is_explainable_query(
+        "MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET v = s.v"
+    ));
 }
 
 #[test]

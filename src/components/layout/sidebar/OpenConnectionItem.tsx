@@ -6,7 +6,8 @@ import { getConnectionItemClass, getStatusDotClass } from "../../../utils/connec
 import { canActivateSplit } from "../../../utils/connectionLayout";
 import { ContextMenu } from "../../ui/ContextMenu";
 import type { PluginManifest } from "../../../types/plugins";
-import { getDriverIcon, getDriverColor } from "../../../utils/driverUI";
+import { getConnectionAccent, getConnectionIcon } from "../../../utils/driverUI";
+import { useDatabase } from "../../../hooks/useDatabase";
 
 interface Props {
   connection: ConnectionStatus;
@@ -52,8 +53,10 @@ export const OpenConnectionItem = ({
   dropIndicator = null,
 }: Props) => {
   const { t } = useTranslation();
+  const { connections } = useDatabase();
   const { isActive, isConnecting, name, database, sshEnabled, error } = connection;
-  const driverColor = getDriverColor(driverManifest);
+  const savedConnection = connections.find(c => c.id === connection.id);
+  const driverColor = getConnectionAccent(savedConnection, driverManifest);
   const hasError = !!error;
   const canSplit = canActivateSplit(selectedConnectionIds);
 
@@ -148,7 +151,7 @@ export const OpenConnectionItem = ({
               className="w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-md"
               style={{ backgroundColor: driverColor }}
             >
-              {getDriverIcon(driverManifest, 16)}
+              {getConnectionIcon(savedConnection, driverManifest, 16)}
             </div>
           )}
 

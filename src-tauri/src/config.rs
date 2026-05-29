@@ -62,6 +62,9 @@ pub struct AppConfig {
     pub query_history_max_entries: Option<u32>,
     /// Whether to show the welcome screen on startup. Default: true (first launch).
     pub show_welcome: Option<bool>,
+    /// IANA timezone name (e.g. `Asia/Tokyo`) used to render timestamps in the
+    /// UI and exports. `None` or `"auto"` follows the OS local timezone.
+    pub display_timezone: Option<String>,
 
     // ----- AI Audit Log -----
     /// Record every MCP tool call to the audit log. Default: true.
@@ -303,6 +306,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.show_welcome.is_some() {
             existing_config.show_welcome = config.show_welcome;
+        }
+        if config.display_timezone.is_some() {
+            existing_config.display_timezone = config.display_timezone;
         }
         if config.ai_audit_enabled.is_some() {
             existing_config.ai_audit_enabled = config.ai_audit_enabled;
@@ -854,6 +860,17 @@ mod tests {
         assert_eq!(config.mcp_approval_mode.as_deref(), Some("writes_only"));
         assert_eq!(config.mcp_approval_timeout_seconds, Some(90));
         assert_eq!(config.mcp_preflight_explain, Some(true));
+    }
+
+    #[test]
+    fn display_timezone_serializes_with_camel_case_and_round_trips() {
+        let mut config = AppConfig::default();
+        assert!(config.display_timezone.is_none());
+        config.display_timezone = Some("Asia/Tokyo".into());
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("displayTimezone"));
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.display_timezone.as_deref(), Some("Asia/Tokyo"));
     }
 
     #[test]

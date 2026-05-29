@@ -1,11 +1,16 @@
 import { createContext } from "react";
-import type { QueryHistoryEntry } from "../types/queryHistory";
+import type {
+  QueryHistoryEntry,
+  QueryHistoryRecoveryNotice,
+} from "../types/queryHistory";
 
 export type { QueryHistoryEntry };
 
 export interface QueryHistoryContextType {
   entries: QueryHistoryEntry[];
   isLoading: boolean;
+  recoveryNotice: QueryHistoryRecoveryNotice | null;
+  dismissRecoveryNotice: () => void;
   addEntry: (
     sql: string,
     executionTimeMs: number | null,

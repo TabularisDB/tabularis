@@ -111,6 +111,10 @@
     "schemas": "Schemi",
     "noSchemas": "Nessuno schema trovato",
     "loadingSchemas": "Caricamento schemi...",
+    "schemaLoadError": "Caricamento degli schemi fallito",
+    "errorDetails": "Dettagli",
+    "copyError": "Copia messaggio d’errore",
+    "retry": "Riprova",
     "expandExplorer": "Espandi Explorer",
     "selectSchemas": "Seleziona Schemi",
     "selectSchemasHint": "Seleziona gli schemi da caricare:",
@@ -139,6 +143,9 @@
     "noHistorySearchResults": "Nessuna query corrisponde alla ricerca",
     "searchHistory": "Cerca nella cronologia...",
     "clearAllHistory": "Cancella Tutta la Cronologia",
+    "historyRecoveredTitle": "Cronologia query azzerata",
+    "historyRecoveredBody": "Il file di cronologia era corrotto ed è stato spostato in backup. Le nuove query verranno registrate normalmente. File di backup:",
+    "historyRecoveredDismiss": "Chiudi",
     "confirmDeleteHistoryEntry": "Sei sicuro di voler eliminare questa query dalla cronologia?",
     "confirmClearHistory": "Sei sicuro di voler cancellare tutta la cronologia delle query per questa connessione?",
     "confirmClearHistoryTitle": "Cancella Cronologia Query",
@@ -226,6 +233,32 @@
     "import": "Importa connessioni",
     "exportTitle": "Esporta connessioni",
     "exportWarning": "Il file esportato conterrà le password del database e SSH in chiaro. Conservalo in modo sicuro."
+  },
+  "connectionAppearance": {
+    "section": "Aspetto",
+    "accentColor": "Colore di accento",
+    "customColor": "Personalizzato",
+    "resetColor": "Ripristina predefinito",
+    "resetIcon": "Ripristina predefinito",
+    "icon": "Icona",
+    "tabs": {
+      "default": "Predefinito",
+      "pack": "Icona",
+      "emoji": "Emoji",
+      "image": "Immagine"
+    },
+    "previewLabel": "Anteprima",
+    "defaultHint": "In uso l'icona predefinita del driver.",
+    "emojiSelected": "Emoji selezionato",
+    "emojiHint": "Clicca un altro emoji qui sotto per cambiarlo.",
+    "removeEmoji": "Rimuovi",
+    "chooseImage": "Scegli immagine…",
+    "removeImage": "Rimuovi",
+    "imageHint": "PNG, JPG, WebP o SVG · max 512 KB",
+    "errors": {
+      "invalidEmoji": "Inserisci esattamente un emoji",
+      "invalidHex": "Inserisci un colore hex valido come #1a2b3c"
+    }
   },
   "settings": {
     "title": "Impostazioni",
@@ -590,6 +623,7 @@
     "loadDatabases": "Carica Database",
     "loadingDatabases": "Caricamento...",
     "selectDatabases": "Seleziona Database",
+    "appearance": "Aspetto",
     "noDatabasesSelected": "Seleziona almeno un database",
     "selectedDatabases": "{{count}} database selezionato/i",
     "selectDatabase": "Seleziona un database",
@@ -703,6 +737,7 @@
     "setNull": "Imposta NULL",
     "setDefault": "Imposta DEFAULT",
     "setEmpty": "Imposta VUOTO",
+    "previewReferenced": "Anteprima record correlato",
     "openReferenced": "Apri la riga referenziata in {{table}}"
   },
   "editRow": {

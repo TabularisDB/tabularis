@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -16,8 +17,26 @@ use crate::models::{
 };
 use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse};
 
+/// Maximum time to wait for a plugin to answer a single JSON-RPC call before
+/// giving up. Generous enough for slow query execution, bounded so a wedged
+/// plugin cannot block the (single-threaded) MCP request loop forever.
+const PLUGIN_CALL_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// Shorter ceiling for the startup `initialize` handshake so one unresponsive
+/// plugin cannot stall MCP server startup indefinitely.
+const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// Message sent to the management task that owns the plugin child process.
+enum PluginCommand {
+    /// Dispatch a JSON-RPC request and route the response back via the sender.
+    Call(JsonRpcRequest, oneshot::Sender<Result<Value, String>>),
+    /// Drop the pending entry for `id` because the caller stopped waiting
+    /// (timed out). Prevents an unbounded leak of orphaned response senders.
+    Cancel(u64),
+}
+
 pub struct PluginProcess {
-    sender: mpsc::Sender<(JsonRpcRequest, oneshot::Sender<Result<Value, String>>)>,
+    sender: mpsc::Sender<PluginCommand>,
     next_id: AtomicU64,
     shutdown_tx: tokio::sync::Mutex<Option<oneshot::Sender<()>>>,
     pub pid: Option<u32>,
@@ -25,8 +44,7 @@ pub struct PluginProcess {
 
 impl PluginProcess {
     async fn new(executable_path: PathBuf, interpreter: Option<String>) -> Result<Self, String> {
-        let (tx, rx) =
-            mpsc::channel::<(JsonRpcRequest, oneshot::Sender<Result<Value, String>>)>(100);
+        let (tx, rx) = mpsc::channel::<PluginCommand>(100);
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
         // Spawn the child process directly in the async context so that any
@@ -42,6 +60,12 @@ impl PluginProcess {
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::inherit())
+            // Kill the child if its owning task is dropped without a clean
+            // shutdown — e.g. when the `--mcp` subprocess exits on stdin EOF
+            // and the Tokio runtime is torn down. Without this, the management
+            // task is cancelled before its `select!` can call `child.kill()`,
+            // leaving orphaned plugin processes running.
+            .kill_on_drop(true)
             .spawn()
             .map_err(|e| {
                 format!(
@@ -75,7 +99,7 @@ impl PluginProcess {
                     }
                     msg = rx.recv() => {
                         match msg {
-                            Some((req, resp_tx)) => {
+                            Some(PluginCommand::Call(req, resp_tx)) => {
                                 let id = req.id;
                                 pending_requests.insert(id, resp_tx);
 
@@ -88,6 +112,11 @@ impl PluginProcess {
                                         let _ = tx.send(Err(format!("Plugin communication error: {}", e)));
                                     }
                                 }
+                            }
+                            Some(PluginCommand::Cancel(id)) => {
+                                // Caller timed out; drop the orphaned sender so
+                                // pending_requests does not grow without bound.
+                                pending_requests.remove(&id);
                             }
                             None => {
                                 // Channel closed without explicit shutdown — kill the process anyway.
@@ -147,6 +176,20 @@ impl PluginProcess {
     }
 
     async fn call(&self, method: &str, params: Value) -> Result<Value, String> {
+        self.call_with_timeout(method, params, PLUGIN_CALL_TIMEOUT)
+            .await
+    }
+
+    /// Sends a JSON-RPC request to the plugin and waits at most `timeout` for a
+    /// response. A hung or unresponsive plugin therefore fails this single call
+    /// instead of blocking the caller — and, in the single-threaded MCP request
+    /// loop, every subsequent request — forever.
+    async fn call_with_timeout(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> Result<Value, String> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let req = JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
@@ -157,12 +200,24 @@ impl PluginProcess {
 
         let (tx, rx) = oneshot::channel();
         self.sender
-            .send((req, tx))
+            .send(PluginCommand::Call(req, tx))
             .await
             .map_err(|_| "Plugin process channel closed".to_string())?;
 
-        rx.await
-            .map_err(|_| "Plugin process did not respond".to_string())?
+        match tokio::time::timeout(timeout, rx).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err("Plugin process did not respond".to_string()),
+            Err(_) => {
+                // Tell the management task to drop the now-orphaned pending
+                // entry so it does not leak one slot per timeout.
+                let _ = self.sender.send(PluginCommand::Cancel(id)).await;
+                Err(format!(
+                    "Plugin call '{}' timed out after {}s",
+                    method,
+                    timeout.as_secs()
+                ))
+            }
+        }
     }
 }
 
@@ -181,9 +236,16 @@ impl RpcDriver {
         settings: HashMap<String, serde_json::Value>,
     ) -> Result<Self, String> {
         let process = Arc::new(PluginProcess::new(executable_path, interpreter).await?);
-        // Send initialize RPC with settings; silently ignore any error or non-response.
+        // Send initialize RPC with settings; silently ignore any error or
+        // non-response. The short timeout keeps one unresponsive plugin from
+        // stalling startup (notably the standalone `--mcp` subprocess, which
+        // registers every plugin before serving any request).
         let _ = process
-            .call("initialize", json!({ "settings": settings }))
+            .call_with_timeout(
+                "initialize",
+                json!({ "settings": settings }),
+                PLUGIN_INIT_TIMEOUT,
+            )
             .await;
         Ok(Self {
             manifest,

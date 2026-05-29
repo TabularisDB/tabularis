@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   buildVisualExplainDeepLink,
   defaultExportFilename,
   eventsToCsvLines,
   formatDurationMs,
+  formatLocalTime,
+  formatLocalTimestamp,
   getQueryKindBadgeStyle,
   getStatusBadgeStyle,
   groupBySession,
@@ -108,6 +110,99 @@ describe("formatDurationMs", () => {
   });
 });
 
+// Pin the timezone to Asia/Tokyo (UTC+9) so we can assert exact local-time
+// strings instead of mirroring the implementation. Node honours runtime
+// changes to process.env.TZ for subsequently constructed Date objects.
+describe("local timezone formatting (pinned to Asia/Tokyo, UTC+9)", () => {
+  const originalTz = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Asia/Tokyo";
+  });
+  afterAll(() => {
+    if (originalTz === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = originalTz;
+    }
+  });
+
+  describe("formatLocalTimestamp", () => {
+    it("converts a UTC timestamp to local time (10:00Z + 9h = 19:00)", () => {
+      expect(formatLocalTimestamp("2026-04-24T10:00:00Z")).toBe(
+        "2026-04-24 19:00:00",
+      );
+    });
+
+    it("rolls over to the next local day when crossing midnight", () => {
+      // 22:00Z is 07:00 next-day in JST — guards against getUTCDate misuse.
+      expect(formatLocalTimestamp("2026-04-24T22:00:00Z")).toBe(
+        "2026-04-25 07:00:00",
+      );
+    });
+
+    it("handles the backend's real +00:00 offset form with fractional seconds", () => {
+      expect(formatLocalTimestamp("2026-04-24T10:00:00.123456789+00:00")).toBe(
+        "2026-04-24 19:00:00",
+      );
+    });
+
+    it("returns the input string when given an invalid timestamp", () => {
+      expect(formatLocalTimestamp("not-a-date")).toBe("not-a-date");
+    });
+  });
+
+  describe("formatLocalTime", () => {
+    it("renders only HH:MM:SS in local time (10:00Z = 19:00 JST)", () => {
+      expect(formatLocalTime("2026-04-24T10:00:00Z")).toBe("19:00:00");
+    });
+
+    it("returns the input string when given an invalid timestamp", () => {
+      expect(formatLocalTime("nope")).toBe("nope");
+    });
+  });
+});
+
+// These exercise the explicit `timeZone` argument and are fully deterministic
+// regardless of the machine timezone (no env pinning needed).
+describe("display timezone argument", () => {
+  it("formatLocalTimestamp renders in the given IANA zone", () => {
+    expect(formatLocalTimestamp("2026-04-24T10:00:00Z", "Asia/Tokyo")).toBe(
+      "2026-04-24 19:00:00",
+    );
+    expect(formatLocalTimestamp("2026-04-24T10:00:00Z", "America/New_York")).toBe(
+      "2026-04-24 06:00:00",
+    );
+  });
+
+  it("formatLocalTimestamp rolls the date across midnight in the given zone", () => {
+    // 22:00Z is next-day 07:00 in Tokyo, but still 18:00 same-day in New York.
+    expect(formatLocalTimestamp("2026-04-24T22:00:00Z", "Asia/Tokyo")).toBe(
+      "2026-04-25 07:00:00",
+    );
+    expect(formatLocalTimestamp("2026-04-24T22:00:00Z", "America/New_York")).toBe(
+      "2026-04-24 18:00:00",
+    );
+  });
+
+  it("formatLocalTime renders HH:MM:SS in the given zone", () => {
+    expect(formatLocalTime("2026-04-24T10:00:00Z", "Asia/Tokyo")).toBe("19:00:00");
+    expect(formatLocalTime("2026-04-24T10:00:00Z", "America/New_York")).toBe(
+      "06:00:00",
+    );
+  });
+
+  it("treats 'auto' and undefined identically (OS local timezone)", () => {
+    const iso = "2026-04-24T10:00:00Z";
+    expect(formatLocalTimestamp(iso, "auto")).toBe(formatLocalTimestamp(iso));
+    expect(formatLocalTime(iso, "auto")).toBe(formatLocalTime(iso));
+  });
+
+  it("falls back to OS local timezone for an unrecognised zone name", () => {
+    const iso = "2026-04-24T10:00:00Z";
+    expect(formatLocalTimestamp(iso, "Not/AZone")).toBe(formatLocalTimestamp(iso));
+  });
+});
+
 describe("eventsToCsvLines", () => {
   it("returns header and one row per event", () => {
     const lines = eventsToCsvLines([baseEvent({ id: "a" }), baseEvent({ id: "b" })]);
@@ -165,7 +260,22 @@ describe("notebookFileFromExport", () => {
   });
 });
 
-describe("defaultExportFilename", () => {
+// Pinned to Asia/Tokyo (UTC+9): defaultExportFilename now derives the date from
+// the local calendar day, so the assertions are timezone-dependent and must run
+// against a fixed zone.
+describe("defaultExportFilename (pinned to Asia/Tokyo, UTC+9)", () => {
+  const originalTz = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Asia/Tokyo";
+  });
+  afterAll(() => {
+    if (originalTz === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = originalTz;
+    }
+  });
+
   it("composes date + slug", () => {
     const exp: AiNotebookExport = {
       version: 1,
@@ -174,6 +284,36 @@ describe("defaultExportFilename", () => {
       cells: [],
     };
     expect(defaultExportFilename("abcdef1234567890", exp)).toBe(
+      "ai-session-2026-04-24-abcdef12.tabularis-notebook",
+    );
+  });
+
+  it("uses the local calendar date, rolling over past UTC midnight", () => {
+    const exp: AiNotebookExport = {
+      version: 1,
+      title: "t",
+      // 22:00Z is the next day (07:00) in JST.
+      createdAt: "2026-04-24T22:00:00Z",
+      cells: [],
+    };
+    expect(defaultExportFilename("abcdef1234567890", exp)).toBe(
+      "ai-session-2026-04-25-abcdef12.tabularis-notebook",
+    );
+  });
+
+  it("derives the date from the explicit display timezone when given one", () => {
+    const exp: AiNotebookExport = {
+      version: 1,
+      title: "t",
+      createdAt: "2026-04-24T22:00:00Z",
+      cells: [],
+    };
+    // Tokyo rolls to the 25th; New York (UTC-4) stays on the 24th — deterministic
+    // regardless of the machine timezone.
+    expect(defaultExportFilename("abcdef1234567890", exp, "Asia/Tokyo")).toBe(
+      "ai-session-2026-04-25-abcdef12.tabularis-notebook",
+    );
+    expect(defaultExportFilename("abcdef1234567890", exp, "America/New_York")).toBe(
       "ai-session-2026-04-24-abcdef12.tabularis-notebook",
     );
   });

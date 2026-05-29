@@ -124,6 +124,10 @@
     "schemas": "Схемы",
     "noSchemas": "Схемы не найдены",
     "loadingSchemas": "Загрузка схем...",
+    "schemaLoadError": "Не удалось загрузить схемы",
+    "errorDetails": "Подробности",
+    "copyError": "Скопировать сообщение об ошибке",
+    "retry": "Повторить",
     "expandExplorer": "Развернуть проводник",
     "selectSchemas": "Выбрать схемы",
     "selectSchemasHint": "Выберите схемы для загрузки:",
@@ -152,6 +156,9 @@
     "noHistorySearchResults": "Запросы не найдены",
     "searchHistory": "Поиск в истории...",
     "clearAllHistory": "Очистить всю историю",
+    "historyRecoveredTitle": "История запросов сброшена",
+    "historyRecoveredBody": "Файл истории был повреждён и перенесён в резервную копию. Новые запросы будут записываться как обычно. Резервный файл:",
+    "historyRecoveredDismiss": "Закрыть",
     "confirmDeleteHistoryEntry": "Удалить этот запрос из истории?",
     "confirmClearHistory": "Очистить всю историю запросов для этого подключения?",
     "confirmClearHistoryTitle": "Очистить историю запросов",
@@ -663,7 +670,8 @@
     "selectK8sConnection": "Выберите подключение K8s",
     "selectTypeFirst": "Сначала выберите контекст/пространство имён/тип",
     "useK8s": "Использовать проброс портов Kubernetes",
-    "useK8sConnection": "Сохранённое подключение"
+    "useK8sConnection": "Сохранённое подключение",
+    "appearance": "Внешний вид"
   },
   "sshConnections": {
     "title": "SSH-подключения",

@@ -111,6 +111,10 @@
     "schemas": "Schemata",
     "noSchemas": "Keine Schemata gefunden",
     "loadingSchemas": "Schemata werden geladen...",
+    "schemaLoadError": "Schemata konnten nicht geladen werden",
+    "errorDetails": "Details",
+    "copyError": "Fehlermeldung kopieren",
+    "retry": "Erneut versuchen",
     "expandExplorer": "Explorer ausklappen",
     "selectSchemas": "Schemata auswählen",
     "selectSchemasHint": "Wähle die zu ladenden Schemata aus:",
@@ -139,6 +143,9 @@
     "noHistorySearchResults": "Keine Abfragen entsprechen deiner Suche",
     "searchHistory": "Verlauf durchsuchen...",
     "clearAllHistory": "Gesamten Verlauf löschen",
+    "historyRecoveredTitle": "Abfrageverlauf zurückgesetzt",
+    "historyRecoveredBody": "Die Verlaufsdatei war beschädigt und wurde beiseitegelegt. Neue Abfragen werden wie gewohnt aufgezeichnet. Sicherungsdatei:",
+    "historyRecoveredDismiss": "Schließen",
     "confirmDeleteHistoryEntry": "Möchtest du diese Abfrage wirklich aus dem Verlauf löschen?",
     "confirmClearHistory": "Möchtest du den gesamten Abfrageverlauf für diese Verbindung wirklich löschen?",
     "confirmClearHistoryTitle": "Abfrageverlauf löschen",
@@ -226,6 +233,27 @@
     "import": "Verbindungen importieren",
     "exportTitle": "Verbindungen exportieren",
     "exportWarning": "Die exportierte Datei enthält deine Datenbank- und SSH-Passwörter im Klartext. Bewahre sie sicher auf."
+  },
+  "connectionAppearance": {
+    "section": "Darstellung",
+    "accentColor": "Akzentfarbe",
+    "customColor": "Benutzerdefiniert",
+    "resetColor": "Auf Treiber-Standard zurücksetzen",
+    "resetIcon": "Auf Treiber-Standard zurücksetzen",
+    "icon": "Symbol",
+    "tabs": {
+      "default": "Standard",
+      "pack": "Symbol",
+      "emoji": "Emoji",
+      "image": "Bild"
+    },
+    "chooseImage": "Bild auswählen…",
+    "removeImage": "Entfernen",
+    "imageHint": "PNG, JPG, WebP oder SVG · max. 512 KB",
+    "errors": {
+      "invalidEmoji": "Bitte genau ein Emoji eingeben",
+      "invalidHex": "Bitte einen gültigen Hex-Wert wie #1a2b3c eingeben"
+    }
   },
   "settings": {
     "title": "Einstellungen",
@@ -590,6 +618,7 @@
     "loadDatabases": "Datenbanken laden",
     "loadingDatabases": "Wird geladen...",
     "selectDatabases": "Datenbanken auswählen",
+    "appearance": "Erscheinungsbild",
     "noDatabasesSelected": "Wähle mindestens eine Datenbank aus",
     "selectedDatabases": "{{count}} Datenbank(en) ausgewählt",
     "selectDatabase": "Datenbank auswählen",
@@ -705,6 +734,7 @@
     "setDefault": "DEFAULT setzen",
     "setEmpty": "EMPTY setzen",
     "setServerNow": "Aktuellen Zeitstempel einfügen",
+    "previewReferenced": "Verknüpften Datensatz anzeigen",
     "openReferenced": "Referenzierte Zeile in {{table}} öffnen"
   },
   "editRow": {

@@ -5,6 +5,13 @@
 use crate::ai_activity::{self, AiActivityEvent, EventFilter, SessionSummary};
 use crate::ai_approval::{self, ApprovalDecision, PendingApproval};
 use crate::ai_notebook_export::{self, NotebookExport};
+use crate::config;
+
+/// The user's configured display timezone (IANA name), or `None` to fall back
+/// to the OS local timezone. Read from `config.json` so exports match the UI.
+fn display_timezone() -> Option<String> {
+    config::load_config_from_disk().display_timezone
+}
 
 #[tauri::command]
 pub async fn get_ai_activity(
@@ -43,8 +50,10 @@ pub async fn export_ai_activity_json() -> Result<String, String> {
         tokio::task::spawn_blocking(|| ai_activity::read_events(&EventFilter::default()))
             .await
             .map_err(|e| e.to_string())??;
+    let tz = display_timezone();
     let mut out = String::new();
-    for ev in events {
+    for mut ev in events {
+        ev.timestamp = ai_activity::to_local_rfc3339(&ev.timestamp, tz.as_deref());
         let line = serde_json::to_string(&ev).map_err(|e| e.to_string())?;
         out.push_str(&line);
         out.push('\n');
@@ -76,11 +85,13 @@ pub async fn export_ai_activity_csv() -> Result<String, String> {
         "approval_id",
     ])
     .map_err(|e| e.to_string())?;
+    let tz = display_timezone();
     for ev in events {
+        let timestamp = ai_activity::to_local_rfc3339(&ev.timestamp, tz.as_deref());
         wtr.write_record([
             ev.id,
             ev.session_id,
-            ev.timestamp,
+            timestamp,
             ev.tool,
             ev.connection_id.unwrap_or_default(),
             ev.connection_name.unwrap_or_default(),
@@ -101,9 +112,12 @@ pub async fn export_ai_activity_csv() -> Result<String, String> {
 
 #[tauri::command]
 pub async fn export_ai_session_as_notebook(session_id: String) -> Result<NotebookExport, String> {
-    tokio::task::spawn_blocking(move || ai_notebook_export::export_session(&session_id))
-        .await
-        .map_err(|e| e.to_string())?
+    let tz = display_timezone();
+    tokio::task::spawn_blocking(move || {
+        ai_notebook_export::export_session(&session_id, tz.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

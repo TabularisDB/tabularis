@@ -11,6 +11,7 @@ on:
 
 jobs:
   snap-publish:
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6

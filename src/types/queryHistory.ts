@@ -8,3 +8,13 @@ export interface QueryHistoryEntry {
   error: string | null;
   database: string | null;
 }
+
+export interface QueryHistoryResponse {
+  entries: QueryHistoryEntry[];
+  recoveredBackupPath: string | null;
+}
+
+export interface QueryHistoryRecoveryNotice {
+  connectionId: string;
+  backupPath: string;
+}

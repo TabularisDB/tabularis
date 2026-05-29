@@ -20,6 +20,8 @@ export interface PluginConfig {
 export interface Settings {
   resultPageSize: number; // Changed from queryLimit to match backend config
   language: AppLanguage;
+  /** IANA timezone name (e.g. "Asia/Tokyo") for rendering timestamps, or "auto" to follow the OS timezone. */
+  displayTimezone?: string;
   fontFamily: string;
   fontSize: number;
   aiEnabled: boolean;
@@ -75,6 +77,7 @@ export const SettingsContext = createContext<SettingsContextType | undefined>(
 export const DEFAULT_SETTINGS: Settings = {
   resultPageSize: 500,
   language: "auto",
+  displayTimezone: "auto",
   fontFamily: "System",
   fontSize: 14,
   aiEnabled: false,
