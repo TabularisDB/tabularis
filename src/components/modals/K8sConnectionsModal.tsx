@@ -169,7 +169,9 @@ export function K8sConnectionsModal({
 
     const validation = validateK8sConnection(input);
     if (!validation.isValid) {
-      setValidationError(validation.error ?? "Validation failed");
+      setValidationError(
+        validation.error ?? t("k8sConnections.validationFailed"),
+      );
       return;
     }
 
@@ -399,66 +401,74 @@ function EditForm({
   onSave,
   onCancel,
 }: EditFormProps) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-3">
       <div>
-        <label className={LabelClass}>Name</label>
+        <label className={LabelClass}>{t("k8sConnections.name")}</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           className={InputClass}
-          placeholder="My K8s cluster"
+          placeholder={t("k8sConnections.namePlaceholder")}
         />
       </div>
 
       <div>
-        <label className={LabelClass}>Context</label>
+        <label className={LabelClass}>{t("k8sConnections.context")}</label>
         <Select
           value={context || null}
           options={contexts}
           onChange={(val) => setContext(val)}
-          placeholder="Choose a context..."
+          placeholder={t("k8sConnections.chooseContext")}
           searchable={false}
         />
       </div>
 
       <div>
-        <label className={LabelClass}>Namespace</label>
+        <label className={LabelClass}>{t("k8sConnections.namespace")}</label>
         <Select
           value={namespace || null}
           options={namespaces}
           onChange={(val) => setNamespace(val)}
-          placeholder="Choose a namespace..."
+          placeholder={t("k8sConnections.chooseNamespace")}
           searchable={false}
         />
       </div>
 
       <div className="flex gap-3">
         <div className="flex-1">
-          <label className={LabelClass}>Resource Type</label>
+          <label className={LabelClass}>
+            {t("k8sConnections.resourceType")}
+          </label>
           <Select
             value={resourceType}
             options={["service", "pod"]}
-            labels={{ service: "Service", pod: "Pod" }}
+            labels={{
+              service: t("k8sConnections.resourceTypeService"),
+              pod: t("k8sConnections.resourceTypePod"),
+            }}
             onChange={(val) => setResourceType(val)}
             searchable={false}
           />
         </div>
 
         <div className="flex-1">
-          <label className={LabelClass}>Resource Name</label>
+          <label className={LabelClass}>
+            {t("k8sConnections.resourceName")}
+          </label>
           <Select
             value={resourceName || null}
             options={resources}
             onChange={(val) => setResourceName(val)}
-            placeholder="Choose a resource..."
+            placeholder={t("k8sConnections.chooseResource")}
             searchable={false}
           />
         </div>
       </div>
 
       <div>
-        <label className={LabelClass}>Container Port</label>
+        <label className={LabelClass}>{t("k8sConnections.port")}</label>
         <input
           type="number"
           value={port}
@@ -481,7 +491,7 @@ function EditForm({
           {testStatus === "testing" && (
             <span className="flex items-center gap-1.5">
               <Loader2 size={12} className="animate-spin" />
-              Testing...
+              {t("k8sConnections.testing")}
             </span>
           )}
           {testStatus === "success" && (
@@ -516,20 +526,20 @@ function EditForm({
           ) : (
             <Zap size={12} />
           )}
-          Test
+          {t("k8sConnections.test")}
         </button>
         <button
           onClick={onSave}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors"
         >
           <Check size={12} />
-          Save
+          {t("common.save")}
         </button>
         <button
           onClick={onCancel}
           className="px-3 py-1.5 text-xs font-medium text-muted hover:text-secondary rounded-md transition-colors"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
     </div>

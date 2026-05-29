@@ -627,7 +627,29 @@
       "require": "Exiger",
       "verify-ca": "Vérifier CA",
       "verify-full": "Vérification complète"
-    }
+    },
+    "chooseContext": "Choisir un contexte...",
+    "chooseK8s": "Choisir une connexion...",
+    "chooseNamespace": "Choisir un namespace...",
+    "chooseResource": "Choisir une ressource...",
+    "createInlineK8s": "En ligne",
+    "k8sContext": "Contexte",
+    "k8sNamespace": "Namespace",
+    "k8sNotAvailable": "Kubernetes n'est pas disponible pour ce pilote.",
+    "k8sPort": "Port du conteneur",
+    "k8sResourceName": "Nom de la ressource",
+    "k8sResourceType": "Type de ressource",
+    "k8sResourceTypePod": "Pod",
+    "k8sResourceTypeService": "Service",
+    "k8sSelectType": "Sélectionner le type...",
+    "manageK8s": "Gérer",
+    "noK8sConnections": "Aucune connexion enregistrée — créez-en une ci-dessous",
+    "noK8sContexts": "Aucun contexte trouvé (kubectl est-il installé ?)",
+    "selectContextFirst": "Sélectionnez d'abord un contexte",
+    "selectK8sConnection": "Sélectionner une connexion K8s",
+    "selectTypeFirst": "Sélectionnez d'abord contexte/namespace/type",
+    "useK8s": "Utiliser le Port-Forward Kubernetes",
+    "useK8sConnection": "Connexion enregistrée"
   },
   "sshConnections": {
     "title": "Connexions SSH",
@@ -1410,5 +1432,25 @@
     "body": "Nous venons d’ouvrir une communauté dédiée à Tabularis : entraide, astuces et influence sur la roadmap.",
     "cta": "Rejoindre maintenant",
     "dismiss": "Fermer"
+  },
+  "k8sConnections": {
+    "title": "Connexions Kubernetes",
+    "add": "Ajouter",
+    "empty": "Aucune connexion Kubernetes enregistrée. Cliquez sur « Ajouter » pour en créer une.",
+    "name": "Nom",
+    "namePlaceholder": "Mon cluster K8s",
+    "context": "Contexte",
+    "chooseContext": "Choisir un contexte...",
+    "namespace": "Namespace",
+    "chooseNamespace": "Choisir un namespace...",
+    "resourceType": "Type de ressource",
+    "resourceTypeService": "Service",
+    "resourceTypePod": "Pod",
+    "resourceName": "Nom de la ressource",
+    "chooseResource": "Choisir une ressource...",
+    "port": "Port du conteneur",
+    "test": "Tester",
+    "testing": "Test en cours...",
+    "validationFailed": "Échec de la validation"
   }
 }

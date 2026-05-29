@@ -638,7 +638,29 @@
       "require": "必須",
       "verify-ca": "CAを検証",
       "verify-full": "完全検証"
-    }
+    },
+    "chooseContext": "コンテキストを選択...",
+    "chooseK8s": "接続を選択...",
+    "chooseNamespace": "ネームスペースを選択...",
+    "chooseResource": "リソースを選択...",
+    "createInlineK8s": "インライン",
+    "k8sContext": "コンテキスト",
+    "k8sNamespace": "ネームスペース",
+    "k8sNotAvailable": "このドライバーでは Kubernetes を使用できません。",
+    "k8sPort": "コンテナポート",
+    "k8sResourceName": "リソース名",
+    "k8sResourceType": "リソースタイプ",
+    "k8sResourceTypePod": "Pod",
+    "k8sResourceTypeService": "Service",
+    "k8sSelectType": "タイプを選択...",
+    "manageK8s": "管理",
+    "noK8sConnections": "保存された接続がありません — 下で作成してください",
+    "noK8sContexts": "コンテキストが見つかりません（kubectl はインストールされていますか？）",
+    "selectContextFirst": "先にコンテキストを選択してください",
+    "selectK8sConnection": "K8s 接続を選択",
+    "selectTypeFirst": "先にコンテキスト/ネームスペース/タイプを選択してください",
+    "useK8s": "Kubernetes ポートフォワードを使用",
+    "useK8sConnection": "保存された接続"
   },
   "sshConnections": {
     "title": "SSH 接続",
@@ -1425,5 +1447,25 @@
     "body": "Tabularis ユーザー専用のコミュニティを立ち上げました。質問・情報交換・ロードマップへのフィードバックをお寄せください。",
     "cta": "今すぐ参加",
     "dismiss": "閉じる"
+  },
+  "k8sConnections": {
+    "title": "Kubernetes 接続",
+    "add": "追加",
+    "empty": "保存された Kubernetes 接続がありません。「追加」をクリックして作成してください。",
+    "name": "名前",
+    "namePlaceholder": "マイ K8s クラスター",
+    "context": "コンテキスト",
+    "chooseContext": "コンテキストを選択...",
+    "namespace": "ネームスペース",
+    "chooseNamespace": "ネームスペースを選択...",
+    "resourceType": "リソースタイプ",
+    "resourceTypeService": "Service",
+    "resourceTypePod": "Pod",
+    "resourceName": "リソース名",
+    "chooseResource": "リソースを選択...",
+    "port": "コンテナポート",
+    "test": "テスト",
+    "testing": "テスト中...",
+    "validationFailed": "検証に失敗しました"
   }
 }

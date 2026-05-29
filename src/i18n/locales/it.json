@@ -627,7 +627,29 @@
       "require": "Richiesto",
       "verify-ca": "Verifica CA",
       "verify-full": "Verifica completa"
-    }
+    },
+    "chooseContext": "Scegli un contesto...",
+    "chooseK8s": "Scegli una connessione...",
+    "chooseNamespace": "Scegli un namespace...",
+    "chooseResource": "Scegli una risorsa...",
+    "createInlineK8s": "Inline",
+    "k8sContext": "Contesto",
+    "k8sNamespace": "Namespace",
+    "k8sNotAvailable": "Kubernetes non è disponibile per questo driver.",
+    "k8sPort": "Porta container",
+    "k8sResourceName": "Nome risorsa",
+    "k8sResourceType": "Tipo di risorsa",
+    "k8sResourceTypePod": "Pod",
+    "k8sResourceTypeService": "Service",
+    "k8sSelectType": "Seleziona tipo...",
+    "manageK8s": "Gestisci",
+    "noK8sConnections": "Nessuna connessione salvata — creane una qui sotto",
+    "noK8sContexts": "Nessun contesto trovato (kubectl è installato?)",
+    "selectContextFirst": "Seleziona prima un contesto",
+    "selectK8sConnection": "Seleziona connessione K8s",
+    "selectTypeFirst": "Seleziona prima contesto/namespace/tipo",
+    "useK8s": "Usa Port-Forward Kubernetes",
+    "useK8sConnection": "Connessione salvata"
   },
   "sshConnections": {
     "title": "Connessioni SSH",
@@ -1388,5 +1410,25 @@
     "body": "Abbiamo una community Discord dedicata a Tabularis: ricevi aiuto, scambia consigli e influenza la roadmap.",
     "cta": "Entra subito",
     "dismiss": "Chiudi"
+  },
+  "k8sConnections": {
+    "title": "Connessioni Kubernetes",
+    "add": "Aggiungi",
+    "empty": "Nessuna connessione Kubernetes salvata. Clicca \"Aggiungi\" per crearne una.",
+    "name": "Nome",
+    "namePlaceholder": "Il mio cluster K8s",
+    "context": "Contesto",
+    "chooseContext": "Scegli un contesto...",
+    "namespace": "Namespace",
+    "chooseNamespace": "Scegli un namespace...",
+    "resourceType": "Tipo di risorsa",
+    "resourceTypeService": "Service",
+    "resourceTypePod": "Pod",
+    "resourceName": "Nome risorsa",
+    "chooseResource": "Scegli una risorsa...",
+    "port": "Porta container",
+    "test": "Test",
+    "testing": "Test in corso...",
+    "validationFailed": "Validazione fallita"
   }
 }

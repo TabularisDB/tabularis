@@ -640,7 +640,29 @@
       "require": "Require",
       "verify-ca": "Verify CA",
       "verify-full": "Verify Full"
-    }
+    },
+    "chooseContext": "Choose a context...",
+    "chooseK8s": "Choose a connection...",
+    "chooseNamespace": "Choose a namespace...",
+    "chooseResource": "Choose a resource...",
+    "createInlineK8s": "Inline",
+    "k8sContext": "Context",
+    "k8sNamespace": "Namespace",
+    "k8sNotAvailable": "Kubernetes is not available for this driver.",
+    "k8sPort": "Container Port",
+    "k8sResourceName": "Resource Name",
+    "k8sResourceType": "Resource Type",
+    "k8sResourceTypePod": "Pod",
+    "k8sResourceTypeService": "Service",
+    "k8sSelectType": "Select type...",
+    "manageK8s": "Manage",
+    "noK8sConnections": "No saved connections — create one below",
+    "noK8sContexts": "No contexts found (is kubectl installed?)",
+    "selectContextFirst": "Select a context first",
+    "selectK8sConnection": "Select K8s Connection",
+    "selectTypeFirst": "Select context/namespace/type first",
+    "useK8s": "Use Kubernetes Port-Forward",
+    "useK8sConnection": "Saved Connection"
   },
   "sshConnections": {
     "title": "SSH Connections",
@@ -1463,5 +1485,25 @@
     "body": "We just launched a dedicated home for Tabularis users. Get help, share tips, shape the roadmap.",
     "cta": "Join now",
     "dismiss": "Dismiss"
+  },
+  "k8sConnections": {
+    "title": "Kubernetes Connections",
+    "add": "Add",
+    "empty": "No Kubernetes connections saved. Click \"Add\" to create one.",
+    "name": "Name",
+    "namePlaceholder": "My K8s cluster",
+    "context": "Context",
+    "chooseContext": "Choose a context...",
+    "namespace": "Namespace",
+    "chooseNamespace": "Choose a namespace...",
+    "resourceType": "Resource Type",
+    "resourceTypeService": "Service",
+    "resourceTypePod": "Pod",
+    "resourceName": "Resource Name",
+    "chooseResource": "Choose a resource...",
+    "port": "Container Port",
+    "test": "Test",
+    "testing": "Testing...",
+    "validationFailed": "Validation failed"
   }
 }

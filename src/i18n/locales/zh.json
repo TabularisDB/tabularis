@@ -595,7 +595,29 @@
       "require": "要求",
       "verify-ca": "验证 CA",
       "verify-full": "完全验证"
-    }
+    },
+    "chooseContext": "选择上下文...",
+    "chooseK8s": "选择连接...",
+    "chooseNamespace": "选择命名空间...",
+    "chooseResource": "选择资源...",
+    "createInlineK8s": "内联",
+    "k8sContext": "上下文",
+    "k8sNamespace": "命名空间",
+    "k8sNotAvailable": "此驱动不支持 Kubernetes。",
+    "k8sPort": "容器端口",
+    "k8sResourceName": "资源名称",
+    "k8sResourceType": "资源类型",
+    "k8sResourceTypePod": "Pod",
+    "k8sResourceTypeService": "Service",
+    "k8sSelectType": "选择类型...",
+    "manageK8s": "管理",
+    "noK8sConnections": "没有已保存的连接 — 在下方创建一个",
+    "noK8sContexts": "未找到上下文（是否已安装 kubectl？）",
+    "selectContextFirst": "请先选择上下文",
+    "selectK8sConnection": "选择 K8s 连接",
+    "selectTypeFirst": "请先选择上下文/命名空间/类型",
+    "useK8s": "使用 Kubernetes 端口转发",
+    "useK8sConnection": "已保存的连接"
   },
   "sshConnections": {
     "title": "SSH 连接",
@@ -1351,5 +1373,25 @@
     "body": "我们为 Tabularis 用户开设了专属社区：获取帮助、分享技巧、共建路线图。",
     "cta": "立即加入",
     "dismiss": "关闭"
+  },
+  "k8sConnections": {
+    "title": "Kubernetes 连接",
+    "add": "添加",
+    "empty": "没有已保存的 Kubernetes 连接。点击“添加”创建一个。",
+    "name": "名称",
+    "namePlaceholder": "我的 K8s 集群",
+    "context": "上下文",
+    "chooseContext": "选择上下文...",
+    "namespace": "命名空间",
+    "chooseNamespace": "选择命名空间...",
+    "resourceType": "资源类型",
+    "resourceTypeService": "Service",
+    "resourceTypePod": "Pod",
+    "resourceName": "资源名称",
+    "chooseResource": "选择资源...",
+    "port": "容器端口",
+    "test": "测试",
+    "testing": "测试中...",
+    "validationFailed": "验证失败"
   }
 }
