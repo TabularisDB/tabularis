@@ -25,6 +25,7 @@ import {
 } from "../../utils/k8s";
 import { toErrorMessage } from "../../utils/errors";
 import { Modal } from "../ui/Modal";
+import { Select } from "../ui/Select";
 import clsx from "clsx";
 
 interface K8sConnectionsModalProps {
@@ -33,8 +34,8 @@ interface K8sConnectionsModalProps {
 }
 
 const InputClass =
-  "w-full px-3 py-2 bg-base border border-strong rounded-lg text-sm text-primary focus:border-blue-500 focus:outline-none transition-colors";
-const LabelClass = "block text-[10px] uppercase font-semibold tracking-wider text-muted mb-1";
+  "w-full px-3 pt-2 pb-1 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none leading-tight";
+const LabelClass = "block text-xs uppercase font-bold text-muted mb-1";
 
 export function K8sConnectionsModal({
   isOpen,
@@ -412,63 +413,47 @@ function EditForm({
 
       <div>
         <label className={LabelClass}>Context</label>
-        <select
-          value={context}
-          onChange={(e) => setContext(e.target.value)}
-          className={InputClass}
-        >
-          <option value="">Choose a context...</option>
-          {contexts.map((ctx) => (
-            <option key={ctx} value={ctx}>
-              {ctx}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={context || null}
+          options={contexts}
+          onChange={(val) => setContext(val)}
+          placeholder="Choose a context..."
+          searchable={false}
+        />
       </div>
 
       <div>
         <label className={LabelClass}>Namespace</label>
-        <select
-          value={namespace}
-          onChange={(e) => setNamespace(e.target.value)}
-          className={InputClass}
-        >
-          <option value="">Choose a namespace...</option>
-          {namespaces.map((ns) => (
-            <option key={ns} value={ns}>
-              {ns}
-            </option>
-          ))}
-        </select>
+        <Select
+          value={namespace || null}
+          options={namespaces}
+          onChange={(val) => setNamespace(val)}
+          placeholder="Choose a namespace..."
+          searchable={false}
+        />
       </div>
 
       <div className="flex gap-3">
         <div className="flex-1">
           <label className={LabelClass}>Resource Type</label>
-          <select
+          <Select
             value={resourceType}
-            onChange={(e) => setResourceType(e.target.value)}
-            className={InputClass}
-          >
-            <option value="service">Service</option>
-            <option value="pod">Pod</option>
-          </select>
+            options={["service", "pod"]}
+            labels={{ service: "Service", pod: "Pod" }}
+            onChange={(val) => setResourceType(val)}
+            searchable={false}
+          />
         </div>
 
         <div className="flex-1">
           <label className={LabelClass}>Resource Name</label>
-          <select
-            value={resourceName}
-            onChange={(e) => setResourceName(e.target.value)}
-            className={InputClass}
-          >
-            <option value="">Choose a resource...</option>
-            {resources.map((res) => (
-              <option key={res} value={res}>
-                {res}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={resourceName || null}
+            options={resources}
+            onChange={(val) => setResourceName(val)}
+            placeholder="Choose a resource..."
+            searchable={false}
+          />
         </div>
       </div>
 

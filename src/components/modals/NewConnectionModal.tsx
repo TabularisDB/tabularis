@@ -1320,24 +1320,23 @@ export const NewConnectionModal = ({
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
                   {t("newConnection.selectSshConnection")}
                 </label>
-                <select
-                  value={formData.ssh_connection_id || ""}
-                  onChange={(e) =>
-                    updateField("ssh_connection_id", e.target.value)
-                  }
-                  className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary focus:border-blue-500 focus:outline-none appearance-auto cursor-pointer transition-colors"
-                >
-                  <option value="">
-                    {sshConnections.length === 0
+                <Select
+                  value={formData.ssh_connection_id || null}
+                  options={sshConnections.map((conn) => conn.id)}
+                  labels={Object.fromEntries(
+                    sshConnections.map((conn) => [
+                      conn.id,
+                      `${conn.name} (${conn.user}@${conn.host}:${conn.port})`,
+                    ]),
+                  )}
+                  onChange={(val) => updateField("ssh_connection_id", val)}
+                  placeholder={
+                    sshConnections.length === 0
                       ? t("newConnection.noSshConnections")
-                      : "-- " + t("newConnection.selectSshConnection") + " --"}
-                  </option>
-                  {sshConnections.map((conn) => (
-                    <option key={conn.id} value={conn.id}>
-                      {conn.name} ({conn.user}@{conn.host}:{conn.port})
-                    </option>
-                  ))}
-                </select>
+                      : "-- " + t("newConnection.selectSshConnection") + " --"
+                  }
+                  searchable={false}
+                />
               </div>
               <button
                 type="button"
@@ -1510,28 +1509,28 @@ export const NewConnectionModal = ({
                   })}
                 </label>
                 <div className="flex items-center gap-2">
-                  <select
-                    value={formData.k8s_connection_id || ""}
-                    onChange={(e) =>
-                      updateField("k8s_connection_id", e.target.value)
-                    }
-                    className="flex-1 px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary focus:border-blue-500 focus:outline-none appearance-auto cursor-pointer transition-colors"
-                  >
-                    <option value="">
-                      {k8sConnections.length === 0
+                  <Select
+                    className="flex-1"
+                    value={formData.k8s_connection_id || null}
+                    options={k8sConnections.map((conn) => conn.id)}
+                    labels={Object.fromEntries(
+                      k8sConnections.map((conn) => [
+                        conn.id,
+                        `${conn.name} (${conn.context}/${conn.namespace}/${conn.resource_name}:${conn.port})`,
+                      ]),
+                    )}
+                    onChange={(val) => updateField("k8s_connection_id", val)}
+                    placeholder={
+                      k8sConnections.length === 0
                         ? t("newConnection.noK8sConnections", {
                             defaultValue: "No saved connections — create one below",
                           })
                         : t("newConnection.chooseK8s", {
                             defaultValue: "Choose a connection...",
-                          })}
-                    </option>
-                    {k8sConnections.map((conn) => (
-                      <option key={conn.id} value={conn.id}>
-                        {conn.name} ({conn.context}/{conn.namespace}/{conn.resource_name}:{conn.port})
-                      </option>
-                    ))}
-                  </select>
+                          })
+                    }
+                    searchable={false}
+                  />
                   <button
                     type="button"
                     onClick={() => setIsK8sModalOpen(true)}
@@ -1555,28 +1554,23 @@ export const NewConnectionModal = ({
                     defaultValue: "Context",
                   })}
                 </label>
-                <select
-                  value={formData.k8s_context || ""}
-                  onChange={(e) => {
-                    updateField("k8s_context", e.target.value);
+                <Select
+                  value={formData.k8s_context || null}
+                  options={k8sContexts}
+                  onChange={(val) => {
+                    updateField("k8s_context", val);
                   }}
-                  className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary focus:border-blue-500 focus:outline-none appearance-auto cursor-pointer transition-colors"
-                >
-                  <option value="">
-                    {k8sContexts.length === 0
+                  placeholder={
+                    k8sContexts.length === 0
                       ? t("newConnection.noK8sContexts", {
                           defaultValue: "No contexts found (is kubectl installed?)",
                         })
                       : t("newConnection.chooseContext", {
                           defaultValue: "Choose a context...",
-                        })}
-                  </option>
-                  {k8sContexts.map((ctx) => (
-                    <option key={ctx} value={ctx}>
-                      {ctx}
-                    </option>
-                  ))}
-                </select>
+                        })
+                  }
+                  searchable={false}
+                />
               </div>
 
               <div className="flex flex-col gap-1">
@@ -1585,28 +1579,23 @@ export const NewConnectionModal = ({
                     defaultValue: "Namespace",
                   })}
                 </label>
-                <select
-                  value={formData.k8s_namespace || ""}
-                  onChange={(e) => {
-                    updateField("k8s_namespace", e.target.value);
+                <Select
+                  value={formData.k8s_namespace || null}
+                  options={k8sNamespaces}
+                  onChange={(val) => {
+                    updateField("k8s_namespace", val);
                   }}
-                  className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary focus:border-blue-500 focus:outline-none appearance-auto cursor-pointer transition-colors"
-                >
-                  <option value="">
-                    {k8sNamespaces.length === 0
+                  placeholder={
+                    k8sNamespaces.length === 0
                       ? t("newConnection.selectContextFirst", {
                           defaultValue: "Select a context first",
                         })
                       : t("newConnection.chooseNamespace", {
                           defaultValue: "Choose a namespace...",
-                        })}
-                  </option>
-                  {k8sNamespaces.map((ns) => (
-                    <option key={ns} value={ns}>
-                      {ns}
-                    </option>
-                  ))}
-                </select>
+                        })
+                  }
+                  searchable={false}
+                />
               </div>
 
               <div className="flex gap-3">
@@ -1616,17 +1605,25 @@ export const NewConnectionModal = ({
                       defaultValue: "Resource Type",
                     })}
                   </label>
-                  <select
-                    value={formData.k8s_resource_type || ""}
-                    onChange={(e) => {
-                      updateField("k8s_resource_type", e.target.value);
+                  <Select
+                    value={formData.k8s_resource_type || null}
+                    options={["service", "pod"]}
+                    labels={{
+                      service: t("newConnection.k8sResourceTypeService", {
+                        defaultValue: "Service",
+                      }),
+                      pod: t("newConnection.k8sResourceTypePod", {
+                        defaultValue: "Pod",
+                      }),
                     }}
-                    className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary focus:border-blue-500 focus:outline-none appearance-auto cursor-pointer transition-colors"
-                  >
-                    <option value="">Select type...</option>
-                    <option value="service">Service</option>
-                    <option value="pod">Pod</option>
-                  </select>
+                    onChange={(val) => {
+                      updateField("k8s_resource_type", val);
+                    }}
+                    placeholder={t("newConnection.k8sSelectType", {
+                      defaultValue: "Select type...",
+                    })}
+                    searchable={false}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1 flex-1">
@@ -1635,28 +1632,23 @@ export const NewConnectionModal = ({
                       defaultValue: "Resource Name",
                     })}
                   </label>
-                  <select
-                    value={formData.k8s_resource_name || ""}
-                    onChange={(e) =>
-                      updateField("k8s_resource_name", e.target.value)
+                  <Select
+                    value={formData.k8s_resource_name || null}
+                    options={k8sResources}
+                    onChange={(val) =>
+                      updateField("k8s_resource_name", val)
                     }
-                    className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary focus:border-blue-500 focus:outline-none appearance-auto cursor-pointer transition-colors"
-                  >
-                    <option value="">
-                      {k8sResources.length === 0
+                    placeholder={
+                      k8sResources.length === 0
                         ? t("newConnection.selectTypeFirst", {
                             defaultValue: "Select context/namespace/type first",
                           })
                         : t("newConnection.chooseResource", {
                             defaultValue: "Choose a resource...",
-                          })}
-                    </option>
-                    {k8sResources.map((res) => (
-                      <option key={res} value={res}>
-                        {res}
-                      </option>
-                    ))}
-                  </select>
+                          })
+                    }
+                    searchable={false}
+                  />
                 </div>
               </div>
 

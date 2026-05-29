@@ -23,6 +23,7 @@ import {
 } from "../../utils/ssh";
 import { toErrorMessage } from "../../utils/errors";
 import { Modal } from "../ui/Modal";
+import { Select } from "../ui/Select";
 import clsx from "clsx";
 
 interface SshConnectionsModalProps {
@@ -452,23 +453,18 @@ export function SshConnectionsModal({
                 <label className={LabelClass}>
                   {t("sshConnections.authType")}
                 </label>
-                <select
+                <Select
                   value={formData.auth_type || "password"}
-                  onChange={(e) =>
-                    updateField(
-                      "auth_type",
-                      e.target.value as "password" | "ssh_key",
-                    )
+                  options={["password", "ssh_key"]}
+                  labels={{
+                    password: t("sshConnections.authTypePassword"),
+                    ssh_key: t("sshConnections.authTypeSshKey"),
+                  }}
+                  onChange={(val) =>
+                    updateField("auth_type", val as "password" | "ssh_key")
                   }
-                  className={InputClass}
-                >
-                  <option value="password">
-                    {t("sshConnections.authTypePassword")}
-                  </option>
-                  <option value="ssh_key">
-                    {t("sshConnections.authTypeSshKey")}
-                  </option>
-                </select>
+                  searchable={false}
+                />
               </div>
 
               {formData.auth_type === "password" && (
