@@ -64,6 +64,7 @@ impl SqlServerDriver {
                     no_connection_required: false,
                     manage_tables: true,
                     readonly: false,
+                    triggers: false,
                 },
                 is_builtin: true,
                 default_username: "sa".to_string(),
