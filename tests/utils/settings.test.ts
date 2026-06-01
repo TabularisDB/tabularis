@@ -319,13 +319,13 @@ describe('settings', () => {
         minimax: true,
       };
       const models: Record<string, string[]> = {
-        minimax: ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed'],
+        minimax: ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'],
       };
 
       const result = detectAIProviderFromKeys(keyStatus, models);
 
       expect(result.provider).toBe('minimax');
-      expect(result.model).toBe('MiniMax-M2.7');
+      expect(result.model).toBe('MiniMax-M3');
     });
 
     it('should return null when no keys available', () => {

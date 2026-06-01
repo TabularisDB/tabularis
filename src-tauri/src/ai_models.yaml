@@ -15,6 +15,7 @@ anthropic:
   - claude-3.5-haiku
 
 minimax:
+  - MiniMax-M3
   - MiniMax-M2.7
   - MiniMax-M2.7-highspeed
 

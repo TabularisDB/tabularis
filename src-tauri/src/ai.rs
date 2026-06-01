@@ -922,8 +922,11 @@ mod tests {
 
         // Check MiniMax models
         let minimax = models.get("minimax").unwrap();
+        assert!(minimax.contains(&"MiniMax-M3".to_string()));
         assert!(minimax.contains(&"MiniMax-M2.7".to_string()));
         assert!(minimax.contains(&"MiniMax-M2.7-highspeed".to_string()));
+        // M3 should be listed first so it is selected as the default model
+        assert_eq!(minimax.first().map(String::as_str), Some("MiniMax-M3"));
 
         // Ollama is not in yaml, so it shouldn't be here yet
         assert!(!models.contains_key("ollama"));

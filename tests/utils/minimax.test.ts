@@ -40,12 +40,12 @@ describe('MiniMax AI Provider Integration', () => {
         'custom-openai': false,
       };
       const models: Record<string, string[]> = {
-        minimax: ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed'],
+        minimax: ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'],
       };
 
       const result = detectAIProviderFromKeys(keyStatus, models);
       expect(result.provider).toBe('minimax');
-      expect(result.model).toBe('MiniMax-M2.7');
+      expect(result.model).toBe('MiniMax-M3');
     });
 
     it('should prefer openai over minimax', () => {
@@ -84,7 +84,7 @@ describe('MiniMax AI Provider Integration', () => {
       expect(result.provider).toBe('anthropic');
     });
 
-    it('should select M2.7 as default model', () => {
+    it('should select M3 as default model', () => {
       const keyStatus: Record<AiProvider, boolean> = {
         openai: false,
         anthropic: false,
@@ -94,11 +94,11 @@ describe('MiniMax AI Provider Integration', () => {
         'custom-openai': false,
       };
       const models: Record<string, string[]> = {
-        minimax: ['MiniMax-M2.7', 'MiniMax-M2.7-highspeed'],
+        minimax: ['MiniMax-M3', 'MiniMax-M2.7', 'MiniMax-M2.7-highspeed'],
       };
 
       const result = detectAIProviderFromKeys(keyStatus, models);
-      expect(result.model).toBe('MiniMax-M2.7');
+      expect(result.model).toBe('MiniMax-M3');
     });
 
     it('should return null model when minimax models list is empty', () => {

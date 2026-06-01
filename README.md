@@ -366,7 +366,7 @@ You can override or add custom models for AI providers by editing `config.json` 
   "aiCustomModels": {
     "openai": ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo", "gpt-5-preview"],
     "anthropic": ["claude-3-opus-20240229", "claude-3-sonnet-20240229"],
-    "minimax": ["MiniMax-M2.7", "MiniMax-M2.7-highspeed"],
+    "minimax": ["MiniMax-M3", "MiniMax-M2.7", "MiniMax-M2.7-highspeed"],
     "openrouter": ["google/gemini-pro-1.5", "meta-llama/llama-3-70b-instruct"]
   }
 }
@@ -378,7 +378,7 @@ Optional Text-to-SQL and query explanation powered by:
 
 - **OpenAI**
 - **Anthropic**
-- **MiniMax** (MiniMax-M2.7 and MiniMax-M2.7-highspeed, 204K context)
+- **MiniMax** (MiniMax-M3 default, with MiniMax-M2.7 and MiniMax-M2.7-highspeed)
 - **OpenRouter** (access to Gemini, Llama, DeepSeek, etc.)
 - **Ollama** (Local LLM support for total privacy)
 - **OpenAI-Compatible APIs** (Groq, Perplexity, Azure OpenAI, LocalAI, and more)
