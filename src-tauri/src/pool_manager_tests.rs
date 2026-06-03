@@ -84,7 +84,7 @@ mod tests {
 
     #[test]
     fn postgres_pool_key_changes_when_ssl_mode_changes() {
-        let required = connection_params("postgres", Some("required"));
+        let required = connection_params("postgres", Some("require"));
         let disabled = connection_params("postgres", Some("disable"));
 
         assert_ne!(
