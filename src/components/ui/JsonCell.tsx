@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Braces, ChevronRight } from "lucide-react";
 import { tokenizeJsonDisplay, type JsonToken } from "../../utils/jsonHighlight";
+import { truncateCellPreview } from "../../utils/text";
 
 interface JsonCellProps {
   value: unknown;
@@ -32,24 +33,35 @@ export const JsonCell = ({
 }: JsonCellProps) => {
   const { t } = useTranslation();
   const textRef = useRef<HTMLSpanElement>(null);
-  const [isTruncated, setIsTruncated] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  // Only ever tokenize/render a bounded preview. Large JSON values (often
+  // megabytes) would otherwise explode into thousands of DOM nodes per cell and
+  // freeze the grid, despite being clipped to ~300px. The full value stays
+  // available through the expander / viewer below.
+  const { text: previewText, truncated } = useMemo(
+    () => truncateCellPreview(displayText),
+    [displayText],
+  );
 
   useLayoutEffect(() => {
     const el = textRef.current;
     if (!el) return;
-    setIsTruncated(el.scrollWidth > el.clientWidth);
-  }, [displayText]);
+    setIsOverflowing(el.scrollWidth > el.clientWidth);
+  }, [previewText]);
 
   const tokens = useMemo(() => {
     try {
-      return tokenizeJsonDisplay(displayText);
+      return tokenizeJsonDisplay(previewText);
     } catch {
-      return [{ type: "string" as const, text: displayText }];
+      return [{ type: "string" as const, text: previewText }];
     }
-  }, [displayText]);
+  }, [previewText]);
 
   const isNullish = value === null || value === undefined;
   const showIcons = !isNullish && !isPendingDelete;
+  // Truncated content always has more to reveal, so surface the affordances.
+  const isTruncated = isOverflowing || truncated;
   const iconVisibilityClass = isTruncated
     ? "opacity-100"
     : "opacity-0 group-hover/jsoncell:opacity-100";
@@ -59,7 +71,7 @@ export const JsonCell = ({
       className={`flex items-center gap-1 group/jsoncell w-full ${
         isTruncated ? "json-cell-truncated" : ""
       }`}
-      title={displayText}
+      title={truncated ? `${previewText}…` : previewText}
     >
       <span ref={textRef} className="truncate flex-1">
         {tokens.map((tok, idx) => (
@@ -71,6 +83,7 @@ export const JsonCell = ({
             {tok.text}
           </span>
         ))}
+        {truncated && <span className="text-muted">…</span>}
       </span>
       {showIcons && (
         <>

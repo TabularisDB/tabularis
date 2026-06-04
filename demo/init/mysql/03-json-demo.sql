@@ -43,3 +43,36 @@ INSERT INTO json_demo (label, payload, notes_text) VALUES
   ('unicode + emoji',
    '{"greeting":"こんにちは","emoji":"🦊🐾","math":"∑(α+β)²"}',
    '{"emoji":"⚙️"}');
+
+-- -------------------------------------------------------------
+-- Large payload — reproduces grid lag with big JSON cells (#283).
+-- ~3000 nested objects build a multi-hundred-KB / ~1MB JSON blob.
+-- The grid must stay responsive: only a truncated preview renders
+-- inline, the full value opens in the JSON viewer on demand.
+-- -------------------------------------------------------------
+SET SESSION cte_max_recursion_depth = 100000;
+
+INSERT INTO json_demo (label, payload, notes_text)
+SELECT
+  'large payload (perf stress, 3000 items)',
+  JSON_OBJECT('generated', TRUE, 'count', 3000, 'items', items.arr),
+  'large JSON blob — see issue #283 (grid must not freeze)'
+FROM (
+  WITH RECURSIVE seq (n) AS (
+    SELECT 1
+    UNION ALL
+    SELECT n + 1 FROM seq WHERE n < 3000
+  )
+  SELECT JSON_ARRAYAGG(
+    JSON_OBJECT(
+      'id', n,
+      'name', CONCAT('item-', n),
+      'description', REPEAT('lorem ipsum dolor sit amet consectetur ', 4),
+      'value', n * 1.5,
+      'active', (n % 2 = 0),
+      'tags', JSON_ARRAY('alpha', 'beta', 'gamma', 'delta'),
+      'nested', JSON_OBJECT('a', n, 'b', CONCAT('x-', n), 'c', JSON_ARRAY(n, n + 1, n + 2))
+    )
+  ) AS arr
+  FROM seq
+) AS items;

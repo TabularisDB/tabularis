@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
+  CELL_PREVIEW_LIMIT,
   LONG_TEXT_THRESHOLD,
   formatTextForEditor,
   isLongTextCellTarget,
   isLongTextValue,
   isTextColumn,
+  truncateCellPreview,
 } from "../../src/utils/text";
 
 describe("text", () => {
@@ -100,6 +102,38 @@ describe("text", () => {
       expect(isLongTextCellTarget("TEXT", null)).toBe(false);
       expect(isLongTextCellTarget("TEXT", undefined)).toBe(false);
       expect(isLongTextCellTarget("TEXT", 12345)).toBe(false);
+    });
+  });
+
+  describe("truncateCellPreview", () => {
+    it("returns short strings untouched without flagging truncation", () => {
+      const result = truncateCellPreview("hello");
+      expect(result.text).toBe("hello");
+      expect(result.truncated).toBe(false);
+    });
+
+    it("returns the original reference at exactly the limit", () => {
+      const exact = "a".repeat(CELL_PREVIEW_LIMIT);
+      const result = truncateCellPreview(exact);
+      expect(result.text).toBe(exact);
+      expect(result.truncated).toBe(false);
+    });
+
+    it("slices to the limit and flags truncation beyond it", () => {
+      const long = "a".repeat(CELL_PREVIEW_LIMIT + 5000);
+      const result = truncateCellPreview(long);
+      expect(result.text).toHaveLength(CELL_PREVIEW_LIMIT);
+      expect(result.truncated).toBe(true);
+    });
+
+    it("honours a custom limit", () => {
+      const result = truncateCellPreview("abcdef", 3);
+      expect(result.text).toBe("abc");
+      expect(result.truncated).toBe(true);
+    });
+
+    it("treats an empty string as untruncated", () => {
+      expect(truncateCellPreview("")).toEqual({ text: "", truncated: false });
     });
   });
 

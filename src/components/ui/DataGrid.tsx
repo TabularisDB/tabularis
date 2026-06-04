@@ -50,7 +50,7 @@ import {
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
 import { isJsonColumn, isJsonContent } from "../../utils/json";
-import { isLongTextCellTarget } from "../../utils/text";
+import { isLongTextCellTarget, truncateCellPreview } from "../../utils/text";
 import {
   pickPrimaryForeignKeyByColumn,
   getForeignKeyForPreview,
@@ -1369,12 +1369,14 @@ export const DataGrid = React.memo(
                             className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-mono ${isEditing ? "relative" : "whitespace-nowrap truncate max-w-[300px]"} ${fkForPreview ? "cursor-pointer" : "cursor-text"} ${stateClass} ${isFocused ? "ring-2 ring-inset ring-blue-400" : ""}`}
                             title={
                               !isEditing
-                                ? formatCellValue(
-                                    displayValue,
-                                    t("dataGrid.null"),
-                                    colTypeForCell,
-                                    columnLengthMap?.get(colName),
-                                  )
+                                ? truncateCellPreview(
+                                    formatCellValue(
+                                      displayValue,
+                                      t("dataGrid.null"),
+                                      colTypeForCell,
+                                      columnLengthMap?.get(colName),
+                                    ),
+                                  ).text
                                 : ""
                             }
                           >
