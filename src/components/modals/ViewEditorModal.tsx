@@ -60,7 +60,7 @@ export const ViewEditorModal = ({
        * @param sql The full CREATE VIEW SQL string.
        * @returns The underlying SQL query defining the view.
        */
-      export function extractSelectFromView(sql: string): string {
+      function extractSelectFromView(sql: string): string {
         if (!sql || typeof sql !== 'string') return '';
 
         let i = 0;
