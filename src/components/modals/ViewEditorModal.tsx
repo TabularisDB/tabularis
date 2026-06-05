@@ -51,10 +51,125 @@ export const ViewEditorModal = ({
       });
       // Extract just the SELECT part for editing
       let selectPart = def;
-      if (def.toUpperCase().includes(" AS ")) {
-        const asIndex = def.toUpperCase().indexOf(" AS ");
-        selectPart = def.substring(asIndex + 4).trim();
+      
+      /**
+       * Reliably extracts the SELECT (or WITH ... SELECT) query from a CREATE VIEW definition.
+       * It uses a lexical scanner to ignore strings, comments, brackets, and parentheses,
+       * ensuring it only splits on the structural "AS" keyword.
+       *
+       * @param sql The full CREATE VIEW SQL string.
+       * @returns The underlying SQL query defining the view.
+       */
+      export function extractSelectFromView(sql: string): string {
+        if (!sql || typeof sql !== 'string') return '';
+
+        let i = 0;
+        let depth = 0;
+        const len = sql.length;
+
+        // Helper: Identifies if a character acts as a valid keyword boundary
+        const isKeywordBoundary = (char: string | undefined): boolean => {
+          if (char === undefined) return true;
+          // Boundaries are characters that aren't letters, numbers, underscores, dots, or dollar signs.
+          // We use the unicode flag (u) with \p{L} and \p{N} to support international identifiers.
+          return !/[\p{L}\p{N}_\.$]/u.test(char);
+        };
+
+        while (i < len) {
+          const char = sql[i];
+
+          // 1. Skip single-line comments (-- or #)
+          if ((char === '-' && sql[i + 1] === '-') || char === '#') {
+            while (i < len && sql[i] !== '\n') i++;
+            continue;
+          }
+
+          // 2. Skip multi-line comments (/* ... */)
+          if (char === '/' && sql[i + 1] === '*') {
+            i += 2;
+            while (i < len && !(sql[i] === '*' && sql[i + 1] === '/')) i++;
+            i += 2; // Skip the closing '*/'
+            continue;
+          }
+
+          // 3. Skip strings and quoted identifiers ('...', "...", `...`)
+          if (char === "'" || char === '"' || char === '`') {
+            const quote = char;
+            i++;
+            while (i < len) {
+              if (sql[i] === '\\') {
+                i += 2; // Skip escaped characters (e.g., \', \")
+              } else if (sql[i] === quote) {
+                if (i + 1 < len && sql[i + 1] === quote) {
+                  i += 2; // Skip SQL-standard escaped quotes (e.g., '')
+                } else {
+                  i++; // End of string
+                  break;
+                }
+              } else {
+                i++;
+              }
+            }
+            continue;
+          }
+
+          // 4. Skip SQL Server bracket identifiers ([...])
+          if (char === '[') {
+            i++;
+            while (i < len && sql[i] !== ']') i++;
+            if (i < len) i++; // Skip closing ']'
+            continue;
+          }
+
+          // 5. Track Parentheses Depth (helps ignore AS in view column definitions)
+          if (char === '(') {
+            depth++;
+            i++;
+            continue;
+          }
+          if (char === ')') {
+            if (depth > 0) depth--;
+            i++;
+            continue;
+          }
+
+          // 6. Look for the standalone "AS" keyword at depth 0
+          if (
+            depth === 0 &&
+            (char === 'A' || char === 'a') &&
+            (sql[i + 1] === 'S' || sql[i + 1] === 's')
+          ) {
+            const prev = i === 0 ? undefined : sql[i - 1];
+            const next = i + 2 >= len ? undefined : sql[i + 2];
+
+            if (isKeywordBoundary(prev) && isKeywordBoundary(next)) {
+              let start = i + 2;
+
+              // Fast-forward through immediate whitespace/newlines after the 'AS' keyword
+              while (start < len && /\s/.test(sql[start])) {
+                start++;
+              }
+
+              let query = sql.substring(start);
+
+              // Optional Cleanup: Strip common trailing View constraints/terminators
+              // (e.g., WITH CHECK OPTION, WITH READ ONLY, trailing semicolons)
+              query = query.replace(/\s+WITH\s+(?:CASCADED\s+|LOCAL\s+)?CHECK\s+OPTION\s*;?\s*$/i, '');
+              query = query.replace(/\s+WITH\s+READ\s+ONLY\s*;?\s*$/i, '');
+              query = query.replace(/\s*;\s*$/, '');
+
+              return query.trim();
+            }
+          }
+
+          i++;
+        }
+
+        throw new Error("Invalid VIEW definition: Could not find the structural 'AS' keyword.");
       }
+
+      selectPart = extractSelectFromView(def);
+
       setDefinition(selectPart);
       setOriginalDefinition(selectPart);
     } catch (e) {
