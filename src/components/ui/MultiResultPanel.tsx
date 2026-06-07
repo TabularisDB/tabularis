@@ -43,7 +43,6 @@ interface MultiResultPanelProps {
   results: QueryResultEntry[];
   activeResultId: string | undefined;
   tabId: string;
-  isAllDone: boolean;
   connectionId: string | null;
   copyFormat: "csv" | "json" | "sql-insert";
   csvDelimiter: string;
@@ -232,7 +231,6 @@ function ResultTab({
 export function MultiResultPanel({
   results,
   activeResultId,
-  isAllDone,
   connectionId,
   copyFormat,
   csvDelimiter,
@@ -283,6 +281,28 @@ export function MultiResultPanel({
     setQueryExpanded(false);
   }, [activeResultId]);
 
+  const pending = results.filter((r) => r.isLoading).length;
+  const isRunning = pending > 0;
+
+  // Live wall-clock timer: the elapsed time ticks up while statements are
+  // still running, instead of only appearing once the whole batch finishes.
+  // Anchored to the run's start; the precise server-measured total replaces it
+  // when done. setState only happens in timer/rAF callbacks (never in the
+  // effect body) to avoid cascading synchronous renders.
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!isRunning) return;
+    const start = performance.now();
+    const frame = requestAnimationFrame(() =>
+      setElapsed(performance.now() - start),
+    );
+    const id = setInterval(() => setElapsed(performance.now() - start), 100);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearInterval(id);
+    };
+  }, [isRunning]);
+
   const scrollTabs = (direction: "left" | "right") => {
     const el = scrollRef.current;
     if (!el) return;
@@ -331,7 +351,11 @@ export function MultiResultPanel({
     </button>
   );
 
-  const summaryBadge = isAllDone && (
+  // Counts update live as each statement resolves, so the badge reflects
+  // progress in real time: succeeded / failed accumulate while a spinning
+  // count shows how many statements are still running. The elapsed time ticks
+  // up live while running, then snaps to the precise server-measured total.
+  const summaryBadge = (succeeded > 0 || failed > 0 || pending > 0) && (
     <div className="flex items-center gap-2 px-3 h-full text-[10px] text-muted border-l border-default shrink-0">
       <span>
         {succeeded > 0 && (
@@ -340,11 +364,16 @@ export function MultiResultPanel({
         {failed > 0 && (
           <span className="text-red-400 ml-1.5">{failed}<XCircle size={9} className="inline ml-0.5" /></span>
         )}
+        {pending > 0 && (
+          <span className="text-blue-400 ml-1.5">{pending}<Loader2 size={9} className="inline ml-0.5 animate-spin" /></span>
+        )}
       </span>
-      {totalTime > 0 && (
-        <span className="font-mono text-muted">
-          {formatDuration(totalTime)}
-        </span>
+      {isRunning ? (
+        <span className="font-mono text-blue-400">{formatDuration(elapsed)}</span>
+      ) : (
+        totalTime > 0 && (
+          <span className="font-mono text-muted">{formatDuration(totalTime)}</span>
+        )
       )}
     </div>
   );

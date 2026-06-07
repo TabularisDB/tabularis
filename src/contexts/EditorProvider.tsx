@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
-import type { Tab, SchemaCache, TableSchema } from "../types/editor";
+import type { Tab, SchemaCache, TableSchema, QueryResultEntry } from "../types/editor";
 import { EditorContext } from "./EditorContext";
 import { useDatabase } from "../hooks/useDatabase";
 import { invoke } from "@tauri-apps/api/core";
@@ -299,6 +299,24 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setTabs((prev) => updateTabInList(prev, id, partial));
   }, []);
 
+  const updateResultEntry = useCallback(
+    (tabId: string, entryId: string, partial: Partial<QueryResultEntry>) => {
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.id === tabId && t.results
+            ? {
+                ...t,
+                results: t.results.map((r) =>
+                  r.id === entryId ? { ...r, ...partial } : r,
+                ),
+              }
+            : t,
+        ),
+      );
+    },
+    [],
+  );
+
   const getSchema = useCallback(
     async (
       connectionId: string,
@@ -344,6 +362,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       addTab,
       closeTab,
       updateTab,
+      updateResultEntry,
       setActiveTabId,
       closeAllTabs,
       closeOtherTabs,
@@ -358,6 +377,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       addTab,
       closeTab,
       updateTab,
+      updateResultEntry,
       setActiveTabId,
       closeAllTabs,
       closeOtherTabs,

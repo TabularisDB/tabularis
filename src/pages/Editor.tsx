@@ -157,6 +157,7 @@ export const Editor = () => {
     activeTab,
     activeTabId,
     updateTab,
+    updateResultEntry: patchResultEntry,
     addTab,
     setActiveTabId,
     closeTab,
@@ -844,51 +845,14 @@ export const Editor = () => {
       const shouldRecordHistory =
         targetTab?.type === "console" || targetTab?.type === "query_builder";
 
-      // Run the whole script on a single pooled connection so statements
-      // can share session state (SET @var, LAST_INSERT_ID(), transactions,
-      // TEMP TABLE).
-      const batchStart = performance.now();
-      let batchResults: BatchStatementResult[];
-      try {
-        batchResults = await invoke<BatchStatementResult[]>(
-          "execute_query_batch",
-          {
-            connectionId: activeConnectionId,
-            queries: entries.map((e) => e.query),
-            limit: pageSize,
-            page: 1,
-            ...(schema ? { schema } : {}),
-          },
-        );
-      } catch (err) {
-        // Batch-level failure (e.g. connection acquisition, cancellation):
-        // mark every entry as failed so the UI doesn't sit in "loading".
-        const fallbackElapsed = performance.now() - batchStart;
-        const message = typeof err === "string" ? err : t("editor.queryFailed");
-        const failed = entries.map((entry) => ({
-          ...entry,
-          error: message,
-          executionTime: fallbackElapsed,
-          isLoading: false,
-        }));
-        updateTab(targetTabId, { results: failed, isLoading: false });
-        if (shouldRecordHistory) {
-          for (const entry of entries) {
-            addHistoryEntry(
-              entry.query,
-              fallbackElapsed,
-              "error",
-              null,
-              message,
-              historyDb,
-            );
-          }
-        }
-        return;
-      }
-
-      const liveResults = entries.map((entry, idx) => {
-        const item = batchResults[idx];
+      // Resolves a single result tab the moment its statement finishes:
+      // records history and patches that entry in place (no whole-array
+      // rewrite) so the UI shows per-statement status in real time instead of
+      // waiting for the entire batch.
+      const applied = new Set<number>();
+      const applyStatement = (index: number, item: BatchStatementResult) => {
+        const entry = entries[index];
+        if (!entry) return;
         const execTime = item?.execution_time_ms ?? null;
         if (item?.error) {
           if (shouldRecordHistory) {
@@ -901,12 +865,12 @@ export const Editor = () => {
               historyDb,
             );
           }
-          return {
-            ...entry,
+          patchResultEntry(targetTabId, entry.id, {
             error: item.error,
             executionTime: execTime,
             isLoading: false,
-          };
+          });
+          return;
         }
         const res = item?.result ?? null;
         const tableName = extractTableName(entry.query) ?? null;
@@ -920,18 +884,87 @@ export const Editor = () => {
             historyDb,
           );
         }
-        return {
-          ...entry,
+        patchResultEntry(targetTabId, entry.id, {
           result: res,
           executionTime: execTime,
           isLoading: false,
           activeTable: tableName,
-        };
+        });
+      };
+
+      // A unique id ties the live events to this run, so a listener ignores
+      // events from any other batch executing concurrently.
+      const batchId = `batch-${targetTabId}-${performance.now()}`;
+      // Registered before `invoke` so no early statement event is missed.
+      const unlisten = await listen<{
+        batch_id: string;
+        index: number;
+        statement: BatchStatementResult;
+      }>("batch-statement-complete", (event) => {
+        const p = event.payload;
+        if (p.batch_id !== batchId || applied.has(p.index)) return;
+        applied.add(p.index);
+        applyStatement(p.index, p.statement);
       });
 
-      updateTab(targetTabId, { results: liveResults, isLoading: false });
+      // Run the whole script on a single pooled connection so statements
+      // can share session state (SET @var, LAST_INSERT_ID(), transactions,
+      // TEMP TABLE).
+      const batchStart = performance.now();
+      let batchResults: BatchStatementResult[];
+      try {
+        batchResults = await invoke<BatchStatementResult[]>(
+          "execute_query_batch",
+          {
+            connectionId: activeConnectionId,
+            queries: entries.map((e) => e.query),
+            limit: pageSize,
+            page: 1,
+            batchId,
+            ...(schema ? { schema } : {}),
+          },
+        );
+      } catch (err) {
+        unlisten();
+        // Batch-level failure (e.g. connection acquisition, cancellation):
+        // mark only the entries that haven't already resolved via a live event
+        // as failed, so statements that completed first keep their results.
+        const fallbackElapsed = performance.now() - batchStart;
+        const message = typeof err === "string" ? err : t("editor.queryFailed");
+        entries.forEach((entry, idx) => {
+          if (applied.has(idx)) return;
+          if (shouldRecordHistory) {
+            addHistoryEntry(
+              entry.query,
+              fallbackElapsed,
+              "error",
+              null,
+              message,
+              historyDb,
+            );
+          }
+          patchResultEntry(targetTabId, entry.id, {
+            error: message,
+            executionTime: fallbackElapsed,
+            isLoading: false,
+          });
+        });
+        updateTab(targetTabId, { isLoading: false });
+        return;
+      }
+
+      unlisten();
+
+      // Reconcile any statement whose live event was missed (dropped/raced),
+      // then clear the tab-level loading flag.
+      batchResults.forEach((item, idx) => {
+        if (applied.has(idx)) return;
+        applied.add(idx);
+        applyStatement(idx, item);
+      });
+      updateTab(targetTabId, { isLoading: false });
     },
-    [activeConnectionId, updateTab, settings.resultPageSize, activeSchema, t, isMultiDb, activeDatabaseName, addHistoryEntry],
+    [activeConnectionId, updateTab, patchResultEntry, settings.resultPageSize, activeSchema, t, isMultiDb, activeDatabaseName, addHistoryEntry],
   );
 
   const runResultEntryPage = useCallback(
@@ -2882,7 +2915,6 @@ export const Editor = () => {
                 results={activeTab.results}
                 activeResultId={activeTab.activeResultId}
                 tabId={activeTab.id}
-                isAllDone={!activeTab.isLoading}
                 connectionId={activeConnectionId}
                 copyFormat={copyFormat}
                 csvDelimiter={csvDelimiter}

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, Runtime, State};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use tokio::task::AbortHandle;
 use urlencoding::encode;
 use uuid::Uuid;
@@ -3085,6 +3085,19 @@ pub async fn execute_query<R: Runtime>(
     }
 }
 
+/// Payload for the `batch-statement-complete` event, emitted once per
+/// statement the instant it finishes so the frontend can mark that result tab
+/// done in real time instead of waiting for the whole batch. `batch_id` lets a
+/// listener ignore events from other concurrent runs; `index` maps back to the
+/// statement's slot. Borrows the result so no clone of the (potentially large)
+/// row set is needed.
+#[derive(serde::Serialize, Clone)]
+struct BatchStatementEvent<'a> {
+    batch_id: &'a str,
+    index: usize,
+    statement: &'a BatchStatementResult,
+}
+
 /// Runs a sequence of statements that share a single physical database
 /// connection. Use this — not multiple parallel `execute_query` calls —
 /// whenever statements depend on connection-local session state
@@ -3093,6 +3106,10 @@ pub async fn execute_query<R: Runtime>(
 ///
 /// The whole batch shares one cancellation handle so `cancel_query`
 /// aborts the entire batch atomically.
+///
+/// When `batch_id` is supplied, a `batch-statement-complete` event is emitted
+/// after each statement so the UI updates result tabs progressively. The full
+/// `Vec` is still returned at the end for final reconciliation / fallback.
 #[tauri::command]
 pub async fn execute_query_batch<R: Runtime>(
     app: AppHandle<R>,
@@ -3102,6 +3119,7 @@ pub async fn execute_query_batch<R: Runtime>(
     limit: Option<u32>,
     page: Option<u32>,
     schema: Option<String>,
+    batch_id: Option<String>,
 ) -> Result<Vec<BatchStatementResult>, String> {
     log::info!(
         "Executing query batch on connection: {} | {} statement(s)",
@@ -3117,6 +3135,26 @@ pub async fn execute_query_batch<R: Runtime>(
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
 
     let drv = driver_for(&saved_conn.params.driver).await?;
+
+    // Build a Tauri-agnostic progress sink the driver invokes per statement.
+    // Each invocation emits one event so result tabs resolve as they finish.
+    let progress: Option<Arc<crate::drivers::driver_trait::BatchProgressFn>> =
+        batch_id.map(|bid| {
+            let app = app.clone();
+            let cb: Arc<crate::drivers::driver_trait::BatchProgressFn> =
+                Arc::new(move |index, statement: &BatchStatementResult| {
+                    let _ = app.emit(
+                        "batch-statement-complete",
+                        BatchStatementEvent {
+                            batch_id: &bid,
+                            index,
+                            statement,
+                        },
+                    );
+                });
+            cb
+        });
+
     let task = tokio::spawn(async move {
         drv.execute_batch(
             &params,
@@ -3124,6 +3162,7 @@ pub async fn execute_query_batch<R: Runtime>(
             limit,
             page.unwrap_or(1),
             schema.as_deref(),
+            progress.as_deref(),
         )
         .await
     });
