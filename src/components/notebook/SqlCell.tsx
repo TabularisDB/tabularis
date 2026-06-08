@@ -35,6 +35,7 @@ export function SqlCell({
       <SqlCellResult
         result={cell.result ?? null}
         error={cell.error}
+        originalQuery={cell.content}
         executionTime={cell.executionTime}
         isLoading={cell.isLoading}
         chartConfig={cell.chartConfig}

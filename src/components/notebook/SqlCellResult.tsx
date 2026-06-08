@@ -12,6 +12,7 @@ import { CellChart } from "./CellChart";
 interface SqlCellResultProps {
   result: QueryResult | null;
   error?: string;
+  originalQuery?: string;
   executionTime?: number | null;
   isLoading?: boolean;
   chartConfig?: CellChartConfig | null;
@@ -23,6 +24,7 @@ interface SqlCellResultProps {
 export function SqlCellResult({
   result,
   error,
+  originalQuery,
   executionTime,
   isLoading,
   chartConfig,
@@ -46,7 +48,7 @@ export function SqlCellResult({
   if (error) {
     return (
       <div className="max-h-[120px] overflow-auto">
-        <ErrorDisplay error={error} t={t} />
+        <ErrorDisplay error={error} t={t} originalQuery={originalQuery} />
       </div>
     );
   }

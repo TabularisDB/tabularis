@@ -798,6 +798,10 @@
     "queryFailed": "Esecuzione query fallita.",
     "showErrorDetails": "Mostra dettagli",
     "hideErrorDetails": "Nascondi dettagli",
+    "showQuery": "Mostra query",
+    "hideQuery": "Nascondi query",
+    "showExecutedQuery": "Mostra query eseguita",
+    "hideExecutedQuery": "Nascondi query eseguita",
     "errorBoundary": {
       "title": "L'editor si è bloccato in modo imprevisto",
       "description": "Qualcosa nell'editor non è riuscito a renderizzarsi. L'errore è mostrato qui sotto — riprova oppure torna alle connessioni.",

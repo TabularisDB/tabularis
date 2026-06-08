@@ -540,7 +540,12 @@ async fn exec_on_sqlite_conn(
     if is_select && limit.is_some() {
         let l = limit.unwrap();
 
-        final_query = crate::drivers::common::build_paginated_query(query, l, page);
+        final_query = crate::drivers::common::build_paginated_query(
+            query,
+            l,
+            page,
+            crate::drivers::common::PaginationDialect::Sqlite,
+        );
 
         pagination = Some(Pagination {
             page,
@@ -584,7 +589,13 @@ async fn exec_on_sqlite_conn(
                 }
                 json_rows.push(json_row);
             }
-            Err(e) => return Err(e.to_string()),
+            Err(e) => {
+                return Err(crate::drivers::common::annotate_error_with_query(
+                    e.to_string(),
+                    &final_query,
+                    query,
+                ))
+            }
         }
     }
 

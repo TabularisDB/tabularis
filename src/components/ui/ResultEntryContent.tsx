@@ -45,7 +45,7 @@ export function ResultEntryContent({
   if (entry.error) {
     return (
       <div className={compact ? "max-h-[150px] overflow-auto" : undefined}>
-        <ErrorDisplay error={entry.error} t={t} />
+        <ErrorDisplay error={entry.error} t={t} originalQuery={entry.query} />
       </div>
     );
   }

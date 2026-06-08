@@ -10,9 +10,9 @@ pub use blob::{
     DEFAULT_MAX_BLOB_SIZE, MAX_BLOB_PREVIEW_SIZE,
 };
 pub use query::{
-    build_paginated_query, calculate_offset, extract_user_limit, extract_user_offset,
-    is_explainable_query,
-    is_select_query, returns_result_set, strip_leading_sql_comments, strip_limit_offset,
+    annotate_error_with_query, build_paginated_query, calculate_offset, extract_user_limit,
+    extract_user_offset, is_explainable_query, is_select_query, returns_result_set,
+    strip_leading_sql_comments, strip_limit_offset, PaginationDialect, EXECUTED_QUERY_MARKER,
 };
 pub use safe_int::{
     i64_to_json, parse_unsafe_bigint_string, u64_to_json, JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT,

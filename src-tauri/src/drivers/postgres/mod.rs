@@ -810,7 +810,12 @@ async fn exec_on_pg_client(
 
     let (final_query, pagination_meta) = if is_select && limit.is_some() {
         let l = limit.unwrap();
-        let data_query = crate::drivers::common::build_paginated_query(query, l, page);
+        let data_query = crate::drivers::common::build_paginated_query(
+            query,
+            l,
+            page,
+            crate::drivers::common::PaginationDialect::Postgres,
+        );
         manual_limit = None;
         (data_query, Some((l, page)))
     } else {
@@ -822,7 +827,11 @@ async fn exec_on_pg_client(
         client
             .query_raw(&final_query, &pg_params)
             .await
-            .map_err(|e| format_pg_error(&e))?
+            .map_err(|e| crate::drivers::common::annotate_error_with_query(
+                format_pg_error(&e),
+                &final_query,
+                query
+            ))?
     );
 
     let mut columns: Vec<String> = Vec::new();
@@ -851,7 +860,13 @@ async fn exec_on_pg_client(
                 }
                 json_rows.push(json_row);
             }
-            Err(e) => return Err(format_pg_error(&e)),
+            Err(e) => {
+                return Err(crate::drivers::common::annotate_error_with_query(
+                    format_pg_error(&e),
+                    &final_query,
+                    query,
+                ))
+            }
         }
     }
 

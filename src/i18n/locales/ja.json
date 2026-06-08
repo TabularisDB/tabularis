@@ -828,6 +828,10 @@
     "queryFailed": "クエリが失敗しました。",
     "showErrorDetails": "詳細を表示",
     "hideErrorDetails": "詳細を非表示",
+    "showQuery": "クエリを表示",
+    "hideQuery": "クエリを非表示",
+    "showExecutedQuery": "実行されたクエリを表示",
+    "hideExecutedQuery": "実行されたクエリを非表示",
     "errorBoundary": {
       "title": "エディタが予期せずクラッシュしました",
       "description": "エディタの一部のレンダリングに失敗しました。エラーは下に表示されています。再試行するか、接続一覧に戻ってください。",

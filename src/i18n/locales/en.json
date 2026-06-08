@@ -816,6 +816,10 @@
     "queryFailed": "Query failed.",
     "showErrorDetails": "Show details",
     "hideErrorDetails": "Hide details",
+    "showQuery": "Show query",
+    "hideQuery": "Hide query",
+    "showExecutedQuery": "Show executed query",
+    "hideExecutedQuery": "Hide executed query",
     "errorBoundary": {
       "title": "The editor crashed unexpectedly",
       "description": "Something in the editor failed to render. The error is shown below — try again, or go back to your connections.",

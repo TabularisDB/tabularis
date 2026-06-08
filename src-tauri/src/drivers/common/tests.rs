@@ -1,9 +1,34 @@
 use super::{
-    build_paginated_query, decode_blob_wire_format, encode_blob, encode_blob_full, i64_to_json,
-    is_explainable_query, is_select_query, parse_unsafe_bigint_string, strip_leading_sql_comments,
-    strip_limit_offset, u64_to_json, DEFAULT_MAX_BLOB_SIZE, JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT,
+    annotate_error_with_query, build_paginated_query, decode_blob_wire_format, encode_blob,
+    encode_blob_full, i64_to_json, is_explainable_query, is_select_query, parse_unsafe_bigint_string,
+    strip_leading_sql_comments, strip_limit_offset, u64_to_json, PaginationDialect,
+    DEFAULT_MAX_BLOB_SIZE, EXECUTED_QUERY_MARKER, JS_MAX_SAFE_INTEGER, JS_MAX_SAFE_UINT,
     MAX_BLOB_PREVIEW_SIZE,
 };
+
+#[test]
+fn test_annotate_error_appends_rewritten_query() {
+    let err = "syntax error near 'LIMIT 1 OFFSET 0'".to_string();
+    let executed = "SELECT * FROM t LIMIT 1 OFFSET 0";
+    let original = "SELECT * FROM t";
+    let out = annotate_error_with_query(err.clone(), executed, original);
+
+    let (message, query) = out
+        .split_once(EXECUTED_QUERY_MARKER)
+        .expect("marker should be present when the query was rewritten");
+    assert_eq!(message, err);
+    assert_eq!(query, executed);
+}
+
+#[test]
+fn test_annotate_error_noop_when_query_unchanged() {
+    let err = "permission denied".to_string();
+    let q = "SELECT * FROM t";
+    // Identical query (modulo surrounding whitespace) must not be appended.
+    let out = annotate_error_with_query(err.clone(), "  SELECT * FROM t  ", q);
+    assert_eq!(out, err);
+    assert!(!out.contains(EXECUTED_QUERY_MARKER));
+}
 
 #[test]
 fn test_decode_blob_wire_format_valid() {
@@ -277,7 +302,7 @@ fn test_extract_user_limit_table_name_contains_limit_with_real_limit() {
 #[test]
 fn test_build_paginated_query_no_user_limit() {
     let q = "SELECT o.id FROM orders o ORDER BY o.created_at DESC";
-    let result = build_paginated_query(q, 100, 1);
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::Postgres);
     assert_eq!(
         result,
         "SELECT o.id FROM orders o ORDER BY o.created_at DESC LIMIT 101 OFFSET 0"
@@ -287,7 +312,7 @@ fn test_build_paginated_query_no_user_limit() {
 #[test]
 fn test_build_paginated_query_replaces_user_limit() {
     let q = "SELECT * FROM t ORDER BY id LIMIT 50";
-    let result = build_paginated_query(q, 100, 1);
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::Postgres);
     // User wanted 50 rows. page_size=100, so remaining=50, fetch = min(50, 101) = 50
     assert_eq!(result, "SELECT * FROM t ORDER BY id LIMIT 50 OFFSET 0");
 }
@@ -295,7 +320,7 @@ fn test_build_paginated_query_replaces_user_limit() {
 #[test]
 fn test_build_paginated_query_user_limit_second_page() {
     let q = "SELECT * FROM t ORDER BY id LIMIT 250";
-    let result = build_paginated_query(q, 100, 2);
+    let result = build_paginated_query(q, 100, 2, PaginationDialect::Postgres);
     // offset=100, remaining=150, fetch = min(150, 101) = 101
     assert_eq!(result, "SELECT * FROM t ORDER BY id LIMIT 101 OFFSET 100");
 }
@@ -303,7 +328,7 @@ fn test_build_paginated_query_user_limit_second_page() {
 #[test]
 fn test_build_paginated_query_user_limit_exhausted() {
     let q = "SELECT * FROM t LIMIT 50";
-    let result = build_paginated_query(q, 100, 2);
+    let result = build_paginated_query(q, 100, 2, PaginationDialect::Postgres);
     // offset=100, remaining=0 (50-100 saturates to 0), fetch = min(0, 101) = 0
     assert_eq!(result, "SELECT * FROM t LIMIT 0 OFFSET 100");
 }
@@ -311,7 +336,7 @@ fn test_build_paginated_query_user_limit_exhausted() {
 #[test]
 fn test_build_paginated_query_table_name_contains_limit() {
     let q = "SELECT * FROM tapp_appointment_message_event_limit ORDER BY id";
-    let result = build_paginated_query(q, 100, 1);
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::Postgres);
     assert_eq!(
         result,
         "SELECT * FROM tapp_appointment_message_event_limit ORDER BY id LIMIT 101 OFFSET 0"
@@ -321,7 +346,7 @@ fn test_build_paginated_query_table_name_contains_limit() {
 #[test]
 fn test_build_paginated_query_table_name_contains_limit_with_user_limit() {
     let q = "SELECT * FROM tapp_appointment_message_event_limit ORDER BY id LIMIT 10";
-    let result = build_paginated_query(q, 100, 1);
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::Postgres);
     assert_eq!(
         result,
         "SELECT * FROM tapp_appointment_message_event_limit ORDER BY id LIMIT 10 OFFSET 0"
@@ -357,7 +382,7 @@ fn test_build_paginated_query_preserves_user_offset() {
     // Regression for #273: `LIMIT 1 OFFSET 1` must keep OFFSET 1 on page 1,
     // not collapse to OFFSET 0 (which returned the 1st row instead of the 2nd).
     let q = "SELECT DISTINCT salary FROM employees ORDER BY salary DESC LIMIT 1 OFFSET 1";
-    let result = build_paginated_query(q, 100, 1);
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::Postgres);
     assert_eq!(
         result,
         "SELECT DISTINCT salary FROM employees ORDER BY salary DESC LIMIT 1 OFFSET 1"
@@ -367,7 +392,7 @@ fn test_build_paginated_query_preserves_user_offset() {
 #[test]
 fn test_build_paginated_query_user_offset_no_limit() {
     let q = "SELECT * FROM t ORDER BY id OFFSET 5";
-    let result = build_paginated_query(q, 100, 1);
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::Postgres);
     assert_eq!(result, "SELECT * FROM t ORDER BY id LIMIT 101 OFFSET 5");
 }
 
@@ -375,14 +400,14 @@ fn test_build_paginated_query_user_offset_no_limit() {
 fn test_build_paginated_query_user_offset_second_page() {
     // page offset (100) is added on top of the user's OFFSET (5).
     let q = "SELECT * FROM t ORDER BY id OFFSET 5";
-    let result = build_paginated_query(q, 100, 2);
+    let result = build_paginated_query(q, 100, 2, PaginationDialect::Postgres);
     assert_eq!(result, "SELECT * FROM t ORDER BY id LIMIT 101 OFFSET 105");
 }
 
 #[test]
 fn test_build_paginated_query_subquery_with_limit() {
     let q = "SELECT * FROM (SELECT id FROM t ORDER BY id LIMIT 100) sub ORDER BY id LIMIT 5";
-    let result = build_paginated_query(q, 100, 1);
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::Postgres);
     assert_eq!(
         result,
         "SELECT * FROM (SELECT id FROM t ORDER BY id LIMIT 100) sub ORDER BY id LIMIT 5 OFFSET 0"
@@ -392,7 +417,7 @@ fn test_build_paginated_query_subquery_with_limit() {
 #[test]
 fn test_build_paginated_query_with_leading_comments() {
     let q = "-- header\nSELECT * FROM t ORDER BY id";
-    let result = build_paginated_query(q, 100, 1);
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::Postgres);
     assert_eq!(
         result,
         "-- header\nSELECT * FROM t ORDER BY id LIMIT 101 OFFSET 0"
@@ -405,11 +430,79 @@ fn test_build_paginated_query_multiline_comments_with_user_limit() {
     // appended `LIMIT … OFFSET …` lands on its own line rather than
     // being swallowed into the `--` header as comment text.
     let q = "-- ============\n-- title\n-- ============\n\nSELECT * FROM t ORDER BY id LIMIT 50";
-    let result = build_paginated_query(q, 100, 1);
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::Postgres);
     assert_eq!(
         result,
         "-- ============\n-- title\n-- ============\n\nSELECT * FROM t ORDER BY id LIMIT 50 OFFSET 0"
     );
+}
+
+#[test]
+fn test_build_paginated_query_mysql_comma_limit() {
+    // MySQL `LIMIT <offset>, <count>` — the parser normalises it so the offset
+    // (10) folds into the page offset and the count (5) caps the fetch.
+    let q = "SELECT * FROM t LIMIT 10, 5";
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::MySql);
+    assert_eq!(result, "SELECT * FROM t LIMIT 5 OFFSET 10");
+}
+
+#[test]
+fn test_build_paginated_query_mysql_comma_limit_no_space() {
+    // No space between offset and count (`LIMIT 0,1`). The whitespace tokenizer
+    // keeps `0,1` as a single token, so the trailing clause must still be
+    // recognised and stripped rather than producing the invalid
+    // `... LIMIT 0,1 LIMIT 1 OFFSET 0`.
+    let q = "select * from accounts LIMIT 0,1";
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::MySql);
+    assert_eq!(result, "select * from accounts LIMIT 1 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_mysql_comma_limit_second_page() {
+    let q = "SELECT * FROM t LIMIT 10, 250";
+    let result = build_paginated_query(q, 100, 2, PaginationDialect::MySql);
+    // user_offset=10, user_limit=250, page_offset=100.
+    // fetch = min(250-100, 101) = 101, offset = 10 + 100 = 110
+    assert_eq!(result, "SELECT * FROM t LIMIT 101 OFFSET 110");
+}
+
+#[test]
+fn test_build_paginated_query_offset_before_limit() {
+    // Postgres allows OFFSET before LIMIT; both must be stripped and folded.
+    let q = "SELECT * FROM t ORDER BY id OFFSET 5 LIMIT 10";
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::Postgres);
+    assert_eq!(result, "SELECT * FROM t ORDER BY id LIMIT 10 OFFSET 5");
+}
+
+#[test]
+fn test_build_paginated_query_mysql_backtick_identifier() {
+    let q = "SELECT * FROM `orders` ORDER BY `id` LIMIT 10";
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::MySql);
+    assert_eq!(
+        result,
+        "SELECT * FROM `orders` ORDER BY `id` LIMIT 10 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_preserves_inline_hint() {
+    // The body is sliced verbatim, so an inline comment/optimizer hint is kept
+    // even though the parser itself discards comments.
+    let q = "SELECT /*+ MAX_EXECUTION_TIME(1000) */ * FROM t LIMIT 5";
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::MySql);
+    assert_eq!(
+        result,
+        "SELECT /*+ MAX_EXECUTION_TIME(1000) */ * FROM t LIMIT 5 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_falls_back_on_parse_error() {
+    // The parser rejects this (dangling LIMIT after WHERE), so the rewriter
+    // falls back to the token heuristics and still strips the trailing LIMIT.
+    let q = "SELECT * FROM t WHERE LIMIT 5";
+    let result = build_paginated_query(q, 100, 1, PaginationDialect::Postgres);
+    assert_eq!(result, "SELECT * FROM t WHERE LIMIT 5 OFFSET 0");
 }
 
 #[test]
