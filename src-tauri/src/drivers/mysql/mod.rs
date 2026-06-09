@@ -1224,6 +1224,7 @@ impl MysqlDriver {
                     manage_tables: true,
                     readonly: false,
                     triggers: true,
+                    supports_ssl: true,
                     sql_dialect: SqlDialect::Mysql,
                 },
                 is_builtin: true,

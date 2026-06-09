@@ -108,6 +108,11 @@ pub struct DriverCapabilities {
     /// Supports listing and managing database triggers.
     #[serde(default)]
     pub triggers: bool,
+    /// Supports the SSL/TLS configuration tab (mode + CA/client cert/key) in the
+    /// connection modal. Built-in network drivers set this; plugins opt in via
+    /// their manifest. Defaults to `false`.
+    #[serde(default, alias = "supportsSsl")]
+    pub supports_ssl: bool,
     /// When `true`, the driver is read-only: all data modification operations
     /// (INSERT, UPDATE, DELETE) are disabled in the UI.
     /// Table/column management is also hidden regardless of `manage_tables`.
