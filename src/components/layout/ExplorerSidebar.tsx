@@ -852,7 +852,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               setPendingSchemaSelection(new Set(selectedSchemas));
                               setIsSchemaFilterOpen(!isSchemaFilterOpen);
                             }}
-                            className={`p-1 rounded transition-colors ${
+                            className={`p-1 rounded transition-colors mr-1.5 ${
                               selectedSchemas.length < schemas.length
                                 ? "text-blue-400 hover:text-blue-300 bg-blue-500/10"
                                 : "text-muted hover:text-secondary hover:bg-surface-secondary"
@@ -1302,7 +1302,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     isOpen={tablesOpen}
                     onToggle={() => setTablesOpen(!tablesOpen)}
                     actions={
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 mr-2.5">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1436,7 +1436,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     isOpen={viewsOpen}
                     onToggle={() => setViewsOpen(!viewsOpen)}
                     actions={
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 mr-2.5">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1490,7 +1490,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       isOpen={triggersOpenFlat}
                       onToggle={() => setTriggersOpenFlat(!triggersOpenFlat)}
                       actions={
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 mr-2.5">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

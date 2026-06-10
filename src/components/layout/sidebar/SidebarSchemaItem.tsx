@@ -170,7 +170,8 @@ export const SidebarSchemaItem = ({
               e.stopPropagation();
               onRefreshSchema(schemaName);
             }}
-            className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors opacity-0 group-hover/schema:opacity-100"
+            className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors opacity-0
+                group-hover/schema:opacity-100 ml-1 mr-3"
             title={t("sidebar.refreshTables") || "Refresh"}
           >
             <RefreshCw size={12} />
@@ -194,7 +195,7 @@ export const SidebarSchemaItem = ({
                 isOpen={tablesOpen}
                 onToggle={() => setTablesOpen(!tablesOpen)}
                 actions={
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 mr-2.5">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -267,7 +268,7 @@ export const SidebarSchemaItem = ({
                 isOpen={viewsOpen}
                 onToggle={() => setViewsOpen(!viewsOpen)}
                 actions={
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 mr-2.5">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -311,7 +312,7 @@ export const SidebarSchemaItem = ({
                   isOpen={triggersOpen}
                   onToggle={() => setTriggersOpen(!triggersOpen)}
                   actions={
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 mr-2.5">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
