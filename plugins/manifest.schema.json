@@ -75,6 +75,11 @@
           "type": "boolean",
           "description": "true to enable stored procedures and functions in the database explorer."
         },
+        "triggers": {
+          "type": "boolean",
+          "default": false,
+          "description": "true if the driver supports trigger metadata and trigger management RPCs."
+        },
         "file_based": {
           "type": "boolean",
           "description": "true for local file databases (e.g. SQLite, DuckDB). Replaces the host/port fields with a file path input."
@@ -108,6 +113,12 @@
           "type": "string",
           "enum": ["\"", "`"],
           "description": "Character used to quote SQL identifiers: double-quote for ANSI SQL, backtick for MySQL-style."
+        },
+        "sql_dialect": {
+          "type": "string",
+          "enum": ["postgres", "mysql", "mssql", "sqlite", "oracle", "generic"],
+          "default": "postgres",
+          "description": "SQL dialect used by Tabularis for statement splitting and query classification. Oracle-like plugins can use oracle."
         },
         "alter_primary_key": {
           "type": "boolean",
