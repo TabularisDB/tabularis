@@ -5,6 +5,11 @@
 # tabularis
 
 <p align="center">
+  <strong>Un client de bases de données open source pour PostgreSQL, MySQL/MariaDB et SQLite.<br />
+  Notebooks SQL, EXPLAIN visuel, IA et MCP intégrés. Les plugins ajoutent tout le reste.</strong>
+</p>
+
+<p align="center">
   <strong>README :</strong>
   <a href="./README.md">English</a> |
   <a href="./README.it.md">Italiano</a> |
@@ -16,7 +21,26 @@
   <a href="./README.ru.md">Русский</a>
 </p>
 
-Client desktop open source pour bases de données modernes. Il prend en charge PostgreSQL, MySQL/MariaDB et SQLite, avec notebooks SQL, fonctions IA, intégration MCP et système de plugins externe.
+<p align="center">
+  
+![](https://img.shields.io/github/release/TabularisDB/tabularis.svg?style=flat)
+![](https://img.shields.io/github/stars/TabularisDB/tabularis?style=flat)
+![](https://img.shields.io/github/downloads/TabularisDB/tabularis/total.svg?style=flat)
+![Build & Release](https://github.com/TabularisDB/tabularis/workflows/Release/badge.svg)
+[![Discord](https://img.shields.io/discord/1502944695808950282?color=5865F2&logo=discord&logoColor=white)](https://discord.com/invite/K2hmhfHRSt)
+[![Gitster](https://gitster.dev/api/repositories/badge/cmlko1jr60005ne4yh7i7oy3e)](https://gitster.dev/repo/TabularisDB/tabularis)
+
+</p>
+
+<p align="center">
+  <a href="https://snapcraft.io/tabularis"><img src="https://img.shields.io/badge/snap-tabularis-blue?logo=snapcraft" alt="Snap Store" /></a>
+  <a href="https://aur.archlinux.org/packages/tabularis-bin"><img src="https://img.shields.io/badge/AUR-tabularis--bin-1793D1?logo=archlinux&logoColor=white" alt="AUR" /></a>
+  <a href="https://winstall.app/apps/Debba.Tabularis"><img src="https://img.shields.io/winget/v/Debba.Tabularis?label=WinGet&logo=windows&color=0078D4" alt="WinGet" /></a>
+</p>
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/TabularisDB/website/main/public/img/overview.gif" alt="Tabularis" />
+</div>
 
 **Discord** - [Rejoindre le serveur](https://discord.com/invite/K2hmhfHRSt) pour discuter avec les mainteneurs, partager des retours et obtenir de l’aide.
 
@@ -24,11 +48,31 @@ Client desktop open source pour bases de données modernes. Il prend en charge P
 
 ## Téléchargements
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.9.18/tabularis_0.9.18_x64-setup.exe)
-[![macOS](https://img.shields.io/badge/macOS-Download-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.9.18/tabularis_0.9.18_x64.dmg)
-[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.9.18/tabularis_0.9.18_amd64.AppImage)
-[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.9.18/tabularis_0.9.18_amd64.deb)
-[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.9.18/tabularis-0.9.7-1.x86_64.rpm)
+```bash
+winget install Debba.Tabularis                                   # Windows
+brew tap TabularisDB/tabularis && brew install --cask tabularis  # macOS
+sudo snap install tabularis                                      # Linux
+```
+
+Ou téléchargez directement un installateur :
+
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis-0.13.1-1.x86_64.rpm)
+
+L’interface de l’application est disponible en anglais, italien, espagnol, chinois (simplifié), français, allemand, japonais et russe.
+
+## Pourquoi tabularis ?
+
+|  | **tabularis** | DBeaver CE | TablePlus | Beekeeper Studio |
+|---|---|---|---|---|
+| Licence | Apache 2.0, gratuit | Apache 2.0, gratuit (Pro payant) | Commerciale | GPLv3 (éditions payantes) |
+| Notebooks SQL (cellules SQL + Markdown, variables entre cellules, graphiques) | ✅ | ❌ | ❌ | ❌ |
+| Serveur MCP intégré pour les agents IA | ✅ | ❌ | ❌ | ❌ |
+| Plugins dans **n’importe quel langage** (JSON-RPC sur stdio) | ✅ | Plugins Java/Eclipse | Plugins JavaScript | ❌ |
+| Text-to-SQL par IA avec **modèles locaux** (Ollama) | ✅ | Assistant IA dans le cloud | ❌ | ❌ |
+| EXPLAIN visuel avec graphes de plan interactifs | ✅ | ✅ | ❌ | ❌ |
+| Bases de données prises en charge nativement | 3 (+ toutes via plugins) | 100+ | 20+ | ~10 |
+
+> Comparaison datée de juin 2026 ; les fonctionnalités des autres outils ont pu évoluer depuis. Si vous avez besoin de dizaines de drivers, utilisez DBeaver — tabularis se concentre sur bien prendre en charge quelques bases de données.
 
 ## Installation
 
@@ -230,6 +274,30 @@ pnpm tauri build
 - Data Compare / Diff Tool
 - Team Collaboration
 
+## Contribuer
+
+Les contributions sont les bienvenues — consultez [CONTRIBUTING.md](./CONTRIBUTING.md). Quelques bons points de départ :
+
+- [Driver SQL Server — feuille de route d’implémentation et appel à contributeurs](https://github.com/TabularisDB/tabularis/issues/150)
+- [Système de design UI et identité visuelle — appel à contributeurs](https://github.com/TabularisDB/tabularis/issues/195)
+- Écrivez un plugin de driver dans n’importe quel langage — voir le [guide des plugins](./plugins/PLUGIN_GUIDE.md)
+
+## Genèse du projet
+
+Tabularis est né d’une expérience : jusqu’où le développement assisté par IA pouvait-il aller pour construire un outil fonctionnel à partir de zéro ? Plus loin que prévu — c’est aujourd’hui un projet activement maintenu, avec des releases régulières et un écosystème de plugins.
+
 ## Licence
 
 Apache License 2.0
+
+---
+
+<p align="center">
+  Vous aimez tabularis ? Ajoutez une étoile au <a href="https://github.com/TabularisDB/tabularis">dépôt</a> ⭐ — cela aide beaucoup le projet.
+</p>
+
+<p align="center">
+  <a href="https://repostars.dev/?repos=TabularisDB%2Ftabularis&theme=dark">
+    <img src="https://repostars.dev/api/embed?repo=TabularisDB%2Ftabularis&theme=dark" alt="RepoStars" />
+  </a>
+</p>

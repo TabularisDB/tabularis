@@ -5,6 +5,11 @@
 # tabularis
 
 <p align="center">
+  <strong>PostgreSQL、MySQL/MariaDB、SQLite に対応したオープンソースのデータベースクライアント。<br />
+  SQL ノートブック、Visual EXPLAIN、AI、MCP を標準搭載。それ以外はプラグインで追加できます。</strong>
+</p>
+
+<p align="center">
   <strong>README:</strong>
   <a href="./README.md">English</a> |
   <a href="./README.it.md">Italiano</a> |
@@ -16,7 +21,26 @@
   <a href="./README.ru.md">Русский</a>
 </p>
 
-モダンなデータベース向けのオープンソースデスクトップクライアントです。PostgreSQL、MySQL/MariaDB、SQLite に対応し、SQL ノートブック、AI 機能、MCP 連携、外部プラグインシステムを備えています。
+<p align="center">
+  
+![](https://img.shields.io/github/release/TabularisDB/tabularis.svg?style=flat)
+![](https://img.shields.io/github/stars/TabularisDB/tabularis?style=flat)
+![](https://img.shields.io/github/downloads/TabularisDB/tabularis/total.svg?style=flat)
+![Build & Release](https://github.com/TabularisDB/tabularis/workflows/Release/badge.svg)
+[![Discord](https://img.shields.io/discord/1502944695808950282?color=5865F2&logo=discord&logoColor=white)](https://discord.com/invite/K2hmhfHRSt)
+[![Gitster](https://gitster.dev/api/repositories/badge/cmlko1jr60005ne4yh7i7oy3e)](https://gitster.dev/repo/TabularisDB/tabularis)
+
+</p>
+
+<p align="center">
+  <a href="https://snapcraft.io/tabularis"><img src="https://img.shields.io/badge/snap-tabularis-blue?logo=snapcraft" alt="Snap Store" /></a>
+  <a href="https://aur.archlinux.org/packages/tabularis-bin"><img src="https://img.shields.io/badge/AUR-tabularis--bin-1793D1?logo=archlinux&logoColor=white" alt="AUR" /></a>
+  <a href="https://winstall.app/apps/Debba.Tabularis"><img src="https://img.shields.io/winget/v/Debba.Tabularis?label=WinGet&logo=windows&color=0078D4" alt="WinGet" /></a>
+</p>
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/TabularisDB/website/main/public/img/overview.gif" alt="Tabularis" />
+</div>
 
 **Discord** - [サーバーに参加](https://discord.com/invite/K2hmhfHRSt) して、メンテナーと交流したり、フィードバックを共有したり、コミュニティからサポートを得たりできます。
 
@@ -24,11 +48,31 @@
 
 ## ダウンロード
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.11.0/tabularis_0.11.0_x64-setup.exe)
-[![macOS](https://img.shields.io/badge/macOS-Download-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.11.0/tabularis_0.11.0_x64.dmg)
-[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.11.0/tabularis_0.11.0_amd64.AppImage)
-[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.11.0/tabularis_0.11.0_amd64.deb)
-[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.11.0/tabularis-0.9.7-1.x86_64.rpm)
+```bash
+winget install Debba.Tabularis                                   # Windows
+brew tap TabularisDB/tabularis && brew install --cask tabularis  # macOS
+sudo snap install tabularis                                      # Linux
+```
+
+または、インストーラーを直接ダウンロードしてください。
+
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis-0.13.1-1.x86_64.rpm)
+
+アプリの UI は英語、イタリア語、スペイン語、中国語（簡体字）、フランス語、ドイツ語、日本語、ロシア語に対応しています。
+
+## なぜ tabularis なのか？
+
+|  | **tabularis** | DBeaver CE | TablePlus | Beekeeper Studio |
+|---|---|---|---|---|
+| ライセンス | Apache 2.0、無料 | Apache 2.0、無料（Pro は有料） | 商用 | GPLv3（有料エディションあり） |
+| SQL ノートブック（SQL + Markdown セル、セル間変数、チャート） | ✅ | ❌ | ❌ | ❌ |
+| AI エージェント向けの組み込み MCP サーバー | ✅ | ❌ | ❌ | ❌ |
+| **任意の言語**でプラグイン開発（stdio 経由の JSON-RPC） | ✅ | Java/Eclipse プラグイン | JavaScript プラグイン | ❌ |
+| **ローカルモデル**（Ollama）対応の AI テキストから SQL 変換 | ✅ | クラウドベースの AI アシスタント | ❌ | ❌ |
+| インタラクティブなプラングラフ付き Visual EXPLAIN | ✅ | ✅ | ❌ | ❌ |
+| 標準対応データベース数 | 3（+ プラグインで任意に追加） | 100+ | 20+ | 約 10 |
+
+> 比較は 2026 年 6 月時点のものです。他ツールの機能はその後変わっている可能性があります。数十のドライバーが必要な場合は DBeaver を使ってください。tabularis は、少数のデータベースをしっかりサポートすることに注力しています。
 
 ## インストール
 
@@ -230,6 +274,30 @@ pnpm tauri build
 - データ比較 / 差分ツール
 - チームコラボレーション
 
+## コントリビューション
+
+コントリビューションを歓迎します。詳しくは [CONTRIBUTING.md](./CONTRIBUTING.md) をご覧ください。始めやすいテーマは次のとおりです。
+
+- [SQL Server ドライバー — 実装ロードマップとコントリビューター募集](https://github.com/TabularisDB/tabularis/issues/150)
+- [UI デザインシステムとビジュアルアイデンティティ — コントリビューター募集](https://github.com/TabularisDB/tabularis/issues/195)
+- 好きな言語でドライバープラグインを書く — [プラグインガイド](./plugins/PLUGIN_GUIDE.md) を参照
+
+## プロジェクトの成り立ち
+
+Tabularis は、AI 支援開発でゼロから動くツールをどこまで作れるかという実験として始まりました。結果は予想以上で、現在では定期的なリリースとプラグインエコシステムを持つ、活発にメンテナンスされているプロジェクトになっています。
+
 ## ライセンス
 
 Apache License 2.0
+
+---
+
+<p align="center">
+  tabularis を気に入ったら、<a href="https://github.com/TabularisDB/tabularis">リポジトリにスター</a>を付けてください ⭐。プロジェクトの大きな助けになります。
+</p>
+
+<p align="center">
+  <a href="https://repostars.dev/?repos=TabularisDB%2Ftabularis&theme=dark">
+    <img src="https://repostars.dev/api/embed?repo=TabularisDB%2Ftabularis&theme=dark" alt="RepoStars" />
+  </a>
+</p>

@@ -5,6 +5,11 @@
 # tabularis
 
 <p align="center">
+  <strong>An open-source database client for PostgreSQL, MySQL/MariaDB and SQLite.<br />
+  SQL notebooks, visual EXPLAIN, AI and MCP built in. Plugins add everything else.</strong>
+</p>
+
+<p align="center">
   <strong>README:</strong>
   <a href="./README.md">English</a> |
   <a href="./README.it.md">Italiano</a> |
@@ -19,6 +24,7 @@
 <p align="center">
   
 ![](https://img.shields.io/github/release/TabularisDB/tabularis.svg?style=flat)
+![](https://img.shields.io/github/stars/TabularisDB/tabularis?style=flat)
 ![](https://img.shields.io/github/downloads/TabularisDB/tabularis/total.svg?style=flat)
 ![Build & Release](https://github.com/TabularisDB/tabularis/workflows/Release/badge.svg)
 [![Discord](https://img.shields.io/discord/1502944695808950282?color=5865F2&logo=discord&logoColor=white)](https://discord.com/invite/K2hmhfHRSt)
@@ -32,39 +38,43 @@
   <a href="https://winstall.app/apps/Debba.Tabularis"><img src="https://img.shields.io/winget/v/Debba.Tabularis?label=WinGet&logo=windows&color=0078D4" alt="WinGet" /></a>
 </p>
 
-An open-source desktop client for modern databases. Supports PostgreSQL, MySQL/MariaDB and SQLite and is hackable with plugins, with notebooks, AI, and MCP built in.
-
-**Available in:** English, Italian, Spanish, Chinese (Simplified), French, German, Japanese, Russian
-
-**Discord** - [Join our Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with the maintainers, share feedback, and get help from the community.
-
 <div align="center">
-  <img src="https://github.com/TabularisDB/website/blob/main/public/img/overview.gif" alt="Tabularis" />
+  <img src="https://raw.githubusercontent.com/TabularisDB/website/main/public/img/overview.gif" alt="Tabularis" />
 </div>
 
-> 💡 **Origin Story:** This project began as an AI-assisted development experiment, exploring how far intelligent agents could accelerate building a fully functional tool from scratch..
+## Download
 
-## Release Download:
+```bash
+winget install Debba.Tabularis                                   # Windows
+brew tap TabularisDB/tabularis && brew install --cask tabularis  # macOS
+sudo snap install tabularis                                      # Linux
+```
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64-setup.exe) [![macOS](https://img.shields.io/badge/macOS-Download-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis-0.9.7-1.x86_64.rpm)
+Or grab an installer directly:
 
-<!-- SPONSORS:START -->
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis-0.13.1-1.x86_64.rpm)
 
-## Sponsors
+The app UI is available in English, Italian, Spanish, Chinese (Simplified), French, German, Japanese and Russian.
 
-- <a href="https://www.serversmtp.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/turbosmtp_compact.png" height="28" alt="turboSMTP" /></a> **[turboSMTP](https://www.serversmtp.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Professional SMTP relay — your emails delivered straight to the inbox, never to spam
-- <a href="https://www.kilo.ai/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/kilocode_compact.png" height="28" alt="Kilo Code" /></a> **[Kilo Code](https://www.kilo.ai/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Open source AI coding agent — build, ship, and iterate faster with 500+ models
-- <a href="https://m.do.co/c/f6ab3d158275?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/digitalocean_compact.png" height="28" alt="DigitalOcean" /></a> **[DigitalOcean](https://m.do.co/c/f6ab3d158275?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Simple, predictable cloud infrastructure for developers and growing teams.
-- <a href="https://usero.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/usero_compact.png" height="28" alt="Usero" /></a> **[Usero](https://usero.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Feedback becomes code. Automatically.
-- <a href="https://devglobe.xyz/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/devglobe_compact.png" height="28" alt="DevGlobe" /></a> **[DevGlobe](https://devglobe.xyz/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Connect your IDE, show up on the globe, and showcase your projects to a community of builders.
+**Discord** — [Join our Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with the maintainers, share feedback, and get help from the community.
 
-_[Become a sponsor →](https://tabularis.dev/sponsors)_
+## Why tabularis?
 
-<!-- SPONSORS:END -->
+|  | **tabularis** | DBeaver CE | TablePlus | Beekeeper Studio |
+|---|---|---|---|---|
+| License | Apache 2.0, free | Apache 2.0, free (Pro is paid) | Commercial | GPLv3 (paid editions) |
+| SQL notebooks (SQL + Markdown cells, cross-cell variables, charts) | ✅ | ❌ | ❌ | ❌ |
+| Built-in MCP server for AI agents | ✅ | ❌ | ❌ | ❌ |
+| Plugins in **any language** (JSON-RPC over stdio) | ✅ | Java/Eclipse plugins | JavaScript plugins | ❌ |
+| AI text-to-SQL with **local models** (Ollama) | ✅ | Cloud-based AI assistant | ❌ | ❌ |
+| Visual EXPLAIN with interactive plan graphs | ✅ | ✅ | ❌ | ❌ |
+| Databases out of the box | 3 (+ any via plugins) | 100+ | 20+ | ~10 |
+
+> Comparison as of June 2026; features in other tools may have changed since. If you need dozens of drivers, use DBeaver — tabularis focuses on doing a few databases well.
 
 ## Table of Contents
 
-- [Sponsors](#sponsors)
+- [Why tabularis?](#why-tabularis)
 - [Installation](#installation)
   - [Windows](#windows)
   - [macOS](#macos)
@@ -72,7 +82,6 @@ _[Become a sponsor →](https://tabularis.dev/sponsors)_
   - [Linux (AppImage)](#linux-appimage)
   - [Arch Linux (AUR)](#arch-linux-aur)
 - [Updates](#updates)
-- [Gallery](#gallery)
 - [Discord](#discord)
 - [Changelog](#changelog)
 - [Features](#features)
@@ -92,6 +101,9 @@ _[Become a sponsor →](https://tabularis.dev/sponsors)_
 - [Tech Stack](#tech-stack)
 - [Development](#development)
 - [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [Sponsors](#sponsors)
+- [Origin Story](#origin-story)
 - [License](#license)
 
 ## Installation
@@ -171,17 +183,7 @@ yay -S tabularis-bin
 
 ## Updates
 
-### Automatic Updates
-
-Tabularis checks for updates automatically on startup. When a new version is available, a notification will appear, allowing you to download and install the update seamlessly.
-
-### Manual Updates
-
-You can also manually check for updates or download the latest version directly from the [Releases page](https://github.com/TabularisDB/tabularis/releases).
-
-## Gallery
-
-**View the full gallery at [tabularis.dev](https://tabularis.dev)**
+Tabularis checks for updates automatically on startup and notifies you when a new version is available. You can also download the latest version directly from the [Releases page](https://github.com/TabularisDB/tabularis/releases).
 
 ## Discord
 
@@ -195,65 +197,46 @@ Join our [Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with th
 
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/connections)
 
-- Support for **MySQL/MariaDB**, **PostgreSQL** (with multi-schema support) and **SQLite**.
-- **Multi-Database Selection:** Select multiple MySQL/MariaDB databases in a single connection — each appears as its own collapsible node in the sidebar.
-- Save, manage, and clone connection profiles with secure local persistence.
-- **Redesigned Connections Page:** Grid and list view modes, real-time search, branded driver icons (PostgreSQL elephant, MySQL dolphin, SQLite cylinder) in their official colors.
-- **Per-Connection Appearance:** Override the icon and accent color of each saved connection. Choose any [Lucide icon](https://lucide.dev/icons/) (~1900, searchable), an emoji from the full Unicode picker, or upload a custom image (PNG/JPEG/WebP/GIF/SVG, ≤512 KB). Color is picked from a 12-swatch palette or a full hex picker.
-- **Open in Editor:** Right-click any connection in the sidebar to open it directly in the editor via context menu.
-- Manage **SSH Connections** from the connection manager.
-- Optional secure password storage in system **Keychain**.
+- Support for **MySQL/MariaDB**, **PostgreSQL** (with multi-schema support) and **SQLite**, with multi-database selection per connection.
+- Save, manage, and clone connection profiles, with optional secure password storage in the system **Keychain**.
 - **SSH Tunneling** with automatic readiness detection.
+- **Per-Connection Appearance:** override the icon ([Lucide](https://lucide.dev/icons/), emoji, or custom image) and accent color of each saved connection.
 
 ### Database Explorer
 
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/schema-management)
 
-- **Tree View:** Browse tables, columns, keys, foreign keys, indexes, views, and stored routines.
-- **Inline Editing:** Edit table and column properties directly from the sidebar.
-- **ER Diagram:** Interactive Entity-Relationship visualization (Pan, Zoom, Layout) with selective table diagram generation.
+- **Tree View:** Browse tables, columns, keys, indexes, views, and stored routines — with inline editing from the sidebar.
+- **ER Diagram:** Interactive Entity-Relationship visualization (pan, zoom, layout) with selective table diagram generation.
 - **Context Actions:** Show data, count rows, modify schema, duplicate/delete tables.
-- **Views Support:** Browse, inspect, and query database views with full metadata.
-- **Stored Routines:** View and manage stored procedures and functions with parameter details.
-- **Fast Metadata:** Parallel fetching for schema loading.
 - **SQL Dump & Import:** Export and restore databases with a single flow.
 
 ### SQL Editor
 
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/editor)
 
-- **Monaco Editor:** Syntax highlighting and auto-completion.
-- **Tabbed Interface:** Isolated connections per tab.
-- **Split View:** Open multiple database connections side-by-side in a resizable split-pane layout.
-- **Multi-Statement Execution:** Run All, Run Selected, or pick individual queries from a multi-statement script. Results from each query appear in separate tabs with independent pagination and error handling.
-- **Multi-Result Tabs:** Close, rename, re-run, and manage result tabs via context menu. Query parameters are collected once across all queries.
+- **Monaco Editor** with syntax highlighting and auto-completion, in a tabbed interface with isolated connections per tab and resizable **split view**.
+- **Multi-Statement Execution:** Run All, Run Selected, or pick individual queries — results appear in separate tabs with independent pagination.
 - **Smart Query Splitting:** Correctly handles stored procedures, functions, and `$$`-delimited blocks.
-- **Saved Queries:** Persist frequently used SQL.
-- **AI Assist Overlay:** AI assistance buttons accessible as a floating overlay directly in the editor.
+- **Saved Queries** and an **AI assist overlay** directly in the editor.
 
 ### SQL Notebooks
 
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/notebooks)
 
-- **Multi-Cell Workspace:** Combine SQL and Markdown cells in a single document.
-- **Inline Results & Charts:** View query results directly below each cell, with bar, line, and pie chart visualizations.
-- **Cross-Cell Variables:** Reference results from other cells using `{{cellName.columnName}}` syntax with automatic dependency resolution.
-- **Notebook Parameters:** Define global `{{$paramName}}` variables substituted across all cells at execution time.
-- **Run All:** Sequential execution of all SQL cells with stop-on-error option and completion summary.
-- **Drag & Drop:** Reorder cells freely, collapse/expand individual cells or all at once.
-- **AI Cell Naming:** Auto-generate descriptive cell names individually or in batch.
-- **Persistence & Export:** Auto-saved as `.tabularis-notebook` files. Export as `.tabularis-notebook`, HTML, CSV, or JSON.
-- **Outline Panel:** Side panel showing the full notebook structure with click-to-navigate.
+- **Multi-Cell Workspace:** Combine SQL and Markdown cells in a single document, with inline results and bar/line/pie charts.
+- **Cross-Cell Variables:** Reference results from other cells with `{{cellName.columnName}}`, plus global `{{$paramName}}` parameters.
+- **Run All:** Sequential execution with stop-on-error option and completion summary.
+- **Persistence & Export:** Auto-saved as `.tabularis-notebook` files; export as HTML, CSV, or JSON.
+- Outline panel, drag & drop cell reordering, and AI-generated cell names.
 
 ### Keyboard Shortcuts
 
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/keyboard-shortcuts)
 
-- **Built-in shortcuts** for navigation, editor, and data grid actions (e.g. `Ctrl+B` to toggle sidebar, `Ctrl+T` for a new tab, `Ctrl+→/←` to paginate results).
-- **Fully customizable:** Remap any non-locked shortcut from **Settings → Keyboard Shortcuts** — press the combo to record it, click ↺ to reset.
-- **Platform-aware:** Uses `Cmd` on macOS and `Ctrl` on Windows/Linux throughout.
-- **Visual hints:** Hold `Ctrl+Shift` in the sidebar to reveal numbered badges (1–9) for instant connection switching.
-- **Persistent overrides:** Saved to `keybindings.json` in the app config directory; can also be edited manually.
+- **Built-in shortcuts** for navigation, editor, and data grid actions — platform-aware (`Cmd` on macOS, `Ctrl` on Windows/Linux).
+- **Fully customizable:** Remap any non-locked shortcut from **Settings → Keyboard Shortcuts**; overrides persist to `keybindings.json`.
+- Hold `Ctrl+Shift` in the sidebar to reveal numbered badges (1–9) for instant connection switching.
 
 ### Visual Query Builder
 
@@ -277,13 +260,10 @@ Join our [Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with th
 
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/data-grid)
 
-- **Inline & Batch Editing:** Modify cells and commit multiple changes at once.
-- **Row Management:** Create, delete, and select multiple rows.
-- **Copy Selected Rows:** Export selections straight to the clipboard.
-- **Export:** Save results as CSV or JSON.
-- **Smart Context:** Read-only mode for aggregates, edit mode for tables.
-- **Spatial Data Support:** Initial GEOMETRY support for MySQL with raw SQL function inputs for spatial data.
-- **JSON & JSONB Cells:** Syntax-highlighted in the grid with a Braces affordance that opens a standalone Tauri editor window (Tree / Monaco / Raw modes; window position remembered). Text columns can opt in to the same affordance per connection via **Detect JSON in text columns**.
+- **Inline & Batch Editing:** Modify cells and commit multiple changes at once; create, delete, and multi-select rows.
+- **Export:** Save results as CSV or JSON, or copy selected rows straight to the clipboard.
+- **JSON & JSONB Cells:** Syntax-highlighted in the grid, with a dedicated editor window (Tree / Monaco / Raw modes).
+- **Spatial Data:** Initial GEOMETRY support for MySQL.
 
 ### Plugin System
 
@@ -299,111 +279,25 @@ Tabularis is **hackable with an external plugin system**. Plugins are standalone
 
 ### Logging
 
-- **Real-time Monitoring:** View application logs directly in Settings.
-- **Level Filtering:** Filter by DEBUG, INFO, WARN, or ERROR severity.
-- **In-memory Buffer:** Configurable retention.
-- **Query Expansion:** Automatically expand and inspect SQL queries in logs.
-- **Export Logs:** Save logs to `.log` files for debugging or audit trails.
-- **Toggle Control:** Enable/disable logging and adjust buffer size without restart.
-- **CLI Debug Mode:** Start with `tabularis --debug` to enable verbose logging (including internal SQLx queries) from launch.
+- Real-time log viewer in Settings, with level filtering and export to `.log` files.
+- Automatically expand and inspect SQL queries in logs.
+- **CLI Debug Mode:** Start with `tabularis --debug` for verbose logging from launch.
 
 ### Configuration Storage
 
-Configuration is stored in `~/.config/tabularis/` (Linux), `~/Library/Application Support/tabularis/` (macOS), or `%APPDATA%\tabularis\` (Windows).
+> [Full reference on tabularis.dev →](https://tabularis.dev/wiki/configuration)
 
-- `connections.json`: Connection profiles.
-- `saved_queries.json`: Saved SQL queries.
-- `config.json`: App settings (theme, language, page size).
-- `themes/`: Custom themes.
-- `preferences/`: Editor preferences per connection (tabs, queries, layout).
-- `connection-icons/`: Custom images uploaded as per-connection icons (see [Per-Connection Appearance](#connection-management)).
-
-#### Editor Preferences
-
-Tabularis automatically saves your editor state for each database connection. When you reopen a connection, you'll see your previously opened tabs with their queries restored.
-
-**Location:** `~/.config/tabularis/preferences/{connectionId}/preferences.json`
-
-**What is saved:**
-
-- Tab titles and types (Console, Table, Visual Query)
-- SQL queries and query parameters
-- Active table and selected columns
-- Filter, sort, and limit clauses
-- Visual Query Builder flow state
-- Editor visibility state
-
-**What is NOT saved:**
-
-- Query results (you'll need to re-run queries)
-- Error messages
-- Execution times
-- Pending edits or deletions
-- Loading states
-
-This approach ensures fast startup times while preserving your workspace layout across sessions.
-
-#### `config.json` options
-
-- `theme`: Theme ID (e.g., `"tabularis-dark"`, `"monokai"`).
-- `fontFamily`: Editor font family.
-- `fontSize`: Editor font size (px).
-- `language`: `"auto"`, `"en"` (English), `"it"` (Italian), `"es"` (Spanish), `"zh"` (Chinese Simplified), `"fr"` (French), `"de"` (German), `"ja"` (Japanese), `"ru"` (Russian).
-- `resultPageSize`: Default rows per page.
-- `aiEnabled`: Enable/Disable AI features.
-- `customRegistryUrl`: Custom URL for the plugin registry (overrides the default official registry).
-
-#### Custom AI Models override
-
-You can override or add custom models for AI providers by editing `config.json` and adding the `aiCustomModels` object:
-
-```json
-{
-  "resultPageSize": 1000,
-  "language": "en",
-  "aiEnabled": true,
-  "aiProvider": "openai",
-  "aiCustomModels": {
-    "openai": ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo", "gpt-5-preview"],
-    "anthropic": ["claude-3-opus-20240229", "claude-3-sonnet-20240229"],
-    "minimax": ["MiniMax-M3", "MiniMax-M2.7", "MiniMax-M2.7-highspeed"],
-    "openrouter": ["google/gemini-pro-1.5", "meta-llama/llama-3-70b-instruct"]
-  }
-}
-```
+Configuration is stored in `~/.config/tabularis/` (Linux), `~/Library/Application Support/tabularis/` (macOS), or `%APPDATA%\tabularis\` (Windows): connection profiles, saved queries, app settings (`config.json`), custom themes, and per-connection editor preferences — tabs and queries are restored when you reopen a connection. The wiki covers the full file layout and every `config.json` option, including custom AI model overrides.
 
 ### AI Features (Optional)
 
-Optional Text-to-SQL and query explanation powered by:
+> [Full reference on tabularis.dev →](https://tabularis.dev/wiki/ai-assistant)
 
-- **OpenAI**
-- **Anthropic**
-- **MiniMax** (MiniMax-M3 default, with MiniMax-M2.7 and MiniMax-M2.7-highspeed)
-- **OpenRouter** (access to Gemini, Llama, DeepSeek, etc.)
-- **Ollama** (Local LLM support for total privacy)
-- **OpenAI-Compatible APIs** (Groq, Perplexity, Azure OpenAI, LocalAI, and more)
-
-#### Local AI (Ollama)
-
-Select "Ollama" as your provider in Settings. Tabularis will automatically detect your local models running on port `11434` (configurable). No API key required.
-
-#### OpenAI-Compatible APIs
-
-Select "OpenAI Compatible" as your provider to connect to any service that implements the OpenAI API format. Configure your custom endpoint URL and model name in Settings. Examples:
-
-- **Groq**: `https://api.groq.com/openai/v1`
-- **Perplexity**: `https://api.perplexity.ai`
-- **Local servers**: `http://localhost:8000/v1`
-
-#### Dynamic Model Fetching
-
-Tabularis automatically fetches the latest available models from your configured provider.
-
-- **Refresh:** Click the refresh icon in Settings to update the model list from the API.
-- **Cache:** Model lists are cached locally for 24h to ensure fast startup.
-- **Validation:** Visual feedback if the selected model is not available for the current provider.
+Optional Text-to-SQL and query explanation powered by **OpenAI**, **Anthropic**, **MiniMax**, **OpenRouter**, **Ollama** (local models, no API key, full privacy), and any **OpenAI-compatible API** (Groq, Perplexity, Azure OpenAI, LocalAI, ...). Model lists are fetched from your provider and cached locally; custom models can be configured per provider.
 
 ### MCP Server — AI Agent Integration
+
+> [Full reference on tabularis.dev →](https://tabularis.dev/wiki/mcp-server)
 
 Tabularis includes a built-in **MCP (Model Context Protocol) server** that lets AI agents read your database schema and execute queries directly from their chat interface.
 
@@ -411,34 +305,7 @@ Tabularis includes a built-in **MCP (Model Context Protocol) server** that lets 
 tabularis --mcp
 ```
 
-#### Supported clients
-
-| Client | One-click install | Manual config |
-|--------|------------------|---------------|
-| **Claude Desktop** | Yes (Settings → MCP) | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| **Cursor** | Yes (Settings → MCP) | `~/.cursor/mcp.json` |
-| **Windsurf** | Yes (Settings → MCP) | `~/.codeium/windsurf/mcp_config.json` |
-
-#### Setup (one-click)
-
-1. Open **Settings → MCP Server Integration** in Tabularis
-2. Click **Install Config** next to your AI client
-3. Restart the client
-
-#### Manual setup
-
-Add this to your client's MCP config file:
-
-```json
-{
-  "mcpServers": {
-    "tabularis": {
-      "command": "/path/to/tabularis",
-      "args": ["--mcp"]
-    }
-  }
-}
-```
+**One-click setup** for Claude Desktop, Cursor, and Windsurf: open **Settings → MCP Server Integration**, click **Install Config** next to your client, and restart it. Manual configuration is covered in the wiki.
 
 #### Available tools
 
@@ -496,6 +363,45 @@ pnpm tauri build
 - [ ] [Team Collaboration](https://github.com/TabularisDB/tabularis/issues/20)
 - [ ] [Better SQLite Support](https://github.com/TabularisDB/tabularis/issues/17)
 - [ ] [Better PostgreSQL Support](https://github.com/TabularisDB/tabularis/issues/16)
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md). Good places to start:
+
+- [SQL Server driver — implementation roadmap & call for contributors](https://github.com/TabularisDB/tabularis/issues/150)
+- [UI design system & visual identity — call for contributors](https://github.com/TabularisDB/tabularis/issues/195)
+- Write a driver plugin in any language — see the [Plugin Guide](./plugins/PLUGIN_GUIDE.md)
+
+<!-- SPONSORS:START -->
+
+## Sponsors
+
+- <a href="https://www.serversmtp.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/turbosmtp_compact.png" height="28" alt="turboSMTP" /></a> **[turboSMTP](https://www.serversmtp.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Professional SMTP relay — your emails delivered straight to the inbox, never to spam
+- <a href="https://www.kilo.ai/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/kilocode_compact.png" height="28" alt="Kilo Code" /></a> **[Kilo Code](https://www.kilo.ai/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Open source AI coding agent — build, ship, and iterate faster with 500+ models
+- <a href="https://m.do.co/c/f6ab3d158275?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/digitalocean_compact.png" height="28" alt="DigitalOcean" /></a> **[DigitalOcean](https://m.do.co/c/f6ab3d158275?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Simple, predictable cloud infrastructure for developers and growing teams.
+- <a href="https://usero.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/usero_compact.png" height="28" alt="Usero" /></a> **[Usero](https://usero.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Feedback becomes code. Automatically.
+- <a href="https://devglobe.xyz/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/devglobe_compact.png" height="28" alt="DevGlobe" /></a> **[DevGlobe](https://devglobe.xyz/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Connect your IDE, show up on the globe, and showcase your projects to a community of builders.
+
+_[Become a sponsor →](https://tabularis.dev/sponsors)_
+
+<!-- SPONSORS:END -->
+
+## Origin Story
+
+Tabularis started as an experiment: how far could AI-assisted development get in building a working tool from scratch? Further than expected — it's now an actively maintained project with regular releases and a plugin ecosystem.
+
 ## License
 
 Apache License 2.0
+
+---
+
+<p align="center">
+  Like tabularis? <a href="https://github.com/TabularisDB/tabularis">Star the repo</a> ⭐ — it helps the project a lot.
+</p>
+
+<p align="center">
+  <a href="https://repostars.dev/?repos=TabularisDB%2Ftabularis&theme=dark">
+    <img src="https://repostars.dev/api/embed?repo=TabularisDB%2Ftabularis&theme=dark" alt="RepoStars" />
+  </a>
+</p>
