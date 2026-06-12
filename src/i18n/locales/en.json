@@ -171,7 +171,19 @@
     "dateGroupYesterday": "Yesterday",
     "dateGroupThisWeek": "This Week",
     "dateGroupThisMonth": "This Month",
-    "dateGroupOlder": "Older"
+    "dateGroupOlder": "Older",
+    "notebooks": {
+      "tab": "Notebooks",
+      "search": "Search notebooks",
+      "refresh": "Refresh",
+      "empty": "No saved notebooks yet.",
+      "noSearchResults": "No notebooks match your search.",
+      "open": "Open",
+      "rename": "Rename",
+      "delete": "Delete",
+      "deleteConfirm": "Delete notebook \"{{title}}\"? This cannot be undone.",
+      "renamePlaceholder": "Notebook name"
+    }
   },
   "mcp": {
     "title": "MCP Server Integration",
@@ -639,7 +651,7 @@
     "dbNamePlaceholder": "Database name",
     "loadDatabases": "Load Databases",
     "loadingDatabases": "Loading...",
-    "selectDatabases": "Select Databases",
+    "selectDatabases": "Databases",
     "appearance": "Appearance",
     "noDatabasesSelected": "Select at least one database",
     "selectedDatabases": "{{count}} database(s) selected",
@@ -942,6 +954,7 @@
     "notebook": {
       "addSqlCell": "Add SQL Cell",
       "addMarkdownCell": "Add Markdown Cell",
+      "addCell": "Add",
       "runAll": "Run All",
       "runAllTooltip": "Execute all SQL cells top to bottom",
       "runCell": "Run Cell",
@@ -992,7 +1005,28 @@
       "editCellName": "Edit cell name",
       "aiGenerateName": "Generate name with AI",
       "generatingName": "Generating name...",
-      "aiGenerateOutlineNames": "Generate names for unnamed cells with AI"
+      "aiGenerateOutlineNames": "Generate names for unnamed cells with AI",
+      "undo": "Undo",
+      "redo": "Redo",
+      "history": {
+        "title": "Edit history",
+        "change": {
+          "initial": "Initial version",
+          "editCell": "Edited cell {{n}}",
+          "addSql": "Added SQL cell {{n}}",
+          "addMarkdown": "Added Markdown cell {{n}}",
+          "deleteCell": "Deleted cell {{n}}",
+          "reorder": "Reordered cells",
+          "renameCell": "Renamed cell {{n}}",
+          "schemaCell": "Changed database (cell {{n}})",
+          "chartCell": "Changed chart (cell {{n}})",
+          "parallelCell": "Toggled parallel (cell {{n}})",
+          "collapse": "Collapsed/expanded cells",
+          "params": "Changed parameters",
+          "stopOnError": "Toggled stop on error",
+          "other": "Edited notebook"
+        }
+      }
     },
     "querySelection": {
       "title": "Select Query to Execute",

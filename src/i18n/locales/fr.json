@@ -158,7 +158,19 @@
     "dateGroupYesterday": "Hier",
     "dateGroupThisWeek": "Cette semaine",
     "dateGroupThisMonth": "Ce mois-ci",
-    "dateGroupOlder": "Plus ancien"
+    "dateGroupOlder": "Plus ancien",
+    "notebooks": {
+      "tab": "Notebooks",
+      "search": "Rechercher des notebooks",
+      "refresh": "Actualiser",
+      "empty": "Aucun notebook enregistré pour le moment.",
+      "noSearchResults": "Aucun notebook ne correspond à votre recherche.",
+      "open": "Ouvrir",
+      "rename": "Renommer",
+      "delete": "Supprimer",
+      "deleteConfirm": "Supprimer le notebook « {{title}} » ? Cette action est irréversible.",
+      "renamePlaceholder": "Nom du notebook"
+    }
   },
   "mcp": {
     "title": "Intégration du serveur MCP",
@@ -618,7 +630,7 @@
     "dbNamePlaceholder": "Nom de la base de données",
     "loadDatabases": "Charger les bases de données",
     "loadingDatabases": "Chargement...",
-    "selectDatabases": "Sélectionner les bases de données",
+    "selectDatabases": "Bases de données",
     "appearance": "Apparence",
     "noDatabasesSelected": "Sélectionnez au moins une base de données",
     "selectedDatabases": "{{count}} base(s) de données sélectionnée(s)",
@@ -921,6 +933,7 @@
     "notebook": {
       "addSqlCell": "Ajouter une cellule SQL",
       "addMarkdownCell": "Ajouter une cellule Markdown",
+      "addCell": "Ajouter",
       "runAll": "Tout exécuter",
       "runAllTooltip": "Exécuter toutes les cellules SQL de haut en bas",
       "runCell": "Exécuter la cellule",
@@ -971,7 +984,28 @@
       "editCellName": "Modifier le nom de la cellule",
       "aiGenerateName": "Générer un nom avec l’IA",
       "generatingName": "Génération du nom...",
-      "aiGenerateOutlineNames": "Générer des noms IA pour les cellules sans nom"
+      "aiGenerateOutlineNames": "Générer des noms IA pour les cellules sans nom",
+      "undo": "Annuler",
+      "redo": "Rétablir",
+      "history": {
+        "title": "Historique des modifications",
+        "change": {
+          "initial": "Version initiale",
+          "editCell": "Cellule {{n}} modifiée",
+          "addSql": "Cellule SQL {{n}} ajoutée",
+          "addMarkdown": "Cellule Markdown {{n}} ajoutée",
+          "deleteCell": "Cellule {{n}} supprimée",
+          "reorder": "Cellules réordonnées",
+          "renameCell": "Cellule {{n}} renommée",
+          "schemaCell": "Base de données modifiée (cellule {{n}})",
+          "chartCell": "Graphique modifié (cellule {{n}})",
+          "parallelCell": "Parallèle basculé (cellule {{n}})",
+          "collapse": "Cellules réduites/développées",
+          "params": "Paramètres modifiés",
+          "stopOnError": "Arrêt en cas d'erreur basculé",
+          "other": "Notebook modifié"
+        }
+      }
     },
     "querySelection": {
       "title": "Sélectionner la requête à exécuter",

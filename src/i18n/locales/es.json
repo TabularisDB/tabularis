@@ -158,7 +158,19 @@
     "dateGroupYesterday": "Ayer",
     "dateGroupThisWeek": "Esta Semana",
     "dateGroupThisMonth": "Este Mes",
-    "dateGroupOlder": "Anteriores"
+    "dateGroupOlder": "Anteriores",
+    "notebooks": {
+      "tab": "Notebooks",
+      "search": "Buscar notebooks",
+      "refresh": "Actualizar",
+      "empty": "Aún no hay notebooks guardados.",
+      "noSearchResults": "Ningún notebook coincide con tu búsqueda.",
+      "open": "Abrir",
+      "rename": "Renombrar",
+      "delete": "Eliminar",
+      "deleteConfirm": "¿Eliminar el notebook \"{{title}}\"? Esta acción no se puede deshacer.",
+      "renamePlaceholder": "Nombre del notebook"
+    }
   },
   "mcp": {
     "title": "Integración del Servidor MCP",
@@ -623,7 +635,7 @@
     "dbNamePlaceholder": "Nombre de la base de datos",
     "loadDatabases": "Cargar Bases de Datos",
     "loadingDatabases": "Cargando...",
-    "selectDatabases": "Seleccionar Bases de Datos",
+    "selectDatabases": "Bases de Datos",
     "appearance": "Apariencia",
     "noDatabasesSelected": "Selecciona al menos una base de datos",
     "selectedDatabases": "{{count}} base(s) de datos seleccionada(s)",
@@ -916,6 +928,7 @@
     "notebook": {
       "addSqlCell": "Agregar Celda SQL",
       "addMarkdownCell": "Agregar Celda Markdown",
+      "addCell": "Añadir",
       "runAll": "Ejecutar Todo",
       "runAllTooltip": "Ejecutar todas las celdas SQL de arriba a abajo",
       "runCell": "Ejecutar Celda",
@@ -966,7 +979,28 @@
       "editCellName": "Editar nombre de celda",
       "aiGenerateName": "Generar nombre con IA",
       "generatingName": "Generando nombre...",
-      "aiGenerateOutlineNames": "Generar nombres para celdas sin nombre con IA"
+      "aiGenerateOutlineNames": "Generar nombres para celdas sin nombre con IA",
+      "undo": "Deshacer",
+      "redo": "Rehacer",
+      "history": {
+        "title": "Historial de ediciones",
+        "change": {
+          "initial": "Versión inicial",
+          "editCell": "Celda {{n}} editada",
+          "addSql": "Celda SQL {{n}} añadida",
+          "addMarkdown": "Celda Markdown {{n}} añadida",
+          "deleteCell": "Celda {{n}} eliminada",
+          "reorder": "Celdas reordenadas",
+          "renameCell": "Celda {{n}} renombrada",
+          "schemaCell": "Base de datos cambiada (celda {{n}})",
+          "chartCell": "Gráfico cambiado (celda {{n}})",
+          "parallelCell": "Paralelo alternado (celda {{n}})",
+          "collapse": "Celdas contraídas/expandidas",
+          "params": "Parámetros cambiados",
+          "stopOnError": "Detener en error alternado",
+          "other": "Notebook editado"
+        }
+      }
     },
     "querySelection": {
       "title": "Seleccionar consulta a ejecutar",

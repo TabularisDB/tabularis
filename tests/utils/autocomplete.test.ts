@@ -212,7 +212,7 @@ describe('autocomplete', () => {
       const mockParseTables = parseTablesFromQuery as unknown as ReturnType<typeof vi.fn>;
       
       // Simulate that we have a table in context to trigger column fetching
-      mockParseTables.mockReturnValue(new Map([['users', 'users']])); // alias -> table
+      mockParseTables.mockReturnValue(new Map([['users', { name: 'users' }]])); // alias -> ParsedTableRef
 
       const monaco = createMockMonaco();
       const tables: TableInfo[] = [{ name: 'users' }];
@@ -298,7 +298,7 @@ describe('autocomplete', () => {
 
       const { parseTablesFromQuery } = await import('../../src/utils/sqlAnalysis');
       const mockParseTables = parseTablesFromQuery as unknown as ReturnType<typeof vi.fn>;
-      mockParseTables.mockReturnValue(new Map([['u', 'users']])); // alias mapping
+      mockParseTables.mockReturnValue(new Map([['u', { name: 'users' }]])); // alias -> ParsedTableRef
 
       const monaco = createMockMonaco();
       const tables: TableInfo[] = [{ name: 'users' }];

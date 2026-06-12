@@ -1,3 +1,23 @@
+## [0.13.1](https://github.com/TabularisDB/tabularis/compare/v0.13.0...v0.13.1) (2026-06-05)
+
+
+### Bug Fixes
+
+* **ai:** route AI key reads through credential cache to stop repeated keychain prompts ([#269](https://github.com/TabularisDB/tabularis/issues/269)) ([4d40c69](https://github.com/TabularisDB/tabularis/commit/4d40c697d07aad389cc80397ca4d2f6f9bd2e389))
+* **connections:** accept postgresql:// and mariadb:// scheme aliases in connection strings ([#277](https://github.com/TabularisDB/tabularis/issues/277)) ([a155b6a](https://github.com/TabularisDB/tabularis/commit/a155b6a83ec581b9325f5b73827d934f5c88aabe)), closes [#260](https://github.com/TabularisDB/tabularis/issues/260)
+* **editor:** focus editor when opening a new console tab ([#280](https://github.com/TabularisDB/tabularis/issues/280)) ([4bd6e1d](https://github.com/TabularisDB/tabularis/commit/4bd6e1dd4a7e7d5d5a3ebc24a930c19c3cfca4b3))
+* **editor:** stop Monaco theme leaking across editor instances ([#282](https://github.com/TabularisDB/tabularis/issues/282)) ([f7bbef7](https://github.com/TabularisDB/tabularis/commit/f7bbef791f361325469ed198ab6475238b4c704b)), closes [#281](https://github.com/TabularisDB/tabularis/issues/281)
+* **grid:** truncate large JSON/text cell previews to avoid UI freeze ([#285](https://github.com/TabularisDB/tabularis/issues/285)) ([a283938](https://github.com/TabularisDB/tabularis/commit/a283938ccb4b0e35d33fe57efbca3c3e46f17f30)), closes [#283](https://github.com/TabularisDB/tabularis/issues/283)
+* **mcp:** classify parenthesized SELECT/UNION as read-only ([#272](https://github.com/TabularisDB/tabularis/issues/272)) ([35bc043](https://github.com/TabularisDB/tabularis/commit/35bc0431d6b1f7cecaf76c42f3fbd2912f1e18f9))
+* **new-connection-modal:** stop auto-activating databases tab ([afcb4f6](https://github.com/TabularisDB/tabularis/commit/afcb4f6ebe7cfc09cfb84c41b68691b602ce50c8))
+* **postgres:** read EXPLAIN JSON output as json column ([#279](https://github.com/TabularisDB/tabularis/issues/279)) ([6abe185](https://github.com/TabularisDB/tabularis/commit/6abe185ede7864eec973354105d4d83e604a6460)), closes [#276](https://github.com/TabularisDB/tabularis/issues/276)
+* preserve user OFFSET in paginated queries ([#273](https://github.com/TabularisDB/tabularis/issues/273)) ([#275](https://github.com/TabularisDB/tabularis/issues/275)) ([6db171b](https://github.com/TabularisDB/tabularis/commit/6db171b9c4032ef49b9c2cf39af45a9b035bd678))
+
+
+### Features
+
+* upgrade MiniMax default model to M3 ([#270](https://github.com/TabularisDB/tabularis/issues/270)) ([99c902c](https://github.com/TabularisDB/tabularis/commit/99c902c1f55f53aa662b6235fb2c3c3f272a10b7))
+
 # [0.13.0](https://github.com/debba/tabularis/compare/v0.12.0...v0.13.0) (2026-06-03)
 
 

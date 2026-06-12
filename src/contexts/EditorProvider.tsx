@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
-import type { Tab, SchemaCache, TableSchema } from "../types/editor";
+import type { Tab, SchemaCache, TableSchema, QueryResultEntry } from "../types/editor";
 import { EditorContext } from "./EditorContext";
 import { useDatabase } from "../hooks/useDatabase";
 import { invoke } from "@tauri-apps/api/core";
@@ -36,6 +36,14 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
 
   const schemaCacheRef = useRef<Record<string, SchemaCache>>({});
   const tabsRef = useRef<Tab[]>([]);
+  // A notebook the user asked to open from a different connection. Resolved
+  // once that connection's tabs have finished loading (see effect below), so
+  // the freshly-added tab isn't wiped by the in-flight preference load.
+  const pendingNotebookRef = useRef<{
+    connectionId: string;
+    notebookId: string;
+    title: string;
+  } | null>(null);
 
   useEffect(() => {
     tabsRef.current = tabs;
@@ -61,6 +69,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
               const { notebookId } = await createNotebookFromState(
                 tab.title,
                 tab.notebookState,
+                activeConnectionId,
               );
               tab.notebookId = notebookId;
               tab.notebookState = undefined;
@@ -185,6 +194,39 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     [createInitialTab, activeConnectionId, setActiveTabId],
   );
 
+  // Open (or focus) a notebook tab, possibly belonging to another connection.
+  // For the active connection it resolves immediately; otherwise it records the
+  // intent and lets the effect below complete it after the target connection's
+  // tabs have loaded (the caller is expected to call switchConnection too).
+  const resolvePendingNotebook = useCallback(() => {
+    const pending = pendingNotebookRef.current;
+    if (!pending) return;
+    if (isLoading || pending.connectionId !== activeConnectionId) return;
+    pendingNotebookRef.current = null;
+    const existing = tabsRef.current.find(
+      (t) => t.notebookId === pending.notebookId,
+    );
+    if (existing) {
+      setActiveTabId(existing.id);
+    } else {
+      addTab({ type: "notebook", notebookId: pending.notebookId, title: pending.title });
+    }
+  }, [isLoading, activeConnectionId, addTab, setActiveTabId]);
+
+  const openNotebook = useCallback(
+    (connectionId: string, notebookId: string, title: string) => {
+      pendingNotebookRef.current = { connectionId, notebookId, title };
+      resolvePendingNotebook();
+    },
+    [resolvePendingNotebook],
+  );
+
+  // Complete a deferred cross-connection notebook open once the connection's
+  // tabs have settled (isLoading false + activeConnectionId matches).
+  useEffect(() => {
+    resolvePendingNotebook();
+  }, [resolvePendingNotebook]);
+
   const closeTab = useCallback(
     (id: string) => {
       // Flush and evict notebook cache for the closed tab
@@ -299,6 +341,24 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setTabs((prev) => updateTabInList(prev, id, partial));
   }, []);
 
+  const updateResultEntry = useCallback(
+    (tabId: string, entryId: string, partial: Partial<QueryResultEntry>) => {
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.id === tabId && t.results
+            ? {
+                ...t,
+                results: t.results.map((r) =>
+                  r.id === entryId ? { ...r, ...partial } : r,
+                ),
+              }
+            : t,
+        ),
+      );
+    },
+    [],
+  );
+
   const getSchema = useCallback(
     async (
       connectionId: string,
@@ -342,8 +402,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       activeTabId,
       activeTab,
       addTab,
+      openNotebook,
       closeTab,
       updateTab,
+      updateResultEntry,
       setActiveTabId,
       closeAllTabs,
       closeOtherTabs,
@@ -356,8 +418,10 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       activeTabId,
       activeTab,
       addTab,
+      openNotebook,
       closeTab,
       updateTab,
+      updateResultEntry,
       setActiveTabId,
       closeAllTabs,
       closeOtherTabs,

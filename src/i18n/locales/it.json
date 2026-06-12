@@ -158,7 +158,19 @@
     "dateGroupYesterday": "Ieri",
     "dateGroupThisWeek": "Questa Settimana",
     "dateGroupThisMonth": "Questo Mese",
-    "dateGroupOlder": "Precedenti"
+    "dateGroupOlder": "Precedenti",
+    "notebooks": {
+      "tab": "Notebook",
+      "search": "Cerca notebook",
+      "refresh": "Aggiorna",
+      "empty": "Nessun notebook salvato.",
+      "noSearchResults": "Nessun notebook corrisponde alla ricerca.",
+      "open": "Apri",
+      "rename": "Rinomina",
+      "delete": "Elimina",
+      "deleteConfirm": "Eliminare il notebook \"{{title}}\"? L'operazione non è reversibile.",
+      "renamePlaceholder": "Nome del notebook"
+    }
   },
   "mcp": {
     "title": "Integrazione Server MCP",
@@ -623,7 +635,7 @@
     "dbNamePlaceholder": "Nome database",
     "loadDatabases": "Carica Database",
     "loadingDatabases": "Caricamento...",
-    "selectDatabases": "Seleziona Database",
+    "selectDatabases": "Database",
     "appearance": "Aspetto",
     "noDatabasesSelected": "Seleziona almeno un database",
     "selectedDatabases": "{{count}} database selezionato/i",
@@ -923,6 +935,7 @@
     "notebook": {
       "addSqlCell": "Aggiungi Cella SQL",
       "addMarkdownCell": "Aggiungi Cella Markdown",
+      "addCell": "Aggiungi",
       "runAll": "Esegui Tutto",
       "runAllTooltip": "Esegui tutte le celle SQL dall'alto in basso",
       "runCell": "Esegui Cella",
@@ -973,7 +986,28 @@
       "editCellName": "Modifica nome cella",
       "aiGenerateName": "Genera nome con AI",
       "generatingName": "Generazione nome...",
-      "aiGenerateOutlineNames": "Genera nomi per le celle senza nome con AI"
+      "aiGenerateOutlineNames": "Genera nomi per le celle senza nome con AI",
+      "undo": "Annulla",
+      "redo": "Ripeti",
+      "history": {
+        "title": "Cronologia modifiche",
+        "change": {
+          "initial": "Versione iniziale",
+          "editCell": "Modificata cella {{n}}",
+          "addSql": "Aggiunta cella SQL {{n}}",
+          "addMarkdown": "Aggiunta cella Markdown {{n}}",
+          "deleteCell": "Eliminata cella {{n}}",
+          "reorder": "Celle riordinate",
+          "renameCell": "Rinominata cella {{n}}",
+          "schemaCell": "Database cambiato (cella {{n}})",
+          "chartCell": "Grafico cambiato (cella {{n}})",
+          "parallelCell": "Parallelo commutato (cella {{n}})",
+          "collapse": "Celle compresse/espanse",
+          "params": "Parametri modificati",
+          "stopOnError": "Stop on error commutato",
+          "other": "Notebook modificato"
+        }
+      }
     },
     "querySelection": {
       "title": "Seleziona la query da eseguire",

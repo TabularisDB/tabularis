@@ -171,7 +171,19 @@
     "dateGroupYesterday": "Вчера",
     "dateGroupThisWeek": "На этой неделе",
     "dateGroupThisMonth": "В этом месяце",
-    "dateGroupOlder": "Ранее"
+    "dateGroupOlder": "Ранее",
+    "notebooks": {
+      "tab": "Блокноты",
+      "search": "Поиск блокнотов",
+      "refresh": "Обновить",
+      "empty": "Сохранённых блокнотов пока нет.",
+      "noSearchResults": "Нет блокнотов, соответствующих запросу.",
+      "open": "Открыть",
+      "rename": "Переименовать",
+      "delete": "Удалить",
+      "deleteConfirm": "Удалить блокнот «{{title}}»? Это действие нельзя отменить.",
+      "renamePlaceholder": "Имя блокнота"
+    }
   },
   "mcp": {
     "title": "Интеграция MCP-сервера",
@@ -613,7 +625,7 @@
     "dbNamePlaceholder": "Имя базы данных",
     "loadDatabases": "Загрузить базы данных",
     "loadingDatabases": "Загрузка...",
-    "selectDatabases": "Выбрать базы данных",
+    "selectDatabases": "Базы данных",
     "noDatabasesSelected": "Выберите хотя бы одну базу данных",
     "selectedDatabases": "Выбрано баз данных: {{count}}",
     "selectDatabase": "Выберите базу данных",
@@ -918,6 +930,7 @@
     "notebook": {
       "addSqlCell": "Добавить SQL-ячейку",
       "addMarkdownCell": "Добавить Markdown-ячейку",
+      "addCell": "Добавить",
       "runAll": "Запустить все",
       "runAllTooltip": "Выполнить все SQL-ячейки сверху вниз",
       "runCell": "Запустить ячейку",
@@ -971,7 +984,28 @@
       "editCellName": "Изменить название ячейки",
       "aiGenerateName": "Сгенерировать название с помощью AI",
       "generatingName": "Генерация названия...",
-      "aiGenerateOutlineNames": "Сгенерировать названия для безымянных ячеек с помощью AI"
+      "aiGenerateOutlineNames": "Сгенерировать названия для безымянных ячеек с помощью AI",
+      "undo": "Отменить",
+      "redo": "Повторить",
+      "history": {
+        "title": "История изменений",
+        "change": {
+          "initial": "Начальная версия",
+          "editCell": "Изменена ячейка {{n}}",
+          "addSql": "Добавлена SQL-ячейка {{n}}",
+          "addMarkdown": "Добавлена Markdown-ячейка {{n}}",
+          "deleteCell": "Удалена ячейка {{n}}",
+          "reorder": "Ячейки переупорядочены",
+          "renameCell": "Переименована ячейка {{n}}",
+          "schemaCell": "Изменена база данных (ячейка {{n}})",
+          "chartCell": "Изменён график (ячейка {{n}})",
+          "parallelCell": "Переключён параллельный режим (ячейка {{n}})",
+          "collapse": "Ячейки свёрнуты/развёрнуты",
+          "params": "Изменены параметры",
+          "stopOnError": "Переключён останов при ошибке",
+          "other": "Блокнот изменён"
+        }
+      }
     },
     "querySelection": {
       "title": "Выбрать запрос для выполнения",

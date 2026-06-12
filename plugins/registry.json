@@ -63,8 +63,19 @@
       "description": "Tabularis driver for Redis databases. Supports virtual table views for Strings, Hashes, Lists, Sets, and ZSets with native UI write operations.",
       "author": "gzamboni <https://github.com/gzamboni>",
       "homepage": "https://github.com/gzamboni/tabularis-redis-plugin-go",
-      "latest_version": "0.4.0",
+      "latest_version": "0.4.1",
       "releases": [
+        {
+          "version": "0.4.1",
+          "min_tabularis_version": "0.9.2",
+          "assets": {
+            "linux-x64": "https://github.com/gzamboni/tabularis-redis-plugin-go/releases/download/v0.4.1/tabularis-redis-plugin-go-linux-amd64.zip",
+            "linux-arm64": "https://github.com/gzamboni/tabularis-redis-plugin-go/releases/download/v0.4.1/tabularis-redis-plugin-go-linux-arm64.zip",
+            "darwin-x64": "https://github.com/gzamboni/tabularis-redis-plugin-go/releases/download/v0.4.1/tabularis-redis-plugin-go-darwin-amd64.zip",
+            "darwin-arm64": "https://github.com/gzamboni/tabularis-redis-plugin-go/releases/download/v0.4.1/tabularis-redis-plugin-go-darwin-arm64.zip",
+            "win-x64": "https://github.com/gzamboni/tabularis-redis-plugin-go/releases/download/v0.4.1/tabularis-redis-plugin-go-windows-amd64.zip"
+          }
+        },
         {
           "version": "0.4.0",
           "min_tabularis_version": "0.9.2",

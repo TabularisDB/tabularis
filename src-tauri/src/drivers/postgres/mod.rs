@@ -903,15 +903,18 @@ pub async fn execute_batch(
     limit: Option<u32>,
     page: u32,
     schema: Option<&str>,
+    on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
 ) -> Result<Vec<crate::models::BatchStatementResult>, String> {
     let client = acquire_pg_client(params, schema).await?;
     let mut results = Vec::with_capacity(queries.len());
-    for q in queries {
+    for (idx, q) in queries.iter().enumerate() {
         let start = std::time::Instant::now();
         let outcome = exec_on_pg_client(&client, q, limit, page).await;
-        results.push(crate::models::BatchStatementResult::from_outcome(
-            start, outcome,
-        ));
+        let res = crate::models::BatchStatementResult::from_outcome(start, outcome);
+        if let Some(cb) = on_progress {
+            cb(idx, &res);
+        }
+        results.push(res);
     }
     Ok(results)
 }
@@ -1366,6 +1369,7 @@ impl PostgresDriver {
                     manage_tables: true,
                     readonly: false,
                     triggers: true,
+                    supports_ssl: true,
                     sql_dialect: SqlDialect::Postgres,
                 },
                 is_builtin: true,
@@ -1629,8 +1633,9 @@ impl DatabaseDriver for PostgresDriver {
         limit: Option<u32>,
         page: u32,
         schema: Option<&str>,
+        on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
     ) -> Result<Vec<crate::models::BatchStatementResult>, String> {
-        execute_batch(params, queries, limit, page, schema).await
+        execute_batch(params, queries, limit, page, schema, on_progress).await
     }
 
     async fn explain_query(

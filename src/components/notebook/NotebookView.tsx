@@ -17,7 +17,12 @@ import {
   addCellToCells,
   removeCellFromCells,
 } from "../../utils/notebook";
-import { reorderCells } from "../../utils/notebookDnd";
+import {
+  computeAutoScrollSpeed,
+  createCellDragPreview,
+  moveCell,
+  reorderCells,
+} from "../../utils/notebookDnd";
 import {
   serializeNotebook,
   deserializeNotebook,
@@ -37,6 +42,15 @@ import {
 } from "../../utils/notebookHistory";
 import { exportNotebookToHtml } from "../../utils/notebookHtmlExport";
 import {
+  createHistory,
+  recordEdit,
+  undo as undoHistory,
+  redo as redoHistory,
+  jumpTo as jumpToHistory,
+  timeline as historyTimeline,
+  type NotebookHistory,
+} from "../../utils/notebookUndo";
+import {
   getNotebookState,
   setNotebookState as storeSetState,
   loadNotebook,
@@ -49,6 +63,7 @@ import { useSettings } from "../../hooks/useSettings";
 import { useAlert } from "../../hooks/useAlert";
 import { useKeybindings } from "../../hooks/useKeybindings";
 import { NotebookToolbar } from "./NotebookToolbar";
+import { NotebookHistoryPanel } from "./NotebookHistoryPanel";
 import { NotebookCellWrapper } from "./NotebookCellWrapper";
 import { AddCellButton } from "./AddCellButton";
 import { RunAllSummary } from "./RunAllSummary";
@@ -59,12 +74,15 @@ interface NotebookViewProps {
   tab: Tab;
   updateTab: (id: string, partial: Partial<Tab>) => void;
   connectionId: string;
+  /** Whether this notebook tab is the active one (gates keyboard shortcuts). */
+  isActive: boolean;
 }
 
 export function NotebookView({
   tab,
   updateTab,
   connectionId,
+  isActive,
 }: NotebookViewProps) {
   const { t } = useTranslation();
   const { activeSchema, activeCapabilities, selectedDatabases } = useDatabase();
@@ -85,24 +103,59 @@ export function NotebookView({
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [runAllResult, setRunAllResult] = useState<RunAllResult | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  // Gap-based insertion point in [0, cells.length]; `null` while not dragging.
+  const [dropPos, setDropPos] = useState<number | null>(null);
   const cellsRef = useRef<NotebookCell[]>(notebook?.cells ?? []);
   const cellRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const autoScrollSpeedRef = useRef(0);
+  const autoScrollRafRef = useRef<number | null>(null);
   const notebookIdRef = useRef(tab.notebookId);
   const runCellRef = useRef<(cellId: string) => Promise<void>>(async () => {});
 
-  // Keep ref in sync
+  // Undo/redo history (autosave means edits are otherwise irreversible).
+  const notebookRef = useRef<NotebookState | null>(notebook);
+  const [history, setHistory] = useState<NotebookHistory>(createHistory);
+  const historyRef = useRef<NotebookHistory>(history);
+  const isActiveRef = useRef(isActive);
+  const [showHistory, setShowHistory] = useState(false);
+  const canUndo = history.past.length > 0;
+  const canRedo = history.future.length > 0;
+
+  // Keep refs in sync
   useEffect(() => {
     notebookIdRef.current = tab.notebookId;
   }, [tab.notebookId]);
+
+  useEffect(() => {
+    notebookRef.current = notebook;
+  }, [notebook]);
+
+  useEffect(() => {
+    isActiveRef.current = isActive;
+  }, [isActive]);
+
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
+
+  // Commit a new history (updates both the ref used by callbacks and state).
+  const commitHistory = useCallback((next: NotebookHistory) => {
+    historyRef.current = next;
+    setHistory(next);
+  }, []);
+
+  // Reset undo/redo history (e.g. after importing a different notebook).
+  const resetHistory = useCallback(() => {
+    commitHistory(createHistory());
+  }, [commitHistory]);
 
   // Load notebook from disk when not already cached
   useEffect(() => {
     if (!tab.notebookId || notebook) return;
 
     let cancelled = false;
-    loadNotebook(tab.notebookId).then((state) => {
+    loadNotebook(tab.notebookId, connectionId).then((state) => {
       if (cancelled) return;
       setNotebook(state);
       cellsRef.current = state.cells;
@@ -130,6 +183,7 @@ export function NotebookView({
         params?: NotebookParam[];
       },
     ) => {
+      const prevState = notebookRef.current;
       cellsRef.current = newCells;
       const newState: NotebookState = {
         cells: newCells,
@@ -139,12 +193,63 @@ export function NotebookView({
             : notebook?.stopOnError,
         params: extraState?.params !== undefined ? extraState.params : notebook?.params,
       };
+      notebookRef.current = newState;
       setNotebook(newState);
+      if (prevState) {
+        const next = recordEdit(
+          historyRef.current,
+          prevState,
+          newState,
+          Date.now(),
+        );
+        if (next !== historyRef.current) commitHistory(next);
+      }
       if (notebookIdRef.current) {
         storeSetState(notebookIdRef.current, newState);
       }
     },
-    [notebook?.stopOnError, notebook?.params],
+    [notebook?.stopOnError, notebook?.params, commitHistory],
+  );
+
+  /** Apply a state from the history without recording a new entry. */
+  const applyHistoryState = useCallback((state: NotebookState) => {
+    cellsRef.current = state.cells;
+    notebookRef.current = state;
+    setNotebook(state);
+    if (notebookIdRef.current) {
+      storeSetState(notebookIdRef.current, state);
+    }
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    const current = notebookRef.current;
+    if (!current) return;
+    const step = undoHistory(historyRef.current, current);
+    if (!step) return;
+    commitHistory(step.history);
+    applyHistoryState(step.state);
+  }, [applyHistoryState, commitHistory]);
+
+  const handleRedo = useCallback(() => {
+    const current = notebookRef.current;
+    if (!current) return;
+    const step = redoHistory(historyRef.current, current);
+    if (!step) return;
+    commitHistory(step.history);
+    applyHistoryState(step.state);
+  }, [applyHistoryState, commitHistory]);
+
+  const handleJump = useCallback(
+    (index: number) => {
+      const current = notebookRef.current;
+      if (!current) return;
+      const step = jumpToHistory(historyRef.current, current, index);
+      if (!step) return;
+      commitHistory(step.history);
+      applyHistoryState(step.state);
+      setShowHistory(false);
+    },
+    [applyHistoryState, commitHistory],
   );
 
   const updateCell = useCallback(
@@ -427,20 +532,22 @@ export function NotebookView({
       };
 
       // Create a new notebook file for the imported content
-      const { notebookId: newId } = await createNotebookFromState(title, importedState);
+      const { notebookId: newId } = await createNotebookFromState(title, importedState, connectionId);
 
       // Update the tab to point to the new notebook
       updateTab(tab.id, { notebookId: newId, title });
 
-      // Update local state
+      // Update local state — a different notebook now, so drop its history.
       setNotebook(importedState);
+      notebookRef.current = importedState;
       cellsRef.current = importedCells;
+      resetHistory();
 
       showAlert(t("editor.notebook.importSuccess"), { kind: "info" });
     } catch {
       showAlert(t("editor.notebook.invalidFile"), { kind: "error" });
     }
-  }, [tab.id, updateTab, showAlert, t]);
+  }, [tab.id, updateTab, showAlert, t, connectionId, resetHistory]);
 
   // Drag & Drop handlers
   const handleDragStart = useCallback(
@@ -448,35 +555,106 @@ export function NotebookView({
       setDragIndex(index);
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", String(index));
+
+      // Show a small "held card" under the cursor instead of the browser's
+      // default faded in-place screenshot, so it feels like carrying the cell.
+      const cell = cellsRef.current[index];
+      if (cell) {
+        const preview = createCellDragPreview(document, {
+          name: cell.name?.trim() || t("editor.notebook.cellNamePlaceholder"),
+          typeLabel:
+            cell.type === "sql"
+              ? t("editor.notebook.sqlCell")
+              : t("editor.notebook.markdownCell"),
+          type: cell.type,
+        });
+        e.dataTransfer.setDragImage(preview, 12, 12);
+        // The browser snapshots the element synchronously on drag start; drop
+        // it from the DOM on the next tick.
+        setTimeout(() => preview.remove(), 0);
+      }
     },
-    [],
+    [t],
   );
+
+  const stopAutoScroll = useCallback(() => {
+    if (autoScrollRafRef.current !== null) {
+      cancelAnimationFrame(autoScrollRafRef.current);
+      autoScrollRafRef.current = null;
+    }
+    autoScrollSpeedRef.current = 0;
+  }, []);
+
+  // rAF loop so the list keeps scrolling while the cursor is held near an edge,
+  // even when no further dragover events fire (native DnD doesn't auto-scroll).
+  const stepAutoScroll = useCallback(() => {
+    const tick = () => {
+      const container = scrollContainerRef.current;
+      const speed = autoScrollSpeedRef.current;
+      if (!container || speed === 0) {
+        autoScrollRafRef.current = null;
+        return;
+      }
+      container.scrollTop += speed;
+      autoScrollRafRef.current = requestAnimationFrame(tick);
+    };
+    tick();
+  }, []);
 
   const handleDragEnd = useCallback(() => {
     setDragIndex(null);
-    setDragOverIndex(null);
-  }, []);
+    setDropPos(null);
+    stopAutoScroll();
+  }, [stopAutoScroll]);
 
   const handleDragOver = useCallback(
     (index: number) => (e: React.DragEvent) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
-      setDragOverIndex(index);
+      // Above the cell's midpoint drops before it, below drops after it.
+      const rect = e.currentTarget.getBoundingClientRect();
+      const after = e.clientY > rect.top + rect.height / 2;
+      setDropPos(after ? index + 1 : index);
     },
     [],
   );
 
+  // Drive edge auto-scroll from the scroll container so a tall cell can't trap
+  // the drag — without this you can't reach the edge to scroll past it.
+  const handleContainerDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (dragIndex === null) return;
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      const speed = computeAutoScrollSpeed(
+        container.getBoundingClientRect(),
+        e.clientY,
+      );
+      autoScrollSpeedRef.current = speed;
+      if (speed !== 0 && autoScrollRafRef.current === null) {
+        autoScrollRafRef.current = requestAnimationFrame(stepAutoScroll);
+      }
+    },
+    [dragIndex, stepAutoScroll],
+  );
+
   const handleDrop = useCallback(
-    (toIndex: number) => (e: React.DragEvent) => {
+    (index: number) => (e: React.DragEvent) => {
       e.preventDefault();
       const fromIndex = dragIndex;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const insertAt = e.clientY > rect.top + rect.height / 2 ? index + 1 : index;
       setDragIndex(null);
-      setDragOverIndex(null);
-      if (fromIndex === null || fromIndex === toIndex) return;
-      updateNotebook(reorderCells(cellsRef.current, fromIndex, toIndex));
+      setDropPos(null);
+      stopAutoScroll();
+      if (fromIndex === null) return;
+      updateNotebook(moveCell(cellsRef.current, fromIndex, insertAt));
     },
-    [dragIndex, updateNotebook],
+    [dragIndex, updateNotebook, stopAutoScroll],
   );
+
+  // Cancel any in-flight auto-scroll frame if the view unmounts mid-drag.
+  useEffect(() => stopAutoScroll, [stopAutoScroll]);
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -514,17 +692,46 @@ export function NotebookView({
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, []);
 
-  // Keyboard shortcut: Ctrl+Shift+Enter → Run All
+  // Keyboard shortcuts (only for the active notebook tab):
+  // Ctrl+Shift+Enter → Run All, Cmd/Ctrl+Z → Undo, Cmd/Ctrl+Shift+Z / Ctrl+Y → Redo.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isActiveRef.current) return;
+
       if (matchesShortcut(e, "notebook_run_all")) {
         e.preventDefault();
         runAll();
+        return;
+      }
+
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key !== "z" && key !== "y") return;
+
+      // Defer to a focused cell editor / input so their own undo keeps working.
+      const el = document.activeElement as HTMLElement | null;
+      if (
+        el &&
+        (el.closest(".monaco-editor") ||
+          el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (key === "y" || (key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        handleRedo();
+      } else if (key === "z") {
+        e.preventDefault();
+        handleUndo();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [matchesShortcut, runAll]);
+  }, [matchesShortcut, runAll, handleUndo, handleRedo]);
 
   const collapseAll = useCallback(() => {
     updateNotebook(cellsRef.current.map((c) => ({ ...c, isCollapsed: true })));
@@ -554,6 +761,12 @@ export function NotebookView({
     onToggleStopOnError: toggleStopOnError,
     onCollapseAll: collapseAll,
     onExpandAll: expandAll,
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    canUndo,
+    canRedo,
+    onToggleHistory: () => setShowHistory((v) => !v),
+    historyOpen: showHistory,
   };
 
   // Loading state
@@ -581,10 +794,41 @@ export function NotebookView({
     );
   }
 
+  const historyView = historyTimeline(history, notebook ?? { cells });
+
+  // A drop line is shown in gap `pos` unless it'd leave the cell where it is.
+  const showLineAt = (pos: number) =>
+    dropPos === pos &&
+    dragIndex !== null &&
+    pos !== dragIndex &&
+    pos !== dragIndex + 1;
+  const renderDropLine = (placement: "top" | "bottom") => (
+    <div
+      className={`pointer-events-none absolute ${
+        placement === "top" ? "-top-1.5" : "-bottom-1.5"
+      } left-0 right-0 z-10 flex items-center gap-1`}
+    >
+      <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.7)]" />
+      <span className="h-0.5 flex-1 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.7)]" />
+    </div>
+  );
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       <NotebookToolbar {...toolbarProps} />
-      <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4 space-y-0">
+      {showHistory && (
+        <NotebookHistoryPanel
+          states={historyView.states}
+          currentIndex={historyView.currentIndex}
+          onJump={handleJump}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
+      <div
+        ref={scrollContainerRef}
+        onDragOver={handleContainerDragOver}
+        className="flex-1 overflow-auto p-4 space-y-0"
+      >
         <ParamsPanel params={params} onParamsChange={handleParamsChange} />
         <NotebookOutline
           cells={cells}
@@ -613,12 +857,9 @@ export function NotebookView({
             }}
             onDragOver={handleDragOver(index)}
             onDrop={handleDrop(index)}
-            className={`${
-              dragOverIndex === index && dragIndex !== index
-                ? "border-t-2 border-blue-500"
-                : ""
-            }`}
+            className="relative"
           >
+            {showLineAt(index) && renderDropLine("top")}
             <NotebookCellWrapper
               cell={cell}
               index={index}
@@ -657,6 +898,9 @@ export function NotebookView({
               onAddSql={() => addCell("sql", index)}
               onAddMarkdown={() => addCell("markdown", index)}
             />
+            {index === cells.length - 1 &&
+              showLineAt(cells.length) &&
+              renderDropLine("bottom")}
           </div>
         ))}
       </div>

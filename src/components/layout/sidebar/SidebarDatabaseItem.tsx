@@ -244,7 +244,7 @@ export const SidebarDatabaseItem = ({
                 onToggle={() => setTablesOpen(!tablesOpen)}
                 actions={
                   supportsManageTables(capabilities) ? (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 mr-2.5">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -320,7 +320,7 @@ export const SidebarDatabaseItem = ({
                 isOpen={viewsOpen}
                 onToggle={() => setViewsOpen(!viewsOpen)}
                 actions={
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 mr-2.5">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -365,7 +365,7 @@ export const SidebarDatabaseItem = ({
                   isOpen={triggersOpen}
                   onToggle={() => setTriggersOpen(!triggersOpen)}
                   actions={
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 mr-2.5">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

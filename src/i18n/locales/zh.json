@@ -157,7 +157,19 @@
     "dateGroupYesterday": "昨天",
     "dateGroupThisWeek": "本周",
     "dateGroupThisMonth": "本月",
-    "dateGroupOlder": "更早"
+    "dateGroupOlder": "更早",
+    "notebooks": {
+      "tab": "笔记本",
+      "search": "搜索笔记本",
+      "refresh": "刷新",
+      "empty": "暂无已保存的笔记本。",
+      "noSearchResults": "没有匹配的笔记本。",
+      "open": "打开",
+      "rename": "重命名",
+      "delete": "删除",
+      "deleteConfirm": "删除笔记本“{{title}}”？此操作无法撤销。",
+      "renamePlaceholder": "笔记本名称"
+    }
   },
   "mcp": {
     "title": "MCP 服务器集成",
@@ -586,7 +598,7 @@
     "dbNamePlaceholder": "数据库名称",
     "loadDatabases": "加载数据库",
     "loadingDatabases": "加载中...",
-    "selectDatabases": "选择数据库",
+    "selectDatabases": "数据库",
     "appearance": "外观",
     "noDatabasesSelected": "请至少选择一个数据库",
     "selectedDatabases": "已选择 {{count}} 个数据库",
@@ -887,6 +899,7 @@
     "notebook": {
       "addSqlCell": "添加 SQL 单元格",
       "addMarkdownCell": "添加 Markdown 单元格",
+      "addCell": "添加",
       "runAll": "全部运行",
       "runAllTooltip": "从上到下执行所有 SQL 单元格",
       "runCell": "运行单元格",
@@ -937,7 +950,28 @@
       "editCellName": "编辑单元格名称",
       "aiGenerateName": "使用 AI 生成名称",
       "generatingName": "正在生成名称...",
-      "aiGenerateOutlineNames": "使用 AI 为未命名单元格生成名称"
+      "aiGenerateOutlineNames": "使用 AI 为未命名单元格生成名称",
+      "undo": "撤销",
+      "redo": "重做",
+      "history": {
+        "title": "编辑历史",
+        "change": {
+          "initial": "初始版本",
+          "editCell": "编辑了单元格 {{n}}",
+          "addSql": "添加了 SQL 单元格 {{n}}",
+          "addMarkdown": "添加了 Markdown 单元格 {{n}}",
+          "deleteCell": "删除了单元格 {{n}}",
+          "reorder": "重新排序单元格",
+          "renameCell": "重命名了单元格 {{n}}",
+          "schemaCell": "更改了数据库（单元格 {{n}}）",
+          "chartCell": "更改了图表（单元格 {{n}}）",
+          "parallelCell": "切换了并行（单元格 {{n}}）",
+          "collapse": "折叠/展开单元格",
+          "params": "更改了参数",
+          "stopOnError": "切换了出错时停止",
+          "other": "编辑了笔记本"
+        }
+      }
     },
     "querySelection": {
       "title": "选择要执行的查询",

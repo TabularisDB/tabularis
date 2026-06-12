@@ -39,6 +39,7 @@ import {
   Check,
   Undo2,
   BookOpen,
+  Pencil,
   Hash,
   Loader2,
   Copy,
@@ -80,8 +81,7 @@ import {
 import { formatDuration } from "../utils/formatTime";
 import { SqlEditorWrapper } from "../components/ui/SqlEditorWrapper";
 import { NotebookView } from "../components/notebook/NotebookView";
-import { extractSqlFromCells } from "../utils/notebook";
-import { createNotebook } from "../utils/notebookStore";
+import { createNotebook, renameNotebook } from "../utils/notebookStore";
 import { registerSqlAutocomplete } from "../utils/autocomplete";
 import { type OnMount, type Monaco } from "@monaco-editor/react";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -157,6 +157,7 @@ export const Editor = () => {
     activeTab,
     activeTabId,
     updateTab,
+    updateResultEntry: patchResultEntry,
     addTab,
     setActiveTabId,
     closeTab,
@@ -178,6 +179,8 @@ export const Editor = () => {
     y: number;
     tabId: string;
   } | null>(null);
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editingTabTitle, setEditingTabTitle] = useState("");
 
   const [errorModal, setErrorModal] = useState<{
     isOpen: boolean;
@@ -225,22 +228,34 @@ export const Editor = () => {
     setTabContextMenu({ x: e.clientX, y: e.clientY, tabId });
   };
 
+  const startTabRename = useCallback((tabId: string) => {
+    const tab = tabsRef.current.find((t) => t.id === tabId);
+    if (!tab) return;
+    setEditingTabId(tabId);
+    setEditingTabTitle(tab.title);
+  }, []);
+
+  const commitTabRename = useCallback(() => {
+    const tabId = editingTabId;
+    if (!tabId) return;
+    setEditingTabId(null);
+    const title = editingTabTitle.trim();
+    const tab = tabsRef.current.find((t) => t.id === tabId);
+    if (!tab || !title || title === tab.title) return;
+    updateTab(tabId, { title });
+    // Persist the rename to the notebook file too (covers background tabs whose
+    // NotebookView isn't mounted to sync the title automatically).
+    if (tab.type === "notebook" && tab.notebookId && tab.connectionId) {
+      renameNotebook(tab.notebookId, tab.connectionId, title).catch((e) =>
+        console.error("Failed to rename notebook:", e),
+      );
+    }
+  }, [editingTabId, editingTabTitle, updateTab]);
+
   const handleConvertToConsole = useCallback(
     (tabId: string) => {
       const tab = tabsRef.current.find((t) => t.id === tabId);
       if (!tab) return;
-
-      // Notebook: extract all SQL cells
-      if (tab.type === "notebook" && tab.notebookState) {
-        const allSql = extractSqlFromCells(tab.notebookState.cells);
-        addTab({
-          type: "console",
-          title: `Console - ${tab.title}`,
-          query: allSql,
-          connectionId: tab.connectionId,
-        });
-        return;
-      }
 
       const effectiveSchema =
         activeCapabilities?.schemas === true ? tab.schema : undefined;
@@ -844,51 +859,14 @@ export const Editor = () => {
       const shouldRecordHistory =
         targetTab?.type === "console" || targetTab?.type === "query_builder";
 
-      // Run the whole script on a single pooled connection so statements
-      // can share session state (SET @var, LAST_INSERT_ID(), transactions,
-      // TEMP TABLE).
-      const batchStart = performance.now();
-      let batchResults: BatchStatementResult[];
-      try {
-        batchResults = await invoke<BatchStatementResult[]>(
-          "execute_query_batch",
-          {
-            connectionId: activeConnectionId,
-            queries: entries.map((e) => e.query),
-            limit: pageSize,
-            page: 1,
-            ...(schema ? { schema } : {}),
-          },
-        );
-      } catch (err) {
-        // Batch-level failure (e.g. connection acquisition, cancellation):
-        // mark every entry as failed so the UI doesn't sit in "loading".
-        const fallbackElapsed = performance.now() - batchStart;
-        const message = typeof err === "string" ? err : t("editor.queryFailed");
-        const failed = entries.map((entry) => ({
-          ...entry,
-          error: message,
-          executionTime: fallbackElapsed,
-          isLoading: false,
-        }));
-        updateTab(targetTabId, { results: failed, isLoading: false });
-        if (shouldRecordHistory) {
-          for (const entry of entries) {
-            addHistoryEntry(
-              entry.query,
-              fallbackElapsed,
-              "error",
-              null,
-              message,
-              historyDb,
-            );
-          }
-        }
-        return;
-      }
-
-      const liveResults = entries.map((entry, idx) => {
-        const item = batchResults[idx];
+      // Resolves a single result tab the moment its statement finishes:
+      // records history and patches that entry in place (no whole-array
+      // rewrite) so the UI shows per-statement status in real time instead of
+      // waiting for the entire batch.
+      const applied = new Set<number>();
+      const applyStatement = (index: number, item: BatchStatementResult) => {
+        const entry = entries[index];
+        if (!entry) return;
         const execTime = item?.execution_time_ms ?? null;
         if (item?.error) {
           if (shouldRecordHistory) {
@@ -901,12 +879,12 @@ export const Editor = () => {
               historyDb,
             );
           }
-          return {
-            ...entry,
+          patchResultEntry(targetTabId, entry.id, {
             error: item.error,
             executionTime: execTime,
             isLoading: false,
-          };
+          });
+          return;
         }
         const res = item?.result ?? null;
         const tableName = extractTableName(entry.query) ?? null;
@@ -920,18 +898,87 @@ export const Editor = () => {
             historyDb,
           );
         }
-        return {
-          ...entry,
+        patchResultEntry(targetTabId, entry.id, {
           result: res,
           executionTime: execTime,
           isLoading: false,
           activeTable: tableName,
-        };
+        });
+      };
+
+      // A unique id ties the live events to this run, so a listener ignores
+      // events from any other batch executing concurrently.
+      const batchId = `batch-${targetTabId}-${performance.now()}`;
+      // Registered before `invoke` so no early statement event is missed.
+      const unlisten = await listen<{
+        batch_id: string;
+        index: number;
+        statement: BatchStatementResult;
+      }>("batch-statement-complete", (event) => {
+        const p = event.payload;
+        if (p.batch_id !== batchId || applied.has(p.index)) return;
+        applied.add(p.index);
+        applyStatement(p.index, p.statement);
       });
 
-      updateTab(targetTabId, { results: liveResults, isLoading: false });
+      // Run the whole script on a single pooled connection so statements
+      // can share session state (SET @var, LAST_INSERT_ID(), transactions,
+      // TEMP TABLE).
+      const batchStart = performance.now();
+      let batchResults: BatchStatementResult[];
+      try {
+        batchResults = await invoke<BatchStatementResult[]>(
+          "execute_query_batch",
+          {
+            connectionId: activeConnectionId,
+            queries: entries.map((e) => e.query),
+            limit: pageSize,
+            page: 1,
+            batchId,
+            ...(schema ? { schema } : {}),
+          },
+        );
+      } catch (err) {
+        unlisten();
+        // Batch-level failure (e.g. connection acquisition, cancellation):
+        // mark only the entries that haven't already resolved via a live event
+        // as failed, so statements that completed first keep their results.
+        const fallbackElapsed = performance.now() - batchStart;
+        const message = typeof err === "string" ? err : t("editor.queryFailed");
+        entries.forEach((entry, idx) => {
+          if (applied.has(idx)) return;
+          if (shouldRecordHistory) {
+            addHistoryEntry(
+              entry.query,
+              fallbackElapsed,
+              "error",
+              null,
+              message,
+              historyDb,
+            );
+          }
+          patchResultEntry(targetTabId, entry.id, {
+            error: message,
+            executionTime: fallbackElapsed,
+            isLoading: false,
+          });
+        });
+        updateTab(targetTabId, { isLoading: false });
+        return;
+      }
+
+      unlisten();
+
+      // Reconcile any statement whose live event was missed (dropped/raced),
+      // then clear the tab-level loading flag.
+      batchResults.forEach((item, idx) => {
+        if (applied.has(idx)) return;
+        applied.add(idx);
+        applyStatement(idx, item);
+      });
+      updateTab(targetTabId, { isLoading: false });
     },
-    [activeConnectionId, updateTab, settings.resultPageSize, activeSchema, t, isMultiDb, activeDatabaseName, addHistoryEntry],
+    [activeConnectionId, updateTab, patchResultEntry, settings.resultPageSize, activeSchema, t, isMultiDb, activeDatabaseName, addHistoryEntry],
   );
 
   const runResultEntryPage = useCallback(
@@ -2145,7 +2192,9 @@ export const Editor = () => {
       if (activeCapabilities?.schemas && activeSchema) {
         effectiveTables = schemaDataMap[activeSchema]?.tables ?? tables;
       } else if (isMultiDb) {
-        effectiveTables = selectedDatabases.flatMap(db => databaseDataMap[db]?.tables ?? []);
+        effectiveTables = selectedDatabases.flatMap(db =>
+          (databaseDataMap[db]?.tables ?? []).map(t => ({ ...t, schema: db }))
+        );
       }
       const disposable = registerSqlAutocomplete(
         monacoInstance,
@@ -2455,14 +2504,41 @@ export const Editor = () => {
               ) : (
                 <FileCode size={12} className="text-green-500 shrink-0" />
               )}
-              <span className="truncate flex-1 flex items-center gap-1">
-                <span className="truncate">{tab.title}</span>
-                {tab.type === "console" && isMultiDb && (
-                  <span className="text-muted shrink-0">
-                    ({tab.schema || selectedDatabases[0]})
-                  </span>
-                )}
-              </span>
+              {editingTabId === tab.id ? (
+                <input
+                  type="text"
+                  value={editingTabTitle}
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => setEditingTabTitle(e.target.value)}
+                  onBlur={commitTabRename}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === "Enter") commitTabRename();
+                    if (e.key === "Escape") setEditingTabId(null);
+                  }}
+                  className="flex-1 min-w-0 bg-surface-secondary border border-blue-500/50 rounded px-1 py-0.5 text-xs text-primary focus:outline-none"
+                />
+              ) : (
+                <span
+                  className="truncate flex-1 flex items-center gap-1"
+                  onDoubleClick={
+                    tab.type === "notebook"
+                      ? (e) => {
+                          e.stopPropagation();
+                          startTabRename(tab.id);
+                        }
+                      : undefined
+                  }
+                >
+                  <span className="truncate">{tab.title}</span>
+                  {tab.type === "console" && isMultiDb && (
+                    <span className="text-muted shrink-0">
+                      ({tab.schema || selectedDatabases[0]})
+                    </span>
+                  )}
+                </span>
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -2504,8 +2580,9 @@ export const Editor = () => {
         </button>
         <button
           onClick={async () => {
+            if (!activeConnectionId) return;
             const title = "Notebook";
-            const { notebookId } = await createNotebook(title);
+            const { notebookId } = await createNotebook(title, activeConnectionId);
             addTab({
               type: "notebook",
               notebookId,
@@ -2745,6 +2822,7 @@ export const Editor = () => {
                 tab={tab}
                 updateTab={updateTab}
                 connectionId={activeConnectionId || ""}
+                isActive={isActive}
               />
             </div>
           );
@@ -2882,7 +2960,6 @@ export const Editor = () => {
                 results={activeTab.results}
                 activeResultId={activeTab.activeResultId}
                 tabId={activeTab.id}
-                isAllDone={!activeTab.isLoading}
                 connectionId={activeConnectionId}
                 copyFormat={copyFormat}
                 csvDelimiter={csvDelimiter}
@@ -3418,8 +3495,19 @@ export const Editor = () => {
           y={tabContextMenu.y}
           onClose={() => setTabContextMenu(null)}
           items={[
-            ...(tabs.find((t) => t.id === tabContextMenu.tabId)?.type !==
-            "console"
+            ...(tabs.find((t) => t.id === tabContextMenu.tabId)?.type ===
+            "notebook"
+              ? [
+                  {
+                    label: t("sidebar.notebooks.rename"),
+                    icon: Pencil,
+                    action: () => startTabRename(tabContextMenu.tabId),
+                  },
+                ]
+              : []),
+            ...(!["console", "notebook", "query_builder"].includes(
+              tabs.find((t) => t.id === tabContextMenu.tabId)?.type ?? "",
+            )
               ? [
                   {
                     label: t("editor.convertToConsole"),

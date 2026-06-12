@@ -905,7 +905,7 @@ fn has_analyze_data_recursive(node: &ExplainNode) -> bool {
 ///
 /// Each line looks like:
 /// `    -> Table scan on t1  (cost=1.25 rows=10) (actual time=0.045..0.145 rows=10 loops=1)`
-fn parse_mysql_analyze_text(text: &str, counter: &mut u32) -> ExplainNode {
+pub(super) fn parse_mysql_analyze_text(text: &str, counter: &mut u32) -> ExplainNode {
     let mut parsed_lines: Vec<AnalyzeParsedLine> = Vec::new();
 
     for line in text.lines() {
@@ -1077,7 +1077,15 @@ fn parse_analyze_estimated(s: &str) -> (Option<f64>, Option<f64>) {
 }
 
 /// Extract actual time, rows, loops from "(actual time=X..Y rows=Z loops=W)" section.
-fn parse_analyze_actual(s: &str) -> (Option<f64>, Option<f64>, Option<u64>) {
+///
+/// MySQL's tree-format `EXPLAIN ANALYZE` reports `time=first..last` as the
+/// *per-loop* (per-iteration) timing, averaged across all `loops`. To obtain the
+/// total wall-clock time spent in the node — which is what we display — the
+/// per-loop end time must be multiplied by the loop count. This mirrors how
+/// PostgreSQL's "Actual Total Time" relates to "Actual Loops". Without this,
+/// nodes executed many times (e.g. an index lookup driven by a join) report a
+/// tiny per-iteration figure instead of their real cost.
+pub(super) fn parse_analyze_actual(s: &str) -> (Option<f64>, Option<f64>, Option<u64>) {
     let idx = match s.find("(actual time=") {
         Some(i) => i,
         None => return (None, None, None),
@@ -1088,16 +1096,16 @@ fn parse_analyze_actual(s: &str) -> (Option<f64>, Option<f64>, Option<u64>) {
         None => return (None, None, None),
     };
     let inner = &section[1..end]; // "actual time=X..Y rows=Z loops=W"
-    let mut time_ms = None;
+    let mut per_loop_time_ms = None;
     let mut rows = None;
     let mut loops = None;
     for part in inner.split_whitespace() {
         if let Some(val) = part.strip_prefix("time=") {
-            // Use end time (after "..") as total time
+            // "time=first..last" — the end value is the per-loop time to read all rows
             if let Some(dot_pos) = val.find("..") {
-                time_ms = val[dot_pos + 2..].parse().ok();
+                per_loop_time_ms = val[dot_pos + 2..].parse().ok();
             } else {
-                time_ms = val.parse().ok();
+                per_loop_time_ms = val.parse().ok();
             }
         } else if let Some(val) = part.strip_prefix("rows=") {
             rows = val.parse().ok();
@@ -1105,6 +1113,11 @@ fn parse_analyze_actual(s: &str) -> (Option<f64>, Option<f64>, Option<u64>) {
             loops = val.parse().ok();
         }
     }
+    // Scale the per-loop time to the total time across all iterations.
+    let time_ms = match (per_loop_time_ms, loops) {
+        (Some(t), Some(l)) => Some(t * l as f64),
+        (t, _) => t,
+    };
     (time_ms, rows, loops)
 }
 

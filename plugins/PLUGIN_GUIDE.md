@@ -110,6 +110,7 @@ The manifest tells Tabularis everything about your plugin.
 | `alter_primary_key` | bool | `true` if the database supports altering primary keys after table creation. |
 | `manage_tables` | bool | `true` to enable table and column management UI (Create Table, Add/Modify/Drop Column, Drop Table). Does not control index or FK operations. Defaults to `true`. |
 | `readonly` | bool | When `true`, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. The add/delete row buttons, inline cell editing, and context menu edit actions are hidden. Table and column management is also hidden regardless of `manage_tables`. Defaults to `false`. |
+| `supports_ssl` | bool | `true` to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal. The values are forwarded to the plugin as `ssl_mode`, `ssl_ca`, `ssl_cert`, and `ssl_key` in `ConnectionParams`. Network drivers only. Also accepted as camelCase `supportsSsl`. Defaults to `false`. |
 
 ### Data Types
 

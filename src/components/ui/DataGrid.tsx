@@ -41,16 +41,11 @@ import {
   getColumnSortState,
   calculateSelectionRange,
   toggleSetValue,
-  resolveInsertionCellDisplay,
-  resolveExistingCellDisplay,
-  getCellStateClass,
   type MergedRow,
-  type ColumnDisplayInfo,
 } from "../../utils/dataGrid";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
 import { isJsonColumn, isJsonContent } from "../../utils/json";
-import { isLongTextCellTarget, truncateCellPreview } from "../../utils/text";
 import {
   pickPrimaryForeignKeyByColumn,
   getForeignKeyForPreview,
@@ -60,13 +55,7 @@ import {
   parseDateTime,
   formatDateTime,
 } from "../../utils/dateInput";
-import { GeometryInput } from "./GeometryInput";
-import { DateInput } from "./DateInput";
 import { RowEditorSidebar } from "./RowEditorSidebar";
-import { JsonCell } from "./JsonCell";
-import { JsonExpansionEditor } from "./JsonExpansionEditor";
-import { TextCell } from "./TextCell";
-import { TextExpansionEditor } from "./TextExpansionEditor";
 import { useDatabase } from "../../hooks/useDatabase";
 import {
   rowsToCSV,
@@ -80,6 +69,7 @@ import type {
   TableColumn,
   ForeignKey,
 } from "../../types/editor";
+import { MemoRow, type RowCtx } from "./DataGridRow";
 
 interface DataGridProps {
   columns: string[];
@@ -219,6 +209,13 @@ export const DataGrid = React.memo(
       colIndex: number;
     } | null>(null);
     const editInputRef = useRef<HTMLInputElement>(null);
+    // Mirror of editingCell so the commit/keydown callbacks can read the latest
+    // value without listing editingCell in their deps — keeps their identity
+    // stable so the memoized rows don't re-render on every keystroke/scroll.
+    const editingCellRef = useRef(editingCell);
+    useEffect(() => {
+      editingCellRef.current = editingCell;
+    }, [editingCell]);
     const pendingJsonSessions = useRef<
       Map<string, { colName: string; rowData: unknown[]; isInsertion: boolean; tempId?: string }>
     >(new Map());
@@ -442,11 +439,24 @@ export const DataGrid = React.memo(
       }
     }, [editingCell]);
 
-    const handleCellDoubleClick = (
-      rowIndex: number,
-      colIndex: number,
-      value: unknown,
-    ) => {
+    const buildRowDataWithPending = useCallback(
+      (rowArray: unknown[], isInsertion: boolean): Record<string, unknown> => {
+        const rowData: Record<string, unknown> = {};
+        columns.forEach((col, idx) => {
+          rowData[col] = rowArray[idx];
+        });
+        if (!isInsertion && pkIndexMap !== null) {
+          const pkVal = rowArray[pkIndexMap];
+          const pending = pendingChanges?.[String(pkVal)]?.changes;
+          if (pending) Object.assign(rowData, pending);
+        }
+        return rowData;
+      },
+      [columns, pkIndexMap, pendingChanges],
+    );
+
+    const handleCellDoubleClick = useCallback(
+      (rowIndex: number, colIndex: number, value: unknown) => {
       if (!tableName || readonlyProp) return;
 
       const mergedRow = mergedRows[rowIndex];
@@ -499,13 +509,26 @@ export const DataGrid = React.memo(
       }
 
       setEditingCell({ rowIndex, colIndex, value: editValue });
-    };
+    },
+      [
+        tableName,
+        readonlyProp,
+        mergedRows,
+        pkColumn,
+        columns,
+        columnTypeMap,
+        columnLengthMap,
+        buildRowDataWithPending,
+        openJsonViewerWindow,
+      ],
+    );
 
     const isCommittingRef = useRef(false);
 
-    const handleEditCommit = async () => {
+    const handleEditCommit = useCallback(async () => {
       // Prevent multiple concurrent commits (e.g., from rapid blur events)
       if (isCommittingRef.current) return;
+      const editingCell = editingCellRef.current;
       if (!editingCell || !tableName) {
         setEditingCell(null);
         return;
@@ -596,9 +619,23 @@ export const DataGrid = React.memo(
       } finally {
         isCommittingRef.current = false;
       }
-    };
+    }, [
+      tableName,
+      mergedRows,
+      columns,
+      onPendingInsertionChange,
+      onPendingChange,
+      pkIndexMap,
+      pkColumn,
+      connectionId,
+      activeSchema,
+      onRefresh,
+      showAlert,
+      t,
+    ]);
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+      const editingCell = editingCellRef.current;
       if (e.key === "Enter") {
         handleEditCommit();
       } else if (e.key === "Escape") {
@@ -645,7 +682,7 @@ export const DataGrid = React.memo(
           }, 0);
         }
       }
-    };
+    }, [handleEditCommit, mergedRows, columns]);
 
     const columnHelper = useMemo(() => createColumnHelper<unknown[]>(), []);
 
@@ -698,27 +735,6 @@ export const DataGrid = React.memo(
                 </div>
               );
             },
-            cell: (info) => {
-              const val = info.getValue();
-              const colName = info.column.id;
-              const colType = columnTypeMap?.get(colName);
-              const formatted = formatCellValue(
-                val,
-                t("dataGrid.null"),
-                colType,
-                columnLengthMap?.get(colName),
-              );
-
-              // The <generated> placeholder logic for auto-increment columns is handled
-              // in the main render loop where we have full context (isInsertion, etc).
-
-              // Apply styling for null values
-              if (val === null || val === undefined) {
-                return <span className="text-muted italic">{formatted}</span>;
-              }
-
-              return formatted;
-            },
           }),
         ),
       [
@@ -727,8 +743,6 @@ export const DataGrid = React.memo(
         t,
         sortClause,
         onSort,
-        columnTypeMap,
-        columnLengthMap,
       ],
     );
 
@@ -915,22 +929,6 @@ export const DataGrid = React.memo(
       onDuplicateRow(rowData);
       setContextMenu(null);
     }, [contextMenu, columns, pendingInsertions, onDuplicateRow]);
-
-    const buildRowDataWithPending = useCallback(
-      (rowArray: unknown[], isInsertion: boolean): Record<string, unknown> => {
-        const rowData: Record<string, unknown> = {};
-        columns.forEach((col, idx) => {
-          rowData[col] = rowArray[idx];
-        });
-        if (!isInsertion && pkIndexMap !== null) {
-          const pkVal = rowArray[pkIndexMap];
-          const pending = pendingChanges?.[String(pkVal)]?.changes;
-          if (pending) Object.assign(rowData, pending);
-        }
-        return rowData;
-      },
-      [columns, pkIndexMap, pendingChanges],
-    );
 
     const openSidebarEditor = useCallback(() => {
       if (!contextMenu) return;
@@ -1135,6 +1133,83 @@ export const DataGrid = React.memo(
       return () => document.removeEventListener("keydown", handleKeyDown);
     }, [editingCell, selectedRowIndices, focusedCell, copyCellValue, copySelectedCells, readonlyProp, deleteRowsByIndices]);
 
+    // Stable per-row dependency bundle. Memoizing it lets React.memo on MemoRow
+    // skip re-rendering rows that didn't change during scroll.
+    const rowCtx: RowCtx = useMemo(
+      () => ({
+        columns,
+        autoIncrementColumns,
+        defaultValueColumns,
+        nullableColumns,
+        pkColumn,
+        pendingChanges,
+        columnTypeMap,
+        columnLengthMap,
+        isJsonCellTarget,
+        fksByColumn,
+        t,
+        mergedRows,
+        pkIndexMap,
+        parentViewportWidth,
+        readonly: readonlyProp,
+        updateSelection,
+        setFocusedCell,
+        setExpandedCell,
+        setEditingCell,
+        setSidebarRowData,
+        setSidebarOpen,
+        handleRowClick,
+        handleCellDoubleClick,
+        handleContextMenu,
+        handleEditCommit,
+        handleKeyDown,
+        onForeignKeyShowPanel,
+        onForeignKeyHidePanel,
+        onForeignKeyNavigate,
+        onPendingChange,
+        onPendingInsertionChange,
+        openJsonViewerWindow,
+        buildRowDataWithPending,
+        editInputRef,
+      }),
+      [
+        columns,
+        autoIncrementColumns,
+        defaultValueColumns,
+        nullableColumns,
+        pkColumn,
+        pendingChanges,
+        columnTypeMap,
+        columnLengthMap,
+        isJsonCellTarget,
+        fksByColumn,
+        t,
+        mergedRows,
+        pkIndexMap,
+        parentViewportWidth,
+        readonlyProp,
+        updateSelection,
+        setFocusedCell,
+        setExpandedCell,
+        setEditingCell,
+        setSidebarRowData,
+        setSidebarOpen,
+        handleRowClick,
+        handleCellDoubleClick,
+        handleContextMenu,
+        handleEditCommit,
+        handleKeyDown,
+        onForeignKeyShowPanel,
+        onForeignKeyHidePanel,
+        onForeignKeyNavigate,
+        onPendingChange,
+        onPendingInsertionChange,
+        openJsonViewerWindow,
+        buildRowDataWithPending,
+        editInputRef,
+      ],
+    );
+
     // Show "no data" if there are no columns (even with pending insertions, we can't render without column info)
     // OR if there are columns but no data and no pending insertions
     if (columns.length === 0) {
@@ -1201,563 +1276,39 @@ export const DataGrid = React.memo(
               </thead>
               <tbody>
                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                  const row = tableRows[virtualRow.index];
                   const rowIndex = virtualRow.index;
+                  const row = tableRows[rowIndex];
+                  const rowOriginal = row.original as unknown[];
                   const isSelected = selectedRowIndices.has(rowIndex);
-
-                  // Check if this is an insertion row
                   const mergedRow = mergedRows[rowIndex];
                   const isInsertion = mergedRow?.type === "insertion";
-
-                  // Get PK for pending check (using pre-calculated pkIndexMap)
                   const pkVal =
                     pkIndexMap !== null
-                      ? String(row.original[pkIndexMap])
+                      ? String(rowOriginal[pkIndexMap])
                       : null;
                   const isPendingDelete =
                     !isInsertion && pkVal
                       ? pendingDeletions?.[pkVal] !== undefined
                       : false;
-                  const expansionMatchesRow =
-                    expandedCell?.rowIndex === rowIndex;
-
+                  const isRowEditing = editingCell?.rowIndex === rowIndex;
+                  const isRowFocused = focusedCell?.rowIndex === rowIndex;
+                  const isRowExpanded = expandedCell?.rowIndex === rowIndex;
                   return (
-                    <React.Fragment key={row.id}>
-                    <tr
-                      data-index={virtualRow.index}
-                      ref={rowVirtualizer.measureElement}
-                      className={`transition-colors group ${
-                        isSelected
-                          ? "bg-blue-900/20 border-l-4 border-blue-400"
-                          : isInsertion
-                            ? "bg-green-500/8 border-l-4 border-green-400"
-                            : isPendingDelete
-                              ? "bg-red-900/20 opacity-60"
-                              : "hover:bg-surface-secondary/50"
-                      }`}
-                    >
-                      <td
-                        onClick={(e) => {
-                          setFocusedCell(null);
-                          onForeignKeyHidePanel?.();
-                          handleRowClick(rowIndex, e);
-                        }}
-                        className={`px-2 py-1.5 text-xs text-center border-b border-r border-default sticky left-0 z-10 cursor-pointer select-none w-[50px] min-w-[50px] ${
-                          isInsertion
-                            ? isSelected
-                              ? "bg-blue-900/40 text-blue-200 font-bold"
-                              : "bg-green-950/30 text-green-300 font-bold"
-                            : isPendingDelete
-                              ? "bg-red-950/50 text-red-500 line-through"
-                              : isSelected
-                                ? "bg-blue-900/40 text-blue-200 font-bold"
-                                : "bg-base text-muted hover:bg-surface-secondary"
-                        }`}
-                      >
-                        {isInsertion ? "NEW" : rowIndex + 1}
-                      </td>
-                      {row.getVisibleCells().map((cell, colIndex) => {
-                        const isEditing =
-                          editingCell?.rowIndex === rowIndex &&
-                          editingCell?.colIndex === colIndex;
-
-                        const colName = cell.column.id;
-
-                        const columnInfo: ColumnDisplayInfo = {
-                          colName,
-                          autoIncrementColumns,
-                          defaultValueColumns,
-                          nullableColumns,
-                        };
-
-                        const resolved = isInsertion
-                          ? resolveInsertionCellDisplay(
-                              cell.getValue(),
-                              columnInfo,
-                            )
-                          : resolveExistingCellDisplay(
-                              cell.getValue(),
-                              pkVal,
-                              pkColumn,
-                              pendingChanges,
-                              columnInfo,
-                            );
-
-                        const {
-                          displayValue,
-                          hasPendingChange,
-                          isModified,
-                          isAutoIncrementPlaceholder,
-                          isDefaultValuePlaceholder,
-                        } = resolved;
-
-                        const colTypeForCell = columnTypeMap?.get(colName);
-                        const rawCellValue = cell.getValue();
-                        const isJsonCell =
-                          isJsonCellTarget(colTypeForCell, rawCellValue) &&
-                          !isPendingDelete;
-                        const isLongTextCell =
-                          !isJsonCell &&
-                          !isPendingDelete &&
-                          isLongTextCellTarget(
-                            colTypeForCell,
-                            hasPendingChange ? displayValue : rawCellValue,
-                          );
-
-                        const stateClass = getCellStateClass({
-                          isPendingDelete,
-                          isSelected,
-                          isInsertion,
-                          isAutoIncrementPlaceholder,
-                          isDefaultValuePlaceholder,
-                          isModified,
-                          isJsonCell,
-                        });
-
-                        const isFocused =
-                          focusedCell?.rowIndex === rowIndex &&
-                          focusedCell?.colIndex === colIndex;
-
-                        const fkForPreview = getForeignKeyForPreview(
-                          colName,
-                          rawCellValue,
-                          fksByColumn,
-                          { isPendingDelete, isInsertion },
-                        );
-
-                        return (
-                          <td
-                            key={cell.id}
-                            onClick={(e) => {
-                              // Don't handle row click if clicking on a button
-                              const target = e.target as HTMLElement;
-                              if (target.closest("button")) {
-                                return;
-                              }
-                              setFocusedCell({ rowIndex, colIndex });
-                              updateSelection(new Set());
-
-                              if (fkForPreview && onForeignKeyShowPanel) {
-                                onForeignKeyShowPanel(
-                                  fkForPreview,
-                                  rawCellValue,
-                                );
-                              } else {
-                                onForeignKeyHidePanel?.();
-                              }
-                            }}
-                            onDoubleClick={() =>
-                              !isPendingDelete &&
-                              handleCellDoubleClick(
-                                rowIndex,
-                                colIndex,
-                                isAutoIncrementPlaceholder ||
-                                  isDefaultValuePlaceholder
-                                  ? ""
-                                  : displayValue,
-                              )
-                            }
-                            onContextMenu={(e) =>
-                              handleContextMenu(
-                                e,
-                                row.original,
-                                rowIndex,
-                                colIndex,
-                                colName,
-                              )
-                            }
-                            className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-mono ${isEditing ? "relative" : "whitespace-nowrap truncate max-w-[300px]"} ${fkForPreview ? "cursor-pointer" : "cursor-text"} ${stateClass} ${isFocused ? "ring-2 ring-inset ring-blue-400" : ""}`}
-                            title={
-                              !isEditing
-                                ? truncateCellPreview(
-                                    formatCellValue(
-                                      displayValue,
-                                      t("dataGrid.null"),
-                                      colTypeForCell,
-                                      columnLengthMap?.get(colName),
-                                    ),
-                                  ).text
-                                : ""
-                            }
-                          >
-                            {isEditing
-                              ? (() => {
-                                  const colType = columnTypeMap?.get(colName);
-                                  if (colType && isGeometricType(colType)) {
-                                    return (
-                                      <GeometryInput
-                                        inputRef={editInputRef}
-                                        value={String(editingCell.value ?? "")}
-                                        dataType={colType}
-                                        onChange={(newValue, isRawSql) =>
-                                          setEditingCell((prev) =>
-                                            prev
-                                              ? {
-                                                  ...prev,
-                                                  value: newValue,
-                                                  isRawSql,
-                                                }
-                                              : null,
-                                          )
-                                        }
-                                        onBlur={handleEditCommit}
-                                        onKeyDown={handleKeyDown}
-                                        onSqlFunctionsClick={() => {
-                                          // Close inline editing
-                                          setEditingCell(null);
-
-                                          // Open sidebar with the current row
-                                          const mergedRow =
-                                            mergedRows[rowIndex];
-                                          if (mergedRow) {
-                                            setSidebarRowData({
-                                              data: buildRowDataWithPending(
-                                                mergedRow.rowData,
-                                                mergedRow.type === "insertion",
-                                              ),
-                                              rowIndex: rowIndex,
-                                              focusField: colName,
-                                            });
-                                            setSidebarOpen(true);
-                                          }
-                                        }}
-                                        className="w-full bg-base text-primary border-none outline-none p-0 m-0 font-mono"
-                                      />
-                                    );
-                                  }
-                                  const dateMode = colType
-                                    ? getDateInputMode(colType)
-                                    : null;
-                                  if (dateMode) {
-                                    return (
-                                      <DateInput
-                                        value={String(editingCell.value ?? "")}
-                                        mode={dateMode}
-                                        onChange={(newValue) =>
-                                          setEditingCell((prev) =>
-                                            prev
-                                              ? { ...prev, value: newValue }
-                                              : null,
-                                          )
-                                        }
-                                        onBlur={handleEditCommit}
-                                        onKeyDown={handleKeyDown}
-                                        inputRef={editInputRef}
-                                      />
-                                    );
-                                  }
-                                  const textValue = String(
-                                    editingCell.value ?? "",
-                                  );
-                                  // Measure the longest line to size the textarea
-                                  const lines = textValue.split("\n");
-                                  const canvas =
-                                    document.createElement("canvas");
-                                  const ctx = canvas.getContext("2d");
-                                  if (ctx) {
-                                    ctx.font =
-                                      "14px ui-monospace, SFMono-Regular, monospace";
-                                  }
-                                  const longestLineWidth = ctx
-                                    ? Math.max(
-                                        ...lines.map(
-                                          (line) => ctx.measureText(line).width,
-                                        ),
-                                      )
-                                    : 200;
-                                  // padding (p-2 = 8px * 2) + small buffer
-                                  const textareaWidth =
-                                    Math.ceil(longestLineWidth) + 32;
-
-                                  return (
-                                    <>
-                                      {/* Invisible placeholder to preserve td width */}
-                                      <span className="invisible whitespace-nowrap">
-                                        {String(displayValue)}
-                                      </span>
-                                      <textarea
-                                        ref={(el) => {
-                                          (
-                                            editInputRef as React.MutableRefObject<HTMLElement | null>
-                                          ).current = el;
-                                          if (el) {
-                                            const td = el.parentElement;
-                                            if (td) {
-                                              el.style.width = `${Math.max(td.offsetWidth, textareaWidth)}px`;
-                                            }
-                                          }
-                                        }}
-                                        value={textValue}
-                                        rows={Math.min(lines.length, 10)}
-                                        onChange={(e) => {
-                                          setEditingCell((prev) =>
-                                            prev
-                                              ? {
-                                                  ...prev,
-                                                  value: e.target.value,
-                                                }
-                                              : null,
-                                          );
-                                        }}
-                                        onBlur={handleEditCommit}
-                                        onKeyDown={handleKeyDown}
-                                        className="absolute left-0 top-0 max-w-[400px] max-h-[120px] bg-base text-primary border border-blue-500 rounded shadow-lg p-2 font-mono text-sm resize-none z-50 outline-none"
-                                      />
-                                    </>
-                                  );
-                                })()
-                              : (() => {
-                                    const formattedDisplay = formatCellValue(
-                                      displayValue,
-                                      t("dataGrid.null"),
-                                      colTypeForCell,
-                                      columnLengthMap?.get(colName),
-                                    );
-
-                                    if (isJsonCell) {
-                                      const isExpanded =
-                                        expandedCell?.kind === "json" &&
-                                        expandedCell?.rowIndex === rowIndex &&
-                                        expandedCell?.colIndex === colIndex;
-                                      return (
-                                        <JsonCell
-                                          value={displayValue}
-                                          displayText={formattedDisplay}
-                                          isExpanded={isExpanded}
-                                          isPendingDelete={isPendingDelete}
-                                          onToggleExpand={() =>
-                                            setExpandedCell(
-                                              isExpanded
-                                                ? null
-                                                : {
-                                                    rowIndex,
-                                                    colIndex,
-                                                    kind: "json",
-                                                  },
-                                            )
-                                          }
-                                          onOpenViewer={() => {
-                                            const mergedRow =
-                                              mergedRows[rowIndex];
-                                            if (!mergedRow) return;
-                                            const isInsertion =
-                                              mergedRow.type === "insertion";
-                                            openJsonViewerWindow(
-                                              displayValue,
-                                              rawCellValue,
-                                              colName,
-                                              mergedRow.rowData,
-                                              rowIndex,
-                                              isInsertion,
-                                              mergedRow.tempId,
-                                              readonlyProp ?? false,
-                                            );
-                                          }}
-                                        />
-                                      );
-                                    }
-
-                                    if (isLongTextCell) {
-                                      const isExpanded =
-                                        expandedCell?.kind === "text" &&
-                                        expandedCell?.rowIndex === rowIndex &&
-                                        expandedCell?.colIndex === colIndex;
-                                      return (
-                                        <TextCell
-                                          value={displayValue}
-                                          displayText={formattedDisplay}
-                                          isExpanded={isExpanded}
-                                          isPendingDelete={isPendingDelete}
-                                          onToggleExpand={() =>
-                                            setExpandedCell(
-                                              isExpanded
-                                                ? null
-                                                : {
-                                                    rowIndex,
-                                                    colIndex,
-                                                    kind: "text",
-                                                  },
-                                            )
-                                          }
-                                        />
-                                      );
-                                    }
-
-                                    if (hasPendingChange) {
-                                      return formattedDisplay;
-                                    }
-
-                                    if (
-                                      colTypeForCell &&
-                                      (isBlobColumn(
-                                        colTypeForCell,
-                                        columnLengthMap?.get(colName),
-                                      ) ||
-                                        isBlobWireFormat(displayValue)) &&
-                                      !isPendingDelete
-                                    ) {
-                                      return (
-                                        <span className="inline-flex items-center gap-1 group/blobcell w-full min-w-0">
-                                          <span className="truncate flex-1 min-w-0">
-                                            {flexRender(
-                                              cell.column.columnDef.cell,
-                                              cell.getContext(),
-                                            )}
-                                          </span>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const mergedRow =
-                                                mergedRows[rowIndex];
-                                              if (mergedRow) {
-                                                setSidebarRowData({
-                                                  data: buildRowDataWithPending(
-                                                    mergedRow.rowData,
-                                                    mergedRow.type ===
-                                                      "insertion",
-                                                  ),
-                                                  rowIndex,
-                                                  focusField: colName,
-                                                });
-                                                setSidebarOpen(true);
-                                              }
-                                            }}
-                                            className="opacity-0 group-hover/blobcell:opacity-100 transition-opacity p-0.5 rounded text-muted hover:text-secondary hover:bg-surface-tertiary flex-shrink-0"
-                                            title={t("blobInput.openSidebar")}
-                                          >
-                                            <ExternalLink size={11} />
-                                          </button>
-                                        </span>
-                                      );
-                                    }
-
-                                    if (fkForPreview && onForeignKeyNavigate) {
-                                      return (
-                                        <span className="inline-flex items-center gap-1 group/fkcell w-full min-w-0">
-                                          <span className="truncate flex-1 min-w-0">
-                                            {flexRender(
-                                              cell.column.columnDef.cell,
-                                              cell.getContext(),
-                                            )}
-                                          </span>
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              onForeignKeyNavigate(
-                                                fkForPreview,
-                                                rawCellValue,
-                                              );
-                                            }}
-                                            className="opacity-0 group-hover/fkcell:opacity-100 transition-opacity p-0.5 rounded text-muted hover:text-blue-400 hover:bg-surface-tertiary flex-shrink-0"
-                                            title={t("dataGrid.openReferenced", {
-                                              table: fkForPreview.ref_table,
-                                            })}
-                                          >
-                                            <ExternalLink size={11} />
-                                          </button>
-                                        </span>
-                                      );
-                                    }
-
-                                    return flexRender(
-                                      cell.column.columnDef.cell,
-                                      cell.getContext(),
-                                    );
-                                  })()}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                    {expansionMatchesRow && expandedCell && (() => {
-                      const expColName = columns[expandedCell.colIndex];
-                      const mergedRow = mergedRows[rowIndex];
-                      const pendingExpansionValue = (() => {
-                        if (!mergedRow) return undefined;
-                        if (
-                          mergedRow.type === "existing" &&
-                          pkIndexMap !== null
-                        ) {
-                          const pkVal = mergedRow.rowData[pkIndexMap];
-                          const pendingVal =
-                            pkVal !== null &&
-                            pkVal !== undefined &&
-                            pkVal !== ""
-                              ? pendingChanges?.[String(pkVal)]?.changes?.[
-                                  expColName
-                                ]
-                              : undefined;
-                          if (pendingVal !== undefined) return pendingVal;
-                        }
-                        return mergedRow.rowData?.[expandedCell.colIndex];
-                      })();
-                      const expansionOriginalValue =
-                        mergedRow?.type === "existing"
-                          ? mergedRow?.rowData?.[expandedCell.colIndex]
-                          : undefined;
-                      const persistExpansionSave = (next: unknown) => {
-                        if (!mergedRow || !expandedCell) return;
-                        if (
-                          mergedRow.type === "insertion" &&
-                          onPendingInsertionChange &&
-                          mergedRow.tempId
-                        ) {
-                          onPendingInsertionChange(
-                            mergedRow.tempId,
-                            expColName,
-                            next,
-                          );
-                        } else if (
-                          mergedRow.type === "existing" &&
-                          onPendingChange &&
-                          pkIndexMap !== null
-                        ) {
-                          const pkVal = mergedRow.rowData[pkIndexMap];
-                          onPendingChange(pkVal, expColName, next);
-                        }
-                        setExpandedCell(null);
-                      };
-                      return (
-                        <tr
-                          ref={rowVirtualizer.measureElement}
-                          data-expansion-for={virtualRow.index}
-                        >
-                          <td
-                            colSpan={columns.length + 1}
-                            className="p-0 border-b border-default"
-                          >
-                            <div
-                              className="sticky left-0 bg-base/60 p-3"
-                              style={{
-                                width:
-                                  parentViewportWidth > 0
-                                    ? `${parentViewportWidth}px`
-                                    : "100%",
-                              }}
-                            >
-                              {expandedCell.kind === "json" ? (
-                                <JsonExpansionEditor
-                                  value={pendingExpansionValue}
-                                  originalValue={expansionOriginalValue}
-                                  readOnly={readonlyProp ?? false}
-                                  onCancel={() => setExpandedCell(null)}
-                                  onSave={persistExpansionSave}
-                                />
-                              ) : (
-                                <TextExpansionEditor
-                                  value={pendingExpansionValue}
-                                  originalValue={expansionOriginalValue}
-                                  readOnly={readonlyProp ?? false}
-                                  onCancel={() => setExpandedCell(null)}
-                                  onSave={persistExpansionSave}
-                                />
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })()}
-                    </React.Fragment>
+                    <MemoRow
+                      key={row.id}
+                      ctx={rowCtx}
+                      rowIndex={rowIndex}
+                      rowOriginal={rowOriginal}
+                      isSelected={isSelected}
+                      isInsertion={isInsertion}
+                      isPendingDelete={isPendingDelete}
+                      pkVal={pkVal}
+                      editingColIndex={isRowEditing ? editingCell!.colIndex : null}
+                      editingValue={isRowEditing ? editingCell!.value : undefined}
+                      focusedColIndex={isRowFocused ? focusedCell!.colIndex : null}
+                      expandedColIndex={isRowExpanded ? expandedCell!.colIndex : null}
+                      expandedKind={isRowExpanded ? expandedCell!.kind : null}
+                    />
                   );
                 })}
               </tbody>

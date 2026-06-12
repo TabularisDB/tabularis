@@ -12,41 +12,71 @@ describe('sqlAnalysis utils', () => {
     it('should extract simple table name', () => {
       const result = parseTablesFromQuery('SELECT * FROM users');
       expect(result).not.toBeNull();
-      expect(result?.get('users')).toBe('users');
+      expect(result?.get('users')?.name).toBe('users');
     });
 
     it('should extract table with alias', () => {
       const result = parseTablesFromQuery('SELECT * FROM users u');
-      expect(result?.get('u')).toBe('users');
+      expect(result?.get('u')?.name).toBe('users');
     });
 
     it('should extract table with AS alias', () => {
       const result = parseTablesFromQuery('SELECT * FROM users AS u');
-      expect(result?.get('u')).toBe('users');
+      expect(result?.get('u')?.name).toBe('users');
     });
 
     it('should extract multiple tables (JOIN)', () => {
       const sql = 'SELECT * FROM users u JOIN posts p ON u.id = p.user_id';
       const result = parseTablesFromQuery(sql);
-      expect(result?.get('u')).toBe('users');
-      expect(result?.get('p')).toBe('posts');
+      expect(result?.get('u')?.name).toBe('users');
+      expect(result?.get('p')?.name).toBe('posts');
     });
 
     it('should handle backticks', () => {
       const result = parseTablesFromQuery('SELECT * FROM `my_table` `mt`');
-      expect(result?.get('mt')).toBe('my_table');
+      expect(result?.get('mt')?.name).toBe('my_table');
     });
 
     it('should handle complex joins', () => {
         const sql = `
-            SELECT * FROM orders o 
+            SELECT * FROM orders o
             LEFT JOIN users u ON o.user_id = u.id
             INNER JOIN products p ON o.prod_id = p.id
         `;
         const result = parseTablesFromQuery(sql);
-        expect(result?.get('o')).toBe('orders');
-        expect(result?.get('u')).toBe('users');
-        expect(result?.get('p')).toBe('products');
+        expect(result?.get('o')?.name).toBe('orders');
+        expect(result?.get('u')?.name).toBe('users');
+        expect(result?.get('p')?.name).toBe('products');
+    });
+
+    it('does not register a keyword as an alias when it follows a table name', () => {
+      // Unaliased JOIN: both tables keyed by their own name, JOIN not an alias.
+      const r = parseTablesFromQuery('SELECT * FROM users JOIN orders');
+      expect(r?.get('users')?.name).toBe('users');
+      expect(r?.get('orders')?.name).toBe('orders');
+      expect(r?.has('join')).toBe(false);
+
+      // JOIN-type keywords must not become aliases of the preceding table.
+      const left = parseTablesFromQuery('SELECT * FROM a LEFT JOIN b ON a.id = b.a_id');
+      expect(left?.get('a')?.name).toBe('a');
+      expect(left?.get('b')?.name).toBe('b');
+      expect(left?.has('left')).toBe(false);
+
+      const natural = parseTablesFromQuery('SELECT * FROM t NATURAL JOIN u');
+      expect(natural?.get('t')?.name).toBe('t');
+      expect(natural?.get('u')?.name).toBe('u');
+      expect(natural?.has('natural')).toBe(false);
+
+      // Trailing clause keywords that can legally follow a table name.
+      const forUpdate = parseTablesFromQuery('SELECT * FROM orders FOR UPDATE');
+      expect(forUpdate?.get('orders')?.name).toBe('orders');
+      expect(forUpdate?.has('for')).toBe(false);
+    });
+
+    it('keeps schema on qualified refs across a JOIN', () => {
+      const r = parseTablesFromQuery('SELECT * FROM db1.users JOIN db2.orders ON 1 = 1');
+      expect(r?.get('users')).toEqual({ name: 'users', schema: 'db1' });
+      expect(r?.get('orders')).toEqual({ name: 'orders', schema: 'db2' });
     });
   });
 

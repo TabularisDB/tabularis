@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Plug2, Settings, Cpu, PanelLeft, Layers, Star, Clock } from "lucide-react";
+import { Plug2, Settings, Cpu, PanelLeft, Layers, Star, Clock, BookOpen } from "lucide-react";
 import { DiscordIcon } from "../icons/DiscordIcon";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { DISCORD_URL } from "../../config/links";
@@ -346,6 +346,7 @@ export const Sidebar = () => {
             { id: "structure" as SidebarTab, icon: Layers, label: t("sidebar.structure") },
             { id: "favorites" as SidebarTab, icon: Star, label: t("sidebar.favorites") },
             { id: "history" as SidebarTab, icon: Clock, label: t("sidebar.queryHistory") },
+            { id: "notebooks" as SidebarTab, icon: BookOpen, label: t("sidebar.notebooks.tab") },
           ]).map((tab) => (
             <button
               key={tab.id}

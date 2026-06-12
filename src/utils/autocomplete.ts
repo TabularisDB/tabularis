@@ -1,15 +1,17 @@
 import type { Monaco } from "@monaco-editor/react";
 import { invoke } from "@tauri-apps/api/core";
 import type { TableInfo } from "../contexts/DatabaseContext";
-import { getCurrentStatement, parseTablesFromQuery } from "./sqlAnalysis";
+import { getCurrentStatement, parseTablesFromQuery, type ParsedTableRef } from "./sqlAnalysis";
 
 // Lightweight column cache with TTL and size limits
 interface CachedColumns {
   data: Array<{ label: string; detail: string }>;
   timestamp: number;
+  ttl: number;
 }
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const NEGATIVE_CACHE_TTL = 30 * 1000; // 30 s for empty results (structurally empty table/view)
 const MAX_CACHE_ENTRIES = 50; // Limit total cached tables
 const columnsCache = new Map<string, CachedColumns>();
 
@@ -52,7 +54,7 @@ const getTableColumns = async (connectionId: string, tableName: string, schema?:
   const cached = columnsCache.get(cacheKey);
 
   // Return cached data if valid
-  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+  if (cached && (Date.now() - cached.timestamp) < cached.ttl) {
     return cached.data;
   }
 
@@ -62,7 +64,7 @@ const getTableColumns = async (connectionId: string, tableName: string, schema?:
       tableName,
       ...(schema ? { schema } : {}),
     });
-    
+
     if (!Array.isArray(cols)) {
       console.warn(`get_columns returned non-array for table ${tableName}`, cols);
       return [];
@@ -74,11 +76,14 @@ const getTableColumns = async (connectionId: string, tableName: string, schema?:
       detail: c.data_type,
     }));
 
+    // Cache with a short TTL for empty results (structurally empty table/view) so we
+    // don't re-issue get_columns on every trigger. Errors are not cached — they remain
+    // transient and will retry on the next trigger.
     columnsCache.set(cacheKey, {
       data: simpleCols,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      ttl: simpleCols.length > 0 ? CACHE_TTL : NEGATIVE_CACHE_TTL,
     });
-    
     cleanupCache();
     return simpleCols;
   } catch (e) {
@@ -110,7 +115,7 @@ export const registerSqlAutocomplete = (
       if (!connectionId) return { suggestions: [] };
 
       const wordUntil = model.getWordUntilPosition(position);
-      
+
       const range = {
         startLineNumber: position.lineNumber,
         endLineNumber: position.lineNumber,
@@ -130,45 +135,66 @@ export const registerSqlAutocomplete = (
       const currentStatement = getCurrentStatement(model, position);
       const tableAliases = parseTablesFromQuery(currentStatement);
 
+
       // ============================================
-      // 1. DOT TRIGGER (table.column or alias.column)
+      // 1. DOT TRIGGER (table.column, alias.column, or db.table.column)
       // ============================================
-      const dotMatch = textUntilPosition.match(/(?:["'`])?([a-zA-Z0-9_]+)(?:["'`])?\.([a-zA-Z0-9_]*)$/);
-      
-      if (dotMatch) {
-        const typedName = dotMatch[1].toLowerCase();
-        const partialColumn = dotMatch[2]; // What user has typed after the dot
-        
-        // Check if it's an alias or table name
-        let actualTableName = tableAliases?.get(typedName);
-        
-        if (!actualTableName) {
-          // Try direct table name match
-          const foundTable = tables.find(t => t.name.toLowerCase() === typedName);
-          actualTableName = foundTable?.name;
+
+      // Try qualified (db.table.) first, then simple (table.)
+      const qualifiedDotMatch = textUntilPosition.match(/`?([a-zA-Z0-9_]+)`?\.`?([a-zA-Z0-9_]+)`?\.([a-zA-Z0-9_]*)$/);
+      const simpleDotMatch = qualifiedDotMatch ? null : textUntilPosition.match(/(?:["'`])?([a-zA-Z0-9_]+)(?:["'`])?\.([a-zA-Z0-9_]*)$/);
+
+      if (qualifiedDotMatch || simpleDotMatch) {
+        let dotTables: TableInfo[] = [];
+        let partialColumn: string;
+
+        if (qualifiedDotMatch) {
+          const dbName = qualifiedDotMatch[1].toLowerCase();
+          const tblName = qualifiedDotMatch[2].toLowerCase();
+          partialColumn = qualifiedDotMatch[3];
+          const found = tables.find(t => t.name.toLowerCase() === tblName && t.schema?.toLowerCase() === dbName);
+          dotTables = found ? [found] : [{ name: tblName, schema: dbName }];
+        } else {
+          const typedName = simpleDotMatch![1].toLowerCase();
+          partialColumn = simpleDotMatch![2];
+          // Resolve via alias map (carries schema when FROM used qualified ref)
+          const aliasRef: ParsedTableRef | undefined = tableAliases?.get(typedName);
+          if (aliasRef) {
+            const found = tables.find(t =>
+              t.name.toLowerCase() === aliasRef.name.toLowerCase() &&
+              (!aliasRef.schema || t.schema?.toLowerCase() === aliasRef.schema.toLowerCase())
+            );
+            dotTables = found ? [found] : [{ name: aliasRef.name, schema: aliasRef.schema }];
+          } else {
+            // Unqualified: collect every loaded table with this name across all schemas
+            const matches = tables.filter(t => t.name.toLowerCase() === typedName);
+            dotTables = matches.length > 0 ? matches : [{ name: typedName }];
+          }
         }
-        
-        if (actualTableName) {
-          const columns = await getTableColumns(connectionId, actualTableName, schema);
-          
-          // Calculate range for column name after dot
+
+        const colArrays = await Promise.all(
+          dotTables.map(t => getTableColumns(connectionId, t.name, t.schema ?? schema))
+        );
+        const seen = new Set<string>();
+        const columns = colArrays.flat().filter(c => (seen.has(c.label) ? false : (seen.add(c.label), true)));
+
+        if (columns.length > 0) {
           const columnRange = {
             startLineNumber: position.lineNumber,
             endLineNumber: position.lineNumber,
             startColumn: position.column - partialColumn.length,
             endColumn: position.column,
           };
-          
-          const suggestions = columns.map(c => ({
-            label: c.label,
-            kind: monaco.languages.CompletionItemKind.Field,
-            detail: c.detail,
-            insertText: c.label,
-            range: columnRange,
-            sortText: `0_${c.label}`,
-          }));
-          
-          return { suggestions };
+          return {
+            suggestions: columns.map(c => ({
+              label: c.label,
+              kind: monaco.languages.CompletionItemKind.Field,
+              detail: c.detail,
+              insertText: c.label,
+              range: columnRange,
+              sortText: `0_${c.label}`,
+            })),
+          };
         }
       }
 
@@ -185,40 +211,54 @@ export const registerSqlAutocomplete = (
       }> = [];
       
       if (tableAliases && tableAliases.size > 0) {
-        // User is inside a query with FROM/JOIN - suggest columns from those tables
-        const tableNames = Array.from(new Set(tableAliases.values()));
-        const matchingTables = tableNames
-          .map(name => tables.find(t => t.name.toLowerCase() === name.toLowerCase()))
-          .filter(Boolean) as TableInfo[];
-        
+        // Deduplicate parsed refs by (schema, name) — multiple aliases can point to the same table
+        const seenRefs = new Set<string>();
+        const uniqueRefs = Array.from(tableAliases.values()).filter(ref => {
+          const key = `${ref.schema ?? ''}:${ref.name}`;
+          return seenRefs.has(key) ? false : (seenRefs.add(key), true);
+        });
+
+        // For qualified refs (schema known) find the exact table; for unqualified refs
+        // expand to ALL loaded tables with that name so every selected DB is covered.
+        const matchingTables: TableInfo[] = uniqueRefs.flatMap(ref => {
+          if (ref.schema) {
+            const found = tables.find(t =>
+              t.name.toLowerCase() === ref.name.toLowerCase() &&
+              t.schema?.toLowerCase() === ref.schema!.toLowerCase()
+            );
+            return found ? [found] : [ref as TableInfo];
+          }
+          const found = tables.filter(t => t.name.toLowerCase() === ref.name.toLowerCase());
+          return found.length > 0 ? found : [ref as TableInfo];
+        });
+
         // Limit parallel fetches to prevent memory spikes
         const MAX_PARALLEL_FETCHES = 5;
         if (matchingTables.length > MAX_PARALLEL_FETCHES) {
           matchingTables.splice(MAX_PARALLEL_FETCHES);
         }
-        
+
         const results = await Promise.all(
-          matchingTables.map(t => getTableColumns(connectionId, t.name, schema))
+          matchingTables.map(t => getTableColumns(connectionId, t.name, t.schema ?? schema))
         );
-        
+
         const seenColumns = new Set<string>();
-        
+
         matchingTables.forEach((table, idx) => {
           const columns = results[idx];
           columns.forEach(col => {
-            const key = `${col.label}`;
-            if (!seenColumns.has(key)) {
-              seenColumns.add(key);
-              
+            if (!seenColumns.has(col.label)) {
+              seenColumns.add(col.label);
+
               // Find alias for this table (if any)
               let aliasHint = "";
-              for (const [alias, tableName] of tableAliases.entries()) {
-                if (tableName.toLowerCase() === table.name.toLowerCase() && alias !== table.name.toLowerCase()) {
+              for (const [alias, ref] of tableAliases.entries()) {
+                if (ref.name.toLowerCase() === table.name.toLowerCase() && alias !== table.name.toLowerCase()) {
                   aliasHint = ` (${alias})`;
                   break;
                 }
               }
-              
+
               contextColumnSuggestions.push({
                 label: col.label,
                 kind: monaco.languages.CompletionItemKind.Field,
@@ -233,24 +273,18 @@ export const registerSqlAutocomplete = (
       }
 
       // ============================================
-      // 3. KEYWORD SUGGESTIONS (only if no context columns)
+      // 3. KEYWORD SUGGESTIONS
       // ============================================
-      let keywordSuggestions: Array<{
-        label: string;
-        kind: number;
-        insertText: string;
-        range: { startLineNumber: number; endLineNumber: number; startColumn: number; endColumn: number };
-        sortText: string;
-      }> = [];
-      if (contextColumnSuggestions.length === 0) {
-        keywordSuggestions = SQL_KEYWORDS.map((kw) => ({
+      const colLabels = new Set(contextColumnSuggestions.map(s => s.label.toUpperCase()));
+      const keywordSuggestions = SQL_KEYWORDS
+        .filter(kw => !colLabels.has(kw))
+        .map((kw) => ({
           label: kw,
           kind: monaco.languages.CompletionItemKind.Keyword,
           insertText: kw,
           range,
           sortText: `2_${kw}`
         }));
-      }
 
       // ============================================
       // 4. TABLE SUGGESTIONS

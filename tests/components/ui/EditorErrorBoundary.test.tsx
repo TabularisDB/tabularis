@@ -22,6 +22,7 @@ const buildEditorContext = (
   activeTabId: "tab-1",
   activeTab: null,
   addTab: vi.fn(() => ""),
+  openNotebook: vi.fn(),
   closeTab: vi.fn(),
   closeAllTabs: vi.fn(),
   closeOtherTabs: vi.fn(),

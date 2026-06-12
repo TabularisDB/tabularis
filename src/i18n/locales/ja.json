@@ -171,7 +171,19 @@
     "dateGroupYesterday": "昨日",
     "dateGroupThisWeek": "今週",
     "dateGroupThisMonth": "今月",
-    "dateGroupOlder": "それ以前"
+    "dateGroupOlder": "それ以前",
+    "notebooks": {
+      "tab": "ノートブック",
+      "search": "ノートブックを検索",
+      "refresh": "更新",
+      "empty": "保存されたノートブックはまだありません。",
+      "noSearchResults": "一致するノートブックがありません。",
+      "open": "開く",
+      "rename": "名前を変更",
+      "delete": "削除",
+      "deleteConfirm": "ノートブック「{{title}}」を削除しますか？この操作は元に戻せません。",
+      "renamePlaceholder": "ノートブック名"
+    }
   },
   "mcp": {
     "title": "MCP サーバー連携",
@@ -632,7 +644,7 @@
     "dbNamePlaceholder": "データベース名",
     "loadDatabases": "データベースを読み込み",
     "loadingDatabases": "読み込み中...",
-    "selectDatabases": "データベースを選択",
+    "selectDatabases": "データベース",
     "appearance": "外観",
     "noDatabasesSelected": "少なくとも 1 つのデータベースを選択してください",
     "selectedDatabases": "{{count}} 個のデータベースを選択中",
@@ -933,6 +945,7 @@
     "notebook": {
       "addSqlCell": "SQL セルを追加",
       "addMarkdownCell": "Markdown セルを追加",
+      "addCell": "追加",
       "runAll": "すべて実行",
       "runAllTooltip": "上から下へすべての SQL セルを実行",
       "runCell": "セルを実行",
@@ -983,7 +996,28 @@
       "editCellName": "セル名を編集",
       "aiGenerateName": "AI で名前を生成",
       "generatingName": "名前を生成中...",
-      "aiGenerateOutlineNames": "AI で未命名セルの名前を生成"
+      "aiGenerateOutlineNames": "AI で未命名セルの名前を生成",
+      "undo": "元に戻す",
+      "redo": "やり直す",
+      "history": {
+        "title": "編集履歴",
+        "change": {
+          "initial": "初期バージョン",
+          "editCell": "セル {{n}} を編集",
+          "addSql": "SQL セル {{n}} を追加",
+          "addMarkdown": "Markdown セル {{n}} を追加",
+          "deleteCell": "セル {{n}} を削除",
+          "reorder": "セルを並べ替え",
+          "renameCell": "セル {{n}} の名前を変更",
+          "schemaCell": "データベースを変更（セル {{n}}）",
+          "chartCell": "チャートを変更（セル {{n}}）",
+          "parallelCell": "並列を切り替え（セル {{n}}）",
+          "collapse": "セルを折りたたみ/展開",
+          "params": "パラメータを変更",
+          "stopOnError": "エラー時に停止を切り替え",
+          "other": "ノートブックを編集"
+        }
+      }
     },
     "querySelection": {
       "title": "実行するクエリを選択",

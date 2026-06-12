@@ -158,7 +158,19 @@
     "dateGroupYesterday": "Gestern",
     "dateGroupThisWeek": "Diese Woche",
     "dateGroupThisMonth": "Diesen Monat",
-    "dateGroupOlder": "Älter"
+    "dateGroupOlder": "Älter",
+    "notebooks": {
+      "tab": "Notebooks",
+      "search": "Notebooks suchen",
+      "refresh": "Aktualisieren",
+      "empty": "Noch keine gespeicherten Notebooks.",
+      "noSearchResults": "Keine Notebooks entsprechen der Suche.",
+      "open": "Öffnen",
+      "rename": "Umbenennen",
+      "delete": "Löschen",
+      "deleteConfirm": "Notebook \"{{title}}\" löschen? Dies kann nicht rückgängig gemacht werden.",
+      "renamePlaceholder": "Notebook-Name"
+    }
   },
   "mcp": {
     "title": "MCP-Server-Integration",
@@ -618,7 +630,7 @@
     "dbNamePlaceholder": "Datenbankname",
     "loadDatabases": "Datenbanken laden",
     "loadingDatabases": "Wird geladen...",
-    "selectDatabases": "Datenbanken auswählen",
+    "selectDatabases": "Datenbanken",
     "appearance": "Erscheinungsbild",
     "noDatabasesSelected": "Wähle mindestens eine Datenbank aus",
     "selectedDatabases": "{{count}} Datenbank(en) ausgewählt",
@@ -921,6 +933,7 @@
     "notebook": {
       "addSqlCell": "SQL-Zelle hinzufügen",
       "addMarkdownCell": "Markdown-Zelle hinzufügen",
+      "addCell": "Hinzufügen",
       "runAll": "Alle ausführen",
       "runAllTooltip": "Alle SQL-Zellen von oben nach unten ausführen",
       "runCell": "Zelle ausführen",
@@ -971,7 +984,28 @@
       "editCellName": "Zellnamen bearbeiten",
       "aiGenerateName": "Namen mit KI generieren",
       "generatingName": "Name wird generiert...",
-      "aiGenerateOutlineNames": "Namen für unbenannte Zellen mit KI generieren"
+      "aiGenerateOutlineNames": "Namen für unbenannte Zellen mit KI generieren",
+      "undo": "Rückgängig",
+      "redo": "Wiederholen",
+      "history": {
+        "title": "Bearbeitungsverlauf",
+        "change": {
+          "initial": "Erste Version",
+          "editCell": "Zelle {{n}} bearbeitet",
+          "addSql": "SQL-Zelle {{n}} hinzugefügt",
+          "addMarkdown": "Markdown-Zelle {{n}} hinzugefügt",
+          "deleteCell": "Zelle {{n}} gelöscht",
+          "reorder": "Zellen neu angeordnet",
+          "renameCell": "Zelle {{n}} umbenannt",
+          "schemaCell": "Datenbank geändert (Zelle {{n}})",
+          "chartCell": "Diagramm geändert (Zelle {{n}})",
+          "parallelCell": "Parallel umgeschaltet (Zelle {{n}})",
+          "collapse": "Zellen ein-/ausgeklappt",
+          "params": "Parameter geändert",
+          "stopOnError": "Bei Fehler stoppen umgeschaltet",
+          "other": "Notebook bearbeitet"
+        }
+      }
     },
     "querySelection": {
       "title": "Abfrage zum Ausführen auswählen",
