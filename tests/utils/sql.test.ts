@@ -251,6 +251,16 @@ describe('sql utils', () => {
         sql: 'CREATE VIEW broken_view SELECT 1',
         expected: 'CREATE VIEW broken_view SELECT 1',
       },
+      {
+        name: 'extracts the SELECT from a Postgres MATERIALIZED VIEW',
+        sql: 'CREATE MATERIALIZED VIEW mv AS SELECT 1 AS x FROM t',
+        expected: 'SELECT 1 AS x FROM t',
+      },
+      {
+        name: 'extracts the SELECT from CREATE OR REPLACE VIEW',
+        sql: 'CREATE OR REPLACE VIEW v AS SELECT a AS b FROM t',
+        expected: 'SELECT a AS b FROM t',
+      },
     ])('$name', ({ sql, expected }) => {
       expect(extractEditableViewDefinition(sql)).toBe(expected);
     });
