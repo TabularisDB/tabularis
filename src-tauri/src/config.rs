@@ -62,6 +62,8 @@ pub struct AppConfig {
     pub query_history_max_entries: Option<u32>,
     /// Whether to show the welcome screen on startup. Default: true (first launch).
     pub show_welcome: Option<bool>,
+    /// Maximize the window on startup. Default: false.
+    pub start_maximized: Option<bool>,
     /// IANA timezone name (e.g. `Asia/Tokyo`) used to render timestamps in the
     /// UI and exports. `None` or `"auto"` follows the OS local timezone.
     pub display_timezone: Option<String>,
@@ -314,6 +316,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.show_welcome.is_some() {
             existing_config.show_welcome = config.show_welcome;
+        }
+        if config.start_maximized.is_some() {
+            existing_config.start_maximized = config.start_maximized;
         }
         if config.display_timezone.is_some() {
             existing_config.display_timezone = config.display_timezone;

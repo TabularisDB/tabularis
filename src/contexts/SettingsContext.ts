@@ -52,6 +52,8 @@ export interface Settings {
   showWelcome?: boolean;
   /** Reconnect to the last active connection on startup. Default: true. */
   autoConnectLastConnection?: boolean;
+  /** Maximize the window on startup. Default: false. */
+  startMaximized?: boolean;
   // AI / MCP safety
   aiAuditEnabled?: boolean;
   aiAuditMaxEntries?: number;
@@ -104,6 +106,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pingInterval: 30,
   queryHistoryMaxEntries: 500,
   autoConnectLastConnection: true,
+  startMaximized: false,
   aiAuditEnabled: true,
   aiAuditMaxEntries: 5000,
   aiSessionGapMinutes: 10,
