@@ -50,6 +50,8 @@ export interface Settings {
   pingInterval?: number;
   queryHistoryMaxEntries?: number;
   showWelcome?: boolean;
+  /** Reconnect to the last active connection on startup. Default: true. */
+  autoConnectLastConnection?: boolean;
   // AI / MCP safety
   aiAuditEnabled?: boolean;
   aiAuditMaxEntries?: number;
@@ -101,6 +103,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editorAcceptSuggestionOnEnter: true,
   pingInterval: 30,
   queryHistoryMaxEntries: 500,
+  autoConnectLastConnection: true,
   aiAuditEnabled: true,
   aiAuditMaxEntries: 5000,
   aiSessionGapMinutes: 10,

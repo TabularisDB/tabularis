@@ -336,6 +336,10 @@ pub fn run() {
             // Config
             config::get_schema_preference,
             config::set_schema_preference,
+            config::get_last_active_connection,
+            config::set_last_active_connection,
+            config::get_last_open_connections,
+            config::set_last_open_connections,
             config::get_selected_schemas,
             config::set_selected_schemas,
             config::get_config,
