@@ -1,0 +1,44 @@
+msgid ""
+msgstr ""
+"POT-Creation-Date: 2026-06-18 21:59+0200\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: @lingui/cli\n"
+"Language: it\n"
+
+#: src/components/modals/SchemaModal.tsx
+msgid "Close"
+msgstr ""
+
+#: src/components/modals/SchemaModal.tsx
+msgid "Key"
+msgstr ""
+
+#: src/components/modals/SchemaModal.tsx
+msgid "Loading schema..."
+msgstr ""
+
+#: src/components/modals/SchemaModal.tsx
+msgid "Name"
+msgstr ""
+
+#: src/components/modals/SchemaModal.tsx
+msgid "NO"
+msgstr ""
+
+#: src/components/modals/SchemaModal.tsx
+msgid "Nullable"
+msgstr ""
+
+#: src/components/modals/SchemaModal.tsx
+msgid "Schema: {tableName}"
+msgstr ""
+
+#: src/components/modals/SchemaModal.tsx
+msgid "Type"
+msgstr ""
+
+#: src/components/modals/SchemaModal.tsx
+msgid "YES"
+msgstr ""

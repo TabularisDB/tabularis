@@ -1,4 +1,4 @@
-import i18n from 'i18next';
+import i18n, { type ReadCallback } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import ChainedBackend from 'i18next-chained-backend';
@@ -63,7 +63,7 @@ function readOtaIntervalMs(): number {
 function bundledLoader(
   language: string,
   _namespace: string,
-  callback: (error: unknown, resources: unknown) => void,
+  callback: ReadCallback,
 ): void {
   const resources = bundledResources[language];
   if (resources) callback(null, resources);

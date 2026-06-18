@@ -1,0 +1,1 @@
+/*eslint-disable*/module.exports={messages:JSON.parse("{\"-yoeVU\":[\"Loading schema...\"],\"-zy2Nq\":[\"Type\"],\"6YtxFj\":[\"Name\"],\"7sMeHQ\":[\"Key\"],\"9X6cky\":[\"NO\"],\"DzFLzw\":[\"YES\"],\"Fa_cky\":[\"Schema: \",[\"tableName\"]],\"gPQ8z1\":[\"Nullable\"],\"yz7wBu\":[\"Close\"]}")};
