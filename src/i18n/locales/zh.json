@@ -31,12 +31,9 @@
     "edit": "编辑",
     "loading": "加载中...",
     "search": "搜索...",
-    "noResults": "No results found",
     "error": "错误",
     "success": "成功",
-    "ok": "OK",
-    "clear": "Clear",
-    "refresh": "Refresh"
+    "ok": "OK"
   },
   "sidebar": {
     "connections": "连接",
@@ -104,19 +101,6 @@
     "procedures": "存储过程",
     "noRoutines": "未找到存储过程",
     "refreshRoutines": "刷新存储过程",
-    "triggers": "Triggers",
-    "noTriggers": "No triggers found",
-    "filterTriggers": "Filter triggers...",
-    "noTriggersMatch": "No triggers match your filter",
-    "createTrigger": "Create New Trigger",
-    "editTrigger": "Edit Trigger",
-    "dropTrigger": "Drop Trigger",
-    "dropTriggerConfirm": "Are you sure you want to drop trigger \"{{trigger}}\"?",
-    "viewTriggerDefinition": "View Definition",
-    "failDropTrigger": "Failed to drop trigger: ",
-    "failGetTriggerDefinition": "Failed to get trigger definition: ",
-    "refreshTriggers": "Refresh Triggers",
-    "onTable": "on {{table}}",
     "objectSummary": "对象",
     "databases": "数据库",
     "failGetRoutineDefinition": "获取存储过程定义失败：",
@@ -243,7 +227,8 @@
     "failDuplicate": "复制连接失败",
     "open": "打开",
     "pluginDisabled": "插件已禁用",
-    "connectionCount": "{{count}} 个连接",
+    "connectionCount_one": "{{count}} 个连接",
+    "connectionCount_other": "{{count}} 个连接",
     "noConnectionsHint": "创建您的第一个连接以开始使用。",
     "searchPlaceholder": "搜索连接...",
     "noSearchResults": "无匹配 \"{{query}}\" 的连接",
@@ -266,20 +251,9 @@
       "emoji": "表情",
       "image": "图片"
     },
-    "previewLabel": "Preview",
-    "defaultHint": "Using the driver's default icon.",
-    "emojiSelected": "Selected emoji",
-    "emojiHint": "Click another emoji below to change.",
-    "removeEmoji": "Clear",
     "chooseImage": "选择图片…",
     "removeImage": "移除",
-    "imageHint": "PNG、JPG、WebP 或 SVG · 最大 512 KB",
-    "errors": {},
-    "emojiSearch": "Search emoji…",
-    "iconNoResults": "No icons match.",
-    "iconResultsTruncated": "Showing {{shown}} of {{total}} — refine search to narrow down.",
-    "iconSearch": "Search icons…",
-    "noPreview": "No preview"
+    "imageHint": "PNG、JPG、WebP 或 SVG · 最大 512 KB"
   },
   "settings": {
     "general": "通用",
@@ -312,36 +286,9 @@
     "fontSizeDesc": "调整整个应用使用的基础字体大小（10-20px）。",
     "preview": "预览",
     "fontPreviewText": "The quick brown fox jumps over the lazy dog",
-    "appearance_general": "General",
-    "appearance_sqlEditor": "SQL Editor",
-    "appearance_editorTheme": "Editor Theme",
-    "appearance_editorThemeDesc": "Choose an independent theme for the SQL editor, or keep it in sync with the app theme.",
-    "appearance_sameAsApp": "Same as App",
-    "appearance_editorFontFamily": "Editor Font Family",
-    "appearance_editorFontSize": "Editor Font Size",
-    "appearance_editorLineHeight": "Line Height",
-    "appearance_editorTabSize": "Tab Size",
-    "appearance_editorWordWrap": "Word Wrap",
-    "appearance_editorWordWrapDesc": "Wrap long lines in the editor instead of scrolling horizontally.",
-    "appearance_editorShowLineNumbers": "Show Line Numbers",
-    "appearance_editorShowLineNumbersDesc": "Display line numbers in the editor gutter.",
-    "appearance_editorAcceptSuggestionOnEnter": "Accept Suggestion with Enter",
-    "appearance_editorAcceptSuggestionOnEnterDesc": "Allow Enter (in addition to Tab) to accept the active autocomplete suggestion. When off, Enter always inserts a newline.",
-    "editConfigJson": "Edit config.json",
-    "editConfigJsonDesc": "Directly edit the raw configuration file. A restart is required to apply changes.",
-    "configJsonModal": {
-      "title": "config.json",
-      "saveAndRestart": "Save & Restart",
-      "restartNow": "Restart Now",
-      "restartRequired": "A restart is required to apply changes.",
-      "restartMessage": "The configuration file has been saved. Restart now to apply the changes?"
-    },
     "language": "语言",
     "languageDesc": "选择您的首选语言。自动\"将使用您的系统语言。",
     "auto": "自动（系统）",
-    "timezone": "Timezone",
-    "timezoneDesc": "Timezone used to display timestamps and exports. 'Auto' follows your system timezone.",
-    "timezoneSearch": "Search timezones...",
     "projectStatus": "项目状态",
     "roadmapDesc": "此项目是正在进行的工作 (WIP)。核心功能已稳定，但我们有更大的计划。",
     "support": "支持开发",
@@ -454,10 +401,6 @@
     "debug": "调试",
     "warn": "警告",
     "error": "错误",
-    "connectionHealthCheck": "Connection Health Check",
-    "pingInterval": "Ping Interval",
-    "pingIntervalDesc": "How often to check if active connections are still alive. Set to 0 to disable.",
-    "seconds": "seconds",
     "entries": "条目",
     "queryHistory": "查询历史",
     "queryHistoryMaxEntries": "最大历史条目",
@@ -569,7 +512,6 @@
       "notOverridable": "内置，不可自定义",
       "pressKeys": "按下组合键...",
       "notebookRunAll": "运行所有单元格",
-      "pasteImportClipboard": "Import from Clipboard",
       "quickNavigator": "快速导航"
     },
     "aiActivity": "AI 活动"
@@ -649,12 +591,7 @@
       "prefer": "首选",
       "require": "要求",
       "verify-ca": "验证 CA",
-      "verify-full": "完全验证",
-      "disabled": "Disabled",
-      "preferred": "Preferred",
-      "required": "Required",
-      "verify_ca": "Verify CA",
-      "verify_identity": "Verify Identity"
+      "verify-full": "完全验证"
     },
     "chooseContext": "选择上下文...",
     "chooseK8s": "选择连接...",
@@ -677,20 +614,7 @@
     "selectK8sConnection": "选择 K8s 连接",
     "selectTypeFirst": "请先选择上下文/命名空间/类型",
     "useK8s": "使用 Kubernetes 端口转发",
-    "useK8sConnection": "已保存的连接",
-    "connectionString": "Connection String",
-    "connectionStringPlaceholder": "e.g. mysql://user:pass@localhost:3306/db",
-    "general": "General",
-    "loadDatabasesHint": "Click Load Databases to fetch available databases.",
-    "noGeneralSettings": "No general settings available for this driver.",
-    "selectDatabasesHint": "Select the databases to include in this connection.",
-    "sshNotAvailable": "SSH is not available for this driver.",
-    "sslCa": "CA Certificate",
-    "sslCert": "Client Certificate",
-    "sslCertificatesOptional": "Certificate paths are optional. Leave empty to use system defaults.",
-    "sslDescription": "Configure SSL/TLS for secure database connections (optional).",
-    "sslKey": "Client Key",
-    "unnamedConnection": "Unnamed connection"
+    "useK8sConnection": "已保存的连接"
   },
   "sshConnections": {
     "title": "SSH 连接",
@@ -719,7 +643,8 @@
     "newRow": "新建",
     "noData": "无数据显示",
     "deleteRow": "删除行",
-    "deleteRows": "删除 {{count}} 行",
+    "deleteRows_one": "删除 {{count}} 行",
+    "deleteRows_other": "删除 {{count}} 行",
     "updateFailed": "更新失败：",
     "null": "null",
     "sortByAsc": "按 {{col}} 升序排序",
@@ -741,7 +666,6 @@
     "previewReferenced": "预览相关记录",
     "openReferenced": "在 {{table}} 中打开引用的行"
   },
-  "editRow": {},
   "newRow": {
     "title": "新建行",
     "insert": "插入",
@@ -798,8 +722,6 @@
     "tabSwitcher": {
       "title": "打开的标签",
       "hint": "Ctrl+Tab",
-      "tabs_one": "{{count}} tab",
-      "tabs_other": "{{count}} tabs",
       "escHint": "按 Esc 关闭"
     },
     "quickNavigator": {
@@ -855,7 +777,6 @@
       "analyze": "分析",
       "analyzeWarning": "ANALYZE 会实际执行查询。对数据修改语句请谨慎使用。",
       "notExplainable": "EXPLAIN 仅支持 DML 语句（SELECT、INSERT、UPDATE、DELETE）。DDL 语句（如 CREATE、DROP、ALTER）无法进行分析。",
-      "contextMenuExplain": "Explain Plan",
       "rerun": "重新运行",
       "close": "关闭",
       "graphView": "图形",
@@ -918,7 +839,8 @@
       "invalidFile": "无效的笔记本文件格式",
       "importSuccess": "笔记本导入成功",
       "exportSuccess": "笔记本导出成功",
-      "cellResult": "{{count}} 行 · {{time}}毫秒",
+      "cellResult_one": "{{count}} 行 · {{time}}毫秒",
+      "cellResult_other": "{{count}} 行 · {{time}}毫秒",
       "stopOnError": "出错时停止",
       "stopOnErrorTooltip": "当单元格失败时停止执行",
       "runAllComplete": "全部运行完成",
@@ -969,38 +891,24 @@
           "stopOnError": "切换了出错时停止",
           "other": "编辑了笔记本"
         }
-      },
-      "exportError": "Export failed"
+      }
     },
     "querySelection": {
       "title": "选择要执行的查询",
-      "queriesFound": "找到 {{count}} 个查询",
+      "queriesFound_one": "找到 {{count}} 个查询",
+      "queriesFound_other": "找到 {{count}} 个查询",
       "runAll": "全部执行",
       "runSelected": "执行选中 ({{count}})",
       "runSingle": "执行此查询",
       "selectAll": "全选",
       "deselectAll": "取消全选"
     },
-    "explainSelection": {
-      "title": "Select Query to Explain",
-      "queriesFound": "{{count}} explainable queries found",
-      "explainSingle": "Explain this query",
-      "explainFocused": "explain focused",
-      "explainNth": "explain Nth",
-      "cancel": "cancel"
-    },
     "multiResult": {
       "rerun": "重新执行查询",
       "close": "关闭标签",
       "rename": "重命名",
       "aiGenerateName": "使用 AI 生成名称",
-      "generatingName": "正在生成名称...",
-      "viewTabs": "Tab view",
-      "viewStacked": "Stacked view",
-      "queryPrefix": "Query",
-      "results": "Results",
-      "collapseAll": "Collapse all",
-      "expandAll": "Expand all"
+      "generatingName": "正在生成名称..."
     }
   },
   "createTable": {
@@ -1020,9 +928,7 @@
     "cancel": "取消",
     "nameRequired": "表名称是必需的",
     "colRequired": "至少需要一列",
-    "failCreate": "创建表失败：",
-    "requiresExtension": "Requires extension: {{ext}}",
-    "sqlPreview": "SQL Preview"
+    "failCreate": "创建表失败："
   },
   "schema": {
     "title": "模式：{{table}}",
@@ -1032,8 +938,7 @@
     "colNullable": "可为空",
     "colKey": "键",
     "yes": "是",
-    "no": "否",
-    "close": "Close"
+    "no": "否"
   },
   "generateSQL": {
     "title": "生成的 SQL：{{table}}",
@@ -1064,8 +969,7 @@
     "cancel": "取消",
     "nameRequired": "列名称是必需的",
     "fail": "失败：",
-    "pkNotSupported": "此驱动程序仅在表创建时支持主键",
-    "requiresExtension": "Requires extension: {{ext}}"
+    "pkNotSupported": "此驱动程序仅在表创建时支持主键"
   },
   "createIndex": {
     "title": "创建索引",
@@ -1088,12 +992,7 @@
     "onUpdate": "更新时",
     "sqlPreview": "SQL 预览",
     "create": "创建外键",
-    "cancel": "取消",
-    "nameRequired": "Name is required"
-  },
-  "healthCheck": {
-    "title": "Connection Lost",
-    "connectionLost": "A database connection was lost"
+    "cancel": "取消"
   },
   "erDiagram": {
     "enterFullscreen": "全屏",
@@ -1130,36 +1029,7 @@
     "createSuccess": "视图创建成功",
     "alterSuccess": "视图更新成功",
     "saveError": "保存视图失败：",
-    "confirmAlter": "确定要修改视图 \"{{view}}\" 吗？",
-    "alterView": "Alter View"
-  },
-  "triggers": {
-    "createTrigger": "Create Trigger",
-    "editTrigger": "Edit Trigger",
-    "createSubtitle": "Create a new database trigger",
-    "editSubtitle": "Editing trigger: {{name}}",
-    "triggerName": "Trigger Name",
-    "triggerNamePlaceholder": "e.g. before_insert_user",
-    "tableName": "Table Name",
-    "tableNamePlaceholder": "e.g. users",
-    "timing": "Timing",
-    "events": "Events",
-    "body": "Trigger Body (SQL)",
-    "sqlPreview": "Generated SQL Preview",
-    "rawSql": "Raw SQL",
-    "guidedMode": "Guided",
-    "rawSqlMode": "Raw SQL",
-    "loading": "Loading trigger definition...",
-    "create": "Create Trigger",
-    "save": "Save Changes",
-    "sqlRequired": "Trigger SQL is required",
-    "failLoadDefinition": "Failed to load trigger definition: ",
-    "dropError": "Failed to drop existing trigger: ",
-    "saveError": "Failed to save trigger: ",
-    "createSuccess": "Trigger created successfully",
-    "updateSuccess": "Trigger updated successfully",
-    "recreateTrigger": "Recreate Trigger",
-    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?"
+    "confirmAlter": "确定要修改视图 \"{{view}}\" 吗？"
   },
   "community": {
     "title": "加入社区",
@@ -1223,9 +1093,7 @@
       "raw": "原始"
     },
     "expand": "展开",
-    "search": "搜索",
-    "diff": "Diff",
-    "sideBySide": "Side by side"
+    "search": "搜索"
   },
   "jsonViewer": {
     "close": "关闭",
@@ -1235,21 +1103,10 @@
     "expand": "展开/收起 JSON 树",
     "openViewer": "打开 JSON 查看器"
   },
-  "textCell": {
-    "expand": "Toggle inline text editor"
-  },
-  "textInput": {
-    "diff": "Diff",
-    "sideBySide": "Side by side"
-  },
-  "textViewer": {
-    "save": "Save"
-  },
   "rowEditor": {
     "title": "编辑行",
     "subtitle": "行 #{{row}}",
-    "enterValue": "输入值...",
-    "resize": "Resize sidebar"
+    "enterValue": "输入值..."
   },
   "contextMenu": {
     "openSidebar": "打开侧边栏编辑器",
@@ -1355,10 +1212,7 @@
     "ungrouped": "未分组",
     "removeFromGroup": "从分组中移除",
     "groupName": "分组名称",
-    "createError": "创建分组失败",
-    "deleteError": "Failed to delete group",
-    "moveError": "Failed to move connection",
-    "renameError": "Failed to rename group"
+    "createError": "创建分组失败"
   },
   "queryModal": {
     "database": "数据库",
@@ -1385,16 +1239,20 @@
     "dataPreview": "数据预览",
     "sample": "示例值",
     "lowConfidence": "检测到混合类型，默认为 TEXT",
-    "rowsTotal": "{{count}} 行",
+    "rowsTotal_one": "{{count}} 行",
+    "rowsTotal_other": "{{count}} 行",
     "showingFirst": "前 {{count}} 行",
-    "import": "导入 {{count}} 行",
+    "import_one": "导入 {{count}} 行",
+    "import_other": "导入 {{count}} 行",
     "importing": "导入中...",
-    "success": "已将 {{count}} 行导入到 \"{{table}}\"",
+    "success_one": "已将 {{count}} 行导入到 \"{{table}}\"",
+    "success_other": "已将 {{count}} 行导入到 \"{{table}}\"",
     "tableCreated": "新表已创建",
     "openTable": "关闭",
     "noData": "剪贴板中没有数据",
     "retry": "重试",
-    "warningsCount": "{{count}} 条解析警告",
+    "warningsCount_one": "{{count}} 条解析警告",
+    "warningsCount_other": "{{count}} 条解析警告",
     "columnsLabel": "列",
     "rowsLabel": "行",
     "stepConfigure": "配置目标",
@@ -1420,13 +1278,9 @@
       "sessions": "会话"
     },
     "empty": "暂无 MCP 活动。",
-    "eventsCount_one": "{{count}} event",
     "eventsCount_other": "{{count}} 个事件",
-    "blockedCount_one": "{{count}} blocked",
     "blockedCount_other": "{{count}} 个被阻止",
-    "errorsCount_one": "{{count}} error",
     "errorsCount_other": "{{count}} 个错误",
-    "sessionsCount_one": "{{count}} session",
     "sessionsCount_other": "{{count}} 个会话",
     "events": "事件",
     "runQueries": "查询",
@@ -1483,9 +1337,7 @@
       "write": "写入",
       "ddl": "DDL",
       "unknown": "未知"
-    },
-    "exportCsv": "Export CSV",
-    "exportJson": "Export JSON"
+    }
   },
   "aiApproval": {
     "title": "AI 请求执行数据库写入",

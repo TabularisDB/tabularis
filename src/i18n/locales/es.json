@@ -34,9 +34,7 @@
     "noResults": "No se encontraron resultados",
     "error": "Error",
     "success": "Éxito",
-    "ok": "OK",
-    "clear": "Clear",
-    "refresh": "Refresh"
+    "ok": "OK"
   },
   "sidebar": {
     "connections": "Conexiones",
@@ -104,19 +102,6 @@
     "procedures": "Procedimientos",
     "noRoutines": "No se encontraron rutinas",
     "refreshRoutines": "Actualizar Rutinas",
-    "triggers": "Triggers",
-    "noTriggers": "No triggers found",
-    "filterTriggers": "Filter triggers...",
-    "noTriggersMatch": "No triggers match your filter",
-    "createTrigger": "Create New Trigger",
-    "editTrigger": "Edit Trigger",
-    "dropTrigger": "Drop Trigger",
-    "dropTriggerConfirm": "Are you sure you want to drop trigger \"{{trigger}}\"?",
-    "viewTriggerDefinition": "View Definition",
-    "failDropTrigger": "Failed to drop trigger: ",
-    "failGetTriggerDefinition": "Failed to get trigger definition: ",
-    "refreshTriggers": "Refresh Triggers",
-    "onTable": "on {{table}}",
     "objectSummary": "Objetos",
     "databases": "Bases de Datos",
     "failGetRoutineDefinition": "Error al obtener la definición de la rutina: ",
@@ -243,7 +228,8 @@
     "failDuplicate": "Error al duplicar la conexión",
     "open": "Abierta",
     "pluginDisabled": "Plugin desactivado",
-    "connectionCount": "{{count}} conexión/es",
+    "connectionCount_one": "{{count}} conexión/es",
+    "connectionCount_other": "{{count}} conexión/es",
     "noConnectionsHint": "Crea tu primera conexión para empezar.",
     "searchPlaceholder": "Buscar conexiones...",
     "noSearchResults": "Ninguna conexión coincide con \"{{query}}\"",
@@ -273,13 +259,7 @@
     "removeEmoji": "Quitar",
     "chooseImage": "Elegir imagen…",
     "removeImage": "Quitar",
-    "imageHint": "PNG, JPG, WebP o SVG · máx. 512 KB",
-    "errors": {},
-    "emojiSearch": "Search emoji…",
-    "iconNoResults": "No icons match.",
-    "iconResultsTruncated": "Showing {{shown}} of {{total}} — refine search to narrow down.",
-    "iconSearch": "Search icons…",
-    "noPreview": "No preview"
+    "imageHint": "PNG, JPG, WebP o SVG · máx. 512 KB"
   },
   "settings": {
     "general": "General",
@@ -339,9 +319,6 @@
     "language": "Idioma",
     "languageDesc": "Elige tu idioma preferido. 'Auto' usará el idioma del sistema.",
     "auto": "Auto (Sistema)",
-    "timezone": "Timezone",
-    "timezoneDesc": "Timezone used to display timestamps and exports. 'Auto' follows your system timezone.",
-    "timezoneSearch": "Search timezones...",
     "projectStatus": "Estado del Proyecto",
     "roadmapDesc": "Este proyecto es un Work In Progress (WIP). Las funciones principales son estables, pero tenemos grandes planes.",
     "support": "Apoya el Desarrollo",
@@ -649,12 +626,7 @@
       "prefer": "Preferido",
       "require": "Requerido",
       "verify-ca": "Verificar CA",
-      "verify-full": "Verificación completa",
-      "disabled": "Disabled",
-      "preferred": "Preferred",
-      "required": "Required",
-      "verify_ca": "Verify CA",
-      "verify_identity": "Verify Identity"
+      "verify-full": "Verificación completa"
     },
     "chooseContext": "Elige un contexto...",
     "chooseK8s": "Elige una conexión...",
@@ -677,20 +649,7 @@
     "selectK8sConnection": "Selecciona conexión de K8s",
     "selectTypeFirst": "Selecciona primero contexto/namespace/tipo",
     "useK8s": "Usar Port-Forward de Kubernetes",
-    "useK8sConnection": "Conexión guardada",
-    "connectionString": "Connection String",
-    "connectionStringPlaceholder": "e.g. mysql://user:pass@localhost:3306/db",
-    "general": "General",
-    "loadDatabasesHint": "Click Load Databases to fetch available databases.",
-    "noGeneralSettings": "No general settings available for this driver.",
-    "selectDatabasesHint": "Select the databases to include in this connection.",
-    "sshNotAvailable": "SSH is not available for this driver.",
-    "sslCa": "CA Certificate",
-    "sslCert": "Client Certificate",
-    "sslCertificatesOptional": "Certificate paths are optional. Leave empty to use system defaults.",
-    "sslDescription": "Configure SSL/TLS for secure database connections (optional).",
-    "sslKey": "Client Key",
-    "unnamedConnection": "Unnamed connection"
+    "useK8sConnection": "Conexión guardada"
   },
   "sshConnections": {
     "title": "Conexiones SSH",
@@ -719,7 +678,8 @@
     "newRow": "NUEVA",
     "noData": "No hay datos para mostrar",
     "deleteRow": "Eliminar Fila",
-    "deleteRows": "Eliminar {{count}} filas",
+    "deleteRows_one": "Eliminar {{count}} filas",
+    "deleteRows_other": "Eliminar {{count}} filas",
     "updateFailed": "Error en la actualización: ",
     "null": "null",
     "sortByAsc": "Ordenar por {{col}} ASC",
@@ -732,16 +692,10 @@
     "copyColumnNameTable": "Copiar como tabla.columna",
     "copied": "Copiado al portapapeles",
     "duplicateRow": "Duplicar Fila",
-    "revertSelected": "Revert Selected",
-    "setGenerate": "Set GENERATED",
-    "setNull": "Set NULL",
-    "setDefault": "Set DEFAULT",
-    "setEmpty": "Set EMPTY",
     "setServerNow": "Insertar marca de tiempo actual",
     "previewReferenced": "Vista previa del registro relacionado",
     "openReferenced": "Abrir fila referenciada en {{table}}"
   },
-  "editRow": {},
   "newRow": {
     "title": "Nueva Fila",
     "insert": "Insertar",
@@ -773,7 +727,6 @@
     "jumpToPage": "Clic para ir a la página",
     "loadRowCount": "Cargar conteo de filas",
     "executePrompt": "Ejecuta una consulta para ver resultados",
-    "tableRunPrompt": "Press Run (Ctrl/Command+F5) to load table data",
     "closeTab": "Cerrar Pestaña",
     "closeOthers": "Cerrar Otras Pestañas",
     "closeRight": "Cerrar Pestañas a la Derecha",
@@ -832,8 +785,6 @@
     "convertToConsole": "Convertir a Consola",
     "parameters": "Parámetros",
     "paramValuePlaceholder": "Valor (ej. 'texto' o 123)",
-    "failedCreateRow": "Failed to create new row: ",
-    "failedProcessInsertions": "Failed to process insertions: ",
     "newNotebook": "Nuevo Notebook",
     "visualExplain": {
       "title": "Visual Explain",
@@ -918,7 +869,8 @@
       "invalidFile": "Formato de archivo notebook no válido",
       "importSuccess": "Notebook importado exitosamente",
       "exportSuccess": "Notebook exportado exitosamente",
-      "cellResult": "{{count}} filas · {{time}}ms",
+      "cellResult_one": "{{count}} filas · {{time}}ms",
+      "cellResult_other": "{{count}} filas · {{time}}ms",
       "stopOnError": "Detener en Error",
       "stopOnErrorTooltip": "Detener la ejecución cuando una celda falla",
       "runAllComplete": "Ejecución Completada",
@@ -969,12 +921,12 @@
           "stopOnError": "Detener en error alternado",
           "other": "Notebook editado"
         }
-      },
-      "exportError": "Export failed"
+      }
     },
     "querySelection": {
       "title": "Seleccionar consulta a ejecutar",
-      "queriesFound": "{{count}} consultas encontradas",
+      "queriesFound_one": "{{count}} consultas encontradas",
+      "queriesFound_other": "{{count}} consultas encontradas",
       "runAll": "Ejecutar todas",
       "runSelected": "Ejecutar seleccionadas ({{count}})",
       "runSingle": "Ejecutar esta consulta",
@@ -983,7 +935,8 @@
     },
     "explainSelection": {
       "title": "Seleccionar consulta a analizar",
-      "queriesFound": "{{count}} consultas analizables encontradas",
+      "queriesFound_one": "{{count}} consultas analizables encontradas",
+      "queriesFound_other": "{{count}} consultas analizables encontradas",
       "explainSingle": "Analizar esta consulta",
       "explainFocused": "analizar seleccionada",
       "explainNth": "analizar N-esima",
@@ -1021,8 +974,7 @@
     "nameRequired": "El nombre de la tabla es requerido",
     "colRequired": "Se requiere al menos una columna",
     "failCreate": "Error al crear la tabla: ",
-    "requiresExtension": "Requiere extensión: {{ext}}",
-    "sqlPreview": "SQL Preview"
+    "requiresExtension": "Requiere extensión: {{ext}}"
   },
   "schema": {
     "title": "Esquema: {{table}}",
@@ -1032,8 +984,7 @@
     "colNullable": "Nullable",
     "colKey": "Clave",
     "yes": "SÍ",
-    "no": "NO",
-    "close": "Close"
+    "no": "NO"
   },
   "generateSQL": {
     "title": "SQL Generado: {{table}}",
@@ -1088,8 +1039,7 @@
     "onUpdate": "Al Actualizar",
     "sqlPreview": "Vista Previa SQL",
     "create": "Crear Clave Foránea",
-    "cancel": "Cancelar",
-    "nameRequired": "Name is required"
+    "cancel": "Cancelar"
   },
   "healthCheck": {
     "title": "Conexión Perdida",
@@ -1130,55 +1080,7 @@
     "createSuccess": "Vista creada correctamente",
     "alterSuccess": "Vista actualizada correctamente",
     "saveError": "Error al guardar la vista: ",
-    "confirmAlter": "¿Estás seguro de que deseas modificar la vista \"{{view}}\"?",
-    "alterView": "Alter View"
-  },
-  "triggers": {
-    "createTrigger": "Create Trigger",
-    "editTrigger": "Edit Trigger",
-    "createSubtitle": "Create a new database trigger",
-    "editSubtitle": "Editing trigger: {{name}}",
-    "triggerName": "Trigger Name",
-    "triggerNamePlaceholder": "e.g. before_insert_user",
-    "tableName": "Table Name",
-    "tableNamePlaceholder": "e.g. users",
-    "timing": "Timing",
-    "events": "Events",
-    "body": "Trigger Body (SQL)",
-    "sqlPreview": "Generated SQL Preview",
-    "rawSql": "Raw SQL",
-    "guidedMode": "Guided",
-    "rawSqlMode": "Raw SQL",
-    "loading": "Loading trigger definition...",
-    "create": "Create Trigger",
-    "save": "Save Changes",
-    "sqlRequired": "Trigger SQL is required",
-    "failLoadDefinition": "Failed to load trigger definition: ",
-    "dropError": "Failed to drop existing trigger: ",
-    "saveError": "Failed to save trigger: ",
-    "createSuccess": "Trigger created successfully",
-    "updateSuccess": "Trigger updated successfully",
-    "recreateTrigger": "Recreate Trigger",
-    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?"
-  },
-  "community": {
-    "title": "Join the Community",
-    "subtitle": "Help tabularis grow",
-    "description": "Tabularis is a free, open-source project. If you find it useful, consider supporting the project and connecting with the community.",
-    "starTitle": "Star on GitHub",
-    "starDesc": "A star helps others discover the project",
-    "discordTitle": "Join Discord",
-    "discordDesc": "Chat with the community, get help, suggest features",
-    "dismiss": "Maybe later"
-  },
-  "whatsNew": {
-    "title": "What's New",
-    "subtitle": "Version {{version}}",
-    "features": "New Features",
-    "bugFixes": "Bug Fixes",
-    "breakingChanges": "Breaking Changes",
-    "readMore": "Read more",
-    "dismiss": "Got it"
+    "confirmAlter": "¿Estás seguro de que deseas modificar la vista \"{{view}}\"?"
   },
   "dump": {
     "title": "Exportar Base de Datos",
@@ -1223,9 +1125,7 @@
       "raw": "Sin formato"
     },
     "expand": "Expandir",
-    "search": "Buscar",
-    "diff": "Diff",
-    "sideBySide": "Side by side"
+    "search": "Buscar"
   },
   "jsonViewer": {
     "close": "Cerrar",
@@ -1235,21 +1135,10 @@
     "expand": "Expandir/contraer árbol JSON",
     "openViewer": "Abrir visor JSON"
   },
-  "textCell": {
-    "expand": "Toggle inline text editor"
-  },
-  "textInput": {
-    "diff": "Diff",
-    "sideBySide": "Side by side"
-  },
-  "textViewer": {
-    "save": "Save"
-  },
   "rowEditor": {
     "title": "Editar Fila",
     "subtitle": "Fila #{{row}}",
-    "enterValue": "Ingresar valor...",
-    "resize": "Resize sidebar"
+    "enterValue": "Ingresar valor..."
   },
   "contextMenu": {
     "openSidebar": "Abrir Barra Lateral",
@@ -1344,22 +1233,6 @@
       }
     }
   },
-  "groups": {
-    "newGroup": "New Group",
-    "rename": "Rename",
-    "delete": "Delete",
-    "deleteConfirm": "Are you sure you want to delete group \"{{name}}\"? Connections in this group will be moved to ungrouped.",
-    "deleteTitle": "Delete Group",
-    "connection": "connection",
-    "connections": "connections",
-    "ungrouped": "Ungrouped",
-    "removeFromGroup": "Remove from Group",
-    "groupName": "Group name",
-    "createError": "Failed to create group",
-    "deleteError": "Failed to delete group",
-    "moveError": "Failed to move connection",
-    "renameError": "Failed to rename group"
-  },
   "queryModal": {
     "database": "Base de datos",
     "noDatabase": "Sin base de datos"
@@ -1385,16 +1258,20 @@
     "dataPreview": "Vista Previa de Datos",
     "sample": "Valores de muestra",
     "lowConfidence": "Tipos mixtos detectados, por defecto TEXT",
-    "rowsTotal": "{{count}} filas",
+    "rowsTotal_one": "{{count}} filas",
+    "rowsTotal_other": "{{count}} filas",
     "showingFirst": "primeras {{count}}",
-    "import": "Importar {{count}} filas",
+    "import_one": "Importar {{count}} filas",
+    "import_other": "Importar {{count}} filas",
     "importing": "Importando...",
-    "success": "{{count}} filas importadas en \"{{table}}\"",
+    "success_one": "{{count}} filas importadas en \"{{table}}\"",
+    "success_other": "{{count}} filas importadas en \"{{table}}\"",
     "tableCreated": "Nueva tabla creada",
     "openTable": "Cerrar",
     "noData": "No hay datos en el portapapeles",
     "retry": "Reintentar",
-    "warningsCount": "{{count}} avisos de análisis",
+    "warningsCount_one": "{{count}} avisos de análisis",
+    "warningsCount_other": "{{count}} avisos de análisis",
     "columnsLabel": "columnas",
     "rowsLabel": "filas",
     "stepConfigure": "Configurar destino",
@@ -1483,9 +1360,7 @@
       "write": "Escritura",
       "ddl": "DDL",
       "unknown": "Desconocido"
-    },
-    "exportCsv": "Export CSV",
-    "exportJson": "Export JSON"
+    }
   },
   "aiApproval": {
     "title": "La IA quiere ejecutar una escritura en la base de datos",

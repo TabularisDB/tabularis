@@ -34,9 +34,7 @@
     "noResults": "Ничего не найдено",
     "error": "Ошибка",
     "success": "Готово",
-    "ok": "ОК",
-    "clear": "Clear",
-    "refresh": "Refresh"
+    "ok": "ОК"
   },
   "sidebar": {
     "connections": "Подключения",
@@ -257,33 +255,6 @@
     "connectionCount_many": "{{count}} подключений",
     "connectionCount_other": "{{count}} подключения"
   },
-  "connectionAppearance": {
-    "section": "Appearance",
-    "accentColor": "Accent color",
-    "customColor": "Custom",
-    "resetColor": "Reset to driver default",
-    "icon": "Icon",
-    "tabs": {
-      "default": "Default",
-      "pack": "Icon",
-      "emoji": "Emoji",
-      "image": "Image"
-    },
-    "previewLabel": "Preview",
-    "defaultHint": "Using the driver's default icon.",
-    "emojiSelected": "Selected emoji",
-    "emojiHint": "Click another emoji below to change.",
-    "removeEmoji": "Clear",
-    "chooseImage": "Choose image…",
-    "removeImage": "Remove",
-    "imageHint": "PNG, JPG, WebP or SVG · max 512 KB",
-    "errors": {},
-    "emojiSearch": "Search emoji…",
-    "iconNoResults": "No icons match.",
-    "iconResultsTruncated": "Showing {{shown}} of {{total}} — refine search to narrow down.",
-    "iconSearch": "Search icons…",
-    "noPreview": "No preview"
-  },
   "settings": {
     "general": "Общие",
     "info": "Информация",
@@ -342,9 +313,6 @@
     "language": "Язык",
     "languageDesc": "Выберите язык интерфейса. «Авто» использует язык системы.",
     "auto": "Авто (системный)",
-    "timezone": "Timezone",
-    "timezoneDesc": "Timezone used to display timestamps and exports. 'Auto' follows your system timezone.",
-    "timezoneSearch": "Search timezones...",
     "projectStatus": "Статус проекта",
     "roadmapDesc": "Проект находится в активной разработке (WIP). Основные функции стабильны, впереди много интересного.",
     "support": "Поддержать разработку",
@@ -650,14 +618,7 @@
       "disable": "Отключён",
       "allow": "Разрешён",
       "prefer": "Предпочтительный",
-      "require": "Обязательный",
-      "verify-ca": "Verify CA",
-      "verify-full": "Verify Full",
-      "disabled": "Disabled",
-      "preferred": "Preferred",
-      "required": "Required",
-      "verify_ca": "Verify CA",
-      "verify_identity": "Verify Identity"
+      "require": "Обязательный"
     },
     "chooseContext": "Выберите контекст...",
     "chooseK8s": "Выберите подключение...",
@@ -680,20 +641,7 @@
     "selectK8sConnection": "Выберите подключение K8s",
     "selectTypeFirst": "Сначала выберите контекст/пространство имён/тип",
     "useK8s": "Использовать проброс портов Kubernetes",
-    "useK8sConnection": "Сохранённое подключение",
-    "connectionString": "Connection String",
-    "connectionStringPlaceholder": "e.g. mysql://user:pass@localhost:3306/db",
-    "general": "General",
-    "loadDatabasesHint": "Click Load Databases to fetch available databases.",
-    "noGeneralSettings": "No general settings available for this driver.",
-    "selectDatabasesHint": "Select the databases to include in this connection.",
-    "sshNotAvailable": "SSH is not available for this driver.",
-    "sslCa": "CA Certificate",
-    "sslCert": "Client Certificate",
-    "sslCertificatesOptional": "Certificate paths are optional. Leave empty to use system defaults.",
-    "sslDescription": "Configure SSL/TLS for secure database connections (optional).",
-    "sslKey": "Client Key",
-    "unnamedConnection": "Unnamed connection"
+    "useK8sConnection": "Сохранённое подключение"
   },
   "sshConnections": {
     "title": "SSH-подключения",
@@ -740,14 +688,12 @@
     "setDefault": "Установить DEFAULT",
     "setEmpty": "Установить EMPTY",
     "setServerNow": "Вставить текущую метку времени",
-    "previewReferenced": "Preview related record",
     "openReferenced": "Открыть связанную строку в {{table}}",
     "deleteRows_one": "Удалить {{count}} строку",
     "deleteRows_few": "Удалить {{count}} строки",
     "deleteRows_many": "Удалить {{count}} строк",
     "deleteRows_other": "Удалить {{count}} строки"
   },
-  "editRow": {},
   "newRow": {
     "title": "Новая строка",
     "insert": "Вставить",
@@ -977,7 +923,6 @@
           "other": "Блокнот изменён"
         }
       },
-      "exportError": "Export failed",
       "cellResult_one": "{{count}} строка · {{time}}мс",
       "cellResult_few": "{{count}} строки · {{time}}мс",
       "cellResult_many": "{{count}} строк · {{time}}мс",
@@ -1038,8 +983,7 @@
     "nameRequired": "Название таблицы обязательно",
     "colRequired": "Требуется хотя бы один столбец",
     "failCreate": "Не удалось создать таблицу: ",
-    "requiresExtension": "Требуется расширение: {{ext}}",
-    "sqlPreview": "SQL Preview"
+    "requiresExtension": "Требуется расширение: {{ext}}"
   },
   "schema": {
     "title": "Схема: {{table}}",
@@ -1049,8 +993,7 @@
     "colNullable": "Nullable",
     "colKey": "Ключ",
     "yes": "Да",
-    "no": "Нет",
-    "close": "Close"
+    "no": "Нет"
   },
   "generateSQL": {
     "title": "Сгенерированный SQL: {{table}}",
@@ -1105,8 +1048,7 @@
     "onUpdate": "При обновлении",
     "sqlPreview": "Предпросмотр SQL",
     "create": "Создать внешний ключ",
-    "cancel": "Отменить",
-    "nameRequired": "Name is required"
+    "cancel": "Отменить"
   },
   "healthCheck": {
     "title": "Подключение потеряно",
@@ -1147,8 +1089,7 @@
     "createSuccess": "Представление создано",
     "alterSuccess": "Представление обновлено",
     "saveError": "Не удалось сохранить представление: ",
-    "confirmAlter": "Изменить представление \"{{view}}\"?",
-    "alterView": "Alter View"
+    "confirmAlter": "Изменить представление \"{{view}}\"?"
   },
   "triggers": {
     "createTrigger": "Создать триггер",
@@ -1265,8 +1206,7 @@
   "rowEditor": {
     "title": "Изменить строку",
     "subtitle": "Строка #{{row}}",
-    "enterValue": "Введите значение...",
-    "resize": "Resize sidebar"
+    "enterValue": "Введите значение..."
   },
   "contextMenu": {
     "openSidebar": "Открыть в боковом редакторе",
@@ -1378,10 +1318,7 @@
     "ungrouped": "Без группы",
     "removeFromGroup": "Убрать из группы",
     "groupName": "Название группы",
-    "createError": "Не удалось создать группу",
-    "deleteError": "Failed to delete group",
-    "moveError": "Failed to move connection",
-    "renameError": "Failed to rename group"
+    "createError": "Не удалось создать группу"
   },
   "queryModal": {
     "database": "База данных",
@@ -1519,8 +1456,6 @@
       "ddl": "DDL",
       "unknown": "Неизвестно"
     },
-    "exportCsv": "Export CSV",
-    "exportJson": "Export JSON",
     "eventsCount_few": "{{count}} события",
     "eventsCount_many": "{{count}} событий",
     "blockedCount_few": "{{count}} заблокированных",

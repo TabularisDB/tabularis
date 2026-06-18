@@ -34,9 +34,7 @@
     "noResults": "結果が見つかりません",
     "error": "エラー",
     "success": "成功",
-    "ok": "OK",
-    "clear": "Clear",
-    "refresh": "Refresh"
+    "ok": "OK"
   },
   "sidebar": {
     "connections": "接続",
@@ -243,7 +241,8 @@
     "failDuplicate": "接続の複製に失敗しました",
     "open": "開く",
     "pluginDisabled": "プラグインが無効",
-    "connectionCount": "{{count}} 件の接続",
+    "connectionCount_one": "{{count}} 件の接続",
+    "connectionCount_other": "{{count}} 件の接続",
     "noConnectionsHint": "最初の接続を作成して始めましょう。",
     "searchPlaceholder": "接続を検索...",
     "noSearchResults": "「{{query}}」に一致する接続はありません",
@@ -266,20 +265,9 @@
       "emoji": "絵文字",
       "image": "画像"
     },
-    "previewLabel": "Preview",
-    "defaultHint": "Using the driver's default icon.",
-    "emojiSelected": "Selected emoji",
-    "emojiHint": "Click another emoji below to change.",
-    "removeEmoji": "Clear",
     "chooseImage": "画像を選択…",
     "removeImage": "削除",
-    "imageHint": "PNG、JPG、WebP または SVG · 最大 512 KB",
-    "errors": {},
-    "emojiSearch": "Search emoji…",
-    "iconNoResults": "No icons match.",
-    "iconResultsTruncated": "Showing {{shown}} of {{total}} — refine search to narrow down.",
-    "iconSearch": "Search icons…",
-    "noPreview": "No preview"
+    "imageHint": "PNG、JPG、WebP または SVG · 最大 512 KB"
   },
   "settings": {
     "general": "一般",
@@ -296,8 +284,6 @@
     "delimiterSemicolon": "セミコロン (;)",
     "delimiterTab": "タブ",
     "delimiterPipe": "パイプ (|)",
-    "detectJsonInTextColumns": "Detect JSON in text columns",
-    "detectJsonInTextColumnsDesc": "Show the JSON viewer affordance when a non-typed text cell contains a JSON object or array. Adds a small per-cell parse cost.",
     "appearance": "外観",
     "localization": "ローカライズ",
     "themeSelection": "テーマ選択",
@@ -649,12 +635,7 @@
       "prefer": "優先",
       "require": "必須",
       "verify-ca": "CAを検証",
-      "verify-full": "完全検証",
-      "disabled": "Disabled",
-      "preferred": "Preferred",
-      "required": "Required",
-      "verify_ca": "Verify CA",
-      "verify_identity": "Verify Identity"
+      "verify-full": "完全検証"
     },
     "chooseContext": "コンテキストを選択...",
     "chooseK8s": "接続を選択...",
@@ -677,20 +658,7 @@
     "selectK8sConnection": "K8s 接続を選択",
     "selectTypeFirst": "先にコンテキスト/ネームスペース/タイプを選択してください",
     "useK8s": "Kubernetes ポートフォワードを使用",
-    "useK8sConnection": "保存された接続",
-    "connectionString": "Connection String",
-    "connectionStringPlaceholder": "e.g. mysql://user:pass@localhost:3306/db",
-    "general": "General",
-    "loadDatabasesHint": "Click Load Databases to fetch available databases.",
-    "noGeneralSettings": "No general settings available for this driver.",
-    "selectDatabasesHint": "Select the databases to include in this connection.",
-    "sshNotAvailable": "SSH is not available for this driver.",
-    "sslCa": "CA Certificate",
-    "sslCert": "Client Certificate",
-    "sslCertificatesOptional": "Certificate paths are optional. Leave empty to use system defaults.",
-    "sslDescription": "Configure SSL/TLS for secure database connections (optional).",
-    "sslKey": "Client Key",
-    "unnamedConnection": "Unnamed connection"
+    "useK8sConnection": "保存された接続"
   },
   "sshConnections": {
     "title": "SSH 接続",
@@ -716,10 +684,10 @@
     "savedInKeychain": "パスワードをシステムのキーチェーンに保存しました"
   },
   "dataGrid": {
-    "newRow": "NEW",
     "noData": "表示するデータがありません",
     "deleteRow": "行を削除",
-    "deleteRows": "{{count}} 行を削除",
+    "deleteRows_one": "{{count}} 行を削除",
+    "deleteRows_other": "{{count}} 行を削除",
     "updateFailed": "更新に失敗しました: ",
     "null": "null",
     "sortByAsc": "{{col}} を昇順で並べ替え",
@@ -741,7 +709,6 @@
     "previewReferenced": "関連レコードをプレビュー",
     "openReferenced": "{{table}} で参照行を開く"
   },
-  "editRow": {},
   "newRow": {
     "title": "新規行",
     "insert": "挿入",
@@ -798,8 +765,6 @@
     "tabSwitcher": {
       "title": "開いているタブ",
       "hint": "Ctrl+Tab",
-      "tabs_one": "{{count}} tab",
-      "tabs_other": "{{count}} tabs",
       "escHint": "Esc で閉じる"
     },
     "quickNavigator": {
@@ -918,7 +883,8 @@
       "invalidFile": "不正なノートブックファイル形式です",
       "importSuccess": "ノートブックを正常にインポートしました",
       "exportSuccess": "ノートブックを正常にエクスポートしました",
-      "cellResult": "{{count}} 行 · {{time}}ms",
+      "cellResult_one": "{{count}} 行 · {{time}}ms",
+      "cellResult_other": "{{count}} 行 · {{time}}ms",
       "stopOnError": "エラー時に停止",
       "stopOnErrorTooltip": "セルが失敗したら実行を停止します",
       "runAllComplete": "すべての実行が完了",
@@ -969,12 +935,12 @@
           "stopOnError": "エラー時に停止を切り替え",
           "other": "ノートブックを編集"
         }
-      },
-      "exportError": "Export failed"
+      }
     },
     "querySelection": {
       "title": "実行するクエリを選択",
-      "queriesFound": "{{count}} 件のクエリが見つかりました",
+      "queriesFound_one": "{{count}} 件のクエリが見つかりました",
+      "queriesFound_other": "{{count}} 件のクエリが見つかりました",
       "runAll": "すべて実行",
       "runSelected": "選択したものを実行 ({{count}})",
       "runSingle": "このクエリを実行",
@@ -983,7 +949,8 @@
     },
     "explainSelection": {
       "title": "説明するクエリを選択",
-      "queriesFound": "説明可能なクエリが {{count}} 件見つかりました",
+      "queriesFound_one": "説明可能なクエリが {{count}} 件見つかりました",
+      "queriesFound_other": "説明可能なクエリが {{count}} 件見つかりました",
       "explainSingle": "このクエリを説明",
       "explainFocused": "フォーカス中のものを説明",
       "explainNth": "N 番目を説明",
@@ -1021,8 +988,7 @@
     "nameRequired": "テーブル名は必須です",
     "colRequired": "少なくとも 1 つのカラムが必要です",
     "failCreate": "テーブルの作成に失敗しました: ",
-    "requiresExtension": "拡張機能が必要: {{ext}}",
-    "sqlPreview": "SQL Preview"
+    "requiresExtension": "拡張機能が必要: {{ext}}"
   },
   "schema": {
     "title": "スキーマ: {{table}}",
@@ -1032,8 +998,7 @@
     "colNullable": "NULL 許可",
     "colKey": "キー",
     "yes": "はい",
-    "no": "いいえ",
-    "close": "Close"
+    "no": "いいえ"
   },
   "generateSQL": {
     "title": "生成された SQL: {{table}}",
@@ -1088,8 +1053,7 @@
     "onUpdate": "更新時",
     "sqlPreview": "SQL プレビュー",
     "create": "外部キーを作成",
-    "cancel": "キャンセル",
-    "nameRequired": "Name is required"
+    "cancel": "キャンセル"
   },
   "healthCheck": {
     "title": "接続が失われました",
@@ -1130,8 +1094,7 @@
     "createSuccess": "ビューを正常に作成しました",
     "alterSuccess": "ビューを正常に更新しました",
     "saveError": "ビューの保存に失敗しました: ",
-    "confirmAlter": "ビュー「{{view}}」を変更してもよろしいですか？",
-    "alterView": "Alter View"
+    "confirmAlter": "ビュー「{{view}}」を変更してもよろしいですか？"
   },
   "triggers": {
     "createTrigger": "トリガーを作成",
@@ -1216,44 +1179,15 @@
     "placeholder": "JSON を入力...",
     "format": "整形",
     "valid": "有効な JSON",
-    "invalid": "無効な JSON",
-    "mode": {
-      "code": "Code",
-      "tree": "Tree",
-      "raw": "Raw"
-    },
-    "expand": "Expand",
-    "search": "Search",
-    "diff": "Diff",
-    "sideBySide": "Side by side"
-  },
-  "jsonViewer": {
-    "close": "Close",
-    "save": "Save"
-  },
-  "jsonCell": {
-    "expand": "Toggle inline JSON tree",
-    "openViewer": "Open JSON viewer"
-  },
-  "textCell": {
-    "expand": "Toggle inline text editor"
-  },
-  "textInput": {
-    "diff": "Diff",
-    "sideBySide": "Side by side"
-  },
-  "textViewer": {
-    "save": "Save"
+    "invalid": "無効な JSON"
   },
   "rowEditor": {
     "title": "行を編集",
     "subtitle": "行 #{{row}}",
-    "enterValue": "値を入力...",
-    "resize": "Resize sidebar"
+    "enterValue": "値を入力..."
   },
   "contextMenu": {
-    "openSidebar": "サイドバーエディタで開く",
-    "openJsonEditor": "Open in JSON Editor"
+    "openSidebar": "サイドバーエディタで開く"
   },
   "blobInput": {
     "noData": "BLOB データなし",
@@ -1355,10 +1289,7 @@
     "ungrouped": "未分類",
     "removeFromGroup": "グループから削除",
     "groupName": "グループ名",
-    "createError": "グループの作成に失敗しました",
-    "deleteError": "Failed to delete group",
-    "moveError": "Failed to move connection",
-    "renameError": "Failed to rename group"
+    "createError": "グループの作成に失敗しました"
   },
   "queryModal": {
     "database": "データベース",
@@ -1385,16 +1316,20 @@
     "dataPreview": "データプレビュー",
     "sample": "サンプル値",
     "lowConfidence": "混在タイプを検出、TEXT にデフォルト設定",
-    "rowsTotal": "{{count}} 行",
+    "rowsTotal_one": "{{count}} 行",
+    "rowsTotal_other": "{{count}} 行",
     "showingFirst": "先頭 {{count}} 行を表示中",
-    "import": "{{count}} 行をインポート",
+    "import_one": "{{count}} 行をインポート",
+    "import_other": "{{count}} 行をインポート",
     "importing": "インポート中...",
-    "success": "{{count}} 行を「{{table}}」にインポートしました",
+    "success_one": "{{count}} 行を「{{table}}」にインポートしました",
+    "success_other": "{{count}} 行を「{{table}}」にインポートしました",
     "tableCreated": "新規テーブルを作成しました",
     "openTable": "閉じる",
     "noData": "クリップボードにデータが見つかりません",
     "retry": "再試行",
-    "warningsCount": "{{count}} 件の解析警告",
+    "warningsCount_one": "{{count}} 件の解析警告",
+    "warningsCount_other": "{{count}} 件の解析警告",
     "columnsLabel": "カラム",
     "rowsLabel": "行",
     "stepConfigure": "インポート先を設定",
@@ -1483,9 +1418,7 @@
       "write": "書き込み",
       "ddl": "DDL",
       "unknown": "不明"
-    },
-    "exportCsv": "Export CSV",
-    "exportJson": "Export JSON"
+    }
   },
   "aiApproval": {
     "title": "AI がデータベース書き込みを要求しています",
