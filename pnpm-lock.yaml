@@ -62,6 +62,18 @@ importers:
       i18next-browser-languagedetector:
         specifier: ^8.2.1
         version: 8.2.1
+      i18next-chained-backend:
+        specifier: ^5.0.5
+        version: 5.0.5
+      i18next-http-backend:
+        specifier: ^4.0.0
+        version: 4.0.0
+      i18next-localstorage-backend:
+        specifier: ^4.3.1
+        version: 4.3.1
+      i18next-resources-to-backend:
+        specifier: ^1.2.1
+        version: 1.2.1
       json-edit-react:
         specifier: ^1.29.1
         version: 1.29.1(react@19.2.4)
@@ -1899,6 +1911,19 @@ packages:
 
   i18next-browser-languagedetector@8.2.1:
     resolution: {integrity: sha512-bZg8+4bdmaOiApD7N7BPT9W8MLZG+nPTOFlLiJiT8uzKXFjhxw4v2ierCXOwB5sFDMtuA5G4kgYZ0AznZxQ/cw==}
+
+  i18next-chained-backend@5.0.5:
+    resolution: {integrity: sha512-ThdtKUcNdk/zrSuzQyz2t4uH1McomKXP/t7GOf9Cm1oabDlJ6ZbQQJkLB9VlUErL9+45baFHv/ipzgi9MOotUg==}
+
+  i18next-http-backend@4.0.0:
+    resolution: {integrity: sha512-EgSjO3Q1G6f2Q5oy7u9mmxuesE0oSfzAD97NFBjC8EmkK4guBSYLljM0Fng3DarMWIIkU70jfo4+mUzmyVISTA==}
+    engines: {node: '>=18'}
+
+  i18next-localstorage-backend@4.3.1:
+    resolution: {integrity: sha512-ry8WNBanUs55rsRZs9+xaZWRxCoTEMMOf+2vNSfzzJqDPbHaf0eMFMrtYp/2ocxU6Xrxfwz17Fdz0rSs3Kw39Q==}
+
+  i18next-resources-to-backend@1.2.1:
+    resolution: {integrity: sha512-okHbVA+HZ7n1/76MsfhPqDou0fptl2dAlhRDu2ideXloRRduzHsqDOznJBef+R3DFZnbvWoBW+KxJ7fnFjd6Yw==}
 
   i18next@25.10.10:
     resolution: {integrity: sha512-cqUW2Z3EkRx7NqSyywjkgCLK7KLCL6IFVFcONG7nVYIJ3ekZ1/N5jUsihHV6Bq37NfhgtczxJcxduELtjTwkuQ==}
@@ -4635,6 +4660,20 @@ snapshots:
       - supports-color
 
   i18next-browser-languagedetector@8.2.1:
+    dependencies:
+      '@babel/runtime': 7.29.2
+
+  i18next-chained-backend@5.0.5:
+    dependencies:
+      '@babel/runtime': 7.29.2
+
+  i18next-http-backend@4.0.0: {}
+
+  i18next-localstorage-backend@4.3.1:
+    dependencies:
+      '@babel/runtime': 7.29.2
+
+  i18next-resources-to-backend@1.2.1:
     dependencies:
       '@babel/runtime': 7.29.2
 
