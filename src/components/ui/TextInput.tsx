@@ -106,10 +106,10 @@ export const TextInput: React.FC<TextInputProps> = ({
                 ? "bg-blue-600/30 text-blue-100 border-blue-500/50"
                 : "bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary"
             }`}
-            title={t("textInput.diff", { defaultValue: "Diff" })}
+            title={t("textInput.diff")}
           >
             <GitCompare size={12} />
-            {t("textInput.diff", { defaultValue: "Diff" })}
+            {t("textInput.diff")}
             {hasDiff && (
               <span
                 aria-hidden
@@ -127,10 +127,10 @@ export const TextInput: React.FC<TextInputProps> = ({
                   ? "bg-blue-600/30 text-blue-100 border-blue-500/50"
                   : "bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary"
               }`}
-              title={t("textInput.sideBySide", { defaultValue: "Side by side" })}
+              title={t("textInput.sideBySide")}
             >
               <Columns2 size={12} />
-              {t("textInput.sideBySide", { defaultValue: "Side by side" })}
+              {t("textInput.sideBySide")}
             </button>
           )}
         </div>

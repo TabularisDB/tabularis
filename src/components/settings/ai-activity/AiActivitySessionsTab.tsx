@@ -43,9 +43,9 @@ export function AiActivitySessionsTab() {
 
   const sortOptions: SessionSortField[] = ["started", "events", "runQueries"];
   const sortLabels: Record<SessionSortField, string> = {
-    started: t("aiActivity.sort.started", { defaultValue: "Started" }),
-    events: t("aiActivity.sort.eventCount", { defaultValue: "Events" }),
-    runQueries: t("aiActivity.sort.runQueries", { defaultValue: "Run queries" }),
+    started: t("aiActivity.sort.started"),
+    events: t("aiActivity.sort.eventCount"),
+    runQueries: t("aiActivity.sort.runQueries"),
   };
 
   const visibleSessions = useMemo(() => {
@@ -64,9 +64,7 @@ export function AiActivitySessionsTab() {
             />
             <input
               type="text"
-              placeholder={t("aiActivity.searchSessions", {
-                defaultValue: "Search session, client, connection…",
-              })}
+              placeholder={t("aiActivity.searchSessions")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-9 w-full rounded border border-strong bg-base pl-9 pr-3 text-sm text-primary placeholder:text-muted focus:border-blue-500 focus:outline-none"
@@ -77,9 +75,7 @@ export function AiActivitySessionsTab() {
             options={sortOptions}
             labels={sortLabels}
             onChange={(value) => setSortField(value as SessionSortField)}
-            placeholder={t("aiActivity.sort.sortByPlaceholder", {
-              defaultValue: "Sort by…",
-            })}
+            placeholder={t("aiActivity.sort.sortByPlaceholder")}
             searchable={false}
             className="min-w-0"
           />
@@ -88,32 +84,24 @@ export function AiActivitySessionsTab() {
             className="flex h-9 items-center gap-1.5 rounded border border-strong bg-base px-2.5 text-xs text-muted transition-colors hover:bg-surface-tertiary hover:text-primary"
             title={
               sortDir === "asc"
-                ? t("aiActivity.sort.toggleDescending", {
-                    defaultValue: "Sort descending",
-                  })
-                : t("aiActivity.sort.toggleAscending", {
-                    defaultValue: "Sort ascending",
-                  })
+                ? t("aiActivity.sort.toggleDescending")
+                : t("aiActivity.sort.toggleAscending")
             }
             aria-label={
               sortDir === "asc"
-                ? t("aiActivity.sort.toggleDescending", {
-                    defaultValue: "Sort descending",
-                  })
-                : t("aiActivity.sort.toggleAscending", {
-                    defaultValue: "Sort ascending",
-                  })
+                ? t("aiActivity.sort.toggleDescending")
+                : t("aiActivity.sort.toggleAscending")
             }
           >
             {sortDir === "asc" ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
             {sortDir === "asc"
-              ? t("aiActivity.sort.ascending", { defaultValue: "Asc" })
-              : t("aiActivity.sort.descending", { defaultValue: "Desc" })}
+              ? t("aiActivity.sort.ascending")
+              : t("aiActivity.sort.descending")}
           </button>
           <button
             onClick={refetch}
             className="flex h-9 w-9 items-center justify-center rounded text-muted transition-colors hover:bg-surface-tertiary hover:text-primary"
-            title={t("common.refresh", { defaultValue: "Refresh" })}
+            title={t("common.refresh")}
           >
             <RefreshCw size={14} />
           </button>
@@ -142,9 +130,7 @@ export function AiActivitySessionsTab() {
         <div className="text-center py-12 text-muted text-sm">
           {sessions.length === 0
             ? t("aiActivity.empty")
-            : t("aiActivity.noMatches", {
-                defaultValue: "No sessions match the current filters.",
-              })}
+            : t("aiActivity.noMatches")}
         </div>
       ) : (
         <div className="space-y-2">

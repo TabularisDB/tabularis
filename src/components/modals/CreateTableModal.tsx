@@ -323,7 +323,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
 
             {/* SQL Preview - always visible */}
             <div>
-                <div className="text-[10px] text-muted mb-1 uppercase tracking-wider">{t('createTable.sqlPreview', { defaultValue: 'SQL Preview' })}</div>
+                <div className="text-[10px] text-muted mb-1 uppercase tracking-wider">{t('createTable.sqlPreview')}</div>
                 <SqlPreview sql={sqlPreview} height="100px" showLineNumbers={true} />
             </div>
 

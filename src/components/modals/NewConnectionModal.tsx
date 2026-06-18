@@ -316,9 +316,7 @@ export const NewConnectionModal = ({
   const connectionStringPlaceholder =
     activeDriver?.capabilities?.connection_string_example?.trim() ||
     activeDriver?.capabilities?.connectionStringExample?.trim() ||
-    t("newConnection.connectionStringPlaceholder", {
-      defaultValue: "e.g. mysql://user:pass@localhost:3306/db",
-    });
+    t("newConnection.connectionStringPlaceholder");
   const isMultiDb = isMultiDatabaseCapable(activeDriver?.capabilities);
 
   // ── plugin slot: connection-modal.connection_content ──
@@ -867,9 +865,7 @@ export const NewConnectionModal = ({
           <div className="flex flex-col items-center justify-center py-10 gap-3 text-muted">
             <Info size={22} className="opacity-40" />
             <p className="text-xs text-center">
-              {t("newConnection.noGeneralSettings", {
-                defaultValue: "No general settings available for this driver.",
-              })}
+              {t("newConnection.noGeneralSettings")}
             </p>
           </div>
         )
@@ -925,9 +921,7 @@ export const NewConnectionModal = ({
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                  {t("newConnection.connectionString", {
-                    defaultValue: "Connection String",
-                  })}
+                  {t("newConnection.connectionString")}
                 </label>
                 {connectionString && (
                   <button
@@ -935,7 +929,7 @@ export const NewConnectionModal = ({
                     onClick={handleClearConnectionString}
                     className="text-xs text-muted hover:text-primary transition-colors"
                   >
-                    {t("common.clear", { defaultValue: "Clear" })}
+                    {t("common.clear")}
                   </button>
                 )}
               </div>
@@ -1123,7 +1117,7 @@ export const NewConnectionModal = ({
       onChange={setAppearance}
       connectionId={effectiveConnectionId}
       driverManifest={activeDriver}
-      connectionName={name || t("newConnection.unnamedConnection", { defaultValue: "Unnamed connection" })}
+      connectionName={name || t("newConnection.unnamedConnection")}
       onImageUploaded={handleImageUploaded}
     />
   );
@@ -1133,9 +1127,7 @@ export const NewConnectionModal = ({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted">
-          {t("newConnection.selectDatabasesHint", {
-            defaultValue: "Select the databases to include in this connection.",
-          })}
+          {t("newConnection.selectDatabasesHint")}
         </p>
         <button
           type="button"
@@ -1252,10 +1244,7 @@ export const NewConnectionModal = ({
         <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted border border-dashed border-strong rounded-md">
           <Database size={20} className="opacity-40" />
           <p className="text-xs">
-            {t("newConnection.loadDatabasesHint", {
-              defaultValue:
-                "Click Load Databases to fetch available databases.",
-            })}
+            {t("newConnection.loadDatabasesHint")}
           </p>
         </div>
       )}
@@ -1266,15 +1255,13 @@ export const NewConnectionModal = ({
   const sslTabContent = (
     <div className="space-y-4">
       <p className="text-xs text-muted">
-        {t("newConnection.sslDescription", {
-          defaultValue: "Configure SSL/TLS for secure database connections (optional).",
-        })}
+        {t("newConnection.sslDescription")}
       </p>
 
       {/* SSL Mode */}
       <div className="flex flex-col gap-1">
         <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-          {t("newConnection.sslMode", { defaultValue: "SSL Mode" })}
+          {t("newConnection.sslMode")}
         </label>
         <Select
           value={
@@ -1295,24 +1282,24 @@ export const NewConnectionModal = ({
           labels={
             driver === "postgres"
               ? {
-                  disable: t("newConnection.sslModes.disable", { defaultValue: "Disable" }),
-                  allow: t("newConnection.sslModes.allow", { defaultValue: "Allow" }),
-                  prefer: t("newConnection.sslModes.prefer", { defaultValue: "Prefer" }),
-                  require: t("newConnection.sslModes.require", { defaultValue: "Require" }),
-                  "verify-ca": t("newConnection.sslModes.verify-ca", { defaultValue: "Verify CA" }),
-                  "verify-full": t("newConnection.sslModes.verify-full", { defaultValue: "Verify Full" }),
+                  disable: t("newConnection.sslModes.disable"),
+                  allow: t("newConnection.sslModes.allow"),
+                  prefer: t("newConnection.sslModes.prefer"),
+                  require: t("newConnection.sslModes.require"),
+                  "verify-ca": t("newConnection.sslModes.verify-ca"),
+                  "verify-full": t("newConnection.sslModes.verify-full"),
                 }
               : driver === "clickhouse"
                 ? {
-                    disable: t("newConnection.sslModes.disable", { defaultValue: "Disable" }),
-                    require: t("newConnection.sslModes.require", { defaultValue: "Require" }),
+                    disable: t("newConnection.sslModes.disable"),
+                    require: t("newConnection.sslModes.require"),
                   }
                 : {
-                    disabled: t("newConnection.sslModes.disabled", { defaultValue: "Disabled" }),
-                    preferred: t("newConnection.sslModes.preferred", { defaultValue: "Preferred" }),
-                    required: t("newConnection.sslModes.required", { defaultValue: "Required" }),
-                    verify_ca: t("newConnection.sslModes.verify_ca", { defaultValue: "Verify CA" }),
-                    verify_identity: t("newConnection.sslModes.verify_identity", { defaultValue: "Verify Identity" }),
+                    disabled: t("newConnection.sslModes.disabled"),
+                    preferred: t("newConnection.sslModes.preferred"),
+                    required: t("newConnection.sslModes.required"),
+                    verify_ca: t("newConnection.sslModes.verify_ca"),
+                    verify_identity: t("newConnection.sslModes.verify_identity"),
                   }
           }
           onChange={(v) => updateField("ssl_mode", v)}
@@ -1324,15 +1311,13 @@ export const NewConnectionModal = ({
       {formData.ssl_mode && formData.ssl_mode !== "disable" && formData.ssl_mode !== "disabled" && (
         <div className="space-y-3 pt-2">
           <p className="text-xs text-muted">
-            {t("newConnection.sslCertificatesOptional", {
-              defaultValue: "Certificate paths are optional. Leave empty to use system defaults.",
-            })}
+            {t("newConnection.sslCertificatesOptional")}
           </p>
 
           {/* CA Certificate */}
           <div className="flex flex-col gap-1">
             <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-              {t("newConnection.sslCa", { defaultValue: "CA Certificate" })}
+              {t("newConnection.sslCa")}
             </label>
             <div className="flex gap-2">
               <input
@@ -1370,7 +1355,7 @@ export const NewConnectionModal = ({
           {/* Client Certificate */}
           <div className="flex flex-col gap-1">
             <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-              {t("newConnection.sslCert", { defaultValue: "Client Certificate" })}
+              {t("newConnection.sslCert")}
             </label>
             <div className="flex gap-2">
               <input
@@ -1408,7 +1393,7 @@ export const NewConnectionModal = ({
           {/* Client Key */}
           <div className="flex flex-col gap-1">
             <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-              {t("newConnection.sslKey", { defaultValue: "Client Key" })}
+              {t("newConnection.sslKey")}
             </label>
             <div className="flex gap-2">
               <input
@@ -1450,9 +1435,7 @@ export const NewConnectionModal = ({
   // ── rendered SSH tab content ──
   const sshTabContent = !isNetworkDriver ? (
     <p className="text-xs text-muted italic">
-      {t("newConnection.sshNotAvailable", {
-        defaultValue: "SSH is not available for this driver.",
-      })}
+      {t("newConnection.sshNotAvailable")}
     </p>
   ) : (
     <div className="space-y-4">
@@ -1632,9 +1615,7 @@ export const NewConnectionModal = ({
   // ── rendered K8s tab content ──
   const k8sTabContent = !isNetworkDriver ? (
     <p className="text-xs text-muted italic">
-      {t("newConnection.k8sNotAvailable", {
-        defaultValue: "Kubernetes is not available for this driver.",
-      })}
+      {t("newConnection.k8sNotAvailable")}
     </p>
   ) : (
     <div className="space-y-4">
@@ -1655,9 +1636,7 @@ export const NewConnectionModal = ({
           className="accent-blue-500 w-3.5 h-3.5 rounded"
         />
         <span className="text-sm font-medium text-secondary">
-          {t("newConnection.useK8s", {
-            defaultValue: "Use Kubernetes Port-Forward",
-          })}
+          {t("newConnection.useK8s")}
         </span>
       </label>
 
@@ -1690,12 +1669,8 @@ export const NewConnectionModal = ({
                 )}
               >
                 {mode === "existing"
-                  ? t("newConnection.useK8sConnection", {
-                      defaultValue: "Saved Connection",
-                    })
-                  : t("newConnection.createInlineK8s", {
-                      defaultValue: "Inline",
-                    })}
+                  ? t("newConnection.useK8sConnection")
+                  : t("newConnection.createInlineK8s")}
               </button>
             ))}
           </div>
@@ -1705,9 +1680,7 @@ export const NewConnectionModal = ({
             <div className="space-y-3">
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                  {t("newConnection.selectK8sConnection", {
-                    defaultValue: "Select K8s Connection",
-                  })}
+                  {t("newConnection.selectK8sConnection")}
                 </label>
                 <div className="flex items-center gap-2">
                   <Select
@@ -1725,12 +1698,8 @@ export const NewConnectionModal = ({
                     noResultsLabel={t("common.noResults")}
                     placeholder={
                       k8sConnections.length === 0
-                        ? t("newConnection.noK8sConnections", {
-                            defaultValue: "No saved connections — create one below",
-                          })
-                        : t("newConnection.chooseK8s", {
-                            defaultValue: "Choose a connection...",
-                          })
+                        ? t("newConnection.noK8sConnections")
+                        : t("newConnection.chooseK8s")
                     }
                   />
                   <button
@@ -1738,9 +1707,7 @@ export const NewConnectionModal = ({
                     onClick={() => setIsK8sModalOpen(true)}
                     className="px-2.5 py-1.5 text-xs bg-surface-secondary hover:bg-surface-tertiary rounded-md text-secondary transition-colors"
                   >
-                    {t("newConnection.manageK8s", {
-                      defaultValue: "Manage",
-                    })}
+                    {t("newConnection.manageK8s")}
                   </button>
                 </div>
               </div>
@@ -1752,9 +1719,7 @@ export const NewConnectionModal = ({
             <div className="space-y-3">
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                  {t("newConnection.k8sContext", {
-                    defaultValue: "Context",
-                  })}
+                  {t("newConnection.k8sContext")}
                 </label>
                 <Select
                   value={formData.k8s_context || null}
@@ -1766,21 +1731,15 @@ export const NewConnectionModal = ({
                   noResultsLabel={t("common.noResults")}
                   placeholder={
                     k8sContexts.length === 0
-                      ? t("newConnection.noK8sContexts", {
-                          defaultValue: "No contexts found (is kubectl installed?)",
-                        })
-                      : t("newConnection.chooseContext", {
-                          defaultValue: "Choose a context...",
-                        })
+                      ? t("newConnection.noK8sContexts")
+                      : t("newConnection.chooseContext")
                   }
                 />
               </div>
 
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                  {t("newConnection.k8sNamespace", {
-                    defaultValue: "Namespace",
-                  })}
+                  {t("newConnection.k8sNamespace")}
                 </label>
                 <Select
                   value={formData.k8s_namespace || null}
@@ -1792,12 +1751,8 @@ export const NewConnectionModal = ({
                   noResultsLabel={t("common.noResults")}
                   placeholder={
                     k8sNamespaces.length === 0
-                      ? t("newConnection.selectContextFirst", {
-                          defaultValue: "Select a context first",
-                        })
-                      : t("newConnection.chooseNamespace", {
-                          defaultValue: "Choose a namespace...",
-                        })
+                      ? t("newConnection.selectContextFirst")
+                      : t("newConnection.chooseNamespace")
                   }
                 />
               </div>
@@ -1805,36 +1760,26 @@ export const NewConnectionModal = ({
               <div className="flex gap-3">
                 <div className="flex flex-col gap-1 flex-1">
                   <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                    {t("newConnection.k8sResourceType", {
-                      defaultValue: "Resource Type",
-                    })}
+                    {t("newConnection.k8sResourceType")}
                   </label>
                   <Select
                     value={formData.k8s_resource_type || null}
                     options={["service", "pod"]}
                     labels={{
-                      service: t("newConnection.k8sResourceTypeService", {
-                        defaultValue: "Service",
-                      }),
-                      pod: t("newConnection.k8sResourceTypePod", {
-                        defaultValue: "Pod",
-                      }),
+                      service: t("newConnection.k8sResourceTypeService"),
+                      pod: t("newConnection.k8sResourceTypePod"),
                     }}
                     onChange={(val) => {
                       updateField("k8s_resource_type", val);
                     }}
-                    placeholder={t("newConnection.k8sSelectType", {
-                      defaultValue: "Select type...",
-                    })}
+                    placeholder={t("newConnection.k8sSelectType")}
                     searchable={false}
                   />
                 </div>
 
                 <div className="flex flex-col gap-1 flex-1">
                   <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                    {t("newConnection.k8sResourceName", {
-                      defaultValue: "Resource Name",
-                    })}
+                    {t("newConnection.k8sResourceName")}
                   </label>
                   <Select
                     value={formData.k8s_resource_name || null}
@@ -1846,21 +1791,15 @@ export const NewConnectionModal = ({
                     noResultsLabel={t("common.noResults")}
                     placeholder={
                       k8sResources.length === 0
-                        ? t("newConnection.selectTypeFirst", {
-                            defaultValue: "Select context/namespace/type first",
-                          })
-                        : t("newConnection.chooseResource", {
-                            defaultValue: "Choose a resource...",
-                          })
+                        ? t("newConnection.selectTypeFirst")
+                        : t("newConnection.chooseResource")
                     }
                   />
                 </div>
               </div>
 
               <FieldInput
-                label={t("newConnection.k8sPort", {
-                  defaultValue: "Container Port",
-                })}
+                label={t("newConnection.k8sPort")}
                 value={effectiveK8sPort ?? ""}
                 type="number"
                 onChange={(v) => {
@@ -1985,9 +1924,7 @@ export const NewConnectionModal = ({
                 [
                   {
                     id: "general",
-                    label: t("newConnection.general", {
-                      defaultValue: "General",
-                    }),
+                    label: t("newConnection.general"),
                   },
                   ...(isMultiDb
                     ? [
@@ -2004,9 +1941,7 @@ export const NewConnectionModal = ({
                   ...(isNetworkDriver ? [{ id: "k8s", label: "Kubernetes" }] : []),
                   {
                     id: "appearance",
-                    label: t("newConnection.appearance", {
-                      defaultValue: "Appearance",
-                    }),
+                    label: t("newConnection.appearance"),
                   },
                 ] as {
                   id: "general" | "databases" | "ssh" | "ssl" | "k8s" | "appearance";

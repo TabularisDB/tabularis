@@ -66,12 +66,8 @@ export const TextCell = ({
           className={`${iconVisibilityClass} transition-all p-0.5 rounded text-muted hover:text-secondary hover:bg-surface-tertiary flex-shrink-0 ${
             isExpanded ? "rotate-90" : ""
           }`}
-          title={t("textCell.expand", {
-            defaultValue: "Toggle inline text editor",
-          })}
-          aria-label={t("textCell.expand", {
-            defaultValue: "Toggle inline text editor",
-          })}
+          title={t("textCell.expand")}
+          aria-label={t("textCell.expand")}
         >
           <ChevronRight size={11} />
         </button>

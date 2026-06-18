@@ -110,7 +110,7 @@ export const SchemaModal = ({ isOpen, onClose, tableName, schema }: SchemaModalP
         {/* Footer */}
         <div className="p-4 border-t border-default bg-base/50 flex justify-end">
           <button onClick={onClose} className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm">
-            {t('schema.close', { defaultValue: 'Close' })}
+            {t('schema.close')}
           </button>
         </div>
       </div>

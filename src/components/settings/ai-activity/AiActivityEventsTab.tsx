@@ -263,8 +263,8 @@ function FiltersBar({
             onClick={() => onRefresh()}
             disabled={refreshing}
             className="flex h-9 w-9 items-center justify-center rounded border border-strong bg-base text-muted transition-colors hover:bg-surface-tertiary hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
-            title={t("common.refresh", { defaultValue: "Refresh" })}
-            aria-label={t("common.refresh", { defaultValue: "Refresh" })}
+            title={t("common.refresh")}
+            aria-label={t("common.refresh")}
           >
             <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
           </button>
@@ -273,7 +273,7 @@ function FiltersBar({
             <button
               onClick={onExportCsv}
               className="flex h-9 items-center gap-1.5 px-2.5 text-xs text-muted transition-colors hover:bg-surface-tertiary hover:text-primary"
-              title={t("aiActivity.exportCsv", { defaultValue: "Export CSV" })}
+              title={t("aiActivity.exportCsv")}
             >
               <Download size={12} /> CSV
             </button>
@@ -281,7 +281,7 @@ function FiltersBar({
             <button
               onClick={onExportJson}
               className="flex h-9 items-center gap-1.5 px-2.5 text-xs text-muted transition-colors hover:bg-surface-tertiary hover:text-primary"
-              title={t("aiActivity.exportJson", { defaultValue: "Export JSON" })}
+              title={t("aiActivity.exportJson")}
             >
               <Download size={12} /> JSON
             </button>
@@ -508,8 +508,8 @@ function SortableHeader({
     : "none";
   const nextLabel = isActive
     ? direction === "asc"
-      ? t("aiActivity.sort.toggleDescending", { defaultValue: "Sort descending" })
-      : t("aiActivity.sort.toggleAscending", { defaultValue: "Sort ascending" })
+      ? t("aiActivity.sort.toggleDescending")
+      : t("aiActivity.sort.toggleAscending")
     : t("aiActivity.sort.sortBy", { defaultValue: "Sort by {{field}}", field: label });
   return (
     <th

@@ -268,7 +268,7 @@ export const DataGrid = React.memo(
 
     const buildRowLabel = useCallback(
       (rowData: unknown[], rowIndex: number, isInsertion: boolean): string => {
-        if (isInsertion) return t("dataGrid.newRow", { defaultValue: "NEW" });
+        if (isInsertion) return t("dataGrid.newRow");
         if (pkColumn && pkIndexMap !== null) {
           const pkVal = rowData[pkIndexMap];
           if (pkVal !== null && pkVal !== undefined && pkVal !== "") {

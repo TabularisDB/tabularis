@@ -88,10 +88,8 @@ export const RowEditorSidebar = ({
         <button
           type="button"
           onMouseDown={startResize}
-          aria-label={t("rowEditor.resize", {
-            defaultValue: "Resize sidebar",
-          })}
-          title={t("rowEditor.resize", { defaultValue: "Resize sidebar" })}
+          aria-label={t("rowEditor.resize")}
+          title={t("rowEditor.resize")}
           className="absolute top-0 bottom-0 -left-1 w-2 cursor-col-resize group/resize z-10"
         >
           <span

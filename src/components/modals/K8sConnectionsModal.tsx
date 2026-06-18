@@ -259,9 +259,7 @@ export function K8sConnectionsModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-default bg-base">
           <h2 className="text-sm font-semibold text-primary">
-            {t("k8sConnections.title", {
-              defaultValue: "Kubernetes Connections",
-            })}
+            {t("k8sConnections.title")}
           </h2>
           <div className="flex items-center gap-2">
             <button
@@ -269,7 +267,7 @@ export function K8sConnectionsModal({
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors"
             >
               <Plus size={12} />
-              {t("k8sConnections.add", { defaultValue: "Add" })}
+              {t("k8sConnections.add")}
             </button>
             <button
               onClick={onClose}
@@ -386,10 +384,7 @@ export function K8sConnectionsModal({
           {/* Empty state */}
           {connections.length === 0 && !isCreating && (
             <p className="text-xs text-muted italic text-center py-6">
-              {t("k8sConnections.empty", {
-                defaultValue:
-                  "No Kubernetes connections saved. Click \"Add\" to create one.",
-              })}
+              {t("k8sConnections.empty")}
             </p>
           )}
         </div>

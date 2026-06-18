@@ -307,10 +307,10 @@ export const JsonInput: React.FC<JsonInputProps> = ({
                     ? "bg-blue-600/30 text-blue-100 border-blue-500/50"
                     : "bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary"
                 }`}
-                title={t("jsonInput.diff", { defaultValue: "Diff" })}
+                title={t("jsonInput.diff")}
               >
                 <GitCompare size={12} />
-                {t("jsonInput.diff", { defaultValue: "Diff" })}
+                {t("jsonInput.diff")}
                 {hasDiff && (
                   <span
                     aria-hidden
@@ -329,10 +329,10 @@ export const JsonInput: React.FC<JsonInputProps> = ({
                     ? "bg-blue-600/30 text-blue-100 border-blue-500/50"
                     : "bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary"
                 }`}
-                title={t("jsonInput.sideBySide", { defaultValue: "Side by side" })}
+                title={t("jsonInput.sideBySide")}
               >
                 <Columns2 size={12} />
-                {t("jsonInput.sideBySide", { defaultValue: "Side by side" })}
+                {t("jsonInput.sideBySide")}
               </button>
             )}
             {!disableExpand && (

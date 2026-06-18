@@ -156,7 +156,7 @@ export function AppearanceSection({
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-[9px] uppercase font-semibold tracking-widest text-muted">
-              {t("connectionAppearance.previewLabel", { defaultValue: "Preview" })}
+              {t("connectionAppearance.previewLabel")}
             </span>
             <span className="text-sm font-medium text-primary truncate">{previewLabel}</span>
           </div>
@@ -287,9 +287,7 @@ export function AppearanceSection({
           <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-md border border-dashed border-default bg-base">
             <Sparkles size={14} className="text-muted shrink-0" />
             <p className="text-xs text-muted">
-              {t("connectionAppearance.defaultHint", {
-                defaultValue: "Using the driver's default icon.",
-              })}
+              {t("connectionAppearance.defaultHint")}
             </p>
           </div>
         )}
@@ -300,7 +298,7 @@ export function AppearanceSection({
               type="text"
               value={iconSearch}
               onChange={e => setIconSearch(e.target.value)}
-              placeholder={t("connectionAppearance.iconSearch", { defaultValue: "Search icons…" })}
+              placeholder={t("connectionAppearance.iconSearch")}
               aria-label="icon search"
               autoCorrect="off"
               autoCapitalize="off"
@@ -354,7 +352,7 @@ export function AppearanceSection({
                   )}
                   {all.length === 0 && (
                     <div className="text-xs text-muted">
-                      {t("connectionAppearance.iconNoResults", { defaultValue: "No icons match." })}
+                      {t("connectionAppearance.iconNoResults")}
                     </div>
                   )}
                 </>
@@ -373,12 +371,10 @@ export function AppearanceSection({
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="text-[9px] uppercase font-semibold tracking-widest text-muted">
-                      {t("connectionAppearance.emojiSelected", { defaultValue: "Selected emoji" })}
+                      {t("connectionAppearance.emojiSelected")}
                     </span>
                     <span className="text-xs text-secondary truncate">
-                      {t("connectionAppearance.emojiHint", {
-                        defaultValue: "Click another emoji below to change.",
-                      })}
+                      {t("connectionAppearance.emojiHint")}
                     </span>
                   </div>
                 </div>
@@ -389,7 +385,7 @@ export function AppearanceSection({
                   className="inline-flex items-center gap-1 px-2 py-1 text-xs text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors shrink-0"
                 >
                   <Trash2 size={12} />
-                  <span>{t("connectionAppearance.removeEmoji", { defaultValue: "Clear" })}</span>
+                  <span>{t("connectionAppearance.removeEmoji")}</span>
                 </button>
               </div>
             )}
@@ -399,7 +395,7 @@ export function AppearanceSection({
                 emojiStyle={EmojiStyle.NATIVE}
                 width="100%"
                 height={340}
-                searchPlaceholder={t("connectionAppearance.emojiSearch", { defaultValue: "Search emoji…" })}
+                searchPlaceholder={t("connectionAppearance.emojiSearch")}
                 suggestedEmojisMode={SuggestionMode.RECENT}
                 skinTonePickerLocation={SkinTonePickerLocation.SEARCH}
                 previewConfig={{ showPreview: false }}
@@ -419,7 +415,7 @@ export function AppearanceSection({
                   size={64}
                   fallback={
                     <div className="w-16 h-16 bg-elevated border border-strong rounded-md flex items-center justify-center text-muted text-[10px] text-center px-1">
-                      {t("connectionAppearance.noPreview", { defaultValue: "No preview" })}
+                      {t("connectionAppearance.noPreview")}
                     </div>
                   }
                 />

@@ -403,7 +403,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
           <button
             type="button"
             onClick={onClose}
-            aria-label={t('common.close', { defaultValue: 'Close' })}
+            aria-label={t('common.close')}
             className="text-muted hover:text-primary transition-colors p-1.5 rounded-md hover:bg-surface-secondary/50 shrink-0"
           >
             <X size={18} />

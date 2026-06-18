@@ -212,7 +212,7 @@ export const Connections = () => {
       await loadConnections();
     } catch (e) {
       console.error("Failed to rename group:", e);
-      setError(t("groups.renameError", { defaultValue: "Failed to rename group" }) + `: ${toErrorMessage(e)}`);
+      setError(t("groups.renameError") + `: ${toErrorMessage(e)}`);
     }
   };
 
@@ -228,7 +228,7 @@ export const Connections = () => {
           await loadConnections();
         } catch (e) {
           console.error("Failed to delete group:", e);
-          setError(t("groups.deleteError", { defaultValue: "Failed to delete group" }) + `: ${toErrorMessage(e)}`);
+          setError(t("groups.deleteError") + `: ${toErrorMessage(e)}`);
         }
       },
     });
@@ -243,7 +243,7 @@ export const Connections = () => {
       await loadConnections();
     } catch (e) {
       console.error("Failed to move connection:", e);
-      setError(t("groups.moveError", { defaultValue: "Failed to move connection" }) + `: ${toErrorMessage(e)}`);
+      setError(t("groups.moveError") + `: ${toErrorMessage(e)}`);
     }
   };
 
