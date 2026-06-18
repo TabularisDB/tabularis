@@ -29,15 +29,14 @@
     "cancel": "Annulla",
     "delete": "Elimina",
     "edit": "Modifica",
-    "clone": "Clona",
-    "connect": "Connetti",
-    "disconnect": "Disconnetti",
     "loading": "Caricamento...",
     "search": "Cerca...",
     "noResults": "Nessun risultato trovato",
     "error": "Errore",
     "success": "Successo",
-    "ok": "OK"
+    "ok": "OK",
+    "clear": "Clear",
+    "refresh": "Refresh"
   },
   "sidebar": {
     "connections": "Connessioni",
@@ -105,6 +104,19 @@
     "procedures": "Procedure",
     "noRoutines": "Nessuna routine trovata",
     "refreshRoutines": "Aggiorna Routine",
+    "triggers": "Triggers",
+    "noTriggers": "No triggers found",
+    "filterTriggers": "Filter triggers...",
+    "noTriggersMatch": "No triggers match your filter",
+    "createTrigger": "Create New Trigger",
+    "editTrigger": "Edit Trigger",
+    "dropTrigger": "Drop Trigger",
+    "dropTriggerConfirm": "Are you sure you want to drop trigger \"{{trigger}}\"?",
+    "viewTriggerDefinition": "View Definition",
+    "failDropTrigger": "Failed to drop trigger: ",
+    "failGetTriggerDefinition": "Failed to get trigger definition: ",
+    "refreshTriggers": "Refresh Triggers",
+    "onTable": "on {{table}}",
     "objectSummary": "Oggetti",
     "databases": "Database",
     "failGetRoutineDefinition": "Impossibile recuperare la definizione della routine: ",
@@ -177,7 +189,6 @@
     "subtitle": "Connetti Tabularis a Claude Desktop, Cursor e altri",
     "description": "Il Model Context Protocol (MCP) permette agli assistenti AI (come Claude) di connettersi ai tuoi strumenti locali. Tabularis espone un server MCP che permette all'AI di leggere lo schema del database ed eseguire query in sicurezza.",
     "checking": "Verifica configurazione...",
-    "configPath": "File di Configurazione",
     "notFound": "File config non trovato (crealo manualmente)",
     "installed": "Installato",
     "install": "Installa Config",
@@ -220,11 +231,9 @@
     "noConnections": "Nessuna connessione attiva",
     "createFirst": "Crea la tua prima connessione",
     "active": "Attiva",
-    "sshEnabled": "Tunnel SSH abilitato",
     "disconnect": "Disconnetti",
     "connect": "Connetti",
     "edit": "Modifica",
-    "duplicate": "Duplica",
     "delete": "Elimina",
     "clone": "Clona",
     "confirmDelete": "Sei sicuro di voler eliminare questa connessione?",
@@ -232,7 +241,6 @@
     "failConnect": "Impossibile connettersi a {{name}}. Verifica le impostazioni o assicurati che il database sia in esecuzione.",
     "failDisconnect": "Impossibile disconnettersi dal database",
     "failDuplicate": "Impossibile duplicare la connessione",
-    "connecting": "Connessione in corso...",
     "open": "Aperta",
     "pluginDisabled": "Plugin disabilitato",
     "connectionCount": "{{count}} connessione/i",
@@ -251,7 +259,6 @@
     "accentColor": "Colore di accento",
     "customColor": "Personalizzato",
     "resetColor": "Ripristina predefinito",
-    "resetIcon": "Ripristina predefinito",
     "icon": "Icona",
     "tabs": {
       "default": "Predefinito",
@@ -267,13 +274,14 @@
     "chooseImage": "Scegli immagine…",
     "removeImage": "Rimuovi",
     "imageHint": "PNG, JPG, WebP o SVG · max 512 KB",
-    "errors": {
-      "invalidEmoji": "Inserisci esattamente un emoji",
-      "invalidHex": "Inserisci un colore hex valido come #1a2b3c"
-    }
+    "errors": {},
+    "emojiSearch": "Search emoji…",
+    "iconNoResults": "No icons match.",
+    "iconResultsTruncated": "Showing {{shown}} of {{total}} — refine search to narrow down.",
+    "iconSearch": "Search icons…",
+    "noPreview": "No preview"
   },
   "settings": {
-    "title": "Impostazioni",
     "general": "Generali",
     "info": "Info",
     "dataEditor": "Editor Dati",
@@ -295,8 +303,6 @@
     "themeSelection": "Selezione Tema",
     "fontFamily": "Famiglia Font",
     "fonts": {
-      "system": "Sistema",
-      "systemDesc": "Usa il font di default del sistema",
       "custom": "Font Personalizzato",
       "customPlaceholder": "es. Comic Sans MS",
       "enterFontName": "Inserisci il nome del font sopra"
@@ -327,17 +333,15 @@
       "title": "config.json",
       "saveAndRestart": "Salva e Riavvia",
       "restartNow": "Riavvia Ora",
-      "restartLater": "Più tardi",
       "restartRequired": "È necessario un riavvio per applicare le modifiche.",
-      "restartMessage": "Il file di configurazione è stato salvato. Riavviare ora per applicare le modifiche?",
-      "invalidJson": "JSON non valido — correggi gli errori prima di salvare."
+      "restartMessage": "Il file di configurazione è stato salvato. Riavviare ora per applicare le modifiche?"
     },
     "language": "Lingua",
     "languageDesc": "Scegli la tua lingua preferita. 'Auto' userà la lingua di sistema.",
     "auto": "Auto (Sistema)",
-    "english": "Inglese",
-    "italian": "Italiano",
-    "spanish": "Spagnolo",
+    "timezone": "Timezone",
+    "timezoneDesc": "Timezone used to display timestamps and exports. 'Auto' follows your system timezone.",
+    "timezoneSearch": "Search timezones...",
     "projectStatus": "Stato del Progetto",
     "roadmapDesc": "Questo progetto è un Work In Progress (WIP). Le funzioni principali sono stabili, ma abbiamo grandi piani.",
     "support": "Supporta lo Sviluppo",
@@ -491,15 +495,10 @@
       "filterInstalled": "Installati",
       "filterUpdates": "Aggiornamenti",
       "searchNoResults": "Nessun plugin corrisponde alla ricerca.",
-      "version": "Versione",
       "requiresVersion": "Richiede Tabularis ≥ {{version}}",
-      "installedPlugins": "Plugin Installati",
-      "installedDesc": "Abilita o disabilita i driver database. I driver integrati non possono essere disabilitati.",
       "remove": "Rimuovi",
       "removeTitle": "Rimuovi Plugin",
       "confirmRemove": "Sei sicuro di voler rimuovere \"{{name}}\"? I file del plugin verranno eliminati.",
-      "enabled": "Abilitato",
-      "disabled": "Disabilitato",
       "installError": {
         "title": "Installazione fallita",
         "subtitle": "Si è verificato un errore durante l'installazione del plugin. Vedi i dettagli qui sotto.",
@@ -570,7 +569,6 @@
       "notOverridable": "Integrata, non personalizzabile",
       "pressKeys": "Premi la combinazione di tasti...",
       "notebookRunAll": "Esegui Tutte le Celle",
-      "categories_notebook": "Notebook",
       "pasteImportClipboard": "Importa dagli Appunti",
       "quickNavigator": "Navigatore rapido"
     },
@@ -580,44 +578,23 @@
     "newVersionAvailable": "Nuova Versione Disponibile",
     "version": "Versione",
     "releaseNotes": "Note di Rilascio",
-    "downloads": "Download",
-    "download": "Scarica",
     "downloadAndInstall": "Scarica e Installa",
     "downloading": "Download in corso...",
     "installing": "Installazione in corso...",
     "installingMessage": "L'app si riavvierà automaticamente dopo l'installazione",
     "viewOnGitHub": "Visualizza su GitHub",
     "remindLater": "Ricordamelo Dopo",
-    "skipVersion": "Salta Questa Versione",
-    "checkingForUpdates": "Controllo aggiornamenti...",
     "upToDate": "Sei aggiornato",
     "updateAvailable": "La versione {{version}} è disponibile",
     "error": "Errore Aggiornamento",
-    "currentVersion": "Versione attuale",
     "managedByPackageManager": "Aggiornamenti gestiti da {{source}}",
     "managedByPackageManagerDesc": "Usa il tuo package manager per aggiornare Tabularis."
   },
   "ai": {
-    "assist": "AI Assist",
     "explain": "Spiega",
-    "generateSql": "Genera SQL",
-    "generating": "Generazione...",
-    "explainQuery": "Spiegazione Query AI",
-    "queryLabel": "Query",
-    "explanationLabel": "Spiegazione",
-    "generatingExplanation": "Generazione spiegazione...",
-    "configRequired": "⚠️ Provider AI non configurato. Vai su Impostazioni > AI.",
-    "enterPrompt": "Descrivi la tua query in linguaggio naturale",
-    "promptPlaceholder": "es. Trova tutti gli utenti iscritti il mese scorso che hanno ordinato un piano 'Premium'...",
-    "readingSchema": "Lettura schema database...",
-    "schemaError": "Impossibile caricare il contesto dello schema del database",
-    "configError": "Configura il provider AI nelle Impostazioni e inserisci un prompt."
+    "generateSql": "Genera SQL"
   },
   "newConnection": {
-    "titleNew": "Nuova Connessione",
-    "titleEdit": "Modifica Connessione",
-    "subtitle": "Configura le impostazioni di connessione al database",
-    "name": "Nome Connessione",
     "namePlaceholder": "Inserisci il nome della connessione",
     "nameRequired": "Il nome della connessione è richiesto",
     "dbNameRequired": "Il nome del database è richiesto",
@@ -626,7 +603,6 @@
     "port": "Porta",
     "username": "Nome utente",
     "password": "Password",
-    "passwordMissing": "Password mancante. Per favore reinseriscila.",
     "passwordPlaceholder": "Inserisci password",
     "usernamePlaceholder": "Inserisci nome utente",
     "filePath": "Percorso File",
@@ -673,7 +649,12 @@
       "prefer": "Preferito",
       "require": "Richiesto",
       "verify-ca": "Verifica CA",
-      "verify-full": "Verifica completa"
+      "verify-full": "Verifica completa",
+      "disabled": "Disabled",
+      "preferred": "Preferred",
+      "required": "Required",
+      "verify_ca": "Verify CA",
+      "verify_identity": "Verify Identity"
     },
     "chooseContext": "Scegli un contesto...",
     "chooseK8s": "Scegli una connessione...",
@@ -696,7 +677,20 @@
     "selectK8sConnection": "Seleziona connessione K8s",
     "selectTypeFirst": "Seleziona prima contesto/namespace/tipo",
     "useK8s": "Usa Port-Forward Kubernetes",
-    "useK8sConnection": "Connessione salvata"
+    "useK8sConnection": "Connessione salvata",
+    "connectionString": "Connection String",
+    "connectionStringPlaceholder": "e.g. mysql://user:pass@localhost:3306/db",
+    "general": "General",
+    "loadDatabasesHint": "Click Load Databases to fetch available databases.",
+    "noGeneralSettings": "No general settings available for this driver.",
+    "selectDatabasesHint": "Select the databases to include in this connection.",
+    "sshNotAvailable": "SSH is not available for this driver.",
+    "sslCa": "CA Certificate",
+    "sslCert": "Client Certificate",
+    "sslCertificatesOptional": "Certificate paths are optional. Leave empty to use system defaults.",
+    "sslDescription": "Configure SSL/TLS for secure database connections (optional).",
+    "sslKey": "Client Key",
+    "unnamedConnection": "Unnamed connection"
   },
   "sshConnections": {
     "title": "Connessioni SSH",
@@ -724,52 +718,34 @@
   "dataGrid": {
     "newRow": "NUOVA",
     "noData": "Nessun dato da visualizzare",
-    "editRow": "Modifica riga",
     "deleteRow": "Elimina riga",
     "deleteRows": "Elimina {{count}} righe",
-    "confirmDelete": "Sei sicuro di voler eliminare questa riga?",
-    "deleteTitle": "Elimina riga",
     "updateFailed": "Aggiornamento fallito: ",
-    "deleteFailed": "Eliminazione riga fallita: ",
     "null": "null",
     "sortByAsc": "Ordina per {{col}} ASC",
     "sortByDesc": "Ordina per {{col}} DESC",
     "clearSort": "Rimuovi ordinamento",
     "copyCell": "Copia cella",
-    "copyRow": "Copia riga",
     "copySelectedRows": "Copia riga/righe selezionate",
     "copyColumnName": "Copia nome colonna",
     "copyColumnNameQuoted": "Copia come `colonna`",
     "copyColumnNameTable": "Copia come tabella.colonna",
-    "copyCells": "Copia {{count}} celle",
-    "copyRows": "Copia {{count}} righe",
     "copied": "Copiato negli appunti",
-    "discardInsertion": "Clicca per scartare questa riga (rollback)",
+    "duplicateRow": "Duplicate Row",
     "revertSelected": "Ripristina selezionato",
     "setGenerate": "Imposta GENERATED",
     "setNull": "Imposta NULL",
     "setDefault": "Imposta DEFAULT",
     "setEmpty": "Imposta VUOTO",
+    "setServerNow": "Insert Current Timestamp",
     "previewReferenced": "Anteprima record correlato",
     "openReferenced": "Apri la riga referenziata in {{table}}"
   },
-  "editRow": {
-    "title": "Modifica riga",
-    "save": "Salva modifiche",
-    "cancel": "Annulla",
-    "success": "Riga aggiornata con successo",
-    "failLoad": "Impossibile caricare lo schema per la modifica",
-    "failUpdate": "Aggiornamento riga fallito: ",
-    "loading": "Caricamento...",
-    "selectValue": "Seleziona valore...",
-    "noOptions": "Nessuna opzione trovata",
-    "current": "Attuale"
-  },
+  "editRow": {},
   "newRow": {
     "title": "Nuova riga",
     "insert": "Inserisci",
     "cancel": "Annulla",
-    "success": "Riga inserita con successo",
     "failInsert": "Inserimento riga fallito: ",
     "failLoad": "Caricamento schema fallito: ",
     "loading": "Caricamento...",
@@ -790,7 +766,6 @@
     "connected": "Connesso",
     "disconnected": "Disconnesso",
     "newRow": "Nuova riga",
-    "editing": "Modifica: {{table}}",
     "rowsRetrieved": "{{count}} righe recuperate",
     "autoPaginated": "Impaginazione automatica",
     "pageOf": "Pagina {{current}} di {{total}}",
@@ -823,7 +798,8 @@
     "tabSwitcher": {
       "title": "Tab Aperte",
       "hint": "Ctrl+Tab",
-      "tabs": "{{count}} tab",
+      "tabs_one": "{{count}} tab",
+      "tabs_other": "{{count}} tabs",
       "escHint": "Esc per chiudere"
     },
     "quickNavigator": {
@@ -858,13 +834,11 @@
     "paramValuePlaceholder": "Valore (es. 'testo' o 123)",
     "failedCreateRow": "Impossibile creare nuova riga: ",
     "failedProcessInsertions": "Impossibile processare gli inserimenti: ",
-    "fieldRequired": "Questo campo è obbligatorio",
     "newNotebook": "Nuovo Notebook",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Piano Query",
       "loading": "Esecuzione EXPLAIN...",
-      "error": "Errore nell'esecuzione di EXPLAIN",
       "planningTime": "Pianificazione",
       "executionTime": "Esecuzione",
       "totalCost": "Costo Totale",
@@ -880,7 +854,6 @@
       "rawOutput": "Output Grezzo",
       "analyze": "Analizza",
       "analyzeWarning": "ANALYZE esegue la query. Usare con cautela su istruzioni che modificano dati.",
-      "notSupported": "EXPLAIN non supportato per questo tipo di connessione.",
       "notExplainable": "EXPLAIN è supportato solo per istruzioni DML (SELECT, INSERT, UPDATE, DELETE). Le istruzioni DDL come CREATE, DROP o ALTER non possono essere analizzate.",
       "contextMenuExplain": "Piano Query",
       "rerun": "Riesegui",
@@ -910,8 +883,6 @@
       "overview": "Panoramica",
       "showOverview": "Mostra panoramica",
       "hideOverview": "Nascondi panoramica",
-      "showNotes": "Mostra note",
-      "hideNotes": "Nascondi note",
       "postgresAnalyzeLegend1": "PostgreSQL ANALYZE include righe reali, tempi, cicli e contatori buffer quando disponibili.",
       "postgresAnalyzeLegend2": "Scostamenti elevati tra stima e reale indicano spesso statistiche non aggiornate o predicati difficili da modellare.",
       "postgresEstimateLegend1": "PostgreSQL senza ANALYZE mostra solo le stime del planner.",
@@ -922,11 +893,6 @@
       "mysqlEstimateLegend2": "Se il tempo manca, il server ha probabilmente restituito un piano solo stimato.",
       "sqliteLegend1": "SQLite EXPLAIN QUERY PLAN è leggero e soprattutto strutturale.",
       "sqliteLegend2": "Costo, tempi e stime di righe spesso non sono disponibili come in PostgreSQL e MySQL.",
-      "copySnapshot": "Copia Snapshot",
-      "exportRaw": "Esporta Raw",
-      "snapshotCopied": "Snapshot dell'explain copiato negli appunti",
-      "rawExported": "Output raw dell'explain esportato",
-      "noRawOutput": "Nessun output raw dell'explain disponibile da esportare.",
       "aiAnalysis": "Analisi AI",
       "aiAnalysisTitle": "Analisi AI del Piano di Esecuzione",
       "aiAnalyzing": "Analisi del piano di esecuzione con AI...",
@@ -952,8 +918,6 @@
       "invalidFile": "Formato file notebook non valido",
       "importSuccess": "Notebook importato con successo",
       "exportSuccess": "Notebook esportato con successo",
-      "convertToConsole": "Converti in Console",
-      "runningAll": "Esecuzione di tutte le celle...",
       "cellResult": "{{count}} righe · {{time}}ms",
       "stopOnError": "Ferma su Errore",
       "stopOnErrorTooltip": "Ferma l'esecuzione quando una cella fallisce",
@@ -980,8 +944,6 @@
       "collapseAll": "Comprimi Tutto",
       "expandAll": "Espandi Tutto",
       "outline": "Sommario",
-      "aiGenerate": "Genera SQL con AI",
-      "aiExplain": "Spiega questa Query con AI",
       "cellNamePlaceholder": "Senza nome",
       "editCellName": "Modifica nome cella",
       "aiGenerateName": "Genera nome con AI",
@@ -1007,13 +969,12 @@
           "stopOnError": "Stop on error commutato",
           "other": "Notebook modificato"
         }
-      }
+      },
+      "exportError": "Export failed"
     },
     "querySelection": {
       "title": "Seleziona la query da eseguire",
       "queriesFound": "{{count}} query trovate",
-      "escToCancel": "Esc per annullare",
-      "numberHint": "Premi 1-9 per selezionare, frecce per navigare",
       "runAll": "Esegui tutte",
       "runSelected": "Esegui selezionate ({{count}})",
       "runSingle": "Esegui questa query",
@@ -1029,8 +990,6 @@
       "cancel": "annulla"
     },
     "multiResult": {
-      "query": "Query {{index}}",
-      "summary": "{{total}} query: {{succeeded}} completate, {{failed}} fallite",
       "rerun": "Riesegui query",
       "close": "Chiudi tab",
       "rename": "Rinomina",
@@ -1041,8 +1000,7 @@
       "queryPrefix": "Query",
       "results": "Risultati",
       "collapseAll": "Comprimi tutto",
-      "expandAll": "Espandi tutto",
-      "collapsed": "Compresso"
+      "expandAll": "Espandi tutto"
     }
   },
   "createTable": {
@@ -1058,14 +1016,13 @@
     "colNn": "NN",
     "colAi": "AI",
     "colDefault": "Default",
-    "showSql": "Mostra Anteprima SQL",
-    "hideSql": "Nascondi Anteprima SQL",
     "create": "Crea Tabella",
     "cancel": "Annulla",
     "nameRequired": "Il nome della tabella è richiesto",
     "colRequired": "È richiesta almeno una colonna",
     "failCreate": "Creazione tabella fallita: ",
-    "requiresExtension": "Richiede estensione: {{ext}}"
+    "requiresExtension": "Richiede estensione: {{ext}}",
+    "sqlPreview": "SQL Preview"
   },
   "schema": {
     "title": "Schema: {{table}}",
@@ -1075,7 +1032,8 @@
     "colNullable": "Nullable",
     "colKey": "Chiave",
     "yes": "SÌ",
-    "no": "NO"
+    "no": "NO",
+    "close": "Close"
   },
   "generateSQL": {
     "title": "SQL Generato: {{table}}",
@@ -1106,8 +1064,6 @@
     "cancel": "Annulla",
     "nameRequired": "Il nome della colonna è richiesto",
     "fail": "Fallito: ",
-    "noChanges": "Nessuna modifica rilevata",
-    "unsupported": "Driver non supportato",
     "pkNotSupported": "Questo driver supporta le chiavi primarie solo in fase di creazione della tabella",
     "requiresExtension": "Richiede estensione: {{ext}}"
   },
@@ -1133,15 +1089,13 @@
     "sqlPreview": "Anteprima SQL",
     "create": "Crea Chiave Esterna",
     "cancel": "Annulla",
-    "colRequired": "Seleziona le colonne locali e riferite",
-    "tableRequired": "Seleziona una tabella riferita"
+    "nameRequired": "Name is required"
   },
   "healthCheck": {
     "title": "Connessione Persa",
     "connectionLost": "Una connessione al database è stata persa"
   },
   "erDiagram": {
-    "title": "Diagramma ER",
     "enterFullscreen": "Schermo Intero",
     "exitFullscreen": "Esci da Schermo Intero",
     "noConnection": "Nessun ID Connessione",
@@ -1163,7 +1117,6 @@
     "viewName": "Nome Vista",
     "viewNamePlaceholder": "es. utenti_attivi, riepilogo_ordini",
     "viewDefinition": "Definizione Vista (SQL)",
-    "definitionPlaceholder": "SELECT * FROM ...",
     "preview": "Anteprima",
     "runPreview": "Esegui Anteprima",
     "previewEmpty": "Clicca 'Esegui Anteprima' per vedere i risultati",
@@ -1177,7 +1130,36 @@
     "createSuccess": "Vista creata con successo",
     "alterSuccess": "Vista aggiornata con successo",
     "saveError": "Salvataggio vista fallito: ",
-    "confirmAlter": "Sei sicuro di voler modificare la vista \"{{view}}\"?"
+    "confirmAlter": "Sei sicuro di voler modificare la vista \"{{view}}\"?",
+    "alterView": "Alter View"
+  },
+  "triggers": {
+    "createTrigger": "Create Trigger",
+    "editTrigger": "Edit Trigger",
+    "createSubtitle": "Create a new database trigger",
+    "editSubtitle": "Editing trigger: {{name}}",
+    "triggerName": "Trigger Name",
+    "triggerNamePlaceholder": "e.g. before_insert_user",
+    "tableName": "Table Name",
+    "tableNamePlaceholder": "e.g. users",
+    "timing": "Timing",
+    "events": "Events",
+    "body": "Trigger Body (SQL)",
+    "sqlPreview": "Generated SQL Preview",
+    "rawSql": "Raw SQL",
+    "guidedMode": "Guided",
+    "rawSqlMode": "Raw SQL",
+    "loading": "Loading trigger definition...",
+    "create": "Create Trigger",
+    "save": "Save Changes",
+    "sqlRequired": "Trigger SQL is required",
+    "failLoadDefinition": "Failed to load trigger definition: ",
+    "dropError": "Failed to drop existing trigger: ",
+    "saveError": "Failed to save trigger: ",
+    "createSuccess": "Trigger created successfully",
+    "updateSuccess": "Trigger updated successfully",
+    "recreateTrigger": "Recreate Trigger",
+    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?"
   },
   "community": {
     "title": "Unisciti alla Community",
@@ -1209,12 +1191,10 @@
     "selectAll": "Seleziona Tutto",
     "deselectAll": "Deseleziona Tutto",
     "export": "Esporta",
-    "exporting": "Esportazione...",
     "success": "Database esportato con successo",
     "failure": "Esportazione fallita: ",
     "errorNoOption": "Seleziona almeno Struttura o Dati",
     "errorNoTables": "Seleziona almeno una tabella",
-    "importStarted": "Importazione avviata...",
     "importSuccess": "File SQL eseguito con successo",
     "importFailure": "Importazione fallita: ",
     "importCancelled": "Importazione annullata",
@@ -1228,7 +1208,6 @@
     "sqlMode": "Modalità SQL",
     "wktMode": "Modalità WKT",
     "sqlHelper": "Inserisci una funzione SQL completa (es: ST_GeomFromText('POINT(30 40)', 4326))",
-    "wktHelper": "Inserisci formato WKT (es: POINT(30 40))",
     "sqlPlaceholder": "ST_GeomFromText('POINT(30 40)', 4326)",
     "wktPlaceholder": "POINT(30 40)",
     "toggleTooltip": "Funzioni SQL"
@@ -1244,12 +1223,9 @@
       "raw": "Grezzo"
     },
     "expand": "Espandi",
-    "collapse": "Comprimi",
     "search": "Cerca",
-    "copyPath": "Copia percorso",
-    "copyValue": "Copia valore",
-    "addItem": "Aggiungi elemento",
-    "removeItem": "Rimuovi elemento"
+    "diff": "Diff",
+    "sideBySide": "Side by side"
   },
   "jsonViewer": {
     "close": "Chiudi",
@@ -1259,12 +1235,21 @@
     "expand": "Espandi/comprimi albero JSON",
     "openViewer": "Apri visualizzatore JSON"
   },
+  "textCell": {
+    "expand": "Toggle inline text editor"
+  },
+  "textInput": {
+    "diff": "Diff",
+    "sideBySide": "Side by side"
+  },
+  "textViewer": {
+    "save": "Save"
+  },
   "rowEditor": {
     "title": "Modifica Riga",
     "subtitle": "Riga #{{row}}",
-    "save": "Salva Modifiche",
-    "cancel": "Annulla",
-    "enterValue": "Inserisci valore..."
+    "enterValue": "Inserisci valore...",
+    "resize": "Resize sidebar"
   },
   "contextMenu": {
     "openSidebar": "Apri Barra Laterale",
@@ -1358,6 +1343,22 @@
         "unknown": "sconosciuto"
       }
     }
+  },
+  "groups": {
+    "newGroup": "New Group",
+    "rename": "Rename",
+    "delete": "Delete",
+    "deleteConfirm": "Are you sure you want to delete group \"{{name}}\"? Connections in this group will be moved to ungrouped.",
+    "deleteTitle": "Delete Group",
+    "connection": "connection",
+    "connections": "connections",
+    "ungrouped": "Ungrouped",
+    "removeFromGroup": "Remove from Group",
+    "groupName": "Group name",
+    "createError": "Failed to create group",
+    "deleteError": "Failed to delete group",
+    "moveError": "Failed to move connection",
+    "renameError": "Failed to rename group"
   },
   "queryModal": {
     "database": "Database",
@@ -1482,7 +1483,9 @@
       "write": "Scrittura",
       "ddl": "DDL",
       "unknown": "Sconosciuto"
-    }
+    },
+    "exportCsv": "Export CSV",
+    "exportJson": "Export JSON"
   },
   "aiApproval": {
     "title": "L'AI vuole eseguire una scrittura sul database",
@@ -1525,7 +1528,6 @@
     "port": "Porta container",
     "test": "Test",
     "testing": "Test in corso...",
-    "validationFailed": "Validazione fallita",
     "errors": {
       "nameRequired": "Il nome della connessione è obbligatorio",
       "contextRequired": "Il contesto Kubernetes è obbligatorio",

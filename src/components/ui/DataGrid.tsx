@@ -1008,7 +1008,7 @@ export const DataGrid = React.memo(
           }
         })
         .catch((err) => {
-          showAlert(String(err), { title: t("general.error"), kind: "error" });
+          showAlert(String(err), { title: t("common.error"), kind: "error" });
         });
     }, [
       contextMenu,

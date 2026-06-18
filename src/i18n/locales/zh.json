@@ -29,14 +29,14 @@
     "cancel": "取消",
     "delete": "删除",
     "edit": "编辑",
-    "clone": "克隆",
-    "connect": "连接",
-    "disconnect": "断开连接",
     "loading": "加载中...",
     "search": "搜索...",
+    "noResults": "No results found",
     "error": "错误",
     "success": "成功",
-    "ok": "OK"
+    "ok": "OK",
+    "clear": "Clear",
+    "refresh": "Refresh"
   },
   "sidebar": {
     "connections": "连接",
@@ -104,6 +104,19 @@
     "procedures": "存储过程",
     "noRoutines": "未找到存储过程",
     "refreshRoutines": "刷新存储过程",
+    "triggers": "Triggers",
+    "noTriggers": "No triggers found",
+    "filterTriggers": "Filter triggers...",
+    "noTriggersMatch": "No triggers match your filter",
+    "createTrigger": "Create New Trigger",
+    "editTrigger": "Edit Trigger",
+    "dropTrigger": "Drop Trigger",
+    "dropTriggerConfirm": "Are you sure you want to drop trigger \"{{trigger}}\"?",
+    "viewTriggerDefinition": "View Definition",
+    "failDropTrigger": "Failed to drop trigger: ",
+    "failGetTriggerDefinition": "Failed to get trigger definition: ",
+    "refreshTriggers": "Refresh Triggers",
+    "onTable": "on {{table}}",
     "objectSummary": "对象",
     "databases": "数据库",
     "failGetRoutineDefinition": "获取存储过程定义失败：",
@@ -176,7 +189,6 @@
     "subtitle": "将 Tabularis 连接到 Claude Desktop、Cursor 等",
     "description": "模型上下文协议 (MCP) 允许 AI 助手（如 Claude）连接到您的本地工具。Tabularis 暴露了一个 MCP 服务器，让 AI 可以安全地读取数据库模式并执行查询。",
     "checking": "检查配置中...",
-    "configPath": "配置文件",
     "notFound": "未找到配置文件（请手动创建）",
     "installed": "已安装",
     "install": "安装配置",
@@ -219,11 +231,9 @@
     "noConnections": "无活动连接",
     "createFirst": "创建您的第一个连接",
     "active": "活动",
-    "sshEnabled": "SSH 隧道已启用",
     "disconnect": "断开连接",
     "connect": "连接",
     "edit": "编辑",
-    "duplicate": "复制",
     "delete": "删除",
     "clone": "克隆",
     "confirmDelete": "确定要删除此连接吗？",
@@ -231,7 +241,6 @@
     "failConnect": "连接到 {{name}} 失败。请检查您的设置或确保数据库正在运行。",
     "failDisconnect": "断开数据库连接失败",
     "failDuplicate": "复制连接失败",
-    "connecting": "连接中...",
     "open": "打开",
     "pluginDisabled": "插件已禁用",
     "connectionCount": "{{count}} 个连接",
@@ -250,7 +259,6 @@
     "accentColor": "强调色",
     "customColor": "自定义",
     "resetColor": "重置为驱动默认",
-    "resetIcon": "重置为驱动默认",
     "icon": "图标",
     "tabs": {
       "default": "默认",
@@ -258,16 +266,22 @@
       "emoji": "表情",
       "image": "图片"
     },
+    "previewLabel": "Preview",
+    "defaultHint": "Using the driver's default icon.",
+    "emojiSelected": "Selected emoji",
+    "emojiHint": "Click another emoji below to change.",
+    "removeEmoji": "Clear",
     "chooseImage": "选择图片…",
     "removeImage": "移除",
     "imageHint": "PNG、JPG、WebP 或 SVG · 最大 512 KB",
-    "errors": {
-      "invalidEmoji": "请输入正好一个表情",
-      "invalidHex": "请输入有效的十六进制颜色，例如 #1a2b3c"
-    }
+    "errors": {},
+    "emojiSearch": "Search emoji…",
+    "iconNoResults": "No icons match.",
+    "iconResultsTruncated": "Showing {{shown}} of {{total}} — refine search to narrow down.",
+    "iconSearch": "Search icons…",
+    "noPreview": "No preview"
   },
   "settings": {
-    "title": "设置",
     "general": "通用",
     "info": "信息",
     "dataEditor": "数据编辑器",
@@ -289,8 +303,6 @@
     "themeSelection": "主题选择",
     "fontFamily": "字体",
     "fonts": {
-      "system": "系统默认",
-      "systemDesc": "使用您的操作系统默认字体",
       "custom": "自定义字体",
       "customPlaceholder": "例如：微软雅黑",
       "enterFontName": "在上方输入字体名称"
@@ -300,12 +312,36 @@
     "fontSizeDesc": "调整整个应用使用的基础字体大小（10-20px）。",
     "preview": "预览",
     "fontPreviewText": "The quick brown fox jumps over the lazy dog",
+    "appearance_general": "General",
+    "appearance_sqlEditor": "SQL Editor",
+    "appearance_editorTheme": "Editor Theme",
+    "appearance_editorThemeDesc": "Choose an independent theme for the SQL editor, or keep it in sync with the app theme.",
+    "appearance_sameAsApp": "Same as App",
+    "appearance_editorFontFamily": "Editor Font Family",
+    "appearance_editorFontSize": "Editor Font Size",
+    "appearance_editorLineHeight": "Line Height",
+    "appearance_editorTabSize": "Tab Size",
+    "appearance_editorWordWrap": "Word Wrap",
+    "appearance_editorWordWrapDesc": "Wrap long lines in the editor instead of scrolling horizontally.",
+    "appearance_editorShowLineNumbers": "Show Line Numbers",
+    "appearance_editorShowLineNumbersDesc": "Display line numbers in the editor gutter.",
+    "appearance_editorAcceptSuggestionOnEnter": "Accept Suggestion with Enter",
+    "appearance_editorAcceptSuggestionOnEnterDesc": "Allow Enter (in addition to Tab) to accept the active autocomplete suggestion. When off, Enter always inserts a newline.",
+    "editConfigJson": "Edit config.json",
+    "editConfigJsonDesc": "Directly edit the raw configuration file. A restart is required to apply changes.",
+    "configJsonModal": {
+      "title": "config.json",
+      "saveAndRestart": "Save & Restart",
+      "restartNow": "Restart Now",
+      "restartRequired": "A restart is required to apply changes.",
+      "restartMessage": "The configuration file has been saved. Restart now to apply the changes?"
+    },
     "language": "语言",
     "languageDesc": "选择您的首选语言。自动\"将使用您的系统语言。",
     "auto": "自动（系统）",
-    "english": "English",
-    "italian": "Italiano",
-    "spanish": "Español",
+    "timezone": "Timezone",
+    "timezoneDesc": "Timezone used to display timestamps and exports. 'Auto' follows your system timezone.",
+    "timezoneSearch": "Search timezones...",
     "projectStatus": "项目状态",
     "roadmapDesc": "此项目是正在进行的工作 (WIP)。核心功能已稳定，但我们有更大的计划。",
     "support": "支持开发",
@@ -418,6 +454,10 @@
     "debug": "调试",
     "warn": "警告",
     "error": "错误",
+    "connectionHealthCheck": "Connection Health Check",
+    "pingInterval": "Ping Interval",
+    "pingIntervalDesc": "How often to check if active connections are still alive. Set to 0 to disable.",
+    "seconds": "seconds",
     "entries": "条目",
     "queryHistory": "查询历史",
     "queryHistoryMaxEntries": "最大历史条目",
@@ -455,15 +495,10 @@
       "filterInstalled": "已安装",
       "filterUpdates": "更新",
       "searchNoResults": "没有匹配的插件。",
-      "version": "版本",
       "requiresVersion": "需要 Tabularis ≥ {{version}}",
-      "installedPlugins": "已安装插件",
-      "installedDesc": "启用或禁用数据库驱动程序。内置驱动程序无法禁用。",
       "remove": "移除",
       "removeTitle": "移除插件",
       "confirmRemove": "确定要移除 \"{{name}}\" 吗？这将删除插件文件。",
-      "enabled": "已启用",
-      "disabled": "已禁用",
       "installError": {
         "title": "安装失败",
         "subtitle": "安装插件时发生错误。请参阅下面的详细信息。",
@@ -534,7 +569,7 @@
       "notOverridable": "内置，不可自定义",
       "pressKeys": "按下组合键...",
       "notebookRunAll": "运行所有单元格",
-      "categories_notebook": "笔记本",
+      "pasteImportClipboard": "Import from Clipboard",
       "quickNavigator": "快速导航"
     },
     "aiActivity": "AI 活动"
@@ -543,44 +578,23 @@
     "newVersionAvailable": "有新版本可用",
     "version": "版本",
     "releaseNotes": "发布说明",
-    "downloads": "下载",
-    "download": "下载",
     "downloadAndInstall": "下载并安装",
     "downloading": "下载中...",
     "installing": "安装中...",
     "installingMessage": "安装后应用将自动重启",
     "viewOnGitHub": "在 GitHub 上查看",
     "remindLater": "稍后提醒我",
-    "skipVersion": "跳过此版本",
-    "checkingForUpdates": "检查更新中...",
     "upToDate": "已是最新版本",
     "updateAvailable": "版本 {{version}} 可用",
     "error": "更新错误",
-    "currentVersion": "当前版本",
     "managedByPackageManager": "更新由 {{source}} 管理",
     "managedByPackageManagerDesc": "使用您的包管理器更新 Tabularis。"
   },
   "ai": {
-    "assist": "AI 辅助",
     "explain": "解释",
-    "generateSql": "生成 SQL",
-    "generating": "生成中...",
-    "explainQuery": "AI 查询解释",
-    "queryLabel": "查询",
-    "explanationLabel": "解释",
-    "generatingExplanation": "生成解释中...",
-    "configRequired": "⚠️ 未配置 AI 提供商。请前往设置 > AI。",
-    "enterPrompt": "用自然语言描述您的查询",
-    "promptPlaceholder": "例如：查找所有上个月注册并订购了\"高级\"方案的用户...",
-    "readingSchema": "读取数据库模式中...",
-    "schemaError": "加载数据库模式上下文失败",
-    "configError": "请在设置中配置 AI 提供商并输入提示词。"
+    "generateSql": "生成 SQL"
   },
   "newConnection": {
-    "titleNew": "新建连接",
-    "titleEdit": "编辑连接",
-    "subtitle": "配置数据库连接设置",
-    "name": "连接名称",
     "namePlaceholder": "输入您的连接名称",
     "nameRequired": "连接名称是必需的",
     "dbNameRequired": "数据库名称是必需的",
@@ -589,7 +603,6 @@
     "port": "端口",
     "username": "用户名",
     "password": "密码",
-    "passwordMissing": "密码缺失或未设置。请重新输入。",
     "passwordPlaceholder": "输入密码",
     "usernamePlaceholder": "输入用户名",
     "filePath": "文件路径",
@@ -636,7 +649,12 @@
       "prefer": "首选",
       "require": "要求",
       "verify-ca": "验证 CA",
-      "verify-full": "完全验证"
+      "verify-full": "完全验证",
+      "disabled": "Disabled",
+      "preferred": "Preferred",
+      "required": "Required",
+      "verify_ca": "Verify CA",
+      "verify_identity": "Verify Identity"
     },
     "chooseContext": "选择上下文...",
     "chooseK8s": "选择连接...",
@@ -659,7 +677,20 @@
     "selectK8sConnection": "选择 K8s 连接",
     "selectTypeFirst": "请先选择上下文/命名空间/类型",
     "useK8s": "使用 Kubernetes 端口转发",
-    "useK8sConnection": "已保存的连接"
+    "useK8sConnection": "已保存的连接",
+    "connectionString": "Connection String",
+    "connectionStringPlaceholder": "e.g. mysql://user:pass@localhost:3306/db",
+    "general": "General",
+    "loadDatabasesHint": "Click Load Databases to fetch available databases.",
+    "noGeneralSettings": "No general settings available for this driver.",
+    "selectDatabasesHint": "Select the databases to include in this connection.",
+    "sshNotAvailable": "SSH is not available for this driver.",
+    "sslCa": "CA Certificate",
+    "sslCert": "Client Certificate",
+    "sslCertificatesOptional": "Certificate paths are optional. Leave empty to use system defaults.",
+    "sslDescription": "Configure SSL/TLS for secure database connections (optional).",
+    "sslKey": "Client Key",
+    "unnamedConnection": "Unnamed connection"
   },
   "sshConnections": {
     "title": "SSH 连接",
@@ -687,27 +718,19 @@
   "dataGrid": {
     "newRow": "新建",
     "noData": "无数据显示",
-    "editRow": "编辑行",
     "deleteRow": "删除行",
     "deleteRows": "删除 {{count}} 行",
-    "confirmDelete": "确定要删除此行吗？",
-    "deleteTitle": "删除行",
     "updateFailed": "更新失败：",
-    "deleteFailed": "删除行失败：",
     "null": "null",
     "sortByAsc": "按 {{col}} 升序排序",
     "sortByDesc": "按 {{col}} 降序排序",
     "clearSort": "清除排序",
     "copyCell": "复制单元格",
-    "copyRow": "复制行",
     "copySelectedRows": "复制选中的行",
     "copyColumnName": "复制列名",
     "copyColumnNameQuoted": "复制为 `列`",
     "copyColumnNameTable": "复制为 表.列",
-    "copyCells": "复制 {{count}} 个单元格",
-    "copyRows": "复制 {{count}} 行",
     "copied": "已复制到剪贴板",
-    "discardInsertion": "点击放弃此行（回滚）",
     "duplicateRow": "复制行",
     "revertSelected": "还原选中",
     "setGenerate": "设为 GENERATED",
@@ -718,23 +741,11 @@
     "previewReferenced": "预览相关记录",
     "openReferenced": "在 {{table}} 中打开引用的行"
   },
-  "editRow": {
-    "title": "编辑行",
-    "save": "保存更改",
-    "cancel": "取消",
-    "success": "行更新成功",
-    "failLoad": "加载编辑模式失败",
-    "failUpdate": "更新行失败：",
-    "loading": "加载中...",
-    "selectValue": "选择值...",
-    "noOptions": "未找到选项",
-    "current": "当前"
-  },
+  "editRow": {},
   "newRow": {
     "title": "新建行",
     "insert": "插入",
     "cancel": "取消",
-    "success": "行插入成功",
     "failInsert": "插入行失败：",
     "failLoad": "加载模式失败：",
     "loading": "加载中...",
@@ -746,26 +757,6 @@
     "auto": "自动"
   },
   "editor": {
-    "quickNavigator": {
-      "placeholder": "搜索表、视图、例程、触发器...",
-      "noResults": "未找到匹配的元素",
-      "count_one": "1 个元素",
-      "count_other": "{{count}} 个元素",
-      "navigationHint": "↑↓ 导航，Enter 打开",
-      "escHint": "Esc 关闭",
-      "type_table": "表",
-      "type_view": "视图",
-      "type_routine": "例程",
-      "type_trigger": "触发器",
-      "actions": {
-        "inspect": "查看结构",
-        "newConsole": "新建控制台",
-        "generateSql": "生成 SQL 模板",
-        "countRows": "统计行数",
-        "query": "执行 SELECT 查询",
-        "copyName": "复制名称"
-      }
-    },
     "noTabs": "此连接无打开的标签。",
     "newConsole": "新建控制台",
     "noActiveSession": "无活动会话。请选择一个连接。",
@@ -775,7 +766,6 @@
     "connected": "已连接",
     "disconnected": "已断开",
     "newRow": "新建行",
-    "editing": "编辑中：{{table}}",
     "rowsRetrieved": "已检索 {{count}} 行",
     "autoPaginated": "自动分页",
     "pageOf": "第 {{current}} 页，共 {{total}} 页",
@@ -808,8 +798,29 @@
     "tabSwitcher": {
       "title": "打开的标签",
       "hint": "Ctrl+Tab",
-      "tabs": "{{count}} 标签",
+      "tabs_one": "{{count}} tab",
+      "tabs_other": "{{count}} tabs",
       "escHint": "按 Esc 关闭"
+    },
+    "quickNavigator": {
+      "placeholder": "搜索表、视图、例程、触发器...",
+      "noResults": "未找到匹配的元素",
+      "count_one": "1 个元素",
+      "count_other": "{{count}} 个元素",
+      "navigationHint": "↑↓ 导航，Enter 打开",
+      "escHint": "Esc 关闭",
+      "type_table": "表",
+      "type_view": "视图",
+      "type_routine": "例程",
+      "type_trigger": "触发器",
+      "actions": {
+        "inspect": "查看结构",
+        "newConsole": "新建控制台",
+        "generateSql": "生成 SQL 模板",
+        "countRows": "统计行数",
+        "query": "执行 SELECT 查询",
+        "copyName": "复制名称"
+      }
     },
     "submitChanges": "提交更改",
     "rollbackChanges": "回滚更改",
@@ -823,13 +834,11 @@
     "paramValuePlaceholder": "值（例如 'text' 或 123）",
     "failedCreateRow": "创建新行失败：",
     "failedProcessInsertions": "处理插入失败：",
-    "fieldRequired": "此字段是必需的",
     "newNotebook": "新建笔记本",
     "visualExplain": {
       "title": "可视化执行计划",
       "buttonShort": "执行计划",
       "loading": "正在执行 EXPLAIN...",
-      "error": "EXPLAIN 执行失败",
       "planningTime": "规划时间",
       "executionTime": "执行时间",
       "totalCost": "总成本",
@@ -845,8 +854,8 @@
       "rawOutput": "原始输出",
       "analyze": "分析",
       "analyzeWarning": "ANALYZE 会实际执行查询。对数据修改语句请谨慎使用。",
-      "notSupported": "此连接类型不支持 EXPLAIN。",
       "notExplainable": "EXPLAIN 仅支持 DML 语句（SELECT、INSERT、UPDATE、DELETE）。DDL 语句（如 CREATE、DROP、ALTER）无法进行分析。",
+      "contextMenuExplain": "Explain Plan",
       "rerun": "重新运行",
       "close": "关闭",
       "graphView": "图形",
@@ -874,8 +883,6 @@
       "overview": "概览",
       "showOverview": "显示概览",
       "hideOverview": "隐藏概览",
-      "showNotes": "显示说明",
-      "hideNotes": "隐藏说明",
       "postgresAnalyzeLegend1": "PostgreSQL 的 ANALYZE 会在可用时包含实际行数、耗时、循环次数和缓冲区计数。",
       "postgresAnalyzeLegend2": "估算与实际差距过大通常意味着统计信息过旧，或存在规划器难以建模的谓词。",
       "postgresEstimateLegend1": "未启用 ANALYZE 的 PostgreSQL 仅显示规划器估算值。",
@@ -886,11 +893,6 @@
       "mysqlEstimateLegend2": "如果缺少耗时信息，服务器很可能返回的是仅估算的计划。",
       "sqliteLegend1": "SQLite 的 EXPLAIN QUERY PLAN 很轻量，主要用于展示结构。",
       "sqliteLegend2": "与 PostgreSQL 和 MySQL 相比，成本、耗时和行数估算通常不可用。",
-      "copySnapshot": "复制快照",
-      "exportRaw": "导出原始输出",
-      "snapshotCopied": "Explain 快照已复制到剪贴板",
-      "rawExported": "Explain 原始输出已导出",
-      "noRawOutput": "没有可导出的 Explain 原始输出。",
       "aiAnalysis": "AI 分析",
       "aiAnalysisTitle": "AI 执行计划分析",
       "aiAnalyzing": "正在使用 AI 分析执行计划...",
@@ -916,8 +918,6 @@
       "invalidFile": "无效的笔记本文件格式",
       "importSuccess": "笔记本导入成功",
       "exportSuccess": "笔记本导出成功",
-      "convertToConsole": "转换为控制台",
-      "runningAll": "正在运行所有单元格...",
       "cellResult": "{{count}} 行 · {{time}}毫秒",
       "stopOnError": "出错时停止",
       "stopOnErrorTooltip": "当单元格失败时停止执行",
@@ -944,8 +944,6 @@
       "collapseAll": "全部折叠",
       "expandAll": "全部展开",
       "outline": "大纲",
-      "aiGenerate": "使用 AI 生成 SQL",
-      "aiExplain": "使用 AI 解释此查询",
       "cellNamePlaceholder": "未命名",
       "editCellName": "编辑单元格名称",
       "aiGenerateName": "使用 AI 生成名称",
@@ -971,27 +969,38 @@
           "stopOnError": "切换了出错时停止",
           "other": "编辑了笔记本"
         }
-      }
+      },
+      "exportError": "Export failed"
     },
     "querySelection": {
       "title": "选择要执行的查询",
       "queriesFound": "找到 {{count}} 个查询",
-      "escToCancel": "Esc 取消",
-      "numberHint": "按 1-9 选择，方向键导航",
       "runAll": "全部执行",
       "runSelected": "执行选中 ({{count}})",
       "runSingle": "执行此查询",
       "selectAll": "全选",
       "deselectAll": "取消全选"
     },
+    "explainSelection": {
+      "title": "Select Query to Explain",
+      "queriesFound": "{{count}} explainable queries found",
+      "explainSingle": "Explain this query",
+      "explainFocused": "explain focused",
+      "explainNth": "explain Nth",
+      "cancel": "cancel"
+    },
     "multiResult": {
-      "query": "查询 {{index}}",
-      "summary": "{{total}} 个查询: {{succeeded}} 成功, {{failed}} 失败",
       "rerun": "重新执行查询",
       "close": "关闭标签",
       "rename": "重命名",
       "aiGenerateName": "使用 AI 生成名称",
-      "generatingName": "正在生成名称..."
+      "generatingName": "正在生成名称...",
+      "viewTabs": "Tab view",
+      "viewStacked": "Stacked view",
+      "queryPrefix": "Query",
+      "results": "Results",
+      "collapseAll": "Collapse all",
+      "expandAll": "Expand all"
     }
   },
   "createTable": {
@@ -1007,13 +1016,13 @@
     "colNn": "非空",
     "colAi": "自增",
     "colDefault": "默认值",
-    "showSql": "显示 SQL 预览",
-    "hideSql": "隐藏 SQL 预览",
     "create": "创建表",
     "cancel": "取消",
     "nameRequired": "表名称是必需的",
     "colRequired": "至少需要一列",
-    "failCreate": "创建表失败："
+    "failCreate": "创建表失败：",
+    "requiresExtension": "Requires extension: {{ext}}",
+    "sqlPreview": "SQL Preview"
   },
   "schema": {
     "title": "模式：{{table}}",
@@ -1023,7 +1032,8 @@
     "colNullable": "可为空",
     "colKey": "键",
     "yes": "是",
-    "no": "否"
+    "no": "否",
+    "close": "Close"
   },
   "generateSQL": {
     "title": "生成的 SQL：{{table}}",
@@ -1054,9 +1064,8 @@
     "cancel": "取消",
     "nameRequired": "列名称是必需的",
     "fail": "失败：",
-    "noChanges": "未检测到更改",
-    "unsupported": "不支持的驱动程序",
-    "pkNotSupported": "此驱动程序仅在表创建时支持主键"
+    "pkNotSupported": "此驱动程序仅在表创建时支持主键",
+    "requiresExtension": "Requires extension: {{ext}}"
   },
   "createIndex": {
     "title": "创建索引",
@@ -1080,11 +1089,13 @@
     "sqlPreview": "SQL 预览",
     "create": "创建外键",
     "cancel": "取消",
-    "colRequired": "请选择本地列和引用列",
-    "tableRequired": "请选择一个引用表"
+    "nameRequired": "Name is required"
+  },
+  "healthCheck": {
+    "title": "Connection Lost",
+    "connectionLost": "A database connection was lost"
   },
   "erDiagram": {
-    "title": "ER 图",
     "enterFullscreen": "全屏",
     "exitFullscreen": "退出全屏",
     "noConnection": "无连接 ID",
@@ -1106,7 +1117,6 @@
     "viewName": "视图名称",
     "viewNamePlaceholder": "例如：active_users, order_summary",
     "viewDefinition": "视图定义 (SQL)",
-    "definitionPlaceholder": "SELECT * FROM ...",
     "preview": "预览",
     "runPreview": "运行预览",
     "previewEmpty": "点击\"运行预览\"查看结果",
@@ -1120,7 +1130,36 @@
     "createSuccess": "视图创建成功",
     "alterSuccess": "视图更新成功",
     "saveError": "保存视图失败：",
-    "confirmAlter": "确定要修改视图 \"{{view}}\" 吗？"
+    "confirmAlter": "确定要修改视图 \"{{view}}\" 吗？",
+    "alterView": "Alter View"
+  },
+  "triggers": {
+    "createTrigger": "Create Trigger",
+    "editTrigger": "Edit Trigger",
+    "createSubtitle": "Create a new database trigger",
+    "editSubtitle": "Editing trigger: {{name}}",
+    "triggerName": "Trigger Name",
+    "triggerNamePlaceholder": "e.g. before_insert_user",
+    "tableName": "Table Name",
+    "tableNamePlaceholder": "e.g. users",
+    "timing": "Timing",
+    "events": "Events",
+    "body": "Trigger Body (SQL)",
+    "sqlPreview": "Generated SQL Preview",
+    "rawSql": "Raw SQL",
+    "guidedMode": "Guided",
+    "rawSqlMode": "Raw SQL",
+    "loading": "Loading trigger definition...",
+    "create": "Create Trigger",
+    "save": "Save Changes",
+    "sqlRequired": "Trigger SQL is required",
+    "failLoadDefinition": "Failed to load trigger definition: ",
+    "dropError": "Failed to drop existing trigger: ",
+    "saveError": "Failed to save trigger: ",
+    "createSuccess": "Trigger created successfully",
+    "updateSuccess": "Trigger updated successfully",
+    "recreateTrigger": "Recreate Trigger",
+    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?"
   },
   "community": {
     "title": "加入社区",
@@ -1152,12 +1191,10 @@
     "selectAll": "全选",
     "deselectAll": "取消全选",
     "export": "导出",
-    "exporting": "导出中...",
     "success": "数据库导出成功",
     "failure": "导出失败：",
     "errorNoOption": "请至少选择结构或数据",
     "errorNoTables": "请至少选择一个表",
-    "importStarted": "导入开始...",
     "importSuccess": "SQL 文件执行成功",
     "importFailure": "导入失败：",
     "importCancelled": "导入已取消",
@@ -1171,7 +1208,6 @@
     "sqlMode": "SQL 模式",
     "wktMode": "WKT 模式",
     "sqlHelper": "输入完整的 SQL 函数（例如 ST_GeomFromText('POINT(30 40)', 4326)）",
-    "wktHelper": "输入 WKT 格式（例如 POINT(30 40)）",
     "sqlPlaceholder": "ST_GeomFromText('POINT(30 40)', 4326)",
     "wktPlaceholder": "POINT(30 40)",
     "toggleTooltip": "SQL 函数"
@@ -1187,12 +1223,9 @@
       "raw": "原始"
     },
     "expand": "展开",
-    "collapse": "折叠",
     "search": "搜索",
-    "copyPath": "复制路径",
-    "copyValue": "复制值",
-    "addItem": "添加项",
-    "removeItem": "删除项"
+    "diff": "Diff",
+    "sideBySide": "Side by side"
   },
   "jsonViewer": {
     "close": "关闭",
@@ -1202,12 +1235,21 @@
     "expand": "展开/收起 JSON 树",
     "openViewer": "打开 JSON 查看器"
   },
+  "textCell": {
+    "expand": "Toggle inline text editor"
+  },
+  "textInput": {
+    "diff": "Diff",
+    "sideBySide": "Side by side"
+  },
+  "textViewer": {
+    "save": "Save"
+  },
   "rowEditor": {
     "title": "编辑行",
     "subtitle": "行 #{{row}}",
-    "save": "保存更改",
-    "cancel": "取消",
-    "enterValue": "输入值..."
+    "enterValue": "输入值...",
+    "resize": "Resize sidebar"
   },
   "contextMenu": {
     "openSidebar": "打开侧边栏编辑器",
@@ -1303,9 +1345,7 @@
     }
   },
   "groups": {
-    "title": "分组",
     "newGroup": "新建分组",
-    "createGroup": "创建分组",
     "rename": "重命名",
     "delete": "删除",
     "deleteConfirm": "确定要删除分组 \"{{name}}\" 吗？此分组中的连接将移至未分组。",
@@ -1313,13 +1353,12 @@
     "connection": "连接",
     "connections": "连接",
     "ungrouped": "未分组",
-    "moveToGroup": "移动到分组",
     "removeFromGroup": "从分组中移除",
-    "noGroups": "暂无分组",
-    "createFirst": "创建您的第一个分组以组织连接",
     "groupName": "分组名称",
-    "dragHint": "将连接拖到此处",
-    "createError": "创建分组失败"
+    "createError": "创建分组失败",
+    "deleteError": "Failed to delete group",
+    "moveError": "Failed to move connection",
+    "renameError": "Failed to rename group"
   },
   "queryModal": {
     "database": "数据库",
@@ -1381,9 +1420,13 @@
       "sessions": "会话"
     },
     "empty": "暂无 MCP 活动。",
+    "eventsCount_one": "{{count}} event",
     "eventsCount_other": "{{count}} 个事件",
+    "blockedCount_one": "{{count}} blocked",
     "blockedCount_other": "{{count}} 个被阻止",
+    "errorsCount_one": "{{count}} error",
     "errorsCount_other": "{{count}} 个错误",
+    "sessionsCount_one": "{{count}} session",
     "sessionsCount_other": "{{count}} 个会话",
     "events": "事件",
     "runQueries": "查询",
@@ -1440,7 +1483,9 @@
       "write": "写入",
       "ddl": "DDL",
       "unknown": "未知"
-    }
+    },
+    "exportCsv": "Export CSV",
+    "exportJson": "Export JSON"
   },
   "aiApproval": {
     "title": "AI 请求执行数据库写入",
@@ -1483,7 +1528,6 @@
     "port": "容器端口",
     "test": "测试",
     "testing": "测试中...",
-    "validationFailed": "验证失败",
     "errors": {
       "nameRequired": "连接名称为必填项",
       "contextRequired": "Kubernetes 上下文为必填项",

@@ -29,15 +29,14 @@
     "cancel": "Abbrechen",
     "delete": "Löschen",
     "edit": "Bearbeiten",
-    "clone": "Klonen",
-    "connect": "Verbinden",
-    "disconnect": "Trennen",
     "loading": "Wird geladen...",
     "search": "Suchen...",
     "noResults": "Keine Ergebnisse gefunden",
     "error": "Fehler",
     "success": "Erfolg",
-    "ok": "OK"
+    "ok": "OK",
+    "clear": "Clear",
+    "refresh": "Refresh"
   },
   "sidebar": {
     "connections": "Verbindungen",
@@ -105,6 +104,19 @@
     "procedures": "Prozeduren",
     "noRoutines": "Keine Routinen gefunden",
     "refreshRoutines": "Routinen aktualisieren",
+    "triggers": "Triggers",
+    "noTriggers": "No triggers found",
+    "filterTriggers": "Filter triggers...",
+    "noTriggersMatch": "No triggers match your filter",
+    "createTrigger": "Create New Trigger",
+    "editTrigger": "Edit Trigger",
+    "dropTrigger": "Drop Trigger",
+    "dropTriggerConfirm": "Are you sure you want to drop trigger \"{{trigger}}\"?",
+    "viewTriggerDefinition": "View Definition",
+    "failDropTrigger": "Failed to drop trigger: ",
+    "failGetTriggerDefinition": "Failed to get trigger definition: ",
+    "refreshTriggers": "Refresh Triggers",
+    "onTable": "on {{table}}",
     "objectSummary": "Objekte",
     "databases": "Datenbanken",
     "failGetRoutineDefinition": "Abrufen der Routinen-Definition fehlgeschlagen: ",
@@ -177,7 +189,6 @@
     "subtitle": "Verbinde Tabularis mit Claude Desktop, Cursor und mehr",
     "description": "Das Model Context Protocol (MCP) ermöglicht KI-Assistenten (wie Claude), sich mit deinen lokalen Tools zu verbinden. Tabularis stellt einen MCP-Server bereit, über den KI dein Datenbankschema lesen und Abfragen sicher ausführen kann.",
     "checking": "Konfiguration wird geprüft...",
-    "configPath": "Konfigurationsdatei",
     "notFound": "Konfigurationsdatei nicht gefunden (manuell erstellen)",
     "installed": "Installiert",
     "install": "Konfiguration installieren",
@@ -220,11 +231,9 @@
     "noConnections": "Keine aktiven Verbindungen",
     "createFirst": "Erstelle deine erste Verbindung",
     "active": "Aktiv",
-    "sshEnabled": "SSH-Tunnel aktiviert",
     "disconnect": "Trennen",
     "connect": "Verbinden",
     "edit": "Bearbeiten",
-    "duplicate": "Duplizieren",
     "delete": "Löschen",
     "clone": "Klonen",
     "confirmDelete": "Möchtest du diese Verbindung wirklich löschen?",
@@ -232,7 +241,6 @@
     "failConnect": "Verbindung zu {{name}} fehlgeschlagen. Bitte prüfe deine Einstellungen oder stelle sicher, dass die Datenbank läuft.",
     "failDisconnect": "Trennen von der Datenbank fehlgeschlagen",
     "failDuplicate": "Duplizieren der Verbindung fehlgeschlagen",
-    "connecting": "Verbinden...",
     "open": "Öffnen",
     "pluginDisabled": "Plugin deaktiviert",
     "connectionCount": "{{count}} Verbindung(en)",
@@ -251,7 +259,6 @@
     "accentColor": "Akzentfarbe",
     "customColor": "Benutzerdefiniert",
     "resetColor": "Auf Treiber-Standard zurücksetzen",
-    "resetIcon": "Auf Treiber-Standard zurücksetzen",
     "icon": "Symbol",
     "tabs": {
       "default": "Standard",
@@ -259,16 +266,22 @@
       "emoji": "Emoji",
       "image": "Bild"
     },
+    "previewLabel": "Preview",
+    "defaultHint": "Using the driver's default icon.",
+    "emojiSelected": "Selected emoji",
+    "emojiHint": "Click another emoji below to change.",
+    "removeEmoji": "Clear",
     "chooseImage": "Bild auswählen…",
     "removeImage": "Entfernen",
     "imageHint": "PNG, JPG, WebP oder SVG · max. 512 KB",
-    "errors": {
-      "invalidEmoji": "Bitte genau ein Emoji eingeben",
-      "invalidHex": "Bitte einen gültigen Hex-Wert wie #1a2b3c eingeben"
-    }
+    "errors": {},
+    "emojiSearch": "Search emoji…",
+    "iconNoResults": "No icons match.",
+    "iconResultsTruncated": "Showing {{shown}} of {{total}} — refine search to narrow down.",
+    "iconSearch": "Search icons…",
+    "noPreview": "No preview"
   },
   "settings": {
-    "title": "Einstellungen",
     "general": "Allgemein",
     "info": "Info",
     "dataEditor": "Dateneditor",
@@ -290,8 +303,6 @@
     "themeSelection": "Themaauswahl",
     "fontFamily": "Schriftfamilie",
     "fonts": {
-      "system": "Systemstandard",
-      "systemDesc": "Verwendet die Standardschrift deines Betriebssystems",
       "custom": "Benutzerdefinierte Schrift",
       "customPlaceholder": "z. B. Comic Sans MS",
       "enterFontName": "Schriftnamen oben eingeben"
@@ -322,17 +333,15 @@
       "title": "config.json",
       "saveAndRestart": "Speichern und neu starten",
       "restartNow": "Jetzt neu starten",
-      "restartLater": "Später",
       "restartRequired": "Ein Neustart ist erforderlich, um Änderungen anzuwenden.",
-      "restartMessage": "Die Konfigurationsdatei wurde gespeichert. Jetzt neu starten, um die Änderungen anzuwenden?",
-      "invalidJson": "Ungültiges JSON — bitte behebe die Fehler vor dem Speichern."
+      "restartMessage": "Die Konfigurationsdatei wurde gespeichert. Jetzt neu starten, um die Änderungen anzuwenden?"
     },
     "language": "Sprache",
     "languageDesc": "Wähle deine bevorzugte Sprache. \"Auto\" verwendet die Systemsprache.",
     "auto": "Auto (System)",
-    "english": "Englisch",
-    "italian": "Italienisch",
-    "spanish": "Spanisch",
+    "timezone": "Timezone",
+    "timezoneDesc": "Timezone used to display timestamps and exports. 'Auto' follows your system timezone.",
+    "timezoneSearch": "Search timezones...",
     "projectStatus": "Projektstatus",
     "roadmapDesc": "Dieses Projekt ist Work in Progress (WIP). Die Kernfunktionen sind stabil, aber wir haben große Pläne.",
     "support": "Entwicklung unterstützen",
@@ -486,15 +495,10 @@
       "filterInstalled": "Installiert",
       "filterUpdates": "Updates",
       "searchNoResults": "Keine Plugins entsprechen der Suche.",
-      "version": "Version",
       "requiresVersion": "Erfordert Tabularis ≥ {{version}}",
-      "installedPlugins": "Installierte Plugins",
-      "installedDesc": "Datenbanktreiber aktivieren oder deaktivieren. Integrierte Treiber können nicht deaktiviert werden.",
       "remove": "Entfernen",
       "removeTitle": "Plugin entfernen",
       "confirmRemove": "Möchtest du \"{{name}}\" wirklich entfernen? Dadurch werden die Plugin-Dateien gelöscht.",
-      "enabled": "Aktiviert",
-      "disabled": "Deaktiviert",
       "installError": {
         "title": "Installation fehlgeschlagen",
         "subtitle": "Bei der Installation des Plugins ist ein Fehler aufgetreten. Siehe Details unten.",
@@ -565,7 +569,6 @@
       "notOverridable": "Integriert, nicht anpassbar",
       "pressKeys": "Tastenkombination drücken...",
       "notebookRunAll": "Alle Zellen ausführen",
-      "categories_notebook": "Notebook",
       "pasteImportClipboard": "Aus Zwischenablage importieren",
       "quickNavigator": "Schnellnavigation"
     },
@@ -575,44 +578,23 @@
     "newVersionAvailable": "Neue Version verfügbar",
     "version": "Version",
     "releaseNotes": "Release Notes",
-    "downloads": "Downloads",
-    "download": "Herunterladen",
     "downloadAndInstall": "Herunterladen und installieren",
     "downloading": "Wird heruntergeladen...",
     "installing": "Wird installiert...",
     "installingMessage": "Die App wird nach der Installation automatisch neu gestartet",
     "viewOnGitHub": "Auf GitHub ansehen",
     "remindLater": "Später erinnern",
-    "skipVersion": "Diese Version überspringen",
-    "checkingForUpdates": "Suche nach Updates...",
     "upToDate": "Du bist auf dem neuesten Stand",
     "updateAvailable": "Version {{version}} ist verfügbar",
     "error": "Update-Fehler",
-    "currentVersion": "Aktuelle Version",
     "managedByPackageManager": "Updates werden von {{source}} verwaltet",
     "managedByPackageManagerDesc": "Verwende deinen Paketmanager, um Tabularis zu aktualisieren."
   },
   "ai": {
-    "assist": "AI Assist",
     "explain": "Erklären",
-    "generateSql": "SQL generieren",
-    "generating": "Wird generiert...",
-    "explainQuery": "KI-Abfrageerklärung",
-    "queryLabel": "Abfrage",
-    "explanationLabel": "Erklärung",
-    "generatingExplanation": "Erklärung wird generiert...",
-    "configRequired": "⚠️ KI-Anbieter nicht konfiguriert. Bitte gehe zu Einstellungen > KI.",
-    "enterPrompt": "Beschreibe deine Abfrage in natürlicher Sprache",
-    "promptPlaceholder": "z. B. Finde alle Benutzer, die sich letzten Monat registriert und einen 'Premium'-Plan bestellt haben...",
-    "readingSchema": "Datenbankschema wird gelesen...",
-    "schemaError": "Laden des Datenbankschema-Kontexts fehlgeschlagen",
-    "configError": "Bitte konfiguriere einen KI-Anbieter in den Einstellungen und gib einen Prompt ein."
+    "generateSql": "SQL generieren"
   },
   "newConnection": {
-    "titleNew": "Neue Verbindung",
-    "titleEdit": "Verbindung bearbeiten",
-    "subtitle": "Datenbankverbindungseinstellungen konfigurieren",
-    "name": "Verbindungsname",
     "namePlaceholder": "Gib deinen Verbindungsnamen an",
     "nameRequired": "Verbindungsname ist erforderlich",
     "dbNameRequired": "Datenbankname ist erforderlich",
@@ -621,7 +603,6 @@
     "port": "Port",
     "username": "Benutzername",
     "password": "Passwort",
-    "passwordMissing": "Passwort fehlt oder ist nicht gesetzt. Bitte erneut eingeben.",
     "passwordPlaceholder": "Passwort eingeben",
     "usernamePlaceholder": "Benutzername eingeben",
     "filePath": "Dateipfad",
@@ -668,7 +649,12 @@
       "prefer": "Bevorzugen",
       "require": "Erforderlich",
       "verify-ca": "CA prüfen",
-      "verify-full": "Vollständig prüfen"
+      "verify-full": "Vollständig prüfen",
+      "disabled": "Disabled",
+      "preferred": "Preferred",
+      "required": "Required",
+      "verify_ca": "Verify CA",
+      "verify_identity": "Verify Identity"
     },
     "chooseContext": "Kontext auswählen...",
     "chooseK8s": "Verbindung auswählen...",
@@ -691,7 +677,20 @@
     "selectK8sConnection": "K8s-Verbindung auswählen",
     "selectTypeFirst": "Zuerst Kontext/Namespace/Typ auswählen",
     "useK8s": "Kubernetes-Port-Forward verwenden",
-    "useK8sConnection": "Gespeicherte Verbindung"
+    "useK8sConnection": "Gespeicherte Verbindung",
+    "connectionString": "Connection String",
+    "connectionStringPlaceholder": "e.g. mysql://user:pass@localhost:3306/db",
+    "general": "General",
+    "loadDatabasesHint": "Click Load Databases to fetch available databases.",
+    "noGeneralSettings": "No general settings available for this driver.",
+    "selectDatabasesHint": "Select the databases to include in this connection.",
+    "sshNotAvailable": "SSH is not available for this driver.",
+    "sslCa": "CA Certificate",
+    "sslCert": "Client Certificate",
+    "sslCertificatesOptional": "Certificate paths are optional. Leave empty to use system defaults.",
+    "sslDescription": "Configure SSL/TLS for secure database connections (optional).",
+    "sslKey": "Client Key",
+    "unnamedConnection": "Unnamed connection"
   },
   "sshConnections": {
     "title": "SSH-Verbindungen",
@@ -719,27 +718,19 @@
   "dataGrid": {
     "newRow": "NEU",
     "noData": "Keine Daten zum Anzeigen",
-    "editRow": "Zeile bearbeiten",
     "deleteRow": "Zeile löschen",
     "deleteRows": "{{count}} Zeilen löschen",
-    "confirmDelete": "Möchtest du diese Zeile wirklich löschen?",
-    "deleteTitle": "Zeile löschen",
     "updateFailed": "Aktualisierung fehlgeschlagen: ",
-    "deleteFailed": "Löschen der Zeile fehlgeschlagen: ",
     "null": "null",
     "sortByAsc": "Nach {{col}} ASC sortieren",
     "sortByDesc": "Nach {{col}} DESC sortieren",
     "clearSort": "Sortierung löschen",
     "copyCell": "Zelle kopieren",
-    "copyRow": "Zeile kopieren",
     "copySelectedRows": "Ausgewählte Zeile(n) kopieren",
     "copyColumnName": "Spaltennamen kopieren",
     "copyColumnNameQuoted": "Als `column` kopieren",
     "copyColumnNameTable": "Als table.column kopieren",
-    "copyCells": "{{count}} Zelle(n) kopieren",
-    "copyRows": "{{count}} Zeile(n) kopieren",
     "copied": "In Zwischenablage kopiert",
-    "discardInsertion": "Klicken, um diese Zeile zu verwerfen (Rollback)",
     "duplicateRow": "Zeile duplizieren",
     "revertSelected": "Auswahl zurücksetzen",
     "setGenerate": "GENERATED setzen",
@@ -750,23 +741,11 @@
     "previewReferenced": "Verknüpften Datensatz anzeigen",
     "openReferenced": "Referenzierte Zeile in {{table}} öffnen"
   },
-  "editRow": {
-    "title": "Zeile bearbeiten",
-    "save": "Änderungen speichern",
-    "cancel": "Abbrechen",
-    "success": "Zeile erfolgreich aktualisiert",
-    "failLoad": "Laden des Schemas zur Bearbeitung fehlgeschlagen",
-    "failUpdate": "Aktualisierung der Zeile fehlgeschlagen: ",
-    "loading": "Wird geladen...",
-    "selectValue": "Wert auswählen...",
-    "noOptions": "Keine Optionen gefunden",
-    "current": "Aktuell"
-  },
+  "editRow": {},
   "newRow": {
     "title": "Neue Zeile",
     "insert": "Einfügen",
     "cancel": "Abbrechen",
-    "success": "Zeile erfolgreich eingefügt",
     "failInsert": "Einfügen der Zeile fehlgeschlagen: ",
     "failLoad": "Laden des Schemas fehlgeschlagen: ",
     "loading": "Wird geladen...",
@@ -778,26 +757,6 @@
     "auto": "Auto"
   },
   "editor": {
-    "quickNavigator": {
-      "placeholder": "Tabellen, Views, Routinen, Trigger suchen...",
-      "noResults": "Keine passenden Elemente gefunden",
-      "count_one": "1 Element",
-      "count_other": "{{count}} Elemente",
-      "navigationHint": "↑↓ zum Navigieren, Enter zum Öffnen",
-      "escHint": "Esc zum Schließen",
-      "type_table": "Tabelle",
-      "type_view": "View",
-      "type_routine": "Routine",
-      "type_trigger": "Trigger",
-      "actions": {
-        "inspect": "Struktur anzeigen",
-        "newConsole": "Neue Konsole",
-        "generateSql": "SQL-Vorlagen generieren",
-        "countRows": "Zeilen zählen",
-        "query": "SELECT-Abfrage ausführen",
-        "copyName": "Namen kopieren"
-      }
-    },
     "noTabs": "Keine geöffneten Tabs für diese Verbindung.",
     "newConsole": "Neue Konsole",
     "noActiveSession": "Keine aktive Sitzung. Bitte wähle eine Verbindung aus.",
@@ -807,7 +766,6 @@
     "connected": "Verbunden",
     "disconnected": "Getrennt",
     "newRow": "Neue Zeile",
-    "editing": "Bearbeitung: {{table}}",
     "rowsRetrieved": "{{count}} Zeilen abgerufen",
     "autoPaginated": "Automatisch paginiert",
     "pageOf": "Seite {{current}} von {{total}}",
@@ -844,6 +802,26 @@
       "tabs_other": "{{count}} Tabs",
       "escHint": "Esc zum Schließen"
     },
+    "quickNavigator": {
+      "placeholder": "Tabellen, Views, Routinen, Trigger suchen...",
+      "noResults": "Keine passenden Elemente gefunden",
+      "count_one": "1 Element",
+      "count_other": "{{count}} Elemente",
+      "navigationHint": "↑↓ zum Navigieren, Enter zum Öffnen",
+      "escHint": "Esc zum Schließen",
+      "type_table": "Tabelle",
+      "type_view": "View",
+      "type_routine": "Routine",
+      "type_trigger": "Trigger",
+      "actions": {
+        "inspect": "Struktur anzeigen",
+        "newConsole": "Neue Konsole",
+        "generateSql": "SQL-Vorlagen generieren",
+        "countRows": "Zeilen zählen",
+        "query": "SELECT-Abfrage ausführen",
+        "copyName": "Namen kopieren"
+      }
+    },
     "submitChanges": "Änderungen übernehmen",
     "rollbackChanges": "Änderungen zurückrollen",
     "applyToAll": "Auf alle anwenden",
@@ -856,13 +834,11 @@
     "paramValuePlaceholder": "Wert (z. B. 'Text' oder 123)",
     "failedCreateRow": "Erstellen einer neuen Zeile fehlgeschlagen: ",
     "failedProcessInsertions": "Verarbeitung von Einfügungen fehlgeschlagen: ",
-    "fieldRequired": "Dieses Feld ist erforderlich",
     "newNotebook": "Neues Notebook",
     "visualExplain": {
       "title": "Visual Explain",
       "buttonShort": "Plan erklären",
       "loading": "EXPLAIN wird ausgeführt...",
-      "error": "Ausführen von EXPLAIN fehlgeschlagen",
       "planningTime": "Planung",
       "executionTime": "Ausführung",
       "totalCost": "Gesamtkosten",
@@ -878,7 +854,6 @@
       "rawOutput": "Rohausgabe",
       "analyze": "Analysieren",
       "analyzeWarning": "ANALYZE führt die Abfrage aus. Bei datenverändernden Statements mit Vorsicht verwenden.",
-      "notSupported": "EXPLAIN wird für diesen Verbindungstyp nicht unterstützt.",
       "notExplainable": "EXPLAIN wird nur für DML-Statements (SELECT, INSERT, UPDATE, DELETE) unterstützt. DDL-Statements wie CREATE, DROP oder ALTER können nicht erklärt werden.",
       "contextMenuExplain": "Plan erklären",
       "rerun": "Erneut ausführen",
@@ -908,8 +883,6 @@
       "overview": "Übersicht",
       "showOverview": "Übersicht anzeigen",
       "hideOverview": "Übersicht ausblenden",
-      "showNotes": "Hinweise anzeigen",
-      "hideNotes": "Hinweise ausblenden",
       "postgresAnalyzeLegend1": "PostgreSQL ANALYZE enthält tatsächliche Zeilen, Laufzeit, Schleifen und Buffer-Zähler, sofern verfügbar.",
       "postgresAnalyzeLegend2": "Große Schätzabweichungen deuten meist auf veraltete Statistiken oder Prädikate hin, die der Planner schlecht modellieren kann.",
       "postgresEstimateLegend1": "PostgreSQL ohne ANALYZE zeigt nur Schätzungen des Planners.",
@@ -920,11 +893,6 @@
       "mysqlEstimateLegend2": "Fehlen Zeitwerte, hat der Server wahrscheinlich nur einen geschätzten Plan geliefert.",
       "sqliteLegend1": "SQLite EXPLAIN QUERY PLAN ist leichtgewichtig und hauptsächlich strukturell.",
       "sqliteLegend2": "Kosten, Laufzeit und Zeilenschätzungen sind im Vergleich zu PostgreSQL und MySQL oft nicht verfügbar.",
-      "copySnapshot": "Snapshot kopieren",
-      "exportRaw": "Rohdaten exportieren",
-      "snapshotCopied": "Explain-Snapshot in Zwischenablage kopiert",
-      "rawExported": "Rohe Explain-Ausgabe exportiert",
-      "noRawOutput": "Keine rohe Explain-Ausgabe zum Exportieren verfügbar.",
       "aiAnalysis": "KI-Analyse",
       "aiAnalysisTitle": "KI-Analyse des Abfrageplans",
       "aiAnalyzing": "Abfrageplan wird mit KI analysiert...",
@@ -950,8 +918,6 @@
       "invalidFile": "Ungültiges Notebook-Dateiformat",
       "importSuccess": "Notebook erfolgreich importiert",
       "exportSuccess": "Notebook erfolgreich exportiert",
-      "convertToConsole": "In Konsole umwandeln",
-      "runningAll": "Alle Zellen werden ausgeführt...",
       "cellResult": "{{count}} Zeilen · {{time}} ms",
       "stopOnError": "Bei Fehler stoppen",
       "stopOnErrorTooltip": "Ausführung stoppen, wenn eine Zelle fehlschlägt",
@@ -978,8 +944,6 @@
       "collapseAll": "Alle einklappen",
       "expandAll": "Alle ausklappen",
       "outline": "Gliederung",
-      "aiGenerate": "SQL mit KI generieren",
-      "aiExplain": "Diese Abfrage mit KI erklären",
       "cellNamePlaceholder": "Ohne Titel",
       "editCellName": "Zellnamen bearbeiten",
       "aiGenerateName": "Namen mit KI generieren",
@@ -1005,13 +969,12 @@
           "stopOnError": "Bei Fehler stoppen umgeschaltet",
           "other": "Notebook bearbeitet"
         }
-      }
+      },
+      "exportError": "Export failed"
     },
     "querySelection": {
       "title": "Abfrage zum Ausführen auswählen",
       "queriesFound": "{{count}} Abfragen gefunden",
-      "escToCancel": "Esc zum Abbrechen",
-      "numberHint": "Drücke 1-9 zum Auswählen, Pfeile zum Navigieren",
       "runAll": "Alle ausführen",
       "runSelected": "Ausgewählte ausführen ({{count}})",
       "runSingle": "Diese Abfrage ausführen",
@@ -1027,8 +990,6 @@
       "cancel": "abbrechen"
     },
     "multiResult": {
-      "query": "Abfrage {{index}}",
-      "summary": "{{total}} Abfragen: {{succeeded}} erfolgreich, {{failed}} fehlgeschlagen",
       "rerun": "Abfrage erneut ausführen",
       "close": "Tab schließen",
       "rename": "Umbenennen",
@@ -1039,8 +1000,7 @@
       "queryPrefix": "Abfrage",
       "results": "Ergebnisse",
       "collapseAll": "Alle einklappen",
-      "expandAll": "Alle ausklappen",
-      "collapsed": "Eingeklappt"
+      "expandAll": "Alle ausklappen"
     }
   },
   "createTable": {
@@ -1056,14 +1016,13 @@
     "colNn": "NN",
     "colAi": "AI",
     "colDefault": "Standardwert",
-    "showSql": "SQL-Vorschau anzeigen",
-    "hideSql": "SQL-Vorschau ausblenden",
     "create": "Tabelle erstellen",
     "cancel": "Abbrechen",
     "nameRequired": "Tabellenname ist erforderlich",
     "colRequired": "Mindestens eine Spalte ist erforderlich",
     "failCreate": "Erstellen der Tabelle fehlgeschlagen: ",
-    "requiresExtension": "Erfordert Erweiterung: {{ext}}"
+    "requiresExtension": "Erfordert Erweiterung: {{ext}}",
+    "sqlPreview": "SQL Preview"
   },
   "schema": {
     "title": "Schema: {{table}}",
@@ -1073,7 +1032,8 @@
     "colNullable": "Nullable",
     "colKey": "Schlüssel",
     "yes": "JA",
-    "no": "NEIN"
+    "no": "NEIN",
+    "close": "Close"
   },
   "generateSQL": {
     "title": "Generiertes SQL: {{table}}",
@@ -1104,8 +1064,6 @@
     "cancel": "Abbrechen",
     "nameRequired": "Spaltenname ist erforderlich",
     "fail": "Fehlgeschlagen: ",
-    "noChanges": "Keine Änderungen erkannt",
-    "unsupported": "Nicht unterstützter Treiber",
     "pkNotSupported": "Dieser Treiber unterstützt Primärschlüssel nur beim Erstellen einer Tabelle",
     "requiresExtension": "Erfordert Erweiterung: {{ext}}"
   },
@@ -1131,15 +1089,13 @@
     "sqlPreview": "SQL-Vorschau",
     "create": "Fremdschlüssel erstellen",
     "cancel": "Abbrechen",
-    "colRequired": "Bitte lokale und referenzierte Spalten auswählen",
-    "tableRequired": "Bitte eine referenzierte Tabelle auswählen"
+    "nameRequired": "Name is required"
   },
   "healthCheck": {
     "title": "Verbindung verloren",
     "connectionLost": "Eine Datenbankverbindung wurde verloren"
   },
   "erDiagram": {
-    "title": "ER-Diagramm",
     "enterFullscreen": "Vollbild",
     "exitFullscreen": "Vollbild verlassen",
     "noConnection": "Keine Verbindungs-ID",
@@ -1161,7 +1117,6 @@
     "viewName": "Ansichtsname",
     "viewNamePlaceholder": "z. B. active_users, order_summary",
     "viewDefinition": "Ansichtsdefinition (SQL)",
-    "definitionPlaceholder": "SELECT * FROM ...",
     "preview": "Vorschau",
     "runPreview": "Vorschau ausführen",
     "previewEmpty": "Klicke auf 'Vorschau ausführen', um Ergebnisse zu sehen",
@@ -1175,7 +1130,36 @@
     "createSuccess": "Ansicht erfolgreich erstellt",
     "alterSuccess": "Ansicht erfolgreich aktualisiert",
     "saveError": "Speichern der Ansicht fehlgeschlagen: ",
-    "confirmAlter": "Möchtest du die Ansicht \"{{view}}\" wirklich ändern?"
+    "confirmAlter": "Möchtest du die Ansicht \"{{view}}\" wirklich ändern?",
+    "alterView": "Alter View"
+  },
+  "triggers": {
+    "createTrigger": "Create Trigger",
+    "editTrigger": "Edit Trigger",
+    "createSubtitle": "Create a new database trigger",
+    "editSubtitle": "Editing trigger: {{name}}",
+    "triggerName": "Trigger Name",
+    "triggerNamePlaceholder": "e.g. before_insert_user",
+    "tableName": "Table Name",
+    "tableNamePlaceholder": "e.g. users",
+    "timing": "Timing",
+    "events": "Events",
+    "body": "Trigger Body (SQL)",
+    "sqlPreview": "Generated SQL Preview",
+    "rawSql": "Raw SQL",
+    "guidedMode": "Guided",
+    "rawSqlMode": "Raw SQL",
+    "loading": "Loading trigger definition...",
+    "create": "Create Trigger",
+    "save": "Save Changes",
+    "sqlRequired": "Trigger SQL is required",
+    "failLoadDefinition": "Failed to load trigger definition: ",
+    "dropError": "Failed to drop existing trigger: ",
+    "saveError": "Failed to save trigger: ",
+    "createSuccess": "Trigger created successfully",
+    "updateSuccess": "Trigger updated successfully",
+    "recreateTrigger": "Recreate Trigger",
+    "confirmRecreate": "Editing a trigger requires dropping and recreating it. Continue modifying \"{{trigger}}\"?"
   },
   "community": {
     "title": "Der Community beitreten",
@@ -1207,12 +1191,10 @@
     "selectAll": "Alle auswählen",
     "deselectAll": "Alle abwählen",
     "export": "Exportieren",
-    "exporting": "Wird exportiert...",
     "success": "Datenbank erfolgreich exportiert",
     "failure": "Export fehlgeschlagen: ",
     "errorNoOption": "Bitte wähle mindestens Struktur oder Daten",
     "errorNoTables": "Bitte wähle mindestens eine Tabelle",
-    "importStarted": "Import gestartet...",
     "importSuccess": "SQL-Datei erfolgreich ausgeführt",
     "importFailure": "Import fehlgeschlagen: ",
     "importCancelled": "Import abgebrochen",
@@ -1226,7 +1208,6 @@
     "sqlMode": "SQL-Modus",
     "wktMode": "WKT-Modus",
     "sqlHelper": "Gib eine vollständige SQL-Funktion ein (z. B. ST_GeomFromText('POINT(30 40)', 4326))",
-    "wktHelper": "Gib das WKT-Format ein (z. B. POINT(30 40))",
     "sqlPlaceholder": "ST_GeomFromText('POINT(30 40)', 4326)",
     "wktPlaceholder": "POINT(30 40)",
     "toggleTooltip": "SQL-Funktionen"
@@ -1242,12 +1223,9 @@
       "raw": "Rohtext"
     },
     "expand": "Aufklappen",
-    "collapse": "Zuklappen",
     "search": "Suchen",
-    "copyPath": "Pfad kopieren",
-    "copyValue": "Wert kopieren",
-    "addItem": "Element hinzufügen",
-    "removeItem": "Element entfernen"
+    "diff": "Diff",
+    "sideBySide": "Side by side"
   },
   "jsonViewer": {
     "close": "Schließen",
@@ -1257,12 +1235,21 @@
     "expand": "JSON-Baum ein-/ausklappen",
     "openViewer": "JSON-Viewer öffnen"
   },
+  "textCell": {
+    "expand": "Toggle inline text editor"
+  },
+  "textInput": {
+    "diff": "Diff",
+    "sideBySide": "Side by side"
+  },
+  "textViewer": {
+    "save": "Save"
+  },
   "rowEditor": {
     "title": "Zeile bearbeiten",
     "subtitle": "Zeile #{{row}}",
-    "save": "Änderungen speichern",
-    "cancel": "Abbrechen",
-    "enterValue": "Wert eingeben..."
+    "enterValue": "Wert eingeben...",
+    "resize": "Resize sidebar"
   },
   "contextMenu": {
     "openSidebar": "Seitenleisten-Editor öffnen",
@@ -1358,9 +1345,7 @@
     }
   },
   "groups": {
-    "title": "Gruppen",
     "newGroup": "Neue Gruppe",
-    "createGroup": "Gruppe erstellen",
     "rename": "Umbenennen",
     "delete": "Löschen",
     "deleteConfirm": "Möchtest du die Gruppe \"{{name}}\" wirklich löschen? Verbindungen in dieser Gruppe werden in Ungruppiert verschoben.",
@@ -1368,13 +1353,12 @@
     "connection": "Verbindung",
     "connections": "Verbindungen",
     "ungrouped": "Ungruppiert",
-    "moveToGroup": "In Gruppe verschieben",
     "removeFromGroup": "Aus Gruppe entfernen",
-    "noGroups": "Noch keine Gruppen",
-    "createFirst": "Erstelle deine erste Gruppe, um Verbindungen zu organisieren",
     "groupName": "Gruppenname",
-    "dragHint": "Verbindungen hierher ziehen",
-    "createError": "Erstellen der Gruppe fehlgeschlagen"
+    "createError": "Erstellen der Gruppe fehlgeschlagen",
+    "deleteError": "Failed to delete group",
+    "moveError": "Failed to move connection",
+    "renameError": "Failed to rename group"
   },
   "queryModal": {
     "database": "Datenbank",
@@ -1499,7 +1483,9 @@
       "write": "Schreiben",
       "ddl": "DDL",
       "unknown": "Unbekannt"
-    }
+    },
+    "exportCsv": "Export CSV",
+    "exportJson": "Export JSON"
   },
   "aiApproval": {
     "title": "KI möchte in die Datenbank schreiben",
@@ -1542,7 +1528,6 @@
     "port": "Container-Port",
     "test": "Testen",
     "testing": "Wird getestet...",
-    "validationFailed": "Validierung fehlgeschlagen",
     "errors": {
       "nameRequired": "Der Verbindungsname ist erforderlich",
       "contextRequired": "Der Kubernetes-Kontext ist erforderlich",

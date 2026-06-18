@@ -1751,7 +1751,7 @@ export const Editor = () => {
     } catch (err) {
       console.error("Failed to create new row:", err);
       showAlert(t("editor.failedCreateRow") + String(err), {
-        title: t("general.error"),
+        title: t("common.error"),
         kind: "error",
       });
     }

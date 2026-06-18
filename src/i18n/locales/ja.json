@@ -29,15 +29,14 @@
     "cancel": "キャンセル",
     "delete": "削除",
     "edit": "編集",
-    "clone": "複製",
-    "connect": "接続",
-    "disconnect": "切断",
     "loading": "読み込み中...",
     "search": "検索...",
     "noResults": "結果が見つかりません",
     "error": "エラー",
     "success": "成功",
-    "ok": "OK"
+    "ok": "OK",
+    "clear": "Clear",
+    "refresh": "Refresh"
   },
   "sidebar": {
     "connections": "接続",
@@ -190,7 +189,6 @@
     "subtitle": "Tabularis を Claude Desktop、Cursor などに接続",
     "description": "Model Context Protocol (MCP) を使うと、AI アシスタント (Claude など) がローカルツールに接続できます。Tabularis は MCP サーバーを公開しており、AI がデータベーススキーマを読み取り、クエリを安全に実行できるようにします。",
     "checking": "設定を確認中...",
-    "configPath": "設定ファイル",
     "notFound": "設定ファイルが見つかりません (手動で作成してください)",
     "installed": "インストール済み",
     "install": "設定をインストール",
@@ -233,11 +231,9 @@
     "noConnections": "アクティブな接続はありません",
     "createFirst": "最初の接続を作成",
     "active": "アクティブ",
-    "sshEnabled": "SSH トンネル有効",
     "disconnect": "切断",
     "connect": "接続",
     "edit": "編集",
-    "duplicate": "複製",
     "delete": "削除",
     "clone": "複製",
     "confirmDelete": "この接続を削除してもよろしいですか？",
@@ -245,7 +241,6 @@
     "failConnect": "{{name}} への接続に失敗しました。設定を確認するか、データベースが稼働していることを確認してください。",
     "failDisconnect": "データベースからの切断に失敗しました",
     "failDuplicate": "接続の複製に失敗しました",
-    "connecting": "接続中...",
     "open": "開く",
     "pluginDisabled": "プラグインが無効",
     "connectionCount": "{{count}} 件の接続",
@@ -264,7 +259,6 @@
     "accentColor": "アクセントカラー",
     "customColor": "カスタム",
     "resetColor": "ドライバーの初期設定に戻す",
-    "resetIcon": "ドライバーの初期設定に戻す",
     "icon": "アイコン",
     "tabs": {
       "default": "デフォルト",
@@ -272,16 +266,22 @@
       "emoji": "絵文字",
       "image": "画像"
     },
+    "previewLabel": "Preview",
+    "defaultHint": "Using the driver's default icon.",
+    "emojiSelected": "Selected emoji",
+    "emojiHint": "Click another emoji below to change.",
+    "removeEmoji": "Clear",
     "chooseImage": "画像を選択…",
     "removeImage": "削除",
     "imageHint": "PNG、JPG、WebP または SVG · 最大 512 KB",
-    "errors": {
-      "invalidEmoji": "絵文字を 1 つだけ入力してください",
-      "invalidHex": "#1a2b3c のような有効な 16 進カラーを入力してください"
-    }
+    "errors": {},
+    "emojiSearch": "Search emoji…",
+    "iconNoResults": "No icons match.",
+    "iconResultsTruncated": "Showing {{shown}} of {{total}} — refine search to narrow down.",
+    "iconSearch": "Search icons…",
+    "noPreview": "No preview"
   },
   "settings": {
-    "title": "設定",
     "general": "一般",
     "info": "情報",
     "dataEditor": "データエディタ",
@@ -296,13 +296,13 @@
     "delimiterSemicolon": "セミコロン (;)",
     "delimiterTab": "タブ",
     "delimiterPipe": "パイプ (|)",
+    "detectJsonInTextColumns": "Detect JSON in text columns",
+    "detectJsonInTextColumnsDesc": "Show the JSON viewer affordance when a non-typed text cell contains a JSON object or array. Adds a small per-cell parse cost.",
     "appearance": "外観",
     "localization": "ローカライズ",
     "themeSelection": "テーマ選択",
     "fontFamily": "フォントファミリー",
     "fonts": {
-      "system": "システム既定",
-      "systemDesc": "OS の既定フォントを使用します",
       "custom": "カスタムフォント",
       "customPlaceholder": "例: Comic Sans MS",
       "enterFontName": "上にフォント名を入力してください"
@@ -333,10 +333,8 @@
       "title": "config.json",
       "saveAndRestart": "保存して再起動",
       "restartNow": "今すぐ再起動",
-      "restartLater": "あとで",
       "restartRequired": "変更を反映するには再起動が必要です。",
-      "restartMessage": "設定ファイルを保存しました。変更を反映するために今すぐ再起動しますか？",
-      "invalidJson": "JSON が不正です — 保存前にエラーを修正してください。"
+      "restartMessage": "設定ファイルを保存しました。変更を反映するために今すぐ再起動しますか？"
     },
     "language": "言語",
     "languageDesc": "使用する言語を選択します。「自動」はシステムの言語を使用します。",
@@ -344,9 +342,6 @@
     "timezone": "タイムゾーン",
     "timezoneDesc": "タイムスタンプの表示とエクスポートに使用するタイムゾーン。「自動」はシステムのタイムゾーンに従います。",
     "timezoneSearch": "タイムゾーンを検索...",
-    "english": "英語",
-    "italian": "イタリア語",
-    "spanish": "スペイン語",
     "projectStatus": "プロジェクトの状態",
     "roadmapDesc": "このプロジェクトは現在開発中 (WIP) です。主要機能は安定していますが、より大きな構想も進めています。",
     "support": "開発をサポート",
@@ -500,15 +495,10 @@
       "filterInstalled": "インストール済み",
       "filterUpdates": "アップデート",
       "searchNoResults": "検索に一致するプラグインがありません。",
-      "version": "バージョン",
       "requiresVersion": "Tabularis ≥ {{version}} が必要です",
-      "installedPlugins": "インストール済みプラグイン",
-      "installedDesc": "データベースドライバを有効化・無効化します。組み込みドライバは無効化できません。",
       "remove": "削除",
       "removeTitle": "プラグインを削除",
       "confirmRemove": "「{{name}}」を削除してもよろしいですか？プラグインファイルが削除されます。",
-      "enabled": "有効",
-      "disabled": "無効",
       "installError": {
         "title": "インストール失敗",
         "subtitle": "プラグインのインストール中にエラーが発生しました。詳細は下記を参照してください。",
@@ -579,7 +569,6 @@
       "notOverridable": "組み込み、カスタマイズ不可",
       "pressKeys": "キーの組み合わせを押してください...",
       "notebookRunAll": "すべてのセルを実行",
-      "categories_notebook": "ノートブック",
       "pasteImportClipboard": "クリップボードからインポート",
       "quickNavigator": "クイックナビゲーター"
     },
@@ -589,44 +578,23 @@
     "newVersionAvailable": "新しいバージョンが利用可能",
     "version": "バージョン",
     "releaseNotes": "リリースノート",
-    "downloads": "ダウンロード",
-    "download": "ダウンロード",
     "downloadAndInstall": "ダウンロードしてインストール",
     "downloading": "ダウンロード中...",
     "installing": "インストール中...",
     "installingMessage": "インストール後にアプリは自動的に再起動します",
     "viewOnGitHub": "GitHub で表示",
     "remindLater": "あとで通知",
-    "skipVersion": "このバージョンをスキップ",
-    "checkingForUpdates": "アップデートを確認中...",
     "upToDate": "最新の状態です",
     "updateAvailable": "バージョン {{version}} が利用可能です",
     "error": "アップデートエラー",
-    "currentVersion": "現在のバージョン",
     "managedByPackageManager": "アップデートは {{source}} によって管理されています",
     "managedByPackageManagerDesc": "Tabularis のアップデートにはパッケージマネージャを使用してください。"
   },
   "ai": {
-    "assist": "AI Assist",
     "explain": "Explain",
-    "generateSql": "SQL を生成",
-    "generating": "生成中...",
-    "explainQuery": "AI によるクエリ説明",
-    "queryLabel": "クエリ",
-    "explanationLabel": "説明",
-    "generatingExplanation": "説明を生成中...",
-    "configRequired": "⚠️ AI プロバイダが未設定です。設定 > AI に移動してください。",
-    "enterPrompt": "クエリを自然言語で記述してください",
-    "promptPlaceholder": "例: 先月登録し、「Premium」プランを購入したすべてのユーザーを検索...",
-    "readingSchema": "データベーススキーマを読み込み中...",
-    "schemaError": "データベーススキーマのコンテキスト読み込みに失敗しました",
-    "configError": "設定で AI プロバイダを構成し、プロンプトを入力してください。"
+    "generateSql": "SQL を生成"
   },
   "newConnection": {
-    "titleNew": "新規接続",
-    "titleEdit": "接続を編集",
-    "subtitle": "データベース接続の設定を構成します",
-    "name": "接続名",
     "namePlaceholder": "接続名を入力",
     "nameRequired": "接続名は必須です",
     "dbNameRequired": "データベース名は必須です",
@@ -635,7 +603,6 @@
     "port": "ポート",
     "username": "ユーザー名",
     "password": "パスワード",
-    "passwordMissing": "パスワードが未入力または未設定です。再入力してください。",
     "passwordPlaceholder": "パスワードを入力",
     "usernamePlaceholder": "ユーザー名を入力",
     "filePath": "ファイルパス",
@@ -682,7 +649,12 @@
       "prefer": "優先",
       "require": "必須",
       "verify-ca": "CAを検証",
-      "verify-full": "完全検証"
+      "verify-full": "完全検証",
+      "disabled": "Disabled",
+      "preferred": "Preferred",
+      "required": "Required",
+      "verify_ca": "Verify CA",
+      "verify_identity": "Verify Identity"
     },
     "chooseContext": "コンテキストを選択...",
     "chooseK8s": "接続を選択...",
@@ -705,7 +677,20 @@
     "selectK8sConnection": "K8s 接続を選択",
     "selectTypeFirst": "先にコンテキスト/ネームスペース/タイプを選択してください",
     "useK8s": "Kubernetes ポートフォワードを使用",
-    "useK8sConnection": "保存された接続"
+    "useK8sConnection": "保存された接続",
+    "connectionString": "Connection String",
+    "connectionStringPlaceholder": "e.g. mysql://user:pass@localhost:3306/db",
+    "general": "General",
+    "loadDatabasesHint": "Click Load Databases to fetch available databases.",
+    "noGeneralSettings": "No general settings available for this driver.",
+    "selectDatabasesHint": "Select the databases to include in this connection.",
+    "sshNotAvailable": "SSH is not available for this driver.",
+    "sslCa": "CA Certificate",
+    "sslCert": "Client Certificate",
+    "sslCertificatesOptional": "Certificate paths are optional. Leave empty to use system defaults.",
+    "sslDescription": "Configure SSL/TLS for secure database connections (optional).",
+    "sslKey": "Client Key",
+    "unnamedConnection": "Unnamed connection"
   },
   "sshConnections": {
     "title": "SSH 接続",
@@ -731,28 +716,21 @@
     "savedInKeychain": "パスワードをシステムのキーチェーンに保存しました"
   },
   "dataGrid": {
+    "newRow": "NEW",
     "noData": "表示するデータがありません",
-    "editRow": "行を編集",
     "deleteRow": "行を削除",
     "deleteRows": "{{count}} 行を削除",
-    "confirmDelete": "この行を削除してもよろしいですか？",
-    "deleteTitle": "行を削除",
     "updateFailed": "更新に失敗しました: ",
-    "deleteFailed": "行の削除に失敗しました: ",
     "null": "null",
     "sortByAsc": "{{col}} を昇順で並べ替え",
     "sortByDesc": "{{col}} を降順で並べ替え",
     "clearSort": "並べ替えを解除",
     "copyCell": "セルをコピー",
-    "copyRow": "行をコピー",
     "copySelectedRows": "選択した行をコピー",
     "copyColumnName": "カラム名をコピー",
     "copyColumnNameQuoted": "`column` 形式でコピー",
     "copyColumnNameTable": "table.column 形式でコピー",
-    "copyCells": "{{count}} 個のセルをコピー",
-    "copyRows": "{{count}} 行をコピー",
     "copied": "クリップボードにコピーしました",
-    "discardInsertion": "クリックしてこの行を破棄 (ロールバック)",
     "duplicateRow": "行を複製",
     "revertSelected": "選択を元に戻す",
     "setGenerate": "GENERATED に設定",
@@ -763,23 +741,11 @@
     "previewReferenced": "関連レコードをプレビュー",
     "openReferenced": "{{table}} で参照行を開く"
   },
-  "editRow": {
-    "title": "行を編集",
-    "save": "変更を保存",
-    "cancel": "キャンセル",
-    "success": "行を正常に更新しました",
-    "failLoad": "編集用のスキーマ読み込みに失敗しました",
-    "failUpdate": "行の更新に失敗しました: ",
-    "loading": "読み込み中...",
-    "selectValue": "値を選択...",
-    "noOptions": "選択肢が見つかりません",
-    "current": "現在"
-  },
+  "editRow": {},
   "newRow": {
     "title": "新規行",
     "insert": "挿入",
     "cancel": "キャンセル",
-    "success": "行を正常に挿入しました",
     "failInsert": "行の挿入に失敗しました: ",
     "failLoad": "スキーマの読み込みに失敗しました: ",
     "loading": "読み込み中...",
@@ -791,26 +757,6 @@
     "auto": "自動"
   },
   "editor": {
-    "quickNavigator": {
-      "placeholder": "テーブル、ビュー、ルーチン、トリガーを検索...",
-      "noResults": "一致する要素が見つかりません",
-      "count_one": "1件",
-      "count_other": "{{count}}件",
-      "navigationHint": "↑↓で移動、Enterで開く",
-      "escHint": "Escで閉じる",
-      "type_table": "テーブル",
-      "type_view": "ビュー",
-      "type_routine": "ルーチン",
-      "type_trigger": "トリガー",
-      "actions": {
-        "inspect": "構造を表示",
-        "newConsole": "新規コンソール",
-        "generateSql": "SQLテンプレートを生成",
-        "countRows": "行数をカウント",
-        "query": "SELECTクエリを実行",
-        "copyName": "名前をコピー"
-      }
-    },
     "noTabs": "この接続に対して開いているタブはありません。",
     "newConsole": "新規コンソール",
     "noActiveSession": "アクティブなセッションがありません。接続を選択してください。",
@@ -820,7 +766,6 @@
     "connected": "接続済み",
     "disconnected": "切断済み",
     "newRow": "新規行",
-    "editing": "編集中: {{table}}",
     "rowsRetrieved": "{{count}} 行を取得しました",
     "autoPaginated": "自動ページング",
     "pageOf": "{{current}} / {{total}} ページ",
@@ -853,8 +798,29 @@
     "tabSwitcher": {
       "title": "開いているタブ",
       "hint": "Ctrl+Tab",
-      "tabs": "{{count}} タブ",
+      "tabs_one": "{{count}} tab",
+      "tabs_other": "{{count}} tabs",
       "escHint": "Esc で閉じる"
+    },
+    "quickNavigator": {
+      "placeholder": "テーブル、ビュー、ルーチン、トリガーを検索...",
+      "noResults": "一致する要素が見つかりません",
+      "count_one": "1件",
+      "count_other": "{{count}}件",
+      "navigationHint": "↑↓で移動、Enterで開く",
+      "escHint": "Escで閉じる",
+      "type_table": "テーブル",
+      "type_view": "ビュー",
+      "type_routine": "ルーチン",
+      "type_trigger": "トリガー",
+      "actions": {
+        "inspect": "構造を表示",
+        "newConsole": "新規コンソール",
+        "generateSql": "SQLテンプレートを生成",
+        "countRows": "行数をカウント",
+        "query": "SELECTクエリを実行",
+        "copyName": "名前をコピー"
+      }
     },
     "submitChanges": "変更を送信",
     "rollbackChanges": "変更をロールバック",
@@ -868,13 +834,11 @@
     "paramValuePlaceholder": "値 (例: 'text' や 123)",
     "failedCreateRow": "新規行の作成に失敗しました: ",
     "failedProcessInsertions": "挿入の処理に失敗しました: ",
-    "fieldRequired": "この項目は必須です",
     "newNotebook": "新規ノートブック",
     "visualExplain": {
       "title": "ビジュアル Explain",
       "buttonShort": "実行計画",
       "loading": "EXPLAIN を実行中...",
-      "error": "EXPLAIN の実行に失敗しました",
       "planningTime": "プランニング",
       "executionTime": "実行",
       "totalCost": "総コスト",
@@ -890,7 +854,6 @@
       "rawOutput": "生出力",
       "analyze": "分析",
       "analyzeWarning": "ANALYZE はクエリを実行します。データを変更するステートメントでは注意して使用してください。",
-      "notSupported": "この接続タイプでは EXPLAIN はサポートされていません。",
       "notExplainable": "EXPLAIN は DML ステートメント (SELECT, INSERT, UPDATE, DELETE) のみサポートされます。CREATE、DROP、ALTER などの DDL は説明できません。",
       "contextMenuExplain": "実行計画",
       "rerun": "再実行",
@@ -920,8 +883,6 @@
       "overview": "概要",
       "showOverview": "概要を表示",
       "hideOverview": "概要を非表示",
-      "showNotes": "補足を表示",
-      "hideNotes": "補足を非表示",
       "postgresAnalyzeLegend1": "PostgreSQL の ANALYZE では、利用可能な場合は実行行数、時間、ループ、バッファカウンタが含まれます。",
       "postgresAnalyzeLegend2": "大きな推定乖離は通常、古い統計やプランナーがモデル化しきれない述語を示します。",
       "postgresEstimateLegend1": "ANALYZE なしの PostgreSQL はプランナーの推定のみを表示します。",
@@ -932,11 +893,6 @@
       "mysqlEstimateLegend2": "タイミングが欠落している場合、サーバーは推定のみのプランを返している可能性があります。",
       "sqliteLegend1": "SQLite の EXPLAIN QUERY PLAN は軽量で、主に構造情報のみを提供します。",
       "sqliteLegend2": "コスト、タイミング、行数推定は PostgreSQL や MySQL と比べて得られないことが多いです。",
-      "copySnapshot": "スナップショットをコピー",
-      "exportRaw": "生データをエクスポート",
-      "snapshotCopied": "Explain スナップショットをクリップボードにコピーしました",
-      "rawExported": "生の Explain 出力をエクスポートしました",
-      "noRawOutput": "エクスポート可能な生の Explain 出力がありません。",
       "aiAnalysis": "AI 分析",
       "aiAnalysisTitle": "AI によるクエリ計画分析",
       "aiAnalyzing": "AI でクエリ計画を分析中...",
@@ -962,8 +918,6 @@
       "invalidFile": "不正なノートブックファイル形式です",
       "importSuccess": "ノートブックを正常にインポートしました",
       "exportSuccess": "ノートブックを正常にエクスポートしました",
-      "convertToConsole": "コンソールに変換",
-      "runningAll": "すべてのセルを実行中...",
       "cellResult": "{{count}} 行 · {{time}}ms",
       "stopOnError": "エラー時に停止",
       "stopOnErrorTooltip": "セルが失敗したら実行を停止します",
@@ -990,8 +944,6 @@
       "collapseAll": "すべて折りたたむ",
       "expandAll": "すべて展開",
       "outline": "アウトライン",
-      "aiGenerate": "AI で SQL を生成",
-      "aiExplain": "このクエリを AI で説明",
       "cellNamePlaceholder": "無題",
       "editCellName": "セル名を編集",
       "aiGenerateName": "AI で名前を生成",
@@ -1017,13 +969,12 @@
           "stopOnError": "エラー時に停止を切り替え",
           "other": "ノートブックを編集"
         }
-      }
+      },
+      "exportError": "Export failed"
     },
     "querySelection": {
       "title": "実行するクエリを選択",
       "queriesFound": "{{count}} 件のクエリが見つかりました",
-      "escToCancel": "Esc でキャンセル",
-      "numberHint": "1〜9 で選択、矢印キーで移動",
       "runAll": "すべて実行",
       "runSelected": "選択したものを実行 ({{count}})",
       "runSingle": "このクエリを実行",
@@ -1039,8 +990,6 @@
       "cancel": "キャンセル"
     },
     "multiResult": {
-      "query": "クエリ {{index}}",
-      "summary": "{{total}} 件のクエリ: {{succeeded}} 件成功、{{failed}} 件失敗",
       "rerun": "クエリを再実行",
       "close": "タブを閉じる",
       "rename": "名前を変更",
@@ -1051,8 +1000,7 @@
       "queryPrefix": "クエリ",
       "results": "結果",
       "collapseAll": "すべて折りたたむ",
-      "expandAll": "すべて展開",
-      "collapsed": "折りたたみ中"
+      "expandAll": "すべて展開"
     }
   },
   "createTable": {
@@ -1068,14 +1016,13 @@
     "colNn": "NN",
     "colAi": "AI",
     "colDefault": "デフォルト",
-    "showSql": "SQL プレビューを表示",
-    "hideSql": "SQL プレビューを非表示",
     "create": "テーブルを作成",
     "cancel": "キャンセル",
     "nameRequired": "テーブル名は必須です",
     "colRequired": "少なくとも 1 つのカラムが必要です",
     "failCreate": "テーブルの作成に失敗しました: ",
-    "requiresExtension": "拡張機能が必要: {{ext}}"
+    "requiresExtension": "拡張機能が必要: {{ext}}",
+    "sqlPreview": "SQL Preview"
   },
   "schema": {
     "title": "スキーマ: {{table}}",
@@ -1085,7 +1032,8 @@
     "colNullable": "NULL 許可",
     "colKey": "キー",
     "yes": "はい",
-    "no": "いいえ"
+    "no": "いいえ",
+    "close": "Close"
   },
   "generateSQL": {
     "title": "生成された SQL: {{table}}",
@@ -1116,8 +1064,6 @@
     "cancel": "キャンセル",
     "nameRequired": "カラム名は必須です",
     "fail": "失敗: ",
-    "noChanges": "変更は検出されませんでした",
-    "unsupported": "サポートされていないドライバ",
     "pkNotSupported": "このドライバはテーブル作成時のみ主キーをサポートします",
     "requiresExtension": "拡張機能が必要: {{ext}}"
   },
@@ -1143,15 +1089,13 @@
     "sqlPreview": "SQL プレビュー",
     "create": "外部キーを作成",
     "cancel": "キャンセル",
-    "colRequired": "ローカルカラムと参照カラムを選択してください",
-    "tableRequired": "参照テーブルを選択してください"
+    "nameRequired": "Name is required"
   },
   "healthCheck": {
     "title": "接続が失われました",
     "connectionLost": "データベース接続が失われました"
   },
   "erDiagram": {
-    "title": "ER 図",
     "enterFullscreen": "フルスクリーン",
     "exitFullscreen": "フルスクリーンを終了",
     "noConnection": "接続 ID がありません",
@@ -1173,7 +1117,6 @@
     "viewName": "ビュー名",
     "viewNamePlaceholder": "例: active_users, order_summary",
     "viewDefinition": "ビュー定義 (SQL)",
-    "definitionPlaceholder": "SELECT * FROM ...",
     "preview": "プレビュー",
     "runPreview": "プレビューを実行",
     "previewEmpty": "「プレビューを実行」をクリックすると結果が表示されます",
@@ -1187,7 +1130,8 @@
     "createSuccess": "ビューを正常に作成しました",
     "alterSuccess": "ビューを正常に更新しました",
     "saveError": "ビューの保存に失敗しました: ",
-    "confirmAlter": "ビュー「{{view}}」を変更してもよろしいですか？"
+    "confirmAlter": "ビュー「{{view}}」を変更してもよろしいですか？",
+    "alterView": "Alter View"
   },
   "triggers": {
     "createTrigger": "トリガーを作成",
@@ -1247,12 +1191,10 @@
     "selectAll": "すべて選択",
     "deselectAll": "すべて解除",
     "export": "エクスポート",
-    "exporting": "エクスポート中...",
     "success": "データベースを正常にエクスポートしました",
     "failure": "エクスポートに失敗しました: ",
     "errorNoOption": "構造かデータのいずれかを選択してください",
     "errorNoTables": "少なくとも 1 つのテーブルを選択してください",
-    "importStarted": "インポートを開始しました...",
     "importSuccess": "SQL ファイルを正常に実行しました",
     "importFailure": "インポートに失敗しました: ",
     "importCancelled": "インポートをキャンセルしました",
@@ -1266,7 +1208,6 @@
     "sqlMode": "SQL モード",
     "wktMode": "WKT モード",
     "sqlHelper": "完全な SQL 関数を入力してください (例: ST_GeomFromText('POINT(30 40)', 4326))",
-    "wktHelper": "WKT 形式を入力してください (例: POINT(30 40))",
     "sqlPlaceholder": "ST_GeomFromText('POINT(30 40)', 4326)",
     "wktPlaceholder": "POINT(30 40)",
     "toggleTooltip": "SQL 関数"
@@ -1275,17 +1216,44 @@
     "placeholder": "JSON を入力...",
     "format": "整形",
     "valid": "有効な JSON",
-    "invalid": "無効な JSON"
+    "invalid": "無効な JSON",
+    "mode": {
+      "code": "Code",
+      "tree": "Tree",
+      "raw": "Raw"
+    },
+    "expand": "Expand",
+    "search": "Search",
+    "diff": "Diff",
+    "sideBySide": "Side by side"
+  },
+  "jsonViewer": {
+    "close": "Close",
+    "save": "Save"
+  },
+  "jsonCell": {
+    "expand": "Toggle inline JSON tree",
+    "openViewer": "Open JSON viewer"
+  },
+  "textCell": {
+    "expand": "Toggle inline text editor"
+  },
+  "textInput": {
+    "diff": "Diff",
+    "sideBySide": "Side by side"
+  },
+  "textViewer": {
+    "save": "Save"
   },
   "rowEditor": {
     "title": "行を編集",
     "subtitle": "行 #{{row}}",
-    "save": "変更を保存",
-    "cancel": "キャンセル",
-    "enterValue": "値を入力..."
+    "enterValue": "値を入力...",
+    "resize": "Resize sidebar"
   },
   "contextMenu": {
-    "openSidebar": "サイドバーエディタで開く"
+    "openSidebar": "サイドバーエディタで開く",
+    "openJsonEditor": "Open in JSON Editor"
   },
   "blobInput": {
     "noData": "BLOB データなし",
@@ -1377,9 +1345,7 @@
     }
   },
   "groups": {
-    "title": "グループ",
     "newGroup": "新規グループ",
-    "createGroup": "グループを作成",
     "rename": "名前を変更",
     "delete": "削除",
     "deleteConfirm": "グループ「{{name}}」を削除してもよろしいですか？このグループ内の接続は未分類に移動されます。",
@@ -1387,13 +1353,12 @@
     "connection": "接続",
     "connections": "接続",
     "ungrouped": "未分類",
-    "moveToGroup": "グループに移動",
     "removeFromGroup": "グループから削除",
-    "noGroups": "グループはまだありません",
-    "createFirst": "最初のグループを作成して接続を整理しましょう",
     "groupName": "グループ名",
-    "dragHint": "接続をここにドラッグ",
-    "createError": "グループの作成に失敗しました"
+    "createError": "グループの作成に失敗しました",
+    "deleteError": "Failed to delete group",
+    "moveError": "Failed to move connection",
+    "renameError": "Failed to rename group"
   },
   "queryModal": {
     "database": "データベース",
@@ -1518,7 +1483,9 @@
       "write": "書き込み",
       "ddl": "DDL",
       "unknown": "不明"
-    }
+    },
+    "exportCsv": "Export CSV",
+    "exportJson": "Export JSON"
   },
   "aiApproval": {
     "title": "AI がデータベース書き込みを要求しています",
@@ -1561,7 +1528,6 @@
     "port": "コンテナポート",
     "test": "テスト",
     "testing": "テスト中...",
-    "validationFailed": "検証に失敗しました",
     "errors": {
       "nameRequired": "接続名は必須です",
       "contextRequired": "Kubernetes コンテキストは必須です",
