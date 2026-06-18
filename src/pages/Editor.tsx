@@ -87,6 +87,8 @@ import { type OnMount, type Monaco } from "@monaco-editor/react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../hooks/useAlert";
 import { useDatabase } from "../hooks/useDatabase";
+import { useDrivers } from "../hooks/useDrivers";
+import { getConnectionAccent } from "../utils/driverUI";
 import { useSavedQueries } from "../hooks/useSavedQueries";
 import { useQueryHistory } from "../hooks/useQueryHistory";
 import { useSettings } from "../hooks/useSettings";
@@ -137,6 +139,7 @@ export const Editor = () => {
   const { t } = useTranslation();
   const {
     activeConnectionId,
+    connections,
     tables,
     views,
     activeDriver,
@@ -148,6 +151,7 @@ export const Editor = () => {
     schemaDataMap,
     databaseDataMap,
   } = useDatabase();
+  const { allDrivers } = useDrivers();
   const { explorerConnectionId } = useConnectionLayoutContext();
   const { settings } = useSettings();
   const { saveQuery } = useSavedQueries();
@@ -2451,10 +2455,25 @@ export const Editor = () => {
     );
   }
 
+  const activeConnection = connections.find((c) => c.id === activeConnectionId);
+  const tabBarAccent = activeConnectionId
+    ? getConnectionAccent(
+        activeConnection,
+        allDrivers.find((d) => d.id === activeDriver),
+      )
+    : null;
+
   return (
     <div className="flex flex-col h-full bg-base">
-      {/* Tab Bar */}
-      <div className="flex items-center bg-elevated border-b border-default h-9 shrink-0">
+      {/* Tab Bar — tinted with the active connection's accent color */}
+      <div
+        className="flex items-center bg-elevated border-b border-default h-9 shrink-0"
+        style={
+          tabBarAccent
+            ? { backgroundImage: `linear-gradient(${tabBarAccent}2e, ${tabBarAccent}2e)` }
+            : undefined
+        }
+      >
         <button
           onClick={() => scrollTabs("left")}
           disabled={!canScrollLeft}
