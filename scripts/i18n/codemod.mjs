@@ -203,14 +203,14 @@ export function transformSource(code, opts) {
       continue;
     }
 
-    // Plain string.
+    // Plain string. A backtick / stray ${ rules out a tagged template, so fall
+    // back to the object descriptor form (a normal double-quoted message).
     const tpl = toTemplate(text);
     if (tpl === null) {
-      note(call, "unsafe template literal");
-      usedT = true;
-      continue;
+      call.replaceWithText(`t({ message: ${jsonString(text)} })`);
+    } else {
+      call.replaceWithText("t`" + tpl + "`");
     }
-    call.replaceWithText("t`" + tpl + "`");
     record({ message: text, kind: "plain", key });
     usedT = true;
   }
@@ -226,9 +226,12 @@ export function transformSource(code, opts) {
         i18nImport.setModuleSpecifier("@lingui/react/macro");
         i18nImport.getNamedImports()[0].setName("useLingui");
       } else {
-        i18nImport.removeNamedImport(
-          i18nImport.getNamedImports().find((n) => n.getName() === "useTranslation"),
-        );
+        // Other named imports stay on react-i18next (e.g. a leftover <Trans>,
+        // converted manually in Task 3); drop only useTranslation.
+        i18nImport
+          .getNamedImports()
+          .find((n) => n.getName() === "useTranslation")
+          .remove();
         sf.addImportDeclaration({
           moduleSpecifier: "@lingui/react/macro",
           namedImports: ["useLingui"],

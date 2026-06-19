@@ -1,4 +1,5 @@
 import { plural } from "@lingui/core/macro";
+import { Trans } from "react-i18next";
 import { useLingui } from "@lingui/react/macro";
 
 export function Demo({ count, name, time, dynamicKey }: Props) {
@@ -10,7 +11,9 @@ export function Demo({ count, name, time, dynamicKey }: Props) {
       <span>{plural(count, { one: "# row · {time}ms", other: "# rows · {time}ms" })}</span>
       <p>{t`Delete index "${name}"?`}</p>
       <p>{t({ message: "Delete", context: "generateSQL" })}</p>
+      <p>{t({ message: "Copy as `column`" })}</p>
       <p>{t(dynamicKey)}</p>
+      <Trans i18nKey="schema.close" />
     </div>
   );
 }
