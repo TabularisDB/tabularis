@@ -44,12 +44,25 @@ const expectKeys = new Set([
   "sidebar.deleteIndexConfirm",
   "generateSQL.tabDelete",
 ]);
-const gotKeys = new Set(Object.values(manifest).flat());
+const gotKeys = new Set(Object.values(manifest).flatMap((e) => e.originalKeys));
 for (const k of expectKeys) {
   if (!gotKeys.has(k)) {
     ok = false;
     console.error(`--- manifest missing key: ${k} ---`);
   }
+}
+
+// Plural entries must carry the stem + en forms so the backfill can rebuild
+// each target locale's own plural set.
+const pluralEntry = Object.values(manifest).find((e) => e.kind === "plural");
+if (!pluralEntry || pluralEntry.stem == null || pluralEntry.forms == null) {
+  ok = false;
+  console.error("--- plural manifest entry missing stem/forms ---", pluralEntry);
+}
+const harmfulEntry = Object.values(manifest).find((e) => e.kind === "harmful");
+if (!harmfulEntry || harmfulEntry.context == null) {
+  ok = false;
+  console.error("--- harmful manifest entry missing context ---", harmfulEntry);
 }
 
 if (ok) {

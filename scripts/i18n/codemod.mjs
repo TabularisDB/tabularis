@@ -104,10 +104,20 @@ export function transformSource(code, opts) {
   let needPluralImport = false;
   let usedT = false;
 
-  const record = (message, context, key) => {
+  // Manifest entries are keyed by the Lingui message identity (msgid, plus the
+  // gettext context delimiter when present) and carry everything the Task-4
+  // backfill needs to rebuild each target locale: `kind`, `context`, the source
+  // `message`, the plural `stem` (i18next base key, so the backfill can gather
+  // the target locale's own _one/_few/_many/_other forms), the en `forms`, and
+  // every original i18next key that collapsed into this message.
+  const record = ({ message, context = null, key, kind, stem = null, forms = null }) => {
     const mkey = context ? message + CONTEXT_DELIM + context : message;
-    if (!manifest[mkey]) manifest[mkey] = [];
-    manifest[mkey].push(key);
+    if (!manifest[mkey]) {
+      manifest[mkey] = { kind, context, message, stem, forms, originalKeys: [] };
+    }
+    if (!manifest[mkey].originalKeys.includes(key)) {
+      manifest[mkey].originalKeys.push(key);
+    }
   };
 
   const note = (node, reason) => {
@@ -155,8 +165,13 @@ export function transformSource(code, opts) {
       call.replaceWithText(
         `plural(${countExpr}, { one: ${jsonString(oneIcu)}, other: ${jsonString(otherIcu)} })`,
       );
-      record(en[otherKey], null, otherKey);
-      record(en[oneKey], null, oneKey);
+      // Lingui extracts the macro to a single ICU msgid; the exact string is the
+      // join key into the extracted catalog. The backfill verifies every catalog
+      // entry resolves, so any serialization drift surfaces loudly there.
+      const pluralMessage = `{count, plural, one {${oneIcu}} other {${otherIcu}}}`;
+      const forms = { one: oneIcu, other: otherIcu };
+      record({ message: pluralMessage, kind: "plural", stem: key, forms, key: oneKey });
+      record({ message: pluralMessage, kind: "plural", stem: key, forms, key: otherKey });
       needPluralImport = true;
       continue;
     }
@@ -168,7 +183,7 @@ export function transformSource(code, opts) {
       call.replaceWithText(
         `t({ message: ${jsonString(message)}, context: ${jsonString(harmful[key])} })`,
       );
-      record(message, harmful[key], key);
+      record({ message, context: harmful[key], kind: "harmful", key });
       usedT = true;
       continue;
     }
@@ -183,7 +198,7 @@ export function transformSource(code, opts) {
       // The named values must be reachable as identifiers in scope; the options
       // object passes them, but the macro reads the in-scope variable directly.
       call.replaceWithText("t`" + tpl + "`");
-      record(toIcu(text), null, key);
+      record({ message: toIcu(text), kind: "interp", key });
       usedT = true;
       continue;
     }
@@ -196,7 +211,7 @@ export function transformSource(code, opts) {
       continue;
     }
     call.replaceWithText("t`" + tpl + "`");
-    record(text, null, key);
+    record({ message: text, kind: "plain", key });
     usedT = true;
   }
 
@@ -265,9 +280,14 @@ function cli() {
     const code = readFileSync(file, "utf8");
     const res = transformSource(code, { en, harmful });
     writeFileSync(file, res.output);
-    for (const [mkey, keys] of Object.entries(res.manifest)) {
-      if (!manifest[mkey]) manifest[mkey] = [];
-      manifest[mkey].push(...keys);
+    for (const [mkey, entry] of Object.entries(res.manifest)) {
+      if (!manifest[mkey]) {
+        manifest[mkey] = { ...entry, originalKeys: [...entry.originalKeys] };
+        continue;
+      }
+      for (const k of entry.originalKeys) {
+        if (!manifest[mkey].originalKeys.includes(k)) manifest[mkey].originalKeys.push(k);
+      }
     }
     for (const r of res.reviewNeeded) {
       reviewNeeded.push(r.replace(/^input\.tsx/, file));
