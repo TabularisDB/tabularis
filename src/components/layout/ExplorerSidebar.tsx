@@ -436,7 +436,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     });
     if (file && typeof file === "string") {
       const confirmed = await ask(
-        t`Are you sure you want to import "${file}"?
+        t`Are you sure you want to import "${file.split(/[\\/]/).pop()}"?
 This may overwrite existing data.`,
         { title: t`Run SQL File...`, kind: "warning" },
       );
@@ -2382,7 +2382,7 @@ This may overwrite existing data.`,
         isOpen={favoriteDeleteConfirm !== null}
         onClose={() => setFavoriteDeleteConfirm(null)}
         title={t`Delete Query`}
-        message={t`Are you sure you want to delete query "${name}"?`}
+        message={t`Are you sure you want to delete query "${queries.find((q) => q.id === favoriteDeleteConfirm)?.name ?? ""}"?`}
         onConfirm={() => {
           if (favoriteDeleteConfirm) {
             deleteQuery(favoriteDeleteConfirm);

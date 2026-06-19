@@ -274,7 +274,7 @@ export const Connections = () => {
       navigate("/editor");
     } catch (e) {
       setError(
-        `${t`Failed to connect to ${name}. Please check your settings or ensuring the database is running.`}\n\nError: ${toErrorMessage(e)}`,
+        `${t`Failed to connect to ${conn.name}. Please check your settings or ensuring the database is running.`}\n\nError: ${toErrorMessage(e)}`,
       );
     } finally {
       setConnectingId(null);
