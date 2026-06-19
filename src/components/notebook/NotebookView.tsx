@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { invoke } from "@tauri-apps/api/core";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
@@ -84,7 +84,7 @@ export function NotebookView({
   connectionId,
   isActive,
 }: NotebookViewProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { activeSchema, activeCapabilities, selectedDatabases } = useDatabase();
   const isMultiDb =
     isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1;
@@ -481,11 +481,11 @@ export function NotebookView({
       if (!filePath) return;
 
       await writeTextFile(filePath, JSON.stringify(notebookFile, null, 2));
-      showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      showAlert(t`Notebook exported successfully`, { kind: "info" });
     } catch (e) {
       console.error("Notebook export failed:", e);
       showAlert(
-        t("editor.notebook.exportError") ||
+        t`Export failed` ||
           `Export failed: ${e instanceof Error ? e.message : String(e)}`,
         { kind: "error" },
       );
@@ -503,11 +503,11 @@ export function NotebookView({
       if (!filePath) return;
 
       await writeTextFile(filePath, html);
-      showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      showAlert(t`Notebook exported successfully`, { kind: "info" });
     } catch (e) {
       console.error("HTML export failed:", e);
       showAlert(
-        t("editor.notebook.exportError") ||
+        t`Export failed` ||
           `Export failed: ${e instanceof Error ? e.message : String(e)}`,
         { kind: "error" },
       );
@@ -543,9 +543,9 @@ export function NotebookView({
       cellsRef.current = importedCells;
       resetHistory();
 
-      showAlert(t("editor.notebook.importSuccess"), { kind: "info" });
+      showAlert(t`Notebook imported successfully`, { kind: "info" });
     } catch {
-      showAlert(t("editor.notebook.invalidFile"), { kind: "error" });
+      showAlert(t`Invalid notebook file format`, { kind: "error" });
     }
   }, [tab.id, updateTab, showAlert, t, connectionId, resetHistory]);
 
@@ -561,11 +561,11 @@ export function NotebookView({
       const cell = cellsRef.current[index];
       if (cell) {
         const preview = createCellDragPreview(document, {
-          name: cell.name?.trim() || t("editor.notebook.cellNamePlaceholder"),
+          name: cell.name?.trim() || t`Untitled`,
           typeLabel:
             cell.type === "sql"
-              ? t("editor.notebook.sqlCell")
-              : t("editor.notebook.markdownCell"),
+              ? t`SQL`
+              : t`Markdown`,
           type: cell.type,
         });
         e.dataTransfer.setDragImage(preview, 12, 12);
@@ -788,7 +788,7 @@ export function NotebookView({
         <NotebookToolbar {...toolbarProps} />
         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted">
           <BookOpen size={32} className="opacity-40" />
-          <p className="text-sm">{t("editor.notebook.emptyNotebook")}</p>
+          <p className="text-sm">{t`This notebook is empty. Add a cell to get started.`}</p>
         </div>
       </div>
     );

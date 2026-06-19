@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
+import { dumpErrorKeys } from "../../i18n/registries/dumpErrorKeys";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../../hooks/useAlert";
@@ -28,7 +29,7 @@ export const DumpDatabaseModal = ({
   databaseName,
   tables,
 }: DumpDatabaseModalProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const { activeSchema } = useDatabase();
   const { showAlert } = useAlert();
   const [includeStructure, setIncludeStructure] = useState(true);
@@ -76,7 +77,7 @@ export const DumpDatabaseModal = ({
     );
 
     if (!validation.isValid && validation.errorKey) {
-      showAlert(t(validation.errorKey), { kind: "error" });
+      showAlert(i18n._(dumpErrorKeys[validation.errorKey]), { kind: "error" });
       return;
     }
 
@@ -109,12 +110,12 @@ export const DumpDatabaseModal = ({
         ...(activeSchema ? { schema: activeSchema } : {}),
       });
 
-      showAlert(t("dump.success"), { kind: "info" });
+      showAlert(t`Database exported successfully`, { kind: "info" });
       onClose();
     } catch (e) {
       // Check if it's a cancellation error (optional logic, but usually we just log)
       console.error(e);
-      showAlert(t("dump.failure") + String(e), { kind: "error" });
+      showAlert(t`Export failed: ` + String(e), { kind: "error" });
     } finally {
       setIsExporting(false);
     }
@@ -134,7 +135,7 @@ export const DumpDatabaseModal = ({
           <div className="p-4 border-b border-default flex justify-between items-center">
             <h2 className="text-lg font-semibold flex items-center gap-2">
                 <Database size={18} />
-                {t("dump.title")} - {databaseName}
+                {t({ message: "Dump Database", context: "dump" })} - {databaseName}
             </h2>
             <button onClick={onClose} className="text-muted hover:text-primary text-xl leading-none" disabled={isExporting}>&times;</button>
           </div>
@@ -150,7 +151,7 @@ export const DumpDatabaseModal = ({
                         className="rounded border-default bg-base focus:ring-blue-500 w-4 h-4"
                         disabled={isExporting}
                     />
-                    <span>{t("dump.includeStructure")}</span>
+                    <span>{t`Structure (DDL)`}</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input 
@@ -160,20 +161,20 @@ export const DumpDatabaseModal = ({
                         className="rounded border-default bg-base focus:ring-blue-500 w-4 h-4"
                         disabled={isExporting}
                     />
-                    <span>{t("dump.includeData")}</span>
+                    <span>{t`Data (INSERT)`}</span>
                 </label>
             </div>
 
             {/* Table Selection */}
             <div className="flex-1 flex flex-col border border-default rounded overflow-hidden max-h-[400px]">
                 <div className="p-2 bg-surface-secondary border-b border-default flex justify-between items-center shrink-0">
-                    <span className="text-xs font-semibold uppercase text-muted">{t("dump.selectTables")} ({selectedTables.size}/{tables.length})</span>
+                    <span className="text-xs font-semibold uppercase text-muted">{t`Select Tables`} ({selectedTables.size}/{tables.length})</span>
                     <button 
                         onClick={handleSelectAll} 
                         className="text-xs text-blue-500 hover:underline"
                         disabled={isExporting}
                     >
-                        {selectedTables.size === tables.length ? t("dump.deselectAll") : t("dump.selectAll")}
+                        {selectedTables.size === tables.length ? t({ message: "Deselect All", context: "dump" }) : t({ message: "Select All", context: "dump" })}
                     </button>
                 </div>
                 <div className="overflow-y-auto p-2 grid grid-cols-2 gap-2">
@@ -196,7 +197,7 @@ export const DumpDatabaseModal = ({
             {/* Elapsed Time */}
             {isExporting && elapsedTime > 0 && (
               <div className="text-center text-sm text-muted">
-                {t("dump.elapsedTime")}: <span className="font-mono font-semibold text-primary">{formatElapsedTime(elapsedTime)}</span>
+                {t`Elapsed time`}: <span className="font-mono font-semibold text-primary">{formatElapsedTime(elapsedTime)}</span>
               </div>
             )}
           </div>
@@ -207,7 +208,7 @@ export const DumpDatabaseModal = ({
                 disabled={isExporting}
                 className="px-4 py-2 rounded hover:bg-surface-secondary transition-colors"
              >
-                {t("common.cancel")}
+                {t`Cancel`}
              </button>
              {isExporting ? (
                  <button 
@@ -215,7 +216,7 @@ export const DumpDatabaseModal = ({
                     className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded flex items-center gap-2 transition-colors"
                  >
                     <Loader2 size={16} className="animate-spin" />
-                    {t("editor.stop")}
+                    {t`Stop`}
                  </button>
              ) : (
                  <button 
@@ -223,7 +224,7 @@ export const DumpDatabaseModal = ({
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-2 transition-colors"
                  >
                     <Download size={16} />
-                    {t("dump.export")}
+                    {t`Export`}
                  </button>
              )}
           </div>

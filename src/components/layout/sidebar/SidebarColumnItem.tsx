@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../../../hooks/useAlert";
@@ -32,7 +32,7 @@ export const SidebarColumnItem = ({
   schema,
   canManage,
 }: SidebarColumnItemProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { showAlert } = useAlert();
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -47,11 +47,10 @@ export const SidebarColumnItem = ({
 
   const handleDelete = async () => {
     const confirmed = await ask(
-      t("sidebar.deleteColumnConfirm", {
-        column: column.name,
-        table: tableName,
-      }),
-      { title: t("sidebar.deleteColumn"), kind: "warning" },
+      t`Are you sure you want to delete column "${column.name}" from table "${tableName}"?
+
+WARNING: This will permanently delete all data in this column. This action cannot be undone.`,
+      { title: t`Delete Column`, kind: "warning" },
     );
 
     if (confirmed) {
@@ -69,8 +68,8 @@ export const SidebarColumnItem = ({
         onRefresh();
       } catch (e) {
         console.error(e);
-        showAlert(t("sidebar.failDeleteColumn") + String(e), {
-          title: t("common.error"),
+        showAlert(t`Failed to delete column: ` + String(e), {
+          title: t({ message: "Error", context: "common" }),
           kind: "error",
         });
       }
@@ -108,17 +107,17 @@ export const SidebarColumnItem = ({
           onClose={() => setContextMenu(null)}
           items={[
             {
-              label: t("sidebar.modifyColumn"),
+              label: t({ message: "Modify Column", context: "sidebar" }),
               icon: Edit,
               action: () => onEdit(column),
             },
             {
-              label: t("sidebar.copyName"),
+              label: t`Copy Name`,
               icon: Copy,
               action: () => navigator.clipboard.writeText(column.name),
             },
             {
-              label: t("sidebar.deleteColumn"),
+              label: t`Delete Column`,
               icon: Trash2,
               danger: true,
               action: handleDelete,

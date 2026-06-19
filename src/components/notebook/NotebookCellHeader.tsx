@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   ChevronUp,
   ChevronDown,
@@ -49,19 +49,19 @@ interface NotebookCellHeaderProps {
 }
 
 function CellTypeBadge({ cellType }: { cellType: NotebookCellType }) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   if (cellType === "sql") {
     return (
       <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-green-500/15 text-green-400">
-        {t("editor.notebook.sqlCell")}
+        {t`SQL`}
       </span>
     );
   }
 
   return (
     <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400">
-      {t("editor.notebook.markdownCell")}
+      {t`Markdown`}
     </span>
   );
 }
@@ -115,7 +115,7 @@ export function NotebookCellHeader({
   onNameChange,
   cellContent,
 }: NotebookCellHeaderProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [isDbOpen, setIsDbOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(cellName ?? "");
@@ -159,7 +159,7 @@ export function NotebookCellHeader({
           type="button"
           onClick={onToggleCollapse}
           className="p-0.5 text-muted hover:text-primary transition-colors rounded"
-          title={t(isCollapsed ? "editor.notebook.expandCell" : "editor.notebook.collapseCell")}
+          title={isCollapsed ? t`Expand Cell` : t`Collapse Cell`}
         >
           <ChevronRight
             size={14}
@@ -188,7 +188,7 @@ export function NotebookCellHeader({
               }
             }}
             className="text-[10px] text-secondary bg-base border border-strong rounded px-1 py-0.5 outline-none focus:border-blue-500 w-32"
-            placeholder={t("editor.notebook.cellNamePlaceholder")}
+            placeholder={t`Untitled`}
             autoFocus
           />
         ) : (
@@ -199,9 +199,9 @@ export function NotebookCellHeader({
               setIsEditingName(true);
             }}
             className="text-[10px] text-muted hover:text-secondary transition-colors truncate max-w-[200px]"
-            title={t("editor.notebook.editCellName")}
+            title={t`Edit cell name`}
           >
-            {cellName || t("editor.notebook.cellNamePlaceholder")}
+            {cellName || t`Untitled`}
           </button>
         )}
         {cellContent && (
@@ -217,7 +217,7 @@ export function NotebookCellHeader({
                 setIsDbOpen((v) => !v);
               }}
               className="flex items-center gap-1 px-1.5 py-0.5 bg-surface-secondary border border-strong rounded text-[10px] text-secondary hover:text-primary hover:bg-surface transition-colors"
-              title={t("editor.activeDatabase")}
+              title={t`Active database`}
             >
               <Database size={10} className="text-muted shrink-0" />
               <span className="max-w-[100px] truncate">{activeSchema}</span>
@@ -262,7 +262,7 @@ export function NotebookCellHeader({
 
       <div className="flex items-center gap-0.5">
         {cellType === "sql" && onRun && (
-          <ActionButton onClick={onRun} title={t("editor.notebook.runCell")} disabled={isLoading}>
+          <ActionButton onClick={onRun} title={t`Run Cell`} disabled={isLoading}>
             {isLoading ? (
               <Loader2 size={14} className="animate-spin" />
             ) : (
@@ -275,7 +275,7 @@ export function NotebookCellHeader({
           <button
             type="button"
             onClick={onToggleParallel}
-            title={t("editor.notebook.parallelExecution")}
+            title={t`Parallel Execution (Run All)`}
             className={`p-1 rounded transition-colors ${
               isParallel
                 ? "text-yellow-400 bg-yellow-500/15"
@@ -290,7 +290,7 @@ export function NotebookCellHeader({
           <button
             type="button"
             onClick={onToggleHistory}
-            title={t("editor.notebook.executionHistory")}
+            title={t`Execution History`}
             className="p-1 text-muted hover:text-primary hover:bg-surface-secondary rounded transition-colors relative"
           >
             <History size={14} />
@@ -303,7 +303,7 @@ export function NotebookCellHeader({
         )}
 
         {cellType === "markdown" && onTogglePreview && (
-          <ActionButton onClick={onTogglePreview} title={t("editor.notebook.togglePreview")}>
+          <ActionButton onClick={onTogglePreview} title={t`Toggle Preview`}>
             {isPreview ? <Pencil size={14} /> : <Eye size={14} />}
           </ActionButton>
         )}
@@ -311,7 +311,7 @@ export function NotebookCellHeader({
         <ActionButton
           onClick={onMoveUp}
           disabled={index === 0}
-          title={t("editor.notebook.moveCellUp")}
+          title={t`Move Up`}
         >
           <ChevronUp size={14} />
         </ActionButton>
@@ -319,12 +319,12 @@ export function NotebookCellHeader({
         <ActionButton
           onClick={onMoveDown}
           disabled={index === totalCells - 1}
-          title={t("editor.notebook.moveCellDown")}
+          title={t`Move Down`}
         >
           <ChevronDown size={14} />
         </ActionButton>
 
-        <ActionButton onClick={onDelete} title={t("editor.notebook.deleteCell")}>
+        <ActionButton onClick={onDelete} title={t`Delete Cell`}>
           <Trash2 size={14} />
         </ActionButton>
       </div>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, Maximize2, Minimize2, Trash2 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import { Select } from '../../ui/Select';
 import type { DataTypeInfo } from '../../../types/dataTypes';
 import { useColumnResize } from '../../../hooks/useColumnResize';
@@ -48,7 +48,7 @@ export function SchemaEditor({
   onToggleMaximize,
   targetColumnOptions,
 }: SchemaEditorProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const typeOptions = availableTypes.map((ty) => ty.name);
   const isAppend = Array.isArray(targetColumnOptions);
   // Select options for the Target-column picker in append mode:
@@ -104,7 +104,7 @@ export function SchemaEditor({
         {selected.size > 0 ? (
           <>
             <span className="text-xs font-semibold text-blue-400">
-              {t('clipboardImport.nSelected', { count: selected.size })}
+              {t`${selected.size} selected`}
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -112,26 +112,26 @@ export function SchemaEditor({
                 className="flex items-center gap-1.5 px-2 py-1 text-xs bg-red-900/30 hover:bg-red-900/50 border border-red-800/40 text-red-300 rounded transition-colors"
               >
                 <Trash2 size={12} />
-                {t('clipboardImport.deleteSelected')}
+                {t`Delete selected`}
               </button>
               <button
                 onClick={() => setSelected(new Set())}
                 className="text-[11px] text-muted hover:text-primary transition-colors"
               >
-                {t('common.cancel')}
+                {t`Cancel`}
               </button>
             </div>
           </>
         ) : (
           <>
             <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider">
-              {t('clipboardImport.schemaPreview')}
+              {t`Column Schema`}
             </h3>
             {onToggleMaximize && (
               <button
                 onClick={onToggleMaximize}
                 className="text-muted hover:text-primary transition-colors p-0.5 rounded hover:bg-surface-secondary/50"
-                title={t(isMaximized ? 'clipboardImport.minimize' : 'clipboardImport.maximize')}
+                title={isMaximized ? t`Minimize` : t`Maximize`}
               >
                 {isMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
               </button>
@@ -163,7 +163,7 @@ export function SchemaEditor({
                 />
               </th>
               <th className="relative p-2 text-[10px] text-muted font-semibold">
-                {isAppend ? t('clipboardImport.sourceColumn') : t('createTable.colName')}
+                {isAppend ? t`Clipboard column` : t`Name`}
                 <div
                   onMouseDown={(e) => startResize(1, e)}
                   className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500/60 active:bg-blue-500 select-none"
@@ -171,7 +171,7 @@ export function SchemaEditor({
               </th>
               {isAppend ? (
                 <th className="relative p-2 text-[10px] text-muted font-semibold">
-                  {t('clipboardImport.targetColumn')}
+                  {t`Target column`}
                   <div
                     onMouseDown={(e) => startResize(2, e)}
                     className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500/60 active:bg-blue-500 select-none"
@@ -180,7 +180,7 @@ export function SchemaEditor({
               ) : (
                 <>
                   <th className="relative p-2 text-[10px] text-muted font-semibold">
-                    {t('createTable.colType')}
+                    {t`Type`}
                     <div
                       onMouseDown={(e) => startResize(2, e)}
                       className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500/60 active:bg-blue-500 select-none"
@@ -196,7 +196,7 @@ export function SchemaEditor({
                 </>
               )}
               <th className="relative p-2 text-[10px] text-muted font-semibold">
-                {t('clipboardImport.sample')}
+                {t`Sample values`}
                 <div
                   onMouseDown={(e) => startResize(isAppend ? 3 : 4, e)}
                   className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500/60 active:bg-blue-500 select-none"
@@ -235,7 +235,7 @@ export function SchemaEditor({
                         />
                       )}
                       {col.confidence === 'low' && (
-                        <span title={t('clipboardImport.lowConfidence')} className="shrink-0 flex">
+                        <span title={t`Mixed types detected, defaulted to TEXT`} className="shrink-0 flex">
                           <AlertTriangle size={12} className="text-yellow-400" />
                         </span>
                       )}
@@ -256,12 +256,12 @@ export function SchemaEditor({
                               onColumnChange(i, { targetColumn: v, isNewColumn: false });
                             }
                           }}
-                          placeholder={t('clipboardImport.targetColumnPlaceholder')}
-                          searchPlaceholder={t('common.search')}
-                          noResultsLabel={t('common.noResults')}
+                          placeholder={t`Choose target...`}
+                          searchPlaceholder={t`Search...`}
+                          noResultsLabel={t`No results found`}
                           labels={{
-                            [SKIP_VALUE]: t('clipboardImport.skipColumn'),
-                            [NEW_VALUE]: `+ ${t('clipboardImport.createNewColumn')}`,
+                            [SKIP_VALUE]: t`Skip (do not import)`,
+                            [NEW_VALUE]: `+ ${t`Create new column`}`,
                           }}
                           hasError={!col.isNewColumn && col.targetColumn === null}
                         />
@@ -272,8 +272,8 @@ export function SchemaEditor({
                               options={typeOptions}
                               onChange={(v) => onColumnChange(i, { sqlType: v })}
                               placeholder="Type"
-                              searchPlaceholder={t('common.search')}
-                              noResultsLabel={t('common.noResults')}
+                              searchPlaceholder={t`Search...`}
+                              noResultsLabel={t`No results found`}
                             />
                             <label className="flex items-center gap-1 text-[10px] text-muted whitespace-nowrap">
                               <input
@@ -296,8 +296,8 @@ export function SchemaEditor({
                           options={typeOptions}
                           onChange={(v) => onColumnChange(i, { sqlType: v })}
                           placeholder="Type"
-                          searchPlaceholder={t('common.search')}
-                          noResultsLabel={t('common.noResults')}
+                          searchPlaceholder={t`Search...`}
+                          noResultsLabel={t`No results found`}
                         />
                       </td>
                       <td className="p-2 text-center">
@@ -319,7 +319,7 @@ export function SchemaEditor({
                     <button
                       onClick={() => handleSingleDelete(i)}
                       className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-400 transition-all"
-                      title={t('clipboardImport.deleteColumn')}
+                      title={t`Delete column`}
                     >
                       <Trash2 size={13} />
                     </button>

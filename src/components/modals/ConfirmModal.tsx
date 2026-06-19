@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { AlertTriangle, X } from "lucide-react";
 import { Modal } from "../ui/Modal";
 
@@ -23,7 +23,7 @@ export const ConfirmModal = ({
   onConfirm,
   variant = "danger",
 }: ConfirmModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   const variantStyles = {
     danger: {
@@ -72,7 +72,7 @@ export const ConfirmModal = ({
             onClick={onClose}
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
-            {t("common.cancel")}
+            {t`Cancel`}
           </button>
           <button
             onClick={onConfirm}
@@ -81,7 +81,7 @@ export const ConfirmModal = ({
               `px-4 py-2 ${currentVariant.button} text-white rounded-lg text-sm font-medium transition-colors`
             }
           >
-            {confirmLabel ?? (variant === "danger" ? t("common.delete") : t("common.ok"))}
+            {confirmLabel ?? (variant === "danger" ? t({ message: "Delete", context: "common" }) : t`OK`)}
           </button>
         </div>
       </div>

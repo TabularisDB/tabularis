@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Loader2, Sparkles } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettings } from "../../../hooks/useSettings";
@@ -11,7 +11,7 @@ interface ExplainAiAnalysisProps {
 }
 
 export function ExplainAiAnalysis({ plan }: ExplainAiAnalysisProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings } = useSettings();
   const [analysis, setAnalysis] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -19,7 +19,7 @@ export function ExplainAiAnalysis({ plan }: ExplainAiAnalysisProps) {
 
   const handleAnalyze = useCallback(async () => {
     if (!settings.aiProvider) {
-      setError(t("editor.visualExplain.aiConfigRequired"));
+      setError(t`AI Provider not configured. Please go to Settings > AI.`);
       return;
     }
 
@@ -62,7 +62,7 @@ export function ExplainAiAnalysis({ plan }: ExplainAiAnalysisProps) {
     <div className="h-full overflow-y-auto p-6">
       {!settings.aiProvider && (
         <div className="bg-yellow-900/20 border border-yellow-500/30 text-yellow-300 px-4 py-3 rounded-lg text-sm mb-4">
-          {t("editor.visualExplain.aiConfigRequired")}
+          {t`AI Provider not configured. Please go to Settings > AI.`}
         </div>
       )}
 
@@ -70,7 +70,7 @@ export function ExplainAiAnalysis({ plan }: ExplainAiAnalysisProps) {
         <div className="flex items-center gap-2 text-muted">
           <Loader2 size={16} className="animate-spin" />
           <span className="text-sm">
-            {t("editor.visualExplain.aiAnalyzing")}
+            {t`Analyzing query plan with AI...`}
           </span>
         </div>
       ) : error ? (
@@ -79,7 +79,7 @@ export function ExplainAiAnalysis({ plan }: ExplainAiAnalysisProps) {
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-purple-400 text-sm font-medium">
             <Sparkles size={14} />
-            {t("editor.visualExplain.aiAnalysisTitle")}
+            {t`AI Query Plan Analysis`}
           </div>
           <div className="text-secondary leading-relaxed whitespace-pre-wrap text-sm">
             {analysis}

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { History, X, Check } from "lucide-react";
+import { notebookHistoryChange } from "../../i18n/registries/notebookHistoryChange";
 import type { NotebookState } from "../../types/notebook";
 import { describeChange, type ChangeDescriptor } from "../../utils/notebookUndo";
 
@@ -18,7 +19,7 @@ export function NotebookHistoryPanel({
   onJump,
   onClose,
 }: NotebookHistoryPanelProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export function NotebookHistoryPanel({
   }, [onClose]);
 
   const labelFor = (d: ChangeDescriptor): string =>
-    t(`editor.notebook.history.change.${d.kind}`, { n: d.n ?? 0 });
+    i18n._({ ...notebookHistoryChange[d.kind], values: { n: d.n ?? 0 } });
 
   const descriptorAt = (index: number): ChangeDescriptor =>
     index === 0
@@ -54,7 +55,7 @@ export function NotebookHistoryPanel({
       <div className="flex items-center justify-between px-3 py-2 border-b border-default bg-base">
         <div className="flex items-center gap-2 text-sm font-semibold text-primary">
           <History size={14} className="text-secondary" />
-          {t("editor.notebook.history.title")}
+          {t`Edit history`}
         </div>
         <button
           onClick={onClose}

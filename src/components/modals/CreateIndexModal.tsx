@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import { X, Save, Loader2, ListTree, AlertTriangle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { SqlPreview } from '../ui/SqlPreview';
@@ -26,7 +26,7 @@ export const CreateIndexModal = ({
   connectionId,
   tableName,
 }: CreateIndexModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { activeSchema } = useDatabase();
   const [indexName, setIndexName] = useState('');
   const [isUnique, setIsUnique] = useState(false);
@@ -63,7 +63,7 @@ export const CreateIndexModal = ({
 
   const generatePreview = useCallback(async () => {
     if (!indexName || selectedColumns.length === 0) {
-      setSqlPreview('-- ' + t('createIndex.nameRequired'));
+      setSqlPreview('-- ' + t`Index name is required`);
       return;
     }
     try {
@@ -87,8 +87,8 @@ export const CreateIndexModal = ({
   }, [generatePreview]);
 
   const handleCreate = async () => {
-      if (!indexName.trim()) { setError(t('createIndex.nameRequired')); return; }
-      if (selectedColumns.length === 0) { setError(t('createIndex.colRequired')); return; }
+      if (!indexName.trim()) { setError(t`Index name is required`); return; }
+      if (selectedColumns.length === 0) { setError(t`At least one column must be selected`); return; }
 
       setLoading(true);
       setError('');
@@ -127,7 +127,7 @@ export const CreateIndexModal = ({
               <ListTree size={20} className="text-green-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-primary">{t('createIndex.title')}</h2>
+              <h2 className="text-lg font-semibold text-primary">{t({ message: "Create Index", context: "createIndex" })}</h2>
               <p className="text-xs text-secondary font-mono">{tableName}</p>
             </div>
           </div>
@@ -139,7 +139,7 @@ export const CreateIndexModal = ({
         {/* Body */}
         <div className="p-6 flex flex-col gap-4 overflow-y-auto">
             <div>
-                <label className="block text-xs uppercase font-bold text-muted mb-1">{t('createIndex.name')}</label>
+                <label className="block text-xs uppercase font-bold text-muted mb-1">{t`Index Name`}</label>
                 <input
                     value={indexName}
                     onChange={(e) => { setIndexName(e.target.value); setError(''); }}
@@ -150,10 +150,10 @@ export const CreateIndexModal = ({
             </div>
 
             <div>
-                <label className="block text-xs uppercase font-bold text-muted mb-2">{t('createIndex.columns')}</label>
+                <label className="block text-xs uppercase font-bold text-muted mb-2">{t`Columns`}</label>
                 {fetchingCols ? (
                     <div className="flex items-center gap-2 text-muted text-sm py-4 justify-center">
-                        <Loader2 size={14} className="animate-spin" /> {t('common.loading')}
+                        <Loader2 size={14} className="animate-spin" /> {t`Loading...`}
                     </div>
                 ) : (
                     <div className="border border-strong rounded-lg bg-base/50 max-h-40 overflow-y-auto p-2 flex flex-col gap-1">
@@ -183,13 +183,13 @@ export const CreateIndexModal = ({
                     className="accent-blue-500"
                 />
                 <label htmlFor="isUnique" className="text-sm text-secondary select-none cursor-pointer">
-                    {t('createIndex.unique')}
+                    {t`Unique Index`}
                 </label>
             </div>
 
             {/* SQL Preview */}
             <div>
-                <div className="text-[10px] text-muted mb-1 uppercase tracking-wider">{t('createIndex.sqlPreview')}</div>
+                <div className="text-[10px] text-muted mb-1 uppercase tracking-wider">{t`SQL Preview`}</div>
                 <SqlPreview sql={sqlPreview} height="80px" showLineNumbers={true} />
             </div>
 
@@ -204,7 +204,7 @@ export const CreateIndexModal = ({
         {/* Footer */}
         <div className="p-4 border-t border-default bg-base/50 flex justify-end gap-3">
            <button onClick={onClose} className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm">
-             {t('createIndex.cancel')}
+             {t`Cancel`}
            </button>
            <button
              onClick={handleCreate}
@@ -212,7 +212,7 @@ export const CreateIndexModal = ({
              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
            >
              {loading && <Loader2 size={16} className="animate-spin" />}
-             <Save size={16} /> {t('createIndex.create')}
+             <Save size={16} /> {t({ message: "Create Index", context: "createIndex" })}
            </button>
         </div>
       </div>

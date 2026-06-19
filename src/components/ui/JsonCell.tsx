@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Braces, ChevronRight } from "lucide-react";
 import { tokenizeJsonDisplay, type JsonToken } from "../../utils/jsonHighlight";
 import { truncateCellPreview } from "../../utils/text";
@@ -31,7 +31,7 @@ export const JsonCell = ({
   onToggleExpand,
   onOpenViewer,
 }: JsonCellProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const textRef = useRef<HTMLSpanElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
 
@@ -96,8 +96,8 @@ export const JsonCell = ({
             className={`${iconVisibilityClass} transition-all p-0.5 rounded text-muted hover:text-secondary hover:bg-surface-tertiary flex-shrink-0 ${
               isExpanded ? "rotate-90" : ""
             }`}
-            title={t("jsonCell.expand")}
-            aria-label={t("jsonCell.expand")}
+            title={t`Toggle inline JSON tree`}
+            aria-label={t`Toggle inline JSON tree`}
           >
             <ChevronRight size={11} />
           </button>
@@ -108,8 +108,8 @@ export const JsonCell = ({
               onOpenViewer();
             }}
             className={`${iconVisibilityClass} transition-opacity p-0.5 rounded text-muted hover:text-secondary hover:bg-surface-tertiary flex-shrink-0`}
-            title={t("jsonCell.openViewer")}
-            aria-label={t("jsonCell.openViewer")}
+            title={t`Open JSON viewer`}
+            aria-label={t`Open JSON viewer`}
           >
             <Braces size={11} />
           </button>

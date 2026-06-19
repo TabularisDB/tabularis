@@ -2,7 +2,7 @@ import { useState, useCallback, useContext, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import { openUrl as openExternal } from "@tauri-apps/plugin-opener";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 
 import { ThemeContext } from "../contexts/ThemeContext";
 import { DatabaseContext } from "../contexts/DatabaseContext";
@@ -147,8 +147,8 @@ export function usePluginSetting(pluginId: string) {
  * Uses the plugin ID as the i18next namespace, which must be pre-loaded
  * by the Tabularis plugin loader before the component mounts.
  */
-export function usePluginTranslation(pluginId: string) {
-  const { t } = useTranslation(pluginId);
+export function usePluginTranslation(_pluginId: string) {
+  const { t } = useLingui();
   return t;
 }
 

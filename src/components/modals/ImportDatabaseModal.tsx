@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useAlert } from "../../hooks/useAlert";
@@ -32,7 +32,7 @@ export const ImportDatabaseModal = ({
   filePath,
   onSuccess,
 }: ImportDatabaseModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { activeSchema } = useDatabase();
   const { showAlert } = useAlert();
   const [isImporting, setIsImporting] = useState(false);
@@ -73,7 +73,7 @@ export const ImportDatabaseModal = ({
       setIsImporting(false);
 
       if (!errorMsg.includes("cancelled")) {
-        showAlert(t("dump.importFailure") + ": " + errorMsg, {
+        showAlert(t`Import failed: ` + ": " + errorMsg, {
           kind: "error",
         });
       }
@@ -126,7 +126,7 @@ export const ImportDatabaseModal = ({
 
     try {
       await invoke("cancel_import", { connectionId });
-      showAlert(t("dump.importCancelled"), { kind: "info" });
+      showAlert(t`Import cancelled`, { kind: "info" });
       onClose();
     } catch (e) {
       console.error("Failed to cancel import:", e);
@@ -139,7 +139,7 @@ export const ImportDatabaseModal = ({
         <div className="p-4 border-b border-default flex justify-between items-center">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Database size={18} />
-            {t("dump.importTitle")} - {databaseName}
+            {t`Import Database`} - {databaseName}
           </h2>
           <button
             onClick={handleCancel}
@@ -189,10 +189,7 @@ export const ImportDatabaseModal = ({
                   {/* Stats */}
                   <div className="flex justify-between text-sm text-muted">
                     <span>
-                      {t("dump.statementsExecuted", {
-                        count: progress.statements_executed,
-                        total: progress.total_statements,
-                      })}
+                      {t`${progress.statements_executed} / ${progress.total_statements} statements`}
                     </span>
                     <span className="font-semibold text-primary">
                       {progress.percentage.toFixed(1)}%
@@ -226,14 +223,14 @@ export const ImportDatabaseModal = ({
           {/* Elapsed Time */}
           {(isImporting || success || error) && elapsedTime > 0 && (
             <div className="text-center text-sm text-muted">
-              {t("dump.elapsedTime")}: <span className="font-mono font-semibold text-primary">{formatElapsedTime(elapsedTime)}</span>
+              {t`Elapsed time`}: <span className="font-mono font-semibold text-primary">{formatElapsedTime(elapsedTime)}</span>
             </div>
           )}
 
           {/* Success Message */}
           {success && (
             <div className="text-center text-green-500 font-medium">
-              {t("dump.importSuccess")}
+              {t`SQL file executed successfully`}
             </div>
           )}
 
@@ -241,14 +238,14 @@ export const ImportDatabaseModal = ({
           {error && !isImporting && (
             <div className="text-center text-red-500 text-sm">
               {error.includes("cancelled")
-                ? t("dump.importCancelled")
-                : t("dump.importFailed")}
+                ? t`Import cancelled`
+                : t`Import failed`}
             </div>
           )}
 
           {/* File Info */}
           <div className="text-xs text-muted text-center mt-2">
-            {t("dump.importingFrom")}: {filePath.split(/[/\\]/).pop()}
+            {t`Importing from`}: {filePath.split(/[/\\]/).pop()}
           </div>
         </div>
 
@@ -259,14 +256,14 @@ export const ImportDatabaseModal = ({
               className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded flex items-center gap-2 transition-colors"
             >
               <X size={16} />
-              {t("common.cancel")}
+              {t`Cancel`}
             </button>
           ) : (
             <button
               onClick={onClose}
               className="px-4 py-2 rounded hover:bg-surface-secondary transition-colors"
             >
-              {success ? t("common.close") : t("common.cancel")}
+              {success ? t`Close` : t`Cancel`}
             </button>
           )}
         </div>

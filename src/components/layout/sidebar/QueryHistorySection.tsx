@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Search, Trash2, Loader2, Database, AlertTriangle, X } from "lucide-react";
 import { groupByDate, formatHistoryTime } from "../../../utils/dateGroups";
+import { sidebarDateGroups } from "../../../i18n/registries/sidebarDateGroups";
 import { SqlHighlight } from "../../ui/SqlHighlight";
 import { formatSqlPreview } from "../../../utils/sqlHighlight";
 import { useSettings } from "../../../hooks/useSettings";
@@ -32,7 +33,7 @@ export function QueryHistorySection({
   onContextMenu,
   onClearAll,
 }: QueryHistorySectionProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const { settings } = useSettings();
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -60,10 +61,10 @@ export function QueryHistorySection({
         <AlertTriangle size={14} className="shrink-0 mt-0.5 text-amber-400" />
         <div className="flex-1 min-w-0">
           <div className="font-semibold mb-1">
-            {t("sidebar.historyRecoveredTitle")}
+            {t`Query history was reset`}
           </div>
           <div className="text-amber-200/80">
-            {t("sidebar.historyRecoveredBody")}
+            {t`The history file was corrupted and has been moved aside. New queries will be recorded as usual. Backup file:`}
           </div>
           <div
             className="mt-1 font-mono text-[10px] text-amber-300/70 break-all"
@@ -76,8 +77,8 @@ export function QueryHistorySection({
           type="button"
           onClick={onDismissRecoveryNotice}
           className="shrink-0 text-amber-300/60 hover:text-amber-200 transition-colors"
-          title={t("sidebar.historyRecoveredDismiss")}
-          aria-label={t("sidebar.historyRecoveredDismiss")}
+          title={t({ message: "Dismiss", context: "sidebar" })}
+          aria-label={t({ message: "Dismiss", context: "sidebar" })}
         >
           <X size={12} />
         </button>
@@ -89,7 +90,7 @@ export function QueryHistorySection({
     return (
       <div className="flex items-center justify-center h-20 text-muted gap-2">
         <Loader2 size={16} className="animate-spin" />
-        <span className="text-sm">{t("sidebar.loadingSchema")}</span>
+        <span className="text-sm">{t`Loading schema...`}</span>
       </div>
     );
   }
@@ -99,7 +100,7 @@ export function QueryHistorySection({
       <div>
         {recoveryBanner}
         <div className="text-center p-4 text-xs text-muted italic">
-          {t("sidebar.noQueryHistory")}
+          {t`No query history`}
         </div>
       </div>
     );
@@ -119,14 +120,14 @@ export function QueryHistorySection({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("sidebar.searchHistory")}
+            placeholder={t`Search history...`}
             className="w-full pl-6 pr-2 py-1 text-xs bg-surface-secondary border border-default rounded text-primary placeholder:text-muted focus:outline-none focus:border-blue-500/50"
           />
         </div>
         <button
           onClick={onClearAll}
           className="p-1 text-muted hover:text-red-500 transition-colors shrink-0"
-          title={t("sidebar.clearAllHistory")}
+          title={t`Clear All History`}
         >
           <Trash2 size={13} />
         </button>
@@ -142,13 +143,13 @@ export function QueryHistorySection({
       {/* Grouped entries */}
       {groupedEntries.length === 0 ? (
         <div className="text-center p-2 text-xs text-muted italic">
-          {t("sidebar.noHistorySearchResults")}
+          {t`No queries match your search`}
         </div>
       ) : (
         groupedEntries.map(([groupKey, items]) => (
           <div key={groupKey}>
             <div className="px-3 py-1 text-[10px] font-semibold uppercase text-muted tracking-wider">
-              {t(`sidebar.${groupKey}`)}
+              {i18n._(sidebarDateGroups[groupKey])}
             </div>
             {items.map((entry) => (
               <div

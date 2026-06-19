@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import type { ExplainNode } from "../../types/explain";
 import {
   getNodeCostStyle,
@@ -24,7 +24,7 @@ export type ExplainPlanNodeType = Node<ExplainPlanNodeData, "explainPlan">;
 
 export const ExplainPlanNodeComponent = memo(
   ({ data }: NodeProps<ExplainPlanNodeType>) => {
-    const { t } = useTranslation();
+    const { t } = useLingui();
     const { node, maxCost, hasAnalyzeData, isSelected } = data;
     const costStyle = getNodeCostStyle(node.total_cost ?? 0, maxCost);
     const rowRatio = getRowEstimateRatio(node);
@@ -33,11 +33,11 @@ export const ExplainPlanNodeComponent = memo(
         ? rowRatio >= 1
           ? {
               value: formatRatio(rowRatio),
-              label: t("editor.visualExplain.overEstimate"),
+              label: t`Actual rows exceed estimate`,
             }
           : {
               value: formatRatio(1 / rowRatio),
-              label: t("editor.visualExplain.underEstimate"),
+              label: t`Estimate exceeds actual rows`,
             }
         : null;
 
@@ -55,7 +55,7 @@ export const ExplainPlanNodeComponent = memo(
           <div className="text-sm font-bold text-primary">{node.node_type}</div>
           {node.relation && (
             <div className="text-xs text-muted mt-0.5">
-              {t("editor.visualExplain.relation")}: {node.relation}
+              {t({ message: "Table", context: "editor" })}: {node.relation}
             </div>
           )}
         </div>
@@ -64,7 +64,7 @@ export const ExplainPlanNodeComponent = memo(
         <div className="px-3 py-2 space-y-1">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted">
-              {t("editor.visualExplain.estRows")}
+              {t`Est. Rows`}
             </span>
             <span className="text-secondary font-mono">
               {node.plan_rows != null ? formatRows(node.plan_rows) : "-"}
@@ -74,7 +74,7 @@ export const ExplainPlanNodeComponent = memo(
           {node.total_cost != null && (
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">
-                {t("editor.visualExplain.cost")}
+                {t`Cost`}
               </span>
               <span className="text-secondary font-mono">
                 {formatCost(node.total_cost)}
@@ -85,7 +85,7 @@ export const ExplainPlanNodeComponent = memo(
           {mismatch && (
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">
-                {t("editor.visualExplain.largestEstimateGap")}
+                {t`Estimate Gap`}
               </span>
               <span className="text-amber-300 font-mono font-semibold">
                 {mismatch.value}
@@ -96,7 +96,7 @@ export const ExplainPlanNodeComponent = memo(
           {hasAnalyzeData && node.actual_rows != null && (
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">
-                {t("editor.visualExplain.actualRows")}
+                {t`Actual Rows`}
               </span>
               <span className="text-primary font-mono font-semibold">
                 {formatRows(node.actual_rows)}
@@ -107,7 +107,7 @@ export const ExplainPlanNodeComponent = memo(
           {hasAnalyzeData && node.actual_time_ms != null && (
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">
-                {t("editor.visualExplain.time")}
+                {t({ message: "Time", context: "editor" })}
               </span>
               <span className="text-primary font-mono font-semibold">
                 {formatTime(node.actual_time_ms)}
@@ -118,7 +118,7 @@ export const ExplainPlanNodeComponent = memo(
           {hasAnalyzeData && node.actual_loops != null && node.actual_loops > 1 && (
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">
-                {t("editor.visualExplain.loops")}
+                {t`Loops`}
               </span>
               <span className="text-secondary font-mono">
                 {node.actual_loops}
@@ -128,13 +128,13 @@ export const ExplainPlanNodeComponent = memo(
 
           {node.filter && (
             <div className="text-[10px] text-muted mt-1 font-mono truncate border-t border-default/50 pt-1">
-              {t("editor.visualExplain.filter")}: {node.filter}
+              {t`Filter`}: {node.filter}
             </div>
           )}
 
           {node.index_condition && (
             <div className="text-[10px] text-muted font-mono truncate">
-              {t("editor.visualExplain.indexCondition")}: {node.index_condition}
+              {t`Index Cond.`}: {node.index_condition}
             </div>
           )}
 

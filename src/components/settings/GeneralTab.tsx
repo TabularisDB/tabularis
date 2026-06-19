@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { useSettings } from "../../hooks/useSettings";
 import { DEFAULT_SETTINGS, type CopyFormat, type ERDiagramLayout } from "../../contexts/SettingsContext";
 import {
@@ -10,15 +10,15 @@ import {
 } from "./SettingControls";
 
 export function GeneralTab() {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings, updateSetting } = useSettings();
 
   return (
     <div>
-      <SettingSection title={t("settings.startup")}>
+      <SettingSection title={t`Startup`}>
         <SettingRow
-          label={t("settings.showWelcome")}
-          description={t("settings.showWelcomeDesc")}
+          label={t`Show Welcome Screen`}
+          description={t`Display the welcome screen when the application starts.`}
         >
           <SettingToggle
             checked={settings.showWelcome !== false}
@@ -27,10 +27,10 @@ export function GeneralTab() {
         </SettingRow>
       </SettingSection>
 
-      <SettingSection title={t("settings.dataEditor")}>
+      <SettingSection title={t`Data Editor`}>
         <SettingRow
-          label={t("settings.pageSize")}
-          description={t("settings.pageSizeDesc")}
+          label={t`Result Page Size (Limit)`}
+          description={t`Limits the number of rows fetched per query to prevent performance issues. Set to 0 to disable (not recommended).`}
         >
           <SettingNumberInput
             value={settings.resultPageSize ?? DEFAULT_SETTINGS.resultPageSize}
@@ -38,14 +38,14 @@ export function GeneralTab() {
               updateSetting("resultPageSize", v || DEFAULT_SETTINGS.resultPageSize)
             }
             min={0}
-            suffix={t("settings.rows")}
+            suffix={t({ message: "rows", context: "settings" })}
             fallback={DEFAULT_SETTINGS.resultPageSize}
           />
         </SettingRow>
 
         <SettingRow
-          label={t("settings.copyFormat")}
-          description={t("settings.copyFormatDesc")}
+          label={t`Default Copy Format`}
+          description={t`Choose the default format when copying rows with Ctrl+C / Cmd+C.`}
         >
           <SettingButtonGroup<CopyFormat>
             value={(settings.copyFormat ?? DEFAULT_SETTINGS.copyFormat) as CopyFormat}
@@ -59,27 +59,27 @@ export function GeneralTab() {
         </SettingRow>
 
         <SettingRow
-          label={t("settings.csvDelimiter")}
-          description={t("settings.csvDelimiterDesc")}
+          label={t`CSV Delimiter`}
+          description={t`Choose the default delimiter character used when copying or exporting rows as CSV.`}
         >
           <SettingButtonGroup
             value={settings.csvDelimiter ?? ","}
             onChange={(v) => updateSetting("csvDelimiter", v)}
             options={[
-              { value: ",", label: t("settings.delimiterComma") },
-              { value: ";", label: t("settings.delimiterSemicolon") },
-              { value: "\t", label: t("settings.delimiterTab") },
-              { value: "|", label: t("settings.delimiterPipe") },
+              { value: ",", label: t`Comma (,)` },
+              { value: ";", label: t`Semicolon (;)` },
+              { value: "\t", label: t`Tab` },
+              { value: "|", label: t`Pipe (|)` },
             ]}
           />
         </SettingRow>
 
       </SettingSection>
 
-      <SettingSection title={t("settings.connectionHealthCheck")}>
+      <SettingSection title={t`Connection Health Check`}>
         <SettingRow
-          label={t("settings.pingInterval")}
-          description={t("settings.pingIntervalDesc")}
+          label={t`Ping Interval`}
+          description={t`How often to check if active connections are still alive. Set to 0 to disable.`}
         >
           <SettingNumberInput
             value={settings.pingInterval ?? DEFAULT_SETTINGS.pingInterval ?? 30}
@@ -88,16 +88,16 @@ export function GeneralTab() {
             }
             min={0}
             max={120}
-            suffix={t("settings.seconds")}
+            suffix={t`seconds`}
             fallback={DEFAULT_SETTINGS.pingInterval ?? 30}
           />
         </SettingRow>
       </SettingSection>
 
-      <SettingSection title={t("settings.queryHistory")}>
+      <SettingSection title={t`Query History`}>
         <SettingRow
-          label={t("settings.queryHistoryMaxEntries")}
-          description={t("settings.queryHistoryMaxEntriesDesc")}
+          label={t`Max History Entries`}
+          description={t`Maximum number of query history entries stored per connection.`}
         >
           <SettingNumberInput
             value={settings.queryHistoryMaxEntries ?? DEFAULT_SETTINGS.queryHistoryMaxEntries ?? 500}
@@ -106,23 +106,23 @@ export function GeneralTab() {
             }
             min={50}
             max={5000}
-            suffix={t("settings.entries")}
+            suffix={t`entries`}
             fallback={DEFAULT_SETTINGS.queryHistoryMaxEntries ?? 500}
           />
         </SettingRow>
       </SettingSection>
 
-      <SettingSection title={t("settings.erDiagram")}>
+      <SettingSection title={t`ER Diagram`}>
         <SettingRow
-          label={t("settings.erDiagramDefaultLayout")}
-          description={t("settings.erDiagramDefaultLayoutDesc")}
+          label={t`Default Layout`}
+          description={t`Choose the default layout direction for ER diagrams`}
         >
           <SettingButtonGroup<ERDiagramLayout>
             value={(settings.erDiagramDefaultLayout ?? DEFAULT_SETTINGS.erDiagramDefaultLayout) as ERDiagramLayout}
             onChange={(v) => updateSetting("erDiagramDefaultLayout", v)}
             options={[
-              { value: "LR", label: t("erDiagram.horizontal") },
-              { value: "TB", label: t("erDiagram.vertical") },
+              { value: "LR", label: t`Horizontal` },
+              { value: "TB", label: t`Vertical` },
             ]}
           />
         </SettingRow>

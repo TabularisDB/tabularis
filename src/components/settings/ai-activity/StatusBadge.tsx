@@ -1,15 +1,17 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import clsx from "clsx";
 import { getStatusBadgeStyle } from "../../../utils/aiActivity";
+import { aiActivityStatus } from "../../../i18n/registries/aiActivityStatus";
 
 interface StatusBadgeProps {
   status: string;
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {
-  const { t } = useTranslation();
+  const { i18n } = useLingui();
   const style = getStatusBadgeStyle(status);
-  const label = t(`aiActivity.status.${status}`, { defaultValue: status });
+  const descriptor = aiActivityStatus[status];
+  const label = descriptor ? i18n._(descriptor) : status;
   return (
     <span
       className={clsx(

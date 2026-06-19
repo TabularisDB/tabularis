@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   BarChart,
   Bar,
@@ -45,7 +45,7 @@ function ChartTypeSelector({
   result,
   onConfigChange,
 }: ChartTypeSelectorProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const numericCols = getNumericColumns(result);
   const labelCols = getLabelColumns(result);
   const chartTypes: ChartType[] = ["bar", "line", "pie"];
@@ -54,7 +54,7 @@ function ChartTypeSelector({
     <div className="flex items-center gap-3 px-3 py-1.5 bg-elevated border-b border-default flex-wrap">
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] text-muted uppercase font-semibold">
-          {t("editor.notebook.chartType")}
+          {t`Chart`}
         </span>
         <div className="flex gap-0.5">
           {chartTypes.map((type) => (
@@ -76,7 +76,7 @@ function ChartTypeSelector({
 
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] text-muted uppercase font-semibold">
-          {t("editor.notebook.chartLabel")}
+          {t`Label`}
         </span>
         <select
           value={config.labelColumn}
@@ -95,7 +95,7 @@ function ChartTypeSelector({
 
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] text-muted uppercase font-semibold">
-          {t("editor.notebook.chartValues")}
+          {t`Values`}
         </span>
         <div className="flex gap-1">
           {numericCols.map((col) => {

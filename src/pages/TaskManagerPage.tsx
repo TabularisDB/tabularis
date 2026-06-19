@@ -1,6 +1,8 @@
+import { plural } from "@lingui/core/macro";
 import { useState, useCallback } from "react";
+import { taskManagerProcessStatus } from "../i18n/registries/taskManagerProcessStatus";
 import { invoke } from "@tauri-apps/api/core";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   Activity,
   RefreshCw,
@@ -43,7 +45,7 @@ interface KillConfirmModalProps {
 }
 
 const KillConfirmModal = ({ pluginName, onConfirm, onCancel }: KillConfirmModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] backdrop-blur-sm">
       <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[420px] overflow-hidden">
@@ -52,8 +54,8 @@ const KillConfirmModal = ({ pluginName, onConfirm, onCancel }: KillConfirmModalP
             <TriangleAlert size={18} className="text-red-400" />
           </div>
           <div className="flex-1">
-            <h3 className="text-sm font-semibold text-primary">{t("taskManager.killModal.title")}</h3>
-            <p className="text-xs text-muted">{t("taskManager.killModal.subtitle")}</p>
+            <h3 className="text-sm font-semibold text-primary">{t`Force Kill Plugin Process`}</h3>
+            <p className="text-xs text-muted">{t`This action cannot be undone immediately`}</p>
           </div>
           <button
             onClick={onCancel}
@@ -64,13 +66,13 @@ const KillConfirmModal = ({ pluginName, onConfirm, onCancel }: KillConfirmModalP
         </div>
         <div className="p-5 space-y-3">
           <p className="text-sm text-secondary">
-            {t("taskManager.killModal.descriptionBefore")}{" "}
+            {t`Killing`}{" "}
             <span className="font-semibold text-primary">{pluginName}</span>{" "}
-            {t("taskManager.killModal.descriptionAfter")}
+            {t`will forcefully stop its process. Any active database connections using this plugin will stop working until the plugin is restarted.`}
           </p>
           <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
             <TriangleAlert size={14} className="shrink-0 mt-0.5" />
-            <span>{t("taskManager.killModal.warning")}</span>
+            <span>{t`Active queries and connections through this plugin will be interrupted.`}</span>
           </div>
         </div>
         <div className="flex justify-end gap-2 p-4 border-t border-default bg-base/50">
@@ -78,13 +80,13 @@ const KillConfirmModal = ({ pluginName, onConfirm, onCancel }: KillConfirmModalP
             onClick={onCancel}
             className="px-4 py-2 rounded-lg text-sm text-muted hover:text-primary hover:bg-surface-secondary/50 transition-colors"
           >
-            {t("taskManager.killModal.cancel")}
+            {t`Cancel`}
           </button>
           <button
             onClick={onConfirm}
             className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/15 border border-red-500/25 text-red-400 hover:bg-red-500/25 transition-colors"
           >
-            {t("taskManager.killModal.confirm")}
+            {t`Force Kill`}
           </button>
         </div>
       </div>
@@ -96,7 +98,7 @@ const KillConfirmModal = ({ pluginName, onConfirm, onCancel }: KillConfirmModalP
 // Tabularis self stats panel
 // ---------------------------------------------------------------------------
 const TabularisSelfPanel = ({ stats }: { stats: TabularisSelfStats }) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<TabularisChildProcess[]>([]);
   const [loadingChildren, setLoadingChildren] = useState(false);
@@ -124,29 +126,29 @@ const TabularisSelfPanel = ({ stats }: { stats: TabularisSelfStats }) => {
     <div className="bg-elevated border border-default rounded-xl p-5">
       <h2 className="text-sm font-semibold text-primary mb-4 flex items-center gap-2">
         <Activity size={15} className="text-blue-400" />
-        {t("taskManager.tabularisProcess.title")}
+        {t`Tabularis Process`}
         <span className="ml-auto text-xs text-muted font-mono">PID {stats.pid}</span>
       </h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard
           icon={<Cpu size={14} className="text-blue-400" />}
-          label={t("taskManager.tabularisProcess.cpu")}
+          label={t`CPU`}
           value={formatCpuPercent(stats.cpu_percent)}
         />
         <StatCard
           icon={<MemoryStick size={14} className="text-purple-400" />}
-          label={t("taskManager.tabularisProcess.ram")}
+          label={t`RAM`}
           value={formatBytes(stats.self_memory_bytes)}
         />
         <StatCard
           icon={<HardDrive size={14} className="text-green-400" />}
-          label={t("taskManager.tabularisProcess.diskRead")}
+          label={t`Disk Read/s`}
           value={formatBytes(stats.disk_read_bytes)}
           suffix="/s"
         />
         <StatCard
           icon={<HardDrive size={14} className="text-orange-400" />}
-          label={t("taskManager.tabularisProcess.diskWrite")}
+          label={t`Disk Write/s`}
           value={formatBytes(stats.disk_write_bytes)}
           suffix="/s"
         />
@@ -166,14 +168,14 @@ const TabularisSelfPanel = ({ stats }: { stats: TabularisSelfStats }) => {
           <Layers size={12} />
         )}
         {stats.child_count > 0
-          ? t("taskManager.tabularisProcess.childCount", { count: stats.child_count })
-          : t("taskManager.tabularisProcess.noChildren")}
+          ? plural(stats.child_count, { one: "# child process", other: "# child processes" })
+          : t`No child processes`}
         {stats.child_count > 0 && (
           <span
             className="ml-auto opacity-60"
-            title={t("taskManager.tabularisProcess.treeTotalTooltip")}
+            title={t`Sum of RSS across the process tree — may overcount shared memory`}
           >
-            {t("taskManager.tabularisProcess.treeTotal", { size: formatBytes(stats.total_memory_bytes) })}
+            {t`Tree total: ${formatBytes(stats.total_memory_bytes)}`}
           </span>
         )}
       </button>
@@ -184,22 +186,22 @@ const TabularisSelfPanel = ({ stats }: { stats: TabularisSelfStats }) => {
           {loadingChildren ? (
             <div className="flex items-center justify-center gap-2 py-6 text-muted text-xs">
               <Loader2 size={14} className="animate-spin" />
-              {t("taskManager.tabularisProcess.loadingProcesses")}
+              {t`Loading processes…`}
             </div>
           ) : (
             <>
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-default bg-base/50">
-                    <th className="px-3 py-2 text-left font-medium text-muted uppercase tracking-wide">{t("taskManager.tabularisProcess.colPid")}</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted uppercase tracking-wide">{t("taskManager.tabularisProcess.colName")}</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted uppercase tracking-wide">{t("taskManager.tabularisProcess.colCpu")}</th>
-                    <th className="px-3 py-2 text-left font-medium text-muted uppercase tracking-wide">{t("taskManager.tabularisProcess.colRam")}</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted uppercase tracking-wide">{t`PID`}</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted uppercase tracking-wide">{t`Name`}</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted uppercase tracking-wide">{t`CPU`}</th>
+                    <th className="px-3 py-2 text-left font-medium text-muted uppercase tracking-wide">{t`RAM`}</th>
                     <th className="px-3 py-2 text-right font-medium text-muted uppercase tracking-wide">
                       <button
                         onClick={fetchChildren}
                         className="inline-flex items-center gap-1 hover:text-primary transition-colors"
-                        title={t("taskManager.tabularisProcess.refresh")}
+                        title={t`Refresh`}
                       >
                         <RefreshCw size={11} className={clsx(loadingChildren && "animate-spin")} />
                       </button>
@@ -283,13 +285,13 @@ const Th = ({ label, col, current, asc, onClick }: ThProps) => (
 // Child process row
 // ---------------------------------------------------------------------------
 const ChildRow = ({ child }: { child: ChildProcessInfo }) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   return (
     <tr className="bg-base/40">
       <td className="px-4 py-2 pl-8">
         <div className="flex items-center gap-1.5 text-xs text-muted">
           <span className="opacity-50">└</span>
-          <span>{t("taskManager.pluginProcesses.childProcess")}</span>
+          <span>{t`child process`}</span>
         </div>
       </td>
       <td className="px-4 py-2 text-muted font-mono text-xs">{child.pid}</td>
@@ -302,7 +304,7 @@ const ChildRow = ({ child }: { child: ChildProcessInfo }) => {
       </td>
       <td className="px-4 py-2">
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
-          {t("taskManager.pluginProcesses.status.running")}
+          {t`running`}
         </span>
       </td>
       <td className="px-4 py-2" />
@@ -328,7 +330,7 @@ const ProcessRow = ({
   onKillRequest,
   onRestart,
 }: ProcessRowProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const [expanded, setExpanded] = useState(false);
   const busy = isKilling || isRestarting;
   const hasChildren = proc.children.length > 0;
@@ -344,8 +346,8 @@ const ProcessRow = ({
                 className="p-0.5 rounded text-muted hover:text-primary transition-colors shrink-0"
                 title={
                   expanded
-                    ? t("taskManager.pluginProcesses.collapseChildren")
-                    : t("taskManager.pluginProcesses.childCount", { count: proc.children.length })
+                    ? t`Collapse child processes`
+                    : plural(proc.children.length, { one: "# child process", other: "# child processes" })
                 }
               >
                 {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -376,7 +378,7 @@ const ProcessRow = ({
               getStatusBadgeColor(proc.status),
             )}
           >
-            {t(`taskManager.pluginProcesses.status.${proc.status}`, proc.status)}
+            {i18n._(taskManagerProcessStatus[proc.status])}
           </span>
         </td>
         <td className="px-4 py-3">
@@ -385,27 +387,27 @@ const ProcessRow = ({
               onClick={() => onRestart(proc.plugin_id)}
               disabled={busy}
               className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              title={t("taskManager.pluginProcesses.restart")}
+              title={t`Restart`}
             >
               {isRestarting ? (
                 <Loader2 size={12} className="animate-spin" />
               ) : (
                 <RotateCcw size={12} />
               )}
-              {t("taskManager.pluginProcesses.restart")}
+              {t`Restart`}
             </button>
             <button
               onClick={() => onKillRequest(proc)}
               disabled={busy}
               className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              title={t("taskManager.killModal.confirm")}
+              title={t`Force Kill`}
             >
               {isKilling ? (
                 <Loader2 size={12} className="animate-spin" />
               ) : (
                 <Square size={12} />
               )}
-              {t("taskManager.pluginProcesses.kill")}
+              {t`Kill`}
             </button>
           </div>
         </td>
@@ -421,7 +423,7 @@ const ProcessRow = ({
 // Main page
 // ---------------------------------------------------------------------------
 export const TaskManagerPage = () => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const {
     processes,
     systemStats,
@@ -481,8 +483,8 @@ export const TaskManagerPage = () => {
               <Activity size={18} className="text-blue-400" />
             </div>
             <div>
-              <h1 className="text-base font-semibold text-primary">{t("taskManager.header.title")}</h1>
-              <p className="text-xs text-muted">{t("taskManager.header.subtitle")}</p>
+              <h1 className="text-base font-semibold text-primary">{t`Task Manager`}</h1>
+              <p className="text-xs text-muted">{t`Plugin processes & system resources`}</p>
             </div>
           </div>
           <button
@@ -491,7 +493,7 @@ export const TaskManagerPage = () => {
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-muted hover:text-primary hover:bg-surface-secondary/50 transition-colors disabled:opacity-50"
           >
             <RefreshCw size={14} className={clsx(loading && "animate-spin")} />
-            {t("taskManager.header.refresh")}
+            {t`Refresh`}
           </button>
         </div>
 
@@ -508,14 +510,14 @@ export const TaskManagerPage = () => {
           <div className="bg-elevated border border-default rounded-xl p-5">
             <h2 className="text-sm font-semibold text-primary mb-4 flex items-center gap-2">
               <Cpu size={15} className="text-blue-400" />
-              {t("taskManager.systemResources.title")}
+              {t`System Resources`}
             </h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {/* CPU */}
               <div className="bg-base rounded-lg p-3 border border-default">
                 <div className="flex items-center gap-2 mb-2">
                   <Cpu size={14} className="text-blue-400" />
-                  <span className="text-xs text-muted font-medium uppercase tracking-wide">{t("taskManager.systemResources.cpu")}</span>
+                  <span className="text-xs text-muted font-medium uppercase tracking-wide">{t`CPU`}</span>
                 </div>
                 <p className="text-xl font-bold text-primary">
                   {systemStats ? formatCpuPercent(systemStats.cpu_percent) : "—"}
@@ -526,7 +528,7 @@ export const TaskManagerPage = () => {
               <div className="bg-base rounded-lg p-3 border border-default">
                 <div className="flex items-center gap-2 mb-2">
                   <MemoryStick size={14} className="text-purple-400" />
-                  <span className="text-xs text-muted font-medium uppercase tracking-wide">{t("taskManager.systemResources.ram")}</span>
+                  <span className="text-xs text-muted font-medium uppercase tracking-wide">{t`RAM`}</span>
                 </div>
                 <p className="text-xl font-bold text-primary">
                   {systemStats ? formatBytes(systemStats.memory_used) : "—"}
@@ -551,7 +553,7 @@ export const TaskManagerPage = () => {
                 <div className="flex items-center gap-2 mb-2">
                   <HardDrive size={14} className="text-green-400" />
                   <span className="text-xs text-muted font-medium uppercase tracking-wide">
-                    {t("taskManager.systemResources.diskRead")}
+                    {t`Disk Read/s`}
                   </span>
                 </div>
                 <p className="text-xl font-bold text-primary">
@@ -567,7 +569,7 @@ export const TaskManagerPage = () => {
                 <div className="flex items-center gap-2 mb-2">
                   <HardDrive size={14} className="text-orange-400" />
                   <span className="text-xs text-muted font-medium uppercase tracking-wide">
-                    {t("taskManager.systemResources.diskWrite")}
+                    {t`Disk Write/s`}
                   </span>
                 </div>
                 <p className="text-xl font-bold text-primary">
@@ -582,7 +584,7 @@ export const TaskManagerPage = () => {
             {systemStats && (
               <div className="mt-3 flex items-center gap-2 text-xs text-muted">
                 <Layers size={12} />
-                <span>{t("taskManager.systemResources.processCount", { count: systemStats.process_count })}</span>
+                <span>{plural(systemStats.process_count, { one: "# system process running", other: "# system processes running" })}</span>
               </div>
             )}
           </div>
@@ -596,7 +598,7 @@ export const TaskManagerPage = () => {
           <div className="bg-elevated border border-default rounded-xl overflow-hidden">
             <div className="px-5 py-4 border-b border-default flex items-center gap-2">
               <Plug size={15} className="text-blue-400" />
-              <h2 className="text-sm font-semibold text-primary">{t("taskManager.pluginProcesses.title")}</h2>
+              <h2 className="text-sm font-semibold text-primary">{t`Plugin Processes`}</h2>
               {processes.length > 0 && (
                 <span className="ml-auto text-xs text-muted bg-surface-secondary px-2 py-0.5 rounded-full">
                   {processes.length}
@@ -607,31 +609,31 @@ export const TaskManagerPage = () => {
             {loading && processes.length === 0 ? (
               <div className="flex items-center justify-center gap-3 py-12 text-muted text-sm">
                 <Loader2 size={18} className="animate-spin" />
-                {t("taskManager.pluginProcesses.loading")}
+                {t`Loading processes…`}
               </div>
             ) : processes.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted">
                 <Plug size={32} className="opacity-30" />
-                <p className="text-sm">{t("taskManager.pluginProcesses.empty")}</p>
-                <p className="text-xs opacity-60">{t("taskManager.pluginProcesses.emptyHint")}</p>
+                <p className="text-sm">{t`No plugin processes are running`}</p>
+                <p className="text-xs opacity-60">{t`Install and enable plugins to see them here`}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-default bg-base/50">
-                      <Th label={t("taskManager.pluginProcesses.colPlugin")} col="plugin_name" current={sortKey} asc={sortAsc} onClick={handleSort} />
+                      <Th label={t`Plugin`} col="plugin_name" current={sortKey} asc={sortAsc} onClick={handleSort} />
                       <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase tracking-wide">
-                        {t("taskManager.pluginProcesses.colPid")}
+                        {t`PID`}
                       </th>
-                      <Th label={t("taskManager.pluginProcesses.colCpu")} col="cpu_percent" current={sortKey} asc={sortAsc} onClick={handleSort} />
-                      <Th label={t("taskManager.pluginProcesses.colRam")} col="memory_bytes" current={sortKey} asc={sortAsc} onClick={handleSort} />
+                      <Th label={t`CPU`} col="cpu_percent" current={sortKey} asc={sortAsc} onClick={handleSort} />
+                      <Th label={t`RAM`} col="memory_bytes" current={sortKey} asc={sortAsc} onClick={handleSort} />
                       <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase tracking-wide">
-                        {t("taskManager.pluginProcesses.colDiskRw")}
+                        {t`Disk R/W`}
                       </th>
-                      <Th label={t("taskManager.pluginProcesses.colStatus")} col="status" current={sortKey} asc={sortAsc} onClick={handleSort} />
+                      <Th label={t`Status`} col="status" current={sortKey} asc={sortAsc} onClick={handleSort} />
                       <th className="px-4 py-3 text-right text-xs font-medium text-muted uppercase tracking-wide">
-                        {t("taskManager.pluginProcesses.colActions")}
+                        {t({ message: "Actions", context: "taskManager" })}
                       </th>
                     </tr>
                   </thead>

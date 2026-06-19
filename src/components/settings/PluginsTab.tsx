@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -100,7 +100,7 @@ function PluginCard({
   pulse,
   showBand,
 }: PluginCardProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const parsedAuthor = author ? parseAuthor(author) : null;
   const band = BAND_PALETTES[nameBandIndex(name)];
 
@@ -186,7 +186,7 @@ function PluginCard({
             </div>
             {parsedAuthor && (
               <p className="mt-0.5 text-[10px] text-muted">
-                {t("settings.plugins.by")}{" "}
+                {t`by`}{" "}
                 {parsedAuthor.url ?? homepage ? (
                   <button
                     type="button"
@@ -470,7 +470,7 @@ export function PluginsTab({
   onOpenPluginSettings,
   onPluginsChanged,
 }: PluginsTabProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings, updateSetting } = useSettings();
   const {
     allDrivers,
@@ -709,10 +709,10 @@ export function PluginsTab({
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-lg font-semibold text-primary">
-                    {t("settings.plugins.overviewTitle")}
+                    {t`Plugin Center`}
                   </h2>
                   <p className="text-xs text-muted mt-0.5">
-                    {t("settings.plugins.overviewDesc")}
+                    {t`Install extensions, manage plugin drivers, and keep runtime settings under control.`}
                   </p>
                 </div>
               </div>
@@ -721,7 +721,7 @@ export function PluginsTab({
                 className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-default bg-base text-xs text-secondary hover:text-primary hover:border-strong transition-colors"
               >
                 <RefreshCw size={13} />
-                {t("settings.plugins.refresh")}
+                {t`Refresh`}
               </button>
             </div>
           </div>
@@ -730,28 +730,28 @@ export function PluginsTab({
             <StatCard
               icon={<PackageCheck size={15} />}
               value={installedPlugins.length}
-              label={t("settings.plugins.installedMetric")}
+              label={t({ message: "Installed", context: "settings" })}
               colorClass="text-green-400"
               bgClass="bg-green-500/10"
             />
             <StatCard
               icon={<Power size={15} />}
               value={externalDrivers.length}
-              label={t("settings.plugins.enabledMetric")}
+              label={t`Enabled`}
               colorClass="text-blue-400"
               bgClass="bg-blue-500/10"
             />
             <StatCard
               icon={<Boxes size={15} />}
               value={registryPlugins.length}
-              label={t("settings.plugins.registryMetric")}
+              label={t`Registry`}
               colorClass="text-purple-400"
               bgClass="bg-purple-500/10"
             />
             <StatCard
               icon={<RefreshCw size={15} />}
               value={updateCount}
-              label={t("settings.plugins.updatesMetric")}
+              label={t`Updates`}
               colorClass={updateCount > 0 ? "text-amber-400" : "text-muted"}
               bgClass={
                 updateCount > 0 ? "bg-amber-500/10" : "bg-surface-secondary"
@@ -770,10 +770,10 @@ export function PluginsTab({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
-                {t("settings.plugins.available")}
+                {t`Available Plugins`}
               </h3>
               <p className="text-xs text-muted mt-0.5">
-                {t("settings.plugins.availableDesc")}
+                {t`Browse and install plugins from the registry.`}
               </p>
             </div>
             <div className="relative shrink-0">
@@ -783,7 +783,7 @@ export function PluginsTab({
               />
               <input
                 type="text"
-                placeholder={t("settings.plugins.searchPlaceholder")}
+                placeholder={t`Search plugins…`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-44 rounded-lg border border-default bg-base py-1.5 pl-7 pr-3 text-xs text-primary placeholder:text-muted transition-all focus:w-56 focus:border-blue-500 focus:outline-none"
@@ -798,13 +798,13 @@ export function PluginsTab({
                 [
                   {
                     id: "all" as const,
-                    label: t("settings.plugins.filterAll"),
+                    label: t`All`,
                     count: registryPlugins.filter((p) => !p.installed_version)
                       .length,
                   },
                   {
                     id: "installed" as const,
-                    label: t("settings.plugins.filterInstalled"),
+                    label: t({ message: "Installed", context: "settings" }),
                     count:
                       allDrivers.length +
                       installedPlugins.filter(
@@ -813,7 +813,7 @@ export function PluginsTab({
                   },
                   {
                     id: "updates" as const,
-                    label: t("settings.plugins.filterUpdates"),
+                    label: t`Updates`,
                     count: updateCount,
                   },
                 ] satisfies Array<{
@@ -855,7 +855,7 @@ export function PluginsTab({
               className="mb-px flex items-center gap-1 text-xs text-muted transition-colors hover:text-primary"
             >
               <RefreshCw size={12} />
-              {t("settings.plugins.refresh")}
+              {t`Refresh`}
             </button>
           </div>
 
@@ -936,9 +936,7 @@ export function PluginsTab({
                                     handleOpenPluginSettings(driver.id)
                                   }
                                   className="p-1.5 text-secondary hover:text-primary transition-colors"
-                                  title={t(
-                                    "settings.plugins.pluginSettings.title",
-                                  )}
+                                  title={t`Plugin Settings`}
                                 >
                                   <SettingsIcon size={15} />
                                 </button>
@@ -958,7 +956,7 @@ export function PluginsTab({
                                   ) : (
                                     <Trash2 size={11} />
                                   )}
-                                  {t("settings.plugins.remove")}
+                                  {t({ message: "Remove", context: "settings" })}
                                 </button>
                               )}
                             </div>
@@ -1020,9 +1018,7 @@ export function PluginsTab({
                                   handleOpenPluginSettings(plugin.id)
                                 }
                                 className="p-1.5 text-secondary hover:text-primary transition-colors"
-                                title={t(
-                                  "settings.plugins.pluginSettings.title",
-                                )}
+                                title={t`Plugin Settings`}
                               >
                                 <SettingsIcon size={15} />
                               </button>
@@ -1038,7 +1034,7 @@ export function PluginsTab({
                                 ) : (
                                   <Trash2 size={11} />
                                 )}
-                                {t("settings.plugins.remove")}
+                                {t({ message: "Remove", context: "settings" })}
                               </button>
                             </div>
                           }
@@ -1049,8 +1045,8 @@ export function PluginsTab({
                     {isEmpty && (
                       <p className="col-span-full text-sm text-muted py-4">
                         {sq
-                          ? t("settings.plugins.searchNoResults")
-                          : t("settings.plugins.noPlugins")}
+                          ? t`No plugins match your search.`
+                          : t`No plugins available in the registry.`}
                       </p>
                     )}
                   </div>
@@ -1062,14 +1058,14 @@ export function PluginsTab({
                 {registryLoading && (
                   <div className="flex items-center gap-2 text-muted text-sm py-4">
                     <Loader2 size={16} className="animate-spin" />
-                    {t("settings.plugins.loadingRegistry")}
+                    {t`Loading plugin registry...`}
                   </div>
                 )}
 
                 {registryError && (
                   <div className="bg-red-900/20 border border-red-900/50 text-red-400 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
                     <AlertTriangle size={16} />
-                    {t("settings.plugins.registryError")}: {registryError}
+                    {t`Failed to load registry`}: {registryError}
                   </div>
                 )}
 
@@ -1129,7 +1125,7 @@ export function PluginsTab({
                           : "bg-green-500/10 text-green-400 border-green-500/25",
                       )}
                     >
-                      {t("settings.plugins.installed")} v
+                      {t({ message: "Installed", context: "settings" })} v
                       {plugin.installed_version}
                     </span>
                   ) : undefined;
@@ -1148,7 +1144,7 @@ export function PluginsTab({
                       actions={
                         !selectedPlatformSupported ? (
                           <span className="text-xs text-muted italic text-right">
-                            {t("settings.plugins.platformNotSupported")}
+                            {t`Not available for your platform`}
                           </span>
                         ) : (
                           <>
@@ -1160,7 +1156,7 @@ export function PluginsTab({
                                     className="text-green-400"
                                   />
                                   <span className="text-xs text-green-400 font-medium">
-                                    {t("settings.plugins.upToDate")}
+                                    {t`Up to date`}
                                   </span>
                                 </div>
                               )}
@@ -1195,29 +1191,24 @@ export function PluginsTab({
                                     <Download size={12} />
                                   )}
                                   {isDowngrade
-                                    ? `${t("settings.plugins.downgrade")} v${selectedVer}`
+                                    ? `${t`Downgrade to`} v${selectedVer}`
                                     : isUpdate
-                                      ? `${t("settings.plugins.update")} v${selectedVer}`
-                                      : `${t("settings.plugins.install")} v${selectedVer}`}
+                                      ? `${t({ message: "Update", context: "settings" })} v${selectedVer}`
+                                      : `${t`Install`} v${selectedVer}`}
                                 </button>
                               ) : (
                                 <div className="w-full flex flex-col items-end gap-1">
                                   <button
                                     disabled
-                                    title={t(
-                                      "settings.plugins.requiresVersion",
-                                      { version: minVersion },
-                                    )}
+                                    title={t`Requires Tabularis ≥ ${minVersion}`}
                                     className="w-full flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium text-muted bg-surface-tertiary cursor-not-allowed opacity-50"
                                   >
                                     <Download size={12} />
-                                    {t("settings.plugins.install")} v
+                                    {t`Install`} v
                                     {selectedVer}
                                   </button>
                                   <span className="text-[10px] text-amber-400/80 text-right">
-                                    {t("settings.plugins.requiresVersion", {
-                                      version: minVersion,
-                                    })}
+                                    {t`Requires Tabularis ≥ ${minVersion}`}
                                   </span>
                                 </div>
                               ))}
@@ -1256,7 +1247,7 @@ export function PluginsTab({
                                     isDowngrade={isDowngrade}
                                     label={
                                       isAtLatest && isSelectedInstalled
-                                        ? t("settings.plugins.olderVersions")
+                                        ? t`Older versions`
                                         : `v${selectedVer}`
                                     }
                                   />
@@ -1271,12 +1262,12 @@ export function PluginsTab({
 
                 {filteredPlugins.length === 0 && registryPlugins.length > 0 && (
                   <p className="col-span-full text-sm text-muted py-4">
-                    {t("settings.plugins.searchNoResults")}
+                    {t`No plugins match your search.`}
                   </p>
                 )}
                 {registryPlugins.length === 0 && (
                   <p className="col-span-full text-sm text-muted py-4">
-                    {t("settings.plugins.noPlugins")}
+                    {t`No plugins available in the registry.`}
                   </p>
                 )}
               </div>

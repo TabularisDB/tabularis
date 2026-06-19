@@ -1,4 +1,5 @@
-import { useTranslation } from "react-i18next";
+import { plural } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { Download, BarChart3, X } from "lucide-react";
@@ -20,7 +21,7 @@ export function ResultToolbar({
   onToggleChart,
   canChart,
 }: ResultToolbarProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   const handleExportCsv = async () => {
     const filePath = await save({
@@ -45,9 +46,9 @@ export function ResultToolbar({
   return (
     <div className="px-3 py-1 bg-elevated text-xs text-muted flex items-center gap-2">
       <span>
-        {t("editor.notebook.cellResult", {
-          count: result.rows.length,
-          time: executionTime != null ? Math.round(executionTime) : "—",
+        {plural(result.rows.length, {
+          one: `# row · ${executionTime != null ? Math.round(executionTime) : "—"}ms`,
+          other: `# rows · ${executionTime != null ? Math.round(executionTime) : "—"}ms`,
         })}
       </span>
       <div className="flex-1" />
@@ -61,7 +62,7 @@ export function ResultToolbar({
                 ? "text-blue-400 bg-blue-500/15"
                 : "text-muted hover:text-secondary hover:bg-surface-secondary"
             }`}
-            title={t("editor.notebook.toggleChart")}
+            title={t`Toggle Chart`}
           >
             {showChart ? <X size={12} /> : <BarChart3 size={12} />}
           </button>
@@ -70,7 +71,7 @@ export function ResultToolbar({
           type="button"
           onClick={handleExportCsv}
           className="p-1 text-muted hover:text-secondary hover:bg-surface-secondary rounded transition-colors"
-          title={t("editor.notebook.exportCsv")}
+          title={t`Export as CSV`}
         >
           <span className="flex items-center gap-0.5">
             <Download size={12} />
@@ -81,7 +82,7 @@ export function ResultToolbar({
           type="button"
           onClick={handleExportJson}
           className="p-1 text-muted hover:text-secondary hover:bg-surface-secondary rounded transition-colors"
-          title={t("editor.notebook.exportJson")}
+          title={t`Export as JSON`}
         >
           <span className="flex items-center gap-0.5">
             <Download size={12} />

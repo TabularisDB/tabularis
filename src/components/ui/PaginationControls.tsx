@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,7 +18,7 @@ export function PaginationControls({
   isLoading,
   onPageChange,
 }: PaginationControlsProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const isFirstPage = pagination.page === 1;
   const totalPages =
     pagination.total_rows !== null
@@ -45,13 +45,8 @@ export function PaginationControls({
       </button>
       <div className="px-3 text-secondary text-xs font-medium min-w-[80px] text-center py-1">
         {totalPages !== null
-          ? t("editor.pageOf", {
-              current: pagination.page,
-              total: totalPages,
-            })
-          : t("editor.page", {
-              current: pagination.page,
-            })}
+          ? t`Page ${pagination.page} of ${totalPages}`
+          : t`Page ${pagination.page}`}
       </div>
       <button
         disabled={!pagination.has_more || isLoading}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   X,
   Plus,
@@ -86,7 +86,7 @@ export function SshConnectionsModal({
   isOpen,
   onClose,
 }: SshConnectionsModalProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [connections, setConnections] = useState<SshConnection[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -206,7 +206,7 @@ export function SshConnectionsModal({
       });
       if (!validation.isValid) {
         setTestStatus("error");
-        setTestMessage(validation.error || t("sshConnections.fillRequired"));
+        setTestMessage(validation.error || t`Please fill in all required fields`);
         return;
       }
 
@@ -247,7 +247,7 @@ export function SshConnectionsModal({
     } catch (error) {
       console.error("Failed to save SSH connection:", error);
       setTestStatus("error");
-      setTestMessage(t("sshConnections.failSave"));
+      setTestMessage(t`Failed to save SSH connection`);
     }
   };
 
@@ -268,7 +268,7 @@ export function SshConnectionsModal({
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t("sshConnections.confirmDelete"))) {
+    if (!confirm(t`Are you sure you want to delete this SSH connection?`)) {
       return;
     }
 
@@ -278,7 +278,7 @@ export function SshConnectionsModal({
     } catch (error) {
       console.error("Failed to delete SSH connection:", error);
       setTestStatus("error");
-      setTestMessage(`${t("sshConnections.failDelete")}: ${toErrorMessage(error)}`);
+      setTestMessage(`${t`Failed to delete SSH connection`}: ${toErrorMessage(error)}`);
     }
   };
 
@@ -305,7 +305,7 @@ export function SshConnectionsModal({
       // Show error feedback
       setTestResults((prev) => ({ ...prev, [conn.id]: "error" }));
       setTestStatus("error");
-      setTestMessage(`${t("sshConnections.testFailed")}: ${toErrorMessage(error)}`);
+      setTestMessage(`${t`Connection test failed`}: ${toErrorMessage(error)}`);
 
       // Clear the error indicator after 3 seconds
       setTimeout(() => {
@@ -326,7 +326,7 @@ export function SshConnectionsModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-strong bg-elevated">
           <h2 className="text-xl font-bold text-primary flex items-center gap-2">
-            {t("sshConnections.title")}
+            {t`SSH Connections`}
           </h2>
           <button
             onClick={onClose}
@@ -346,14 +346,14 @@ export function SshConnectionsModal({
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                 >
                   <Plus size={16} />
-                  {t("sshConnections.createNew")}
+                  {t`Create New SSH Connection`}
                 </button>
               </div>
 
               <div className="space-y-2">
                 {connections.length === 0 ? (
                   <div className="text-center py-8 text-muted">
-                    {t("sshConnections.noConnections")}
+                    {t`No SSH connections configured yet`}
                   </div>
                 ) : (
                   connections.map((conn) => (
@@ -370,7 +370,7 @@ export function SshConnectionsModal({
                         </div>
                         {conn.key_file && (
                           <div className="text-xs text-muted mt-1">
-                            {t("sshConnections.keyFile")}: {conn.key_file}
+                            {t`Key file`}: {conn.key_file}
                           </div>
                         )}
                       </div>
@@ -385,7 +385,7 @@ export function SshConnectionsModal({
                                 ? "text-red-500 bg-red-500/20"
                                 : "text-green-500 hover:bg-green-500/10"
                           }`}
-                          title={t("sshConnections.quickTest")}
+                          title={t`Quick connection test`}
                         >
                           {testingConnectionId === conn.id ? (
                             <Loader2 size={16} className="animate-spin" />
@@ -400,14 +400,14 @@ export function SshConnectionsModal({
                         <button
                           onClick={() => handleEdit(conn)}
                           className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
-                          title={t("sshConnections.edit")}
+                          title={t`Edit`}
                         >
                           <Edit2 size={16} />
                         </button>
                         <button
                           onClick={() => handleDelete(conn.id)}
                           className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                          title={t("sshConnections.delete")}
+                          title={t({ message: "Delete", context: "sshConnections" })}
                         >
                           <Trash2 size={16} />
                         </button>
@@ -420,21 +420,21 @@ export function SshConnectionsModal({
           ) : (
             <div className="space-y-4">
               <SshInput
-                label={t("sshConnections.name")}
+                label={t`Connection Name`}
                 value={formData.name}
                 onChange={(val) => updateField("name", val)}
-                placeholder={t("sshConnections.namePlaceholder")}
+                placeholder={t`My SSH Server`}
               />
 
               <div className="grid grid-cols-2 gap-4">
                 <SshInput
-                  label={t("newConnection.sshHost")}
+                  label={t`SSH Host`}
                   value={formData.host}
                   onChange={(val) => updateField("host", val)}
                   placeholder="example.com"
                 />
                 <SshInput
-                  label={t("newConnection.sshPort")}
+                  label={t`SSH Port`}
                   value={formData.port}
                   onChange={(val) => updateField("port", parseInt(val) || 22)}
                   type="number"
@@ -443,7 +443,7 @@ export function SshConnectionsModal({
               </div>
 
               <SshInput
-                label={t("newConnection.sshUser")}
+                label={t`SSH User`}
                 value={formData.user}
                 onChange={(val) => updateField("user", val)}
                 placeholder="username"
@@ -451,14 +451,14 @@ export function SshConnectionsModal({
 
               <div className="flex flex-col">
                 <label className={LabelClass}>
-                  {t("sshConnections.authType")}
+                  {t`Authentication Type`}
                 </label>
                 <Select
                   value={formData.auth_type || "password"}
                   options={["password", "ssh_key"]}
                   labels={{
-                    password: t("sshConnections.authTypePassword"),
-                    ssh_key: t("sshConnections.authTypeSshKey"),
+                    password: t`Password`,
+                    ssh_key: t`SSH Key`,
                   }}
                   onChange={(val) =>
                     updateField("auth_type", val as "password" | "ssh_key")
@@ -470,7 +470,7 @@ export function SshConnectionsModal({
               {formData.auth_type === "password" && (
                 <div className="flex flex-col">
                   <SshInput
-                    label={t("newConnection.sshPassword")}
+                    label={t`SSH Password`}
                     value={formData.password}
                     onChange={(val) => {
                       setPasswordDirty(true);
@@ -480,12 +480,12 @@ export function SshConnectionsModal({
                     placeholder={
                       editingId && !passwordDirty && !formData.password
                         ? "<hidden>"
-                        : t("newConnection.sshPasswordPlaceholder")
+                        : t`Enter SSH password`
                     }
                   />
                   {editingId && !passwordDirty && formData.save_in_keychain && (
                     <span className="text-xs text-muted mt-1">
-                      {t("sshConnections.savedInKeychain")}
+                      {t`Password saved in system keychain`}
                     </span>
                   )}
                 </div>
@@ -494,15 +494,15 @@ export function SshConnectionsModal({
               {formData.auth_type === "ssh_key" && (
                 <>
                   <SshInput
-                    label={t("newConnection.sshKeyFile")}
+                    label={t`SSH Key File (Optional)`}
                     value={formData.key_file}
                     onChange={(val) => updateField("key_file", val)}
-                    placeholder={t("newConnection.sshKeyFilePlaceholder")}
+                    placeholder={t`/path/to/id_rsa`}
                   />
 
                   <div className="flex flex-col">
                     <SshInput
-                      label={t("newConnection.sshKeyPassphrase")}
+                      label={t`SSH Key Passphrase (Optional)`}
                       value={formData.key_passphrase}
                       onChange={(val) => {
                         setPassphraseDirty(true);
@@ -514,14 +514,14 @@ export function SshConnectionsModal({
                         !passphraseDirty &&
                         !formData.key_passphrase
                           ? "<hidden>"
-                          : t("newConnection.sshKeyPassphrasePlaceholder")
+                          : t`Enter key passphrase if encrypted`
                       }
                     />
                     {editingId &&
                       !passphraseDirty &&
                       formData.save_in_keychain && (
                         <span className="text-xs text-muted mt-1">
-                          {t("sshConnections.savedInKeychain")}
+                          {t`Password saved in system keychain`}
                         </span>
                       )}
                   </div>
@@ -551,7 +551,7 @@ export function SshConnectionsModal({
                   htmlFor="ssh-keychain-toggle"
                   className="text-sm font-medium text-secondary cursor-pointer select-none"
                 >
-                  {t("newConnection.saveKeychain")}
+                  {t`Save passwords in Keychain`}
                 </label>
               </div>
 
@@ -565,7 +565,7 @@ export function SshConnectionsModal({
                   {testStatus === "testing" && (
                     <Loader2 size={16} className="animate-spin" />
                   )}
-                  {t("newConnection.testConnection")}
+                  {t`Test Connection`}
                 </button>
 
                 {testMessage && (
@@ -591,7 +591,7 @@ export function SshConnectionsModal({
                   onClick={resetForm}
                   className="flex-1 px-4 py-2 border border-strong rounded-lg hover:bg-elevated transition-colors text-secondary"
                 >
-                  {t("sshConnections.cancel")}
+                  {t`Cancel`}
                 </button>
                 <button
                   onClick={handleSave}
@@ -599,8 +599,8 @@ export function SshConnectionsModal({
                 >
                   <Check size={16} />
                   {editingId
-                    ? t("sshConnections.update")
-                    : t("sshConnections.save")}
+                    ? t({ message: "Update", context: "sshConnections" })
+                    : t`Save`}
                 </button>
               </div>
             </div>

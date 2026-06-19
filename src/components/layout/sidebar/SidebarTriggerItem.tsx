@@ -1,5 +1,5 @@
 import React from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Zap } from "lucide-react";
 import clsx from "clsx";
 import type { TriggerInfo } from "../../../contexts/DatabaseContext";
@@ -25,7 +25,7 @@ export const SidebarTriggerItem = ({
   onContextMenu,
   onDoubleClick,
 }: SidebarTriggerItemProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -56,7 +56,7 @@ export const SidebarTriggerItem = ({
         </span>
       )}
       <span className="text-[10px] text-muted opacity-50 shrink-0 hidden group-hover:inline">
-        {t("sidebar.onTable", { table: trigger.table_name })}
+        {t`on ${trigger.table_name}`}
       </span>
     </div>
   );

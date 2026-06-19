@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { ChevronRight } from "lucide-react";
 import { truncateCellPreview } from "../../utils/text";
 
@@ -18,7 +18,7 @@ export const TextCell = ({
   isPendingDelete,
   onToggleExpand,
 }: TextCellProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const textRef = useRef<HTMLSpanElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
 
@@ -66,8 +66,8 @@ export const TextCell = ({
           className={`${iconVisibilityClass} transition-all p-0.5 rounded text-muted hover:text-secondary hover:bg-surface-tertiary flex-shrink-0 ${
             isExpanded ? "rotate-90" : ""
           }`}
-          title={t("textCell.expand")}
-          aria-label={t("textCell.expand")}
+          title={t`Toggle inline text editor`}
+          aria-label={t`Toggle inline text editor`}
         >
           <ChevronRight size={11} />
         </button>

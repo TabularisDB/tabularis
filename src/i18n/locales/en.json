@@ -39,6 +39,7 @@
     "refresh": "Refresh"
   },
   "sidebar": {
+    "actions": "Actions",
     "connections": "Connections",
     "settings": "Settings",
     "savedQueries": "Saved Queries",

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   Filter,
   ArrowUpDown,
@@ -66,7 +66,7 @@ const TableToolbarInternal = ({
   onResetAllApplied,
   onUpdate,
 }: TableToolbarInternalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { activeDriver } = useDatabase();
   const [filterInput, setFilterInput] = useState(initialFilter || "");
   const [sortInput, setSortInput] = useState(initialSort || "");
@@ -410,7 +410,7 @@ const TableToolbarInternal = ({
           <button
             ref={filtersButtonRef}
             onClick={togglePanel}
-            title={t("toolbar.toggleFilterPanel")}
+            title={t`Toggle structured filter panel`}
             className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs border transition-all shrink-0 ${
               panelOpen
                 ? "bg-blue-600/20 border-blue-500/50 text-blue-300"
@@ -418,7 +418,7 @@ const TableToolbarInternal = ({
             }`}
           >
             <SlidersHorizontal size={12} />
-            <span>{t("toolbar.filters")}</span>
+            <span>{t`Filters`}</span>
             {activeFilterCount > 0 && (
               <span className="px-1 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[10px] font-semibold bg-blue-500/30 text-blue-300 leading-none">
                 {activeFilterCount}
@@ -474,7 +474,7 @@ const TableToolbarInternal = ({
             <Filter size={12} className="text-muted shrink-0" />
             <span className="text-xs text-muted font-mono truncate">
               {buildStructuredFilterClause(structuredFilters, activeDriver) || (
-                <em className="not-italic opacity-50">{t("toolbar.noActiveFilters")}</em>
+                <em className="not-italic opacity-50">{t`no active filters`}</em>
               )}
             </span>
           </div>
@@ -554,16 +554,16 @@ const TableToolbarInternal = ({
           <div className="flex items-center justify-between px-3 py-2 border-b border-default/60 bg-base/40">
             <div className="flex items-center gap-2">
               <SlidersHorizontal size={13} className="text-muted" />
-              <span className="text-xs font-medium text-secondary">{t("toolbar.filterConditions")}</span>
+              <span className="text-xs font-medium text-secondary">{t`Filter conditions`}</span>
               {structuredFilters.length > 0 && (
                 <span className="text-[10px] text-muted">
-                  {t("toolbar.activeOf", { active: activeFilterCount, total: structuredFilters.length })}
+                  {t`${activeFilterCount} of ${structuredFilters.length} active`}
                 </span>
               )}
             </div>
             <button
               onClick={closePanel}
-              title={t("toolbar.closePanelEsc")}
+              title={t`Close filter panel (ESC)`}
               className="w-5 h-5 flex items-center justify-center rounded text-muted hover:text-secondary hover:bg-surface-secondary transition-colors"
             >
               <X size={12} />
@@ -574,12 +574,12 @@ const TableToolbarInternal = ({
           <div className="divide-y divide-default/30">
             {structuredFilters.length === 0 ? (
               <div className="flex items-center gap-2 px-3 py-3">
-                <span className="text-xs text-muted">{t("toolbar.noFilters")}</span>
+                <span className="text-xs text-muted">{t`No filters —`}</span>
                 <button
                   onClick={handleAddFilter}
                   className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
                 >
-                  {t("toolbar.addFirstFilter")}
+                  {t`add the first filter`}
                 </button>
               </div>
             ) : (
@@ -606,15 +606,15 @@ const TableToolbarInternal = ({
               onClick={handleUnset}
               className="px-2.5 py-1 rounded text-xs text-muted border border-default/70 hover:text-secondary hover:border-default transition-colors"
             >
-              {t("toolbar.unset")}
+              {t`Unset`}
             </button>
 
             <button
               onClick={closePanel}
-              title={t("toolbar.switchToSql")}
+              title={t`Switch to SQL WHERE input`}
               className="px-2.5 py-1 rounded text-xs text-muted border border-default/70 hover:text-blue-300 hover:border-blue-500/50 transition-colors"
             >
-              {t("toolbar.sql")}
+              {t`SQL`}
             </button>
 
             <button
@@ -622,7 +622,7 @@ const TableToolbarInternal = ({
               className="flex items-center gap-1 px-2.5 py-1 rounded text-xs text-muted border border-dashed border-default/70 hover:text-blue-300 hover:border-blue-500/50 transition-colors"
             >
               <Plus size={11} />
-              {t("toolbar.addFilter")}
+              {t`Add filter`}
             </button>
 
             <div className="flex-1" />
@@ -632,7 +632,7 @@ const TableToolbarInternal = ({
               onClick={handleApplyAll}
               className="px-3 py-1 rounded text-xs font-medium border transition-colors bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30 hover:border-blue-400/70"
             >
-              {t("toolbar.applyAll")}
+              {t`Apply All`}
             </button>
           </div>
         </div>

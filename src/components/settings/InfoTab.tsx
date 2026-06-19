@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -28,7 +28,7 @@ import { WhatsNewModal } from "../modals/WhatsNewModal";
 import { OpenSourceLibrariesModal } from "../modals/OpenSourceLibrariesModal";
 
 export function InfoTab() {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings, updateSetting } = useSettings();
   const { currentTheme } = useTheme();
   const {
@@ -81,11 +81,11 @@ export function InfoTab() {
             className="flex items-center gap-2 bg-surface-secondary hover:bg-surface-tertiary text-primary px-4 py-2 rounded-lg font-medium transition-colors border border-strong"
           >
             <Github size={18} />
-            {t("settings.starOnGithub")}
+            {t`Star on GitHub`}
           </button>
           <div className="flex items-center gap-2 bg-accent/10 text-accent px-4 py-2 rounded-lg border border-accent/30">
             <span className="text-xs font-bold uppercase tracking-wider">
-              {t("settings.version")}
+              {t`Version`}
             </span>
             <span className="font-mono font-bold">
               {APP_VERSION} (Beta)
@@ -96,27 +96,27 @@ export function InfoTab() {
             className="flex items-center gap-2 bg-purple-900/20 hover:bg-purple-900/30 text-purple-400 px-4 py-2 rounded-lg font-medium transition-colors border border-purple-500/30"
           >
             <Sparkles size={18} />
-            {t("whatsNew.title")}
+            {t`What's New`}
           </button>
           <button
             onClick={() => setIsOpenSourceLibrariesOpen(true)}
             className="flex items-center gap-2 bg-blue-900/20 hover:bg-blue-900/30 text-blue-400 px-4 py-2 rounded-lg font-medium transition-colors border border-blue-500/30"
           >
             <Library size={18} />
-            {t("settings.openSourceLibraries")}
+            {t`Open Source Libraries`}
           </button>
         </div>
       </div>
 
       {/* Updates */}
       <SettingSection
-        title={t("settings.updates")}
+        title={t`Updates`}
         icon={<Download size={14} className="text-muted" />}
       >
         <div className="space-y-4 pt-3">
           <div className="bg-base p-4 rounded-lg border border-default">
             <div className="text-sm text-secondary">
-              {t("settings.currentVersion")}
+              {t`Current Version`}
             </div>
             <div className="text-lg font-mono text-primary mt-1">
               v{APP_VERSION}
@@ -126,22 +126,21 @@ export function InfoTab() {
           {installationSource ? (
             <div className="bg-yellow-900/20 border border-yellow-900/50 text-yellow-400 px-4 py-3 rounded-lg">
               <div className="text-sm font-medium">
-                {t("update.managedByPackageManager", {
-                  source:
-                    ({ aur: "AUR", snap: "Snap Store", flatpak: "Flathub" } as Record<string, string>)[
-                      installationSource
-                    ] ?? installationSource,
-                })}
+                {t`Updates managed by ${
+                  ({ aur: "AUR", snap: "Snap Store", flatpak: "Flathub" } as Record<string, string>)[
+                    installationSource
+                  ] ?? installationSource
+                }`}
               </div>
               <div className="text-xs mt-1 text-yellow-400/70">
-                {t("update.managedByPackageManagerDesc")}
+                {t`Use your package manager to update Tabularis.`}
               </div>
             </div>
           ) : (
             <>
               <SettingRow
-                label={t("settings.autoCheckUpdates")}
-                description={t("settings.autoCheckUpdatesDesc")}
+                label={t`Check for updates on startup`}
+                description={t`Automatically check for new versions when the app launches`}
               >
                 <SettingToggle
                   checked={settings.autoCheckUpdatesOnStartup !== false}
@@ -159,12 +158,12 @@ export function InfoTab() {
                 {isChecking ? (
                   <>
                     <Loader2 size={16} className="animate-spin" />
-                    {t("settings.checking")}
+                    {t`Checking...`}
                   </>
                 ) : (
                   <>
                     <Download size={16} />
-                    {t("settings.checkNow")}
+                    {t`Check for Updates Now`}
                   </>
                 )}
               </button>
@@ -172,7 +171,7 @@ export function InfoTab() {
               {isUpToDate && !updateInfo && (
                 <div className="bg-blue-900/20 border border-blue-900/50 text-blue-400 px-4 py-3 rounded-lg flex items-center gap-2">
                   <CheckCircle2 size={16} />
-                  <span className="text-sm">{t("update.upToDate")}</span>
+                  <span className="text-sm">{t`You're up to date`}</span>
                 </div>
               )}
 
@@ -180,9 +179,7 @@ export function InfoTab() {
                 <div className="bg-green-900/20 border border-green-900/50 text-green-400 px-4 py-3 rounded-lg flex items-center gap-2">
                   <CheckCircle2 size={16} />
                   <span className="text-sm">
-                    {t("update.updateAvailable", {
-                      version: updateInfo.latestVersion,
-                    })}
+                    {t`Version ${updateInfo.latestVersion} is available`}
                   </span>
                 </div>
               )}
@@ -199,9 +196,9 @@ export function InfoTab() {
 
       {/* Roadmap */}
       <SettingSection
-        title={t("settings.projectStatus")}
+        title={t`Project Status`}
         icon={<Info size={14} className="text-muted" />}
-        description={t("settings.roadmapDesc")}
+        description={t`This project is a Work In Progress (WIP). Core features are stable, but we have big plans.`}
       >
         <div className="bg-elevated border border-default rounded-xl overflow-hidden mt-3">
           <div className="divide-y divide-default">
@@ -263,16 +260,16 @@ export function InfoTab() {
 
       {/* Task Manager */}
       <SettingSection
-        title={t("taskManager.header.title")}
+        title={t`Task Manager`}
         icon={<Activity size={14} className="text-muted" />}
-        description={t("taskManager.header.description")}
+        description={t`Monitor plugin processes, CPU, RAM and disk usage in real time`}
         action={
           <button
             onClick={() => invoke("open_task_manager_window")}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-500/15 border border-blue-500/25 text-blue-400 hover:bg-blue-500/25 transition-colors"
           >
             <Activity size={14} />
-            {t("taskManager.header.open")}
+            {t`Open Task Manager`}
           </button>
         }
       >
@@ -281,9 +278,9 @@ export function InfoTab() {
 
       {/* Support */}
       <SettingSection
-        title={t("settings.support")}
+        title={t`Support the Development`}
         icon={<Heart size={14} className="text-muted" />}
-        description={t("settings.supportDesc")}
+        description={t`If you like tabularis and want to see more features, consider supporting the project by contributing code, reporting bugs, or starring the repo.`}
       >
         <div className="pt-3 flex flex-col items-center text-center">
           <button

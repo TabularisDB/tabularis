@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Eye,
@@ -40,7 +40,7 @@ export const SidebarViewItem = ({
   driver,
   schema,
 }: SidebarViewItemProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [columns, setColumns] = useState<TableColumn[]>([]);
@@ -114,7 +114,7 @@ export const SidebarViewItem = ({
           {isLoading ? (
             <div className="flex items-center gap-2 p-2 text-xs text-muted">
               <Loader2 size={12} className="animate-spin" />
-              {t("sidebar.loadingSchema")}
+              {t`Loading schema...`}
             </div>
           ) : (
             <div className="flex flex-col">
@@ -122,7 +122,7 @@ export const SidebarViewItem = ({
                 className="flex items-center gap-2 px-2 py-1 text-xs text-muted select-none"
               >
                 <Folder size={12} className="text-blue-400/70" />
-                <span>{t("sidebar.columns")}</span>
+                <span>{t`columns`}</span>
                 <span className="ml-auto text-[10px] opacity-50">
                   {columns.length}
                 </span>

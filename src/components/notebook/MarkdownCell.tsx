@@ -1,6 +1,6 @@
 import { useRef, useEffect } from "react";
 import Markdown from "react-markdown";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import type { NotebookCell } from "../../types/notebook";
 
 interface MarkdownCellProps {
@@ -73,7 +73,7 @@ export function MarkdownCell({
   onContentChange,
   onTogglePreview,
 }: MarkdownCellProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   if (cell.isPreview) {
     if (!cell.content.trim()) {
@@ -82,7 +82,7 @@ export function MarkdownCell({
           className="px-4 py-3 text-sm text-muted italic cursor-pointer min-h-[60px] flex items-center"
           onDoubleClick={onTogglePreview}
         >
-          {t("editor.notebook.markdownPlaceholder")}
+          {t`Write Markdown here...`}
         </div>
       );
     }
@@ -98,7 +98,7 @@ export function MarkdownCell({
     <MarkdownEditor
       content={cell.content}
       onContentChange={onContentChange}
-      placeholder={t("editor.notebook.markdownPlaceholder")}
+      placeholder={t`Write Markdown here...`}
     />
   );
 }

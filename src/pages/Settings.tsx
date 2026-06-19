@@ -1,5 +1,7 @@
 import { useCallback, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
+import { msg } from "@lingui/core/macro";
+import type { MessageDescriptor } from "@lingui/core";
 import {
   Settings as SettingsIcon,
   Palette,
@@ -48,17 +50,17 @@ interface PluginSidebarChange {
 const TAB_ITEMS: Array<{
   id: SettingsTab;
   icon: React.ComponentType<{ size: number }>;
-  labelKey: string;
+  label: MessageDescriptor;
 }> = [
-  { id: "general", icon: SettingsIcon, labelKey: "settings.general" },
-  { id: "plugins", icon: Plug, labelKey: "settings.plugins.title" },
-  { id: "appearance", icon: Palette, labelKey: "settings.appearance" },
-  { id: "localization", icon: Languages, labelKey: "settings.localization" },
-  { id: "ai", icon: Sparkles, labelKey: "settings.ai.tab" },
-  { id: "ai-activity", icon: Shield, labelKey: "settings.aiActivity" },
-  { id: "logs", icon: ScrollText, labelKey: "settings.logs" },
-  { id: "shortcuts", icon: Keyboard, labelKey: "settings.shortcuts.title" },
-  { id: "info", icon: Info, labelKey: "settings.info" },
+  { id: "general", icon: SettingsIcon, label: msg`General` },
+  { id: "plugins", icon: Plug, label: msg`Plugins` },
+  { id: "appearance", icon: Palette, label: msg`Appearance` },
+  { id: "localization", icon: Languages, label: msg`Localization` },
+  { id: "ai", icon: Sparkles, label: msg`AI` },
+  { id: "ai-activity", icon: Shield, label: msg`AI Activity` },
+  { id: "logs", icon: ScrollText, label: msg`Logs` },
+  { id: "shortcuts", icon: Keyboard, label: msg`Keyboard Shortcuts` },
+  { id: "info", icon: Info, label: msg`Info` },
 ];
 
 const TAB_COMPONENTS: Partial<Record<SettingsTab, React.ComponentType>> = {
@@ -74,7 +76,7 @@ const TAB_COMPONENTS: Partial<Record<SettingsTab, React.ComponentType>> = {
 };
 
 export const Settings = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const {
     allDrivers,
     installedPlugins,
@@ -164,7 +166,7 @@ export const Settings = () => {
       {/* Sidebar */}
       <nav className="w-52 flex flex-col border-r border-default bg-elevated shrink-0">
         <div className="flex-1 py-2 px-2 overflow-y-auto space-y-0.5">
-          {TAB_ITEMS.map(({ id, icon: Icon, labelKey }) => (
+          {TAB_ITEMS.map(({ id, icon: Icon, label }) => (
             <div key={id} className="space-y-1">
               <button
                 onClick={() => setRequestedTab(id)}
@@ -177,7 +179,7 @@ export const Settings = () => {
                 )}
               >
                 <Icon size={16} />
-                <span className="truncate">{t(labelKey)}</span>
+                <span className="truncate">{i18n._(label)}</span>
                 {id === "plugins" && pluginTabs.length > 0 && (
                   <span className="ml-auto rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-400 border border-blue-500/20">
                     {pluginTabs.length}
@@ -218,7 +220,7 @@ export const Settings = () => {
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-muted hover:text-primary hover:bg-surface-secondary/50 transition-colors"
           >
             <FileJson size={14} />
-            {t("settings.editConfigJson")}
+            {t`Edit config.json`}
           </button>
         </div>
       </nav>

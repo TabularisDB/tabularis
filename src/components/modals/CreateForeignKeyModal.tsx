@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import { X, Save, Loader2, AlertTriangle, Link } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { SqlPreview } from '../ui/SqlPreview';
@@ -35,7 +35,7 @@ export const CreateForeignKeyModal = ({
   tableName,
   driver
 }: CreateForeignKeyModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { activeSchema } = useDatabase();
   const { allDrivers } = useDrivers();
   const canCreateFk = supportsCreateForeignKeys(getCapabilitiesForDriver(driver, allDrivers));
@@ -100,7 +100,7 @@ export const CreateForeignKeyModal = ({
 
   const generatePreview = useCallback(async () => {
     if (!fkName || !localColumn || !refTable || !refColumn) {
-      setSqlPreview('-- ' + t('createFk.sqlPreview'));
+      setSqlPreview('-- ' + t`SQL Preview`);
       return;
     }
     try {
@@ -127,7 +127,7 @@ export const CreateForeignKeyModal = ({
   }, [generatePreview]);
 
   const handleCreate = async () => {
-      if (!fkName.trim()) { setError(t('createFk.nameRequired')); return; }
+      if (!fkName.trim()) { setError(t`Name is required`); return; }
 
       setLoading(true);
       setError('');
@@ -178,7 +178,7 @@ export const CreateForeignKeyModal = ({
               <Link size={20} className="text-purple-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-primary">{t('createFk.title')}</h2>
+              <h2 className="text-lg font-semibold text-primary">{t({ message: "Create Foreign Key", context: "createFk" })}</h2>
               <p className="text-xs text-secondary font-mono">{tableName}</p>
             </div>
           </div>
@@ -192,12 +192,12 @@ export const CreateForeignKeyModal = ({
             {!canCreateFk && (
                 <div className="bg-warning-bg border border-warning-border text-warning-text text-xs p-3 rounded-lg flex items-start gap-2">
                     <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                    <span>{t('sidebar.sqliteFkError')}</span>
+                    <span>{t`SQLite does not support dropping FKs via ALTER TABLE.`}</span>
                 </div>
             )}
 
             <div>
-                <label className="block text-xs uppercase font-bold text-muted mb-1">{t('createFk.name')}</label>
+                <label className="block text-xs uppercase font-bold text-muted mb-1">{t`FK Name (Optional)`}</label>
                 <input
                     value={fkName}
                     onChange={(e) => { setFkName(e.target.value); setError(''); }}
@@ -208,13 +208,13 @@ export const CreateForeignKeyModal = ({
             {/* Column mapping */}
             <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-xs uppercase font-bold text-muted mb-1">{t('createFk.column')}</label>
+                    <label className="block text-xs uppercase font-bold text-muted mb-1">{t`Local Column`}</label>
                     <select value={localColumn} onChange={(e) => setLocalColumn(e.target.value)} className={selectClass} style={selectStyle}>
                         {localColumns.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label className="block text-xs uppercase font-bold text-muted mb-1">{t('createFk.refTable')}</label>
+                    <label className="block text-xs uppercase font-bold text-muted mb-1">{t`Referenced Table`}</label>
                     <select value={refTable} onChange={(e) => setRefTable(e.target.value)} className={selectClass} style={selectStyle}>
                         {tables.map(t_info => <option key={t_info.name} value={t_info.name}>{t_info.name}</option>)}
                     </select>
@@ -224,9 +224,9 @@ export const CreateForeignKeyModal = ({
             <div className="grid grid-cols-2 gap-4">
                 <div></div>
                 <div>
-                    <label className="block text-xs uppercase font-bold text-muted mb-1">{t('createFk.refColumn')}</label>
+                    <label className="block text-xs uppercase font-bold text-muted mb-1">{t`Referenced Column`}</label>
                     {fetchingRefCols ? (
-                        <div className="text-xs text-muted flex items-center gap-2 py-2"><Loader2 size={12} className="animate-spin"/> {t('common.loading')}</div>
+                        <div className="text-xs text-muted flex items-center gap-2 py-2"><Loader2 size={12} className="animate-spin"/> {t`Loading...`}</div>
                     ) : (
                         <select value={refColumn} onChange={(e) => setRefColumn(e.target.value)} className={selectClass} style={selectStyle}>
                             {refColumns.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
@@ -238,13 +238,13 @@ export const CreateForeignKeyModal = ({
             {/* Actions */}
             <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-xs uppercase font-bold text-muted mb-1">{t('createFk.onUpdate')}</label>
+                    <label className="block text-xs uppercase font-bold text-muted mb-1">{t`On Update`}</label>
                     <select value={onUpdate} onChange={(e) => setOnUpdate(e.target.value)} className={selectClass} style={selectStyle}>
                         {ON_ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label className="block text-xs uppercase font-bold text-muted mb-1">{t('createFk.onDelete')}</label>
+                    <label className="block text-xs uppercase font-bold text-muted mb-1">{t`On Delete`}</label>
                     <select value={onDelete} onChange={(e) => setOnDelete(e.target.value)} className={selectClass} style={selectStyle}>
                         {ON_ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
                     </select>
@@ -253,7 +253,7 @@ export const CreateForeignKeyModal = ({
 
             {/* SQL Preview */}
             <div>
-                <div className="text-[10px] text-muted mb-1 uppercase tracking-wider">{t('createFk.sqlPreview')}</div>
+                <div className="text-[10px] text-muted mb-1 uppercase tracking-wider">{t`SQL Preview`}</div>
                 <SqlPreview sql={sqlPreview} height="80px" showLineNumbers={true} />
             </div>
 
@@ -268,7 +268,7 @@ export const CreateForeignKeyModal = ({
         {/* Footer */}
         <div className="p-4 border-t border-default bg-base/50 flex justify-end gap-3">
            <button onClick={onClose} className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm">
-             {t('createFk.cancel')}
+             {t`Cancel`}
            </button>
            <button
              onClick={handleCreate}
@@ -276,7 +276,7 @@ export const CreateForeignKeyModal = ({
              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
            >
              {loading && <Loader2 size={16} className="animate-spin" />}
-             <Save size={16} /> {t('createFk.create')}
+             <Save size={16} /> {t({ message: "Create Foreign Key", context: "createFk" })}
            </button>
         </div>
       </div>

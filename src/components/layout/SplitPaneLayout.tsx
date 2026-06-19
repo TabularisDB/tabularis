@@ -1,6 +1,6 @@
 import { useRef, Fragment } from 'react';
 import { X } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import clsx from 'clsx';
 import { PanelDatabaseProvider } from './PanelDatabaseProvider';
 import { EditorProvider } from '../../contexts/EditorProvider';
@@ -16,7 +16,7 @@ export const SplitPaneLayout = ({ connectionIds, mode }: SplitView) => {
   const isVertical = mode === 'vertical';
   const { deactivateSplit, removeConnectionFromSplit, explorerConnectionId, setExplorerConnectionId } = useConnectionLayoutContext();
   const { switchConnection, connectionDataMap } = useDatabase();
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   const handleClosePanel = (connId: string) => {
     const remaining = connectionIds.filter(id => id !== connId);
@@ -68,7 +68,7 @@ export const SplitPaneLayout = ({ connectionIds, mode }: SplitView) => {
               <button
                 onClick={() => handleClosePanel(connId)}
                 className="ml-2 p-0.5 rounded text-muted hover:text-primary hover:bg-surface-secondary transition-colors shrink-0"
-                title={t('sidebar.closePanel')}
+                title={t`Close panel`}
               >
                 <X size={12} />
               </button>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { reconstructTableQuery } from "../utils/editor";
 import { isMultiDatabaseCapable } from "../utils/database";
 import { isReadonly } from "../utils/driverCapabilities";
@@ -134,7 +134,7 @@ const CHEVRON_SELECT_STYLE: React.CSSProperties = {
 };
 
 export const Editor = () => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const {
     activeConnectionId,
     tables,
@@ -768,7 +768,7 @@ export const Editor = () => {
         }
       } catch (err) {
         updateTab(targetTabId, {
-          error: typeof err === "string" ? err : t("editor.queryFailed"),
+          error: typeof err === "string" ? err : t`Query failed.`,
           isLoading: false,
         });
 
@@ -778,7 +778,7 @@ export const Editor = () => {
             null,
             "error",
             null,
-            typeof err === "string" ? err : t("editor.queryFailed"),
+            typeof err === "string" ? err : t`Query failed.`,
             historyDb,
           );
         }
@@ -944,7 +944,7 @@ export const Editor = () => {
         // mark only the entries that haven't already resolved via a live event
         // as failed, so statements that completed first keep their results.
         const fallbackElapsed = performance.now() - batchStart;
-        const message = typeof err === "string" ? err : t("editor.queryFailed");
+        const message = typeof err === "string" ? err : t`Query failed.`;
         entries.forEach((entry, idx) => {
           if (applied.has(idx)) return;
           if (shouldRecordHistory) {
@@ -1048,7 +1048,7 @@ export const Editor = () => {
           updateTab(targetTabId, {
             results: updateResultEntry(latestTab.results, entryId, {
               error:
-                typeof err === "string" ? err : t("editor.queryFailed"),
+                typeof err === "string" ? err : t`Query failed.`,
               isLoading: false,
             }),
           });
@@ -1750,8 +1750,8 @@ export const Editor = () => {
       updateTab(activeTabIdRef.current, updates);
     } catch (err) {
       console.error("Failed to create new row:", err);
-      showAlert(t("editor.failedCreateRow") + String(err), {
-        title: t("common.error"),
+      showAlert(t`Failed to create new row: ` + String(err), {
+        title: t({ message: "Error", context: "common" }),
         kind: "error",
       });
     }
@@ -1869,8 +1869,8 @@ export const Editor = () => {
         }
       } catch (err) {
         console.error("Failed to process insertions:", err);
-        showAlert(t("editor.failedProcessInsertions") + String(err), {
-          title: t("common.error"),
+        showAlert(t`Failed to process insertions: ` + String(err), {
+          title: t({ message: "Error", context: "common" }),
           kind: "error",
         });
         return;
@@ -1992,8 +1992,8 @@ export const Editor = () => {
     } catch (e) {
       console.error("Batch update failed", e);
       updateActiveTab({ isLoading: false });
-      showAlert(t("dataGrid.updateFailed") + String(e), {
-        title: t("common.error"),
+      showAlert(t`Update failed: ` + String(e), {
+        title: t({ message: "Error", context: "common" }),
         kind: "error",
       });
     }
@@ -2163,7 +2163,7 @@ export const Editor = () => {
     });
     editor.addAction({
       id: "explain-selection",
-      label: t("editor.visualExplain.contextMenuExplain"),
+      label: t`Explain Plan`,
       contextMenuGroupId: "navigation",
       contextMenuOrder: 1.6,
       run: (ed) => {
@@ -2243,7 +2243,7 @@ export const Editor = () => {
         } = state;
         const tabId = addTab({
           type: table ? "table" : "console",
-          title: navTitle || queryName || table || t("sidebar.newConsole"),
+          title: navTitle || queryName || table || t`New Console`,
           query: sql,
           activeTable: table,
           schema: navSchema,
@@ -2436,16 +2436,16 @@ export const Editor = () => {
         <Database size={48} className="mb-4 opacity-20" />
         {activeConnectionId ? (
           <div className="text-center">
-            <p className="mb-4">{t("editor.noTabs")}</p>
+            <p className="mb-4">{t`No open tabs for this connection.`}</p>
             <button
               onClick={() => addTab({ type: "console" })}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
             >
-              {t("editor.newConsole")}
+              {t`New Console`}
             </button>
           </div>
         ) : (
-          <p>{t("editor.noActiveSession")}</p>
+          <p>{t`No active session. Please select a connection.`}</p>
         )}
       </div>
     );
@@ -2567,14 +2567,14 @@ export const Editor = () => {
             })
           }
           className="flex items-center justify-center w-9 h-full text-muted hover:text-white hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
-          title={t("editor.newConsole")}
+          title={t`New Console`}
         >
           <Plus size={16} />
         </button>
         <button
           onClick={() => addTab({ type: "query_builder" })}
           className="flex items-center justify-center w-9 h-full text-purple-500 hover:text-white hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
-          title={t("editor.newVisualQuery")}
+          title={t`New Visual Query`}
         >
           <Network size={16} />
         </button>
@@ -2590,7 +2590,7 @@ export const Editor = () => {
             });
           }}
           className="flex items-center justify-center w-9 h-full text-orange-400 hover:text-white hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
-          title={t("editor.newNotebook")}
+          title={t`New Notebook`}
         >
           <BookOpen size={16} />
         </button>
@@ -2603,7 +2603,7 @@ export const Editor = () => {
             onClick={stopQuery}
             className="flex items-center gap-2 px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-sm font-medium"
           >
-            <Square size={16} fill="currentColor" /> {t("editor.stop")}
+            <Square size={16} fill="currentColor" /> {t`Stop`}
           </button>
         ) : !activeTab.readOnly ? (
           <div className="flex items-center rounded bg-green-700 relative">
@@ -2615,7 +2615,7 @@ export const Editor = () => {
                 isTableTab ? "rounded" : "rounded-l",
               )}
             >
-              <Play size={16} fill="currentColor" /> {t("editor.run")}
+              <Play size={16} fill="currentColor" /> {t`Run`}
             </button>
             {!isTableTab && (
               <>
@@ -2637,7 +2637,7 @@ export const Editor = () => {
                     <div className="absolute top-full left-0 mt-1 w-80 bg-surface-secondary border border-strong rounded shadow-xl z-50 flex flex-col py-1 max-h-80 overflow-y-auto">
                       {dropdownQueries.length === 0 ? (
                         <div className="px-4 py-2 text-xs text-muted italic">
-                          {t("editor.noValidQueries")}
+                          {t`No valid queries found`}
                         </div>
                       ) : (
                         dropdownQueries.map((q, i) => {
@@ -2664,7 +2664,7 @@ export const Editor = () => {
                                 setSaveQueryModal({ isOpen: true, sql: q });
                               }}
                               className="p-2 text-muted hover:text-white hover:bg-surface transition-colors mr-1 rounded shrink-0 opacity-0 group-hover:opacity-100"
-                              title={t("editor.saveThisQuery")}
+                              title={t`Save this query`}
                             >
                               <Save size={14} />
                             </button>
@@ -2689,12 +2689,12 @@ export const Editor = () => {
               extractQueryParams(activeTab.query).length === 0
             }
             className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary hover:bg-surface text-primary rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-strong"
-            title={t("editor.queryParameters")}
+            title={t`Query Parameters`}
           >
             <span className="font-mono text-xs font-bold border border-muted text-secondary rounded px-1.5 py-0.5">
               P
             </span>
-            {t("editor.parameters")}
+            {t`Parameters`}
           </button>
         )}
 
@@ -2712,7 +2712,7 @@ export const Editor = () => {
             )}
           >
             <Download size={16} />
-            {t("editor.export")}
+            {t`Export`}
             <ChevronDown
               size={14}
               className={clsx(
@@ -2758,7 +2758,7 @@ export const Editor = () => {
             <button
               onClick={() => setIsDbDropdownOpen((v) => !v)}
               className="flex items-center gap-1.5 px-2 py-1 bg-surface-secondary border border-strong rounded text-xs text-primary hover:bg-surface transition-colors h-[30px]"
-              title={t("editor.activeDatabase")}
+              title={t`Active database`}
             >
               <Database size={12} className="text-muted shrink-0" />
               <span className="max-w-[120px] truncate">
@@ -2798,8 +2798,8 @@ export const Editor = () => {
         ) : (
           <span className="text-xs text-muted ml-2">
             {activeConnectionId
-              ? t("editor.connected")
-              : t("editor.disconnected")}
+              ? t`Connected`
+              : t`Disconnected`}
           </span>
         )}
       </div>}
@@ -2872,10 +2872,10 @@ export const Editor = () => {
                   onClick={handleExplainButton}
                   disabled={!activeConnectionId || !tab.query?.trim()}
                   className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-muted hover:text-green-300 bg-elevated/80 hover:bg-green-900/40 border border-default hover:border-green-500/40 transition-all disabled:opacity-30 disabled:pointer-events-none backdrop-blur-sm"
-                  title={t("editor.visualExplain.title")}
+                  title={t`Visual Explain`}
                 >
                   <Network size={12} />
-                  {t("editor.visualExplain.buttonShort")}
+                  {t`Explain Plan`}
                 </button>
                 )}
                 {/* AI dropdown — only if AI enabled */}
@@ -3038,7 +3038,7 @@ export const Editor = () => {
             ) : activeTab.isLoading ? (
               <div className="flex flex-col items-center justify-center h-full text-muted">
                 <div className="w-12 h-12 border-4 border-surface-secondary border-t-blue-500 rounded-full animate-spin mb-4"></div>
-                <p className="text-sm">{t("editor.executingQuery")}</p>
+                <p className="text-sm">{t`Executing query...`}</p>
               </div>
             ) : activeTab.error ? (
               <ErrorDisplay error={activeTab.error} t={t} />
@@ -3050,9 +3050,7 @@ export const Editor = () => {
                   <div className="p-2 bg-elevated text-xs text-secondary border-b border-default flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-4">
                       <span>
-                        {t("editor.rowsRetrieved", {
-                          count: activeTab.result.rows.length,
-                        })}{" "}
+                        {t`${activeTab.result.rows.length} rows retrieved`}{" "}
                         {activeTab.executionTime !== null && (
                           <span className="text-muted ml-2 font-mono">
                             ({formatDuration(activeTab.executionTime)})
@@ -3062,7 +3060,7 @@ export const Editor = () => {
 
                       {activeTab.result.pagination?.has_more && (
                         <span className="px-2 py-0.5 bg-yellow-900/30 text-yellow-400 rounded text-[10px] font-semibold uppercase tracking-wide border border-yellow-500/30">
-                          {t("editor.autoPaginated")}
+                          {t`Auto paginated`}
                         </span>
                       )}
                     </div>
@@ -3106,7 +3104,7 @@ export const Editor = () => {
                               String(activeTab.result!.pagination!.page),
                             );
                           }}
-                          title={t("editor.jumpToPage")}
+                          title={t`Click to jump to page`}
                         >
                           {isEditingPage ? (
                             <input
@@ -3145,16 +3143,11 @@ export const Editor = () => {
                           ) : (
                             <>
                               {activeTab.result.pagination.total_rows !== null
-                                ? t("editor.pageOf", {
-                                    current: activeTab.result.pagination.page,
-                                    total: Math.ceil(
-                                      activeTab.result.pagination.total_rows /
-                                        activeTab.result.pagination.page_size,
-                                    ),
-                                  })
-                                : t("editor.page", {
-                                    current: activeTab.result.pagination.page,
-                                  })}
+                                ? t`Page ${activeTab.result.pagination.page} of ${Math.ceil(
+                                    activeTab.result.pagination.total_rows /
+                                      activeTab.result.pagination.page_size,
+                                  )}`
+                                : t`Page ${activeTab.result.pagination.page}`}
                             </>
                           )}
                         </div>
@@ -3165,7 +3158,7 @@ export const Editor = () => {
                             disabled={isCountLoading || activeTab.isLoading}
                             onClick={loadCount}
                             className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-                            title={t("editor.loadRowCount")}
+                            title={t`Load row count`}
                           >
                             {isCountLoading ? (
                               <Loader2 size={14} className="animate-spin" />
@@ -3223,7 +3216,7 @@ export const Editor = () => {
                         <button
                           onClick={handleNewRow}
                           className="flex items-center justify-center w-7 h-7 text-secondary hover:text-green-400 hover:bg-surface-secondary rounded transition-colors"
-                          title={t("editor.newRow")}
+                          title={t`New Row`}
                         >
                           <Plus size={16} />
                         </button>
@@ -3234,7 +3227,7 @@ export const Editor = () => {
                             activeTab.selectedRows.length === 0
                           }
                           className="flex items-center justify-center w-7 h-7 text-secondary hover:text-red-400 hover:bg-surface-secondary rounded transition-colors disabled:opacity-30"
-                          title={t("dataGrid.deleteRow")}
+                          title={t`Delete Row`}
                         >
                           <Minus size={16} />
                         </button>
@@ -3251,7 +3244,7 @@ export const Editor = () => {
                           setCopyFormat(e.target.value as "csv" | "json" | "sql-insert")
                         }
                         className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium uppercase tracking-wide"
-                        title={t("settings.copyFormat")}
+                        title={t`Default Copy Format`}
                         style={CHEVRON_SELECT_STYLE}
                       >
                         <option value="csv">CSV</option>
@@ -3263,20 +3256,20 @@ export const Editor = () => {
                           value={csvDelimiter}
                           onChange={(e) => setCsvDelimiter(e.target.value)}
                           className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium tracking-wide"
-                          title={t("settings.csvDelimiter")}
+                          title={t`CSV Delimiter`}
                           style={CHEVRON_SELECT_STYLE}
                         >
                           <option value=",">
-                            {t("settings.delimiterComma")}
+                            {t`Comma (,)`}
                           </option>
                           <option value=";">
-                            {t("settings.delimiterSemicolon")}
+                            {t`Semicolon (;)`}
                           </option>
                           <option value={"\t"}>
-                            {t("settings.delimiterTab")}
+                            {t`Tab`}
                           </option>
                           <option value="|">
-                            {t("settings.delimiterPipe")}
+                            {t`Pipe (|)`}
                           </option>
                         </select>
                       )}
@@ -3297,7 +3290,7 @@ export const Editor = () => {
                             className="w-3.5 h-3.5 cursor-pointer accent-blue-500"
                           />
                           <span className="text-[10px] text-secondary group-hover:text-primary transition-colors">
-                            {t("editor.applyToAll")}
+                            {t`Apply to all`}
                           </span>
                         </label>
                         <div className="w-[1px] h-4 bg-blue-900/50 mx-0.5"></div>
@@ -3305,7 +3298,7 @@ export const Editor = () => {
                           onClick={handleSubmitChanges}
                           disabled={!applyToAll && !selectionHasPending}
                           className="flex items-center gap-1.5 px-2 h-7 text-green-400 hover:bg-green-900/20 hover:text-green-300 rounded text-xs font-medium border border-transparent hover:border-green-900/50 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:border-transparent disabled:cursor-not-allowed"
-                          title={t("editor.submitChanges")}
+                          title={t`Submit Changes`}
                         >
                           <Check size={14} />
                           <span>Submit</span>
@@ -3314,7 +3307,7 @@ export const Editor = () => {
                           onClick={handleRollbackChanges}
                           disabled={!applyToAll && !selectionHasPending}
                           className="flex items-center gap-1.5 px-2 h-7 text-secondary hover:bg-surface-secondary hover:text-primary rounded text-xs font-medium border border-transparent hover:border-strong transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:border-transparent disabled:cursor-not-allowed"
-                          title={t("editor.rollbackChanges")}
+                          title={t`Rollback Changes`}
                         >
                           <Undo2 size={14} />
                           <span>Rollback</span>
@@ -3389,8 +3382,8 @@ export const Editor = () => {
             ) : (
               <div className="flex items-center justify-center h-full text-surface-tertiary text-sm">
                 {activeTab.type === "table"
-                  ? t("editor.tableRunPrompt")
-                  : t("editor.executePrompt")}
+                  ? t`Press Run (Ctrl/Command+F5) to load table data`
+                  : t`Execute a query to see results`}
               </div>
             )}
           </div>
@@ -3454,7 +3447,7 @@ export const Editor = () => {
           initialDatabase={activeTab?.schema ?? activeSchema ?? activeDatabaseName}
           databases={isMultiDb ? selectedDatabases : undefined}
           onSave={async (name, sql, database) => await saveQuery(name, sql, database ?? activeTab?.schema ?? activeSchema ?? activeDatabaseName)}
-          title={t("editor.saveQuery")}
+          title={t`Save Query`}
         />
       )}
       <AiQueryModal
@@ -3499,7 +3492,7 @@ export const Editor = () => {
             "notebook"
               ? [
                   {
-                    label: t("sidebar.notebooks.rename"),
+                    label: t`Rename`,
                     icon: Pencil,
                     action: () => startTabRename(tabContextMenu.tabId),
                   },
@@ -3510,34 +3503,34 @@ export const Editor = () => {
             )
               ? [
                   {
-                    label: t("editor.convertToConsole"),
+                    label: t`Convert to Console`,
                     icon: FileCode,
                     action: () => handleConvertToConsole(tabContextMenu.tabId),
                   },
                 ]
               : []),
             {
-              label: t("editor.closeTab"),
+              label: t`Close Tab`,
               icon: X,
               action: () => handleCloseTab(tabContextMenu.tabId),
             },
             {
-              label: t("editor.closeOthers"),
+              label: t`Close Other Tabs`,
               icon: XCircle,
               action: () => closeOtherTabs(tabContextMenu.tabId),
             },
             {
-              label: t("editor.closeRight"),
+              label: t`Close Tabs to Right`,
               icon: ArrowRightToLine,
               action: () => closeTabsToRight(tabContextMenu.tabId),
             },
             {
-              label: t("editor.closeLeft"),
+              label: t`Close Tabs to Left`,
               icon: ArrowLeftToLine,
               action: () => closeTabsToLeft(tabContextMenu.tabId),
             },
             {
-              label: t("editor.closeAll"),
+              label: t`Close All Tabs`,
               icon: Trash2,
               danger: true,
               action: () => closeAllTabs(),

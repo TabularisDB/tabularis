@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { X, Sparkles } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { DISCORD_URL } from "../../../config/links";
 import { DiscordIcon } from "../../icons/DiscordIcon";
@@ -31,7 +31,7 @@ const computeInitialVisible = (storage?: CalloutStorage): boolean => {
 };
 
 export const DiscordCommunityCallout = ({ storage }: DiscordCommunityCalloutProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [visible, setVisible] = useState(() => computeInitialVisible(storage));
 
   if (!visible) return null;
@@ -79,7 +79,7 @@ export const DiscordCommunityCallout = ({ storage }: DiscordCommunityCalloutProp
           <button
             type="button"
             onClick={dismiss}
-            aria-label={t("discordCallout.dismiss")}
+            aria-label={t({ message: "Dismiss", context: "discordCallout" })}
             className="absolute top-2 right-2 p-1 text-white/70 hover:text-white hover:bg-white/15 rounded-md transition-colors"
           >
             <X size={14} />
@@ -95,10 +95,10 @@ export const DiscordCommunityCallout = ({ storage }: DiscordCommunityCalloutProp
                 className="text-sm font-semibold leading-tight flex items-center gap-1.5"
               >
                 <Sparkles size={14} className="text-yellow-300" />
-                {t("discordCallout.title")}
+                {t`Brand-new Discord community!`}
               </div>
               <div className="text-xs text-indigo-50/90 mt-1 leading-snug">
-                {t("discordCallout.body")}
+                {t`We just launched a dedicated home for Tabularis users. Get help, share tips, shape the roadmap.`}
               </div>
             </div>
           </div>
@@ -108,7 +108,7 @@ export const DiscordCommunityCallout = ({ storage }: DiscordCommunityCalloutProp
             onClick={handleJoin}
             className="w-full text-sm font-semibold bg-white text-indigo-700 hover:bg-indigo-50 active:bg-indigo-100 transition-colors rounded-md py-2 shadow-sm"
           >
-            {t("discordCallout.cta")}
+            {t`Join now`}
           </button>
         </div>
       </div>

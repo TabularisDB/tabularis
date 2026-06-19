@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Modal } from "../ui/Modal";
 import { X, AlertTriangle, Copy, Check } from "lucide-react";
 
@@ -16,7 +16,7 @@ export const PluginInstallErrorModal = ({
   pluginId,
   error,
 }: PluginInstallErrorModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -37,7 +37,7 @@ export const PluginInstallErrorModal = ({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
-                {t("settings.plugins.installError.title")}
+                {t({ message: "Installation Failed", context: "settings" })}
               </h2>
               <p className="text-xs text-secondary font-mono">{pluginId}</p>
             </div>
@@ -50,13 +50,13 @@ export const PluginInstallErrorModal = ({
         {/* Content */}
         <div className="p-6 space-y-4 overflow-y-auto">
           <p className="text-sm text-secondary">
-            {t("settings.plugins.installError.subtitle")}
+            {t`An error occurred while installing the plugin. See the details below.`}
           </p>
 
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs uppercase font-bold text-muted">
-                {t("settings.plugins.installError.details")}
+                {t({ message: "Error Details", context: "settings" })}
               </span>
               <button
                 onClick={handleCopy}
@@ -65,12 +65,12 @@ export const PluginInstallErrorModal = ({
                 {copied ? (
                   <>
                     <Check size={13} className="text-green-400" />
-                    <span className="text-green-400">{t("settings.plugins.installError.copied")}</span>
+                    <span className="text-green-400">{t`Copied!`}</span>
                   </>
                 ) : (
                   <>
                     <Copy size={13} />
-                    {t("settings.plugins.installError.copy")}
+                    {t`Copy`}
                   </>
                 )}
               </button>
@@ -87,7 +87,7 @@ export const PluginInstallErrorModal = ({
             onClick={onClose}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
           >
-            {t("common.close")}
+            {t`Close`}
           </button>
         </div>
       </div>

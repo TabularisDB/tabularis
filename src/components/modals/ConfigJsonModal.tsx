@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { FileJson, X, Loader2, RotateCcw } from "lucide-react";
 import MonacoEditor, { type OnMount } from "@monaco-editor/react";
 import { invoke } from "@tauri-apps/api/core";
@@ -14,7 +14,7 @@ interface ConfigJsonModalProps {
 }
 
 export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const editorTheme = useEditorTheme();
   const [jsonValue, setJsonValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -72,10 +72,10 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-primary">
-                  {t("settings.configJsonModal.title")}
+                  {t`config.json`}
                 </h2>
                 <p className="text-xs text-secondary">
-                  {t("settings.editConfigJsonDesc")}
+                  {t`Directly edit the raw configuration file. A restart is required to apply changes.`}
                 </p>
               </div>
             </div>
@@ -92,7 +92,7 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
             {isLoading ? (
               <div className="flex items-center justify-center py-16 text-muted">
                 <Loader2 size={24} className="animate-spin mr-2" />
-                {t("common.loading")}
+                {t`Loading...`}
               </div>
             ) : (
               <div className="flex-1 min-h-0" style={{ height: "500px" }}>
@@ -131,14 +131,14 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
           <div className="p-4 border-t border-default bg-base/50 flex items-center justify-between gap-3">
             <p className="text-xs text-muted flex items-center gap-1.5">
               <RotateCcw size={12} />
-              {t("settings.configJsonModal.restartRequired")}
+              {t`A restart is required to apply changes.`}
             </p>
             <div className="flex items-center gap-3">
               <button
                 onClick={onClose}
                 className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
               >
-                {t("common.cancel")}
+                {t`Cancel`}
               </button>
               <button
                 onClick={handleSave}
@@ -146,7 +146,7 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
               >
                 {isSaving && <Loader2 size={14} className="animate-spin" />}
-                {t("settings.configJsonModal.saveAndRestart")}
+                {t`Save & Restart`}
               </button>
             </div>
           </div>
@@ -156,9 +156,9 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
       <ConfirmModal
         isOpen={showRestartConfirm}
         onClose={handleRestartLater}
-        title={t("settings.configJsonModal.restartRequired")}
-        message={t("settings.configJsonModal.restartMessage")}
-        confirmLabel={t("settings.configJsonModal.restartNow")}
+        title={t`A restart is required to apply changes.`}
+        message={t`The configuration file has been saved. Restart now to apply the changes?`}
+        confirmLabel={t`Restart Now`}
         confirmClassName="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
         onConfirm={handleRestartNow}
       />

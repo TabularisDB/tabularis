@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
+import { quickNavigatorType } from "../../i18n/registries/quickNavigatorType";
 import { Search, X, Table, Eye, Code2, Zap, Database, Play, Copy, Hash, FileText, FileCode } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDatabase } from "../../hooks/useDatabase";
@@ -19,7 +20,7 @@ interface QuickNavigatorModalProps {
 }
 
 export const QuickNavigatorModal = ({ isOpen, onClose, onGenerateSql, onInspect }: QuickNavigatorModalProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const navigate = useNavigate();
   const { showAlert } = useAlert();
   const listRef = useRef<HTMLDivElement>(null);
@@ -205,7 +206,7 @@ export const QuickNavigatorModal = ({ isOpen, onClose, onGenerateSql, onInspect 
       } catch (e) {
         console.error(e);
         showAlert(
-          t("sidebar.failGetRoutineDefinition") + String(e),
+          t`Failed to get routine definition: ` + String(e),
           { kind: "error" }
         );
       }
@@ -230,7 +231,7 @@ export const QuickNavigatorModal = ({ isOpen, onClose, onGenerateSql, onInspect 
       } catch (e) {
         console.error(e);
         showAlert(
-          t("sidebar.failGetTriggerDefinition") + String(e),
+          t`Failed to get trigger definition: ` + String(e),
           { kind: "error" }
         );
       }
@@ -342,7 +343,7 @@ export const QuickNavigatorModal = ({ isOpen, onClose, onGenerateSql, onInspect 
               setSelectedIndex(0);
             }}
             className="flex-1 bg-transparent text-primary placeholder-muted outline-none text-sm"
-            placeholder={t("editor.quickNavigator.placeholder")}
+            placeholder={t`Search tables, views, routines, triggers...`}
             autoFocus
           />
           <button onClick={onClose} className="text-secondary hover:text-primary transition-colors">
@@ -354,7 +355,7 @@ export const QuickNavigatorModal = ({ isOpen, onClose, onGenerateSql, onInspect 
         <div ref={listRef} className="overflow-y-auto flex-1 flex flex-col py-1">
           {filteredItems.length === 0 ? (
             <div className="px-4 py-8 text-center text-muted text-sm">
-              {t("editor.quickNavigator.noResults")}
+              {t`No matching elements found`}
             </div>
           ) : (
             (() => {
@@ -419,7 +420,7 @@ export const QuickNavigatorModal = ({ isOpen, onClose, onGenerateSql, onInspect 
                                     onInspect(item.name, item.schema);
                                   }}
                                   className="p-1 rounded hover:bg-surface-tertiary text-muted hover:text-blue-400 transition-colors"
-                                  title={t("editor.quickNavigator.actions.inspect")}
+                                  title={t`Inspect structure`}
                                 >
                                   <FileText size={12} />
                                 </button>
@@ -430,7 +431,7 @@ export const QuickNavigatorModal = ({ isOpen, onClose, onGenerateSql, onInspect 
                                   handleNewConsole(item);
                                 }}
                                 className="p-1 rounded hover:bg-surface-tertiary text-muted hover:text-yellow-500 transition-colors"
-                                title={t("editor.quickNavigator.actions.newConsole")}
+                                title={t`New console`}
                               >
                                 <FileCode size={12} />
                               </button>
@@ -442,7 +443,7 @@ export const QuickNavigatorModal = ({ isOpen, onClose, onGenerateSql, onInspect 
                                     onGenerateSql(item.name);
                                   }}
                                   className="p-1 rounded hover:bg-surface-tertiary text-muted hover:text-purple-400 transition-colors"
-                                  title={t("editor.quickNavigator.actions.generateSql")}
+                                  title={t`Generate SQL templates`}
                                 >
                                   <Code2 size={12} />
                                 </button>
@@ -457,7 +458,7 @@ export const QuickNavigatorModal = ({ isOpen, onClose, onGenerateSql, onInspect 
                                   handleCountRows(item);
                                 }}
                                 className="p-1 rounded hover:bg-surface-tertiary text-muted hover:text-orange-400 transition-colors"
-                                title={t("editor.quickNavigator.actions.countRows")}
+                                title={t`Count rows`}
                               >
                                 <Hash size={12} />
                               </button>
@@ -467,7 +468,7 @@ export const QuickNavigatorModal = ({ isOpen, onClose, onGenerateSql, onInspect 
                                   handleSelect(item);
                                 }}
                                 className="p-1 rounded hover:bg-surface-tertiary text-muted hover:text-green-500 transition-colors"
-                                title={t("editor.quickNavigator.actions.query")}
+                                title={t`Run SELECT query`}
                               >
                                 <Play size={12} />
                               </button>
@@ -480,14 +481,14 @@ export const QuickNavigatorModal = ({ isOpen, onClose, onGenerateSql, onInspect 
                               onClose();
                             }}
                             className="p-1 rounded hover:bg-surface-tertiary text-muted hover:text-primary transition-colors"
-                            title={t("editor.quickNavigator.actions.copyName")}
+                            title={t`Copy name`}
                           >
                             <Copy size={12} />
                           </button>
                         </div>
 
                         <span className="text-[10px] uppercase font-bold text-muted border border-default/50 px-1.5 py-0.5 rounded tracking-wider shrink-0 select-none">
-                          {t(`editor.quickNavigator.type_${item.type}`)}
+                          {i18n._(quickNavigatorType[item.type])}
                         </span>
                       </div>
                     </div>
@@ -502,12 +503,12 @@ export const QuickNavigatorModal = ({ isOpen, onClose, onGenerateSql, onInspect 
         <div className="px-4 py-2 border-t border-default bg-base/50 flex justify-between text-[11px] text-muted select-none">
           <span>
             {filteredItems.length === 1
-              ? t("editor.quickNavigator.count_one")
-              : t("editor.quickNavigator.count_other", { count: filteredItems.length })}
+              ? t`1 element`
+              : t`${filteredItems.length} elements`}
           </span>
           <div className="flex gap-4">
-            <span>{t("editor.quickNavigator.navigationHint")}</span>
-            <span>{t("editor.quickNavigator.escHint")}</span>
+            <span>{t`↑↓ to navigate, Enter to open`}</span>
+            <span>{t({ message: "Esc to close", context: "editor" })}</span>
           </div>
         </div>
       </div>

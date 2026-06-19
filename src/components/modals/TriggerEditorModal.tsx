@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { X, Loader2, Zap, AlertCircle } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
@@ -52,7 +52,7 @@ export const TriggerEditorModal = ({
   isNewTrigger = false,
   onSuccess,
 }: TriggerEditorModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { activeSchema } = useDatabase();
   const resolvedSchema = schemaProp ?? activeSchema ?? undefined;
   const { showAlert } = useAlert();
@@ -92,7 +92,7 @@ export const TriggerEditorModal = ({
         setBody(parsed.body);
       }
     } catch (e) {
-      setError(t("triggers.failLoadDefinition") + String(e));
+      setError(t`Failed to load trigger definition: ` + String(e));
     } finally {
       setLoading(false);
     }
@@ -142,14 +142,14 @@ export const TriggerEditorModal = ({
   const handleSave = async () => {
     const sql = buildTriggerSql();
     if (!sql.trim()) {
-      showAlert(t("triggers.sqlRequired"), { kind: "error" });
+      showAlert(t`Trigger SQL is required`, { kind: "error" });
       return;
     }
 
     if (!isNewTrigger) {
       const confirmed = await ask(
-        t("triggers.confirmRecreate", { trigger: name }),
-        { title: t("triggers.recreateTrigger"), kind: "warning" }
+        t`Editing a trigger requires dropping and recreating it. Continue modifying "${name}"?`,
+        { title: t`Recreate Trigger`, kind: "warning" }
       );
       if (!confirmed) return;
 
@@ -161,7 +161,7 @@ export const TriggerEditorModal = ({
           ...(resolvedSchema ? { schema: resolvedSchema } : {}),
         });
       } catch (e) {
-        setError(t("triggers.dropError") + String(e));
+        setError(t`Failed to drop existing trigger: ` + String(e));
         return;
       }
     }
@@ -175,13 +175,13 @@ export const TriggerEditorModal = ({
         ...(resolvedSchema ? { schema: resolvedSchema } : {}),
       });
       showAlert(
-        isNewTrigger ? t("triggers.createSuccess") : t("triggers.updateSuccess"),
+        isNewTrigger ? t`Trigger created successfully` : t`Trigger updated successfully`,
         { kind: "info" }
       );
       onSuccess?.();
       onClose();
     } catch (e) {
-      setError(t("triggers.saveError") + String(e));
+      setError(t`Failed to save trigger: ` + String(e));
     } finally {
       setSaving(false);
     }
@@ -200,12 +200,12 @@ export const TriggerEditorModal = ({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
-                {isNewTrigger ? t("triggers.createTrigger") : t("triggers.editTrigger")}
+                {isNewTrigger ? t`Create Trigger` : t`Edit Trigger`}
               </h2>
               <p className="text-xs text-secondary">
                 {isNewTrigger
-                  ? t("triggers.createSubtitle")
-                  : t("triggers.editSubtitle", { name })}
+                  ? t`Create a new database trigger`
+                  : t`Editing trigger: ${name}`}
               </p>
             </div>
           </div>
@@ -229,7 +229,7 @@ export const TriggerEditorModal = ({
           {loading && (
             <div className="flex items-center gap-2 text-muted text-sm">
               <Loader2 size={14} className="animate-spin" />
-              {t("triggers.loading")}
+              {t`Loading trigger definition...`}
             </div>
           )}
 
@@ -239,20 +239,20 @@ export const TriggerEditorModal = ({
               onClick={() => setUseRawSql(false)}
               className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${!useRawSql ? "bg-blue-600 text-white" : "text-secondary hover:text-primary border border-strong"}`}
             >
-              {t("triggers.guidedMode")}
+              {t`Guided`}
             </button>
             <button
               onClick={() => setUseRawSql(true)}
               className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${useRawSql ? "bg-blue-600 text-white" : "text-secondary hover:text-primary border border-strong"}`}
             >
-              {t("triggers.rawSqlMode")}
+              {t`Raw SQL`}
             </button>
           </div>
 
           {useRawSql ? (
             <div>
               <label className="text-xs uppercase font-bold text-muted mb-1 block">
-                {t("triggers.rawSql")}
+                {t`Raw SQL`}
               </label>
               <div className="border border-strong rounded-lg overflow-hidden h-64">
                 <SqlEditorWrapper
@@ -269,7 +269,7 @@ export const TriggerEditorModal = ({
               {/* Trigger name */}
               <div>
                 <label htmlFor="trigger-name" className="text-xs uppercase font-bold text-muted mb-1 block">
-                  {t("triggers.triggerName")}
+                  {t`Trigger Name`}
                 </label>
                 <input
                   id="trigger-name"
@@ -278,7 +278,7 @@ export const TriggerEditorModal = ({
                   onChange={(e) => setName(e.target.value)}
                   disabled={!isNewTrigger}
                   className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none disabled:opacity-50"
-                  placeholder={t("triggers.triggerNamePlaceholder")}
+                  placeholder={t`e.g. before_insert_user`}
                   autoFocus={isNewTrigger}
                 />
               </div>
@@ -286,7 +286,7 @@ export const TriggerEditorModal = ({
               {/* Table name */}
               <div>
                 <label htmlFor="trigger-table" className="text-xs uppercase font-bold text-muted mb-1 block">
-                  {t("triggers.tableName")}
+                  {t`Table Name`}
                 </label>
                 <input
                   id="trigger-table"
@@ -295,7 +295,7 @@ export const TriggerEditorModal = ({
                   onChange={(e) => setTableName(e.target.value)}
                   disabled={!isNewTrigger}
                   className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none disabled:opacity-50"
-                  placeholder={t("triggers.tableNamePlaceholder")}
+                  placeholder={t`e.g. users`}
                 />
               </div>
 
@@ -303,7 +303,7 @@ export const TriggerEditorModal = ({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs uppercase font-bold text-muted mb-1 block">
-                    {t("triggers.timing")}
+                    {t`Timing`}
                   </label>
                   <div className="flex gap-2">
                     {TIMING_OPTIONS.map((opt) => (
@@ -319,7 +319,7 @@ export const TriggerEditorModal = ({
                 </div>
                 <div>
                   <label className="text-xs uppercase font-bold text-muted mb-1 block">
-                    {t("triggers.events")}
+                    {t({ message: "Events", context: "triggers" })}
                   </label>
                   <div className="flex gap-2">
                     {EVENT_OPTIONS.map((opt) => (
@@ -338,7 +338,7 @@ export const TriggerEditorModal = ({
               {/* Trigger body */}
               <div>
                 <label className="text-xs uppercase font-bold text-muted mb-1 block">
-                  {t("triggers.body")}
+                  {t`Trigger Body (SQL)`}
                 </label>
                 <div className="border border-strong rounded-lg overflow-hidden h-48">
                   <SqlEditorWrapper
@@ -353,7 +353,7 @@ export const TriggerEditorModal = ({
               {/* SQL preview */}
               <div className="border border-default rounded-lg overflow-hidden">
                 <div className="px-3 py-2 bg-base border-b border-default text-xs text-muted font-mono">
-                  {t("triggers.sqlPreview")}
+                  {t`Generated SQL Preview`}
                 </div>
                 <pre className="p-3 text-xs text-secondary font-mono whitespace-pre-wrap overflow-auto max-h-32">
                   {buildTriggerSql()}
@@ -369,7 +369,7 @@ export const TriggerEditorModal = ({
             onClick={onClose}
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
-            {t("common.cancel")}
+            {t`Cancel`}
           </button>
           <button
             onClick={handleSave}
@@ -377,7 +377,7 @@ export const TriggerEditorModal = ({
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
           >
             {saving && <Loader2 size={16} className="animate-spin" />}
-            {isNewTrigger ? t("triggers.create") : t("triggers.save")}
+            {isNewTrigger ? t`Create Trigger` : t`Save Changes`}
           </button>
         </div>
       </div>

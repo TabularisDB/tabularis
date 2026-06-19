@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Sparkles, Ban, FileDigit } from "lucide-react";
 import { GeometryInput } from "./GeometryInput";
 import { BlobInput } from "./BlobInput";
@@ -58,7 +58,7 @@ export const FieldEditor = ({
   pkVal,
   schema,
 }: FieldEditorProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const isGeometric = type && isGeometricType(type);
   const isBlob = type && isBlobColumn(type, characterMaximumLength);
   const isJsonByType = !!(type && isJsonColumn(type));
@@ -80,7 +80,7 @@ export const FieldEditor = ({
     isTextColumn(type) &&
     (isLongTextValue(value) || isLongTextValue(originalValue));
 
-  const defaultPlaceholder = placeholder || t("rowEditor.enterValue");
+  const defaultPlaceholder = placeholder || t`Enter value...`;
 
   // Determine if we should show quick action buttons
   const showQuickActions = isAutoIncrement || hasDefault || isNullable;
@@ -165,10 +165,10 @@ export const FieldEditor = ({
             type="button"
             onClick={() => onChange(null)}
             className="px-2 py-1 text-xs bg-purple-900/20 text-purple-400 rounded border border-purple-900/50 hover:bg-purple-900/30 transition-colors flex items-center gap-1"
-            title={t("dataGrid.setGenerate")}
+            title={t`Set GENERATED`}
           >
             <Sparkles size={12} />
-            {t("dataGrid.setGenerate")}
+            {t`Set GENERATED`}
           </button>
         )}
         {isNullable && (
@@ -176,10 +176,10 @@ export const FieldEditor = ({
             type="button"
             onClick={() => onChange(null)}
             className="px-2 py-1 text-xs bg-surface-secondary text-muted rounded border border-default hover:bg-surface-tertiary transition-colors flex items-center gap-1"
-            title={t("dataGrid.setNull")}
+            title={t`Set NULL`}
           >
             <Ban size={12} />
-            {t("dataGrid.setNull")}
+            {t`Set NULL`}
           </button>
         )}
         {hasDefault && (
@@ -187,10 +187,10 @@ export const FieldEditor = ({
             type="button"
             onClick={() => onChange(isInsertion ? null : USE_DEFAULT_SENTINEL)}
             className="px-2 py-1 text-xs bg-blue-900/20 text-blue-400 rounded border border-blue-900/50 hover:bg-blue-900/30 transition-colors flex items-center gap-1"
-            title={t("dataGrid.setDefault")}
+            title={t`Set DEFAULT`}
           >
             <FileDigit size={12} />
-            {t("dataGrid.setDefault")}
+            {t`Set DEFAULT`}
           </button>
         )}
         {!isBlob && (
@@ -198,9 +198,9 @@ export const FieldEditor = ({
             type="button"
             onClick={() => onChange(" ")}
             className="px-2 py-1 text-xs bg-surface-secondary text-secondary rounded border border-default hover:bg-surface-tertiary transition-colors"
-            title={t("dataGrid.setEmpty")}
+            title={t`Set EMPTY`}
           >
-            {t("dataGrid.setEmpty")}
+            {t`Set EMPTY`}
           </button>
         )}
       </div>

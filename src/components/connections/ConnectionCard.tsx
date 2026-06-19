@@ -1,6 +1,6 @@
 import type { MouseEvent } from 'react';
 import { Shield, PlugZap } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import clsx from 'clsx';
 import type { SavedConnection } from '../../contexts/DatabaseContext';
 import type { PluginManifest } from '../../types/plugins';
@@ -38,7 +38,7 @@ export const ConnectionCard = ({
   onContextMenu,
   onMouseDown,
 }: ConnectionCardProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { activeConnectionId, isConnectionOpen } = useDatabase();
 
   const isOpen = isConnectionOpen(conn.id);
@@ -95,7 +95,7 @@ export const ConnectionCard = ({
             )}
             {!isDriverEnabled && (
               <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-1.5 py-0.5 rounded-md">
-                <PlugZap size={8} /> {t('connections.pluginDisabled')}
+                <PlugZap size={8} /> {t`Plugin disabled`}
               </span>
             )}
           </div>

@@ -1,5 +1,6 @@
+import { plural } from "@lingui/core/macro";
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import { X, Network } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { statementLabel } from '../../utils/sql';
@@ -16,7 +17,7 @@ const ExplainSelectionContent = ({
   onSelect,
   onClose,
 }: Omit<ExplainSelectionModalProps, 'isOpen'>) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [focusedIndex, setFocusedIndex] = useState(0);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -57,12 +58,10 @@ const ExplainSelectionContent = ({
       <div className="flex items-center justify-between px-5 py-4 border-b border-default">
         <div>
           <h3 className="text-base font-semibold text-white">
-            {t('editor.explainSelection.title')}
+            {t`Select Query to Explain`}
           </h3>
           <p className="text-xs text-muted mt-0.5">
-            {t('editor.explainSelection.queriesFound', {
-              count: queries.length,
-            })}
+            {plural(queries.length, { one: "# explainable query found", other: "# explainable queries found" })}
           </p>
         </div>
         <button
@@ -114,7 +113,7 @@ const ExplainSelectionContent = ({
                   onSelect(entry.query);
                 }}
                 className="mt-0.5 shrink-0 p-1.5 rounded-md text-muted opacity-0 group-hover:opacity-100 hover:bg-green-500/20 hover:text-green-400 transition-all"
-                title={t('editor.explainSelection.explainSingle')}
+                title={t`Explain this query`}
               >
                 <Network size={13} />
               </button>
@@ -130,19 +129,19 @@ const ExplainSelectionContent = ({
             <kbd className="px-1 py-0.5 rounded bg-surface-secondary text-muted text-[9px] font-mono">
               Enter
             </kbd>{' '}
-            {t('editor.explainSelection.explainFocused')}
+            {t`explain focused`}
           </span>
           <span>
             <kbd className="px-1 py-0.5 rounded bg-surface-secondary text-muted text-[9px] font-mono">
               1-9
             </kbd>{' '}
-            {t('editor.explainSelection.explainNth')}
+            {t`explain Nth`}
           </span>
           <span>
             <kbd className="px-1 py-0.5 rounded bg-surface-secondary text-muted text-[9px] font-mono">
               Esc
             </kbd>{' '}
-            {t('editor.explainSelection.cancel')}
+            {t`cancel`}
           </span>
         </div>
       </div>

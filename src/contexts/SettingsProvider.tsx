@@ -1,5 +1,4 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import {
   SettingsContext,
@@ -7,9 +6,23 @@ import {
   type Settings,
 } from "./SettingsContext";
 import { getFontCSS } from "../utils/settings";
+import { dynamicActivate } from "../i18n/lingui";
+import { SUPPORTED_LANGUAGES } from "../i18n/config";
+
+// Resolve the "auto" language setting to a supported locale via the browser
+// language, falling back to English.
+function resolveLocale(language: string): string {
+  if (language !== "auto") {
+    return language;
+  }
+  const ids = SUPPORTED_LANGUAGES.map((l) => l.id) as readonly string[];
+  const preferred = (navigator.languages ?? [navigator.language])
+    .map((tag) => tag.split("-")[0])
+    .find((base) => ids.includes(base));
+  return preferred ?? "en";
+}
 
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
-  const { i18n } = useTranslation();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -133,12 +146,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
   // Update i18n when language changes
   useEffect(() => {
-    if (settings.language === "auto") {
-      i18n.changeLanguage();
-    } else {
-      i18n.changeLanguage(settings.language);
-    }
-  }, [settings.language, i18n]);
+    void dynamicActivate(resolveLocale(settings.language));
+  }, [settings.language]);
 
   // Apply font family
   useEffect(() => {

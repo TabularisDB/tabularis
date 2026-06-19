@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Check, ShieldAlert, X, Pencil, Maximize2, Minimize2 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
@@ -24,7 +24,7 @@ export function AiApprovalModal({
   onDeny,
   onClose,
 }: AiApprovalModalProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const editorTheme = useEditorTheme();
   const [editing, setEditing] = useState(false);
   const [editedQuery, setEditedQuery] = useState(approval.query);
@@ -109,17 +109,12 @@ export function AiApprovalModal({
             </div>
             <div className="min-w-0">
               <h2 className="text-lg font-semibold text-primary truncate">
-                {t("aiApproval.title")}
+                {t`AI requested a database write`}
               </h2>
               <p className="text-xs text-muted truncate">
                 {approval.clientHint
-                  ? t("aiApproval.subtitleWithClient", {
-                      client: approval.clientHint,
-                      connection: approval.connectionName,
-                    })
-                  : t("aiApproval.subtitle", {
-                      connection: approval.connectionName,
-                    })}
+                  ? t`${approval.clientHint} on ${approval.connectionName} — review and decide before it executes.`
+                  : t`On ${approval.connectionName} — review and decide before it executes.`}
               </p>
             </div>
           </div>
@@ -128,7 +123,7 @@ export function AiApprovalModal({
             <button
               onClick={onClose}
               className="text-secondary hover:text-primary transition-colors"
-              aria-label={t("common.close")}
+              aria-label={t`Close`}
             >
               <X size={20} />
             </button>
@@ -140,7 +135,7 @@ export function AiApprovalModal({
           <section>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs uppercase font-bold text-muted">
-                {t("aiApproval.query")}
+                {t`Query`}
               </label>
               <button
                 onClick={() => setEditing((v) => !v)}
@@ -148,8 +143,8 @@ export function AiApprovalModal({
               >
                 <Pencil size={11} />
                 {editing
-                  ? t("aiApproval.lockQuery")
-                  : t("aiApproval.editQuery")}
+                  ? t`Lock query`
+                  : t`Edit before approving`}
               </button>
             </div>
             <div className="rounded-lg overflow-hidden border border-default">
@@ -175,16 +170,16 @@ export function AiApprovalModal({
           <section>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs uppercase font-bold text-muted">
-                {t("aiApproval.preflightPlan")}
+                {t`Pre-flight execution plan`}
               </label>
               {explainPlan && (
                 <button
                   onClick={() => setPlanExpanded(true)}
                   className="flex items-center gap-1 px-2 py-1 text-xs text-muted hover:text-primary hover:bg-surface-tertiary rounded transition-colors"
-                  title={t("aiApproval.expandPlan")}
+                  title={t({ message: "Expand", context: "aiApproval" })}
                 >
                   <Maximize2 size={11} />
-                  {t("aiApproval.expandPlan")}
+                  {t({ message: "Expand", context: "aiApproval" })}
                 </button>
               )}
             </div>
@@ -204,23 +199,21 @@ export function AiApprovalModal({
             ) : (
               <div className="rounded-lg border border-default bg-base p-4 text-xs text-muted">
                 {approval.explainError
-                  ? t("aiApproval.explainFailed", {
-                      error: approval.explainError,
-                    })
-                  : t("aiApproval.explainUnavailable")}
+                  ? t`EXPLAIN failed: ${approval.explainError}`
+                  : t`EXPLAIN unavailable for this query.`}
               </div>
             )}
           </section>
 
           <section>
             <label className="text-xs uppercase font-bold text-muted mb-2 block">
-              {t("aiApproval.reasonLabel")}
+              {t`Reason (optional)`}
             </label>
             <input
               type="text"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder={t("aiApproval.reasonPlaceholder")}
+              placeholder={t`e.g. Looks risky on prod, please confirm…`}
               className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-sm text-primary focus:outline-none focus:border-blue-500"
             />
           </section>
@@ -234,7 +227,7 @@ export function AiApprovalModal({
             className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
           >
             <X size={14} />
-            {t("aiApproval.deny")}
+            {t`Deny`}
           </button>
           <div className="flex items-center gap-3">
             <button
@@ -242,7 +235,7 @@ export function AiApprovalModal({
               disabled={submitting}
               className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
             >
-              {t("common.close")}
+              {t`Close`}
             </button>
             <button
               onClick={handleApprove}
@@ -250,7 +243,7 @@ export function AiApprovalModal({
               className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
             >
               <Check size={14} />
-              {t("aiApproval.approve")}
+              {t`Approve`}
             </button>
           </div>
         </div>
@@ -267,16 +260,16 @@ export function AiApprovalModal({
           >
             <div className="flex items-center justify-between p-3 border-b border-default bg-base">
               <h3 className="text-sm font-semibold text-primary">
-                {t("aiApproval.preflightPlan")}
+                {t`Pre-flight execution plan`}
               </h3>
               <button
                 onClick={() => setPlanExpanded(false)}
                 className="flex items-center gap-1 px-2 py-1 text-xs text-muted hover:text-primary hover:bg-surface-tertiary rounded transition-colors"
-                title={t("aiApproval.collapsePlan")}
-                aria-label={t("aiApproval.collapsePlan")}
+                title={t`Collapse`}
+                aria-label={t`Collapse`}
               >
                 <Minimize2 size={12} />
-                {t("aiApproval.collapsePlan")}
+                {t`Collapse`}
               </button>
             </div>
             <div className="flex-1 min-h-0 bg-base">

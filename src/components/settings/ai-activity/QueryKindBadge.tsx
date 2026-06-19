@@ -1,16 +1,18 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import clsx from "clsx";
 import { getQueryKindBadgeStyle } from "../../../utils/aiActivity";
+import { aiActivityQueryKind } from "../../../i18n/registries/aiActivityQueryKind";
 
 interface QueryKindBadgeProps {
   kind: string | null;
 }
 
 export function QueryKindBadge({ kind }: QueryKindBadgeProps) {
-  const { t } = useTranslation();
+  const { i18n } = useLingui();
   if (!kind) return null;
   const style = getQueryKindBadgeStyle(kind);
-  const label = t(`aiActivity.queryKind.${kind}`, { defaultValue: kind });
+  const descriptor = aiActivityQueryKind[kind];
+  const label = descriptor ? i18n._(descriptor) : kind;
   return (
     <span
       className={clsx(

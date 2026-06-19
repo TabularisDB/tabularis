@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
 import MonacoEditor, { type BeforeMount } from '@monaco-editor/react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import { useEditorTheme } from '../../hooks/useEditorTheme';
 import { loadMonacoTheme } from '../../themes/themeUtils';
 import { Modal } from '../ui/Modal';
@@ -19,7 +19,7 @@ interface QueryModalProps {
 }
 
 export const QueryModal = ({ isOpen, onClose, onSave, initialName = '', initialSql = '', initialDatabase, databases, title = 'Save Query' }: QueryModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [name, setName] = useState(initialName);
   const [sql, setSql] = useState(initialSql);
   const [database, setDatabase] = useState<string | null>(initialDatabase ?? null);
@@ -87,12 +87,12 @@ export const QueryModal = ({ isOpen, onClose, onSave, initialName = '', initialS
 
           {databases && databases.length > 1 && (
             <div>
-              <label className="block text-sm font-medium text-secondary mb-1">{t("queryModal.database")}</label>
+              <label className="block text-sm font-medium text-secondary mb-1">{t`Database`}</label>
               <Select
                 value={database}
                 options={databases}
                 onChange={(val) => setDatabase(val)}
-                placeholder={t("queryModal.noDatabase")}
+                placeholder={t`No database`}
                 searchable={databases.length > 5}
               />
             </div>

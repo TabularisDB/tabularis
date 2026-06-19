@@ -1,5 +1,5 @@
 import React from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Check, Plus, Minus } from "lucide-react";
 import type { TableColumn } from "../../types/editor";
 import { getOperatorsForType } from "../../utils/filterBar";
@@ -29,7 +29,7 @@ export const FilterRow = ({
   isApplied,
   onTriggerApplied,
 }: FilterRowProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const selectedCol = columns.find((c) => c.name === filter.column);
   const operators = getOperatorsForType(selectedCol?.data_type ?? "");
   const enabled = filter.enabled !== false;
@@ -61,7 +61,7 @@ export const FilterRow = ({
       {/* Checkbox -- selected for Apply All */}
       <button
         onClick={() => onChange({ ...filter, enabled: !enabled })}
-        title={enabled ? t("toolbar.deselectFromApplyAll") : t("toolbar.selectForApplyAll")}
+        title={enabled ? t`Deselect from Apply All` : t`Select for Apply All`}
         className={`shrink-0 w-4 h-4 rounded flex items-center justify-center border transition-all ${
           enabled
             ? "bg-green-500/20 border-green-500/70 text-green-400"
@@ -95,7 +95,7 @@ export const FilterRow = ({
           onChange={(e) => onChange({ ...filter, value: e.target.value })}
           onKeyDown={handleValueKeyDown}
           className="flex-1 min-w-0 bg-base border border-default rounded px-2 py-1 text-xs text-secondary font-mono focus:outline-none focus:border-blue-500/60 transition-colors"
-          placeholder={t("toolbar.valuePlaceholder")}
+          placeholder={t({ message: "value", context: "toolbar" })}
           autoComplete="off"
         />
       )}
@@ -108,7 +108,7 @@ export const FilterRow = ({
             onChange={(e) => onChange({ ...filter, value: e.target.value })}
             onKeyDown={handleValueKeyDown}
             className="flex-1 min-w-0 bg-base border border-default rounded px-2 py-1 text-xs text-secondary font-mono focus:outline-none focus:border-blue-500/60 transition-colors"
-            placeholder={t("toolbar.fromPlaceholder")}
+            placeholder={t`from`}
           />
           <span className="text-[10px] text-muted shrink-0 font-mono uppercase tracking-wider">AND</span>
           <input
@@ -117,7 +117,7 @@ export const FilterRow = ({
             onChange={(e) => onChange({ ...filter, value2: e.target.value })}
             onKeyDown={handleValueKeyDown}
             className="flex-1 min-w-0 bg-base border border-default rounded px-2 py-1 text-xs text-secondary font-mono focus:outline-none focus:border-blue-500/60 transition-colors"
-            placeholder={t("toolbar.toPlaceholder")}
+            placeholder={t`to`}
           />
         </div>
       )}
@@ -131,21 +131,21 @@ export const FilterRow = ({
             : "bg-blue-600/15 border-blue-500/40 text-blue-300 hover:bg-blue-600/25 hover:border-blue-400/60"
         }`}
       >
-        {isApplied ? t("toolbar.applied") : t("toolbar.apply")}
+        {isApplied ? t`Applied` : t`Apply`}
       </button>
 
       {/* Duplicate / Remove */}
       <div className="flex items-center gap-1 shrink-0">
         <button
           onClick={() => onDuplicate(filter)}
-          title={t("toolbar.duplicateFilter")}
+          title={t`Duplicate filter`}
           className="w-6 h-6 flex items-center justify-center rounded text-muted hover:text-blue-300 hover:bg-blue-600/15 transition-colors"
         >
           <Plus size={12} />
         </button>
         <button
           onClick={onRemove}
-          title={t("toolbar.removeFilter")}
+          title={t`Remove filter`}
           className="w-6 h-6 flex items-center justify-center rounded text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors"
         >
           <Minus size={12} />

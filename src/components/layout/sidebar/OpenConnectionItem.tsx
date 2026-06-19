@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Loader2, Shield, X, AlertCircle, Terminal, Check, Copy, Power, Columns2, Rows2 } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import type { ConnectionStatus } from "../../../hooks/useConnectionManager";
 import { getConnectionItemClass, getStatusDotClass } from "../../../utils/connectionManager";
 import { canActivateSplit } from "../../../utils/connectionLayout";
@@ -52,7 +52,7 @@ export const OpenConnectionItem = ({
   onReorderDragEnd,
   dropIndicator = null,
 }: Props) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { connections } = useDatabase();
   const { isActive, isConnecting, name, database, sshEnabled, error } = connection;
   const savedConnection = connections.find(c => c.id === connection.id);
@@ -78,12 +78,12 @@ export const OpenConnectionItem = ({
   const splitItems = canSplit
     ? [
         {
-          label: t('sidebar.splitVertical'),
+          label: t`Split Vertical`,
           icon: Columns2,
           action: () => onActivateSplit('vertical'),
         },
         {
-          label: t('sidebar.splitHorizontal'),
+          label: t`Split Horizontal`,
           icon: Rows2,
           action: () => onActivateSplit('horizontal'),
         },
@@ -94,25 +94,25 @@ export const OpenConnectionItem = ({
   const menuItems = [
     ...splitItems,
     {
-      label: t("sidebar.openInEditor"),
+      label: t`Open in Editor`,
       icon: Terminal,
       action: onOpenInEditor,
     },
     {
-      label: t("sidebar.setAsActive"),
+      label: t`Set as Active`,
       icon: Check,
       action: onSwitch,
       disabled: isActive,
     },
     { separator: true as const },
     {
-      label: t("sidebar.copyName"),
+      label: t`Copy Name`,
       icon: Copy,
       action: () => navigator.clipboard.writeText(name),
     },
     { separator: true as const },
     {
-      label: t("connections.disconnect"),
+      label: t`Disconnect`,
       icon: Power,
       action: onDisconnect,
       danger: true,
@@ -205,7 +205,7 @@ export const OpenConnectionItem = ({
             onDisconnect();
           }}
           className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-elevated border border-default rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-900/50 hover:text-red-400 text-muted z-10"
-          title={t("connections.disconnect")}
+          title={t`Disconnect`}
         >
           <X size={8} />
         </button>

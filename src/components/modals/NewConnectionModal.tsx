@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   X,
   Check,
@@ -155,7 +155,7 @@ export const NewConnectionModal = ({
   onSave,
   initialConnection,
 }: NewConnectionModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { drivers } = useDrivers();
 
   // ── form state ──
@@ -316,7 +316,7 @@ export const NewConnectionModal = ({
   const connectionStringPlaceholder =
     activeDriver?.capabilities?.connection_string_example?.trim() ||
     activeDriver?.capabilities?.connectionStringExample?.trim() ||
-    t("newConnection.connectionStringPlaceholder");
+    t`e.g. mysql://user:pass@localhost:3306/db`;
   const isMultiDb = isMultiDatabaseCapable(activeDriver?.capabilities);
 
   // ── plugin slot: connection-modal.connection_content ──
@@ -511,7 +511,7 @@ export const NewConnectionModal = ({
           ? err
           : err instanceof Error
             ? err.message
-            : t("newConnection.failLoadDatabases");
+            : t`Failed to load databases. Check your credentials.`;
       setDatabaseLoadError(errorMsg);
       setAvailableDatabases([]);
     } finally {
@@ -700,7 +700,7 @@ export const NewConnectionModal = ({
   const saveConnection = async () => {
     if (!name.trim()) {
       setStatus("error");
-      setMessage(t("newConnection.nameRequired"));
+      setMessage(t({ message: "Connection name is required", context: "newConnection" }));
       setTestResult("error");
       setNameError(true);
       nameInputRef.current?.focus();
@@ -709,7 +709,7 @@ export const NewConnectionModal = ({
     if (isMultiDb) {
       if (selectedDatabasesState.length === 0) {
         setStatus("error");
-        setMessage(t("newConnection.noDatabasesSelected"));
+        setMessage(t`Select at least one database`);
         setTestResult("error");
         setActiveTab("databases");
         setDatabasesTabError(true);
@@ -721,7 +721,7 @@ export const NewConnectionModal = ({
         (typeof formData.database === "string" && !formData.database.trim()))
     ) {
       setStatus("error");
-      setMessage(t("newConnection.dbNameRequired"));
+      setMessage(t`Database name is required`);
       setTestResult("error");
       return;
     }
@@ -790,7 +790,7 @@ export const NewConnectionModal = ({
       onClose();
     } catch (err) {
       setStatus("error");
-      setMessage(typeof err === "string" ? err : t("newConnection.failSave"));
+      setMessage(typeof err === "string" ? err : t`Failed to save connection`);
       setTestResult("error");
     }
   };
@@ -865,7 +865,7 @@ export const NewConnectionModal = ({
           <div className="flex flex-col items-center justify-center py-10 gap-3 text-muted">
             <Info size={22} className="opacity-40" />
             <p className="text-xs text-center">
-              {t("newConnection.noGeneralSettings")}
+              {t`No general settings available for this driver.`}
             </p>
           </div>
         )
@@ -874,8 +874,8 @@ export const NewConnectionModal = ({
         <div className="flex flex-col gap-1">
           <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
             {activeDriver.capabilities.folder_based
-              ? t("newConnection.folderPath")
-              : t("newConnection.filePath")}
+              ? t`Folder Path`
+              : t`File Path`}
           </label>
           <div className="flex gap-2">
             <input
@@ -891,8 +891,8 @@ export const NewConnectionModal = ({
               className="flex-1 px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors"
               placeholder={
                 activeDriver.capabilities.folder_based
-                  ? t("newConnection.folderPathPlaceholder")
-                  : t("newConnection.filePathPlaceholder")
+                  ? t`/absolute/path/to/folder`
+                  : t`/absolute/path/to/db.sqlite`
               }
             />
             <button
@@ -907,8 +907,8 @@ export const NewConnectionModal = ({
               className="px-3 py-2 bg-base hover:bg-surface-secondary border border-strong rounded-md text-muted hover:text-primary transition-colors"
               title={
                 activeDriver.capabilities.folder_based
-                  ? t("newConnection.browseFolder")
-                  : t("newConnection.browseFile")
+                  ? t`Browse folder`
+                  : t`Browse file`
               }
             >
               <FolderOpen size={15} />
@@ -921,7 +921,7 @@ export const NewConnectionModal = ({
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                  {t("newConnection.connectionString")}
+                  {t`Connection String`}
                 </label>
                 {connectionString && (
                   <button
@@ -929,7 +929,7 @@ export const NewConnectionModal = ({
                     onClick={handleClearConnectionString}
                     className="text-xs text-muted hover:text-primary transition-colors"
                   >
-                    {t("common.clear")}
+                    {t({ message: "Clear", context: "common" })}
                   </button>
                 )}
               </div>
@@ -971,13 +971,13 @@ export const NewConnectionModal = ({
           >
             <FieldInput
               className="col-span-2"
-              label={t("newConnection.host")}
+              label={t`Host`}
               value={formData.host}
               onChange={(v) => updateField("host", v)}
               placeholder="localhost"
             />
             <FieldInput
-              label={t("newConnection.port")}
+              label={t`Port`}
               value={formData.port}
               onChange={(v) => updateField("port", v)}
               type="number"
@@ -988,13 +988,13 @@ export const NewConnectionModal = ({
           {/* User + Password */}
           <div className="grid grid-cols-2 gap-3">
             <FieldInput
-              label={t("newConnection.username")}
+              label={t`Username`}
               value={formData.username}
               onChange={(v) => updateField("username", v)}
-              placeholder={t("newConnection.usernamePlaceholder")}
+              placeholder={t`Enter username`}
             />
             <FieldInput
-              label={t("newConnection.password")}
+              label={t`Password`}
               value={formData.password}
               onChange={(v) => {
                 setPasswordDirty(true);
@@ -1004,7 +1004,7 @@ export const NewConnectionModal = ({
               placeholder={
                 initialConnection && !passwordDirty && !formData.password
                   ? "••••••••"
-                  : t("newConnection.passwordPlaceholder")
+                  : t`Enter password`
               }
             />
           </div>
@@ -1014,7 +1014,7 @@ export const NewConnectionModal = ({
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                  {t("newConnection.dbName")}
+                  {t`Database Name`}
                 </label>
                 <button
                   type="button"
@@ -1032,8 +1032,8 @@ export const NewConnectionModal = ({
                     <Database size={11} />
                   )}
                   {loadingDatabases
-                    ? t("newConnection.loadingDatabases")
-                    : t("newConnection.loadDatabases")}
+                    ? t`Loading...`
+                    : t`Load Databases`}
                 </button>
               </div>
               {availableDatabases.length > 0 ? (
@@ -1045,9 +1045,9 @@ export const NewConnectionModal = ({
                   }
                   options={availableDatabases}
                   onChange={(val) => updateField("database", val)}
-                  placeholder={t("newConnection.selectDatabase")}
-                  searchPlaceholder={t("common.search")}
-                  noResultsLabel={t("newConnection.noDatabasesFound")}
+                  placeholder={t`Select a database`}
+                  searchPlaceholder={t`Search...`}
+                  noResultsLabel={t`No databases found`}
                 />
               ) : (
                 <input
@@ -1063,7 +1063,7 @@ export const NewConnectionModal = ({
                   autoComplete="off"
                   spellCheck={false}
                   className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors"
-                  placeholder={t("newConnection.dbNamePlaceholder")}
+                  placeholder={t`Database name`}
                 />
               )}
               {databaseLoadError && (
@@ -1085,7 +1085,7 @@ export const NewConnectionModal = ({
               className="accent-blue-500 w-3.5 h-3.5 rounded"
             />
             <span className="text-xs text-secondary">
-              {t("newConnection.saveKeychain")}
+              {t`Save passwords in Keychain`}
             </span>
           </label>
         </>
@@ -1100,9 +1100,9 @@ export const NewConnectionModal = ({
           className="accent-blue-500 w-3.5 h-3.5 rounded mt-0.5"
         />
         <span className="text-xs text-secondary leading-snug">
-          <span className="block">{t("settings.detectJsonInTextColumns")}</span>
+          <span className="block">{t`Detect JSON in text columns`}</span>
           <span className="block text-muted">
-            {t("settings.detectJsonInTextColumnsDesc")}
+            {t`Show the JSON viewer affordance when a non-typed text cell contains a JSON object or array. Adds a small per-cell parse cost.`}
           </span>
         </span>
       </label>
@@ -1117,7 +1117,7 @@ export const NewConnectionModal = ({
       onChange={setAppearance}
       connectionId={effectiveConnectionId}
       driverManifest={activeDriver}
-      connectionName={name || t("newConnection.unnamedConnection")}
+      connectionName={name || t`Unnamed connection`}
       onImageUploaded={handleImageUploaded}
     />
   );
@@ -1127,7 +1127,7 @@ export const NewConnectionModal = ({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted">
-          {t("newConnection.selectDatabasesHint")}
+          {t`Select the databases to include in this connection.`}
         </p>
         <button
           type="button"
@@ -1143,8 +1143,8 @@ export const NewConnectionModal = ({
             <Database size={11} />
           )}
           {loadingDatabases
-            ? t("newConnection.loadingDatabases")
-            : t("newConnection.loadDatabases")}
+            ? t`Loading...`
+            : t`Load Databases`}
         </button>
       </div>
       {databaseLoadError && (
@@ -1159,7 +1159,7 @@ export const NewConnectionModal = ({
               type="text"
               value={dbSearchQuery}
               onChange={(e) => setDbSearchQuery(e.target.value)}
-              placeholder={t("common.search")}
+              placeholder={t`Search...`}
               autoCorrect="off"
               autoCapitalize="off"
               autoComplete="off"
@@ -1193,8 +1193,8 @@ export const NewConnectionModal = ({
                   db.toLowerCase().includes(dbSearchQuery.toLowerCase()),
                 )
                 .every((db) => selectedDatabasesState.includes(db))
-                ? t("sidebar.deselectAll")
-                : t("sidebar.selectAll")}
+                ? t({ message: "Deselect All", context: "sidebar" })
+                : t({ message: "Select All", context: "sidebar" })}
             </button>
           </div>
           <div className="max-h-[300px] overflow-y-auto">
@@ -1234,17 +1234,15 @@ export const NewConnectionModal = ({
           </div>
           <div className="px-2.5 py-1.5 border-t border-default bg-base text-xs text-muted">
             {selectedDatabasesState.length > 0
-              ? t("newConnection.selectedDatabases", {
-                  count: selectedDatabasesState.length,
-                })
-              : t("newConnection.noDatabasesSelected")}
+              ? t`${selectedDatabasesState.length} database(s) selected`
+              : t`Select at least one database`}
           </div>
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted border border-dashed border-strong rounded-md">
           <Database size={20} className="opacity-40" />
           <p className="text-xs">
-            {t("newConnection.loadDatabasesHint")}
+            {t`Click Load Databases to fetch available databases.`}
           </p>
         </div>
       )}
@@ -1255,13 +1253,13 @@ export const NewConnectionModal = ({
   const sslTabContent = (
     <div className="space-y-4">
       <p className="text-xs text-muted">
-        {t("newConnection.sslDescription")}
+        {t`Configure SSL/TLS for secure database connections (optional).`}
       </p>
 
       {/* SSL Mode */}
       <div className="flex flex-col gap-1">
         <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-          {t("newConnection.sslMode")}
+          {t`SSL Mode`}
         </label>
         <Select
           value={
@@ -1282,24 +1280,24 @@ export const NewConnectionModal = ({
           labels={
             driver === "postgres"
               ? {
-                  disable: t("newConnection.sslModes.disable"),
-                  allow: t("newConnection.sslModes.allow"),
-                  prefer: t("newConnection.sslModes.prefer"),
-                  require: t("newConnection.sslModes.require"),
-                  "verify-ca": t("newConnection.sslModes.verify-ca"),
-                  "verify-full": t("newConnection.sslModes.verify-full"),
+                  disable: t`Disable`,
+                  allow: t`Allow`,
+                  prefer: t`Prefer`,
+                  require: t`Require`,
+                  "verify-ca": t`Verify CA`,
+                  "verify-full": t`Verify Full`,
                 }
               : driver === "clickhouse"
                 ? {
-                    disable: t("newConnection.sslModes.disable"),
-                    require: t("newConnection.sslModes.require"),
+                    disable: t`Disable`,
+                    require: t`Require`,
                   }
                 : {
-                    disabled: t("newConnection.sslModes.disabled"),
-                    preferred: t("newConnection.sslModes.preferred"),
-                    required: t("newConnection.sslModes.required"),
-                    verify_ca: t("newConnection.sslModes.verify_ca"),
-                    verify_identity: t("newConnection.sslModes.verify_identity"),
+                    disabled: t`Disabled`,
+                    preferred: t`Preferred`,
+                    required: t`Required`,
+                    verify_ca: t`Verify CA`,
+                    verify_identity: t`Verify Identity`,
                   }
           }
           onChange={(v) => updateField("ssl_mode", v)}
@@ -1311,13 +1309,13 @@ export const NewConnectionModal = ({
       {formData.ssl_mode && formData.ssl_mode !== "disable" && formData.ssl_mode !== "disabled" && (
         <div className="space-y-3 pt-2">
           <p className="text-xs text-muted">
-            {t("newConnection.sslCertificatesOptional")}
+            {t`Certificate paths are optional. Leave empty to use system defaults.`}
           </p>
 
           {/* CA Certificate */}
           <div className="flex flex-col gap-1">
             <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-              {t("newConnection.sslCa")}
+              {t`CA Certificate`}
             </label>
             <div className="flex gap-2">
               <input
@@ -1345,7 +1343,7 @@ export const NewConnectionModal = ({
                   if (selected) updateField("ssl_ca", selected);
                 }}
                 className="px-3 py-2 bg-base hover:bg-surface-secondary border border-strong rounded-md text-muted hover:text-primary transition-colors"
-                title={t("newConnection.browseFile", { defaultValue: "Browse" })}
+                title={t`Browse file`}
               >
                 <FolderOpen size={15} />
               </button>
@@ -1355,7 +1353,7 @@ export const NewConnectionModal = ({
           {/* Client Certificate */}
           <div className="flex flex-col gap-1">
             <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-              {t("newConnection.sslCert")}
+              {t`Client Certificate`}
             </label>
             <div className="flex gap-2">
               <input
@@ -1383,7 +1381,7 @@ export const NewConnectionModal = ({
                   if (selected) updateField("ssl_cert", selected);
                 }}
                 className="px-3 py-2 bg-base hover:bg-surface-secondary border border-strong rounded-md text-muted hover:text-primary transition-colors"
-                title={t("newConnection.browseFile", { defaultValue: "Browse" })}
+                title={t`Browse file`}
               >
                 <FolderOpen size={15} />
               </button>
@@ -1393,7 +1391,7 @@ export const NewConnectionModal = ({
           {/* Client Key */}
           <div className="flex flex-col gap-1">
             <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-              {t("newConnection.sslKey")}
+              {t`Client Key`}
             </label>
             <div className="flex gap-2">
               <input
@@ -1421,7 +1419,7 @@ export const NewConnectionModal = ({
                   if (selected) updateField("ssl_key", selected);
                 }}
                 className="px-3 py-2 bg-base hover:bg-surface-secondary border border-strong rounded-md text-muted hover:text-primary transition-colors"
-                title={t("newConnection.browseFile", { defaultValue: "Browse" })}
+                title={t`Browse file`}
               >
                 <FolderOpen size={15} />
               </button>
@@ -1435,7 +1433,7 @@ export const NewConnectionModal = ({
   // ── rendered SSH tab content ──
   const sshTabContent = !isNetworkDriver ? (
     <p className="text-xs text-muted italic">
-      {t("newConnection.sshNotAvailable")}
+      {t`SSH is not available for this driver.`}
     </p>
   ) : (
     <div className="space-y-4">
@@ -1457,7 +1455,7 @@ export const NewConnectionModal = ({
           className="accent-blue-500 w-3.5 h-3.5 rounded"
         />
         <span className="text-sm font-medium text-secondary">
-          {t("newConnection.useSsh")}
+          {t`Use SSH Tunnel`}
         </span>
       </label>
 
@@ -1490,8 +1488,8 @@ export const NewConnectionModal = ({
                 )}
               >
                 {mode === "existing"
-                  ? t("newConnection.useSshConnection")
-                  : t("newConnection.createInlineSsh")}
+                  ? t`Use Existing SSH Connection`
+                  : t`Configure SSH Inline`}
               </button>
             ))}
           </div>
@@ -1501,7 +1499,7 @@ export const NewConnectionModal = ({
             <div className="space-y-3">
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                  {t("newConnection.selectSshConnection")}
+                  {t`Select SSH Connection`}
                 </label>
                 <Select
                   value={formData.ssh_connection_id || null}
@@ -1515,8 +1513,8 @@ export const NewConnectionModal = ({
                   onChange={(val) => updateField("ssh_connection_id", val)}
                   placeholder={
                     sshConnections.length === 0
-                      ? t("newConnection.noSshConnections")
-                      : "-- " + t("newConnection.selectSshConnection") + " --"
+                      ? t`No SSH connections available`
+                      : "-- " + t`Select SSH Connection` + " --"
                   }
                   searchable={false}
                 />
@@ -1527,7 +1525,7 @@ export const NewConnectionModal = ({
                 className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors"
               >
                 <Settings size={12} />
-                {t("newConnection.manageSshConnections")}
+                {t`Manage SSH Connections`}
               </button>
             </div>
           )}
@@ -1538,13 +1536,13 @@ export const NewConnectionModal = ({
               <div className="grid grid-cols-3 gap-3">
                 <FieldInput
                   className="col-span-2"
-                  label={t("newConnection.sshHost")}
+                  label={t`SSH Host`}
                   value={formData.ssh_host}
                   onChange={(v) => updateField("ssh_host", v)}
                   placeholder="ssh.example.com"
                 />
                 <FieldInput
-                  label={t("newConnection.sshPort")}
+                  label={t`SSH Port`}
                   value={formData.ssh_port}
                   onChange={(v) => updateField("ssh_port", Number(v))}
                   type="number"
@@ -1553,14 +1551,14 @@ export const NewConnectionModal = ({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <FieldInput
-                  label={t("newConnection.sshUser")}
+                  label={t`SSH User`}
                   value={formData.ssh_user}
                   onChange={(v) => updateField("ssh_user", v)}
                   placeholder="user"
                 />
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                    {t("newConnection.sshPassword")}
+                    {t`SSH Password`}
                   </label>
                   <input
                     type="password"
@@ -1574,7 +1572,7 @@ export const NewConnectionModal = ({
                       !sshPasswordDirty &&
                       !formData.ssh_password
                         ? "••••••••"
-                        : t("newConnection.sshPasswordPlaceholder")
+                        : t`Enter SSH password`
                     }
                     autoCorrect="off"
                     autoCapitalize="off"
@@ -1587,23 +1585,23 @@ export const NewConnectionModal = ({
                     !formData.ssh_password && (
                       <p className="text-[10px] text-amber-500 flex items-center gap-1 mt-0.5">
                         <AlertCircle size={10} />{" "}
-                        {t("newConnection.sshPasswordMissing")}
+                        {t`SSH Password missing. Please re-enter.`}
                       </p>
                     )}
                 </div>
               </div>
               <FieldInput
-                label={t("newConnection.sshKeyFile")}
+                label={t`SSH Key File (Optional)`}
                 value={formData.ssh_key_file}
                 onChange={(v) => updateField("ssh_key_file", v)}
-                placeholder={t("newConnection.sshKeyFilePlaceholder")}
+                placeholder={t`/path/to/id_rsa`}
               />
               <FieldInput
-                label={t("newConnection.sshKeyPassphrase")}
+                label={t`SSH Key Passphrase (Optional)`}
                 value={formData.ssh_key_passphrase}
                 onChange={(v) => updateField("ssh_key_passphrase", v)}
                 type="password"
-                placeholder={t("newConnection.sshKeyPassphrasePlaceholder")}
+                placeholder={t`Enter key passphrase if encrypted`}
               />
             </div>
           )}
@@ -1615,7 +1613,7 @@ export const NewConnectionModal = ({
   // ── rendered K8s tab content ──
   const k8sTabContent = !isNetworkDriver ? (
     <p className="text-xs text-muted italic">
-      {t("newConnection.k8sNotAvailable")}
+      {t`Kubernetes is not available for this driver.`}
     </p>
   ) : (
     <div className="space-y-4">
@@ -1636,7 +1634,7 @@ export const NewConnectionModal = ({
           className="accent-blue-500 w-3.5 h-3.5 rounded"
         />
         <span className="text-sm font-medium text-secondary">
-          {t("newConnection.useK8s")}
+          {t`Use Kubernetes Port-Forward`}
         </span>
       </label>
 
@@ -1669,8 +1667,8 @@ export const NewConnectionModal = ({
                 )}
               >
                 {mode === "existing"
-                  ? t("newConnection.useK8sConnection")
-                  : t("newConnection.createInlineK8s")}
+                  ? t`Saved Connection`
+                  : t`Inline`}
               </button>
             ))}
           </div>
@@ -1680,7 +1678,7 @@ export const NewConnectionModal = ({
             <div className="space-y-3">
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                  {t("newConnection.selectK8sConnection")}
+                  {t`Select K8s Connection`}
                 </label>
                 <div className="flex items-center gap-2">
                   <Select
@@ -1694,12 +1692,12 @@ export const NewConnectionModal = ({
                       ]),
                     )}
                     onChange={(val) => updateField("k8s_connection_id", val)}
-                    searchPlaceholder={t("common.search")}
-                    noResultsLabel={t("common.noResults")}
+                    searchPlaceholder={t`Search...`}
+                    noResultsLabel={t`No results found`}
                     placeholder={
                       k8sConnections.length === 0
-                        ? t("newConnection.noK8sConnections")
-                        : t("newConnection.chooseK8s")
+                        ? t`No saved connections — create one below`
+                        : t`Choose a connection...`
                     }
                   />
                   <button
@@ -1707,7 +1705,7 @@ export const NewConnectionModal = ({
                     onClick={() => setIsK8sModalOpen(true)}
                     className="px-2.5 py-1.5 text-xs bg-surface-secondary hover:bg-surface-tertiary rounded-md text-secondary transition-colors"
                   >
-                    {t("newConnection.manageK8s")}
+                    {t`Manage`}
                   </button>
                 </div>
               </div>
@@ -1719,7 +1717,7 @@ export const NewConnectionModal = ({
             <div className="space-y-3">
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                  {t("newConnection.k8sContext")}
+                  {t`Context`}
                 </label>
                 <Select
                   value={formData.k8s_context || null}
@@ -1727,19 +1725,19 @@ export const NewConnectionModal = ({
                   onChange={(val) => {
                     updateField("k8s_context", val);
                   }}
-                  searchPlaceholder={t("common.search")}
-                  noResultsLabel={t("common.noResults")}
+                  searchPlaceholder={t`Search...`}
+                  noResultsLabel={t`No results found`}
                   placeholder={
                     k8sContexts.length === 0
-                      ? t("newConnection.noK8sContexts")
-                      : t("newConnection.chooseContext")
+                      ? t`No contexts found (is kubectl installed?)`
+                      : t`Choose a context...`
                   }
                 />
               </div>
 
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                  {t("newConnection.k8sNamespace")}
+                  {t`Namespace`}
                 </label>
                 <Select
                   value={formData.k8s_namespace || null}
@@ -1747,12 +1745,12 @@ export const NewConnectionModal = ({
                   onChange={(val) => {
                     updateField("k8s_namespace", val);
                   }}
-                  searchPlaceholder={t("common.search")}
-                  noResultsLabel={t("common.noResults")}
+                  searchPlaceholder={t`Search...`}
+                  noResultsLabel={t`No results found`}
                   placeholder={
                     k8sNamespaces.length === 0
-                      ? t("newConnection.selectContextFirst")
-                      : t("newConnection.chooseNamespace")
+                      ? t`Select a context first`
+                      : t`Choose a namespace...`
                   }
                 />
               </div>
@@ -1760,26 +1758,26 @@ export const NewConnectionModal = ({
               <div className="flex gap-3">
                 <div className="flex flex-col gap-1 flex-1">
                   <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                    {t("newConnection.k8sResourceType")}
+                    {t`Resource Type`}
                   </label>
                   <Select
                     value={formData.k8s_resource_type || null}
                     options={["service", "pod"]}
                     labels={{
-                      service: t("newConnection.k8sResourceTypeService"),
-                      pod: t("newConnection.k8sResourceTypePod"),
+                      service: t`Service`,
+                      pod: t`Pod`,
                     }}
                     onChange={(val) => {
                       updateField("k8s_resource_type", val);
                     }}
-                    placeholder={t("newConnection.k8sSelectType")}
+                    placeholder={t`Select type...`}
                     searchable={false}
                   />
                 </div>
 
                 <div className="flex flex-col gap-1 flex-1">
                   <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                    {t("newConnection.k8sResourceName")}
+                    {t`Resource Name`}
                   </label>
                   <Select
                     value={formData.k8s_resource_name || null}
@@ -1787,19 +1785,19 @@ export const NewConnectionModal = ({
                     onChange={(val) =>
                       updateField("k8s_resource_name", val)
                     }
-                    searchPlaceholder={t("common.search")}
-                    noResultsLabel={t("common.noResults")}
+                    searchPlaceholder={t`Search...`}
+                    noResultsLabel={t`No results found`}
                     placeholder={
                       k8sResources.length === 0
-                        ? t("newConnection.selectTypeFirst")
-                        : t("newConnection.chooseResource")
+                        ? t`Select context/namespace/type first`
+                        : t`Choose a resource...`
                     }
                   />
                 </div>
               </div>
 
               <FieldInput
-                label={t("newConnection.k8sPort")}
+                label={t`Container Port`}
                 value={effectiveK8sPort ?? ""}
                 type="number"
                 onChange={(v) => {
@@ -1836,7 +1834,7 @@ export const NewConnectionModal = ({
               setName(e.target.value);
               if (nameError) setNameError(false);
             }}
-            placeholder={t("newConnection.namePlaceholder")}
+            placeholder={t`Provide your connection name`}
             autoFocus
             autoCorrect="off"
             autoCapitalize="off"
@@ -1876,7 +1874,7 @@ export const NewConnectionModal = ({
               return (
                 <>
                   <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
-                    {t("newConnection.dbType")}
+                    {t`Database Type`}
                   </p>
                   {sortedDrivers.map((d: PluginManifest, idx) => (
                     <div key={d.id}>
@@ -1924,13 +1922,13 @@ export const NewConnectionModal = ({
                 [
                   {
                     id: "general",
-                    label: t("newConnection.general"),
+                    label: t({ message: "General", context: "newConnection" }),
                   },
                   ...(isMultiDb
                     ? [
                         {
                           id: "databases",
-                          label: t("newConnection.selectDatabases"),
+                          label: t`Databases`,
                         },
                       ]
                     : []),
@@ -1941,7 +1939,7 @@ export const NewConnectionModal = ({
                   ...(isNetworkDriver ? [{ id: "k8s", label: "Kubernetes" }] : []),
                   {
                     id: "appearance",
-                    label: t("newConnection.appearance"),
+                    label: t({ message: "Appearance", context: "newConnection" }),
                   },
                 ] as {
                   id: "general" | "databases" | "ssh" | "ssl" | "k8s" | "appearance";
@@ -2015,7 +2013,7 @@ export const NewConnectionModal = ({
             ) : (
               <Plug size={14} />
             )}
-            {t("newConnection.testConnection")}
+            {t`Test Connection`}
           </button>
 
           {/* Status message */}
@@ -2037,7 +2035,7 @@ export const NewConnectionModal = ({
               onClick={onClose}
               className="px-3 py-1.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary rounded-md border border-strong transition-colors"
             >
-              {t("common.cancel")}
+              {t`Cancel`}
             </button>
             <button
               onClick={saveConnection}
@@ -2047,7 +2045,7 @@ export const NewConnectionModal = ({
               {status === "saving" && (
                 <Loader2 size={14} className="animate-spin" />
               )}
-              {t("newConnection.save")}
+              {t`Save`}
             </button>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import { X, Plus, Trash2, Save, Loader2, AlertTriangle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useDatabase } from '../../hooks/useDatabase';
@@ -29,7 +29,7 @@ interface CreateTableModalProps {
 }
 
 export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateTableModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { activeConnectionId, activeDriver, activeSchema } = useDatabase();
   const targetSchema = resolveCreateTableSchema(schema, activeSchema);
   const currentDriver = activeDriver || "sqlite";
@@ -51,11 +51,11 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
 
   const generatePreview = useCallback(async () => {
     if (!tableName.trim()) {
-      setSqlPreview('-- ' + t('createTable.nameRequired'));
+      setSqlPreview('-- ' + t`Table name is required`);
       return;
     }
     if (columns.length === 0) {
-      setSqlPreview('-- ' + t('createTable.colRequired'));
+      setSqlPreview('-- ' + t`At least one column is required`);
       return;
     }
 
@@ -112,7 +112,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
 
   const handleCreate = async () => {
     if (!tableName.trim()) {
-        setError(t('createTable.nameRequired'));
+        setError(t`Table name is required`);
         return;
     }
     setLoading(true);
@@ -149,7 +149,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
         setColumns([{ id: '1', name: 'id', type: 'INTEGER', length: '', isPk: true, isNullable: false, isAutoInc: true, defaultValue: '' }]);
     } catch (e: unknown) {
         console.error(e);
-        setError(t('createTable.failCreate') + (e instanceof Error ? e.message : String(e)));
+        setError(t`Failed to create table: ` + (e instanceof Error ? e.message : String(e)));
     } finally {
         setLoading(false);
     }
@@ -167,7 +167,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
                 <Plus className="text-blue-400" size={20} />
              </div>
              <div>
-                <h2 className="text-lg font-semibold text-primary">{t('createTable.title')}</h2>
+                <h2 className="text-lg font-semibold text-primary">{t`Create New Table`}</h2>
                 <p className="text-xs text-secondary font-mono">{currentDriver.toUpperCase()}</p>
              </div>
           </div>
@@ -181,12 +181,12 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
 
             {/* Table Name */}
             <div>
-                <label className="block text-xs uppercase font-bold text-muted mb-1">{t('createTable.tableName')}</label>
+                <label className="block text-xs uppercase font-bold text-muted mb-1">{t`Table Name`}</label>
                 <input
                     value={tableName}
                     onChange={(e) => { setTableName(e.target.value); setError(''); }}
                     className={`w-full bg-base border rounded-lg px-3 py-2 text-primary focus:border-blue-500 focus:outline-none transition-all font-mono ${!tableName.trim() && error ? 'border-red-500' : 'border-strong'}`}
-                    placeholder={t('createTable.tableNamePlaceholder')}
+                    placeholder={t`e.g. users, orders, products`}
                     autoFocus
                 />
             </div>
@@ -194,9 +194,9 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
             {/* Columns Grid */}
             <div className="flex-1 flex flex-col min-h-0 border border-strong rounded-lg bg-base/50 overflow-hidden">
                 <div className="bg-elevated/80 p-2 border-b border-strong flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-secondary">{t('createTable.columns')}</h3>
+                    <h3 className="text-sm font-medium text-secondary">{t`Columns`}</h3>
                     <button onClick={handleAddColumn} className="text-xs bg-surface-secondary hover:bg-surface-tertiary border border-strong text-white px-2 py-1 rounded flex items-center gap-1 transition-colors">
-                        <Plus size={12} /> {t('createTable.addColumn')}
+                        <Plus size={12} /> {t({ message: "Add Column", context: "createTable" })}
                     </button>
                 </div>
 
@@ -205,13 +205,13 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
                         <thead className="bg-elevated/50 sticky top-0 z-10">
                             <tr>
                                 <th className="p-2 text-[10px] text-muted font-semibold w-8"></th>
-                                <th className="p-2 text-[10px] text-muted font-semibold">{t('createTable.colName')}</th>
-                                <th className="p-2 text-[10px] text-muted font-semibold w-44">{t('createTable.colType')}</th>
-                                <th className="p-2 text-[10px] text-muted font-semibold w-20">{t('createTable.colLen')}</th>
-                                <th className="p-2 text-[10px] text-muted font-semibold w-10 text-center" title="Primary Key">{t('createTable.colPk')}</th>
-                                <th className="p-2 text-[10px] text-muted font-semibold w-10 text-center" title="Not Null">{t('createTable.colNn')}</th>
-                                <th className="p-2 text-[10px] text-muted font-semibold w-10 text-center" title="Auto Increment">{t('createTable.colAi')}</th>
-                                <th className="p-2 text-[10px] text-muted font-semibold w-32">{t('createTable.colDefault')}</th>
+                                <th className="p-2 text-[10px] text-muted font-semibold">{t`Name`}</th>
+                                <th className="p-2 text-[10px] text-muted font-semibold w-44">{t`Type`}</th>
+                                <th className="p-2 text-[10px] text-muted font-semibold w-20">{t`Len`}</th>
+                                <th className="p-2 text-[10px] text-muted font-semibold w-10 text-center" title="Primary Key">{t`PK`}</th>
+                                <th className="p-2 text-[10px] text-muted font-semibold w-10 text-center" title="Not Null">{t`NN`}</th>
+                                <th className="p-2 text-[10px] text-muted font-semibold w-10 text-center" title="Auto Increment">{t({ message: "AI", context: "createTable" })}</th>
+                                <th className="p-2 text-[10px] text-muted font-semibold w-32">{t({ message: "Default", context: "createTable" })}</th>
                                 <th className="p-2 w-8"></th>
                             </tr>
                         </thead>
@@ -243,9 +243,9 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
                                                 updateColumn(col.id, 'isAutoInc', false);
                                               }
                                             }}
-                                            placeholder={t("modifyColumn.type")}
-                                            searchPlaceholder={t("common.search")}
-                                            noResultsLabel={t("common.noResults")}
+                                            placeholder={t`Type`}
+                                            searchPlaceholder={t`Search...`}
+                                            noResultsLabel={t`No results found`}
                                         />
                                     </td>
                                     <td className="p-2">
@@ -316,14 +316,14 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
                 return exts.length > 0 ? (
                     <div className="bg-warning-bg border border-warning-border text-warning-text text-xs p-3 rounded-lg flex items-center gap-2">
                         <AlertTriangle size={14} className="shrink-0" />
-                        <span>{t('createTable.requiresExtension', { ext: exts.join(', ') })}</span>
+                        <span>{t`Requires extension: ${exts.join(', ')}`}</span>
                     </div>
                 ) : null;
             })()}
 
             {/* SQL Preview - always visible */}
             <div>
-                <div className="text-[10px] text-muted mb-1 uppercase tracking-wider">{t('createTable.sqlPreview')}</div>
+                <div className="text-[10px] text-muted mb-1 uppercase tracking-wider">{t`SQL Preview`}</div>
                 <SqlPreview sql={sqlPreview} height="100px" showLineNumbers={true} />
             </div>
 
@@ -341,7 +341,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
             onClick={onClose}
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
-            {t('createTable.cancel')}
+            {t`Cancel`}
           </button>
           <button
             onClick={handleCreate}
@@ -349,7 +349,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
             className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-medium text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all"
           >
             {loading && <Loader2 size={16} className="animate-spin" />}
-            <Save size={16} /> {t('createTable.create')}
+            <Save size={16} /> {t({ message: "Create Table", context: "createTable" })}
           </button>
         </div>
       </div>

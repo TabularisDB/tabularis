@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supportsManageTables } from "../../../utils/driverCapabilities";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   Loader2,
   ChevronDown,
@@ -95,7 +95,7 @@ export const SidebarDatabaseItem = ({
   onViewDiagram,
   capabilities,
 }: SidebarDatabaseItemProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   const [isExpanded, setIsExpanded] = useState(activeSchema === databaseName);
   const [prevActiveSchema, setPrevActiveSchema] = useState(activeSchema);
@@ -194,7 +194,7 @@ export const SidebarDatabaseItem = ({
             <button
               onClick={(e) => { e.stopPropagation(); onImport(databaseName); }}
               className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-green-400 transition-colors"
-              title={t("dump.importDatabase")}
+              title={t`Run SQL File...`}
             >
               <Upload size={13} />
             </button>
@@ -203,7 +203,7 @@ export const SidebarDatabaseItem = ({
             <button
               onClick={(e) => { e.stopPropagation(); onDump(databaseName); }}
               className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-blue-400 transition-colors"
-              title={t("dump.dumpDatabase")}
+              title={t({ message: "Dump Database", context: "dump" })}
             >
               <Download size={13} />
             </button>
@@ -212,7 +212,7 @@ export const SidebarDatabaseItem = ({
             <button
               onClick={(e) => { e.stopPropagation(); onViewDiagram(databaseName); }}
               className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-orange-400 transition-colors"
-              title={t("sidebar.viewERDiagram")}
+              title={t`View ER Diagram`}
             >
               <Network size={13} className="rotate-90" />
             </button>
@@ -220,7 +220,7 @@ export const SidebarDatabaseItem = ({
           <button
             onClick={(e) => { e.stopPropagation(); onRefreshDatabase(databaseName); }}
             className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-            title={t("sidebar.refreshTables")}
+            title={t`Refresh Tables`}
           >
             <RefreshCw size={13} />
           </button>
@@ -233,13 +233,13 @@ export const SidebarDatabaseItem = ({
           {isLoading && !isLoaded ? (
             <div className="flex items-center gap-2 p-2 text-xs text-muted">
               <Loader2 size={12} className="animate-spin" />
-              {t("sidebar.loadingSchema")}
+              {t`Loading schema...`}
             </div>
           ) : (
             <>
               {/* Tables */}
               <Accordion
-                title={`${t("sidebar.tables")} (${tables.length})`}
+                title={`${t`Tables`} (${tables.length})`}
                 isOpen={tablesOpen}
                 onToggle={() => setTablesOpen(!tablesOpen)}
                 actions={
@@ -267,7 +267,7 @@ export const SidebarDatabaseItem = ({
                         type="text"
                         value={tableFilter}
                         onChange={(e) => setTableFilter(e.target.value)}
-                        placeholder={t("sidebar.filterTables")}
+                        placeholder={t`Filter tables...`}
                         className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-blue-500/50"
                         onClick={(e) => e.stopPropagation()}
                       />
@@ -284,7 +284,7 @@ export const SidebarDatabaseItem = ({
                 )}
                 {filteredTables.length === 0 ? (
                   <div className="text-center p-2 text-xs text-muted italic">
-                    {tableFilter ? t("sidebar.noTablesMatch") : t("sidebar.noTables")}
+                    {tableFilter ? t`No tables match` : t`No tables found`}
                   </div>
                 ) : (
                   <div>
@@ -316,7 +316,7 @@ export const SidebarDatabaseItem = ({
               {/* Views */}
               {capabilities?.views !== false && (
               <Accordion
-                title={`${t("sidebar.views")} (${views.length})`}
+                title={`${t`Views`} (${views.length})`}
                 isOpen={viewsOpen}
                 onToggle={() => setViewsOpen(!viewsOpen)}
                 actions={
@@ -327,7 +327,7 @@ export const SidebarDatabaseItem = ({
                         onCreateView();
                       }}
                       className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-                      title={t("sidebar.createView") || "Create New View"}
+                      title={t`Create New View` || "Create New View"}
                     >
                       <Plus size={14} />
                     </button>
@@ -336,7 +336,7 @@ export const SidebarDatabaseItem = ({
               >
                 {views.length === 0 ? (
                   <div className="text-center p-2 text-xs text-muted italic">
-                    {t("sidebar.noViews")}
+                    {t`No views found`}
                   </div>
                 ) : (
                   <div>
@@ -361,7 +361,7 @@ export const SidebarDatabaseItem = ({
               {/* Triggers */}
               {capabilities?.triggers === true && (
                 <Accordion
-                  title={`${t("sidebar.triggers")} (${triggers.length})`}
+                  title={`${t`Triggers`} (${triggers.length})`}
                   isOpen={triggersOpen}
                   onToggle={() => setTriggersOpen(!triggersOpen)}
                   actions={
@@ -372,7 +372,7 @@ export const SidebarDatabaseItem = ({
                           onCreateTrigger(databaseName);
                         }}
                         className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-                        title={t("sidebar.createTrigger") || "Create New Trigger"}
+                        title={t`Create New Trigger` || "Create New Trigger"}
                       >
                         <Plus size={14} />
                       </button>
@@ -387,7 +387,7 @@ export const SidebarDatabaseItem = ({
                           type="text"
                           value={triggerFilter}
                           onChange={(e) => setTriggerFilter(e.target.value)}
-                          placeholder={t("sidebar.filterTriggers")}
+                          placeholder={t`Filter triggers...`}
                           className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-blue-500/50"
                           onClick={(e) => e.stopPropagation()}
                         />
@@ -404,7 +404,7 @@ export const SidebarDatabaseItem = ({
                   )}
                   {filteredTriggers.length === 0 ? (
                     <div className="text-center p-2 text-xs text-muted italic">
-                      {triggerFilter ? t("sidebar.noTriggersMatch") : t("sidebar.noTriggers")}
+                      {triggerFilter ? t`No triggers match your filter` : t`No triggers found`}
                     </div>
                   ) : (
                     <div>
@@ -426,13 +426,13 @@ export const SidebarDatabaseItem = ({
               {/* Routines */}
               {capabilities?.routines === true && (
               <Accordion
-                title={`${t("sidebar.routines")} (${routines.length})`}
+                title={`${t`Routines`} (${routines.length})`}
                 isOpen={routinesOpen}
                 onToggle={() => setRoutinesOpen(!routinesOpen)}
               >
                 {routines.length === 0 ? (
                   <div className="text-center p-2 text-xs text-muted italic">
-                    {t("sidebar.noRoutines")}
+                    {t`No routines found`}
                   </div>
                 ) : (
                   <div className="flex flex-col">
@@ -443,7 +443,7 @@ export const SidebarDatabaseItem = ({
                           className="flex items-center gap-1 px-2 py-1 w-full text-left text-xs font-semibold text-muted uppercase tracking-wider hover:text-secondary transition-colors"
                         >
                           {functionsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                          <span>{t("sidebar.functions")}</span>
+                          <span>{t`Functions`}</span>
                           <span className="ml-auto text-[10px] opacity-50">{groupedRoutines.functions.length}</span>
                         </button>
                         {functionsOpen && groupedRoutines.functions.map((routine) => (
@@ -466,7 +466,7 @@ export const SidebarDatabaseItem = ({
                           className="flex items-center gap-1 px-2 py-1 w-full text-left text-xs font-semibold text-muted uppercase tracking-wider hover:text-secondary transition-colors"
                         >
                           {proceduresOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                          <span>{t("sidebar.procedures")}</span>
+                          <span>{t`Procedures`}</span>
                           <span className="ml-auto text-[10px] opacity-50">{groupedRoutines.procedures.length}</span>
                         </button>
                         {proceduresOpen && groupedRoutines.procedures.map((routine) => (

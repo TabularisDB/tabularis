@@ -1,6 +1,8 @@
 import { useState, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Keyboard, Lock, RotateCcw, Loader2, X } from "lucide-react";
+import { shortcutLabels } from "../../i18n/registries/shortcutLabels";
+import { shortcutCategories } from "../../i18n/registries/shortcutCategories";
 import clsx from "clsx";
 import { useKeybindings } from "../../hooks/useKeybindings";
 import { formatEvent, formatMatch, parseCombo } from "../../utils/keybindings";
@@ -25,7 +27,7 @@ function ShortcutsEditModal({
   onSave: (combo: string) => Promise<void>;
   isMac: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [combo, setCombo] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -93,15 +95,15 @@ function ShortcutsEditModal({
             </kbd>
           ) : (
             <span className="text-sm">
-              {t("settings.shortcuts.pressKeys")}
+              {t`Press key combination...`}
             </span>
           )}
         </div>
 
         <p className="text-xs text-muted text-center mt-2">
           {combo
-            ? t("common.save") + " / Esc"
-            : "Esc " + t("common.cancel")}
+            ? t`Save` + " / Esc"
+            : "Esc " + t`Cancel`}
         </p>
 
         <div className="flex gap-3 mt-5">
@@ -109,7 +111,7 @@ function ShortcutsEditModal({
             onClick={onClose}
             className="flex-1 px-4 py-2 rounded-lg text-sm border border-default text-muted hover:text-primary hover:border-blue-500/50 transition-colors"
           >
-            {t("common.cancel")}
+            {t`Cancel`}
           </button>
           <button
             onClick={handleSave}
@@ -117,7 +119,7 @@ function ShortcutsEditModal({
             className="flex-1 px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-colors flex items-center justify-center gap-2"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : null}
-            {t("common.save")}
+            {t`Save`}
           </button>
         </div>
       </div>
@@ -128,7 +130,7 @@ function ShortcutsEditModal({
 /* ── Main tab ── */
 
 export function ShortcutsTab() {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const { shortcuts, saveOverride, resetOverride, overrides, isMac } =
     useKeybindings();
   const [editingShortcut, setEditingShortcut] =
@@ -141,7 +143,7 @@ export function ShortcutsTab() {
       const hasOverride = !!overrides[s.id];
       setEditingShortcut({
         id: s.id,
-        label: t(s.i18nKey as Parameters<typeof t>[0]),
+        label: i18n._(shortcutLabels[s.i18nKey]),
         current: isMac
           ? hasOverride
             ? formatMatch(overrides[s.id].mac, true)
@@ -190,7 +192,7 @@ export function ShortcutsTab() {
       )}
 
       <SettingSection
-        title={t("settings.shortcuts.title")}
+        title={t`Keyboard Shortcuts`}
         icon={<Keyboard size={14} className="text-muted" />}
         description={
           isMac
@@ -209,9 +211,7 @@ export function ShortcutsTab() {
             >
               <div className="px-5 py-3 border-b border-default bg-surface-secondary/20">
                 <h3 className="text-xs font-semibold text-muted uppercase tracking-widest">
-                  {t(
-                    `settings.shortcuts.categories.${cat}` as Parameters<typeof t>[0],
-                  )}
+                  {i18n._(shortcutCategories[cat])}
                 </h3>
               </div>
               <div className="divide-y divide-default">
@@ -234,7 +234,7 @@ export function ShortcutsTab() {
                           <Keyboard size={14} className="text-blue-400" />
                         ) : (
                           <span
-                            title={t("settings.shortcuts.notOverridable")}
+                            title={t`Built-in, not customizable`}
                           >
                             <Lock size={14} className="text-muted/50" />
                           </span>
@@ -243,7 +243,7 @@ export function ShortcutsTab() {
 
                       <div className="flex-1 min-w-0">
                         <span className="text-sm text-primary">
-                          {t(s.i18nKey as Parameters<typeof t>[0])}
+                          {i18n._(shortcutLabels[s.i18nKey])}
                         </span>
                         {hasOverride && (
                           <span className="ml-2 text-xs text-blue-400 font-medium">
@@ -259,14 +259,12 @@ export function ShortcutsTab() {
                               onClick={() => openEdit(s)}
                               className="px-2.5 py-1 text-xs rounded-lg border border-default text-muted hover:text-primary hover:border-blue-500/60 hover:bg-blue-500/5 transition-colors"
                             >
-                              {t("common.edit")}
+                              {t`Edit`}
                             </button>
                             {hasOverride && (
                               <button
                                 onClick={() => resetOverride(s.id)}
-                                title={t(
-                                  "settings.shortcuts.resetToDefault",
-                                )}
+                                title={t`Reset to default`}
                                 className="p-1.5 rounded-lg text-muted hover:text-primary hover:bg-surface-secondary transition-colors"
                               >
                                 <RotateCcw size={13} />

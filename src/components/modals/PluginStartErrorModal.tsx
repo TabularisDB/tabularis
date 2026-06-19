@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { AlertTriangle, X, Copy, Check, Settings } from "lucide-react";
 import { Modal } from "../ui/Modal";
 
@@ -18,7 +18,7 @@ export const PluginStartErrorModal = ({
   error,
   onConfigureInterpreter,
 }: PluginStartErrorModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -43,7 +43,7 @@ export const PluginStartErrorModal = ({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
-                {t("settings.plugins.startError.title")}
+                {t`Plugin Failed to Start`}
               </h2>
               <p className="text-xs text-secondary font-mono">{pluginId}</p>
             </div>
@@ -56,14 +56,14 @@ export const PluginStartErrorModal = ({
         {/* Content */}
         <div className="p-6 space-y-4 overflow-y-auto">
           <p className="text-sm text-secondary">
-            {t("settings.plugins.startError.subtitle")}
+            {t`The plugin process could not be launched. Check the error details below.`}
           </p>
 
           {onConfigureInterpreter && (
             <div className="bg-blue-900/20 border border-blue-900/50 rounded-lg p-3 flex items-start gap-3">
               <Settings size={15} className="text-blue-400 mt-0.5 shrink-0" />
               <p className="text-xs text-blue-300">
-                {t("settings.plugins.startError.interpreterHint")}
+                {t`This plugin may require an interpreter (e.g. Python). Use Plugin Settings to configure the interpreter path.`}
               </p>
             </div>
           )}
@@ -71,7 +71,7 @@ export const PluginStartErrorModal = ({
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs uppercase font-bold text-muted">
-                {t("settings.plugins.startError.details")}
+                {t({ message: "Error Details", context: "settings" })}
               </span>
               <button
                 onClick={handleCopy}
@@ -80,12 +80,12 @@ export const PluginStartErrorModal = ({
                 {copied ? (
                   <>
                     <Check size={13} className="text-green-400" />
-                    <span className="text-green-400">{t("settings.plugins.startError.copied")}</span>
+                    <span className="text-green-400">{t`Copied!`}</span>
                   </>
                 ) : (
                   <>
                     <Copy size={13} />
-                    {t("settings.plugins.startError.copy")}
+                    {t`Copy`}
                   </>
                 )}
               </button>
@@ -102,7 +102,7 @@ export const PluginStartErrorModal = ({
             onClick={onClose}
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
-            {t("common.close")}
+            {t`Close`}
           </button>
           {onConfigureInterpreter && (
             <button
@@ -110,7 +110,7 @@ export const PluginStartErrorModal = ({
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
             >
               <Settings size={14} />
-              {t("settings.plugins.startError.configure")}
+              {t`Configure Interpreter`}
             </button>
           )}
         </div>

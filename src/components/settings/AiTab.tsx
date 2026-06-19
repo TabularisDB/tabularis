@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
-import { useTranslation, Trans } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import {
   CheckCircle2,
@@ -27,6 +26,12 @@ import {
   OpenRouterIcon,
   OllamaIcon,
 } from "../icons/ClientIcons";
+import { useLingui, Trans } from "@lingui/react/macro";
+import {
+  aiPromptLabel,
+  aiPromptDesc,
+  aiPromptPlaceholder,
+} from "../../i18n/registries/aiPromptKinds";
 
 interface AiKeyStatus {
   configured: boolean;
@@ -71,7 +76,7 @@ const PROVIDERS: Array<{
 ];
 
 export function AiTab() {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const { settings, updateSetting } = useSettings();
   const { showAlert } = useAlert();
 
@@ -102,15 +107,15 @@ export function AiTab() {
         );
         setAvailableModels(models);
         if (force) {
-          showAlert(t("settings.ai.refreshSuccess"), {
-            title: t("common.success"),
+          showAlert(t`AI models refreshed from providers`, {
+            title: t({ message: "Success", context: "common" }),
             kind: "info",
           });
         }
       } catch (e) {
         console.error("Failed to load AI models", e);
-        showAlert(t("settings.ai.refreshError") + ": " + String(e), {
-          title: t("common.error"),
+        showAlert(t`Failed to refresh models` + ": " + String(e), {
+          title: t({ message: "Error", context: "common" }),
           kind: "error",
         });
       }
@@ -221,7 +226,7 @@ export function AiTab() {
       <SettingSection title="AI Configuration">
         <SettingRow
           label="AI Configuration"
-          description={t("settings.ai.enableDesc")}
+          description={t`Show AI Assist and Explain buttons in the editor`}
         >
           <SettingToggle
             checked={settings.aiEnabled ?? false}
@@ -237,7 +242,7 @@ export function AiTab() {
         )}
       >
         {/* Provider selection */}
-        <SettingSection title={t("settings.ai.defaultProvider")}>
+        <SettingSection title={t`Default Provider`}>
           <div className="grid grid-cols-3 gap-2 py-3">
             {PROVIDERS.map((p) => {
               const isSelected = settings.aiProvider === p.id;
@@ -285,21 +290,21 @@ export function AiTab() {
                 <>
                   <span className="text-green-400 flex items-center gap-1 text-xs bg-green-900/10 px-2 py-0.5 rounded-full border border-green-900/20">
                     <CheckCircle2 size={12} />{" "}
-                    {t("settings.ai.configured")}
+                    {t`Configured`}
                   </span>
                   {aiKeyStatus[settings.aiProvider]?.fromEnv && (
                     <span
                       className="text-blue-400 flex items-center gap-1 text-xs bg-blue-900/10 px-2 py-0.5 rounded-full border border-blue-900/20"
-                      title={t("settings.ai.fromEnvTooltip")}
+                      title={t`This key is loaded from an environment variable`}
                     >
-                      <Code2 size={12} /> {t("settings.ai.fromEnv")}
+                      <Code2 size={12} /> {t`Environment`}
                     </span>
                   )}
                 </>
               ) : (
                 settings.aiProvider !== "ollama" && (
                   <span className="text-muted text-xs bg-surface-secondary px-2 py-0.5 rounded-full border border-default">
-                    {t("settings.ai.notConfigured")}
+                    {t`Not configured`}
                   </span>
                 )
               )}
@@ -309,9 +314,7 @@ export function AiTab() {
             {settings.aiProvider !== "ollama" && (
               <div className="space-y-2 py-3">
                 <label className="block text-sm font-medium text-secondary">
-                  {t("settings.ai.apiKey", {
-                    provider: getProviderLabel(settings.aiProvider),
-                  })}
+                  {t`${getProviderLabel(settings.aiProvider)} API Key`}
                 </label>
 
                 {aiKeyStatus[settings.aiProvider]?.configured &&
@@ -335,7 +338,7 @@ export function AiTab() {
                               }}
                               className="px-3 py-1 text-xs font-medium text-secondary hover:text-primary bg-surface-secondary hover:bg-surface-tertiary border border-strong rounded-md transition-colors"
                             >
-                              {t("settings.ai.changeKey")}
+                              {t`Change`}
                             </button>
                             <button
                               onClick={async () => {
@@ -345,23 +348,23 @@ export function AiTab() {
                                   });
                                   await checkKeys();
                                   showAlert(
-                                    t("settings.ai.keyResetSuccess"),
+                                    t`Custom key deleted successfully`,
                                     {
-                                      title: t("common.success"),
+                                      title: t({ message: "Success", context: "common" }),
                                       kind: "info",
                                     },
                                   );
                                 } catch (e) {
                                   showAlert(String(e), {
-                                    title: t("common.error"),
+                                    title: t({ message: "Error", context: "common" }),
                                     kind: "error",
                                   });
                                 }
                               }}
                               className="px-3 py-1 text-xs font-medium text-secondary hover:text-red-400 bg-surface-secondary hover:bg-red-900/20 border border-strong hover:border-red-900/30 rounded-md transition-colors"
-                              title={t("settings.ai.resetKey")}
+                              title={t`Delete custom key and revert to environment variable (if present)`}
                             >
-                              {t("settings.ai.reset")}
+                              {t`Reset`}
                             </button>
                           </>
                         )}
@@ -370,7 +373,7 @@ export function AiTab() {
                     {aiKeyStatus[settings.aiProvider]?.fromEnv && (
                       <p className="text-xs text-blue-400 flex items-center gap-1.5">
                         <Info size={12} />
-                        {t("settings.ai.envVariableDetected")}
+                        {t`An environment variable is present, but you can override it by setting a key above.`}
                       </p>
                     )}
                   </div>
@@ -381,9 +384,7 @@ export function AiTab() {
                         <input
                           type={showKey ? "text" : "password"}
                           value={keyInput}
-                          placeholder={t("settings.ai.enterKey", {
-                            provider: getProviderLabel(settings.aiProvider),
-                          })}
+                          placeholder={t`Enter ${getProviderLabel(settings.aiProvider)} Key`}
                           className="w-full bg-base border border-strong rounded-lg pl-3 pr-10 py-2 text-primary text-sm focus:outline-none focus:border-blue-500 transition-colors"
                           onChange={(e) => setKeyInput(e.target.value)}
                           autoFocus={editingKey}
@@ -403,7 +404,7 @@ export function AiTab() {
                         disabled={!keyInput.trim()}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-surface-secondary disabled:text-muted text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
                       >
-                        {t("common.save")}
+                        {t`Save`}
                       </button>
                       {editingKey && (
                         <button
@@ -419,7 +420,7 @@ export function AiTab() {
                       )}
                     </div>
                     <p className="text-xs text-muted">
-                      {t("settings.ai.keyStoredSecurely")}
+                      {t`API Key is stored securely in your system keychain. Setting a key here overrides the environment variable.`}
                     </p>
                   </div>
                 )}
@@ -430,7 +431,7 @@ export function AiTab() {
             {settings.aiProvider === "custom-openai" && (
               <div className="space-y-1 py-3">
                 <label className="block text-sm font-medium text-secondary">
-                  {t("settings.ai.endpointUrl")}
+                  {t`Endpoint URL`}
                 </label>
                 <input
                   type="text"
@@ -442,7 +443,7 @@ export function AiTab() {
                   className="w-full bg-base border border-strong rounded-lg px-3 py-2 text-primary text-sm focus:outline-none focus:border-blue-500 transition-colors"
                 />
                 <p className="text-xs text-muted">
-                  {t("settings.ai.endpointUrlDesc")}
+                  {t`The base URL of your OpenAI-compatible API. Examples: https://api.groq.com/openai/v1, http://localhost:8000/v1`}
                 </p>
               </div>
             )}
@@ -470,29 +471,25 @@ export function AiTab() {
                     <>
                       <CheckCircle2 size={14} />
                       <span>
-                        {t("settings.ai.ollamaConnected", {
-                          count: (
-                            settings.aiCustomModels?.["ollama"] ||
-                            availableModels["ollama"] ||
-                            []
-                          ).length,
-                        })}
+                        {t`Ollama connected (${(
+                          settings.aiCustomModels?.["ollama"] ||
+                          availableModels["ollama"] ||
+                          []
+                        ).length} models found)`}
                       </span>
                     </>
                   ) : (
                     <>
                       <AlertTriangle size={14} />
                       <span>
-                        {t("settings.ai.ollamaNotDetected", {
-                          port: settings.aiOllamaPort || 11434,
-                        })}
+                        {t`Ollama not detected on port ${settings.aiOllamaPort || 11434}. Is it running?`}
                       </span>
                     </>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-secondary whitespace-nowrap">
-                    {t("settings.ai.ollamaPort")}:
+                    {t`Ollama Port`}:
                   </label>
                   <input
                     type="number"
@@ -513,7 +510,7 @@ export function AiTab() {
             {/* Model selection */}
             <div className="border-t border-default pt-4 space-y-1 py-3">
               <label className="block text-sm font-medium text-secondary">
-                {t("settings.ai.defaultModel")}
+                {t`Default Model`}
               </label>
               {(() => {
                 const currentModels =
@@ -533,13 +530,9 @@ export function AiTab() {
                             updateSetting("aiModel", val)
                           }
                           options={currentModels}
-                          placeholder={t(
-                            "settings.ai.modelPlaceholder",
-                          )}
-                          searchPlaceholder={t(
-                            "settings.ai.searchPlaceholder",
-                          )}
-                          noResultsLabel={t("settings.ai.noResults")}
+                          placeholder={t`Select a model`}
+                          searchPlaceholder={t`Search models...`}
+                          noResultsLabel={t`No models found`}
                           hasError={
                             !isModelValid && !!settings.aiModel
                           }
@@ -548,7 +541,7 @@ export function AiTab() {
                       <button
                         onClick={() => loadModels(true)}
                         className="px-3 py-2 bg-surface-secondary hover:bg-surface-tertiary border border-default text-secondary hover:text-primary rounded-lg transition-colors"
-                        title={t("settings.ai.refresh")}
+                        title={t`Refresh Models`}
                       >
                         <RefreshCw size={18} />
                       </button>
@@ -560,27 +553,24 @@ export function AiTab() {
                           className="shrink-0"
                         />
                         <span>
-                          <Trans
-                            i18nKey="settings.ai.modelNotFound"
-                            values={{
-                              model: settings.aiModel,
-                              provider: getProviderLabel(
-                                settings.aiProvider,
-                              ),
-                            }}
-                            components={{
-                              strong: (
-                                <strong className="font-semibold" />
-                              ),
-                            }}
-                          />
+                          <Trans>
+                            Model{" "}
+                            <strong className="font-semibold">
+                              {settings.aiModel}
+                            </strong>{" "}
+                            not found in{" "}
+                            <strong className="font-semibold">
+                              {getProviderLabel(settings.aiProvider)}
+                            </strong>
+                            . It may not work correctly.
+                          </Trans>
                         </span>
                       </div>
                     )}
                     <p className="text-xs text-muted">
                       {settings.aiProvider === "custom-openai"
-                        ? t("settings.ai.customOpenaiModelHelp")
-                        : t("settings.ai.modelDesc")}
+                        ? t`Enter the exact model name for your OpenAI-compatible provider.`
+                        : t`Select the model to be used for generation and explanation.`}
                     </p>
                   </>
                 );
@@ -590,7 +580,7 @@ export function AiTab() {
         )}
 
         {/* Prompt customization */}
-        <SettingSection title={t("settings.ai.promptCustomization")}>
+        <SettingSection title={t`Prompt Customization`}>
           {(["system", "explain", "cellname", "tabrename", "explainplan"] as const).map((type) => {
             const isOpen = promptSectionOpen === type;
             const promptMap = { system: systemPrompt, explain: explainPrompt, cellname: cellnamePrompt, tabrename: tabrenamePrompt, explainplan: explainplanPrompt };
@@ -615,10 +605,10 @@ export function AiTab() {
                     </div>
                     <div>
                       <span className="text-sm font-medium text-primary">
-                        {t(`settings.ai.${type}Prompt`)}
+                        {i18n._(aiPromptLabel[type])}
                       </span>
                       <p className="text-xs text-muted mt-0.5">
-                        {t(`settings.ai.${type}PromptDesc`)}
+                        {i18n._(aiPromptDesc[type])}
                       </p>
                     </div>
                   </div>
@@ -636,22 +626,20 @@ export function AiTab() {
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       className="w-full h-36 bg-base border border-strong rounded-lg p-3 text-primary text-sm font-mono focus:outline-none focus:border-blue-500 transition-colors resize-y"
-                      placeholder={t(
-                        `settings.ai.enter${type === "system" ? "System" : type === "explain" ? "Explain" : type === "cellname" ? "Cellname" : "Tabrename"}Prompt`,
-                      )}
+                      placeholder={i18n._(aiPromptPlaceholder[type])}
                     />
                     <div className="flex justify-end gap-2 mt-3">
                       <button
                         onClick={() => handleResetPrompt(type)}
                         className="px-3 py-1.5 bg-surface-secondary hover:bg-surface-tertiary text-secondary rounded-lg text-sm font-medium transition-colors border border-strong"
                       >
-                        {t("settings.ai.resetDefault")}
+                        {t`Reset to Default`}
                       </button>
                       <button
                         onClick={() => handleSavePrompt(type)}
                         className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
                       >
-                        {t("settings.ai.savePrompt")}
+                        {t`Save Prompt`}
                       </button>
                     </div>
                   </div>

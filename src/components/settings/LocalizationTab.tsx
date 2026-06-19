@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { useSettings } from "../../hooks/useSettings";
 import { SUPPORTED_LANGUAGES, type AppLanguage } from "../../i18n/config";
 import { SettingSection, SettingRow, SettingButtonGroup } from "./SettingControls";
@@ -31,11 +31,11 @@ function zoneOffset(zone: string, at: Date): string {
 }
 
 export function LocalizationTab() {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings, updateSetting } = useSettings();
 
   const options: Array<{ value: AppLanguage; label: string }> = [
-    { value: "auto", label: t("settings.auto") },
+    { value: "auto", label: t`Auto (System)` },
     ...SUPPORTED_LANGUAGES.map(({ id, label }) => ({ value: id, label })),
   ];
 
@@ -48,7 +48,7 @@ export function LocalizationTab() {
     const now = new Date();
     const systemZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const labels: Record<string, string> = {
-      auto: `${t("settings.auto")} (${zoneOffset(systemZone, now)})`,
+      auto: `${t`Auto (System)`} (${zoneOffset(systemZone, now)})`,
     };
     for (const zone of zones) {
       labels[zone] = `${zone} (${zoneOffset(zone, now)})`;
@@ -61,10 +61,10 @@ export function LocalizationTab() {
 
   return (
     <div>
-      <SettingSection title={t("settings.localization")}>
+      <SettingSection title={t`Localization`}>
         <SettingRow
-          label={t("settings.language")}
-          description={t("settings.languageDesc")}
+          label={t`Language`}
+          description={t`Choose your preferred language. 'Auto' will use your system language.`}
           vertical
         >
           <SettingButtonGroup
@@ -74,8 +74,8 @@ export function LocalizationTab() {
           />
         </SettingRow>
         <SettingRow
-          label={t("settings.timezone")}
-          description={t("settings.timezoneDesc")}
+          label={t`Timezone`}
+          description={t`Timezone used to display timestamps and exports. 'Auto' follows your system timezone.`}
           vertical
         >
           <Select
@@ -84,7 +84,7 @@ export function LocalizationTab() {
             labels={tzLabels}
             onChange={(v) => updateSetting("displayTimezone", v)}
             searchable
-            searchPlaceholder={t("settings.timezoneSearch")}
+            searchPlaceholder={t`Search timezones...`}
           />
         </SettingRow>
       </SettingSection>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { CheckCircle2 } from "lucide-react";
 import clsx from "clsx";
 import { AVAILABLE_FONTS } from "../../utils/settings";
@@ -17,7 +17,7 @@ export function FontPicker({
   getPreviewCSS,
   inputId,
 }: FontPickerProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const isPreset = AVAILABLE_FONTS.some((f) => f.name === value);
   const [customFont, setCustomFont] = useState(() =>
     !isPreset && value ? value : "",
@@ -67,7 +67,7 @@ export function FontPicker({
       >
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-medium text-primary">
-            {t("settings.fonts.custom")}
+            {t`Custom Font`}
           </span>
           {!isPreset && (
             <CheckCircle2 size={16} className="text-blue-500" />
@@ -77,7 +77,7 @@ export function FontPicker({
           <input
             id={inputId}
             type="text"
-            placeholder={t("settings.fonts.customPlaceholder")}
+            placeholder={t`e.g., Comic Sans MS`}
             value={customFont}
             onChange={(e) => setCustomFont(e.target.value)}
             onBlur={() => {
@@ -100,7 +100,7 @@ export function FontPicker({
             className="text-xs text-muted truncate"
             style={{ fontFamily: customFont || "inherit" }}
           >
-            {customFont || t("settings.fonts.enterFontName")}
+            {customFont || t`Enter font name above`}
           </p>
         </div>
       </button>

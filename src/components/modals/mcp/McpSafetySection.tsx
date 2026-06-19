@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { invoke } from "@tauri-apps/api/core";
 import { ShieldCheck, Lock } from "lucide-react";
 import { useSettings } from "../../../hooks/useSettings";
@@ -19,7 +19,7 @@ interface ConnectionItem {
 
 /// Settings block embedded in McpModal: read-only + approval gate controls.
 export function McpSafetySection() {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings, updateSetting } = useSettings();
   const [connections, setConnections] = useState<ConnectionItem[]>([]);
 
@@ -45,12 +45,12 @@ export function McpSafetySection() {
   return (
     <>
       <SettingSection
-        title={t("mcp.safety.readOnlyTitle")}
+        title={t`Read-only mode`}
         icon={<Lock size={14} className="text-yellow-400" />}
       >
         <SettingRow
-          label={t("mcp.safety.readOnlyDefault")}
-          description={t("mcp.safety.readOnlyDefaultDesc")}
+          label={t`Make all MCP queries read-only`}
+          description={t`Block any non-SELECT statement coming through MCP unless the connection is explicitly allowed below.`}
         >
           <SettingToggle
             checked={readonlyDefault}
@@ -62,13 +62,13 @@ export function McpSafetySection() {
           <SettingRow
             label={
               readonlyDefault
-                ? t("mcp.safety.allowList")
-                : t("mcp.safety.readOnlyList")
+                ? t`Allow writes from MCP`
+                : t`Read-only connections`
             }
             description={
               readonlyDefault
-                ? t("mcp.safety.allowListDesc")
-                : t("mcp.safety.readOnlyListDesc")
+                ? t`All other connections stay read-only. Only the connections checked here may execute writes.`
+                : t`These connections will reject writes from MCP. Other connections behave normally.`
             }
             vertical
           >
@@ -96,41 +96,41 @@ export function McpSafetySection() {
       </SettingSection>
 
       <SettingSection
-        title={t("mcp.safety.approvalTitle")}
+        title={t`Approval gate`}
         icon={<ShieldCheck size={14} className="text-purple-400" />}
       >
         <SettingRow
-          label={t("mcp.safety.approvalMode")}
-          description={t("mcp.safety.approvalModeDesc")}
+          label={t`Approval required`}
+          description={t`Pause writes (or every query) and ask the user to approve them inside Tabularis before they hit the database.`}
         >
           <SettingButtonGroup<McpApprovalMode>
             value={approvalMode}
             onChange={(v) => updateSetting("mcpApprovalMode", v)}
             options={[
-              { value: "off", label: t("mcp.safety.modeOff") },
-              { value: "writes_only", label: t("mcp.safety.modeWritesOnly") },
-              { value: "all", label: t("mcp.safety.modeAll") },
+              { value: "off", label: t`Off` },
+              { value: "writes_only", label: t`Writes only` },
+              { value: "all", label: t`All queries` },
             ]}
           />
         </SettingRow>
 
         <SettingRow
-          label={t("mcp.safety.approvalTimeout")}
-          description={t("mcp.safety.approvalTimeoutDesc")}
+          label={t({ message: "Timeout", context: "mcp" })}
+          description={t`How long the MCP subprocess will wait for the user's decision before failing the request.`}
         >
           <SettingNumberInput
             value={approvalTimeout}
             onChange={(v) => updateSetting("mcpApprovalTimeoutSeconds", v ?? 120)}
             min={10}
             max={600}
-            suffix={t("settings.seconds")}
+            suffix={t`seconds`}
             fallback={120}
           />
         </SettingRow>
 
         <SettingRow
-          label={t("mcp.safety.preflightExplain")}
-          description={t("mcp.safety.preflightExplainDesc")}
+          label={t`Pre-flight EXPLAIN`}
+          description={t`Run an EXPLAIN against the query before showing the approval modal so the user sees the execution plan.`}
         >
           <SettingToggle
             checked={preflightExplain}

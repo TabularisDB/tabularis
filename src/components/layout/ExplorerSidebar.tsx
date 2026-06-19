@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { quoteTableRef } from "../../utils/identifiers";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -79,6 +79,7 @@ import type { RoutineInfo, TriggerInfo } from "../../contexts/DatabaseContext";
 import { groupRoutinesByType } from "../../utils/routines";
 import { formatObjectCount } from "../../utils/schema";
 import { groupByDate, formatHistoryTime } from "../../utils/dateGroups";
+import { sidebarDateGroups } from "../../i18n/registries/sidebarDateGroups";
 import { SqlHighlight } from "../ui/SqlHighlight";
 import { isMultiDatabaseCapable } from "../../utils/database";
 import { supportsManageTables } from "../../utils/driverCapabilities";
@@ -100,7 +101,7 @@ interface ExplorerSidebarProps {
 }
 
 export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebarTab, onSidebarTabChange }: ExplorerSidebarProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const { settings } = useSettings();
   const {
     activeConnectionId,
@@ -394,7 +395,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     } catch (e) {
       console.error(e);
       showAlert(
-        t("sidebar.failGetRoutineDefinition") + String(e),
+        t`Failed to get routine definition: ` + String(e),
         { kind: "error" }
       );
     }
@@ -412,7 +413,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     } catch (e) {
       console.error(e);
       showAlert(
-        t("sidebar.failGetTriggerDefinition") + String(e),
+        t`Failed to get trigger definition: ` + String(e),
         { kind: "error" }
       );
     }
@@ -435,8 +436,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     });
     if (file && typeof file === "string") {
       const confirmed = await ask(
-        t("dump.confirmImport", { file: file.split(/[\\/]/).pop() }),
-        { title: t("dump.importDatabase"), kind: "warning" },
+        t`Are you sure you want to import "${file}"?
+This may overwrite existing data.`,
+        { title: t`Run SQL File...`, kind: "warning" },
       );
       if (!confirmed) return;
       setImportModal({ filePath: file, database: database ?? activeDatabaseName ?? "" });
@@ -506,7 +508,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           <div className="flex items-center gap-2 min-w-0">
             <Database size={16} className="text-blue-400 shrink-0" />
             <div className="flex flex-col min-w-0">
-              <span>{t("sidebar.explorer")}</span>
+              <span>{t`Explorer`}</span>
               {activeConnectionName && (
                 <span className="text-xs font-normal text-muted truncate">{activeConnectionName}</span>
               )}
@@ -519,7 +521,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                 <button
                   onClick={() => setIsActionsDropdownOpen(!isActionsDropdownOpen)}
                   className="text-muted hover:text-secondary transition-colors p-1 hover:bg-surface-secondary rounded"
-                  title={t("sidebar.actions")}
+                  title={t`Actions`}
                 >
                   <ChevronDown size={16} />
                 </button>
@@ -538,7 +540,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         className="w-full flex items-center gap-3 px-3 py-2 text-sm text-secondary hover:bg-surface-secondary hover:text-primary transition-colors text-left whitespace-nowrap"
                       >
                         <Upload size={16} className="text-green-400 shrink-0" />
-                        <span>{t("dump.importDatabase")}</span>
+                        <span>{t`Run SQL File...`}</span>
                       </button>
                       <button
                         onClick={() => {
@@ -548,7 +550,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         className="w-full flex items-center gap-3 px-3 py-2 text-sm text-secondary hover:bg-surface-secondary hover:text-primary transition-colors text-left whitespace-nowrap"
                       >
                         <Download size={16} className="text-blue-400 shrink-0" />
-                        <span>{t("dump.dumpDatabase")}</span>
+                        <span>{t({ message: "Dump Database", context: "dump" })}</span>
                       </button>
                       <button
                         onClick={async () => {
@@ -578,14 +580,14 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                 <button
                   onClick={() => handleImportDatabase()}
                   className="text-muted hover:text-green-400 transition-colors p-1 hover:bg-surface-secondary rounded"
-                  title={t("dump.importDatabase")}
+                  title={t`Run SQL File...`}
                 >
                   <Upload size={16} />
                 </button>
                 <button
                   onClick={() => setDumpModal({ database: activeDatabaseName ?? "" })}
                   className="text-muted hover:text-blue-400 transition-colors p-1 hover:bg-surface-secondary rounded"
-                  title={t("dump.dumpDatabase")}
+                  title={t({ message: "Dump Database", context: "dump" })}
                 >
                   <Download size={16} />
                 </button>
@@ -622,10 +624,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         {/* Tab bar */}
         <div className="flex items-center border-b border-default bg-base px-1">
           {([
-            { id: "structure" as const, icon: Layers, label: t("sidebar.structure") },
-            { id: "favorites" as const, icon: Star, label: t("sidebar.favorites"), count: queries.length },
-            { id: "history" as const, icon: Clock, label: t("sidebar.queryHistory"), count: historyEntries.length },
-            { id: "notebooks" as const, icon: BookOpen, label: t("sidebar.notebooks.tab"), count: notebookCount },
+            { id: "structure" as const, icon: Layers, label: t`Structure` },
+            { id: "favorites" as const, icon: Star, label: t`Favorites`, count: queries.length },
+            { id: "history" as const, icon: Clock, label: t`History`, count: historyEntries.length },
+            { id: "notebooks" as const, icon: BookOpen, label: t`Notebooks`, count: notebookCount },
           ]).map((tab) => {
             const isActive = sidebarTab === tab.id;
             return (
@@ -669,7 +671,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
 
             return queries.length === 0 ? (
               <div className="text-center p-4 text-xs text-muted italic">
-                {t("sidebar.noSavedQueries")}
+                {t`No saved queries`}
               </div>
             ) : (
               <div>
@@ -683,7 +685,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       type="text"
                       value={favoritesFilter}
                       onChange={(e) => setFavoritesFilter(e.target.value)}
-                      placeholder={t("sidebar.searchFavorites")}
+                      placeholder={t`Search favorites...`}
                       className="w-full pl-6 pr-2 py-1 text-xs bg-surface-secondary border border-default rounded text-primary placeholder:text-muted focus:outline-none focus:border-blue-500/50"
                     />
                   </div>
@@ -695,13 +697,13 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                 )}
                 {groupedFavorites.length === 0 ? (
                   <div className="text-center p-2 text-xs text-muted italic">
-                    {t("sidebar.noFavoritesSearchResults")}
+                    {t`No favorites match your search`}
                   </div>
                 ) : (
                   groupedFavorites.map(([groupKey, items]) => (
                     <div key={groupKey}>
                       <div className="px-3 py-1 text-[10px] font-semibold uppercase text-muted tracking-wider">
-                        {t(`sidebar.${groupKey}`)}
+                        {i18n._(sidebarDateGroups[groupKey])}
                       </div>
                       {items.map((q) => (
                         <div
@@ -781,7 +783,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
             (isLoadingTables || isLoadingSchemas) ? (
               <div className="flex items-center justify-center h-20 text-muted gap-2">
                 <Loader2 size={16} className="animate-spin" />
-                <span className="text-sm">{t("sidebar.loadingSchema")}</span>
+                <span className="text-sm">{t`Loading schema...`}</span>
               </div>
             ) : (
               <>
@@ -789,14 +791,14 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
               {schemaLoadError ? (
                 <div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
                   <AlertCircle size={18} className="text-red-500" />
-                  <span className="text-sm font-medium text-red-500">{t("sidebar.schemaLoadError")}</span>
+                  <span className="text-sm font-medium text-red-500">{t`Failed to load schemas`}</span>
                   <span className="text-xs text-muted break-words line-clamp-2">{schemaLoadError.split("\n\n")[0]}</span>
                   <button
                     onClick={() => setSchemaErrorExpanded((v) => !v)}
                     className="flex items-center gap-1 text-xs text-muted hover:text-secondary transition-colors"
                   >
                     {schemaErrorExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                    {t("sidebar.errorDetails")}
+                    {t`Details`}
                   </button>
                   {schemaErrorExpanded && (
                     <div className="relative w-full">
@@ -809,7 +811,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           setSchemaErrorCopied(true);
                           setTimeout(() => setSchemaErrorCopied(false), 1500);
                         }}
-                        title={t("sidebar.copyError")}
+                        title={t`Copy error message`}
                         className="absolute top-1.5 right-1.5 p-1 rounded hover:bg-surface-tertiary text-muted hover:text-secondary transition-colors"
                       >
                         {schemaErrorCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
@@ -821,7 +823,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     className="mt-1 flex items-center gap-1.5 px-3 py-1 rounded text-xs font-medium bg-surface-secondary text-secondary hover:bg-surface-tertiary transition-colors"
                   >
                     <RefreshCw size={12} />
-                    {t("sidebar.retry")}
+                    {t({ message: "Try again", context: "sidebar" })}
                   </button>
                 </div>
               ) : /* Schema-capable driver: Schema tree layout */
@@ -832,10 +834,10 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     /* Schema picker (first connect, no saved preference) */
                     <div className="px-3 py-2">
                       <div className="text-xs font-semibold uppercase text-muted tracking-wider mb-2">
-                        {t("sidebar.schemas")}
+                        {t`Schemas`}
                       </div>
                       <div className="text-xs text-secondary mb-2">
-                        {t("sidebar.selectSchemasHint")}
+                        {t`Select schemas to load:`}
                       </div>
                       <div className="border border-default rounded-lg overflow-hidden mb-2">
                         <div className="max-h-[200px] overflow-y-auto py-1">
@@ -890,8 +892,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           className="text-xs text-blue-500 hover:underline"
                         >
                           {pendingSchemaSelection.size === schemas.length
-                            ? t("sidebar.deselectAll")
-                            : t("sidebar.selectAll")}
+                            ? t({ message: "Deselect All", context: "sidebar" })
+                            : t({ message: "Select All", context: "sidebar" })}
                         </button>
                         <button
                           onClick={() => {
@@ -908,7 +910,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           }`}
                         >
                           <Check size={12} />
-                          {t("sidebar.confirmSelection")}
+                          {t`Confirm`}
                         </button>
                       </div>
                     </div>
@@ -917,7 +919,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       {/* Schema selection header */}
                       <div className="flex items-center justify-between px-3 py-1.5">
                         <span className="text-xs font-semibold uppercase text-muted tracking-wider">
-                          {t("sidebar.schemas")} ({selectedSchemas.length}/{schemas.length})
+                          {t`Schemas`} ({selectedSchemas.length}/{schemas.length})
                         </span>
                         <div className="relative">
                           <button
@@ -930,7 +932,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 ? "text-blue-400 hover:text-blue-300 bg-blue-500/10"
                                 : "text-muted hover:text-secondary hover:bg-surface-secondary"
                             }`}
-                            title={t("sidebar.editSchemas")}
+                            title={t`Edit Schemas`}
                           >
                             <Settings2 size={14} />
                           </button>
@@ -943,7 +945,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               <div className="absolute right-0 top-8 bg-elevated border border-default rounded-lg shadow-lg z-40 py-2 min-w-[200px] max-h-[300px] flex flex-col">
                                 <div className="flex items-center justify-between px-3 pb-2 border-b border-default">
                                   <span className="text-xs font-semibold text-secondary">
-                                    {t("sidebar.editSchemas")}
+                                    {t`Edit Schemas`}
                                   </span>
                                   <button
                                     onClick={() => {
@@ -956,8 +958,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     className="text-xs text-blue-500 hover:underline"
                                   >
                                     {pendingSchemaSelection.size === schemas.length
-                                      ? t("sidebar.deselectAll")
-                                      : t("sidebar.selectAll")}
+                                      ? t({ message: "Deselect All", context: "sidebar" })
+                                      : t({ message: "Select All", context: "sidebar" })}
                                   </button>
                                 </div>
                                 <div className="overflow-y-auto py-1">
@@ -1015,7 +1017,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     }`}
                                   >
                                     <Check size={12} />
-                                    {t("sidebar.confirmSelection")}
+                                    {t`Confirm`}
                                   </button>
                                 </div>
                               </div>
@@ -1054,8 +1056,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           onDropIndex={async (t_name, name) => {
                             if (
                               await ask(
-                                t("sidebar.deleteIndexConfirm", { name }),
-                                { title: t("sidebar.deleteIndex"), kind: "warning" },
+                                t`Delete index "${name}"?`,
+                                { title: t`Delete Index`, kind: "warning" },
                               )
                             ) {
                               try {
@@ -1067,7 +1069,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 });
                                 setSchemaVersion((v) => v + 1);
                               } catch (e) {
-                                showAlert(t("sidebar.failDeleteIndex") + toErrorMessage(e), { title: t("common.error"), kind: "error" });
+                                showAlert(t`Failed to delete index: ` + toErrorMessage(e), { title: t({ message: "Error", context: "common" }), kind: "error" });
                               }
                             }
                           }}
@@ -1077,8 +1079,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           onDropForeignKey={async (t_name, name) => {
                             if (
                               await ask(
-                                t("sidebar.deleteFkConfirm", { name }),
-                                { title: t("sidebar.deleteFk"), kind: "warning" },
+                                t`Delete foreign key "${name}"?`,
+                                { title: t`Delete FK`, kind: "warning" },
                               )
                             ) {
                               try {
@@ -1090,7 +1092,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 });
                                 setSchemaVersion((v) => v + 1);
                               } catch (e) {
-                                showAlert(toErrorMessage(e), { title: t("common.error"), kind: "error" });
+                                showAlert(toErrorMessage(e), { title: t({ message: "Error", context: "common" }), kind: "error" });
                               }
                             }
                           }}
@@ -1113,7 +1115,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                   {/* Database header: label + manage button */}
                   <div className="flex items-center justify-between px-3 py-1.5">
                     <span className="text-xs font-semibold uppercase text-muted tracking-wider">
-                      {t("sidebar.databases")} ({selectedDatabases.length})
+                      {t`Databases`} ({selectedDatabases.length})
                     </span>
                     <div className="relative">
                       <button
@@ -1137,7 +1139,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             ? "text-blue-400 hover:text-blue-300 bg-blue-500/10"
                             : "text-muted hover:text-secondary hover:bg-surface-secondary"
                         }`}
-                        title={t("sidebar.manageDatabases")}
+                        title={t`Manage Databases`}
                       >
                         <Settings2 size={14} />
                       </button>
@@ -1150,7 +1152,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           <div className="absolute right-0 top-8 bg-elevated border border-default rounded-lg shadow-lg z-40 py-2 min-w-[200px] max-h-[320px] flex flex-col">
                             <div className="flex items-center justify-between px-3 pb-2 border-b border-default">
                               <span className="text-xs font-semibold text-secondary">
-                                {t("sidebar.manageDatabases")}
+                                {t`Manage Databases`}
                               </span>
                               <button
                                 onClick={() => {
@@ -1163,15 +1165,15 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 className="text-xs text-blue-500 hover:underline"
                               >
                                 {pendingDbSelection.size === allAvailableDatabases.length
-                                  ? t("sidebar.deselectAll")
-                                  : t("sidebar.selectAll")}
+                                  ? t({ message: "Deselect All", context: "sidebar" })
+                                  : t({ message: "Select All", context: "sidebar" })}
                               </button>
                             </div>
                             <div className="overflow-y-auto py-1 flex-1">
                               {isLoadingAllDbs ? (
                                 <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted">
                                   <Loader2 size={12} className="animate-spin" />
-                                  {t("sidebar.loadingSchema")}
+                                  {t`Loading schema...`}
                                 </div>
                               ) : allAvailableDatabases.map((dbName) => {
                                 const isSelected = pendingDbSelection.has(dbName);
@@ -1215,7 +1217,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 }`}
                               >
                                 <Check size={12} />
-                                {t("sidebar.confirmSelection")}
+                                {t`Confirm`}
                               </button>
                             </div>
                           </div>
@@ -1232,7 +1234,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         type="text"
                         value={dbFilter}
                         onChange={(e) => setDbFilter(e.target.value)}
-                        placeholder={t("sidebar.filterDatabases")}
+                        placeholder={t`Filter databases...`}
                         className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-blue-500/50"
                       />
                       {dbFilter && (
@@ -1280,8 +1282,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       onDropIndex={async (t_name, name) => {
                         if (
                           await ask(
-                            t("sidebar.deleteIndexConfirm", { name }),
-                            { title: t("sidebar.deleteIndex"), kind: "warning" },
+                            t`Delete index "${name}"?`,
+                            { title: t`Delete Index`, kind: "warning" },
                           )
                         ) {
                           try {
@@ -1293,7 +1295,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             });
                             setSchemaVersion((v) => v + 1);
                           } catch (e) {
-                            showAlert(t("sidebar.failDeleteIndex") + toErrorMessage(e), { title: t("common.error"), kind: "error" });
+                            showAlert(t`Failed to delete index: ` + toErrorMessage(e), { title: t({ message: "Error", context: "common" }), kind: "error" });
                           }
                         }
                       }}
@@ -1303,8 +1305,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       onDropForeignKey={async (t_name, name) => {
                         if (
                           await ask(
-                            t("sidebar.deleteFkConfirm", { name }),
-                            { title: t("sidebar.deleteFk"), kind: "warning" },
+                            t`Delete foreign key "${name}"?`,
+                            { title: t`Delete FK`, kind: "warning" },
                           )
                         ) {
                           try {
@@ -1316,7 +1318,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             });
                             setSchemaVersion((v) => v + 1);
                           } catch (e) {
-                            showAlert(toErrorMessage(e), { title: t("common.error"), kind: "error" });
+                            showAlert(toErrorMessage(e), { title: t({ message: "Error", context: "common" }), kind: "error" });
                           }
                         }
                       }}
@@ -1362,7 +1364,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                   })()}
                   <div className="flex items-center justify-between px-3 py-1">
                     <span className="text-[10px] text-muted opacity-80 uppercase tracking-wider">
-                      {t("sidebar.objectSummary")}
+                      {t`Objects`}
                     </span>
                     <span className="text-[10px] text-muted opacity-60">
                       {formatObjectCount(tables.length, views.length, routines.length, triggers.length)}
@@ -1371,7 +1373,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
 
                   {/* Tables */}
                   <Accordion
-                    title={`${t("sidebar.tables")} (${tables.length})`}
+                    title={`${t`Tables`} (${tables.length})`}
                     isOpen={tablesOpen}
                     onToggle={() => setTablesOpen(!tablesOpen)}
                     actions={
@@ -1382,7 +1384,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             if (refreshTables) refreshTables();
                           }}
                           className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-                          title={t("sidebar.refreshTables") || "Refresh Tables"}
+                          title={t`Refresh Tables` || "Refresh Tables"}
                         >
                           <RefreshCw size={14} />
                         </button>
@@ -1409,7 +1411,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             type="text"
                             value={tableFilter}
                             onChange={(e) => setTableFilter(e.target.value)}
-                            placeholder={t("sidebar.filterTables")}
+                            placeholder={t`Filter tables...`}
                             className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-blue-500/50"
                           />
                           {tableFilter && (
@@ -1429,7 +1431,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         : tables;
                       return filtered.length === 0 ? (
                         <div className="text-center p-2 text-xs text-muted italic">
-                          {tableFilter ? t("sidebar.noTablesMatch") : t("sidebar.noTables")}
+                          {tableFilter ? t`No tables match` : t`No tables found`}
                         </div>
                       ) : (
                         <div>
@@ -1456,8 +1458,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               onDropIndex={async (t_name, name) => {
                                 if (
                                   await ask(
-                                    t("sidebar.deleteIndexConfirm", { name }),
-                                    { title: t("sidebar.deleteIndex"), kind: "warning" },
+                                    t`Delete index "${name}"?`,
+                                    { title: t`Delete Index`, kind: "warning" },
                                   )
                                 ) {
                                   try {
@@ -1468,7 +1470,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     });
                                     setSchemaVersion((v) => v + 1);
                                   } catch (e) {
-                                    showAlert(t("sidebar.failDeleteIndex") + toErrorMessage(e), { title: t("common.error"), kind: "error" });
+                                    showAlert(t`Failed to delete index: ` + toErrorMessage(e), { title: t({ message: "Error", context: "common" }), kind: "error" });
                                   }
                                 }
                               }}
@@ -1478,8 +1480,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               onDropForeignKey={async (t_name, name) => {
                                 if (
                                   await ask(
-                                    t("sidebar.deleteFkConfirm", { name }),
-                                    { title: t("sidebar.deleteFk"), kind: "warning" },
+                                    t`Delete foreign key "${name}"?`,
+                                    { title: t`Delete FK`, kind: "warning" },
                                   )
                                 ) {
                                   try {
@@ -1490,7 +1492,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     });
                                     setSchemaVersion((v) => v + 1);
                                   } catch (e) {
-                                    showAlert(toErrorMessage(e), { title: t("common.error"), kind: "error" });
+                                    showAlert(toErrorMessage(e), { title: t({ message: "Error", context: "common" }), kind: "error" });
                                   }
                                 }
                               }}
@@ -1505,7 +1507,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                   {/* Views */}
                   {activeCapabilities?.views !== false && (
                   <Accordion
-                    title={`${t("sidebar.views")} (${views.length})`}
+                    title={`${t`Views`} (${views.length})`}
                     isOpen={viewsOpen}
                     onToggle={() => setViewsOpen(!viewsOpen)}
                     actions={
@@ -1516,7 +1518,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             if (refreshViews) refreshViews();
                           }}
                           className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-                          title={t("sidebar.refreshViews") || "Refresh Views"}
+                          title={t`Refresh Views` || "Refresh Views"}
                         >
                           <RefreshCw size={14} />
                         </button>
@@ -1526,7 +1528,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             setViewEditorModal({ isOpen: true, isNewView: true });
                           }}
                           className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-                          title={t("sidebar.createView") || "Create New View"}
+                          title={t`Create New View` || "Create New View"}
                         >
                           <Plus size={14} />
                         </button>
@@ -1535,7 +1537,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                   >
                     {views.length === 0 ? (
                       <div className="text-center p-2 text-xs text-muted italic">
-                        {t("sidebar.noViews")}
+                        {t`No views found`}
                       </div>
                     ) : (
                       <div>
@@ -1559,7 +1561,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                   {/* Triggers (flat layout) */}
                   {activeCapabilities?.triggers === true && (
                     <Accordion
-                      title={`${t("sidebar.triggers")} (${triggers.length})`}
+                      title={`${t`Triggers`} (${triggers.length})`}
                       isOpen={triggersOpenFlat}
                       onToggle={() => setTriggersOpenFlat(!triggersOpenFlat)}
                       actions={
@@ -1570,7 +1572,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               if (refreshTriggers) refreshTriggers();
                             }}
                             className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-                            title={t("sidebar.refreshTriggers") || "Refresh Triggers"}
+                            title={t`Refresh Triggers` || "Refresh Triggers"}
                           >
                             <RefreshCw size={14} />
                           </button>
@@ -1580,7 +1582,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               setTriggerEditorModal({ isOpen: true, isNewTrigger: true });
                             }}
                             className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-                            title={t("sidebar.createTrigger") || "Create New Trigger"}
+                            title={t`Create New Trigger` || "Create New Trigger"}
                           >
                             <Plus size={14} />
                           </button>
@@ -1595,7 +1597,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               type="text"
                               value={triggerFilterFlat}
                               onChange={(e) => setTriggerFilterFlat(e.target.value)}
-                              placeholder={t("sidebar.filterTriggers")}
+                              placeholder={t`Filter triggers...`}
                               className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-blue-500/50"
                               onClick={(e) => e.stopPropagation()}
                             />
@@ -1616,7 +1618,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           : triggers;
                         return filtered.length === 0 ? (
                           <div className="text-center p-2 text-xs text-muted italic">
-                            {triggerFilterFlat ? t("sidebar.noTriggersMatch") : t("sidebar.noTriggers")}
+                            {triggerFilterFlat ? t`No triggers match your filter` : t`No triggers found`}
                           </div>
                         ) : (
                           <div>
@@ -1638,7 +1640,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                   {/* Routines */}
                   {activeCapabilities?.routines === true && (
                     <Accordion
-                      title={`${t("sidebar.routines")} (${routines.length})`}
+                      title={`${t`Routines`} (${routines.length})`}
                       isOpen={routinesOpen}
                       onToggle={() => setRoutinesOpen(!routinesOpen)}
                       actions={
@@ -1649,7 +1651,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               if (refreshRoutines) refreshRoutines();
                             }}
                             className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
-                            title={t("sidebar.refreshRoutines") || "Refresh Routines"}
+                            title={t`Refresh Routines` || "Refresh Routines"}
                           >
                             <RefreshCw size={14} />
                           </button>
@@ -1658,7 +1660,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     >
                       {routines.length === 0 ? (
                         <div className="text-center p-2 text-xs text-muted italic">
-                          {t("sidebar.noRoutines")}
+                          {t`No routines found`}
                         </div>
                       ) : (
                         <div className="flex flex-col">
@@ -1670,7 +1672,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 className="flex items-center gap-1 px-2 py-1 w-full text-left text-xs font-semibold text-muted uppercase tracking-wider hover:text-secondary transition-colors"
                               >
                                 {functionsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                                <span>{t("sidebar.functions")}</span>
+                                <span>{t`Functions`}</span>
                                 <span className="ml-auto text-[10px] opacity-50">{groupedRoutines.functions.length}</span>
                               </button>
                               {functionsOpen && groupedRoutines.functions.map((routine) => (
@@ -1693,7 +1695,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 className="flex items-center gap-1 px-2 py-1 w-full text-left text-xs font-semibold text-muted uppercase tracking-wider hover:text-secondary transition-colors"
                               >
                                 {proceduresOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                                <span>{t("sidebar.procedures")}</span>
+                                <span>{t`Procedures`}</span>
                                 <span className="ml-auto text-[10px] opacity-50">{groupedRoutines.procedures.length}</span>
                               </button>
                               {proceduresOpen && groupedRoutines.procedures.map((routine) => (
@@ -1732,7 +1734,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                   const ctxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
                   return [
                     {
-                      label: t("sidebar.showData"),
+                      label: t`Show Data`,
                       icon: PlaySquare,
                       action: () => {
                         const quotedTable = quoteTableRef(contextMenu.id, activeDriver, ctxSchema);
@@ -1740,7 +1742,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       },
                     },
                     {
-                      label: t("sidebar.newConsole"),
+                      label: t`New Console`,
                       icon: FileCode,
                       action: () => {
                         const spec = newConsoleForTable(contextMenu.id, activeDriver, ctxSchema);
@@ -1748,7 +1750,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       },
                     },
                     {
-                      label: t("sidebar.countRows"),
+                      label: t`Count Rows`,
                       icon: Hash,
                       action: () => {
                         const quotedTable = quoteTableRef(contextMenu.id, activeDriver, ctxSchema);
@@ -1756,12 +1758,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       },
                     },
                     {
-                      label: t("sidebar.viewSchema"),
+                      label: t`View Schema`,
                       icon: FileText,
                       action: () => setSchemaModal({ tableName: contextMenu.id, schema: ctxSchema }),
                     },
                     activeCapabilities?.no_connection_required !== true ? {
-                      label: t("sidebar.viewERDiagram"),
+                      label: t`View ER Diagram`,
                       icon: Network,
                       action: async () => {
                         try {
@@ -1778,36 +1780,36 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       },
                     } : null,
                     supportsManageTables(activeCapabilities) ? {
-                      label: t("sidebar.generateSQL"),
+                      label: t({ message: "Generate SQL", context: "sidebar" }),
                       icon: FileCode,
                       action: () => setGenerateSQLModal(contextMenu.id),
                     } : null,
                     supportsManageTables(activeCapabilities) ? {
-                      label: t("clipboardImport.contextMenuLabel"),
+                      label: t`Import from Clipboard...`,
                       icon: Clipboard,
                       action: () => setIsClipboardImportOpen(true),
                     } : null,
                     {
-                      label: t("sidebar.copyName"),
+                      label: t`Copy Name`,
                       icon: Copy,
                       action: () => navigator.clipboard.writeText(contextMenu.id),
                     },
                     supportsManageTables(activeCapabilities) ? {
-                      label: t("sidebar.addColumn"),
+                      label: t({ message: "Add Column", context: "sidebar" }),
                       icon: Plus,
                       action: () =>
                         setModifyColumnModal({ isOpen: true, tableName: contextMenu.id, column: null }),
                     } : null,
                     supportsManageTables(activeCapabilities) ? {
-                      label: t("sidebar.deleteTable"),
+                      label: t`Delete Table`,
                       icon: Trash2,
                       danger: true,
                       action: async () => {
                         const quotedTable = quoteTableRef(contextMenu.id, activeDriver, ctxSchema);
                         if (
                           await ask(
-                            t("sidebar.deleteTableConfirm", { table: contextMenu.id }),
-                            { title: t("sidebar.deleteTable"), kind: "warning" },
+                            t`Are you sure you want to delete table "${contextMenu.id}"?`,
+                            { title: t`Delete Table`, kind: "warning" },
                           )
                         ) {
                           try {
@@ -1819,7 +1821,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             if (refreshTables) refreshTables();
                           } catch (e) {
                             console.error(e);
-                            showAlert(t("sidebar.failDeleteTable") + String(e), { kind: "error" });
+                            showAlert(t`Failed to delete table: ` + String(e), { kind: "error" });
                           }
                         }
                       },
@@ -1829,12 +1831,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
               : contextMenu.type === "index"
                 ? [
                     {
-                      label: t("sidebar.copyName"),
+                      label: t`Copy Name`,
                       icon: Copy,
                       action: () => navigator.clipboard.writeText(contextMenu.id),
                     },
                     supportsManageTables(activeCapabilities) ? {
-                      label: t("sidebar.deleteIndex"),
+                      label: t`Delete Index`,
                       icon: Trash2,
                       danger: true,
                       action: async () => {
@@ -1843,8 +1845,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           const ctxSchema = "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
                           if (
                             await ask(
-                              t("sidebar.deleteIndexConfirm", { name: contextMenu.id }),
-                              { title: t("sidebar.deleteIndex"), kind: "warning" },
+                              t`Delete index "${name}"?`,
+                              { title: t`Delete Index`, kind: "warning" },
                             )
                           ) {
                             try {
@@ -1857,8 +1859,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               setSchemaVersion((v) => v + 1);
                             } catch (e) {
                               showAlert(
-                                t("sidebar.failDeleteIndex") + String(e),
-                                { title: t("common.error"), kind: "error" },
+                                t`Failed to delete index: ` + String(e),
+                                { title: t({ message: "Error", context: "common" }), kind: "error" },
                               );
                             }
                           }
@@ -1869,12 +1871,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                 : contextMenu.type === "foreign_key"
                   ? [
                       {
-                        label: t("sidebar.copyName"),
+                        label: t`Copy Name`,
                         icon: Copy,
                         action: () => navigator.clipboard.writeText(contextMenu.id),
                       },
                       supportsManageTables(activeCapabilities) ? {
-                        label: t("sidebar.deleteFk"),
+                        label: t`Delete FK`,
                         icon: Trash2,
                         danger: true,
                         action: async () => {
@@ -1883,8 +1885,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             const ctxSchema = "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
                             if (
                               await ask(
-                                t("sidebar.deleteFkConfirm", { name: contextMenu.id }),
-                                { title: t("sidebar.deleteFk"), kind: "warning" },
+                                t`Delete foreign key "${name}"?`,
+                                { title: t`Delete FK`, kind: "warning" },
                               )
                             ) {
                               try {
@@ -1907,7 +1909,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     ? supportsManageTables(activeCapabilities)
                       ? [
                           {
-                            label: t("sidebar.addIndex"),
+                            label: t`Add Index`,
                             icon: Plus,
                             action: () => {
                               if (contextMenu.data && "tableName" in contextMenu.data) {
@@ -1921,7 +1923,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       ? supportsManageTables(activeCapabilities)
                         ? [
                             {
-                              label: t("sidebar.addFk"),
+                              label: t`Add Foreign Key`,
                               icon: Plus,
                               action: () => {
                                 if (contextMenu.data && "tableName" in contextMenu.data) {
@@ -1936,7 +1938,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             const viewCtxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
                             return [
                               {
-                                label: t("sidebar.showData"),
+                                label: t`Show Data`,
                                 icon: PlaySquare,
                                 action: () => {
                                   const quotedView = quoteTableRef(contextMenu.id, activeDriver, viewCtxSchema);
@@ -1944,7 +1946,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 },
                               },
                               {
-                                label: t("sidebar.countRows"),
+                                label: t`Count Rows`,
                                 icon: Hash,
                                 action: () => {
                                   const quotedView = quoteTableRef(contextMenu.id, activeDriver, viewCtxSchema);
@@ -1952,26 +1954,26 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 },
                               },
                               {
-                                label: t("sidebar.editView"),
+                                label: t`Edit View`,
                                 icon: Edit,
                                 action: () => {
                                   setViewEditorModal({ isOpen: true, viewName: contextMenu.id, isNewView: false });
                                 },
                               },
                               {
-                                label: t("sidebar.copyName"),
+                                label: t`Copy Name`,
                                 icon: Copy,
                                 action: () => navigator.clipboard.writeText(contextMenu.id),
                               },
                               {
-                                label: t("sidebar.dropView"),
+                                label: t`Drop View`,
                                 icon: Trash2,
                                 danger: true,
                                 action: async () => {
                                   if (
                                     await ask(
-                                      t("sidebar.dropViewConfirm", { view: contextMenu.id }),
-                                      { title: t("sidebar.dropView"), kind: "warning" },
+                                      t`Are you sure you want to drop view "${contextMenu.id}"?`,
+                                      { title: t`Drop View`, kind: "warning" },
                                     )
                                   ) {
                                     try {
@@ -1983,7 +1985,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       if (refreshViews) refreshViews();
                                     } catch (e) {
                                       console.error(e);
-                                      showAlert(t("sidebar.failDropView") + String(e), { kind: "error" });
+                                      showAlert(t`Failed to drop view: ` + String(e), { kind: "error" });
                                     }
                                   }
                                 },
@@ -1993,7 +1995,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         : contextMenu.type === "routine"
                           ? [
                               {
-                                label: t("sidebar.viewDefinition"),
+                                label: t({ message: "View Definition", context: "sidebar" }),
                                 icon: FileText,
                                 action: async () => {
                                   try {
@@ -2011,14 +2013,14 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   } catch (e) {
                                     console.error(e);
                                     showAlert(
-                                      t("sidebar.failGetRoutineDefinition") + String(e),
+                                      t`Failed to get routine definition: ` + String(e),
                                       { kind: "error" }
                                     );
                                   }
                                 },
                               },
                               {
-                                label: t("sidebar.copyName"),
+                                label: t`Copy Name`,
                                 icon: Copy,
                                 action: () => navigator.clipboard.writeText(contextMenu.id),
                               },
@@ -2031,7 +2033,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 const triggerSchema = triggerData?.schema ?? activeSchema ?? undefined;
                                 return [
                                   {
-                                    label: t("sidebar.viewTriggerDefinition"),
+                                    label: t({ message: "View Definition", context: "sidebar" }),
                                     icon: FileText,
                                     action: async () => {
                                       try {
@@ -2045,14 +2047,14 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                       } catch (e) {
                                         console.error(e);
                                         showAlert(
-                                          t("sidebar.failGetTriggerDefinition") + String(e),
+                                          t`Failed to get trigger definition: ` + String(e),
                                           { kind: "error" }
                                         );
                                       }
                                     },
                                   },
                                   {
-                                    label: t("sidebar.editTrigger"),
+                                    label: t`Edit Trigger`,
                                     icon: Edit,
                                     action: () => {
                                       setTriggerEditorModal({
@@ -2065,19 +2067,19 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     },
                                   },
                                   {
-                                    label: t("sidebar.copyName"),
+                                    label: t`Copy Name`,
                                     icon: Copy,
                                     action: () => navigator.clipboard.writeText(contextMenu.id),
                                   },
                                   {
-                                    label: t("sidebar.dropTrigger"),
+                                    label: t`Drop Trigger`,
                                     icon: Trash2,
                                     danger: true,
                                     action: async () => {
                                       if (
                                         await ask(
-                                          t("sidebar.dropTriggerConfirm", { trigger: contextMenu.id }),
-                                          { title: t("sidebar.dropTrigger"), kind: "warning" },
+                                          t`Are you sure you want to drop trigger "${contextMenu.id}"?`,
+                                          { title: t`Drop Trigger`, kind: "warning" },
                                         )
                                       ) {
                                         try {
@@ -2090,7 +2092,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                           if (refreshTriggers) refreshTriggers();
                                         } catch (e) {
                                           console.error(e);
-                                          showAlert(t("sidebar.failDropTrigger") + String(e), { kind: "error" });
+                                          showAlert(t`Failed to drop trigger: ` + String(e), { kind: "error" });
                                         }
                                       }
                                     },
@@ -2100,7 +2102,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           : contextMenu.type === "database"
                             ? [
                                 {
-                                  label: t("sidebar.newConsole"),
+                                  label: t`New Console`,
                                   icon: FileCode,
                                   action: () => {
                                     const spec = newConsoleForDatabase(contextMenu.id);
@@ -2108,17 +2110,17 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   },
                                 },
                                 {
-                                  label: t("dump.importDatabase"),
+                                  label: t`Run SQL File...`,
                                   icon: Upload,
                                   action: () => handleImportDatabase(contextMenu.id),
                                 },
                                 {
-                                  label: t("dump.dumpDatabase"),
+                                  label: t({ message: "Dump Database", context: "dump" }),
                                   icon: Download,
                                   action: () => setDumpModal({ database: contextMenu.id }),
                                 },
                                 {
-                                  label: t("sidebar.viewERDiagram"),
+                                  label: t`View ER Diagram`,
                                   icon: Network,
                                   action: async () => {
                                     try {
@@ -2133,7 +2135,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   },
                                 },
                                 {
-                                  label: t("sidebar.refreshTables"),
+                                  label: t`Refresh Tables`,
                                   icon: RefreshCw,
                                   action: () => refreshDatabaseData(contextMenu.id),
                                 },
@@ -2143,27 +2145,27 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 const historyEntry = contextMenu.data as unknown as QueryHistoryEntry;
                                 return [
                                   {
-                                    label: t("sidebar.copyQuery"),
+                                    label: t`Copy Query`,
                                     icon: Copy,
                                     action: () => navigator.clipboard.writeText(historyEntry.sql),
                                   },
                                   {
-                                    label: t("sidebar.insertToEditor"),
+                                    label: t`Insert to Editor`,
                                     icon: FileInput,
                                     action: () => runQuery(historyEntry.sql, undefined, undefined, true, historyEntry.database ?? undefined),
                                   },
                                   {
-                                    label: t("sidebar.runQuery"),
+                                    label: t`Run Query`,
                                     icon: Play,
                                     action: () => runQuery(historyEntry.sql, undefined, undefined, false, historyEntry.database ?? undefined),
                                   },
                                   {
-                                    label: t("sidebar.openInNewTab"),
+                                    label: t`Open in New Tab`,
                                     icon: Plus,
                                     action: () => runQuery(historyEntry.sql, undefined, undefined, true, historyEntry.database ?? undefined),
                                   },
                                   {
-                                    label: t("sidebar.addToFavorites"),
+                                    label: t`Add to Favorites`,
                                     icon: Star,
                                     action: () => {
                                       setQueryModal({ isOpen: true });
@@ -2175,13 +2177,13 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   },
                                   { separator: true },
                                   {
-                                    label: t("sidebar.delete"),
+                                    label: t({ message: "Delete", context: "sidebar" }),
                                     icon: Trash2,
                                     danger: true,
                                     action: () => setHistoryDeleteConfirm(historyEntry.id),
                                   },
                                   {
-                                    label: t("sidebar.clearAllHistory"),
+                                    label: t`Clear All History`,
                                     icon: Trash2,
                                     danger: true,
                                     action: () => setHistoryClearConfirm(true),
@@ -2191,7 +2193,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           : [
                               // Saved Query Actions (Default fallback)
                               {
-                                label: t("sidebar.execute"),
+                                label: t`Execute`,
                                 icon: Play,
                                 action: () => {
                                   if (contextMenu.data && "sql" in contextMenu.data) {
@@ -2201,7 +2203,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 },
                               },
                               {
-                                label: t("sidebar.edit"),
+                                label: t`Edit`,
                                 icon: Edit,
                                 action: () => {
                                   if (contextMenu.data && "sql" in contextMenu.data) {
@@ -2210,7 +2212,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 },
                               },
                               {
-                                label: t("sidebar.delete"),
+                                label: t({ message: "Delete", context: "sidebar" }),
                                 icon: Trash2,
                                 danger: true,
                                 action: () => {
@@ -2379,8 +2381,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
       <ConfirmModal
         isOpen={favoriteDeleteConfirm !== null}
         onClose={() => setFavoriteDeleteConfirm(null)}
-        title={t("sidebar.confirmDeleteTitle")}
-        message={t("sidebar.confirmDeleteQuery", { name: queries.find((q) => q.id === favoriteDeleteConfirm)?.name ?? "" })}
+        title={t`Delete Query`}
+        message={t`Are you sure you want to delete query "${name}"?`}
         onConfirm={() => {
           if (favoriteDeleteConfirm) {
             deleteQuery(favoriteDeleteConfirm);
@@ -2393,8 +2395,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
       <ConfirmModal
         isOpen={historyDeleteConfirm !== null}
         onClose={() => setHistoryDeleteConfirm(null)}
-        title={t("sidebar.confirmDeleteTitle")}
-        message={t("sidebar.confirmDeleteHistoryEntry")}
+        title={t`Delete Query`}
+        message={t`Are you sure you want to delete this query from history?`}
         onConfirm={() => {
           if (historyDeleteConfirm) {
             deleteHistoryEntry(historyDeleteConfirm);
@@ -2407,8 +2409,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
       <ConfirmModal
         isOpen={historyClearConfirm}
         onClose={() => setHistoryClearConfirm(false)}
-        title={t("sidebar.confirmClearHistoryTitle")}
-        message={t("sidebar.confirmClearHistory")}
+        title={t`Clear Query History`}
+        message={t`Are you sure you want to clear all query history for this connection?`}
         onConfirm={() => {
           clearHistory();
           setHistoryClearConfirm(false);

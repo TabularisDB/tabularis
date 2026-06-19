@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import type { TFunction } from "i18next";
+import type { LinguiT } from "../../i18n/lingui";
 
 interface ErrorDisplayProps {
   error: string;
-  t: TFunction;
+  t: LinguiT;
 }
 
 export function ErrorDisplay({ error, t }: ErrorDisplayProps) {
@@ -27,8 +27,8 @@ export function ErrorDisplay({ error, t }: ErrorDisplayProps) {
           >
             {showDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             {showDetails
-              ? t("editor.hideErrorDetails")
-              : t("editor.showErrorDetails")}
+              ? t`Hide details`
+              : t`Show details`}
           </button>
           {showDetails && (
             <div className="mt-2 whitespace-pre-wrap text-red-400/60 border-t border-red-400/20 pt-2">

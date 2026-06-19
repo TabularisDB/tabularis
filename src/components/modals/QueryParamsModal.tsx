@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { X, Save, Play } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Modal } from "../ui/Modal";
 
 interface QueryParamsModalProps {
@@ -40,7 +40,7 @@ const QueryParamsForm = ({ parameters, initialValues, onSubmit, onClose, mode }:
   onClose: () => void;
   mode: "run" | "save";
 }) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [values, setValues] = useState<Record<string, string>>(initialValues || {});
 
   const handleChange = (param: string, value: string) => {
@@ -60,7 +60,7 @@ const QueryParamsForm = ({ parameters, initialValues, onSubmit, onClose, mode }:
     <div className="bg-elevated border border-strong rounded-lg shadow-xl w-[500px] flex flex-col max-h-[80vh]">
         <div className="flex items-center justify-between p-4 border-b border-default">
           <h2 className="text-lg font-semibold text-primary">
-            {t("editor.queryParameters")}
+            {t`Query Parameters`}
           </h2>
           <button
             onClick={onClose}
@@ -81,7 +81,7 @@ const QueryParamsForm = ({ parameters, initialValues, onSubmit, onClose, mode }:
                   type="text"
                   value={values[param] || ""}
                   onChange={(e) => handleChange(param, e.target.value)}
-                  placeholder={t("editor.paramValuePlaceholder")}
+                  placeholder={t`Value (e.g. 'text' or 123)`}
                   className="bg-base border border-strong rounded px-3 py-2 text-sm text-primary focus:outline-none focus:border-blue-500 font-mono"
                   autoFocus={parameters[0] === param}
                 />
@@ -95,7 +95,7 @@ const QueryParamsForm = ({ parameters, initialValues, onSubmit, onClose, mode }:
               onClick={onClose}
               className="px-4 py-2 text-sm font-medium text-secondary hover:text-primary hover:bg-surface-secondary rounded transition-colors"
             >
-              {t("common.cancel")}
+              {t`Cancel`}
             </button>
             <button
               type="submit"
@@ -107,7 +107,7 @@ const QueryParamsForm = ({ parameters, initialValues, onSubmit, onClose, mode }:
               ) : (
                 <Save size={16} fill="currentColor" />
               )}
-              {mode === "run" ? t("editor.run") : t("common.save")}
+              {mode === "run" ? t`Run` : t`Save`}
             </button>
           </div>
         </form>

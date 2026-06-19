@@ -17,7 +17,7 @@ import dagre from "dagre";
 import { useEditor } from "../../hooks/useEditor";
 import { SchemaTableNodeComponent } from "./SchemaTableNode";
 import { Loader2, ArrowLeftRight, ArrowUpDown, Maximize2, Focus } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { ContextMenu } from "./ContextMenu";
 import { useSearchParams } from "react-router-dom";
 import { useSettings } from "../../hooks/useSettings";
@@ -87,7 +87,7 @@ const SchemaDiagramContent = ({
   refreshTrigger,
   schema,
 }: SchemaDiagramContentProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { getSchema } = useEditor();
   const { settings } = useSettings();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -339,19 +339,19 @@ const SchemaDiagramContent = ({
           className="flex items-center gap-2 px-3 py-2 bg-elevated hover:bg-surface-secondary text-primary rounded-lg border border-strong transition-colors shadow-lg text-sm font-medium"
           title={
             layoutDirection === "LR"
-              ? t("erDiagram.switchToVertical")
-              : t("erDiagram.switchToHorizontal")
+              ? t`Switch to Vertical Layout`
+              : t`Switch to Horizontal Layout`
           }
         >
           {layoutDirection === "LR" ? (
             <>
               <ArrowLeftRight size={16} />
-              <span>{t("erDiagram.horizontal")}</span>
+              <span>{t`Horizontal`}</span>
             </>
           ) : (
             <>
               <ArrowUpDown size={16} />
-              <span>{t("erDiagram.vertical")}</span>
+              <span>{t`Vertical`}</span>
             </>
           )}
         </button>
@@ -360,17 +360,17 @@ const SchemaDiagramContent = ({
           <button
             onClick={handleResetView}
             className="flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg border border-indigo-500 transition-colors shadow-lg text-sm font-medium"
-            title={t("erDiagram.showAllTables")}
+            title={t`Show All Tables`}
           >
             <Maximize2 size={16} />
-            <span>{t("erDiagram.showAll")}</span>
+            <span>{t`Show All`}</span>
           </button>
         )}
       </div>
 
       {selectedTable && (
         <div className="absolute top-4 right-4 z-10 px-4 py-2 bg-indigo-600 text-white rounded-lg border border-indigo-500 shadow-lg text-sm font-medium">
-          {t("erDiagram.focusedOn")}: {selectedTable}
+          {t`Focused on`}: {selectedTable}
         </div>
       )}
 
@@ -418,7 +418,7 @@ const SchemaDiagramContent = ({
           onClose={() => setContextMenu(null)}
           items={[
             {
-              label: t("erDiagram.focusOnTable"),
+              label: t`Focus on Table`,
               icon: Focus,
               action: () => {
                 setSelectedTable(contextMenu.tableId);
@@ -427,7 +427,7 @@ const SchemaDiagramContent = ({
             ...(selectedTable
               ? [
                   {
-                    label: t("erDiagram.showAll"),
+                    label: t`Show All`,
                     icon: Maximize2,
                     action: () => {
                       setSelectedTable(null);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   X,
   Network,
@@ -37,7 +37,7 @@ export const VisualExplainModal = ({
   schema,
   connectionLabel,
 }: VisualExplainModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings } = useSettings();
   const { getConnectionData, connections } = useDatabase();
   const { allDrivers } = useDrivers();
@@ -69,7 +69,7 @@ export const VisualExplainModal = ({
     if (!query?.trim() || !connectionId) return;
 
     if (!isExplainableQuery(query)) {
-      setError(t("editor.visualExplain.notExplainable"));
+      setError(t`EXPLAIN is only supported for DML statements (SELECT, INSERT, UPDATE, DELETE). DDL statements like CREATE, DROP, or ALTER cannot be explained.`);
       return;
     }
 
@@ -112,7 +112,7 @@ export const VisualExplainModal = ({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
-                {t("editor.visualExplain.title")}
+                {t`Visual Explain`}
               </h2>
               <div className="flex flex-wrap items-center gap-2 mt-1">
                 <div className="inline-flex items-center gap-2 rounded-lg border border-default bg-surface-secondary/50 px-2.5 py-1 text-xs text-secondary">
@@ -160,13 +160,13 @@ export const VisualExplainModal = ({
               onChange={(e) => setAnalyze(e.target.checked)}
               className="rounded border-strong"
             />
-            {t("editor.visualExplain.analyze")}
+            {t`Analyze`}
           </label>
 
           {isDml && (
             <div className="flex items-center gap-1.5 text-xs text-warning-text">
               <AlertTriangle size={12} />
-              <span>{t("editor.visualExplain.analyzeWarning")}</span>
+              <span>{t`ANALYZE executes the query. Use with caution on data-modifying statements.`}</span>
             </div>
           )}
 
@@ -178,14 +178,14 @@ export const VisualExplainModal = ({
             className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
           >
             <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
-            {t("editor.visualExplain.rerun")}
+            {t`Re-run`}
           </button>
 
           <button
             onClick={onClose}
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
-            {t("editor.visualExplain.close")}
+            {t`Close`}
           </button>
         </div>
       </div>

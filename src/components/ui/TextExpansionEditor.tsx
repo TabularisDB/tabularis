@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Columns2, GitCompare } from "lucide-react";
 import { CellCodeEditor } from "./CellCodeEditor";
 import { CellDiffEditor } from "./CellDiffEditor";
@@ -24,7 +24,7 @@ export const TextExpansionEditor = ({
   onCancel,
   originalValue,
 }: TextExpansionEditorProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const initial = useMemo(() => formatTextForEditor(value), [value]);
   const originalText = useMemo(
     () =>
@@ -67,10 +67,10 @@ export const TextExpansionEditor = ({
                   ? "bg-blue-600/30 text-blue-100 border-blue-500/50"
                   : "bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary"
               }`}
-              title={t("textInput.diff")}
+              title={t`Diff`}
             >
               <GitCompare size={12} />
-              {t("textInput.diff")}
+              {t`Diff`}
               {hasDiff && (
                 <span
                   aria-hidden
@@ -88,10 +88,10 @@ export const TextExpansionEditor = ({
                     ? "bg-blue-600/30 text-blue-100 border-blue-500/50"
                     : "bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary"
                 }`}
-                title={t("textInput.sideBySide")}
+                title={t`Side by side`}
               >
                 <Columns2 size={12} />
-                {t("textInput.sideBySide")}
+                {t`Side by side`}
               </button>
             )}
           </div>
@@ -105,7 +105,7 @@ export const TextExpansionEditor = ({
               onClick={onCancel}
               className="px-3 py-1 text-secondary hover:text-primary transition-colors"
             >
-              {t("common.cancel")}
+              {t`Cancel`}
             </button>
             <button
               type="button"
@@ -113,7 +113,7 @@ export const TextExpansionEditor = ({
               disabled={!isDirty}
               className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded font-medium transition-colors"
             >
-              {t("textViewer.save")}
+              {t`Save`}
             </button>
           </div>
         )}

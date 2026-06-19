@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   Download,
   Upload,
@@ -55,7 +55,7 @@ export const BlobInput = ({
   colName,
   schema,
 }: BlobInputProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [isDownloading, setIsDownloading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -230,7 +230,7 @@ export const BlobInput = ({
             <div className="flex items-center justify-center bg-black/20 border-b border-default p-2 max-h-48 overflow-hidden">
               <img
                 src={effectiveImageDataUrl}
-                alt={t("blobInput.imagePreview")}
+                alt={t`Image preview`}
                 className="max-h-44 max-w-full object-contain rounded"
                 draggable={false}
               />
@@ -269,8 +269,8 @@ export const BlobInput = ({
                 disabled={isUploading}
                 title={
                   isUploading
-                    ? t("blobInput.uploading")
-                    : t("blobInput.uploadFile")
+                    ? t`Uploading...`
+                    : t`Upload File`
                 }
                 className="p-1.5 rounded text-muted hover:text-secondary hover:bg-surface-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
@@ -287,10 +287,10 @@ export const BlobInput = ({
                 disabled={isDownloadDisabled}
                 title={
                   isDownloading
-                    ? t("blobInput.downloading")
+                    ? t({ message: "Downloading...", context: "blobInput" })
                     : isDownloadDisabled
-                      ? t("blobInput.downloadDisabledTruncated")
-                      : t("blobInput.download")
+                      ? t`Download unavailable - only preview loaded`
+                      : t`Download`
                 }
                 className="p-1.5 rounded text-muted hover:text-secondary hover:bg-surface-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
@@ -307,7 +307,7 @@ export const BlobInput = ({
                 type="button"
                 onClick={() => onChange(null)}
                 disabled={isUploading}
-                title={t("blobInput.delete")}
+                title={t({ message: "Delete", context: "blobInput" })}
                 className="p-1.5 rounded text-muted hover:text-red-400 hover:bg-red-900/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Trash2 size={14} />
@@ -323,7 +323,7 @@ export const BlobInput = ({
                 className="text-amber-500 flex-shrink-0"
               />
               <span className="text-xs text-amber-500/80">
-                {t("blobInput.truncatedWarning")}
+                {t`Preview only - full data not loaded`}
               </span>
             </div>
           )}
@@ -354,8 +354,8 @@ export const BlobInput = ({
             </div>
             <span className="text-sm">
               {isUploading
-                ? t("blobInput.uploading")
-                : placeholder || t("blobInput.noData")}
+                ? t`Uploading...`
+                : placeholder || t`No BLOB data`}
             </span>
           </button>
 
