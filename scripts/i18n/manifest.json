@@ -9,17 +9,6 @@
       "groups.createError"
     ]
   },
-  "Export Connections\u0004connections": {
-    "kind": "harmful",
-    "context": "connections",
-    "message": "Export Connections",
-    "stem": null,
-    "forms": null,
-    "originalKeys": [
-      "connections.exportTitle",
-      "connections.export"
-    ]
-  },
   "The exported file will contain your database and SSH passwords in plaintext. Please store it securely.": {
     "kind": "plain",
     "context": null,
@@ -1992,17 +1981,6 @@
     "forms": null,
     "originalKeys": [
       "editor.visualExplain.underEstimate"
-    ]
-  },
-  "Table\u0004editor": {
-    "kind": "harmful",
-    "context": "editor",
-    "message": "Table",
-    "stem": null,
-    "forms": null,
-    "originalKeys": [
-      "editor.visualExplain.relation",
-      "editor.visualExplain.tableView"
     ]
   },
   "Est. Rows": {
@@ -4111,18 +4089,6 @@
       "settings.plugins.overviewDesc"
     ]
   },
-  "Installed\u0004settings": {
-    "kind": "harmful",
-    "context": "settings",
-    "message": "Installed",
-    "stem": null,
-    "forms": null,
-    "originalKeys": [
-      "settings.plugins.installedMetric",
-      "settings.plugins.filterInstalled",
-      "settings.plugins.installed"
-    ]
-  },
   "Enabled": {
     "kind": "plain",
     "context": null,
@@ -4678,17 +4644,6 @@
       "aiActivity.sort.started"
     ]
   },
-  "Events\u0004aiActivity": {
-    "kind": "harmful",
-    "context": "aiActivity",
-    "message": "Events",
-    "stem": null,
-    "forms": null,
-    "originalKeys": [
-      "aiActivity.sort.eventCount",
-      "aiActivity.events"
-    ]
-  },
   "Run queries": {
     "kind": "plain",
     "context": null,
@@ -5092,17 +5047,6 @@
     "forms": null,
     "originalKeys": [
       "editor.notebook.runAllTooltip"
-    ]
-  },
-  "Run All\u0004editor": {
-    "kind": "harmful",
-    "context": "editor",
-    "message": "Run All",
-    "stem": null,
-    "forms": null,
-    "originalKeys": [
-      "editor.notebook.runAll",
-      "editor.querySelection.runAll"
     ]
   },
   "Stop execution when a cell fails": {
@@ -5899,17 +5843,6 @@
       "createFk.nameRequired"
     ]
   },
-  "Create Foreign Key\u0004createFk": {
-    "kind": "harmful",
-    "context": "createFk",
-    "message": "Create Foreign Key",
-    "stem": null,
-    "forms": null,
-    "originalKeys": [
-      "createFk.title",
-      "createFk.create"
-    ]
-  },
   "SQLite does not support dropping FKs via ALTER TABLE.": {
     "kind": "plain",
     "context": null,
@@ -5998,17 +5931,6 @@
     "forms": null,
     "originalKeys": [
       "createIndex.colRequired"
-    ]
-  },
-  "Create Index\u0004createIndex": {
-    "kind": "harmful",
-    "context": "createIndex",
-    "message": "Create Index",
-    "stem": null,
-    "forms": null,
-    "originalKeys": [
-      "createIndex.title",
-      "createIndex.create"
     ]
   },
   "Index Name": {
@@ -6213,17 +6135,6 @@
     "forms": null,
     "originalKeys": [
       "dump.failure"
-    ]
-  },
-  "Dump Database\u0004dump": {
-    "kind": "harmful",
-    "context": "dump",
-    "message": "Dump Database",
-    "stem": null,
-    "forms": null,
-    "originalKeys": [
-      "dump.title",
-      "dump.dumpDatabase"
     ]
   },
   "Structure (DDL)": {
@@ -7770,17 +7681,6 @@
       "settings.plugins.installError.subtitle"
     ]
   },
-  "Error Details\u0004settings": {
-    "kind": "harmful",
-    "context": "settings",
-    "message": "Error Details",
-    "stem": null,
-    "forms": null,
-    "originalKeys": [
-      "settings.plugins.installError.details",
-      "settings.plugins.startError.details"
-    ]
-  },
   "Copy": {
     "kind": "plain",
     "context": null,
@@ -8074,17 +7974,6 @@
     "forms": null,
     "originalKeys": [
       "editor.quickNavigator.navigationHint"
-    ]
-  },
-  "Esc to close\u0004editor": {
-    "kind": "harmful",
-    "context": "editor",
-    "message": "Esc to close",
-    "stem": null,
-    "forms": null,
-    "originalKeys": [
-      "editor.quickNavigator.escHint",
-      "editor.tabSwitcher.escHint"
     ]
   },
   "Please fill in all required fields": {
@@ -8692,17 +8581,6 @@
     "forms": null,
     "originalKeys": [
       "views.saveError"
-    ]
-  },
-  "Create View\u0004views": {
-    "kind": "harmful",
-    "context": "views",
-    "message": "Create View",
-    "stem": null,
-    "forms": null,
-    "originalKeys": [
-      "views.createView",
-      "views.create"
     ]
   },
   "Edit View": {
@@ -10365,17 +10243,6 @@
     "forms": null,
     "originalKeys": [
       "sidebar.failDropView"
-    ]
-  },
-  "View Definition\u0004sidebar": {
-    "kind": "harmful",
-    "context": "sidebar",
-    "message": "View Definition",
-    "stem": null,
-    "forms": null,
-    "originalKeys": [
-      "sidebar.viewDefinition",
-      "sidebar.viewTriggerDefinition"
     ]
   },
   "Drop Trigger": {
@@ -12127,6 +11994,256 @@
     "forms": null,
     "originalKeys": [
       "dump.errorNoTables"
+    ]
+  },
+  "Export Connections\u0004connections.exportTitle": {
+    "kind": "harmful",
+    "context": "connections.exportTitle",
+    "message": "Export Connections",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "connections.exportTitle"
+    ]
+  },
+  "Export Connections\u0004connections.export": {
+    "kind": "harmful",
+    "context": "connections.export",
+    "message": "Export Connections",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "connections.export"
+    ]
+  },
+  "Table\u0004editor.visualExplain.relation": {
+    "kind": "harmful",
+    "context": "editor.visualExplain.relation",
+    "message": "Table",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "editor.visualExplain.relation"
+    ]
+  },
+  "Table\u0004editor.visualExplain.tableView": {
+    "kind": "harmful",
+    "context": "editor.visualExplain.tableView",
+    "message": "Table",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "editor.visualExplain.tableView"
+    ]
+  },
+  "Installed\u0004settings.plugins.installedMetric": {
+    "kind": "harmful",
+    "context": "settings.plugins.installedMetric",
+    "message": "Installed",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "settings.plugins.installedMetric"
+    ]
+  },
+  "Installed\u0004settings.plugins.filterInstalled": {
+    "kind": "harmful",
+    "context": "settings.plugins.filterInstalled",
+    "message": "Installed",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "settings.plugins.filterInstalled"
+    ]
+  },
+  "Installed\u0004settings.plugins.installed": {
+    "kind": "harmful",
+    "context": "settings.plugins.installed",
+    "message": "Installed",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "settings.plugins.installed"
+    ]
+  },
+  "Events\u0004aiActivity.sort.eventCount": {
+    "kind": "harmful",
+    "context": "aiActivity.sort.eventCount",
+    "message": "Events",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "aiActivity.sort.eventCount"
+    ]
+  },
+  "Events\u0004aiActivity.events": {
+    "kind": "harmful",
+    "context": "aiActivity.events",
+    "message": "Events",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "aiActivity.events"
+    ]
+  },
+  "Run All\u0004editor.notebook.runAll": {
+    "kind": "harmful",
+    "context": "editor.notebook.runAll",
+    "message": "Run All",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "editor.notebook.runAll"
+    ]
+  },
+  "Run All\u0004editor.querySelection.runAll": {
+    "kind": "harmful",
+    "context": "editor.querySelection.runAll",
+    "message": "Run All",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "editor.querySelection.runAll"
+    ]
+  },
+  "Create Foreign Key\u0004createFk.title": {
+    "kind": "harmful",
+    "context": "createFk.title",
+    "message": "Create Foreign Key",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "createFk.title"
+    ]
+  },
+  "Create Foreign Key\u0004createFk.create": {
+    "kind": "harmful",
+    "context": "createFk.create",
+    "message": "Create Foreign Key",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "createFk.create"
+    ]
+  },
+  "Create Index\u0004createIndex.title": {
+    "kind": "harmful",
+    "context": "createIndex.title",
+    "message": "Create Index",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "createIndex.title"
+    ]
+  },
+  "Create Index\u0004createIndex.create": {
+    "kind": "harmful",
+    "context": "createIndex.create",
+    "message": "Create Index",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "createIndex.create"
+    ]
+  },
+  "Dump Database\u0004dump.title": {
+    "kind": "harmful",
+    "context": "dump.title",
+    "message": "Dump Database",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "dump.title"
+    ]
+  },
+  "Dump Database\u0004dump.dumpDatabase": {
+    "kind": "harmful",
+    "context": "dump.dumpDatabase",
+    "message": "Dump Database",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "dump.dumpDatabase"
+    ]
+  },
+  "Error Details\u0004settings.plugins.installError.details": {
+    "kind": "harmful",
+    "context": "settings.plugins.installError.details",
+    "message": "Error Details",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "settings.plugins.installError.details"
+    ]
+  },
+  "Error Details\u0004settings.plugins.startError.details": {
+    "kind": "harmful",
+    "context": "settings.plugins.startError.details",
+    "message": "Error Details",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "settings.plugins.startError.details"
+    ]
+  },
+  "Esc to close\u0004editor.quickNavigator.escHint": {
+    "kind": "harmful",
+    "context": "editor.quickNavigator.escHint",
+    "message": "Esc to close",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "editor.quickNavigator.escHint"
+    ]
+  },
+  "Esc to close\u0004editor.tabSwitcher.escHint": {
+    "kind": "harmful",
+    "context": "editor.tabSwitcher.escHint",
+    "message": "Esc to close",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "editor.tabSwitcher.escHint"
+    ]
+  },
+  "Create View\u0004views.createView": {
+    "kind": "harmful",
+    "context": "views.createView",
+    "message": "Create View",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "views.createView"
+    ]
+  },
+  "Create View\u0004views.create": {
+    "kind": "harmful",
+    "context": "views.create",
+    "message": "Create View",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "views.create"
+    ]
+  },
+  "View Definition\u0004sidebar.viewDefinition": {
+    "kind": "harmful",
+    "context": "sidebar.viewDefinition",
+    "message": "View Definition",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "sidebar.viewDefinition"
+    ]
+  },
+  "View Definition\u0004sidebar.viewTriggerDefinition": {
+    "kind": "harmful",
+    "context": "sidebar.viewTriggerDefinition",
+    "message": "View Definition",
+    "stem": null,
+    "forms": null,
+    "originalKeys": [
+      "sidebar.viewTriggerDefinition"
     ]
   }
 }

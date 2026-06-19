@@ -45,7 +45,7 @@ export function AiActivitySessionsTab() {
   const sortOptions: SessionSortField[] = ["started", "events", "runQueries"];
   const sortLabels: Record<SessionSortField, string> = {
     started: t`Started`,
-    events: t({ message: "Events", context: "aiActivity" }),
+    events: t({ message: "Events", context: "aiActivity.sort.eventCount" }),
     runQueries: t`Run queries`,
   };
 
@@ -209,7 +209,7 @@ function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
             </div>
             <div className="text-xs text-muted mt-1 flex flex-wrap gap-x-3">
               <span>
-                {t({ message: "Events", context: "aiActivity" })}: {session.eventCount}
+                {t({ message: "Events", context: "aiActivity.events" })}: {session.eventCount}
               </span>
               <span>
                 {t`Queries`}: {session.runQueryCount}

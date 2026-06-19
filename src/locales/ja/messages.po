@@ -1207,12 +1207,22 @@ msgid "Create a new database view"
 msgstr "新しいデータベースビューを作成します"
 
 #: src/components/modals/CreateForeignKeyModal.tsx
-msgctxt "createFk"
+msgctxt "createFk.create"
+msgid "Create Foreign Key"
+msgstr "外部キーを作成"
+
+#: src/components/modals/CreateForeignKeyModal.tsx
+msgctxt "createFk.title"
 msgid "Create Foreign Key"
 msgstr "外部キーを作成"
 
 #: src/components/modals/CreateIndexModal.tsx
-msgctxt "createIndex"
+msgctxt "createIndex.create"
+msgid "Create Index"
+msgstr "インデックスを作成"
+
+#: src/components/modals/CreateIndexModal.tsx
+msgctxt "createIndex.title"
 msgid "Create Index"
 msgstr "インデックスを作成"
 
@@ -1258,7 +1268,12 @@ msgid "Create Trigger"
 msgstr "トリガーを作成"
 
 #: src/components/modals/ViewEditorModal.tsx
-msgctxt "views"
+msgctxt "views.create"
+msgid "Create View"
+msgstr "ビューを作成"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgctxt "views.createView"
 msgid "Create View"
 msgstr "ビューを作成"
 
@@ -1639,8 +1654,12 @@ msgstr "ビューを削除"
 
 #: src/components/layout/ExplorerSidebar.tsx
 #: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+msgctxt "dump.dumpDatabase"
+msgid "Dump Database"
+msgstr "データベースをダンプ"
+
 #: src/components/modals/DumpDatabaseModal.tsx
-msgctxt "dump"
+msgctxt "dump.title"
 msgid "Dump Database"
 msgstr "データベースをダンプ"
 
@@ -1904,16 +1923,24 @@ msgid "Error"
 msgstr "エラー"
 
 #: src/components/modals/PluginInstallErrorModal.tsx
+msgctxt "settings.plugins.installError.details"
+msgid "Error Details"
+msgstr "エラーの詳細"
+
 #: src/components/modals/PluginStartErrorModal.tsx
-msgctxt "settings"
+msgctxt "settings.plugins.startError.details"
 msgid "Error Details"
 msgstr "エラーの詳細"
 
 #: src/components/modals/QuickNavigatorModal.tsx
-#: src/components/modals/TabSwitcherModal.tsx
-msgctxt "editor"
+msgctxt "editor.quickNavigator.escHint"
 msgid "Esc to close"
 msgstr "Escで閉じる"
+
+#: src/components/modals/TabSwitcherModal.tsx
+msgctxt "editor.tabSwitcher.escHint"
+msgid "Esc to close"
+msgstr "Esc で閉じる"
 
 #: src/components/modals/visual-explain/ExplainNodeDetails.tsx
 #: src/components/modals/visual-explain/ExplainTableView.tsx
@@ -1941,7 +1968,12 @@ msgid "Events"
 msgstr "イベント"
 
 #: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
-msgctxt "aiActivity"
+msgctxt "aiActivity.events"
+msgid "Events"
+msgstr "イベント"
+
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgctxt "aiActivity.sort.eventCount"
 msgid "Events"
 msgstr "イベント"
 
@@ -2074,7 +2106,12 @@ msgid "Export as Notebook"
 msgstr "ノートブックとしてエクスポート"
 
 #: src/pages/Connections.tsx
-msgctxt "connections"
+msgctxt "connections.export"
+msgid "Export Connections"
+msgstr "接続をエクスポート"
+
+#: src/pages/Connections.tsx
+msgctxt "connections.exportTitle"
 msgid "Export Connections"
 msgstr "接続をエクスポート"
 
@@ -2639,7 +2676,17 @@ msgid "Installed"
 msgstr "インストール済み"
 
 #: src/components/settings/PluginsTab.tsx
-msgctxt "settings"
+msgctxt "settings.plugins.filterInstalled"
+msgid "Installed"
+msgstr "インストール済み"
+
+#: src/components/settings/PluginsTab.tsx
+msgctxt "settings.plugins.installed"
+msgid "Installed"
+msgstr "インストール済み"
+
+#: src/components/settings/PluginsTab.tsx
+msgctxt "settings.plugins.installedMetric"
 msgid "Installed"
 msgstr "インストール済み"
 
@@ -4005,9 +4052,13 @@ msgstr "既存テーブルに行が追加されます"
 msgid "Run"
 msgstr "実行"
 
-#: src/components/modals/QuerySelectionModal.tsx
 #: src/components/notebook/NotebookToolbar.tsx
-msgctxt "editor"
+msgctxt "editor.notebook.runAll"
+msgid "Run All"
+msgstr "すべて実行"
+
+#: src/components/modals/QuerySelectionModal.tsx
+msgctxt "editor.querySelection.runAll"
 msgid "Run All"
 msgstr "すべて実行"
 
@@ -4736,10 +4787,14 @@ msgid "table"
 msgstr "テーブル"
 
 #: src/components/modals/visual-explain/ExplainNodeDetails.tsx
-#: src/components/modals/visual-explain/ExplainSummaryBar.tsx
 #: src/components/modals/visual-explain/ExplainTableView.tsx
 #: src/components/ui/ExplainPlanNode.tsx
-msgctxt "editor"
+msgctxt "editor.visualExplain.relation"
+msgid "Table"
+msgstr "テーブル"
+
+#: src/components/modals/visual-explain/ExplainSummaryBar.tsx
+msgctxt "editor.visualExplain.tableView"
 msgid "Table"
 msgstr "テーブル"
 
@@ -5188,9 +5243,14 @@ msgid "View created successfully"
 msgstr "ビューを正常に作成しました"
 
 #: src/components/layout/ExplorerSidebar.tsx
-msgctxt "sidebar"
+msgctxt "sidebar.viewDefinition"
 msgid "View Definition"
 msgstr "ビュー定義"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgctxt "sidebar.viewTriggerDefinition"
+msgid "View Definition"
+msgstr "定義を表示"
 
 #: src/components/modals/ViewEditorModal.tsx
 msgid "View Definition (SQL)"

@@ -55,7 +55,7 @@ export const ExplainPlanNodeComponent = memo(
           <div className="text-sm font-bold text-primary">{node.node_type}</div>
           {node.relation && (
             <div className="text-xs text-muted mt-0.5">
-              {t({ message: "Table", context: "editor" })}: {node.relation}
+              {t({ message: "Table", context: "editor.visualExplain.relation" })}: {node.relation}
             </div>
           )}
         </div>

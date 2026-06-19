@@ -550,7 +550,7 @@ This may overwrite existing data.`,
                         className="w-full flex items-center gap-3 px-3 py-2 text-sm text-secondary hover:bg-surface-secondary hover:text-primary transition-colors text-left whitespace-nowrap"
                       >
                         <Download size={16} className="text-blue-400 shrink-0" />
-                        <span>{t({ message: "Dump Database", context: "dump" })}</span>
+                        <span>{t({ message: "Dump Database", context: "dump.dumpDatabase" })}</span>
                       </button>
                       <button
                         onClick={async () => {
@@ -587,7 +587,7 @@ This may overwrite existing data.`,
                 <button
                   onClick={() => setDumpModal({ database: activeDatabaseName ?? "" })}
                   className="text-muted hover:text-blue-400 transition-colors p-1 hover:bg-surface-secondary rounded"
-                  title={t({ message: "Dump Database", context: "dump" })}
+                  title={t({ message: "Dump Database", context: "dump.dumpDatabase" })}
                 >
                   <Download size={16} />
                 </button>
@@ -1995,7 +1995,7 @@ This may overwrite existing data.`,
                         : contextMenu.type === "routine"
                           ? [
                               {
-                                label: t({ message: "View Definition", context: "sidebar" }),
+                                label: t({ message: "View Definition", context: "sidebar.viewDefinition" }),
                                 icon: FileText,
                                 action: async () => {
                                   try {
@@ -2033,7 +2033,7 @@ This may overwrite existing data.`,
                                 const triggerSchema = triggerData?.schema ?? activeSchema ?? undefined;
                                 return [
                                   {
-                                    label: t({ message: "View Definition", context: "sidebar" }),
+                                    label: t({ message: "View Definition", context: "sidebar.viewTriggerDefinition" }),
                                     icon: FileText,
                                     action: async () => {
                                       try {
@@ -2115,7 +2115,7 @@ This may overwrite existing data.`,
                                   action: () => handleImportDatabase(contextMenu.id),
                                 },
                                 {
-                                  label: t({ message: "Dump Database", context: "dump" }),
+                                  label: t({ message: "Dump Database", context: "dump.dumpDatabase" }),
                                   icon: Download,
                                   action: () => setDumpModal({ database: contextMenu.id }),
                                 },

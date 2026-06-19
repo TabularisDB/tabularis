@@ -135,7 +135,7 @@ export const DumpDatabaseModal = ({
           <div className="p-4 border-b border-default flex justify-between items-center">
             <h2 className="text-lg font-semibold flex items-center gap-2">
                 <Database size={18} />
-                {t({ message: "Dump Database", context: "dump" })} - {databaseName}
+                {t({ message: "Dump Database", context: "dump.title" })} - {databaseName}
             </h2>
             <button onClick={onClose} className="text-muted hover:text-primary text-xl leading-none" disabled={isExporting}>&times;</button>
           </div>

@@ -24,7 +24,7 @@ export function ExplainNodeDetails({
   const generalEntries: [string, string][] = [
     [t`Operation`, node.node_type],
     ...(node.relation
-      ? [[t({ message: "Table", context: "editor" }), node.relation] as [string, string]]
+      ? [[t({ message: "Table", context: "editor.visualExplain.relation" }), node.relation] as [string, string]]
       : []),
     ...(node.startup_cost != null && node.total_cost != null
       ? [

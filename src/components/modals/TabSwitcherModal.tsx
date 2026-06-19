@@ -95,7 +95,7 @@ export const TabSwitcherModal = ({
         {/* Footer */}
         <div className="px-4 py-2 border-t border-default bg-base/50 flex justify-between text-xs text-muted">
           <span>{plural(tabs.length, { one: "# tab", other: "# tabs" })}</span>
-          <span>{t({ message: "Esc to close", context: "editor" })}</span>
+          <span>{t({ message: "Esc to close", context: "editor.tabSwitcher.escHint" })}</span>
         </div>
       </div>
     </div>

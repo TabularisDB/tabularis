@@ -167,7 +167,7 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
             className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-xs font-semibold rounded-lg transition-colors"
           >
             <Play size={12} fill="currentColor" />
-            {t({ message: "Run All", context: "editor" })}
+            {t({ message: "Run All", context: "editor.querySelection.runAll" })}
           </button>
 
           <button

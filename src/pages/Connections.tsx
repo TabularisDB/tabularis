@@ -164,7 +164,7 @@ export const Connections = () => {
 
   const handleExport = async () => {
     setConfirmModal({
-      title: t({ message: "Export Connections", context: "connections" }),
+      title: t({ message: "Export Connections", context: "connections.exportTitle" }),
       message: t`The exported file will contain your database and SSH passwords in plaintext. Please store it securely.`,
       confirmLabel: t`Save`,
       variant: "warning",
@@ -657,7 +657,7 @@ export const Connections = () => {
                 <button
                   onClick={handleExport}
                   className="p-1.5 rounded-lg text-muted hover:text-blue-400 hover:bg-blue-500/10 transition-all duration-150"
-                  title={t({ message: "Export Connections", context: "connections" })}
+                  title={t({ message: "Export Connections", context: "connections.export" })}
                 >
                   <Download size={14} />
                 </button>

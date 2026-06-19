@@ -71,7 +71,7 @@ export const PluginStartErrorModal = ({
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs uppercase font-bold text-muted">
-                {t({ message: "Error Details", context: "settings" })}
+                {t({ message: "Error Details", context: "settings.plugins.startError.details" })}
               </span>
               <button
                 onClick={handleCopy}

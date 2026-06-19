@@ -80,7 +80,7 @@ export const ExplainSummaryBar = memo(
             className={toggleButtonClass("table")}
           >
             <TableProperties size={12} />
-            {t({ message: "Table", context: "editor" })}
+            {t({ message: "Table", context: "editor.visualExplain.tableView" })}
           </button>
           <button
             onClick={() => onViewModeChange("raw")}

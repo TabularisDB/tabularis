@@ -730,7 +730,7 @@ export function PluginsTab({
             <StatCard
               icon={<PackageCheck size={15} />}
               value={installedPlugins.length}
-              label={t({ message: "Installed", context: "settings" })}
+              label={t({ message: "Installed", context: "settings.plugins.installedMetric" })}
               colorClass="text-green-400"
               bgClass="bg-green-500/10"
             />
@@ -804,7 +804,7 @@ export function PluginsTab({
                   },
                   {
                     id: "installed" as const,
-                    label: t({ message: "Installed", context: "settings" }),
+                    label: t({ message: "Installed", context: "settings.plugins.filterInstalled" }),
                     count:
                       allDrivers.length +
                       installedPlugins.filter(
@@ -1125,7 +1125,7 @@ export function PluginsTab({
                           : "bg-green-500/10 text-green-400 border-green-500/25",
                       )}
                     >
-                      {t({ message: "Installed", context: "settings" })} v
+                      {t({ message: "Installed", context: "settings.plugins.installed" })} v
                       {plugin.installed_version}
                     </span>
                   ) : undefined;

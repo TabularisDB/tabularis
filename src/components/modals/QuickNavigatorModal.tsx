@@ -508,7 +508,7 @@ export const QuickNavigatorModal = ({ isOpen, onClose, onGenerateSql, onInspect 
           </span>
           <div className="flex gap-4">
             <span>{t`↑↓ to navigate, Enter to open`}</span>
-            <span>{t({ message: "Esc to close", context: "editor" })}</span>
+            <span>{t({ message: "Esc to close", context: "editor.quickNavigator.escHint" })}</span>
           </div>
         </div>
       </div>

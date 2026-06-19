@@ -169,7 +169,7 @@ export const ViewEditorModal = ({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
-                {isNewView ? t({ message: "Create View", context: "views" }) : t`Edit View`}
+                {isNewView ? t({ message: "Create View", context: "views.createView" }) : t`Edit View`}
               </h2>
               <p className="text-xs text-secondary">
                 {isNewView
@@ -315,7 +315,7 @@ export const ViewEditorModal = ({
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
           >
             {saving && <Loader2 size={16} className="animate-spin" />}
-            {isNewView ? t({ message: "Create View", context: "views" }) : t`Save Changes`}
+            {isNewView ? t({ message: "Create View", context: "views.create" }) : t`Save Changes`}
           </button>
         </div>
       </div>

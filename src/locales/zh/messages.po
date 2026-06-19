@@ -1207,12 +1207,22 @@ msgid "Create a new database view"
 msgstr "创建新的数据库视图"
 
 #: src/components/modals/CreateForeignKeyModal.tsx
-msgctxt "createFk"
+msgctxt "createFk.create"
+msgid "Create Foreign Key"
+msgstr "创建外键"
+
+#: src/components/modals/CreateForeignKeyModal.tsx
+msgctxt "createFk.title"
 msgid "Create Foreign Key"
 msgstr "创建外键"
 
 #: src/components/modals/CreateIndexModal.tsx
-msgctxt "createIndex"
+msgctxt "createIndex.create"
+msgid "Create Index"
+msgstr "创建索引"
+
+#: src/components/modals/CreateIndexModal.tsx
+msgctxt "createIndex.title"
 msgid "Create Index"
 msgstr "创建索引"
 
@@ -1258,7 +1268,12 @@ msgid "Create Trigger"
 msgstr ""
 
 #: src/components/modals/ViewEditorModal.tsx
-msgctxt "views"
+msgctxt "views.create"
+msgid "Create View"
+msgstr "创建视图"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgctxt "views.createView"
 msgid "Create View"
 msgstr "创建视图"
 
@@ -1639,8 +1654,12 @@ msgstr "删除视图"
 
 #: src/components/layout/ExplorerSidebar.tsx
 #: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+msgctxt "dump.dumpDatabase"
+msgid "Dump Database"
+msgstr "导出数据库"
+
 #: src/components/modals/DumpDatabaseModal.tsx
-msgctxt "dump"
+msgctxt "dump.title"
 msgid "Dump Database"
 msgstr "导出数据库"
 
@@ -1904,16 +1923,24 @@ msgid "Error"
 msgstr "错误"
 
 #: src/components/modals/PluginInstallErrorModal.tsx
+msgctxt "settings.plugins.installError.details"
+msgid "Error Details"
+msgstr "错误详情"
+
 #: src/components/modals/PluginStartErrorModal.tsx
-msgctxt "settings"
+msgctxt "settings.plugins.startError.details"
 msgid "Error Details"
 msgstr "错误详情"
 
 #: src/components/modals/QuickNavigatorModal.tsx
-#: src/components/modals/TabSwitcherModal.tsx
-msgctxt "editor"
+msgctxt "editor.quickNavigator.escHint"
 msgid "Esc to close"
 msgstr "Esc 关闭"
+
+#: src/components/modals/TabSwitcherModal.tsx
+msgctxt "editor.tabSwitcher.escHint"
+msgid "Esc to close"
+msgstr "按 Esc 关闭"
 
 #: src/components/modals/visual-explain/ExplainNodeDetails.tsx
 #: src/components/modals/visual-explain/ExplainTableView.tsx
@@ -1941,7 +1968,12 @@ msgid "Events"
 msgstr "事件"
 
 #: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
-msgctxt "aiActivity"
+msgctxt "aiActivity.events"
+msgid "Events"
+msgstr "事件"
+
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgctxt "aiActivity.sort.eventCount"
 msgid "Events"
 msgstr "事件数"
 
@@ -2074,7 +2106,12 @@ msgid "Export as Notebook"
 msgstr "导出为 Notebook"
 
 #: src/pages/Connections.tsx
-msgctxt "connections"
+msgctxt "connections.export"
+msgid "Export Connections"
+msgstr "导出连接"
+
+#: src/pages/Connections.tsx
+msgctxt "connections.exportTitle"
 msgid "Export Connections"
 msgstr "导出连接"
 
@@ -2639,7 +2676,17 @@ msgid "Installed"
 msgstr "已安装"
 
 #: src/components/settings/PluginsTab.tsx
-msgctxt "settings"
+msgctxt "settings.plugins.filterInstalled"
+msgid "Installed"
+msgstr "已安装"
+
+#: src/components/settings/PluginsTab.tsx
+msgctxt "settings.plugins.installed"
+msgid "Installed"
+msgstr "已安装"
+
+#: src/components/settings/PluginsTab.tsx
+msgctxt "settings.plugins.installedMetric"
 msgid "Installed"
 msgstr "已安装"
 
@@ -4005,11 +4052,15 @@ msgstr "行将追加到现有表"
 msgid "Run"
 msgstr "运行"
 
-#: src/components/modals/QuerySelectionModal.tsx
 #: src/components/notebook/NotebookToolbar.tsx
-msgctxt "editor"
+msgctxt "editor.notebook.runAll"
 msgid "Run All"
 msgstr "全部运行"
+
+#: src/components/modals/QuerySelectionModal.tsx
+msgctxt "editor.querySelection.runAll"
+msgid "Run All"
+msgstr "全部执行"
 
 #: src/i18n/registries/shortcutLabels.ts
 msgid "Run All Cells"
@@ -4736,12 +4787,16 @@ msgid "table"
 msgstr "表"
 
 #: src/components/modals/visual-explain/ExplainNodeDetails.tsx
-#: src/components/modals/visual-explain/ExplainSummaryBar.tsx
 #: src/components/modals/visual-explain/ExplainTableView.tsx
 #: src/components/ui/ExplainPlanNode.tsx
-msgctxt "editor"
+msgctxt "editor.visualExplain.relation"
 msgid "Table"
 msgstr "表"
+
+#: src/components/modals/visual-explain/ExplainSummaryBar.tsx
+msgctxt "editor.visualExplain.tableView"
+msgid "Table"
+msgstr "表格"
 
 #: src/components/modals/ClipboardImport/TableNameInput.tsx
 #: src/components/modals/ClipboardImportModal.tsx
@@ -5188,9 +5243,14 @@ msgid "View created successfully"
 msgstr "视图创建成功"
 
 #: src/components/layout/ExplorerSidebar.tsx
-msgctxt "sidebar"
+msgctxt "sidebar.viewDefinition"
 msgid "View Definition"
 msgstr "视图定义"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgctxt "sidebar.viewTriggerDefinition"
+msgid "View Definition"
+msgstr ""
 
 #: src/components/modals/ViewEditorModal.tsx
 msgid "View Definition (SQL)"

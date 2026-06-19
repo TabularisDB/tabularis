@@ -180,7 +180,7 @@ export function NotebookToolbar({
             <Play size={14} className="text-green-400" />
           )}
           <span className="hidden @[440px]:inline">
-            {t({ message: "Run All", context: "editor" })}
+            {t({ message: "Run All", context: "editor.notebook.runAll" })}
           </span>
         </ToolbarButton>
 

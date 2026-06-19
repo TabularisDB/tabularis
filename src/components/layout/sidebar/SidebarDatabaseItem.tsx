@@ -203,7 +203,7 @@ export const SidebarDatabaseItem = ({
             <button
               onClick={(e) => { e.stopPropagation(); onDump(databaseName); }}
               className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-blue-400 transition-colors"
-              title={t({ message: "Dump Database", context: "dump" })}
+              title={t({ message: "Dump Database", context: "dump.dumpDatabase" })}
             >
               <Download size={13} />
             </button>

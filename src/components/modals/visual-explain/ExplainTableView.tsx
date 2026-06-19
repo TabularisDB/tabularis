@@ -54,7 +54,7 @@ export function ExplainTableView({
                 {t`Operation`}
               </th>
               <th className="text-left px-3 py-2 text-muted font-semibold whitespace-nowrap">
-                {t({ message: "Table", context: "editor" })}
+                {t({ message: "Table", context: "editor.visualExplain.relation" })}
               </th>
               <th className="text-right px-3 py-2 text-muted font-semibold whitespace-nowrap">
                 {t`Cost`}
