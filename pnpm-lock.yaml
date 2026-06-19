@@ -189,6 +189,9 @@ importers:
       jsdom:
         specifier: ^28.1.0
         version: 28.1.0
+      pofile:
+        specifier: ^1.1.4
+        version: 1.1.4
       postcss:
         specifier: ^8.5.8
         version: 8.5.8
@@ -2843,6 +2846,9 @@ packages:
   pofile-ts@4.0.3:
     resolution: {integrity: sha512-sz1pnjgEfPyZ+QvaeX3NtCmbYnEvG01LZRLoN/uXoLtPZtxCIH5IctL7yXXc0fFyk/fqV6K8g3hlNfr6IJwupA==}
     engines: {node: '>=20'}
+
+  pofile@1.1.4:
+    resolution: {integrity: sha512-r6Q21sKsY1AjTVVjOuU02VYKVNQGJNQHjTIvs4dEbeuuYfxgYk/DGD2mqqq4RDaVkwdSq0VEtmQUOPe/wH8X3g==}
 
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
@@ -6076,6 +6082,8 @@ snapshots:
       pathe: 2.0.3
 
   pofile-ts@4.0.3: {}
+
+  pofile@1.1.4: {}
 
   possible-typed-array-names@1.1.0: {}
 
