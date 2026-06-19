@@ -135,6 +135,51 @@ mod tests {
             MySqlSslMode::VerifyIdentity
         ));
     }
+
+    #[test]
+    fn adhoc_mysql_pool_key_changes_when_username_changes() {
+        // No connection_id → ad-hoc key. Bastions like Warpgate share one
+        // host:port across targets and select the backend by username, so two
+        // usernames must never resolve to the same pool.
+        let mut alice = mysql_params("required");
+        alice.username = Some("alice".to_string());
+        let mut bob = mysql_params("required");
+        bob.username = Some("bob".to_string());
+
+        assert_ne!(
+            build_connection_key(&alice, None),
+            build_connection_key(&bob, None)
+        );
+    }
+
+    #[test]
+    fn mysql_pool_key_changes_when_cleartext_plugin_changes() {
+        let mut plain = mysql_params("required");
+        plain.enable_cleartext_plugin = Some(false);
+        let mut cleartext = mysql_params("required");
+        cleartext.enable_cleartext_plugin = Some(true);
+
+        assert_ne!(
+            build_connection_key(&plain, Some("conn-1")),
+            build_connection_key(&cleartext, Some("conn-1"))
+        );
+    }
+
+    #[test]
+    fn cleartext_plugin_rejected_without_tls() {
+        let mut params = mysql_params("disabled");
+        params.enable_cleartext_plugin = Some(true);
+
+        assert!(build_mysql_options(&params, None).is_err());
+    }
+
+    #[test]
+    fn cleartext_plugin_allowed_with_tls() {
+        let mut params = mysql_params("required");
+        params.enable_cleartext_plugin = Some(true);
+
+        assert!(build_mysql_options(&params, None).is_ok());
+    }
 }
 
 #[cfg(test)]

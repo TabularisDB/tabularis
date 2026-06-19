@@ -676,6 +676,9 @@
     "manageSshConnections": "SSH 接続を管理",
     "noSshConnections": "利用可能な SSH 接続がありません",
     "sslMode": "SSL モード",
+    "enableCleartextPlugin": "クリアテキストパスワードプラグインを有効にする",
+    "enableCleartextPluginHint": "mysql_clear_password を使用してパスワードを送信します。Warpgate などのバスティオンで必要です。TLS 接続でのみ使用されます。",
+    "enableCleartextPluginTlsRequired": "クリアテキストパスワードプラグインを使用するには、上で SSL モードを有効にしてください。",
     "sslModes": {
       "disable": "無効",
       "allow": "許可",

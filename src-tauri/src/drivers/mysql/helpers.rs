@@ -5,6 +5,67 @@ pub(super) fn escape_identifier(name: &str) -> String {
     name.replace('`', "``")
 }
 
+/// Renders a `&str` as a quoted MySQL string literal for the text protocol.
+///
+/// Used when a query has to bypass the prepared-statement protocol (e.g.
+/// behind a Warpgate-style bastion that rejects `COM_STMT_PREPARE`): the
+/// value can no longer travel as a bind parameter, so it is inlined as an
+/// escaped literal instead. Mirrors `mysql_real_escape_string` for the
+/// default `sql_mode` (backslash escapes enabled).
+pub(super) fn mysql_string_literal(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('\'');
+    for ch in s.chars() {
+        match ch {
+            '\0' => out.push_str("\\0"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\\' => out.push_str("\\\\"),
+            '\'' => out.push_str("\\'"),
+            '"' => out.push_str("\\\""),
+            '\u{1a}' => out.push_str("\\Z"),
+            c => out.push(c),
+        }
+    }
+    out.push('\'');
+    out
+}
+
+/// Renders raw bytes as a MySQL hexadecimal literal (`x'..'`) for the text
+/// protocol — the inlined equivalent of binding a `Vec<u8>` blob parameter.
+pub(super) fn mysql_bytes_literal(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+    let mut out = String::with_capacity(bytes.len() * 2 + 3);
+    out.push_str("x'");
+    for b in bytes {
+        let _ = write!(out, "{:02x}", b);
+    }
+    out.push('\'');
+    out
+}
+
+/// Substitutes each `?` placeholder in `sql` with the next quoted string
+/// literal from `binds`, in order. Used to turn a parameterised
+/// introspection query into a text-protocol statement. Placeholders past
+/// the end of `binds` (and `?` chars when `binds` is empty) are left as-is.
+///
+/// Note: this is only safe for the driver's own queries, whose `?` chars are
+/// exclusively bind placeholders (never literal question marks in strings).
+pub(super) fn inline_str_placeholders(sql: &str, binds: &[&str]) -> String {
+    let mut out = String::with_capacity(sql.len());
+    let mut iter = binds.iter();
+    for ch in sql.chars() {
+        if ch == '?' {
+            if let Some(b) = iter.next() {
+                out.push_str(&mysql_string_literal(b));
+                continue;
+            }
+        }
+        out.push(ch);
+    }
+    out
+}
+
 /// Read a string from a MySQL row by index.
 /// MySQL 8 information_schema returns VARBINARY/BLOB instead of VARCHAR,
 /// so try_get::<String> fails silently. This falls back to reading raw bytes.

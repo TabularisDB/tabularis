@@ -656,6 +656,9 @@
     "manageSshConnections": "Управление SSH-подключениями",
     "noSshConnections": "Нет доступных SSH-подключений",
     "sslMode": "Режим SSL",
+    "enableCleartextPlugin": "Включить плагин пароля в открытом виде",
+    "enableCleartextPluginHint": "Отправляет пароль через mysql_clear_password. Требуется для бастионов, таких как Warpgate. Используется только при TLS-соединении.",
+    "enableCleartextPluginTlsRequired": "Включите режим SSL выше, чтобы использовать плагин пароля в открытом виде.",
     "sslModes": {
       "disable": "Отключён",
       "allow": "Разрешён",

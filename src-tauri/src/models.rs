@@ -125,6 +125,10 @@ pub struct ConnectionParams {
     pub ssl_ca: Option<String>,
     pub ssl_cert: Option<String>,
     pub ssl_key: Option<String>,
+    // MySQL/MariaDB: enable the mysql_clear_password (cleartext) auth plugin.
+    // Required by bastions like Warpgate. Only honoured over a TLS connection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_cleartext_plugin: Option<bool>,
     // SSH Tunnel
     pub ssh_enabled: Option<bool>,
     pub ssh_connection_id: Option<String>,

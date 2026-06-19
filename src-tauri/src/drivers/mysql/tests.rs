@@ -1,4 +1,5 @@
 use super::explain::{parse_analyze_actual, parse_mysql_analyze_text, parse_mysql_query_block};
+use super::helpers::{inline_str_placeholders, mysql_bytes_literal, mysql_string_literal};
 use super::MysqlDriver;
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::ExplainNode;
@@ -34,6 +35,55 @@ fn build_connection_url_includes_disabled_ssl_mode() {
     let url = driver.build_connection_url(&params).unwrap();
 
     assert!(url.contains("ssl-mode=disabled"), "url was: {url}");
+}
+
+// -- Text-protocol literal helpers (Warpgate / cleartext bastion path) -----
+
+#[test]
+fn mysql_string_literal_quotes_and_escapes() {
+    assert_eq!(mysql_string_literal("public"), "'public'");
+    assert_eq!(mysql_string_literal("o'brien"), "'o\\'brien'");
+    assert_eq!(mysql_string_literal("a\\b"), "'a\\\\b'");
+    assert_eq!(mysql_string_literal("line\nbreak"), "'line\\nbreak'");
+    assert_eq!(mysql_string_literal(""), "''");
+}
+
+#[test]
+fn mysql_bytes_literal_hex_encodes() {
+    assert_eq!(mysql_bytes_literal(&[]), "x''");
+    assert_eq!(mysql_bytes_literal(&[0x00, 0x0f, 0xff]), "x'000fff'");
+    assert_eq!(mysql_bytes_literal(b"AB"), "x'4142'");
+}
+
+#[test]
+fn inline_str_placeholders_substitutes_in_order() {
+    let sql = "WHERE table_schema = ? AND table_name = ?";
+    assert_eq!(
+        inline_str_placeholders(sql, &["mydb", "users"]),
+        "WHERE table_schema = 'mydb' AND table_name = 'users'"
+    );
+}
+
+#[test]
+fn inline_str_placeholders_escapes_injection_attempt() {
+    let sql = "WHERE table_schema = ?";
+    assert_eq!(
+        inline_str_placeholders(sql, &["x' OR '1'='1"]),
+        "WHERE table_schema = 'x\\' OR \\'1\\'=\\'1'"
+    );
+}
+
+#[test]
+fn inline_str_placeholders_leaves_extra_placeholders() {
+    // Fewer binds than placeholders: the surplus `?` stays untouched.
+    assert_eq!(
+        inline_str_placeholders("a = ? AND b = ?", &["1"]),
+        "a = '1' AND b = ?"
+    );
+    assert_eq!(
+        inline_str_placeholders("no params here", &[]),
+        "no params here"
+    );
 }
 
 /// Helper: parse a MariaDB ANALYZE FORMAT=JSON string and return the root node.
@@ -572,8 +622,7 @@ fn parse_analyze_actual_multiplies_per_loop_time_by_loops() {
 
 #[test]
 fn parse_analyze_actual_single_loop_is_unchanged() {
-    let (time_ms, _, loops) =
-        parse_analyze_actual("  (actual time=0.10..0.42 rows=5 loops=1)");
+    let (time_ms, _, loops) = parse_analyze_actual("  (actual time=0.10..0.42 rows=5 loops=1)");
     assert_eq!(loops, Some(1));
     assert!((time_ms.unwrap() - 0.42).abs() < 1e-9);
 }

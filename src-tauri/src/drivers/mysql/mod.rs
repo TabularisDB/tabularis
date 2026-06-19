@@ -17,9 +17,122 @@ use crate::pool_manager::get_mysql_pool;
 pub use explain::explain_query;
 use extract::extract_value;
 use helpers::{
-    escape_identifier, is_raw_sql_function, is_wkt_geometry, mysql_row_str, mysql_row_str_opt,
+    escape_identifier, inline_str_placeholders, is_raw_sql_function, is_wkt_geometry,
+    mysql_bytes_literal, mysql_row_str, mysql_row_str_opt, mysql_string_literal,
 };
 use sqlx::{Column, Row};
+
+/// Whether this connection must avoid the prepared-statement protocol.
+///
+/// Bastions like Warpgate proxy MySQL but do **not** implement
+/// `COM_STMT_PREPARE`; any `sqlx::query()` (which always prepares) fails with
+/// server error 1047 ("Not implemented"). The cleartext auth plugin is only
+/// ever enabled to authenticate through such a bastion, so we treat it as the
+/// signal to route every statement through the text protocol (`COM_QUERY` via
+/// `sqlx::raw_sql`) instead. See [`crate::pool_manager::build_mysql_options`].
+pub(super) fn force_text_protocol(params: &ConnectionParams) -> bool {
+    params.enable_cleartext_plugin.unwrap_or(false)
+}
+
+/// Runs a `SELECT` and returns all rows, choosing the wire protocol from
+/// `text`. In text mode the `?` placeholders are inlined as escaped string
+/// literals (see [`inline_str_placeholders`]); otherwise they are bound
+/// through the normal prepared-statement path. `binds` are always string
+/// parameters — the only kind the introspection queries use.
+async fn fetch_all_rows(
+    pool: &sqlx::MySqlPool,
+    text: bool,
+    sql: &str,
+    binds: &[&str],
+) -> Result<Vec<sqlx::mysql::MySqlRow>, String> {
+    use sqlx::Executor;
+    if text {
+        let rendered = inline_str_placeholders(sql, binds);
+        pool.fetch_all(sqlx::raw_sql(&rendered))
+            .await
+            .map_err(|e| e.to_string())
+    } else {
+        let mut q = sqlx::query(sql);
+        for b in binds {
+            q = q.bind(*b);
+        }
+        pool.fetch_all(q).await.map_err(|e| e.to_string())
+    }
+}
+
+/// `fetch_one` variant of [`fetch_all_rows`].
+async fn fetch_one_row(
+    pool: &sqlx::MySqlPool,
+    text: bool,
+    sql: &str,
+    binds: &[&str],
+) -> Result<sqlx::mysql::MySqlRow, String> {
+    use sqlx::Executor;
+    if text {
+        let rendered = inline_str_placeholders(sql, binds);
+        pool.fetch_one(sqlx::raw_sql(&rendered))
+            .await
+            .map_err(|e| e.to_string())
+    } else {
+        let mut q = sqlx::query(sql);
+        for b in binds {
+            q = q.bind(*b);
+        }
+        pool.fetch_one(q).await.map_err(|e| e.to_string())
+    }
+}
+
+/// `fetch_optional` variant of [`fetch_all_rows`].
+async fn fetch_optional_row(
+    pool: &sqlx::MySqlPool,
+    text: bool,
+    sql: &str,
+    binds: &[&str],
+) -> Result<Option<sqlx::mysql::MySqlRow>, String> {
+    use sqlx::Executor;
+    if text {
+        let rendered = inline_str_placeholders(sql, binds);
+        pool.fetch_optional(sqlx::raw_sql(&rendered))
+            .await
+            .map_err(|e| e.to_string())
+    } else {
+        let mut q = sqlx::query(sql);
+        for b in binds {
+            q = q.bind(*b);
+        }
+        pool.fetch_optional(q).await.map_err(|e| e.to_string())
+    }
+}
+
+/// Executes a statement that returns no result set (DDL), choosing the wire
+/// protocol from `text`. Used for the bind-free `CREATE/ALTER/DROP` helpers.
+async fn exec_stmt(
+    pool: &sqlx::MySqlPool,
+    text: bool,
+    sql: &str,
+) -> Result<sqlx::mysql::MySqlQueryResult, String> {
+    use sqlx::Executor;
+    if text {
+        pool.execute(sqlx::raw_sql(sql))
+            .await
+            .map_err(|e| e.to_string())
+    } else {
+        pool.execute(sqlx::query(sql))
+            .await
+            .map_err(|e| e.to_string())
+    }
+}
+
+/// Renders a primary-key value as an inlined SQL literal for the text
+/// protocol: numbers stay bare, strings are quoted/escaped. Mirrors how the
+/// prepared path binds the same value in a `WHERE pk = ?` clause.
+fn pk_literal(pk_val: &serde_json::Value) -> Result<String, String> {
+    match pk_val {
+        serde_json::Value::Number(n) => Ok(n.to_string()),
+        serde_json::Value::String(s) => Ok(mysql_string_literal(s)),
+        _ => Err("Unsupported PK type".into()),
+    }
+}
 
 pub async fn get_schemas(_params: &ConnectionParams) -> Result<Vec<String>, String> {
     Ok(vec![])
@@ -27,10 +140,8 @@ pub async fn get_schemas(_params: &ConnectionParams) -> Result<Vec<String>, Stri
 
 pub async fn get_databases(params: &ConnectionParams) -> Result<Vec<String>, String> {
     let pool = get_mysql_pool(params).await?;
-    let rows = sqlx::query("SHOW DATABASES")
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let text = force_text_protocol(params);
+    let rows = fetch_all_rows(&pool, text, "SHOW DATABASES", &[]).await?;
     Ok(rows.iter().map(|r| mysql_row_str(r, 0)).collect())
 }
 
@@ -41,13 +152,14 @@ pub async fn get_tables(
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     log::debug!("MySQL: Fetching tables for database: {}", db_name);
     let pool = get_mysql_pool(params).await?;
-    let rows = sqlx::query(
+    let text = force_text_protocol(params);
+    let rows = fetch_all_rows(
+        &pool,
+        text,
         "SELECT table_name as name FROM information_schema.tables WHERE table_schema = ? AND table_type = 'BASE TABLE' ORDER BY table_name ASC",
+        &[db_name],
     )
-    .bind(db_name)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    .await?;
     let tables: Vec<TableInfo> = rows
         .iter()
         .map(|r| TableInfo {
@@ -65,6 +177,7 @@ pub async fn get_columns(
 ) -> Result<Vec<TableColumn>, String> {
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
 
     let query = r#"
         SELECT column_name, data_type, column_key, is_nullable, extra, column_default, character_maximum_length
@@ -73,12 +186,7 @@ pub async fn get_columns(
         ORDER BY ordinal_position
     "#;
 
-    let rows = sqlx::query(query)
-        .bind(db_name)
-        .bind(table_name)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = fetch_all_rows(&pool, text, query, &[db_name, table_name]).await?;
 
     Ok(rows
         .iter()
@@ -122,6 +230,7 @@ pub async fn get_foreign_keys(
 ) -> Result<Vec<ForeignKey>, String> {
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
 
     let query = r#"
         SELECT
@@ -141,12 +250,7 @@ pub async fn get_foreign_keys(
         ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION
     "#;
 
-    let rows = sqlx::query(query)
-        .bind(db_name)
-        .bind(table_name)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = fetch_all_rows(&pool, text, query, &[db_name, table_name]).await?;
 
     Ok(rows
         .iter()
@@ -169,6 +273,7 @@ pub async fn get_all_columns_batch(
     use std::collections::HashMap;
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
 
     let query = r#"
         SELECT table_name, column_name, data_type, column_key, is_nullable, extra, column_default, character_maximum_length
@@ -177,11 +282,7 @@ pub async fn get_all_columns_batch(
         ORDER BY table_name, ordinal_position
     "#;
 
-    let rows = sqlx::query(query)
-        .bind(db_name)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = fetch_all_rows(&pool, text, query, &[db_name]).await?;
 
     let mut result: HashMap<String, Vec<TableColumn>> = HashMap::new();
 
@@ -233,6 +334,7 @@ pub async fn get_all_foreign_keys_batch(
     use std::collections::HashMap;
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
 
     let query = r#"
         SELECT
@@ -252,11 +354,7 @@ pub async fn get_all_foreign_keys_batch(
         ORDER BY kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION
     "#;
 
-    let rows = sqlx::query(query)
-        .bind(db_name)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = fetch_all_rows(&pool, text, query, &[db_name]).await?;
 
     let mut result: HashMap<String, Vec<ForeignKey>> = HashMap::new();
 
@@ -285,6 +383,7 @@ pub async fn get_indexes(
 ) -> Result<Vec<Index>, String> {
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
 
     let query = r#"
         SELECT
@@ -298,12 +397,7 @@ pub async fn get_indexes(
         ORDER BY INDEX_NAME, SEQ_IN_INDEX
     "#;
 
-    let rows = sqlx::query(query)
-        .bind(db_name)
-        .bind(table_name)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = fetch_all_rows(&pool, text, query, &[db_name, table_name]).await?;
 
     Ok(rows
         .iter()
@@ -330,27 +424,34 @@ pub async fn save_blob_column_to_file(
     file_path: &str,
 ) -> Result<(), String> {
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
 
     let query = format!(
         "SELECT `{}` FROM `{}` WHERE `{}` = ?",
         col_name, table, pk_col
     );
 
-    let row = match pk_val {
-        serde_json::Value::Number(n) => {
-            if n.is_i64() {
-                sqlx::query(&query).bind(n.as_i64()).fetch_one(&pool).await
-            } else if n.is_f64() {
-                sqlx::query(&query).bind(n.as_f64()).fetch_one(&pool).await
-            } else {
-                sqlx::query(&query)
-                    .bind(n.to_string())
-                    .fetch_one(&pool)
-                    .await
+    let row = if text {
+        use sqlx::Executor;
+        let q = query.replacen('?', &pk_literal(&pk_val)?, 1);
+        pool.fetch_one(sqlx::raw_sql(&q)).await
+    } else {
+        match pk_val {
+            serde_json::Value::Number(n) => {
+                if n.is_i64() {
+                    sqlx::query(&query).bind(n.as_i64()).fetch_one(&pool).await
+                } else if n.is_f64() {
+                    sqlx::query(&query).bind(n.as_f64()).fetch_one(&pool).await
+                } else {
+                    sqlx::query(&query)
+                        .bind(n.to_string())
+                        .fetch_one(&pool)
+                        .await
+                }
             }
+            serde_json::Value::String(s) => sqlx::query(&query).bind(s).fetch_one(&pool).await,
+            _ => return Err("Unsupported PK type".into()),
         }
-        serde_json::Value::String(s) => sqlx::query(&query).bind(s).fetch_one(&pool).await,
-        _ => return Err("Unsupported PK type".into()),
     }
     .map_err(|e| e.to_string())?;
 
@@ -366,27 +467,34 @@ pub async fn fetch_blob_column_as_data_url(
     pk_val: serde_json::Value,
 ) -> Result<String, String> {
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
 
     let query = format!(
         "SELECT `{}` FROM `{}` WHERE `{}` = ?",
         col_name, table, pk_col
     );
 
-    let row = match pk_val {
-        serde_json::Value::Number(n) => {
-            if n.is_i64() {
-                sqlx::query(&query).bind(n.as_i64()).fetch_one(&pool).await
-            } else if n.is_f64() {
-                sqlx::query(&query).bind(n.as_f64()).fetch_one(&pool).await
-            } else {
-                sqlx::query(&query)
-                    .bind(n.to_string())
-                    .fetch_one(&pool)
-                    .await
+    let row = if text {
+        use sqlx::Executor;
+        let q = query.replacen('?', &pk_literal(&pk_val)?, 1);
+        pool.fetch_one(sqlx::raw_sql(&q)).await
+    } else {
+        match pk_val {
+            serde_json::Value::Number(n) => {
+                if n.is_i64() {
+                    sqlx::query(&query).bind(n.as_i64()).fetch_one(&pool).await
+                } else if n.is_f64() {
+                    sqlx::query(&query).bind(n.as_f64()).fetch_one(&pool).await
+                } else {
+                    sqlx::query(&query)
+                        .bind(n.to_string())
+                        .fetch_one(&pool)
+                        .await
+                }
             }
+            serde_json::Value::String(s) => sqlx::query(&query).bind(s).fetch_one(&pool).await,
+            _ => return Err("Unsupported PK type".into()),
         }
-        serde_json::Value::String(s) => sqlx::query(&query).bind(s).fetch_one(&pool).await,
-        _ => return Err("Unsupported PK type".into()),
     }
     .map_err(|e| e.to_string())?;
 
@@ -401,21 +509,28 @@ pub async fn delete_record(
     pk_val: serde_json::Value,
 ) -> Result<u64, String> {
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
 
     let query = format!("DELETE FROM `{}` WHERE `{}` = ?", table, pk_col);
 
-    let result = match pk_val {
-        serde_json::Value::Number(n) => {
-            if n.is_i64() {
-                sqlx::query(&query).bind(n.as_i64()).execute(&pool).await
-            } else if n.is_f64() {
-                sqlx::query(&query).bind(n.as_f64()).execute(&pool).await
-            } else {
-                sqlx::query(&query).bind(n.to_string()).execute(&pool).await
+    let result = if text {
+        use sqlx::Executor;
+        let q = query.replacen('?', &pk_literal(&pk_val)?, 1);
+        pool.execute(sqlx::raw_sql(&q)).await
+    } else {
+        match pk_val {
+            serde_json::Value::Number(n) => {
+                if n.is_i64() {
+                    sqlx::query(&query).bind(n.as_i64()).execute(&pool).await
+                } else if n.is_f64() {
+                    sqlx::query(&query).bind(n.as_f64()).execute(&pool).await
+                } else {
+                    sqlx::query(&query).bind(n.to_string()).execute(&pool).await
+                }
             }
+            serde_json::Value::String(s) => sqlx::query(&query).bind(s).execute(&pool).await,
+            _ => return Err("Unsupported PK type".into()),
         }
-        serde_json::Value::String(s) => sqlx::query(&query).bind(s).execute(&pool).await,
-        _ => return Err("Unsupported PK type".into()),
     };
 
     result.map(|r| r.rows_affected()).map_err(|e| e.to_string())
@@ -431,13 +546,22 @@ pub async fn update_record(
     max_blob_size: u64,
 ) -> Result<u64, String> {
     let pool = get_mysql_pool(params).await?;
+    // Behind a prepared-statement-less bastion every value is inlined as an
+    // escaped literal instead of bound (see `force_text_protocol`).
+    let text = force_text_protocol(params);
 
     let mut qb = sqlx::QueryBuilder::new(format!("UPDATE `{}` SET `{}` = ", table, col_name));
 
     match new_val {
         serde_json::Value::Number(n) => {
             if n.is_i64() {
-                qb.push_bind(n.as_i64());
+                if text {
+                    qb.push(n.to_string());
+                } else {
+                    qb.push_bind(n.as_i64());
+                }
+            } else if text {
+                qb.push(n.to_string());
             } else {
                 qb.push_bind(n.as_f64());
             }
@@ -451,7 +575,11 @@ pub async fn update_record(
             {
                 // Blob wire format: decode to raw bytes so the DB stores binary data,
                 // not the internal wire format string.
-                qb.push_bind(bytes);
+                if text {
+                    qb.push(mysql_bytes_literal(&bytes));
+                } else {
+                    qb.push_bind(bytes);
+                }
             } else if is_raw_sql_function(&s) {
                 // If it's a raw SQL function (e.g., ST_GeomFromText('POINT(1 2)', 4326))
                 // insert it directly without parameter binding
@@ -459,19 +587,33 @@ pub async fn update_record(
             } else if is_wkt_geometry(&s) {
                 // If it's WKT geometry format, wrap with ST_GeomFromText
                 qb.push("ST_GeomFromText(");
-                qb.push_bind(s);
+                if text {
+                    qb.push(mysql_string_literal(&s));
+                } else {
+                    qb.push_bind(s);
+                }
                 qb.push(")");
             } else if let Some(n) = parse_unsafe_bigint_string(&s) {
                 // Bigints outside JS safe range come back from the UI as strings
                 // (see drivers::common::i64_to_json). Bind them as native i64 so
                 // BIGINT columns receive the exact value.
-                qb.push_bind(n);
+                if text {
+                    qb.push(n.to_string());
+                } else {
+                    qb.push_bind(n);
+                }
+            } else if text {
+                qb.push(mysql_string_literal(&s));
             } else {
                 qb.push_bind(s);
             }
         }
         serde_json::Value::Bool(b) => {
-            qb.push_bind(b);
+            if text {
+                qb.push(if b { "1" } else { "0" });
+            } else {
+                qb.push_bind(b);
+            }
         }
         serde_json::Value::Null => {
             qb.push("NULL");
@@ -479,7 +621,11 @@ pub async fn update_record(
         serde_json::Value::Object(_) | serde_json::Value::Array(_) => {
             let json_str = serde_json::to_string(&new_val).map_err(|e| e.to_string())?;
             qb.push("CAST(");
-            qb.push_bind(json_str);
+            if text {
+                qb.push(mysql_string_literal(&json_str));
+            } else {
+                qb.push_bind(json_str);
+            }
             qb.push(" AS JSON)");
         }
     }
@@ -489,14 +635,26 @@ pub async fn update_record(
     match pk_val {
         serde_json::Value::Number(n) => {
             if n.is_i64() {
-                qb.push_bind(n.as_i64());
+                if text {
+                    qb.push(n.to_string());
+                } else {
+                    qb.push_bind(n.as_i64());
+                }
+            } else if text {
+                qb.push(n.to_string());
             } else {
                 qb.push_bind(n.as_f64());
             }
         }
         serde_json::Value::String(s) => {
             if let Some(n) = parse_unsafe_bigint_string(&s) {
-                qb.push_bind(n);
+                if text {
+                    qb.push(n.to_string());
+                } else {
+                    qb.push_bind(n);
+                }
+            } else if text {
+                qb.push(mysql_string_literal(&s));
             } else {
                 qb.push_bind(s);
             }
@@ -504,8 +662,11 @@ pub async fn update_record(
         _ => return Err("Unsupported PK type".into()),
     }
 
-    let query = qb.build();
-    let result = query.execute(&pool).await.map_err(|e| e.to_string())?;
+    let result = if text {
+        exec_stmt(&pool, true, &qb.into_sql()).await?
+    } else {
+        qb.build().execute(&pool).await.map_err(|e| e.to_string())?
+    };
     Ok(result.rows_affected())
 }
 
@@ -516,6 +677,9 @@ pub async fn insert_record(
     max_blob_size: u64,
 ) -> Result<u64, String> {
     let pool = get_mysql_pool(params).await?;
+    // Behind a prepared-statement-less bastion every value is inlined as an
+    // escaped literal instead of bound (see `force_text_protocol`).
+    let text = force_text_protocol(params);
 
     let mut cols = Vec::new();
     let mut vals = Vec::new();
@@ -540,7 +704,13 @@ pub async fn insert_record(
             match val {
                 serde_json::Value::Number(n) => {
                     if n.is_i64() {
-                        separated.push_bind(n.as_i64());
+                        if text {
+                            separated.push(n.to_string());
+                        } else {
+                            separated.push_bind(n.as_i64());
+                        }
+                    } else if text {
+                        separated.push(n.to_string());
                     } else {
                         separated.push_bind(n.as_f64());
                     }
@@ -551,7 +721,11 @@ pub async fn insert_record(
                     {
                         // Blob wire format: decode to raw bytes so the DB stores binary data,
                         // not the internal wire format string.
-                        separated.push_bind(bytes);
+                        if text {
+                            separated.push(mysql_bytes_literal(&bytes));
+                        } else {
+                            separated.push_bind(bytes);
+                        }
                     } else if is_raw_sql_function(&s) {
                         // If it's a raw SQL function (e.g., ST_GeomFromText('POINT(1 2)', 4326))
                         // insert it directly without parameter binding
@@ -559,16 +733,30 @@ pub async fn insert_record(
                     } else if is_wkt_geometry(&s) {
                         // If it's WKT geometry format, wrap with ST_GeomFromText
                         separated.push_unseparated("ST_GeomFromText(");
-                        separated.push_bind_unseparated(s);
+                        if text {
+                            separated.push_unseparated(mysql_string_literal(&s));
+                        } else {
+                            separated.push_bind_unseparated(s);
+                        }
                         separated.push_unseparated(")");
                     } else if let Some(n) = parse_unsafe_bigint_string(&s) {
-                        separated.push_bind(n);
+                        if text {
+                            separated.push(n.to_string());
+                        } else {
+                            separated.push_bind(n);
+                        }
+                    } else if text {
+                        separated.push(mysql_string_literal(&s));
                     } else {
                         separated.push_bind(s);
                     }
                 }
                 serde_json::Value::Bool(b) => {
-                    separated.push_bind(b);
+                    if text {
+                        separated.push(if b { "1" } else { "0" });
+                    } else {
+                        separated.push_bind(b);
+                    }
                 }
                 serde_json::Value::Null => {
                     separated.push("NULL");
@@ -576,7 +764,11 @@ pub async fn insert_record(
                 serde_json::Value::Object(_) | serde_json::Value::Array(_) => {
                     let json_str = serde_json::to_string(&val).map_err(|e| e.to_string())?;
                     separated.push_unseparated("CAST(");
-                    separated.push_bind_unseparated(json_str);
+                    if text {
+                        separated.push_unseparated(mysql_string_literal(&json_str));
+                    } else {
+                        separated.push_bind_unseparated(json_str);
+                    }
                     separated.push_unseparated(" AS JSON)");
                 }
             }
@@ -585,18 +777,19 @@ pub async fn insert_record(
         qb
     };
 
-    let query = qb.build();
-    let result = query.execute(&pool).await.map_err(|e| e.to_string())?;
+    let result = if text {
+        exec_stmt(&pool, true, &qb.into_sql()).await?
+    } else {
+        qb.build().execute(&pool).await.map_err(|e| e.to_string())?
+    };
     Ok(result.rows_affected())
 }
 
 pub async fn get_table_ddl(params: &ConnectionParams, table_name: &str) -> Result<String, String> {
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
     let query = format!("SHOW CREATE TABLE `{}`", table_name);
-    let row = sqlx::query(&query)
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let row = fetch_one_row(&pool, text, &query, &[]).await?;
 
     let create_sql = mysql_row_str(&row, 1);
     Ok(format!("{};", create_sql))
@@ -609,13 +802,14 @@ pub async fn get_views(
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     log::debug!("MySQL: Fetching views for database: {}", db_name);
     let pool = get_mysql_pool(params).await?;
-    let rows = sqlx::query(
-            "SELECT table_name as name FROM information_schema.views WHERE table_schema = ? ORDER BY table_name ASC",
-        )
-        .bind(db_name)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let text = force_text_protocol(params);
+    let rows = fetch_all_rows(
+        &pool,
+        text,
+        "SELECT table_name as name FROM information_schema.views WHERE table_schema = ? ORDER BY table_name ASC",
+        &[db_name],
+    )
+    .await?;
     let views: Vec<ViewInfo> = rows
         .iter()
         .map(|r| ViewInfo {
@@ -632,10 +826,10 @@ pub async fn get_view_definition(
     view_name: &str,
 ) -> Result<String, String> {
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
     let escaped_name = escape_identifier(view_name);
     let query = format!("SHOW CREATE VIEW `{}`", escaped_name);
-    let row = sqlx::query(&query)
-        .fetch_one(&pool)
+    let row = fetch_one_row(&pool, text, &query, &[])
         .await
         .map_err(|e| format!("Failed to get view definition: {}", e))?;
     let definition = mysql_row_str(&row, 1);
@@ -649,10 +843,10 @@ pub async fn create_view(
     definition: &str,
 ) -> Result<(), String> {
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
     let escaped_name = escape_identifier(view_name);
     let query = format!("CREATE VIEW `{}` AS {}", escaped_name, definition);
-    sqlx::query(&query)
-        .execute(&pool)
+    exec_stmt(&pool, text, &query)
         .await
         .map_err(|e| format!("Failed to create view: {}", e))?;
     Ok(())
@@ -664,10 +858,10 @@ pub async fn alter_view(
     definition: &str,
 ) -> Result<(), String> {
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
     let escaped_name = escape_identifier(view_name);
     let query = format!("ALTER VIEW `{}` AS {}", escaped_name, definition);
-    sqlx::query(&query)
-        .execute(&pool)
+    exec_stmt(&pool, text, &query)
         .await
         .map_err(|e| format!("Failed to alter view: {}", e))?;
     Ok(())
@@ -675,10 +869,10 @@ pub async fn alter_view(
 
 pub async fn drop_view(params: &ConnectionParams, view_name: &str) -> Result<(), String> {
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
     let escaped_name = escape_identifier(view_name);
     let query = format!("DROP VIEW IF EXISTS `{}`", escaped_name);
-    sqlx::query(&query)
-        .execute(&pool)
+    exec_stmt(&pool, text, &query)
         .await
         .map_err(|e| format!("Failed to drop view: {}", e))?;
     Ok(())
@@ -692,6 +886,7 @@ pub async fn get_view_columns(
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     // Views in MySQL can be queried like tables for column info
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
 
     let query = r#"
             SELECT column_name, data_type, column_key, is_nullable, extra, column_default, character_maximum_length
@@ -700,12 +895,7 @@ pub async fn get_view_columns(
             ORDER BY ordinal_position
         "#;
 
-    let rows = sqlx::query(query)
-        .bind(db_name)
-        .bind(view_name)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = fetch_all_rows(&pool, text, query, &[db_name, view_name]).await?;
 
     Ok(rows
         .iter()
@@ -748,6 +938,7 @@ pub async fn get_routines(
 ) -> Result<Vec<RoutineInfo>, String> {
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
     let query = r#"
             SELECT routine_name, routine_type, routine_definition
             FROM information_schema.routines
@@ -755,11 +946,7 @@ pub async fn get_routines(
             ORDER BY routine_name
         "#;
 
-    let rows = sqlx::query(query)
-        .bind(db_name)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = fetch_all_rows(&pool, text, query, &[db_name]).await?;
 
     Ok(rows
         .iter()
@@ -778,6 +965,7 @@ pub async fn get_routine_parameters(
 ) -> Result<Vec<RoutineParameter>, String> {
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
 
     // 1. Get return type for functions from routines table
     let return_type_query = r#"
@@ -786,12 +974,8 @@ pub async fn get_routine_parameters(
             WHERE ROUTINE_SCHEMA = ? AND ROUTINE_NAME = ?
         "#;
 
-    let routine_info = sqlx::query(return_type_query)
-        .bind(db_name)
-        .bind(routine_name)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let routine_info =
+        fetch_optional_row(&pool, text, return_type_query, &[db_name, routine_name]).await?;
 
     let mut parameters = Vec::new();
 
@@ -818,12 +1002,7 @@ pub async fn get_routine_parameters(
             ORDER BY ordinal_position
         "#;
 
-    let rows = sqlx::query(query)
-        .bind(db_name)
-        .bind(routine_name)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = fetch_all_rows(&pool, text, query, &[db_name, routine_name]).await?;
 
     parameters.extend(rows.iter().map(|r| RoutineParameter {
         name: mysql_row_str(r, 0),
@@ -841,16 +1020,14 @@ pub async fn get_routine_definition(
     routine_type: &str,
 ) -> Result<String, String> {
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
     let query = format!(
         "SHOW CREATE {} `{}`",
         routine_type,
         escape_identifier(routine_name)
     );
 
-    let row = sqlx::query(&query)
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let row = fetch_one_row(&pool, text, &query, &[]).await?;
 
     let definition = mysql_row_str(&row, 2);
 
@@ -903,6 +1080,7 @@ async fn exec_on_mysql_conn(
     query: &str,
     limit: Option<u32>,
     page: u32,
+    text: bool,
 ) -> Result<QueryResult, String> {
     // Transaction-control statements have to bypass the prepared-statement
     // protocol — see `is_text_protocol_stmt`. They never return a result
@@ -923,13 +1101,16 @@ async fn exec_on_mysql_conn(
     }
 
     // Non-result-set statements (INSERT / UPDATE / DELETE / DDL) go through
-    // `execute()` so we can return the actual `rows_affected`.
+    // `execute()` so we can return the actual `rows_affected`. In text mode
+    // they must use `raw_sql` (COM_QUERY) since the bastion rejects prepares.
     if !crate::drivers::common::returns_result_set(query) {
         use sqlx::Executor;
-        let exec_result = conn
-            .execute(sqlx::query(query))
-            .await
-            .map_err(|e| e.to_string())?;
+        let exec_result = if text {
+            conn.execute(sqlx::raw_sql(query)).await
+        } else {
+            conn.execute(sqlx::query(query)).await
+        }
+        .map_err(|e| e.to_string())?;
         return Ok(QueryResult {
             columns: vec![],
             rows: vec![],
@@ -968,7 +1149,12 @@ async fn exec_on_mysql_conn(
     // Scope the stream so `conn` borrow is released before returning
     {
         use futures::stream::StreamExt;
-        let mut rows_stream = sqlx::query(&final_query).fetch(&mut *conn);
+        let mut rows_stream = if text {
+            use sqlx::Executor;
+            (&mut *conn).fetch(sqlx::raw_sql(&final_query))
+        } else {
+            sqlx::query(&final_query).fetch(&mut *conn)
+        };
 
         while let Some(result) = rows_stream.next().await {
             match result {
@@ -1026,7 +1212,8 @@ pub async fn execute_query(
     schema: Option<&str>,
 ) -> Result<QueryResult, String> {
     let mut conn = acquire_mysql_conn(params, schema).await?;
-    exec_on_mysql_conn(&mut *conn, query, limit, page).await
+    let text = force_text_protocol(params);
+    exec_on_mysql_conn(&mut *conn, query, limit, page, text).await
 }
 
 /// Runs a sequence of statements on a single pooled connection so that
@@ -1047,10 +1234,11 @@ pub async fn execute_batch(
     on_progress: Option<&crate::drivers::driver_trait::BatchProgressFn>,
 ) -> Result<Vec<crate::models::BatchStatementResult>, String> {
     let mut conn = acquire_mysql_conn(params, schema).await?;
+    let text = force_text_protocol(params);
     let mut results = Vec::with_capacity(queries.len());
     for (idx, q) in queries.iter().enumerate() {
         let start = std::time::Instant::now();
-        let outcome = exec_on_mysql_conn(&mut *conn, q, limit, page).await;
+        let outcome = exec_on_mysql_conn(&mut *conn, q, limit, page, text).await;
         let res = crate::models::BatchStatementResult::from_outcome(start, outcome);
         if let Some(cb) = on_progress {
             cb(idx, &res);
@@ -1067,17 +1255,14 @@ pub async fn get_triggers(
     let db_name = schema.unwrap_or_else(|| params.database.primary());
     log::debug!("MySQL: Fetching triggers for database: {}", db_name);
     let pool = get_mysql_pool(params).await?;
+    let text = force_text_protocol(params);
     let query = r#"
         SELECT trigger_name, event_object_table, event_manipulation, action_timing
         FROM information_schema.triggers
         WHERE trigger_schema = ?
         ORDER BY trigger_name ASC
     "#;
-    let rows = sqlx::query(query)
-        .bind(db_name)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = fetch_all_rows(&pool, text, query, &[db_name]).await?;
     let triggers: Vec<TriggerInfo> = rows
         .iter()
         .map(|r| TriggerInfo {
@@ -1103,8 +1288,8 @@ pub async fn get_trigger_definition(
         None => format!("`{}`", escape_identifier(trigger_name)),
     };
     let query = format!("SHOW CREATE TRIGGER {}", qualified);
-    let row = sqlx::query(&query)
-        .fetch_one(&pool)
+    let text = force_text_protocol(params);
+    let row = fetch_one_row(&pool, text, &query, &[])
         .await
         .map_err(|e| format!("Failed to get trigger definition: {}", e))?;
     // SHOW CREATE TRIGGER returns: Trigger, sql_mode, SQL Original Statement, ...
@@ -1337,6 +1522,22 @@ impl DatabaseDriver for MysqlDriver {
             encode(&timezone),
             ssl_mode,
         ))
+    }
+
+    async fn test_connection(
+        &self,
+        params: &crate::models::ConnectionParams,
+    ) -> Result<(), String> {
+        // Use the same option builder as the live pool so TLS settings and the
+        // cleartext plugin gating (mysql_clear_password) apply to the test too.
+        let options = crate::pool_manager::build_mysql_options(params, None)?;
+        let mut conn =
+            <sqlx::mysql::MySqlConnectOptions as sqlx::ConnectOptions>::connect(&options)
+                .await
+                .map_err(|e: sqlx::Error| e.to_string())?;
+        sqlx::Connection::ping(&mut conn)
+            .await
+            .map_err(|e: sqlx::Error| e.to_string())
     }
 
     async fn ping(&self, params: &crate::models::ConnectionParams) -> Result<(), String> {

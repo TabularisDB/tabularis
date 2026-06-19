@@ -630,6 +630,9 @@
     "manageSshConnections": "管理 SSH 连接",
     "noSshConnections": "无 SSH 连接可用",
     "sslMode": "SSL 模式",
+    "enableCleartextPlugin": "启用明文密码插件",
+    "enableCleartextPluginHint": "使用 mysql_clear_password 发送密码。Warpgate 等堡垒机需要此选项。仅在 TLS 连接上使用。",
+    "enableCleartextPluginTlsRequired": "请在上方启用 SSL 模式以使用明文密码插件。",
     "sslModes": {
       "disable": "禁用",
       "allow": "允许",

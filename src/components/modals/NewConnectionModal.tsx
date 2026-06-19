@@ -57,6 +57,8 @@ interface ConnectionParams {
   ssl_ca?: string;
   ssl_cert?: string;
   ssl_key?: string;
+  // MySQL/MariaDB: mysql_clear_password (cleartext) auth plugin (TLS required)
+  enable_cleartext_plugin?: boolean;
   // SSH
   ssh_enabled?: boolean;
   ssh_connection_id?: string;
@@ -1315,7 +1317,13 @@ export const NewConnectionModal = ({
                     verify_identity: t("newConnection.sslModes.verify_identity", { defaultValue: "Verify Identity" }),
                   }
           }
-          onChange={(v) => updateField("ssl_mode", v)}
+          onChange={(v) => {
+            updateField("ssl_mode", v);
+            // Cleartext auth must never go over an unencrypted link.
+            if (driver === "mysql" && v === "disabled") {
+              updateField("enable_cleartext_plugin", false);
+            }
+          }}
           searchable={false}
         />
       </div>
@@ -1444,6 +1452,50 @@ export const NewConnectionModal = ({
           </div>
         </div>
       )}
+
+      {/* Cleartext password plugin (MySQL/MariaDB only) */}
+      {driver === "mysql" &&
+        (() => {
+          const effectiveSslMode = formData.ssl_mode || "required";
+          const tlsOff = effectiveSslMode === "disabled";
+          return (
+            <div className="space-y-1.5 pt-2 border-t border-strong">
+              <label
+                className={clsx(
+                  "flex items-center gap-2.5 select-none w-fit",
+                  tlsOff ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  id="cleartext-plugin-toggle"
+                  checked={!tlsOff && !!formData.enable_cleartext_plugin}
+                  disabled={tlsOff}
+                  onChange={(e) =>
+                    updateField("enable_cleartext_plugin", e.target.checked)
+                  }
+                  className="accent-blue-500 w-3.5 h-3.5 rounded"
+                />
+                <span className="text-sm font-medium text-secondary">
+                  {t("newConnection.enableCleartextPlugin", {
+                    defaultValue: "Enable cleartext password plugin",
+                  })}
+                </span>
+              </label>
+              <p className="text-xs text-muted">
+                {tlsOff
+                  ? t("newConnection.enableCleartextPluginTlsRequired", {
+                      defaultValue:
+                        "Enable an SSL mode above to use the cleartext password plugin.",
+                    })
+                  : t("newConnection.enableCleartextPluginHint", {
+                      defaultValue:
+                        "Sends the password using mysql_clear_password. Required for bastions like Warpgate. Only used over a TLS connection.",
+                    })}
+              </p>
+            </div>
+          );
+        })()}
     </div>
   );
 

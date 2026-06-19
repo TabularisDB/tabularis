@@ -667,6 +667,9 @@
     "manageSshConnections": "Gestionar Conexiones SSH",
     "noSshConnections": "No hay conexiones SSH disponibles",
     "sslMode": "Modo SSL",
+    "enableCleartextPlugin": "Habilitar el complemento de contraseña en texto plano",
+    "enableCleartextPluginHint": "Envía la contraseña usando mysql_clear_password. Necesario para bastiones como Warpgate. Solo se usa en una conexión TLS.",
+    "enableCleartextPluginTlsRequired": "Habilita un modo SSL arriba para usar el complemento de contraseña en texto plano.",
     "sslModes": {
       "disable": "Desactivado",
       "allow": "Permitir",

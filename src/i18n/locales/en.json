@@ -683,6 +683,9 @@
     "manageSshConnections": "Manage SSH Connections",
     "noSshConnections": "No SSH connections available",
     "sslMode": "SSL Mode",
+    "enableCleartextPlugin": "Enable cleartext password plugin",
+    "enableCleartextPluginHint": "Sends the password using mysql_clear_password. Required for bastions like Warpgate. Only used over a TLS connection.",
+    "enableCleartextPluginTlsRequired": "Enable an SSL mode above to use the cleartext password plugin.",
     "sslModes": {
       "disable": "Disable",
       "allow": "Allow",
