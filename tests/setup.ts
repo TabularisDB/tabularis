@@ -43,10 +43,9 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 // `t` handles both the tagged-template macro (t`...${x}...`) and the descriptor
 // form (t({ message, context })); `i18n._` resolves a MessageDescriptor to its
 // message. Mirrors how the macros behave at runtime for source-text catalogs.
-const linguiT = (
-  strings: TemplateStringsArray | string | { message?: string; id?: string },
-  ...values: unknown[]
-): string => {
+// Loosely typed: the macro `t` is called both as a tagged template and with a
+// descriptor object, which TS can't narrow cleanly via Array.isArray here.
+const linguiT = (strings: unknown, ...values: unknown[]): string => {
   if (Array.isArray(strings)) {
     return strings.reduce(
       (acc: string, s: string, i: number) => acc + s + (i < values.length ? String(values[i]) : ""),
@@ -54,7 +53,8 @@ const linguiT = (
     );
   }
   if (typeof strings === "object" && strings !== null) {
-    return strings.message ?? strings.id ?? "";
+    const d = strings as { message?: string; id?: string };
+    return d.message ?? d.id ?? "";
   }
   return String(strings);
 };

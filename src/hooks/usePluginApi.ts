@@ -10,6 +10,7 @@ import { SettingsContext } from "../contexts/SettingsContext";
 import { PluginModalContext } from "../contexts/PluginModalContext";
 import type { PluginModalOptions } from "../contexts/PluginModalContext";
 import { toErrorMessage } from "../utils/errors";
+import { translatePlugin } from "../i18n/pluginI18n";
 
 /**
  * Hook for plugin components to execute read-only database queries.
@@ -143,14 +144,21 @@ export function usePluginSetting(pluginId: string) {
 }
 
 /**
- * Hook for plugin components to access their own translations. Returns a runtime
- * translate function; the plugin's locale files are merged into the Lingui catalog
- * by the loader before the component mounts. Keys are looked up verbatim as message
- * ids, so plugins should namespace them (e.g. "<pluginId>.key").
+ * Hook for plugin components to access their own translations. Returns a
+ * `PluginTranslator` — `(key, options?) => string` — with the same behaviour
+ * plugins have always relied on: keys are scoped to this plugin, missing keys
+ * fall back to the key itself, and `{{var}}` placeholders interpolate from
+ * `options`. The plugin's `locales/<lang>.json` is loaded by the host before the
+ * component mounts. Re-renders on locale change (reads the active Lingui locale).
  */
-export function usePluginTranslation(_pluginId: string) {
+export function usePluginTranslation(pluginId: string) {
   const { i18n } = useLingui();
-  return (id: string, values?: Record<string, unknown>) => i18n._(id, values);
+  const locale = i18n.locale;
+  return useCallback(
+    (key: string, options?: Record<string, unknown>) =>
+      translatePlugin(pluginId, locale, key, options),
+    [pluginId, locale],
+  );
 }
 
 /**

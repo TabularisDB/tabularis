@@ -41,8 +41,11 @@ export function usePluginSetting(pluginId: string): UsePluginSettingReturn {
 }
 
 /**
- * Access the plugin's translations. Uses the plugin id as the i18next
- * namespace — the host registers it automatically from locales/*.json.
+ * Access the plugin's translations, scoped to your plugin id. The host loads your
+ * bundle's `locales/<lang>.json` automatically. Returns `(key, options?) => string`:
+ * missing keys fall back to the key, and both `{{var}}` (i18next) and `{var}`
+ * (ICU/Lingui) placeholders interpolate from `options`. The host runtime is Lingui;
+ * new plugins may author ICU `{var}` strings, existing `{{var}}` ones keep working.
  */
 export function usePluginTranslation(pluginId: string): PluginTranslator {
   return getHost().usePluginTranslation(pluginId);

@@ -3,6 +3,7 @@ import * as React from "react";
 import * as ReactJSXRuntime from "react/jsx-runtime";
 import { invoke } from "@tauri-apps/api/core";
 import { i18n } from "../i18n/lingui";
+import { loadPluginTranslations } from "../i18n/pluginI18n";
 
 import { PluginSlotContext } from "./PluginSlotContext";
 import type { PluginSlotRegistryType } from "./PluginSlotContext";
@@ -34,33 +35,6 @@ function exposePluginGlobals() {
   (window as unknown as Record<string, unknown>).ReactJSXRuntime = ReactJSXRuntime;
   (window as unknown as Record<string, unknown>).__TABULARIS_API__ = pluginApi;
   (window as unknown as Record<string, unknown>).__TABULARIS_API_VERSION__ = HOST_API_VERSION;
-}
-
-/**
- * Loads translation files for a plugin and merges them into the Lingui catalog.
- * Tries the current language first, then falls back to 'en'.
- * Missing locale files are silently skipped.
- * Plugin keys are used verbatim as Lingui message ids, so plugins should namespace
- * them (e.g. "<pluginId>.key") to avoid clashing with host or other-plugin messages.
- */
-const loadedPluginLocales = new Set<string>();
-async function loadPluginTranslations(pluginId: string): Promise<void> {
-  const langs = Array.from(new Set([i18n.locale?.split("-")[0], "en"])).filter(Boolean) as string[];
-  for (const lang of langs) {
-    const cacheKey = `${lang}:${pluginId}`;
-    if (loadedPluginLocales.has(cacheKey)) continue;
-    try {
-      const raw = await invoke<string>("read_plugin_file", {
-        pluginId,
-        filePath: `locales/${lang}.json`,
-      });
-      const translations = JSON.parse(raw) as Record<string, string>;
-      i18n.load(lang, translations);
-      loadedPluginLocales.add(cacheKey);
-    } catch {
-      // Locale file absent or invalid — silently skip.
-    }
-  }
 }
 
 /**
@@ -182,7 +156,7 @@ export const PluginSlotProvider = ({ children }: PluginSlotProviderProps) => {
         if (cancelled) break;
         try {
           const manifest = await invoke<PluginManifest>("get_plugin_manifest", { pluginId });
-          await loadPluginTranslations(pluginId);
+          await loadPluginTranslations(pluginId, i18n.locale);
           const pluginContributions = await loadExternalPluginContributions(manifest);
           loaded.push(...pluginContributions);
         } catch (err) {
