@@ -17,6 +17,32 @@ pnpm build
 - Types for the slot context, hooks, and the `defineSlot` helper come from [`@tabularis/plugin-api`](https://www.npmjs.com/package/@tabularis/plugin-api).
 - React, `react/jsx-runtime`, and `@tabularis/plugin-api` are Vite externals — the host injects them at load time, so nothing is double-bundled.
 
+## Translations (i18n)
+
+The host runtime is [Lingui](https://lingui.dev/). Plugin strings live in
+`../locales/<lang>.json` at the **plugin root** (not this `ui/` folder) — `just
+dev-install` copies them next to `manifest.json`, and the host loads them
+automatically.
+
+In components, call `usePluginTranslation(pluginId)`:
+
+```tsx
+const t = usePluginTranslation(pluginId);
+t("toolbar.label");
+t("toolbar.greeting", { table: context.tableName });
+```
+
+Authoring rules:
+
+- **Author new keys Lingui/ICU-style** with single-brace `{var}` placeholders.
+- Legacy i18next `{{var}}` placeholders still interpolate, for backwards
+  compatibility.
+- Resolution order is **active language → English (`en.json`) → the key itself**,
+  so a missing translation degrades gracefully.
+
+`locales/en.json` is the source of truth; add `locales/de.json`, etc. for each
+language you support (only the keys that differ — the rest fall back to English).
+
 ## Adding more slots
 
 Slot names and their context shapes live in `@tabularis/plugin-api`'s `SlotContextMap` type. Pick another slot, call `defineSlot` a second time with a different target, and expose both components by splitting the entry into separate files (Vite's `lib.entry` can be an object of entries) or by registering multiple `ui_extensions` entries in `manifest.json` pointing at different built modules.

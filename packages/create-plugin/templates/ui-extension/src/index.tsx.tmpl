@@ -4,18 +4,22 @@
 // slot — you'll see the button in the top-right of any data grid view
 // when the active connection uses this driver.
 //
+// Strings come from this plugin's `locales/<lang>.json` via
+// `usePluginTranslation`. Author them Lingui/ICU-style — `{var}` placeholders —
+// (the legacy i18next `{{var}}` form keeps working too). The host resolves the
+// active language, falling back to English and then the key itself.
+//
 // See the full slot list at:
 // https://github.com/TabularisDB/tabularis/blob/main/plugins/PLUGIN_GUIDE.md#available-slots
 
-import { defineSlot, usePluginToast } from "@tabularis/plugin-api";
+import { defineSlot, usePluginToast, usePluginTranslation } from "@tabularis/plugin-api";
 
-const Toolbar = defineSlot("data-grid.toolbar.actions", ({ context }) => {
+const Toolbar = defineSlot("data-grid.toolbar.actions", ({ context, pluginId }) => {
   const { showInfo } = usePluginToast();
+  const t = usePluginTranslation(pluginId);
 
   const handleClick = () => {
-    showInfo(
-      "Hello from ${DISPLAY_NAME}! Active table: " + (context.tableName ?? "(none)"),
-    );
+    showInfo(t("toolbar.greeting", { table: context.tableName ?? t("toolbar.noTable") }));
   };
 
   return (
@@ -32,7 +36,7 @@ const Toolbar = defineSlot("data-grid.toolbar.actions", ({ context }) => {
         cursor: "pointer",
       }}
     >
-      ${DISPLAY_NAME}
+      {t("toolbar.label")}
     </button>
   );
 });

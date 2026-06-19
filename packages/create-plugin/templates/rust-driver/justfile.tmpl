@@ -66,6 +66,9 @@ dev-install: build
         mkdir -p ~/.local/share/tabularis/plugins/${ID}/ui/dist; \
         cp ui/dist/index.js ~/.local/share/tabularis/plugins/${ID}/ui/dist/; \
     fi
+    @if [ -d locales ]; then \
+        cp -r locales ~/.local/share/tabularis/plugins/${ID}/; \
+    fi
     @echo "Installed to ~/.local/share/tabularis/plugins/${ID}"
     @echo "Restart Tabularis (or toggle the plugin in Settings) to pick up changes."
 
@@ -77,6 +80,9 @@ dev-install: build
     @if [ -f ui/dist/index.js ]; then \
         mkdir -p "$HOME/Library/Application Support/tabularis/plugins/${ID}/ui/dist"; \
         cp ui/dist/index.js "$HOME/Library/Application Support/tabularis/plugins/${ID}/ui/dist/"; \
+    fi
+    @if [ -d locales ]; then \
+        cp -r locales "$HOME/Library/Application Support/tabularis/plugins/${ID}/"; \
     fi
     @echo "Installed to ~/Library/Application Support/tabularis/plugins/${ID}"
     @echo "Restart Tabularis (or toggle the plugin in Settings) to pick up changes."
@@ -90,6 +96,9 @@ dev-install: build
     if (Test-Path "ui\dist\index.js") {
         New-Item -ItemType Directory -Force -Path (Join-Path $dest "ui\dist") | Out-Null
         Copy-Item "ui\dist\index.js" (Join-Path $dest "ui\dist")
+    }
+    if (Test-Path "locales") {
+        Copy-Item -Recurse -Force "locales" $dest
     }
     Write-Host "Installed to $dest"
     Write-Host "Restart Tabularis (or toggle the plugin in Settings) to pick up changes."

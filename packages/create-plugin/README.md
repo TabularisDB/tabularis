@@ -92,12 +92,20 @@ my-driver/
 With `--with-ui`:
 
 ```
-my-driver/ui/
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-└── src/index.tsx     # defineSlot("data-grid.toolbar.actions", …)
+my-driver/
+├── locales/
+│   ├── en.json       # plugin UI strings (Lingui/ICU `{var}` placeholders)
+│   └── de.json       # per-language overrides; missing keys fall back to en
+└── ui/
+    ├── package.json
+    ├── tsconfig.json
+    ├── vite.config.ts
+    └── src/index.tsx # defineSlot("data-grid.toolbar.actions", …) + usePluginTranslation
 ```
+
+The UI scaffold is wired for i18n out of the box: strings live in `locales/<lang>.json`
+and are read via `usePluginTranslation(pluginId)`. The host runtime is Lingui — author
+new keys ICU-style (`{var}`); legacy i18next `{{var}}` placeholders still work.
 
 ## Requirements
 

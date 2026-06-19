@@ -61,8 +61,10 @@ function buildVars(opts: ScaffoldOptions): Record<string, string> {
     YEAR: String(new Date().getUTCFullYear()),
     PLUGIN_API_VERSION: opts.pluginApiVersion,
     MIN_TABULARIS_VERSION: opts.minTabularisVersion,
+    // Appended verbatim after the manifest's `data_types` array. Declares the UI
+    // bundle so the host actually loads it (and its locales); empty without --with-ui.
     UI_EXTENSIONS_ENTRY: opts.withUi
-      ? `    {\n      "slot": "data-grid.toolbar.actions",\n      "module": "ui/dist/index.js"\n    }\n  `
+      ? `,\n  "ui_extensions": [\n    {\n      "slot": "data-grid.toolbar.actions",\n      "module": "ui/dist/index.js"\n    }\n  ]`
       : "",
   };
 }
@@ -124,6 +126,9 @@ export function scaffold(opts: ScaffoldOptions): void {
 
   if (opts.withUi) {
     copyTemplate("ui-extension", join(opts.targetDir, "ui"), vars);
+    // Plugin translations are read by the host from `<plugin>/locales/<lang>.json`
+    // (project root, not the ui/ subworkspace), so seed them there.
+    copyTemplate("ui-extension-locales", opts.targetDir, vars);
   }
 
   if (opts.gitInit) {
