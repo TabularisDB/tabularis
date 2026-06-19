@@ -175,7 +175,7 @@ describe("JsonTreeView", () => {
   describe("search", () => {
     it("renders a controlled search input when no external searchQuery is provided", () => {
       render(<JsonTreeView value={{ a: 1 }} />);
-      const input = screen.getByPlaceholderText("jsonInput.search");
+      const input = screen.getByPlaceholderText("Search");
       expect(input).toBeInTheDocument();
       expect((input as HTMLInputElement).value).toBe("");
     });
@@ -183,14 +183,14 @@ describe("JsonTreeView", () => {
     it("does not render the internal search input when searchQuery is provided", () => {
       render(<JsonTreeView value={{ a: 1 }} searchQuery="" />);
       expect(
-        screen.queryByPlaceholderText("jsonInput.search"),
+        screen.queryByPlaceholderText("Search"),
       ).not.toBeInTheDocument();
     });
 
     it("forwards typed text from the internal input to the editor's searchText", () => {
       render(<JsonTreeView value={{ name: "Alice", nested: { count: 3 } }} />);
       const input = screen.getByPlaceholderText(
-        "jsonInput.search",
+        "Search",
       ) as HTMLInputElement;
 
       fireEvent.change(input, { target: { value: "Alice" } });
@@ -201,7 +201,7 @@ describe("JsonTreeView", () => {
     it("clears the editor's searchText when the internal input is cleared", () => {
       render(<JsonTreeView value={{ name: "Alice" }} />);
       const input = screen.getByPlaceholderText(
-        "jsonInput.search",
+        "Search",
       ) as HTMLInputElement;
 
       fireEvent.change(input, { target: { value: "Alice" } });
@@ -215,7 +215,7 @@ describe("JsonTreeView", () => {
     it("forwards the user's text verbatim so the library can do case-insensitive matching", () => {
       render(<JsonTreeView value={{ Name: "Alice" }} />);
       const input = screen.getByPlaceholderText(
-        "jsonInput.search",
+        "Search",
       ) as HTMLInputElement;
 
       fireEvent.change(input, { target: { value: "alice" } });

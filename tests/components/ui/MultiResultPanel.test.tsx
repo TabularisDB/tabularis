@@ -106,8 +106,8 @@ describe("MultiResultPanel", () => {
         activeResultId="r-0"
       />,
     );
-    // i18n mock interpolates {{index}} so we get "editor.multiResult.query" with index values
-    const tabTexts = screen.getAllByText(/editor\.multiResult\.query/);
+    // Lingui mock renders source text; tab label is `${prefix} ${n}` → "Query 1", "Query 2"
+    const tabTexts = screen.getAllByText(/Query/);
     expect(tabTexts).toHaveLength(2);
   });
 
@@ -123,7 +123,7 @@ describe("MultiResultPanel", () => {
       />,
     );
     expect(
-      screen.getByText("editor.executingQuery"),
+      screen.getByText("Executing query..."),
     ).toBeInTheDocument();
   });
 
@@ -160,7 +160,7 @@ describe("MultiResultPanel", () => {
       />,
     );
     expect(screen.getByTestId("data-grid")).toBeInTheDocument();
-    expect(screen.getByText(/editor\.rowsRetrieved/)).toBeInTheDocument();
+    expect(screen.getByText(/rows retrieved/)).toBeInTheDocument();
   });
 
   it("calls onSelectResult when clicking a tab", () => {
@@ -179,7 +179,7 @@ describe("MultiResultPanel", () => {
     const buttons = screen.getAllByRole("button");
     // Find a button that is a tab for query 2 (it won't have the rerun button since it's loading)
     const tabButtons = buttons.filter((btn) =>
-      btn.textContent?.includes("editor.multiResult.query"),
+      btn.textContent?.includes("Query"),
     );
     if (tabButtons.length >= 2) {
       fireEvent.click(tabButtons[1]);
@@ -204,7 +204,7 @@ describe("MultiResultPanel", () => {
       />,
     );
     // Only the first entry should have a rerun button
-    const rerunButtons = screen.getAllByTitle("editor.multiResult.rerun");
+    const rerunButtons = screen.getAllByTitle("Re-run query");
     expect(rerunButtons).toHaveLength(1);
   });
 
@@ -223,7 +223,7 @@ describe("MultiResultPanel", () => {
         activeResultId="r-0"
       />,
     );
-    fireEvent.click(screen.getByTitle("editor.multiResult.rerun"));
+    fireEvent.click(screen.getByTitle("Re-run query"));
     expect(mockOnRerunEntry).toHaveBeenCalledWith("r-0");
   });
 

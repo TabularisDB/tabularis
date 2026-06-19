@@ -8,16 +8,21 @@ import type { Settings } from "../../src/contexts/SettingsContext";
 
 vi.mock("@tauri-apps/api/core");
 
-// Mock react-i18next
-const mockChangeLanguage = vi.fn();
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-    i18n: {
-      changeLanguage: mockChangeLanguage,
-      language: "en",
-    },
-  }),
+// Mock the Lingui locale bridge. SettingsProvider activates the resolved locale
+// via dynamicActivate (no more i18next changeLanguage).
+const { mockDynamicActivate } = vi.hoisted(() => ({ mockDynamicActivate: vi.fn() }));
+vi.mock("../../src/i18n/lingui", () => ({
+  dynamicActivate: mockDynamicActivate,
+  SUPPORTED_LANGUAGES: [
+    { id: "en", label: "English" },
+    { id: "it", label: "Italiano" },
+    { id: "es", label: "Español" },
+    { id: "zh", label: "中文" },
+    { id: "fr", label: "Français" },
+    { id: "de", label: "Deutsch" },
+    { id: "ja", label: "日本語" },
+    { id: "ru", label: "Русский" },
+  ],
 }));
 
 describe("SettingsProvider", () => {
@@ -259,7 +264,7 @@ describe("SettingsProvider", () => {
       expect(result.current.settings.language).toBe("it");
     });
 
-    expect(mockChangeLanguage).toHaveBeenCalledWith("it");
+    expect(mockDynamicActivate).toHaveBeenCalledWith("it");
   });
 
   it("should apply font settings to document", async () => {

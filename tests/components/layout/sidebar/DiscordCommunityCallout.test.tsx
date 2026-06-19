@@ -28,8 +28,12 @@ describe("DiscordCommunityCallout", () => {
 
     expect(screen.getByTestId("discord-callout")).toBeInTheDocument();
     expect(screen.getByTestId("discord-callout-pulse")).toBeInTheDocument();
-    expect(screen.getByText("discordCallout.title")).toBeInTheDocument();
-    expect(screen.getByText("discordCallout.body")).toBeInTheDocument();
+    expect(screen.getByText("Brand-new Discord community!")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "We just launched a dedicated home for Tabularis users. Get help, share tips, shape the roadmap.",
+      ),
+    ).toBeInTheDocument();
     expect(storage.getItem).toHaveBeenCalledWith(DISCORD_CALLOUT_STORAGE_KEY);
   });
 
@@ -45,7 +49,7 @@ describe("DiscordCommunityCallout", () => {
     const storage = createMemoryStorage();
     render(<DiscordCommunityCallout storage={storage} />);
 
-    fireEvent.click(screen.getByLabelText("discordCallout.dismiss"));
+    fireEvent.click(screen.getByLabelText("Dismiss"));
 
     expect(storage.setItem).toHaveBeenCalledWith(DISCORD_CALLOUT_STORAGE_KEY, "true");
     expect(screen.queryByTestId("discord-callout")).not.toBeInTheDocument();
@@ -55,7 +59,7 @@ describe("DiscordCommunityCallout", () => {
     const storage = createMemoryStorage();
     render(<DiscordCommunityCallout storage={storage} />);
 
-    fireEvent.click(screen.getByText("discordCallout.cta"));
+    fireEvent.click(screen.getByText("Join now"));
 
     expect(openUrl).toHaveBeenCalledWith("https://discord.com/invite/K2hmhfHRSt");
     expect(storage.setItem).toHaveBeenCalledWith(DISCORD_CALLOUT_STORAGE_KEY, "true");
@@ -71,7 +75,7 @@ describe("DiscordCommunityCallout", () => {
     };
     render(<DiscordCommunityCallout storage={storage} />);
 
-    fireEvent.click(screen.getByLabelText("discordCallout.dismiss"));
+    fireEvent.click(screen.getByLabelText("Dismiss"));
 
     expect(screen.queryByTestId("discord-callout")).not.toBeInTheDocument();
   });

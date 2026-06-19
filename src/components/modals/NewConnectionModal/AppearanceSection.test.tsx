@@ -96,7 +96,7 @@ describe("AppearanceSection — icon tabs", () => {
   it("renders 4 tabs", () => {
     render(<AppearanceSection value={{}} onChange={() => {}} connectionId="1" />);
     expect(screen.getByRole("tab", { name: /default/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /pack/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /icon/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /emoji/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /image/i })).toBeInTheDocument();
   });
@@ -104,7 +104,7 @@ describe("AppearanceSection — icon tabs", () => {
   it("picks a pack icon and emits IconOverride", () => {
     const onChange = vi.fn();
     render(<AppearanceSection value={{}} onChange={onChange} connectionId="1" />);
-    fireEvent.click(screen.getByRole("tab", { name: /pack/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /icon/i }));
     fireEvent.click(screen.getByRole("button", { name: "pick-server" }));
     expect(onChange).toHaveBeenCalledWith({ icon: { type: "pack", id: "server" } });
   });
@@ -197,7 +197,7 @@ describe("AppearanceSection — icon tabs", () => {
 
   it("filters pack icons by search term", () => {
     render(<AppearanceSection value={{}} onChange={() => {}} connectionId="1" />);
-    fireEvent.click(screen.getByRole("tab", { name: /pack/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /icon/i }));
     const allInitial = screen.getAllByRole("button", { name: /^pick-/i });
     // The mocked dynamicIconImports has 5 icons (all shown since < RESULT_LIMIT of 120)
     expect(allInitial.length).toBeGreaterThan(0);
@@ -222,7 +222,7 @@ describe("AppearanceSection — icon tabs", () => {
         connectionId="1"
       />
     );
-    expect(screen.getByRole("tab", { name: /pack/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /icon/i })).toHaveAttribute("aria-selected", "true");
   });
 
   it("resets to derived tab when value.icon type changes externally after a user click", () => {
@@ -241,6 +241,6 @@ describe("AppearanceSection — icon tabs", () => {
       />
     );
     // Tab must follow the new icon type, not stay stuck on the user's previous choice
-    expect(screen.getByRole("tab", { name: /pack/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /icon/i })).toHaveAttribute("aria-selected", "true");
   });
 });

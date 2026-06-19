@@ -114,8 +114,8 @@ function renderModal() {
 async function openInlineK8s() {
   renderModal();
   fireEvent.click(screen.getByText("Kubernetes"));
-  fireEvent.click(screen.getByLabelText("newConnection.useK8s"));
-  fireEvent.click(screen.getByText("newConnection.createInlineK8s"));
+  fireEvent.click(screen.getByLabelText("Use Kubernetes Port-Forward"));
+  fireEvent.click(screen.getByText("Inline"));
 
   await waitFor(() => {
     expect(screen.getByRole("option", { name: "ctx" })).toBeInTheDocument();
@@ -123,25 +123,25 @@ async function openInlineK8s() {
 }
 
 async function chooseServiceResource() {
-  fireEvent.change(screen.getByLabelText("newConnection.chooseContext"), {
+  fireEvent.change(screen.getByLabelText("Choose a context..."), {
     target: { value: "ctx" },
   });
 
   await waitFor(() => {
     expect(screen.getByRole("option", { name: "db" })).toBeInTheDocument();
   });
-  fireEvent.change(screen.getByLabelText("newConnection.chooseNamespace"), {
+  fireEvent.change(screen.getByLabelText("Choose a namespace..."), {
     target: { value: "db" },
   });
 
-  fireEvent.change(screen.getByLabelText("newConnection.k8sSelectType"), {
+  fireEvent.change(screen.getByLabelText("Select type..."), {
     target: { value: "service" },
   });
 
   await waitFor(() => {
     expect(screen.getByRole("option", { name: "mysql-svc" })).toBeInTheDocument();
   });
-  fireEvent.change(screen.getByLabelText("newConnection.chooseResource"), {
+  fireEvent.change(screen.getByLabelText("Choose a resource..."), {
     target: { value: "mysql-svc" },
   });
 }
@@ -166,7 +166,7 @@ describe("NewConnectionModal K8s port defaults", () => {
     expect(portInput).toHaveAttribute("type", "number");
     expect(portInput).toHaveValue(15432);
 
-    fireEvent.click(screen.getByText("newConnection.testConnection"));
+    fireEvent.click(screen.getByText("Test Connection"));
 
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith(
@@ -205,7 +205,7 @@ describe("NewConnectionModal K8s port defaults", () => {
       expect(portInput).toHaveValue(6543);
     });
 
-    fireEvent.click(screen.getByText("newConnection.testConnection"));
+    fireEvent.click(screen.getByText("Test Connection"));
 
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith(

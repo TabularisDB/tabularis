@@ -99,7 +99,7 @@ describe("SidebarViewItem", () => {
 
     // Wait for columns to load
     await waitFor(() => {
-      expect(screen.getByText("sidebar.columns")).toBeInTheDocument();
+      expect(screen.getByText("columns")).toBeInTheDocument();
     });
 
     // Should display column names
@@ -130,14 +130,14 @@ describe("SidebarViewItem", () => {
     // Expand
     fireEvent.click(expandButton);
     await waitFor(() => {
-      expect(screen.getByText("sidebar.columns")).toBeInTheDocument();
+      expect(screen.getByText("columns")).toBeInTheDocument();
     });
 
     // Collapse
     fireEvent.click(expandButton);
     
     // Columns should not be visible
-    expect(screen.queryByText("sidebar.columns")).not.toBeInTheDocument();
+    expect(screen.queryByText("columns")).not.toBeInTheDocument();
   });
 
   it("displays column count in folder header", async () => {

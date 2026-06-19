@@ -79,27 +79,27 @@ function renderModal(defaultPort: number | null) {
 }
 
 async function fillRequiredFields() {
-  fireEvent.change(screen.getByPlaceholderText("k8sConnections.namePlaceholder"), {
+  fireEvent.change(screen.getByPlaceholderText("My K8s cluster"), {
     target: { value: "cluster" },
   });
   await waitFor(() => {
     expect(screen.getByRole("option", { name: "ctx" })).toBeInTheDocument();
   });
-  fireEvent.change(screen.getByLabelText("k8sConnections.chooseContext"), {
+  fireEvent.change(screen.getByLabelText("Choose a context..."), {
     target: { value: "ctx" },
   });
 
   await waitFor(() => {
     expect(screen.getByRole("option", { name: "db" })).toBeInTheDocument();
   });
-  fireEvent.change(screen.getByLabelText("k8sConnections.chooseNamespace"), {
+  fireEvent.change(screen.getByLabelText("Choose a namespace..."), {
     target: { value: "db" },
   });
 
   await waitFor(() => {
     expect(screen.getByRole("option", { name: "mysql-svc" })).toBeInTheDocument();
   });
-  fireEvent.change(screen.getByLabelText("k8sConnections.chooseResource"), {
+  fireEvent.change(screen.getByLabelText("Choose a resource..."), {
     target: { value: "mysql-svc" },
   });
 }
@@ -137,7 +137,7 @@ describe("K8sConnectionsModal port defaults", () => {
   it("does not fall back to MySQL port when the driver has no default port", () => {
     renderModal(null);
 
-    fireEvent.click(screen.getByText("k8sConnections.add"));
+    fireEvent.click(screen.getByText("Add"));
 
     const portInput = screen.getByRole("spinbutton") as HTMLInputElement;
     expect(portInput.value).toBe("");
@@ -150,7 +150,7 @@ describe("K8sConnectionsModal port defaults", () => {
       <K8sConnectionsModal isOpen={true} onClose={onClose} defaultPort={3306} />,
     );
 
-    fireEvent.click(screen.getByText("k8sConnections.add"));
+    fireEvent.click(screen.getByText("Add"));
     const portInput = screen.getByRole("spinbutton") as HTMLInputElement;
     expect(portInput.value).toBe("3306");
 
@@ -163,7 +163,7 @@ describe("K8sConnectionsModal port defaults", () => {
   it("clearing a manual port falls back to the provided driver default instead of 0", async () => {
     renderModal(15432);
 
-    fireEvent.click(screen.getByText("k8sConnections.add"));
+    fireEvent.click(screen.getByText("Add"));
     await fillRequiredFields();
 
     const portInput = screen.getByRole("spinbutton") as HTMLInputElement;
@@ -171,7 +171,7 @@ describe("K8sConnectionsModal port defaults", () => {
 
     fireEvent.change(portInput, { target: { value: "7777" } });
     fireEvent.change(portInput, { target: { value: "" } });
-    fireEvent.click(screen.getByText("common.save"));
+    fireEvent.click(screen.getByText("Save"));
 
     await waitFor(() => {
       expect(k8sMocks.saveK8sConnection).toHaveBeenCalledWith(

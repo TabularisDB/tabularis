@@ -31,26 +31,26 @@ describe("JsonExpansionEditor", () => {
 
   it("renders save and cancel buttons when editable", () => {
     render(<JsonExpansionEditor {...baseProps} />);
-    expect(screen.getByText("common.cancel")).toBeInTheDocument();
-    expect(screen.getByText("jsonViewer.save")).toBeInTheDocument();
+    expect(screen.getByText("Cancel")).toBeInTheDocument();
+    expect(screen.getByText("Save")).toBeInTheDocument();
   });
 
   it("hides buttons when read-only", () => {
     render(<JsonExpansionEditor {...baseProps} readOnly={true} />);
-    expect(screen.queryByText("common.cancel")).toBeNull();
-    expect(screen.queryByText("jsonViewer.save")).toBeNull();
+    expect(screen.queryByText("Cancel")).toBeNull();
+    expect(screen.queryByText("Save")).toBeNull();
   });
 
   it("disables save while no edits", () => {
     render(<JsonExpansionEditor {...baseProps} />);
-    const save = screen.getByText("jsonViewer.save");
+    const save = screen.getByText("Save");
     expect(save).toBeDisabled();
   });
 
   it("calls onCancel when cancel clicked", () => {
     const onCancel = vi.fn();
     render(<JsonExpansionEditor {...baseProps} onCancel={onCancel} />);
-    fireEvent.click(screen.getByText("common.cancel"));
+    fireEvent.click(screen.getByText("Cancel"));
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
@@ -59,7 +59,7 @@ describe("JsonExpansionEditor", () => {
     render(<JsonExpansionEditor {...baseProps} onSave={onSave} />);
     const editor = screen.getByTestId("json-code-editor");
     fireEvent.change(editor, { target: { value: '{"a":2}' } });
-    fireEvent.click(screen.getByText("jsonViewer.save"));
+    fireEvent.click(screen.getByText("Save"));
     expect(onSave).toHaveBeenCalledWith({ a: 2 });
   });
 
@@ -68,7 +68,7 @@ describe("JsonExpansionEditor", () => {
     const editor = screen.getByTestId("json-code-editor");
     fireEvent.change(editor, { target: { value: "{ broken" } });
     expect(screen.getByTestId("json-expansion-error")).toBeInTheDocument();
-    expect(screen.getByText("jsonViewer.save")).toBeDisabled();
+    expect(screen.getByText("Save")).toBeDisabled();
   });
 
   it("formats incoming object as pretty-printed JSON", () => {

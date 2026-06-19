@@ -38,13 +38,13 @@ describe("JsonCell", () => {
   it("renders no icon buttons for null value", () => {
     render(<JsonCell {...baseProps} value={null} displayText="null" />);
     expect(
-      screen.queryByRole("button", { name: /expand|viewer/i }),
+      screen.queryByRole("button", { name: /toggle|viewer/i }),
     ).toBeNull();
   });
 
   it("renders both icon buttons when value is non-null", () => {
     render(<JsonCell {...baseProps} />);
-    expect(screen.getByRole("button", { name: /expand/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /toggle/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /viewer/i })).toBeInTheDocument();
   });
 
@@ -58,13 +58,13 @@ describe("JsonCell", () => {
   it("calls onToggleExpand when chevron clicked", () => {
     const onToggleExpand = vi.fn();
     render(<JsonCell {...baseProps} onToggleExpand={onToggleExpand} />);
-    fireEvent.click(screen.getByRole("button", { name: /expand/i }));
+    fireEvent.click(screen.getByRole("button", { name: /toggle/i }));
     expect(onToggleExpand).toHaveBeenCalledTimes(1);
   });
 
   it("applies rotated chevron class when expanded", () => {
     render(<JsonCell {...baseProps} isExpanded={true} />);
-    const chevron = screen.getByRole("button", { name: /expand/i });
+    const chevron = screen.getByRole("button", { name: /toggle/i });
     expect(chevron.className).toMatch(/rotate-90/);
   });
 
@@ -107,7 +107,7 @@ describe("JsonCell", () => {
 
   it("hides icons when isPendingDelete is true", () => {
     render(<JsonCell {...baseProps} isPendingDelete={true} />);
-    expect(screen.queryByRole("button", { name: /expand/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /toggle/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /viewer/i })).toBeNull();
   });
 });
