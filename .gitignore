@@ -32,3 +32,6 @@ coverage
 plugins/**/target
 .gitnexus
 .pi/
+
+# Lingui: never commit CJS compile output (we ship the --typescript ES catalogs)
+src/locales/**/*.js
