@@ -1,0 +1,23 @@
+{
+  "Close": [
+    "schema.close"
+  ],
+  "Delete {{count}} rows": [
+    "dataGrid.deleteRows_other"
+  ],
+  "Delete {{count}} row": [
+    "dataGrid.deleteRows_one"
+  ],
+  "{{count}} rows · {{time}}ms": [
+    "editor.notebook.cellResult_other"
+  ],
+  "{{count}} row · {{time}}ms": [
+    "editor.notebook.cellResult_one"
+  ],
+  "Delete index \"{name}\"?": [
+    "sidebar.deleteIndexConfirm"
+  ],
+  "Delete\u0004generateSQL": [
+    "generateSQL.tabDelete"
+  ]
+}

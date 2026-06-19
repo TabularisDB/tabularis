@@ -1,0 +1,1 @@
+scripts/i18n/fixtures/input.tsx:12  non-literal t() key  t(dynamicKey)
