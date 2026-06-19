@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useLingui } from "@lingui/react/macro";
 import { useSettings } from "../../hooks/useSettings";
-import { SUPPORTED_LANGUAGES, type AppLanguage } from "../../i18n/config";
+import { SUPPORTED_LANGUAGES, type AppLanguage } from "../../i18n/lingui";
 import { SettingSection, SettingRow, SettingButtonGroup } from "./SettingControls";
 import { Select } from "../ui/Select";
 

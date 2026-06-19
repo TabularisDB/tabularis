@@ -6,8 +6,7 @@ import {
   type Settings,
 } from "./SettingsContext";
 import { getFontCSS } from "../utils/settings";
-import { dynamicActivate } from "../i18n/lingui";
-import { SUPPORTED_LANGUAGES } from "../i18n/config";
+import { dynamicActivate, SUPPORTED_LANGUAGES } from "../i18n/lingui";
 
 // Resolve the "auto" language setting to a supported locale via the browser
 // language, falling back to English.

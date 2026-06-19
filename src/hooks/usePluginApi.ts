@@ -2,7 +2,7 @@ import { useState, useCallback, useContext, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import { openUrl as openExternal } from "@tauri-apps/plugin-opener";
-import { useLingui } from "@lingui/react/macro";
+import { useLingui } from "@lingui/react";
 
 import { ThemeContext } from "../contexts/ThemeContext";
 import { DatabaseContext } from "../contexts/DatabaseContext";
@@ -143,13 +143,14 @@ export function usePluginSetting(pluginId: string) {
 }
 
 /**
- * Hook for plugin components to access their own translations.
- * Uses the plugin ID as the i18next namespace, which must be pre-loaded
- * by the Tabularis plugin loader before the component mounts.
+ * Hook for plugin components to access their own translations. Returns a runtime
+ * translate function; the plugin's locale files are merged into the Lingui catalog
+ * by the loader before the component mounts. Keys are looked up verbatim as message
+ * ids, so plugins should namespace them (e.g. "<pluginId>.key").
  */
 export function usePluginTranslation(_pluginId: string) {
-  const { t } = useLingui();
-  return t;
+  const { i18n } = useLingui();
+  return (id: string, values?: Record<string, unknown>) => i18n._(id, values);
 }
 
 /**

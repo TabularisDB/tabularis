@@ -5,9 +5,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App';
 import './index.css';
-import './i18n/config';
 import { I18nProvider } from '@lingui/react';
-import { i18n, dynamicActivate } from './i18n/lingui';
+import { i18n, dynamicActivate, detectLocale } from './i18n/lingui';
 import { DatabaseProvider } from './contexts/DatabaseProvider';
 import { SettingsProvider } from './contexts/SettingsProvider';
 import { SavedQueriesProvider } from './contexts/SavedQueriesProvider';
@@ -17,7 +16,7 @@ import { ThemeProvider } from './contexts/ThemeProvider';
 import { UpdateProvider } from './contexts/UpdateProvider';
 
 void (async () => {
-  await dynamicActivate("en");
+  await dynamicActivate(detectLocale());
   ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <React.StrictMode>
       <UpdateProvider>

@@ -2,11 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AppearanceSection } from "./AppearanceSection";
 
-// Mock react-i18next so the section renders predictably regardless of locale files
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (k: string) => k, i18n: { language: "en" } }),
-}));
-
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: vi.fn().mockResolvedValue("/tmp/picked.png"),
 }));

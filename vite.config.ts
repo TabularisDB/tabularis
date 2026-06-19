@@ -31,7 +31,7 @@ export default defineConfig({
           recharts: ['recharts'],
           xyflow: ['@xyflow/react', 'dagre'],
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          i18n: ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
+          i18n: ['@lingui/core', '@lingui/react'],
           markdown: ['react-markdown'],
           table: ['@tanstack/react-table', '@tanstack/react-virtual'],
           wkx: ['wkx', 'buffer', 'util'],

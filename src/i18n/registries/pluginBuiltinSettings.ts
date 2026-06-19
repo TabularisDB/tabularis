@@ -3,7 +3,7 @@ import type { MessageDescriptor } from "@lingui/core";
 
 /**
  * Keyed by `${pluginId}.${def.key}.label` and `${pluginId}.${def.key}.description`
- * to mirror the i18next key shape used at the call sites.
+ * to mirror the key shape built at the call sites.
  */
 export const pluginBuiltinSettings: Record<string, MessageDescriptor> = {
   "mysql.maxAllowedPacket.label": msg`Max Allowed Packet`,
