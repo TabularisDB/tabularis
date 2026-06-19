@@ -597,6 +597,10 @@ msgstr "Auto Increment"
 msgid "Auto paginated"
 msgstr "Auto paginated"
 
+#: src/components/settings/LocalizationTab.tsx
+msgid "Automatic updates"
+msgstr "Automatic updates"
+
 #: src/components/settings/InfoTab.tsx
 msgid "Automatically check for new versions when the app launches"
 msgstr "Automatically check for new versions when the app launches"
@@ -741,6 +745,10 @@ msgstr "Check for Updates Now"
 #: src/components/settings/InfoTab.tsx
 msgid "Check for updates on startup"
 msgstr "Check for updates on startup"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Check interval"
+msgstr "Check interval"
 
 #: src/components/modals/McpModal.tsx
 #: src/pages/McpPage.tsx
@@ -2293,6 +2301,10 @@ msgstr "Failed: "
 msgid "Favorites"
 msgstr "Favorites"
 
+#: src/components/settings/LocalizationTab.tsx
+msgid "Fetch the latest translations from the cloud without waiting for an app update."
+msgstr "Fetch the latest translations from the cloud without waiting for an app update."
+
 #: src/components/modals/NewConnectionModal.tsx
 msgid "File Path"
 msgstr "File Path"
@@ -2515,6 +2527,10 @@ msgstr "How long the MCP subprocess will wait for the user's decision before fai
 #: src/components/settings/LogsTab.tsx
 msgid "How many logs to keep in memory (1-10000)"
 msgstr "How many logs to keep in memory (1-10000)"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "How often to check for new translations."
+msgstr "How often to check for new translations."
 
 #: src/components/settings/GeneralTab.tsx
 msgid "How often to check if active connections are still alive. Set to 0 to disable."
@@ -2966,6 +2982,10 @@ msgstr "Message"
 #: src/components/modals/ClipboardImport/SchemaEditor.tsx
 msgid "Minimize"
 msgstr "Minimize"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "minutes"
+msgstr "minutes"
 
 #: src/components/modals/ClipboardImport/SchemaEditor.tsx
 msgid "Mixed types detected, defaulted to TEXT"
@@ -5017,6 +5037,10 @@ msgstr "Top Issues"
 #: src/components/modals/visual-explain/ExplainSummaryBar.tsx
 msgid "Total Cost"
 msgstr "Total Cost"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Translation updates"
+msgstr "Translation updates"
 
 #: src/components/ui/JsonInput.tsx
 msgid "Tree"

@@ -500,12 +500,10 @@ msgstr "Очистить всю историю запросов для этог�
 
 #. placeholder {0}: column.name
 #: src/components/layout/sidebar/SidebarColumnItem.tsx
-msgid ""
-"Are you sure you want to delete column \"{0}\" from table \"{tableName}\"?\n"
+msgid "Are you sure you want to delete column \"{0}\" from table \"{tableName}\"?\n"
 "\n"
 "WARNING: This will permanently delete all data in this column. This action cannot be undone."
-msgstr ""
-"Удалить столбец \"{0}\" из таблицы \"{tableName}\"?\n"
+msgstr "Удалить столбец \"{0}\" из таблицы \"{tableName}\"?\n"
 "\n"
 "ВНИМАНИЕ: Все данные в этом столбце будут безвозвратно удалены. Действие необратимо."
 
@@ -548,11 +546,9 @@ msgstr "Удалить представление \"{0}\"?"
 
 #. placeholder {0}: file.split(/[\\/]/).pop()
 #: src/components/layout/ExplorerSidebar.tsx
-msgid ""
-"Are you sure you want to import \"{0}\"?\n"
+msgid "Are you sure you want to import \"{0}\"?\n"
 "This may overwrite existing data."
-msgstr ""
-"Импортировать \"{0}\"?\n"
+msgstr "Импортировать \"{0}\"?\n"
 "Существующие данные могут быть перезаписаны."
 
 #: src/components/modals/ViewEditorModal.tsx
@@ -600,6 +596,10 @@ msgstr "Автоинкремент"
 #: src/pages/Editor.tsx
 msgid "Auto paginated"
 msgstr "Автопостраничный вывод"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Automatic updates"
+msgstr ""
 
 #: src/components/settings/InfoTab.tsx
 msgid "Automatically check for new versions when the app launches"
@@ -745,6 +745,10 @@ msgstr "Проверить обновления сейчас"
 #: src/components/settings/InfoTab.tsx
 msgid "Check for updates on startup"
 msgstr "Проверять обновления при запуске"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Check interval"
+msgstr ""
 
 #: src/components/modals/McpModal.tsx
 #: src/pages/McpPage.tsx
@@ -2297,6 +2301,10 @@ msgstr "Ошибка: "
 msgid "Favorites"
 msgstr "Избранное"
 
+#: src/components/settings/LocalizationTab.tsx
+msgid "Fetch the latest translations from the cloud without waiting for an app update."
+msgstr ""
+
 #: src/components/modals/NewConnectionModal.tsx
 msgid "File Path"
 msgstr "Путь к файлу"
@@ -2519,6 +2527,10 @@ msgstr "Сколько времени MCP-процесс ожидает реше
 #: src/components/settings/LogsTab.tsx
 msgid "How many logs to keep in memory (1-10000)"
 msgstr "Количество логов, хранимых в памяти (1–10000)"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "How often to check for new translations."
+msgstr ""
 
 #: src/components/settings/GeneralTab.tsx
 msgid "How often to check if active connections are still alive. Set to 0 to disable."
@@ -2970,6 +2982,10 @@ msgstr "Сообщение"
 #: src/components/modals/ClipboardImport/SchemaEditor.tsx
 msgid "Minimize"
 msgstr "Свернуть"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "minutes"
+msgstr ""
 
 #: src/components/modals/ClipboardImport/SchemaEditor.tsx
 msgid "Mixed types detected, defaulted to TEXT"
@@ -5021,6 +5037,10 @@ msgstr "Основные проблемы"
 #: src/components/modals/visual-explain/ExplainSummaryBar.tsx
 msgid "Total Cost"
 msgstr "Общая стоимость"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Translation updates"
+msgstr ""
 
 #: src/components/ui/JsonInput.tsx
 msgid "Tree"

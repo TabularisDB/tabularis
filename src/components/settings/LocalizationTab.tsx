@@ -1,8 +1,20 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLingui } from "@lingui/react/macro";
 import { useSettings } from "../../hooks/useSettings";
 import { SUPPORTED_LANGUAGES, type AppLanguage } from "../../i18n/lingui";
-import { SettingSection, SettingRow, SettingButtonGroup } from "./SettingControls";
+import {
+  isOtaEnabled,
+  setOtaEnabled,
+  getOtaIntervalMinutes,
+  setOtaIntervalMinutes,
+} from "../../i18n/ota";
+import {
+  SettingSection,
+  SettingRow,
+  SettingButtonGroup,
+  SettingToggle,
+  SettingNumberInput,
+} from "./SettingControls";
 import { Select } from "../ui/Select";
 
 /** All IANA timezone names supported by the runtime, or [] if unavailable. */
@@ -33,6 +45,8 @@ function zoneOffset(zone: string, at: Date): string {
 export function LocalizationTab() {
   const { t } = useLingui();
   const { settings, updateSetting } = useSettings();
+  const [otaEnabled, setOtaEnabledState] = useState(() => isOtaEnabled());
+  const [otaInterval, setOtaIntervalState] = useState(() => getOtaIntervalMinutes());
 
   const options: Array<{ value: AppLanguage; label: string }> = [
     { value: "auto", label: t`Auto (System)` },
@@ -87,6 +101,39 @@ export function LocalizationTab() {
             searchPlaceholder={t`Search timezones...`}
           />
         </SettingRow>
+      </SettingSection>
+      <SettingSection title={t`Translation updates`}>
+        <SettingRow
+          label={t`Automatic updates`}
+          description={t`Fetch the latest translations from the cloud without waiting for an app update.`}
+        >
+          <SettingToggle
+            checked={otaEnabled}
+            onChange={(v) => {
+              setOtaEnabled(v);
+              setOtaEnabledState(v);
+            }}
+          />
+        </SettingRow>
+        {otaEnabled && (
+          <SettingRow
+            label={t`Check interval`}
+            description={t`How often to check for new translations.`}
+          >
+            <SettingNumberInput
+              value={otaInterval}
+              min={1}
+              step={1}
+              suffix={t`minutes`}
+              fallback={15}
+              onChange={(v) => {
+                const minutes = Math.max(1, v);
+                setOtaIntervalMinutes(minutes);
+                setOtaIntervalState(minutes);
+              }}
+            />
+          </SettingRow>
+        )}
       </SettingSection>
     </div>
   );

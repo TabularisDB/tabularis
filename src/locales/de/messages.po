@@ -500,12 +500,10 @@ msgstr "Möchtest du den gesamten Abfrageverlauf für diese Verbindung wirklich 
 
 #. placeholder {0}: column.name
 #: src/components/layout/sidebar/SidebarColumnItem.tsx
-msgid ""
-"Are you sure you want to delete column \"{0}\" from table \"{tableName}\"?\n"
+msgid "Are you sure you want to delete column \"{0}\" from table \"{tableName}\"?\n"
 "\n"
 "WARNING: This will permanently delete all data in this column. This action cannot be undone."
-msgstr ""
-"Möchtest du die Spalte \"{0}\" aus der Tabelle \"{tableName}\" wirklich löschen?\n"
+msgstr "Möchtest du die Spalte \"{0}\" aus der Tabelle \"{tableName}\" wirklich löschen?\n"
 "\n"
 "WARNUNG: Dadurch werden alle Daten in dieser Spalte dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden."
 
@@ -548,11 +546,9 @@ msgstr "Möchtest du die Ansicht \"{0}\" wirklich löschen?"
 
 #. placeholder {0}: file.split(/[\\/]/).pop()
 #: src/components/layout/ExplorerSidebar.tsx
-msgid ""
-"Are you sure you want to import \"{0}\"?\n"
+msgid "Are you sure you want to import \"{0}\"?\n"
 "This may overwrite existing data."
-msgstr ""
-"Möchtest du \"{0}\" wirklich importieren?\n"
+msgstr "Möchtest du \"{0}\" wirklich importieren?\n"
 "Dadurch können vorhandene Daten überschrieben werden."
 
 #: src/components/modals/ViewEditorModal.tsx
@@ -600,6 +596,10 @@ msgstr "Auto Increment"
 #: src/pages/Editor.tsx
 msgid "Auto paginated"
 msgstr "Automatisch paginiert"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Automatic updates"
+msgstr ""
 
 #: src/components/settings/InfoTab.tsx
 msgid "Automatically check for new versions when the app launches"
@@ -745,6 +745,10 @@ msgstr "Jetzt nach Updates suchen"
 #: src/components/settings/InfoTab.tsx
 msgid "Check for updates on startup"
 msgstr "Beim Start nach Updates suchen"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Check interval"
+msgstr ""
 
 #: src/components/modals/McpModal.tsx
 #: src/pages/McpPage.tsx
@@ -2297,6 +2301,10 @@ msgstr "Fehlgeschlagen: "
 msgid "Favorites"
 msgstr "Favoriten"
 
+#: src/components/settings/LocalizationTab.tsx
+msgid "Fetch the latest translations from the cloud without waiting for an app update."
+msgstr ""
+
 #: src/components/modals/NewConnectionModal.tsx
 msgid "File Path"
 msgstr "Dateipfad"
@@ -2519,6 +2527,10 @@ msgstr "Wie lange gewartet wird, bevor abgebrochen wird."
 #: src/components/settings/LogsTab.tsx
 msgid "How many logs to keep in memory (1-10000)"
 msgstr "Wie viele Logs im Speicher behalten werden sollen (1-10000)"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "How often to check for new translations."
+msgstr ""
 
 #: src/components/settings/GeneralTab.tsx
 msgid "How often to check if active connections are still alive. Set to 0 to disable."
@@ -2970,6 +2982,10 @@ msgstr "Nachricht"
 #: src/components/modals/ClipboardImport/SchemaEditor.tsx
 msgid "Minimize"
 msgstr "Minimieren"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "minutes"
+msgstr ""
 
 #: src/components/modals/ClipboardImport/SchemaEditor.tsx
 msgid "Mixed types detected, defaulted to TEXT"
@@ -5021,6 +5037,10 @@ msgstr "Wichtigste Probleme"
 #: src/components/modals/visual-explain/ExplainSummaryBar.tsx
 msgid "Total Cost"
 msgstr "Gesamtkosten"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Translation updates"
+msgstr ""
 
 #: src/components/ui/JsonInput.tsx
 msgid "Tree"

@@ -500,12 +500,10 @@ msgstr "この接続のクエリ履歴をすべて削除してもよろしいで
 
 #. placeholder {0}: column.name
 #: src/components/layout/sidebar/SidebarColumnItem.tsx
-msgid ""
-"Are you sure you want to delete column \"{0}\" from table \"{tableName}\"?\n"
+msgid "Are you sure you want to delete column \"{0}\" from table \"{tableName}\"?\n"
 "\n"
 "WARNING: This will permanently delete all data in this column. This action cannot be undone."
-msgstr ""
-"テーブル「{tableName}」のカラム「{0}」を削除してもよろしいですか？\n"
+msgstr "テーブル「{tableName}」のカラム「{0}」を削除してもよろしいですか？\n"
 "\n"
 "警告: このカラムのすべてのデータが完全に削除されます。この操作は取り消せません。"
 
@@ -548,11 +546,9 @@ msgstr "ビュー「{0}」を削除してもよろしいですか？"
 
 #. placeholder {0}: file.split(/[\\/]/).pop()
 #: src/components/layout/ExplorerSidebar.tsx
-msgid ""
-"Are you sure you want to import \"{0}\"?\n"
+msgid "Are you sure you want to import \"{0}\"?\n"
 "This may overwrite existing data."
-msgstr ""
-"「{0}」をインポートしてもよろしいですか？\n"
+msgstr "「{0}」をインポートしてもよろしいですか？\n"
 "既存のデータが上書きされる可能性があります。"
 
 #: src/components/modals/ViewEditorModal.tsx
@@ -600,6 +596,10 @@ msgstr "自動インクリメント"
 #: src/pages/Editor.tsx
 msgid "Auto paginated"
 msgstr "自動ページング"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Automatic updates"
+msgstr ""
 
 #: src/components/settings/InfoTab.tsx
 msgid "Automatically check for new versions when the app launches"
@@ -745,6 +745,10 @@ msgstr "今すぐアップデートを確認"
 #: src/components/settings/InfoTab.tsx
 msgid "Check for updates on startup"
 msgstr "起動時にアップデートを確認"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Check interval"
+msgstr ""
 
 #: src/components/modals/McpModal.tsx
 #: src/pages/McpPage.tsx
@@ -2297,6 +2301,10 @@ msgstr "失敗: "
 msgid "Favorites"
 msgstr "お気に入り"
 
+#: src/components/settings/LocalizationTab.tsx
+msgid "Fetch the latest translations from the cloud without waiting for an app update."
+msgstr ""
+
 #: src/components/modals/NewConnectionModal.tsx
 msgid "File Path"
 msgstr "ファイルパス"
@@ -2519,6 +2527,10 @@ msgstr "MCP サブプロセスがリクエストをタイムアウトさせる�
 #: src/components/settings/LogsTab.tsx
 msgid "How many logs to keep in memory (1-10000)"
 msgstr "メモリに保持するログの件数 (1〜10000)"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "How often to check for new translations."
+msgstr ""
 
 #: src/components/settings/GeneralTab.tsx
 msgid "How often to check if active connections are still alive. Set to 0 to disable."
@@ -2970,6 +2982,10 @@ msgstr "メッセージ"
 #: src/components/modals/ClipboardImport/SchemaEditor.tsx
 msgid "Minimize"
 msgstr "最小化"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "minutes"
+msgstr ""
 
 #: src/components/modals/ClipboardImport/SchemaEditor.tsx
 msgid "Mixed types detected, defaulted to TEXT"
@@ -5021,6 +5037,10 @@ msgstr "主な問題"
 #: src/components/modals/visual-explain/ExplainSummaryBar.tsx
 msgid "Total Cost"
 msgstr "総コスト"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Translation updates"
+msgstr ""
 
 #: src/components/ui/JsonInput.tsx
 msgid "Tree"
