@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Eye,
+  Layers,
+  List,
   Loader2,
   Folder,
   ChevronDown,
@@ -10,7 +12,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { SidebarColumnItem } from "./SidebarColumnItem";
-import type { TableColumn } from "../../../types/schema";
+import type { TableColumn, Index } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
 
 interface SidebarViewItemProps {
@@ -28,6 +30,7 @@ interface SidebarViewItemProps {
   connectionId: string;
   driver: string;
   schema?: string;
+  materialized?: boolean;
 }
 
 export const SidebarViewItem = ({
@@ -39,29 +42,47 @@ export const SidebarViewItem = ({
   connectionId,
   driver,
   schema,
+  materialized = false,
 }: SidebarViewItemProps) => {
   const { t } = useTranslation();
+  const ViewIcon = materialized ? Layers : Eye;
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [columns, setColumns] = useState<TableColumn[]>([]);
+  const [indexes, setIndexes] = useState<Index[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [expandIndexes, setExpandIndexes] = useState(false);
 
   const refreshColumns = React.useCallback(async () => {
     if (!connectionId) return;
     setIsLoading(true);
     try {
-      const cols = await invoke<TableColumn[]>("get_view_columns", {
-        connectionId,
-        viewName: view.name,
-        ...(schema ? { schema } : {}),
-      });
+      const [cols, idxs] = await Promise.all([
+        invoke<TableColumn[]>(
+          materialized ? "get_materialized_view_columns" : "get_view_columns",
+          {
+            connectionId,
+            viewName: view.name,
+            ...(schema ? { schema } : {}),
+          },
+        ),
+        // Materialized views can carry indexes (regular views cannot).
+        materialized
+          ? invoke<Index[]>("get_indexes", {
+            connectionId,
+            tableName: view.name,
+            ...(schema ? { schema } : {}),
+          })
+          : Promise.resolve([] as Index[]),
+      ]);
       setColumns(cols);
+      setIndexes(idxs);
     } catch (err) {
       console.error("Failed to load view columns:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, view.name, schema]);
+  }, [connectionId, view.name, schema, materialized]);
 
   useEffect(() => {
     if (isExpanded) {
@@ -77,8 +98,18 @@ export const SidebarViewItem = ({
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onContextMenu(e, "view", view.name, view.name, { tableName: view.name, schema });
+    onContextMenu(e, materialized ? "materialized_view" : "view", view.name, view.name, { tableName: view.name, schema });
   };
+
+  // API returns one row per index column; group them by index name.
+  const groupedIndexes = React.useMemo(() => {
+    const groups: Record<string, Index & { columns: string[] }> = {};
+    indexes.forEach((idx) => {
+      if (!groups[idx.name]) groups[idx.name] = { ...idx, columns: [] };
+      groups[idx.name].columns.push(idx.column_name);
+    });
+    return Object.values(groups);
+  }, [indexes]);
 
   return (
     <div className="flex flex-col">
@@ -99,7 +130,7 @@ export const SidebarViewItem = ({
         >
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
-        <Eye
+        <ViewIcon
           size={14}
           className={
             activeView === view.name
@@ -141,6 +172,50 @@ export const SidebarViewItem = ({
                   />
                 ))}
               </div>
+              {materialized && (
+                <div className="flex flex-col">
+                  <div
+                    className="flex items-center gap-2 px-2 py-1 text-xs text-muted hover:text-secondary cursor-pointer select-none"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandIndexes(!expandIndexes);
+                    }}
+                  >
+                    <Folder size={12} className="text-green-400/70" />
+                    <span>{t("sidebar.indexes")}</span>
+                    <span className="ml-auto text-[10px] opacity-50">
+                      {groupedIndexes.length}
+                    </span>
+                  </div>
+                  {expandIndexes && (
+                    <div className="ml-4 border-l border-default/50">
+                      {groupedIndexes.map((idx) => (
+                        <div
+                          key={idx.name}
+                          className="flex items-center gap-2 px-3 py-1 text-xs text-secondary hover:bg-surface-secondary hover:text-primary cursor-pointer group font-mono"
+                          title={idx.columns.join(", ")}
+                        >
+                          <List
+                            size={12}
+                            className={idx.is_unique ? "text-blue-400" : "text-green-400"}
+                          />
+                          <span className="truncate flex-1">
+                            {idx.name}{" "}
+                            <span className="text-muted">
+                              ({idx.columns.join(", ")})
+                            </span>
+                          </span>
+                          {idx.is_unique && (
+                            <span className="text-[9px] text-muted border border-strong px-1 rounded bg-elevated/50">
+                              UNIQUE
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

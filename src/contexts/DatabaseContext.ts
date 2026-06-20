@@ -72,6 +72,7 @@ export interface ConnectionsFile {
 export interface SchemaData {
   tables: TableInfo[];
   views: ViewInfo[];
+  materializedViews?: ViewInfo[];
   routines: RoutineInfo[];
   triggers: TriggerInfo[];
   isLoading: boolean;

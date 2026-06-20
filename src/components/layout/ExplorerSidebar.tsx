@@ -1990,6 +1990,67 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               },
                             ];
                           })()
+                        : contextMenu.type === "materialized_view"
+                        ? (() => {
+                            const mvCtxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                            return [
+                              {
+                                label: t("sidebar.showData"),
+                                icon: PlaySquare,
+                                action: () => {
+                                  const quotedView = quoteTableRef(contextMenu.id, activeDriver, mvCtxSchema);
+                                  runQuery(`SELECT * FROM ${quotedView}`, undefined, contextMenu.id);
+                                },
+                              },
+                              {
+                                label: t("sidebar.countRows"),
+                                icon: Hash,
+                                action: () => {
+                                  const quotedView = quoteTableRef(contextMenu.id, activeDriver, mvCtxSchema);
+                                  runQuery(`SELECT COUNT(*) as count FROM ${quotedView}`);
+                                },
+                              },
+                              {
+                                label: t("sidebar.refreshMaterializedView"),
+                                icon: RefreshCw,
+                                action: async () => {
+                                  try {
+                                    await invoke("refresh_materialized_view", {
+                                      connectionId: activeConnectionId,
+                                      viewName: contextMenu.id,
+                                      ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
+                                    });
+                                    showAlert(t("views.refreshSuccess", { view: contextMenu.id }), { kind: "info" });
+                                  } catch (e) {
+                                    console.error(e);
+                                    showAlert(t("views.refreshError") + String(e), { kind: "error" });
+                                  }
+                                },
+                              },
+                              {
+                                label: t("sidebar.showDefinition"),
+                                icon: FileText,
+                                action: async () => {
+                                  try {
+                                    const definition = await invoke<string>("get_materialized_view_definition", {
+                                      connectionId: activeConnectionId,
+                                      viewName: contextMenu.id,
+                                      ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
+                                    });
+                                    runQuery(definition, `${contextMenu.id} Definition`, undefined, true, mvCtxSchema, true);
+                                  } catch (e) {
+                                    console.error(e);
+                                    showAlert(t("views.failGetDefinition") + String(e), { kind: "error" });
+                                  }
+                                },
+                              },
+                              {
+                                label: t("sidebar.copyName"),
+                                icon: Copy,
+                                action: () => navigator.clipboard.writeText(contextMenu.id),
+                              },
+                            ];
+                          })()
                         : contextMenu.type === "routine"
                           ? [
                               {

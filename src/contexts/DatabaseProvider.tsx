@@ -190,9 +190,10 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     });
 
     try {
-      const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
+      const [tablesResult, viewsResult, materializedViewsResult, routinesResult, triggersResult] = await Promise.all([
         invoke<TableInfo[]>('get_tables', { connectionId: connId, schema }),
         invoke<ViewInfo[]>('get_views', { connectionId: connId, schema }),
+        invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[]),
         invoke<RoutineInfo[]>('get_routines', { connectionId: connId, schema }),
         invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
       ]);
@@ -205,6 +206,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
             [schema]: {
               tables: tablesResult,
               views: viewsResult,
+              materializedViews: materializedViewsResult,
               routines: routinesResult,
               triggers: triggersResult,
               isLoading: false,
@@ -245,9 +247,10 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     });
 
     try {
-      const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
+      const [tablesResult, viewsResult, materializedViewsResult, routinesResult, triggersResult] = await Promise.all([
         invoke<TableInfo[]>('get_tables', { connectionId: connId, schema }),
         invoke<ViewInfo[]>('get_views', { connectionId: connId, schema }),
+        invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[]),
         invoke<RoutineInfo[]>('get_routines', { connectionId: connId, schema }),
         invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
       ]);
@@ -260,6 +263,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
             [schema]: {
               tables: tablesResult,
               views: viewsResult,
+              materializedViews: materializedViewsResult,
               routines: routinesResult,
               triggers: triggersResult,
               isLoading: false,
@@ -595,9 +599,10 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
               // Ignore - no saved preference exists yet
             }
 
-            const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
+            const [tablesResult, viewsResult, materializedViewsResult, routinesResult, triggersResult] = await Promise.all([
               invoke<TableInfo[]>('get_tables', { connectionId, schema: preferredSchema }),
               invoke<ViewInfo[]>('get_views', { connectionId, schema: preferredSchema }),
+              invoke<ViewInfo[]>('get_materialized_views', { connectionId, schema: preferredSchema }).catch(() => [] as ViewInfo[]),
               invoke<RoutineInfo[]>('get_routines', { connectionId, schema: preferredSchema }),
               invoke<TriggerInfo[]>('get_triggers', { connectionId, schema: preferredSchema }).catch(() => [] as TriggerInfo[]),
             ]);
@@ -610,6 +615,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
                 [preferredSchema]: {
                   tables: tablesResult,
                   views: viewsResult,
+                  materializedViews: materializedViewsResult,
                   routines: routinesResult,
                   triggers: triggersResult,
                   isLoading: false,

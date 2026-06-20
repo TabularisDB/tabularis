@@ -168,4 +168,54 @@ describe("SidebarViewItem", () => {
 
     consoleSpy.mockRestore();
   });
+
+  describe("when materialized", () => {
+    const mockMaterializedInvoke = (cmd: string) => {
+      if (cmd === "get_materialized_view_columns") return Promise.resolve(mockColumns);
+      if (cmd === "get_indexes") return Promise.resolve([]);
+      return Promise.reject(new Error(`Unexpected command: ${cmd}`));
+    };
+
+    it("fetches columns via get_materialized_view_columns", async () => {
+      vi.mocked(invoke).mockImplementation(mockMaterializedInvoke);
+
+      render(<SidebarViewItem {...defaultProps} materialized />);
+      fireEvent.click(screen.getByRole("button"));
+
+      await waitFor(() => {
+        expect(invoke).toHaveBeenCalledWith("get_materialized_view_columns", {
+          connectionId: "conn-123",
+          viewName: "active_users",
+        });
+      });
+    });
+
+    it("also fetches indexes via get_indexes", async () => {
+      vi.mocked(invoke).mockImplementation(mockMaterializedInvoke);
+
+      render(<SidebarViewItem {...defaultProps} materialized />);
+      fireEvent.click(screen.getByRole("button"));
+
+      await waitFor(() => {
+        expect(invoke).toHaveBeenCalledWith("get_indexes", {
+          connectionId: "conn-123",
+          tableName: "active_users",
+        });
+      });
+    });
+
+    it("emits a materialized_view context menu type", () => {
+      const onContextMenu = vi.fn();
+      render(<SidebarViewItem {...defaultProps} materialized onContextMenu={onContextMenu} />);
+
+      fireEvent.contextMenu(screen.getByText("active_users"));
+      expect(onContextMenu).toHaveBeenCalledWith(
+        expect.anything(),
+        "materialized_view",
+        "active_users",
+        "active_users",
+        expect.objectContaining({ tableName: "active_users" }),
+      );
+    });
+  });
 });

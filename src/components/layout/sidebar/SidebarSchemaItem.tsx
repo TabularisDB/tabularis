@@ -92,6 +92,7 @@ export const SidebarSchemaItem = ({
   const [prevActiveSchema, setPrevActiveSchema] = useState(activeSchema);
   const [tablesOpen, setTablesOpen] = useState(true);
   const [viewsOpen, setViewsOpen] = useState(true);
+  const [materializedViewsOpen, setMaterializedViewsOpen] = useState(true);
   const [routinesOpen, setRoutinesOpen] = useState(false);
   const [triggersOpen, setTriggersOpen] = useState(false);
   const [functionsOpen, setFunctionsOpen] = useState(true);
@@ -112,6 +113,7 @@ export const SidebarSchemaItem = ({
     ? tables.filter((t) => t.name.toLowerCase().includes(tableFilter.toLowerCase()))
     : tables;
   const views = schemaData?.views ?? [];
+  const materializedViews = schemaData?.materializedViews ?? [];
   const routines = schemaData?.routines ?? [];
   const triggers = schemaData?.triggers ?? [];
   const filteredTriggers = triggerFilter
@@ -304,6 +306,31 @@ export const SidebarSchemaItem = ({
                   </div>
                 )}
               </Accordion>
+
+              {materializedViews.length > 0 && (
+                <Accordion
+                  title={`${t("sidebar.materializedViews")} (${materializedViews.length})`}
+                  isOpen={materializedViewsOpen}
+                  onToggle={() => setMaterializedViewsOpen(!materializedViewsOpen)}
+                >
+                  <div>
+                    {materializedViews.map((view) => (
+                      <SidebarViewItem
+                        key={view.name}
+                        view={view}
+                        activeView={null}
+                        onViewClick={onViewClick}
+                        onViewDoubleClick={(name) => onViewDoubleClick(name, schemaName)}
+                        onContextMenu={onContextMenu}
+                        connectionId={connectionId}
+                        driver={driver}
+                        schema={schemaName}
+                        materialized
+                      />
+                    ))}
+                  </div>
+                </Accordion>
+              )}
 
               {/* Triggers */}
               {showTriggers && (
