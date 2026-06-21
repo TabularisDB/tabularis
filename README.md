@@ -29,11 +29,17 @@
 ![Build & Release](https://github.com/TabularisDB/tabularis/workflows/Release/badge.svg)
 [![Discord](https://img.shields.io/discord/1502944695808950282?color=5865F2&logo=discord&logoColor=white)](https://discord.com/invite/K2hmhfHRSt)
 [![Gitster](https://gitster.dev/api/repositories/badge/cmlko1jr60005ne4yh7i7oy3e)](https://gitster.dev/repo/TabularisDB/tabularis)
+<br />
+<br />
+<a href="https://vercel.com/open-source-program">
+  <img alt="Vercel OSS Program" src="https://vercel.com/oss/program-badge-2026.svg" />
+</a>
 
 </p>
 
 <p align="center">
   <a href="https://snapcraft.io/tabularis"><img src="https://img.shields.io/badge/snap-tabularis-blue?logo=snapcraft" alt="Snap Store" /></a>
+  <a href="https://flatpark.org/apps/dev.tabularis.Tabularis/"><img src="https://img.shields.io/badge/flatpak-tabularis-4A90D9?logo=flatpak&logoColor=white" alt="Flatpak (Flatpark)" /></a>
   <a href="https://aur.archlinux.org/packages/tabularis-bin"><img src="https://img.shields.io/badge/AUR-tabularis--bin-1793D1?logo=archlinux&logoColor=white" alt="AUR" /></a>
   <a href="https://winstall.app/apps/Debba.Tabularis"><img src="https://img.shields.io/winget/v/Debba.Tabularis?label=WinGet&logo=windows&color=0078D4" alt="WinGet" /></a>
 </p>
@@ -79,6 +85,7 @@ The app UI is available in English, Italian, Spanish, Chinese (Simplified), Fren
   - [Windows](#windows)
   - [macOS](#macos)
   - [Linux (Snap)](#linux-snap)
+  - [Linux (Flatpak)](#linux-flatpak)
   - [Linux (AppImage)](#linux-appimage)
   - [Arch Linux (AUR)](#arch-linux-aur)
 - [Updates](#updates)
@@ -165,6 +172,15 @@ sudo snap install tabularis
 ```
 
 [![Snap Store](https://img.shields.io/badge/snap-tabularis-blue?logo=snapcraft)](https://snapcraft.io/tabularis)
+
+### Linux (Flatpak)
+
+```bash
+flatpak remote-add --if-not-exists flatpark https://dl.flatpark.org/flatpark.flatpakrepo
+flatpak install flatpark dev.tabularis.Tabularis
+```
+
+[![Flatpak (Flatpark)](https://img.shields.io/badge/flatpak-tabularis-4A90D9?logo=flatpak&logoColor=white)](https://flatpark.org/apps/dev.tabularis.Tabularis/)
 
 ### Linux (AppImage)
 
