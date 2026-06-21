@@ -100,8 +100,8 @@ export const Connections = () => {
   useEffect(() => {
     if (autoConnectAttempted) return;
     if (connections.length === 0) return;
-    autoConnectAttempted = true;
     if (settings.autoConnectLastConnection === false) return;
+    autoConnectAttempted = true;
     void (async () => {
       try {
         const [openIds, activeId] = await Promise.all([
