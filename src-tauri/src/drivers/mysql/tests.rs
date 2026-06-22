@@ -1,5 +1,5 @@
 use super::explain::{parse_analyze_actual, parse_mysql_analyze_text, parse_mysql_query_block};
-use super::MysqlDriver;
+use super::{is_text_protocol_stmt, MysqlDriver};
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::ExplainNode;
 use crate::models::{ConnectionParams, DatabaseSelection};
@@ -600,4 +600,37 @@ fn parse_mysql_analyze_text_reports_total_time_for_looped_node() {
         (total - 2646.19).abs() < 1.0,
         "expected ~2646ms total for index lookup, got {total}"
     );
+}
+
+#[test]
+fn routes_mysql_routine_ddl_through_text_protocol() {
+    for sql in [
+        "DROP PROCEDURE IF EXISTS sociedades_close;",
+        "CREATE PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE DEFINER=`root`@`localhost` PROCEDURE sociedades_close() SELECT 1;",
+        "ALTER PROCEDURE sociedades_close COMMENT 'patched';",
+        "DROP FUNCTION IF EXISTS sociedades_total;",
+        "CREATE FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE DEFINER=`root`@`localhost` FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "ALTER FUNCTION sociedades_total COMMENT 'patched';",
+    ] {
+        assert!(
+            is_text_protocol_stmt(sql),
+            "expected text protocol routing for {sql}"
+        );
+    }
+}
+
+#[test]
+fn keeps_regular_dml_out_of_text_protocol_classifier() {
+    for sql in [
+        "SELECT * FROM routines",
+        "INSERT INTO routines(name) VALUES ('sociedades_close')",
+        "DROP TABLE IF EXISTS routines_backup",
+    ] {
+        assert!(
+            !is_text_protocol_stmt(sql),
+            "did not expect text protocol routing for {sql}"
+        );
+    }
 }

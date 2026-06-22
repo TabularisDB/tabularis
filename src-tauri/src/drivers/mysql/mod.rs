@@ -879,11 +879,16 @@ async fn acquire_mysql_conn(
 /// statement protocol yet"). `sqlx::query()` always goes through
 /// `COM_STMT_PREPARE` + `COM_STMT_EXECUTE`, so these have to be routed
 /// through `sqlx::raw_sql()` which uses `COM_QUERY` (text protocol)
-/// instead. Without this, explicit transactions inside a multi-statement
-/// script (`BEGIN; … COMMIT;`) silently fail — which would defeat the
-/// point of `execute_batch` even after sharing a single connection.
+/// instead. This currently covers transaction/lock control plus routine
+/// DDL that MySQL rejects when prepared. Without this, explicit
+/// transactions inside a multi-statement script (`BEGIN; … COMMIT;`)
+/// silently fail — which would defeat the point of `execute_batch` even
+/// after sharing a single connection.
 fn is_text_protocol_stmt(query: &str) -> bool {
     let head = crate::drivers::common::strip_leading_sql_comments(query).to_uppercase();
+    let is_create_definer_routine = head.starts_with("CREATE DEFINER")
+        && (head.contains(" PROCEDURE") || head.contains(" FUNCTION"));
+
     head.starts_with("BEGIN")
         || head.starts_with("START TRANSACTION")
         || head.starts_with("COMMIT")
@@ -892,6 +897,13 @@ fn is_text_protocol_stmt(query: &str) -> bool {
         || head.starts_with("RELEASE SAVEPOINT")
         || head.starts_with("LOCK TABLES")
         || head.starts_with("UNLOCK TABLES")
+        || head.starts_with("DROP PROCEDURE")
+        || head.starts_with("CREATE PROCEDURE")
+        || head.starts_with("ALTER PROCEDURE")
+        || head.starts_with("DROP FUNCTION")
+        || head.starts_with("CREATE FUNCTION")
+        || head.starts_with("ALTER FUNCTION")
+        || is_create_definer_routine
 }
 
 /// Executes one statement on an already-acquired connection. Used by both
