@@ -332,8 +332,6 @@
       "date": "Date / Time",
       "boolean": "Boolean",
       "reset": "Reset to theme",
-      "custom": "Custom",
-      "previewLabel": "Preview",
       "confirm": "Confirm",
       "cancel": "Cancel"
     },

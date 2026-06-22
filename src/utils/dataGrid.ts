@@ -100,7 +100,7 @@ export function getResultValueType(
     const t = columnType.toLowerCase();
     if (/bool|^bit/.test(t)) return "boolean";
     if (/date|time|timestamp|year/.test(t)) return "date";
-    if (/\bint(?:eger)?(?:\d+)?\b|serial|float|double|decimal|numeric|real|money|number|fixed/.test(t))
+    if (/\b(?:tiny|small|medium|big)?int(?:eger)?\d*\b|serial|float|double|decimal|numeric|real|money|number|fixed/.test(t))
       return "number";
   }
 
