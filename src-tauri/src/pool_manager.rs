@@ -11,6 +11,7 @@ use rustls::server::ParsedCertificate;
 use rustls::{DigitallySignedStruct};
 use rustls::{ClientConfig, Error as TlsError, RootCertStore};
 use rustls_platform_verifier::BuilderVerifierExt;
+use sha2::{Digest, Sha256};
 use sqlx::{sqlite::SqliteConnectOptions, Executor, MySql, Pool, Sqlite};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -116,10 +117,23 @@ pub(crate) fn build_connection_key(
         )
     };
 
-    if let Some(tls_key) = tls_key {
+    let key = if let Some(tls_key) = tls_key {
         format!("{base_key}:{tls_key}")
     } else {
         base_key
+    };
+
+    // Fold the startup script into the key so editing it forces a fresh pool
+    // (whose new connections run the new script) instead of silently reusing
+    // the cached pool keyed only by connection_id. Hashed to keep the key
+    // bounded; only present when a script is set, so script-free connections
+    // keep their existing keys.
+    match startup_script(params) {
+        Some(script) => {
+            let digest = Sha256::digest(script.as_bytes());
+            format!("{key}:startup:{digest:x}")
+        }
+        None => key,
     }
 }
 

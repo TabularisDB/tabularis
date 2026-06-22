@@ -118,6 +118,38 @@ mod tests {
     }
 
     #[test]
+    fn pool_key_changes_when_startup_script_changes() {
+        let none = connection_params("postgres", Some("require"));
+        let mut script_a = none.clone();
+        script_a.startup_script = Some("SET app.bypass_rls = 'on';".to_string());
+        let mut script_b = none.clone();
+        script_b.startup_script = Some("SET app.bypass_rls = 'off';".to_string());
+
+        let key_none = build_connection_key(&none, Some("conn-1"));
+        let key_a = build_connection_key(&script_a, Some("conn-1"));
+        let key_b = build_connection_key(&script_b, Some("conn-1"));
+
+        // A script changes the key, and different scripts differ — otherwise an
+        // edited startup script would silently reuse the old cached pool.
+        assert_ne!(key_none, key_a);
+        assert_ne!(key_a, key_b);
+    }
+
+    #[test]
+    fn pool_key_ignores_blank_startup_script() {
+        let none = connection_params("postgres", Some("require"));
+        let mut blank = none.clone();
+        blank.startup_script = Some("   \n\t".to_string());
+
+        // Whitespace-only scripts are treated as absent (no hook runs), so they
+        // must not fragment the pool away from the no-script connection.
+        assert_eq!(
+            build_connection_key(&none, Some("conn-1")),
+            build_connection_key(&blank, Some("conn-1"))
+        );
+    }
+
+    #[test]
     fn mysql_options_accept_snake_case_verify_ssl_modes() {
         let verify_ca = mysql_params("verify_ca");
         let verify_identity = mysql_params("verify_identity");
