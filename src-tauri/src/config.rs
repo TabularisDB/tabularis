@@ -94,6 +94,12 @@ pub struct AppConfig {
     pub mcp_approval_timeout_seconds: Option<u32>,
     /// Run a pre-flight EXPLAIN before opening the approval modal. Default: true.
     pub mcp_preflight_explain: Option<bool>,
+    /// Bring the main window to the foreground and make it temporarily top-most
+    /// while an MCP approval is pending. Default: true.
+    pub mcp_approval_always_on_top: Option<bool>,
+    /// Send a native notification and play a short sound when a new MCP
+    /// approval request arrives. Default: true.
+    pub mcp_approval_notify_sound: Option<bool>,
 
     // ----- Session restore -----
     /// Reconnect to the last active connection on startup. Default: true.
@@ -131,6 +137,8 @@ pub const DEFAULT_MCP_READONLY_DEFAULT: bool = false;
 pub const DEFAULT_MCP_APPROVAL_MODE: &str = "writes_only";
 pub const DEFAULT_MCP_APPROVAL_TIMEOUT_SECONDS: u32 = 120;
 pub const DEFAULT_MCP_PREFLIGHT_EXPLAIN: bool = true;
+pub const DEFAULT_MCP_APPROVAL_ALWAYS_ON_TOP: bool = true;
+pub const DEFAULT_MCP_APPROVAL_NOTIFY_SOUND: bool = true;
 
 /// Load `config.json` directly from disk without an `AppHandle`.
 ///
@@ -346,6 +354,12 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.mcp_preflight_explain.is_some() {
             existing_config.mcp_preflight_explain = config.mcp_preflight_explain;
+        }
+        if config.mcp_approval_always_on_top.is_some() {
+            existing_config.mcp_approval_always_on_top = config.mcp_approval_always_on_top;
+        }
+        if config.mcp_approval_notify_sound.is_some() {
+            existing_config.mcp_approval_notify_sound = config.mcp_approval_notify_sound;
         }
         if config.auto_connect_last_connection.is_some() {
             existing_config.auto_connect_last_connection = config.auto_connect_last_connection;
@@ -899,6 +913,8 @@ mod tests {
         assert!(config.mcp_approval_mode.is_none());
         assert!(config.mcp_approval_timeout_seconds.is_none());
         assert!(config.mcp_preflight_explain.is_none());
+        assert!(config.mcp_approval_always_on_top.is_none());
+        assert!(config.mcp_approval_notify_sound.is_none());
     }
 
     #[test]
@@ -912,6 +928,8 @@ mod tests {
         config.mcp_approval_mode = Some("all".into());
         config.mcp_approval_timeout_seconds = Some(60);
         config.mcp_preflight_explain = Some(false);
+        config.mcp_approval_always_on_top = Some(true);
+        config.mcp_approval_notify_sound = Some(true);
 
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("aiAuditEnabled"));
@@ -922,6 +940,8 @@ mod tests {
         assert!(json.contains("mcpApprovalMode"));
         assert!(json.contains("mcpApprovalTimeoutSeconds"));
         assert!(json.contains("mcpPreflightExplain"));
+        assert!(json.contains("mcpApprovalAlwaysOnTop"));
+        assert!(json.contains("mcpApprovalNotifySound"));
     }
 
     #[test]
@@ -934,7 +954,9 @@ mod tests {
             "mcpReadonlyConnections": ["a", "b"],
             "mcpApprovalMode": "writes_only",
             "mcpApprovalTimeoutSeconds": 90,
-            "mcpPreflightExplain": true
+            "mcpPreflightExplain": true,
+            "mcpApprovalAlwaysOnTop": false,
+            "mcpApprovalNotifySound": true
         }"#;
         let config: AppConfig = serde_json::from_str(json).unwrap();
         assert_eq!(config.ai_audit_enabled, Some(false));
@@ -948,6 +970,8 @@ mod tests {
         assert_eq!(config.mcp_approval_mode.as_deref(), Some("writes_only"));
         assert_eq!(config.mcp_approval_timeout_seconds, Some(90));
         assert_eq!(config.mcp_preflight_explain, Some(true));
+        assert_eq!(config.mcp_approval_always_on_top, Some(false));
+        assert_eq!(config.mcp_approval_notify_sound, Some(true));
     }
 
     #[test]

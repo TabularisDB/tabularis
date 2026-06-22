@@ -211,7 +211,11 @@
       "approvalTimeout": "Zeitlimit",
       "approvalTimeoutDesc": "Wie lange gewartet wird, bevor abgebrochen wird.",
       "preflightExplain": "Vorab-EXPLAIN",
-      "preflightExplainDesc": "Führt vor dem Modal ein EXPLAIN aus, damit der Plan sichtbar ist."
+      "preflightExplainDesc": "Führt vor dem Modal ein EXPLAIN aus, damit der Plan sichtbar ist.",
+      "approvalAlwaysOnTop": "Freigabedialog in den Vordergrund holen",
+      "approvalAlwaysOnTopDesc": "Wenn eine nicht lesende MCP-Aktion eine Freigabe benötigt, bringt Tabularis sich in den Vordergrund und bleibt vorübergehend über anderen Fenstern.",
+      "approvalNotifySound": "Benachrichtigung senden und Ton abspielen",
+      "approvalNotifySoundDesc": "Zeigt eine native Systembenachrichtigung an und spielt einen kurzen Hinweiston ab, wenn eine neue MCP-Freigabeanfrage eingeht."
     }
   },
   "connections": {
@@ -1520,7 +1524,9 @@
     "reasonLabel": "Grund (optional)",
     "reasonPlaceholder": "z.B. In Prod riskant, bestätigen…",
     "approve": "Freigeben",
-    "deny": "Ablehnen"
+    "deny": "Ablehnen",
+    "notificationTitle": "MCP-Freigabe erforderlich",
+    "notificationBody": "Öffne Tabularis, um die ausstehende MCP-Freigabe zu prüfen."
   },
   "discordCallout": {
     "title": "Neue Discord-Community!",

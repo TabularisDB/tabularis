@@ -211,7 +211,11 @@
       "approvalTimeout": "Timeout",
       "approvalTimeoutDesc": "Quanti secondi il processo MCP attende la decisione dell'utente prima di abortire.",
       "preflightExplain": "EXPLAIN preliminare",
-      "preflightExplainDesc": "Esegui un EXPLAIN della query prima di mostrare il modal di approvazione, così l'utente vede il piano di esecuzione."
+      "preflightExplainDesc": "Esegui un EXPLAIN della query prima di mostrare il modal di approvazione, così l'utente vede il piano di esecuzione.",
+      "approvalAlwaysOnTop": "Porta il dialogo di approvazione in primo piano",
+      "approvalAlwaysOnTopDesc": "Quando un’azione MCP diversa dalla sola lettura richiede approvazione, porta Tabularis in primo piano e tienilo temporaneamente sopra le altre finestre.",
+      "approvalNotifySound": "Invia notifica e riproduci un suono",
+      "approvalNotifySoundDesc": "Mostra una notifica nativa del sistema e riproduce un breve suono di avviso quando arriva una nuova richiesta di approvazione MCP."
     }
   },
   "connections": {
@@ -1503,7 +1507,9 @@
     "reasonLabel": "Motivo (opzionale)",
     "reasonPlaceholder": "es. Sembra rischiosa in produzione, conferma…",
     "approve": "Approva",
-    "deny": "Nega"
+    "deny": "Nega",
+    "notificationTitle": "Approvazione MCP necessaria",
+    "notificationBody": "Apri Tabularis per esaminare l’approvazione MCP in sospeso."
   },
   "discordCallout": {
     "title": "Nuova community Discord!",

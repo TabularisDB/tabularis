@@ -211,7 +211,11 @@
       "approvalTimeout": "Délai",
       "approvalTimeoutDesc": "Temps d'attente avant échec.",
       "preflightExplain": "EXPLAIN préalable",
-      "preflightExplainDesc": "Exécute EXPLAIN avant d'afficher le modal pour montrer le plan."
+      "preflightExplainDesc": "Exécute EXPLAIN avant d'afficher le modal pour montrer le plan.",
+      "approvalAlwaysOnTop": "Mettre la boîte d’approbation au premier plan",
+      "approvalAlwaysOnTopDesc": "Quand une action MCP autre qu’en lecture nécessite une approbation, Tabularis passe au premier plan et reste temporairement au-dessus des autres fenêtres.",
+      "approvalNotifySound": "Envoyer une notification et jouer un son",
+      "approvalNotifySoundDesc": "Affiche une notification système native et joue un court son d’alerte lorsqu’une nouvelle demande d’approbation MCP arrive."
     }
   },
   "connections": {
@@ -1520,7 +1524,9 @@
     "reasonLabel": "Motif (facultatif)",
     "reasonPlaceholder": "ex. Risqué en prod, confirmez…",
     "approve": "Approuver",
-    "deny": "Refuser"
+    "deny": "Refuser",
+    "notificationTitle": "Approbation MCP requise",
+    "notificationBody": "Ouvrez Tabularis pour examiner l’approbation MCP en attente."
   },
   "discordCallout": {
     "title": "Nouvelle communauté Discord !",

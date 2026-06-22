@@ -224,7 +224,11 @@
       "approvalTimeout": "タイムアウト",
       "approvalTimeoutDesc": "MCP サブプロセスがリクエストをタイムアウトさせる前にユーザーの判断を待つ時間。",
       "preflightExplain": "プリフライト EXPLAIN",
-      "preflightExplainDesc": "承認モーダルを表示する前にクエリに対して EXPLAIN を実行し、ユーザーに実行計画を表示します。"
+      "preflightExplainDesc": "承認モーダルを表示する前にクエリに対して EXPLAIN を実行し、ユーザーに実行計画を表示します。",
+      "approvalAlwaysOnTop": "承認ダイアログを最前面に表示",
+      "approvalAlwaysOnTopDesc": "読み取り以外の MCP アクションに承認が必要なとき、Tabularis を前面に出して一時的に他のウィンドウより上に表示します。",
+      "approvalNotifySound": "通知を送信して音を鳴らす",
+      "approvalNotifySoundDesc": "新しい MCP 承認リクエストが届いたときに、ネイティブ通知を表示して短い通知音を再生します。"
     }
   },
   "connections": {
@@ -1539,7 +1543,9 @@
     "reasonLabel": "理由 (任意)",
     "reasonPlaceholder": "例: 本番環境でリスクがありそう、確認お願いします…",
     "approve": "承認",
-    "deny": "拒否"
+    "deny": "拒否",
+    "notificationTitle": "MCP の承認が必要です",
+    "notificationBody": "保留中の MCP 承認を確認するには Tabularis を開いてください。"
   },
   "discordCallout": {
     "title": "Discord コミュニティが新登場！",

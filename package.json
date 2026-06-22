@@ -36,6 +36,7 @@
     "@tauri-apps/plugin-clipboard-manager": "~2.3.2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-fs": "^2.4.5",
+    "@tauri-apps/plugin-notification": "^2.3.1",
     "@tauri-apps/plugin-opener": "^2.5.3",
     "@tauri-apps/plugin-updater": "~2.10.0",
     "@types/dagre": "^0.7.54",

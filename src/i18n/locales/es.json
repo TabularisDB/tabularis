@@ -211,7 +211,11 @@
       "approvalTimeout": "Tiempo de espera",
       "approvalTimeoutDesc": "Cuánto espera el subproceso MCP la decisión del usuario antes de fallar.",
       "preflightExplain": "EXPLAIN previo",
-      "preflightExplainDesc": "Ejecuta un EXPLAIN antes de mostrar el modal para que el usuario vea el plan."
+      "preflightExplainDesc": "Ejecuta un EXPLAIN antes de mostrar el modal para que el usuario vea el plan.",
+      "approvalAlwaysOnTop": "Traer el diálogo de aprobación al frente",
+      "approvalAlwaysOnTopDesc": "Cuando una acción MCP que no sea de lectura necesite aprobación, trae Tabularis al frente y lo mantiene temporalmente por encima de las demás ventanas.",
+      "approvalNotifySound": "Enviar notificación y reproducir sonido",
+      "approvalNotifySoundDesc": "Muestra una notificación nativa del sistema y reproduce un sonido corto cuando llega una nueva solicitud de aprobación MCP."
     }
   },
   "connections": {
@@ -1477,7 +1481,9 @@
     "reasonLabel": "Razón (opcional)",
     "reasonPlaceholder": "ej. Parece arriesgada en prod, confirma…",
     "approve": "Aprobar",
-    "deny": "Denegar"
+    "deny": "Denegar",
+    "notificationTitle": "Se necesita aprobación MCP",
+    "notificationBody": "Abrí Tabularis para revisar la aprobación MCP pendiente."
   },
   "discordCallout": {
     "title": "¡Nueva comunidad Discord!",

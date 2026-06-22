@@ -224,7 +224,11 @@
       "approvalTimeout": "Timeout",
       "approvalTimeoutDesc": "How long the MCP subprocess will wait for the user's decision before failing the request.",
       "preflightExplain": "Pre-flight EXPLAIN",
-      "preflightExplainDesc": "Run an EXPLAIN against the query before showing the approval modal so the user sees the execution plan."
+      "preflightExplainDesc": "Run an EXPLAIN against the query before showing the approval modal so the user sees the execution plan.",
+      "approvalAlwaysOnTop": "Bring approval dialog to the front",
+      "approvalAlwaysOnTopDesc": "When a non-read MCP action needs approval, bring Tabularis to the front and keep it temporarily above other windows.",
+      "approvalNotifySound": "Send notification and play sound",
+      "approvalNotifySoundDesc": "Show a native system notification and play a short alert sound when a new MCP approval request arrives."
     }
   },
   "connections": {
@@ -1581,7 +1585,9 @@
     "reasonLabel": "Reason (optional)",
     "reasonPlaceholder": "e.g. Looks risky on prod, please confirm…",
     "approve": "Approve",
-    "deny": "Deny"
+    "deny": "Deny",
+    "notificationTitle": "MCP approval needed",
+    "notificationBody": "Open Tabularis to review the pending MCP approval."
   },
   "discordCallout": {
     "title": "Brand-new Discord community!",
