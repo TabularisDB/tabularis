@@ -2476,8 +2476,8 @@ export const Editor = () => {
             ? {
                 // Vertical accent wash (stronger at top) + accent-tinted bottom
                 // border so the bar reads as part of the active connection.
-                backgroundImage: `linear-gradient(${tabBarAccent}38, ${tabBarAccent}14)`,
-                borderBottomColor: `${tabBarAccent}66`,
+                backgroundImage: `linear-gradient(${tabBarAccent}30, ${tabBarAccent}20)`,
+                borderBottomColor: `${tabBarAccent}50`,
               }
             : undefined
         }
@@ -2524,7 +2524,7 @@ export const Editor = () => {
                       // Active tab keeps the content background (so it reads as
                       // connected to the pane below) but carries a soft accent
                       // body, stronger at the top, tinted by the connection.
-                      backgroundImage: `linear-gradient(${tabAccentColor}30, ${tabAccentColor}12)`,
+                      backgroundImage: `linear-gradient(${tabAccentColor}30, ${tabAccentColor}20)`,
                     }
                   : // Inactive tabs pick up a soft accent wash on hover instead of
                     // a flat neutral grey, keeping the strip tied to the connection.
@@ -2535,8 +2535,8 @@ export const Editor = () => {
                 <div
                   className="absolute top-0 left-0 right-0 h-[2px] rounded-b-sm"
                   style={{
-                    backgroundColor: tabAccentColor,
-                    boxShadow: `0 0 8px ${tabAccentColor}b3`,
+                    backgroundColor: `${tabAccentColor}cc`,
+                    boxShadow: `0 0 5px ${tabAccentColor}59`,
                   }}
                 />
               )}
