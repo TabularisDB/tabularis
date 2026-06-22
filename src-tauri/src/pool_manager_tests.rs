@@ -474,29 +474,22 @@ mod startup_script_tests {
     }
 
     #[tokio::test]
-    async fn invalid_startup_script_surfaces_error() {
+    async fn invalid_startup_script_surfaces_attributed_error() {
         let file = NamedTempFile::new().expect("temp file");
         let path = file.path().to_str().expect("utf8 path").to_string();
         let conn_id = format!("startup-invalid-{}", ulid::Ulid::new());
 
         let params = sqlite_params(&path, Some("THIS IS NOT VALID SQL;"));
 
-        // The pool may build lazily, so the bad script can surface either at
-        // pool creation or on first acquire. Either way the error must reach
-        // the caller rather than silently succeeding.
-        let result = async {
-            let pool = get_sqlite_pool_with_id(&params, Some(&conn_id)).await?;
-            sqlx::query("SELECT 1")
-                .execute(&pool)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok::<_, String>(())
-        }
-        .await;
-
+        // A broken startup script must fail the connection with an error that
+        // clearly names the startup script as the cause, rather than sqlx's
+        // misleading "pool timed out" or a generic connection error.
+        let err = get_sqlite_pool_with_id(&params, Some(&conn_id))
+            .await
+            .expect_err("invalid startup script should fail the connection");
         assert!(
-            result.is_err(),
-            "invalid startup script should fail the connection"
+            err.contains("Startup script failed"),
+            "error should be attributed to the startup script, got: {err}"
         );
 
         close_pool_with_id(&params, Some(&conn_id)).await;

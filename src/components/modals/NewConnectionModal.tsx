@@ -28,6 +28,7 @@ import { SlotAnchor } from "../ui/SlotAnchor";
 import { useDrivers } from "../../hooks/useDrivers";
 import { usePluginSlotRegistry } from "../../hooks/usePluginSlotRegistry";
 import { Modal } from "../ui/Modal";
+import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
 import type { PluginManifest } from "../../types/plugins";
 import { loadSshConnections, type SshConnection } from "../../utils/ssh";
 import {
@@ -1142,19 +1143,20 @@ export const NewConnectionModal = ({
             "SQL run on every new connection to this data source. Use it for session settings such as SET / set_config (e.g. bypassing RLS). Separate statements with semicolons.",
         })}
       </p>
-      <textarea
-        value={formData.startup_script ?? ""}
-        onChange={(e) => updateField("startup_script", e.target.value)}
-        rows={8}
-        spellCheck={false}
-        autoCorrect="off"
-        autoCapitalize="off"
-        autoComplete="off"
-        className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary font-mono placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors resize-none"
-        placeholder={t("newConnection.startupScriptPlaceholder", {
-          defaultValue: "SELECT set_config('app.bypass_rls', 'on', false);",
-        })}
-      />
+      <div className="border border-strong rounded-md overflow-hidden h-48">
+        <SqlEditorWrapper
+          editorKey={`startup-script-${initialConnection?.id ?? "new"}`}
+          initialValue={formData.startup_script ?? ""}
+          onChange={(value) => updateField("startup_script", value)}
+          onRun={() => {}}
+          height="100%"
+          options={{
+            placeholder: t("newConnection.startupScriptPlaceholder", {
+              defaultValue: "SELECT set_config('app.bypass_rls', 'on', false);",
+            }),
+          }}
+        />
+      </div>
     </div>
   );
 

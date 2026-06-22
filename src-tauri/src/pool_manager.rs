@@ -12,7 +12,7 @@ use rustls::{DigitallySignedStruct};
 use rustls::{ClientConfig, Error as TlsError, RootCertStore};
 use rustls_platform_verifier::BuilderVerifierExt;
 use sha2::{Digest, Sha256};
-use sqlx::{sqlite::SqliteConnectOptions, Executor, MySql, Pool, Sqlite};
+use sqlx::{sqlite::SqliteConnectOptions, ConnectOptions, Connection, Executor, MySql, Pool, Sqlite};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -495,6 +495,42 @@ fn startup_script(params: &ConnectionParams) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// Format a startup-script execution failure so the surfaced error clearly
+/// names the startup script as the cause, instead of reading like a bad host
+/// or wrong credentials.
+fn startup_script_error(err: impl std::fmt::Display) -> String {
+    format!("Startup script failed: {err}")
+}
+
+/// Run the startup script once on a throwaway connection so a broken script
+/// fails fast with a clearly attributed error. The per-connection hooks
+/// (`after_connect`/`post_create`) still run it on every pooled connection;
+/// this preflight exists only for early, well-labelled failures: sqlx swallows
+/// `after_connect` errors and retries until the acquire timeout, which would
+/// otherwise report a misleading "pool timed out". A failure to open the
+/// connection is returned verbatim so genuine connectivity problems are not
+/// mislabelled as startup-script errors.
+async fn run_mysql_startup_script(
+    options: &sqlx::mysql::MySqlConnectOptions,
+    script: &str,
+) -> Result<(), String> {
+    let mut conn = options.connect().await.map_err(|e| e.to_string())?;
+    let outcome = conn.execute(script).await;
+    let _ = conn.close().await;
+    outcome.map(|_| ()).map_err(startup_script_error)
+}
+
+/// SQLite counterpart to [`run_mysql_startup_script`].
+async fn run_sqlite_startup_script(
+    options: &SqliteConnectOptions,
+    script: &str,
+) -> Result<(), String> {
+    let mut conn = options.connect().await.map_err(|e| e.to_string())?;
+    let outcome = conn.execute(script).await;
+    let _ = conn.close().await;
+    outcome.map(|_| ()).map_err(startup_script_error)
+}
+
 pub async fn get_mysql_pool(params: &ConnectionParams) -> Result<Pool<MySql>, String> {
     let connection_id = params.connection_id.as_deref();
     get_mysql_pool_with_id(params, connection_id).await
@@ -553,6 +589,14 @@ async fn get_mysql_pool_for_database_with_id(
     ));
     let mut pool_options = sqlx::mysql::MySqlPoolOptions::new().max_connections(10);
     if let Some(script) = startup_script(params) {
+        tokio::time::timeout(connect_timeout, run_mysql_startup_script(&options, &script))
+            .await
+            .map_err(|_| {
+                format!(
+                    "Timed out running MySQL startup script after {} ms",
+                    connect_timeout.as_millis()
+                )
+            })??;
         pool_options = pool_options.after_connect(move |conn, _meta| {
             let script = script.clone();
             Box::pin(async move {
@@ -636,7 +680,7 @@ pub async fn get_postgres_pool_with_id(
                 client
                     .batch_execute(&script)
                     .await
-                    .map_err(PgHookError::Backend)?;
+                    .map_err(|e| PgHookError::message(startup_script_error(format_error_chain(&e))))?;
                 Ok(())
             })
         }));
@@ -695,6 +739,7 @@ pub async fn get_sqlite_pool_with_id(
     let options = build_sqlite_connectoptions(params);
     let mut pool_options = sqlx::sqlite::SqlitePoolOptions::new().max_connections(5); // SQLite has lower concurrency needs
     if let Some(script) = startup_script(params) {
+        run_sqlite_startup_script(&options, &script).await?;
         pool_options = pool_options.after_connect(move |conn, _meta| {
             let script = script.clone();
             Box::pin(async move {
