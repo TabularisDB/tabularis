@@ -6,6 +6,8 @@ Adhere to the rules defined in the [rules directory](./.rules/):
 - [Rust Rules](./.rules/rust.md) (Backend module structure and Rust testing)
 - [TypeScript Rules](./.rules/typescript.md)
 - [React Rules](./.rules/react.md)
+- [Frontend Rules](./.rules/frontend.md) (Driver-agnostic frontend)
+- [i18n Rules](./.rules/i18n.md) (Lingui authoring & translation workflow)
 - [Modal Styling Rules](./.rules/modals.md) (Modal component structure and styling)
 - [Testing Conventions](./.rules/testing.md) (Test file organization and structure)
 

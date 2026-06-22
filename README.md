@@ -346,6 +346,19 @@ pnpm tauri dev
 pnpm tauri build
 ```
 
+### Translations
+
+The UI is localized with [Lingui](https://lingui.dev), and **you don't need to translate anything to contribute** — just wrap user-facing strings in a Lingui macro and write them in English:
+
+```tsx
+import { useLingui } from "@lingui/react/macro";
+
+const { t } = useLingui();
+<button>{t`Add Connection`}</button>;
+```
+
+`pnpm tauri dev` regenerates the message catalogs (`src/locales/<lng>/messages.po`) on save, so new strings appear immediately via HMR. Untranslated strings fall back to English; the actual translations are managed in [Tolgee](https://tolgee.io) and delivered over the air, so they reach users without an app release. See [CONTRIBUTING.md](./CONTRIBUTING.md#translations) for the translator workflow.
+
 ## Roadmap
 
 - [x] [[Feat]: Allow loading of multiple Databases per connection](https://github.com/TabularisDB/tabularis/issues/47)
