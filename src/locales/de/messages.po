@@ -626,6 +626,10 @@ msgstr "Neue Discord-Community!"
 msgid "Breaking Changes"
 msgstr "Breaking Changes"
 
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Bring approval dialog to the front"
+msgstr ""
+
 #: src/components/settings/PluginsTab.tsx
 msgid "Browse and install plugins from the registry."
 msgstr "Durchsuche und installiere Plugins aus dem Registry."
@@ -2965,6 +2969,10 @@ msgstr "Maximale Paketgröße, die vom MySQL-Connector verwendet wird."
 msgid "Maybe later"
 msgstr "Vielleicht später"
 
+#: src/components/modals/AiApprovalGate.tsx
+msgid "MCP approval needed"
+msgstr ""
+
 #: src/components/layout/Sidebar.tsx
 msgid "MCP Server"
 msgstr "MCP-Server"
@@ -3496,6 +3504,10 @@ msgstr "Open-Source-Bibliotheken"
 #: src/components/modals/TabSwitcherModal.tsx
 msgid "Open Tabs"
 msgstr "Geöffnete Tabs"
+
+#: src/components/modals/AiApprovalGate.tsx
+msgid "Open Tabularis to review the pending MCP approval."
+msgstr ""
 
 #: src/components/settings/InfoTab.tsx
 msgid "Open Task Manager"
@@ -4411,6 +4423,10 @@ msgstr ""
 msgid "Semicolon (;)"
 msgstr "Semikolon (;)"
 
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Send notification and play sound"
+msgstr ""
+
 #: src/components/layout/sidebar/ConnectionGroupItem.tsx
 msgid "Separate Connections"
 msgstr "Verbindungen trennen"
@@ -4463,6 +4479,10 @@ msgstr "Einstellungen"
 #: src/pages/McpPage.tsx
 msgid "Setup"
 msgstr "Einrichtung"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Show a native system notification and play a short alert sound when a new MCP approval request arrives."
+msgstr ""
 
 #: src/components/settings/AiTab.tsx
 msgid "Show AI Assist and Explain buttons in the editor"
@@ -5334,6 +5354,10 @@ msgstr "Wir haben einen eigenen Treffpunkt für Tabularis-Nutzer eröffnet: Hilf
 #: src/components/settings/InfoTab.tsx
 msgid "What's New"
 msgstr "Neuigkeiten"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "When a non-read MCP action needs approval, bring Tabularis to the front and keep it temporarily above other windows."
+msgstr ""
 
 #: src/pages/TaskManagerPage.tsx
 msgid "will forcefully stop its process. Any active database connections using this plugin will stop working until the plugin is restarted."

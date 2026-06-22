@@ -626,6 +626,10 @@ msgstr "¡Nueva comunidad Discord!"
 msgid "Breaking Changes"
 msgstr ""
 
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Bring approval dialog to the front"
+msgstr ""
+
 #: src/components/settings/PluginsTab.tsx
 msgid "Browse and install plugins from the registry."
 msgstr "Explora e instala plugins del registro."
@@ -2965,6 +2969,10 @@ msgstr "Tamaño máximo de paquete usado por el conector MySQL."
 msgid "Maybe later"
 msgstr ""
 
+#: src/components/modals/AiApprovalGate.tsx
+msgid "MCP approval needed"
+msgstr ""
+
 #: src/components/layout/Sidebar.tsx
 msgid "MCP Server"
 msgstr "Servidor MCP"
@@ -3496,6 +3504,10 @@ msgstr "Librerías Open Source"
 #: src/components/modals/TabSwitcherModal.tsx
 msgid "Open Tabs"
 msgstr "Pestañas Abiertas"
+
+#: src/components/modals/AiApprovalGate.tsx
+msgid "Open Tabularis to review the pending MCP approval."
+msgstr ""
 
 #: src/components/settings/InfoTab.tsx
 msgid "Open Task Manager"
@@ -4411,6 +4423,10 @@ msgstr "Emoji seleccionado"
 msgid "Semicolon (;)"
 msgstr "Punto y coma (;)"
 
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Send notification and play sound"
+msgstr ""
+
 #: src/components/layout/sidebar/ConnectionGroupItem.tsx
 msgid "Separate Connections"
 msgstr "Separar Conexiones"
@@ -4463,6 +4479,10 @@ msgstr "Configuración"
 #: src/pages/McpPage.tsx
 msgid "Setup"
 msgstr "Configuración"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Show a native system notification and play a short alert sound when a new MCP approval request arrives."
+msgstr ""
 
 #: src/components/settings/AiTab.tsx
 msgid "Show AI Assist and Explain buttons in the editor"
@@ -5333,6 +5353,10 @@ msgstr "Acabamos de abrir una comunidad dedicada a Tabularis: pide ayuda, compar
 #: src/components/modals/WhatsNewModal.tsx
 #: src/components/settings/InfoTab.tsx
 msgid "What's New"
+msgstr ""
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "When a non-read MCP action needs approval, bring Tabularis to the front and keep it temporarily above other windows."
 msgstr ""
 
 #: src/pages/TaskManagerPage.tsx

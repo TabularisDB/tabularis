@@ -21,6 +21,32 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
+vi.mock("@tauri-apps/api/window", () => ({
+  UserAttentionType: {
+    Critical: 1,
+    Informational: 2,
+  },
+  getCurrentWindow: () => ({
+    isAlwaysOnTop: vi.fn().mockResolvedValue(false),
+    isVisible: vi.fn().mockResolvedValue(true),
+    isMinimized: vi.fn().mockResolvedValue(false),
+    setAlwaysOnTop: vi.fn().mockResolvedValue(undefined),
+    show: vi.fn().mockResolvedValue(undefined),
+    hide: vi.fn().mockResolvedValue(undefined),
+    minimize: vi.fn().mockResolvedValue(undefined),
+    unminimize: vi.fn().mockResolvedValue(undefined),
+    setFocus: vi.fn().mockResolvedValue(undefined),
+    requestUserAttention: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
+vi.mock("@tauri-apps/plugin-notification", () => ({
+  isPermissionGranted: vi.fn().mockResolvedValue(true),
+  requestPermission: vi.fn().mockResolvedValue("granted"),
+  sendNotification: vi.fn(),
+}));
+
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   ask: vi.fn(),
   message: vi.fn(),

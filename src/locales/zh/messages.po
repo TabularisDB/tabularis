@@ -626,6 +626,10 @@ msgstr "全新的 Discord 社区！"
 msgid "Breaking Changes"
 msgstr "重大变更"
 
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Bring approval dialog to the front"
+msgstr ""
+
 #: src/components/settings/PluginsTab.tsx
 msgid "Browse and install plugins from the registry."
 msgstr "浏览并安装注册表中的插件。"
@@ -2965,6 +2969,10 @@ msgstr "MySQL 连接器使用的最大数据包大小。"
 msgid "Maybe later"
 msgstr "稍后再说"
 
+#: src/components/modals/AiApprovalGate.tsx
+msgid "MCP approval needed"
+msgstr ""
+
 #: src/components/layout/Sidebar.tsx
 msgid "MCP Server"
 msgstr "MCP 服务器"
@@ -3496,6 +3504,10 @@ msgstr "开源库"
 #: src/components/modals/TabSwitcherModal.tsx
 msgid "Open Tabs"
 msgstr "打开的标签"
+
+#: src/components/modals/AiApprovalGate.tsx
+msgid "Open Tabularis to review the pending MCP approval."
+msgstr ""
 
 #: src/components/settings/InfoTab.tsx
 msgid "Open Task Manager"
@@ -4411,6 +4423,10 @@ msgstr ""
 msgid "Semicolon (;)"
 msgstr "分号 (;)"
 
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Send notification and play sound"
+msgstr ""
+
 #: src/components/layout/sidebar/ConnectionGroupItem.tsx
 msgid "Separate Connections"
 msgstr "分离连接"
@@ -4463,6 +4479,10 @@ msgstr "设置"
 #: src/pages/McpPage.tsx
 msgid "Setup"
 msgstr "设置"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Show a native system notification and play a short alert sound when a new MCP approval request arrives."
+msgstr ""
 
 #: src/components/settings/AiTab.tsx
 msgid "Show AI Assist and Explain buttons in the editor"
@@ -5334,6 +5354,10 @@ msgstr "我们为 Tabularis 用户开设了专属社区：获取帮助、分享�
 #: src/components/settings/InfoTab.tsx
 msgid "What's New"
 msgstr "新功能"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "When a non-read MCP action needs approval, bring Tabularis to the front and keep it temporarily above other windows."
+msgstr ""
 
 #: src/pages/TaskManagerPage.tsx
 msgid "will forcefully stop its process. Any active database connections using this plugin will stop working until the plugin is restarted."

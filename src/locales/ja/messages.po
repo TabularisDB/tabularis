@@ -626,6 +626,10 @@ msgstr "Discord コミュニティが新登場！"
 msgid "Breaking Changes"
 msgstr "破壊的変更"
 
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Bring approval dialog to the front"
+msgstr ""
+
 #: src/components/settings/PluginsTab.tsx
 msgid "Browse and install plugins from the registry."
 msgstr "レジストリからプラグインを閲覧・インストールします。"
@@ -2965,6 +2969,10 @@ msgstr "MySQL コネクタが使用する最大パケットサイズです。"
 msgid "Maybe later"
 msgstr "あとで"
 
+#: src/components/modals/AiApprovalGate.tsx
+msgid "MCP approval needed"
+msgstr ""
+
 #: src/components/layout/Sidebar.tsx
 msgid "MCP Server"
 msgstr "MCP サーバー"
@@ -3496,6 +3504,10 @@ msgstr "オープンソースライブラリ"
 #: src/components/modals/TabSwitcherModal.tsx
 msgid "Open Tabs"
 msgstr "開いているタブ"
+
+#: src/components/modals/AiApprovalGate.tsx
+msgid "Open Tabularis to review the pending MCP approval."
+msgstr ""
 
 #: src/components/settings/InfoTab.tsx
 msgid "Open Task Manager"
@@ -4411,6 +4423,10 @@ msgstr ""
 msgid "Semicolon (;)"
 msgstr "セミコロン (;)"
 
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Send notification and play sound"
+msgstr ""
+
 #: src/components/layout/sidebar/ConnectionGroupItem.tsx
 msgid "Separate Connections"
 msgstr "接続を分離"
@@ -4463,6 +4479,10 @@ msgstr "設定"
 #: src/pages/McpPage.tsx
 msgid "Setup"
 msgstr "セットアップ"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Show a native system notification and play a short alert sound when a new MCP approval request arrives."
+msgstr ""
 
 #: src/components/settings/AiTab.tsx
 msgid "Show AI Assist and Explain buttons in the editor"
@@ -5334,6 +5354,10 @@ msgstr "Tabularis ユーザー専用のコミュニティを立ち上げまし�
 #: src/components/settings/InfoTab.tsx
 msgid "What's New"
 msgstr "新機能"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "When a non-read MCP action needs approval, bring Tabularis to the front and keep it temporarily above other windows."
+msgstr ""
 
 #: src/pages/TaskManagerPage.tsx
 msgid "will forcefully stop its process. Any active database connections using this plugin will stop working until the plugin is restarted."

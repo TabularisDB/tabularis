@@ -626,6 +626,10 @@ msgstr "Новое сообщество в Discord!"
 msgid "Breaking Changes"
 msgstr "Критические изменения"
 
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Bring approval dialog to the front"
+msgstr ""
+
 #: src/components/settings/PluginsTab.tsx
 msgid "Browse and install plugins from the registry."
 msgstr "Просмотр и установка плагинов из реестра."
@@ -2965,6 +2969,10 @@ msgstr "Максимальный размер пакета для MySQL-конн
 msgid "Maybe later"
 msgstr "Может быть позже"
 
+#: src/components/modals/AiApprovalGate.tsx
+msgid "MCP approval needed"
+msgstr ""
+
 #: src/components/layout/Sidebar.tsx
 msgid "MCP Server"
 msgstr "MCP-сервер"
@@ -3496,6 +3504,10 @@ msgstr "Библиотеки с открытым исходным кодом"
 #: src/components/modals/TabSwitcherModal.tsx
 msgid "Open Tabs"
 msgstr "Открытые вкладки"
+
+#: src/components/modals/AiApprovalGate.tsx
+msgid "Open Tabularis to review the pending MCP approval."
+msgstr ""
 
 #: src/components/settings/InfoTab.tsx
 msgid "Open Task Manager"
@@ -4411,6 +4423,10 @@ msgstr ""
 msgid "Semicolon (;)"
 msgstr "Точка с запятой (;)"
 
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Send notification and play sound"
+msgstr ""
+
 #: src/components/layout/sidebar/ConnectionGroupItem.tsx
 msgid "Separate Connections"
 msgstr "Отдельные подключения"
@@ -4463,6 +4479,10 @@ msgstr "Настройки"
 #: src/pages/McpPage.tsx
 msgid "Setup"
 msgstr "Настройка"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Show a native system notification and play a short alert sound when a new MCP approval request arrives."
+msgstr ""
 
 #: src/components/settings/AiTab.tsx
 msgid "Show AI Assist and Explain buttons in the editor"
@@ -5334,6 +5354,10 @@ msgstr "Мы только что открыли отдельное место д
 #: src/components/settings/InfoTab.tsx
 msgid "What's New"
 msgstr "Что нового"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "When a non-read MCP action needs approval, bring Tabularis to the front and keep it temporarily above other windows."
+msgstr ""
 
 #: src/pages/TaskManagerPage.tsx
 msgid "will forcefully stop its process. Any active database connections using this plugin will stop working until the plugin is restarted."

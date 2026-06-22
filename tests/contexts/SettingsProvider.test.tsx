@@ -9,10 +9,15 @@ import type { Settings } from "../../src/contexts/SettingsContext";
 vi.mock("@tauri-apps/api/core");
 
 // Mock the Lingui locale bridge. SettingsProvider activates the resolved locale
-// via dynamicActivate (no more i18next changeLanguage).
-const { mockDynamicActivate } = vi.hoisted(() => ({ mockDynamicActivate: vi.fn() }));
+// via dynamicActivate and reads the active locale from i18n.locale (no more
+// i18next changeLanguage / resolvedLanguage).
+const { mockDynamicActivate, mockI18n } = vi.hoisted(() => ({
+  mockDynamicActivate: vi.fn(),
+  mockI18n: { locale: "en" },
+}));
 vi.mock("../../src/i18n/lingui", () => ({
   dynamicActivate: mockDynamicActivate,
+  i18n: mockI18n,
   SUPPORTED_LANGUAGES: [
     { id: "en", label: "English" },
     { id: "it", label: "Italiano" },
@@ -28,6 +33,7 @@ vi.mock("../../src/i18n/lingui", () => ({
 describe("SettingsProvider", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockI18n.locale = "en";
     localStorage.clear();
 
     // Default mock for invoke
@@ -49,6 +55,7 @@ describe("SettingsProvider", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -114,6 +121,131 @@ describe("SettingsProvider", () => {
     expect(result.current.settings.aiEnabled).toBe(true);
     expect(result.current.settings.aiProvider).toBe("openai");
     expect(result.current.settings.aiModel).toBe("gpt-4");
+  });
+
+  it("hydrates persisted settings even while language application is still pending", async () => {
+    let resolveChangeLanguage: (() => void) | null = null;
+
+    mockDynamicActivate.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveChangeLanguage = resolve;
+        }),
+    );
+
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === "get_config") {
+        return Promise.resolve({ language: "it" });
+      }
+      if (cmd === "check_ai_key") {
+        return Promise.resolve(false);
+      }
+      if (cmd === "get_ai_models") {
+        return Promise.resolve({});
+      }
+      return Promise.reject(new Error(`Unexpected command: ${cmd}`));
+    });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(SettingsProvider, null, children);
+
+    const { result } = renderHook(() => useSettings(), { wrapper });
+
+    await waitFor(() => {
+      expect(mockDynamicActivate).toHaveBeenCalledWith("it");
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isLanguageReady).toBe(false);
+    expect(result.current.isLanguageSettled).toBe(false);
+    expect(result.current.settings.language).toBe("it");
+
+    resolveChangeLanguage?.();
+
+    await waitFor(() => {
+      expect(result.current.isLanguageReady).toBe(true);
+      expect(result.current.isLanguageSettled).toBe(true);
+    });
+  });
+
+  it("treats an already-active persisted language as settled immediately", async () => {
+    mockI18n.locale = "it";
+
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === "get_config") {
+        return Promise.resolve({ language: "it" });
+      }
+      if (cmd === "check_ai_key") {
+        return Promise.resolve(false);
+      }
+      if (cmd === "get_ai_models") {
+        return Promise.resolve({});
+      }
+      return Promise.reject(new Error(`Unexpected command: ${cmd}`));
+    });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(SettingsProvider, null, children);
+
+    const { result } = renderHook(() => useSettings(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(mockDynamicActivate).not.toHaveBeenCalled();
+    expect(result.current.settings.language).toBe("it");
+    expect(result.current.isLanguageReady).toBe(true);
+    expect(result.current.isLanguageSettled).toBe(true);
+  });
+
+  it("fails open when language application never resolves", async () => {
+    vi.useFakeTimers();
+    mockDynamicActivate.mockImplementation(() => new Promise<void>(() => {}));
+
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === "get_config") {
+        return Promise.resolve({ language: "it" });
+      }
+      if (cmd === "check_ai_key") {
+        return Promise.resolve(false);
+      }
+      if (cmd === "get_ai_models") {
+        return Promise.resolve({});
+      }
+      return Promise.reject(new Error(`Unexpected command: ${cmd}`));
+    });
+
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(SettingsProvider, null, children);
+
+    const { result } = renderHook(() => useSettings(), { wrapper });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(mockDynamicActivate).toHaveBeenCalledWith("it");
+
+    expect(result.current.isLanguageReady).toBe(false);
+    expect(result.current.isLanguageSettled).toBe(false);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+      await Promise.resolve();
+    });
+
+    expect(result.current.isLanguageReady).toBe(false);
+    expect(result.current.isLanguageSettled).toBe(true);
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Failed to apply language:",
+      expect.any(Error),
+    );
+
+    consoleErrorSpy.mockRestore();
   });
 
   it("should migrate settings from localStorage to backend", async () => {

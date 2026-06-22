@@ -34,6 +34,8 @@ export function McpSafetySection() {
   const approvalMode = (settings.mcpApprovalMode ?? "writes_only") as McpApprovalMode;
   const approvalTimeout = settings.mcpApprovalTimeoutSeconds ?? 120;
   const preflightExplain = settings.mcpPreflightExplain ?? true;
+  const approvalAlwaysOnTop = settings.mcpApprovalAlwaysOnTop ?? true;
+  const approvalNotifySound = settings.mcpApprovalNotifySound ?? true;
 
   const toggleConnection = (id: string) => {
     const next = overrideList.includes(id)
@@ -135,6 +137,26 @@ export function McpSafetySection() {
           <SettingToggle
             checked={preflightExplain}
             onChange={(v) => updateSetting("mcpPreflightExplain", v)}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t`Bring approval dialog to the front`}
+          description={t`When a non-read MCP action needs approval, bring Tabularis to the front and keep it temporarily above other windows.`}
+        >
+          <SettingToggle
+            checked={approvalAlwaysOnTop}
+            onChange={(v) => updateSetting("mcpApprovalAlwaysOnTop", v)}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t`Send notification and play sound`}
+          description={t`Show a native system notification and play a short alert sound when a new MCP approval request arrives.`}
+        >
+          <SettingToggle
+            checked={approvalNotifySound}
+            onChange={(v) => updateSetting("mcpApprovalNotifySound", v)}
           />
         </SettingRow>
       </SettingSection>
