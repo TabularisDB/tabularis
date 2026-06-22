@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Sparkles, BookOpen, ChevronUp } from "lucide-react";
 
 interface AiDropdownButtonProps {
@@ -17,7 +17,7 @@ export function AiDropdownButton({
   disableExplain,
   compact,
 }: AiDropdownButtonProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [isOpen, setIsOpen] = useState(false);
 
   const iconSize = compact ? 10 : 12;
@@ -58,7 +58,7 @@ export function AiDropdownButton({
               className="flex items-center gap-2 px-3 py-1.5 text-xs text-secondary hover:bg-purple-900/30 hover:text-purple-300 w-full text-left transition-colors"
             >
               <Sparkles size={12} className="text-purple-400" />
-              {t("ai.generateSql")}
+              {t({ message: "Generate SQL", context: "ai" })}
             </button>
             <button
               type="button"
@@ -70,7 +70,7 @@ export function AiDropdownButton({
               className="flex items-center gap-2 px-3 py-1.5 text-xs text-secondary hover:bg-blue-900/30 hover:text-blue-300 w-full text-left transition-colors disabled:opacity-30 disabled:pointer-events-none"
             >
               <BookOpen size={12} className="text-blue-400" />
-              {t("ai.explain")}
+              {t`Explain`}
             </button>
           </div>
         </>

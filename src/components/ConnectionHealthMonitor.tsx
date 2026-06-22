@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { useNavigate } from "react-router-dom";
 import { useAlert } from "../hooks/useAlert";
 
@@ -10,7 +10,7 @@ import { useAlert } from "../hooks/useAlert";
  */
 export function ConnectionHealthMonitor() {
   const { showAlert } = useAlert();
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const navigate = useNavigate();
 
   const goToConnections = useCallback(() => {
@@ -23,10 +23,10 @@ export function ConnectionHealthMonitor() {
       (event) => {
         const { error } = event.payload;
         showAlert(
-          `${t("healthCheck.connectionLost")}: ${error}`,
+          `${t`A database connection was lost`}: ${error}`,
           {
             kind: "error",
-            title: t("healthCheck.title"),
+            title: t`Connection Lost`,
             onClose: goToConnections,
           },
         );

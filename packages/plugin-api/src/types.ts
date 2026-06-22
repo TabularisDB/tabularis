@@ -108,8 +108,10 @@ export interface UsePluginThemeReturn {
 }
 
 /**
- * Minimal i18next-compatible translator signature.
- * Plugins should treat this as read-only.
+ * Plugin translator: `(key, options?) => string`. Resolves against your plugin's
+ * own `locales/<lang>.json` (active language → English → the key itself) and
+ * interpolates placeholders from `options`. Accepts both `{{var}}` (i18next, kept
+ * for backwards compatibility) and `{var}` (ICU/Lingui) syntax. Read-only.
  */
 export type PluginTranslator = (key: string, options?: Record<string, unknown>) => string;
 

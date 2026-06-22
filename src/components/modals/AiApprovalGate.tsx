@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { usePendingApprovals } from "../../hooks/useAiActivity";
 import { useSettings } from "../../hooks/useSettings";
 import {
@@ -13,7 +13,7 @@ import { AiApprovalModal } from "./AiApprovalModal";
 /// and presents one approval modal at a time. Mounted once at the App
 /// level, so it shows over any current page.
 export function AiApprovalGate() {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const {
     settings,
     isLoading: isSettingsLoading,
@@ -58,8 +58,8 @@ export function AiApprovalGate() {
 
       if (sendNotification && notifiedApprovalIdRef.current !== currentApprovalId) {
         notifiedApprovalIdRef.current = currentApprovalId;
-        const title = t("aiApproval.notificationTitle");
-        const body = t("aiApproval.notificationBody");
+        const title = t`MCP approval needed`;
+        const body = t`Open Tabularis to review the pending MCP approval.`;
         await notifyApprovalRequest({ title, body });
       }
     })();

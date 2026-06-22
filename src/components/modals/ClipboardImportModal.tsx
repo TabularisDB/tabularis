@@ -1,5 +1,6 @@
+import { plural } from "@lingui/core/macro";
 import { useState, useEffect, useCallback, useMemo, useId } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import {
   X,
   Clipboard,
@@ -48,7 +49,7 @@ interface ImportResult {
 }
 
 export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardImportModalProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const titleId = useId();
   const descriptionId = useId();
   const errorId = useId();
@@ -110,7 +111,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
     try {
       const text = await readText();
       if (!text || !text.trim()) {
-        setError(t('clipboardImport.noData'));
+        setError(t`No data found in clipboard`);
         setParsed(null);
         return;
       }
@@ -120,7 +121,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
       const mapped = await toSchemaColumns(result.inferredColumns);
       setColumns(mapped);
     } catch {
-      setError(t('clipboardImport.noData'));
+      setError(t`No data found in clipboard`);
     } finally {
       setIsLoadingClipboard(false);
     }
@@ -331,8 +332,8 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
   const appendModeBlocked = importMode === 'append' && !tableExists;
   const selectedModeHint =
     importMode === 'append'
-      ? t('clipboardImport.modeAppendHint')
-      : t('clipboardImport.modeCreateHint');
+      ? t`Rows will be added to an existing table`
+      : t`A new table will be created`;
   const describedBy = [descriptionId, error ? errorId : null, parsed?.warnings.length ? warningsId : null]
     .filter(Boolean)
     .join(' ');
@@ -366,10 +367,10 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
             <div className="flex min-w-0 flex-1 flex-col gap-2">
               <div className="min-w-0">
                 <h2 id={titleId} className="text-base font-semibold text-primary leading-tight">
-                  {t('clipboardImport.title')}
+                  {t({ message: "Import from Clipboard", context: "clipboardImport" })}
                 </h2>
                 <p id={descriptionId} className="text-[11px] text-muted leading-relaxed">
-                  {t('clipboardImport.subtitle')}
+                  {t`Paste structured data and preview the schema before importing`}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -382,17 +383,17 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
                     <div className="inline-flex items-center gap-1.5 rounded-full border border-default bg-base/70 px-2.5 py-1 text-[11px] text-secondary">
                       <Table2 size={12} className="text-blue-400 shrink-0" />
                       <span className="text-primary font-medium">{columns.length}</span>
-                      <span>{t('clipboardImport.columnsLabel')}</span>
+                      <span>{t`columns`}</span>
                     </div>
                     <div className="inline-flex items-center gap-1.5 rounded-full border border-default bg-base/70 px-2.5 py-1 text-[11px] text-secondary">
                       <Rows size={12} className="text-green-400 shrink-0" />
                       <span className="text-primary font-medium">{parsed.rowCount}</span>
-                      <span>{t('clipboardImport.rowsLabel')}</span>
+                      <span>{t({ message: "rows", context: "clipboardImport" })}</span>
                     </div>
                     {parsed.warnings.length > 0 && (
                       <div className="inline-flex items-center gap-1.5 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-[11px] text-yellow-300">
                         <AlertTriangle size={12} className="shrink-0" />
-                        <span>{t('clipboardImport.warningsCount', { count: parsed.warnings.length })}</span>
+                        <span>{plural(parsed.warnings.length, { one: "# parsing warning", other: "# parsing warnings" })}</span>
                       </div>
                     )}
                   </>
@@ -403,7 +404,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
           <button
             type="button"
             onClick={onClose}
-            aria-label={t('common.close', { defaultValue: 'Close' })}
+            aria-label={t`Close`}
             className="text-muted hover:text-primary transition-colors p-1.5 rounded-md hover:bg-surface-secondary/50 shrink-0"
           >
             <X size={18} />
@@ -414,7 +415,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
           {isLoadingClipboard ? (
             <div className="flex items-center justify-center h-40 gap-3 text-secondary">
               <Loader2 size={20} className="animate-spin" />
-              <span className="text-sm">{t('common.loading')}</span>
+              <span className="text-sm">{t`Loading...`}</span>
             </div>
           ) : error && !parsed ? (
             <div className="flex flex-col items-center justify-center h-40 gap-3 text-center">
@@ -425,7 +426,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
                 onClick={readClipboard}
                 className="text-xs text-blue-400 hover:underline"
               >
-                {t('clipboardImport.retry')}
+                {t({ message: "Try again", context: "clipboardImport" })}
               </button>
             </div>
           ) : success ? (
@@ -442,11 +443,11 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
               />
 
               <section className="flex flex-col gap-3 rounded-xl border border-default bg-base/40 p-3 md:p-4">
-                <StepHeader number={1} label={t('clipboardImport.stepConfigure')} />
+                <StepHeader number={1} label={t`Configure destination`} />
                 <div className="grid gap-3 lg:grid-cols-12">
                   <div className="lg:col-span-5 rounded-lg border border-default bg-base/60 p-3">
                     <label className="block text-xs uppercase font-bold text-muted mb-2">
-                      {t('clipboardImport.mode')}
+                      {t`Mode`}
                     </label>
                     <ModeToggle value={importMode} onChange={setImportMode} />
                   </div>
@@ -465,15 +466,15 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
                       ) : (
                         <>
                           <label className="block text-xs uppercase font-bold text-muted mb-2">
-                            {t('clipboardImport.tableName')}
+                            {t`Table name`}
                           </label>
                           <Select
                             value={tableName || null}
                             options={existingTables}
                             onChange={setTableName}
-                            placeholder={t('clipboardImport.selectTablePlaceholder')}
-                            searchPlaceholder={t('common.search')}
-                            noResultsLabel={t('common.noResults')}
+                            placeholder={t`Select a table...`}
+                            searchPlaceholder={t`Search...`}
+                            noResultsLabel={t`No results found`}
                             hasError={!tableName || !tableExists}
                           />
                         </>
@@ -488,11 +489,11 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
                       <div className="flex flex-col gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-3">
                         <div className="flex items-center gap-2 text-yellow-300">
                           <AlertTriangle size={14} className="shrink-0" />
-                          <span className="text-xs font-medium">{t('clipboardImport.tableExists')}</span>
+                          <span className="text-xs font-medium">{t`Already exists`}</span>
                         </div>
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                           <span className="text-[11px] text-yellow-200/90 shrink-0">
-                            {t('clipboardImport.onConflict')}:
+                            {t`If exists`}:
                           </span>
                           <div className="min-w-0 flex-1">
                             <Select
@@ -502,9 +503,9 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
                               searchable={false}
                               hasError
                               labels={{
-                                fail: t('clipboardImport.conflictFail'),
-                                append: t('clipboardImport.conflictAppend'),
-                                replace: t('clipboardImport.conflictReplace'),
+                                fail: t`Fail with error`,
+                                append: t`Append rows`,
+                                replace: t`Replace table`,
                               }}
                             />
                           </div>
@@ -516,7 +517,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
               </section>
 
               <section className="flex flex-col gap-3 flex-1 min-h-0 overflow-hidden rounded-xl border border-default bg-base/40 p-3 md:p-4">
-                <StepHeader number={2} label={t('clipboardImport.stepReview')} />
+                <StepHeader number={2} label={t`Review & adjust`} />
                 <div className="flex flex-col xl:flex-row gap-3 flex-1 min-h-0 overflow-hidden">
                   {maximizedPane !== 'preview' && (
                     <div className="flex-1 min-h-[260px] xl:min-h-0 overflow-hidden flex flex-col">
@@ -573,7 +574,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
                     )}
                     <AlertTriangle size={12} className="shrink-0" />
                     <span className="font-medium">
-                      {t('clipboardImport.warningsCount', { count: parsed.warnings.length })}
+                      {plural(parsed.warnings.length, { one: "# parsing warning", other: "# parsing warnings" })}
                     </span>
                   </button>
                   {warningsExpanded && (
@@ -611,11 +612,11 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
             <div className="flex flex-col gap-1">
               <span className="text-xs text-muted">
                 {parsed.rowCount > 0
-                  ? t('clipboardImport.rowsTotal', { count: parsed.rowCount })
-                  : t('clipboardImport.noData')}
+                  ? plural(parsed.rowCount, { one: "# row", other: "# rows" })
+                  : t`No data found in clipboard`}
               </span>
               {appendModeBlocked && (
-                <span className="text-[11px] text-yellow-300">{t('clipboardImport.selectTablePlaceholder')}</span>
+                <span className="text-[11px] text-yellow-300">{t`Select a table...`}</span>
               )}
             </div>
             <div className="flex gap-2 self-end sm:self-auto">
@@ -624,7 +625,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
                 onClick={onClose}
                 className="px-4 py-2 text-secondary hover:text-primary hover:bg-surface-secondary/50 rounded-lg transition-colors text-sm"
               >
-                {t('common.cancel')}
+                {t`Cancel`}
               </button>
               <button
                 type="button"
@@ -638,8 +639,8 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
                   <Upload size={16} />
                 )}
                 {isImporting
-                  ? t('clipboardImport.importing')
-                  : t('clipboardImport.import', { count: parsed.rowCount })}
+                  ? t`Importing...`
+                  : plural(parsed.rowCount, { one: "Import # row", other: "Import # rows" })}
               </button>
             </div>
           </div>
@@ -673,16 +674,16 @@ interface SuccessStateProps {
 }
 
 function SuccessState({ result, tableName, onClose }: SuccessStateProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   return (
     <div className="flex flex-col items-center justify-center h-48 gap-4 text-center" role="status" aria-live="polite">
       <CheckCircle2 size={40} className="text-green-400" />
       <div>
         <p className="text-sm font-medium text-primary">
-          {t('clipboardImport.success', { count: result.rows_inserted, table: tableName })}
+          {plural(result.rows_inserted, { one: `# row imported into "${tableName}"`, other: `# rows imported into "${tableName}"` })}
         </p>
         {result.table_created && (
-          <p className="text-xs text-muted mt-1">{t('clipboardImport.tableCreated')}</p>
+          <p className="text-xs text-muted mt-1">{t`New table created`}</p>
         )}
       </div>
       <button
@@ -691,7 +692,7 @@ function SuccessState({ result, tableName, onClose }: SuccessStateProps) {
         className="flex items-center gap-2 px-4 py-2 bg-green-900/30 hover:bg-green-900/50 border border-green-800/40 text-green-300 rounded-lg text-sm transition-colors"
       >
         <ExternalLink size={14} />
-        {t('clipboardImport.openTable')}
+        {t`Close`}
       </button>
     </div>
   );

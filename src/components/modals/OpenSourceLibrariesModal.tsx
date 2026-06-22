@@ -1,6 +1,8 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ExternalLink, Library, X } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
+import { openSourceLibrariesSections } from "../../i18n/registries/openSourceLibrariesSections";
+import { openSourceLibrariesEcosystem } from "../../i18n/registries/openSourceLibrariesEcosystem";
 import { Modal } from "../ui/Modal";
 import {
   getOpenSourceLibraryTotal,
@@ -17,7 +19,7 @@ export function OpenSourceLibrariesModal({
   isOpen,
   onClose,
 }: OpenSourceLibrariesModalProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const totalLibraries = getOpenSourceLibraryTotal();
 
   return (
@@ -30,12 +32,10 @@ export function OpenSourceLibrariesModal({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
-                {t("settings.openSourceLibraries")}
+                {t`Open Source Libraries`}
               </h2>
               <p className="text-xs text-secondary">
-                {t("settings.openSourceLibrariesTotal", {
-                  count: totalLibraries,
-                })}
+                {t`${totalLibraries} libraries`}
               </p>
             </div>
           </div>
@@ -50,10 +50,10 @@ export function OpenSourceLibrariesModal({
         <div className="p-6 space-y-6 overflow-y-auto">
           <div className="bg-surface-secondary/50 p-4 rounded-lg border border-strong">
             <p className="text-sm text-secondary leading-relaxed">
-              {t("settings.openSourceLibrariesDesc")}
+              {t`Browse the direct open source dependencies used across the app, backend, and tooling.`}
             </p>
             <p className="text-xs text-muted mt-2">
-              {t("settings.openSourceLibrariesSource")}
+              {t`Direct dependencies declared in package.json and src-tauri/Cargo.toml.`}
             </p>
           </div>
 
@@ -66,12 +66,10 @@ export function OpenSourceLibrariesModal({
                 <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-default bg-base">
                   <div>
                     <h3 className="text-sm font-semibold text-primary">
-                      {t(`settings.openSourceLibrariesSections.${section.id}`)}
+                      {i18n._(openSourceLibrariesSections[section.id])}
                     </h3>
                     <p className="text-xs text-secondary">
-                      {t(
-                        `settings.openSourceLibrariesEcosystem.${section.ecosystem}`,
-                      )}
+                      {i18n._(openSourceLibrariesEcosystem[section.ecosystem])}
                     </p>
                   </div>
                   <div className="px-2.5 py-1 rounded-full text-xs font-medium bg-surface-secondary text-secondary border border-default">
@@ -104,10 +102,8 @@ export function OpenSourceLibrariesModal({
                             )
                           }
                           className="p-2 text-secondary hover:text-blue-400 hover:bg-surface-secondary rounded-lg transition-colors"
-                          title={t("settings.openSourceLibrariesOpenProject")}
-                          aria-label={t(
-                            "settings.openSourceLibrariesOpenProject",
-                          )}
+                          title={t`Open package page`}
+                          aria-label={t`Open package page`}
                         >
                           <ExternalLink size={14} />
                         </button>
@@ -125,7 +121,7 @@ export function OpenSourceLibrariesModal({
             onClick={onClose}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
           >
-            {t("common.close")}
+            {t`Close`}
           </button>
         </div>
       </div>

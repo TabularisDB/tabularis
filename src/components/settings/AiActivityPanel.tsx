@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
+import { msg } from "@lingui/core/macro";
+import type { MessageDescriptor } from "@lingui/core";
 import { Activity, Layers } from "lucide-react";
 import clsx from "clsx";
 import { AiActivityEventsTab } from "./ai-activity/AiActivityEventsTab";
@@ -10,29 +12,29 @@ type AiActivityTab = "events" | "sessions";
 const TABS: Array<{
   id: AiActivityTab;
   icon: React.ComponentType<{ size: number }>;
-  labelKey: string;
+  label: MessageDescriptor;
 }> = [
-  { id: "events", icon: Activity, labelKey: "aiActivity.tabs.events" },
-  { id: "sessions", icon: Layers, labelKey: "aiActivity.tabs.sessions" },
+  { id: "events", icon: Activity, label: msg`Events` },
+  { id: "sessions", icon: Layers, label: msg`Sessions` },
 ];
 
 export function AiActivityPanel() {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const [tab, setTab] = useState<AiActivityTab>("events");
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-primary">
-          {t("aiActivity.title")}
+          {t`AI Activity`}
         </h2>
         <p className="text-xs text-muted mt-1">
-          {t("aiActivity.description")}
+          {t`Audit log of every MCP tool call, plus the queries waiting for your approval. Stored locally — never sent anywhere.`}
         </p>
       </div>
 
       <div className="flex gap-1 border-b border-default">
-        {TABS.map(({ id, icon: Icon, labelKey }) => (
+        {TABS.map(({ id, icon: Icon, label }) => (
           <button
             key={id}
             onClick={() => setTab(id)}
@@ -44,7 +46,7 @@ export function AiActivityPanel() {
             )}
           >
             <Icon size={14} />
-            {t(labelKey)}
+            {i18n._(label)}
           </button>
         ))}
       </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   Plus,
   Play,
@@ -90,7 +90,7 @@ export function NotebookToolbar({
   onToggleHistory,
   historyOpen,
 }: NotebookToolbarProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
@@ -103,18 +103,18 @@ export function NotebookToolbar({
   };
 
   const addItems: ContextMenuItem[] = [
-    { label: t("editor.notebook.sqlCell"), icon: Database, action: onAddSqlCell },
+    { label: t`SQL`, icon: Database, action: onAddSqlCell },
     {
-      label: t("editor.notebook.markdownCell"),
+      label: t`Markdown`,
       icon: FileText,
       action: onAddMarkdownCell,
     },
   ];
 
   const exportItems: ContextMenuItem[] = [
-    { label: t("editor.notebook.export"), icon: Download, action: onExport },
+    { label: t`Export Notebook`, icon: Download, action: onExport },
     {
-      label: t("editor.notebook.exportHtml"),
+      label: t`Export as HTML`,
       icon: FileCode,
       action: onExportHtml,
     },
@@ -125,12 +125,12 @@ export function NotebookToolbar({
       <button
         type="button"
         onClick={(e) => openMenu(e, addItems)}
-        title={t("editor.notebook.addCell")}
+        title={t`Add`}
         className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-primary hover:bg-surface-secondary rounded transition-colors shrink-0"
       >
         <Plus size={14} />
         <span className="hidden @[440px]:inline">
-          {t("editor.notebook.addCell")}
+          {t`Add`}
         </span>
         <ChevronDown size={12} className="text-muted" />
       </button>
@@ -141,21 +141,21 @@ export function NotebookToolbar({
         <ToolbarButton
           onClick={onUndo}
           disabled={!canUndo}
-          title={t("editor.notebook.undo")}
+          title={t`Undo`}
         >
           <Undo2 size={14} />
         </ToolbarButton>
         <ToolbarButton
           onClick={onRedo}
           disabled={!canRedo}
-          title={t("editor.notebook.redo")}
+          title={t`Redo`}
         >
           <Redo2 size={14} />
         </ToolbarButton>
         <button
           type="button"
           onClick={onToggleHistory}
-          title={t("editor.notebook.history.title")}
+          title={t`Edit history`}
           className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded transition-colors shrink-0 ${
             historyOpen
               ? "bg-surface-secondary text-primary"
@@ -172,7 +172,7 @@ export function NotebookToolbar({
         <ToolbarButton
           onClick={onRunAll}
           disabled={isRunning}
-          title={t("editor.notebook.runAllTooltip")}
+          title={t`Execute all SQL cells top to bottom`}
         >
           {isRunning ? (
             <Loader2 size={14} className="animate-spin" />
@@ -180,14 +180,14 @@ export function NotebookToolbar({
             <Play size={14} className="text-green-400" />
           )}
           <span className="hidden @[440px]:inline">
-            {t("editor.notebook.runAll")}
+            {t({ message: "Run All", context: "editor.notebook.runAll" })}
           </span>
         </ToolbarButton>
 
         <button
           type="button"
           onClick={onToggleStopOnError}
-          title={t("editor.notebook.stopOnErrorTooltip")}
+          title={t`Stop execution when a cell fails`}
           className={`flex items-center gap-1 px-1.5 py-1 text-[10px] rounded transition-colors shrink-0 ${
             stopOnError
               ? "bg-red-500/15 text-red-400 font-semibold"
@@ -196,7 +196,7 @@ export function NotebookToolbar({
         >
           <OctagonX size={12} />
           <span className="hidden @[540px]:inline">
-            {t("editor.notebook.stopOnError")}
+            {t`Stop on Error`}
           </span>
         </button>
       </ToolbarGroup>
@@ -206,20 +206,20 @@ export function NotebookToolbar({
       <ToolbarGroup>
         <ToolbarButton
           onClick={onCollapseAll}
-          title={t("editor.notebook.collapseAll")}
+          title={t`Collapse All`}
         >
           <ChevronsDownUp size={14} />
           <span className="hidden @[720px]:inline">
-            {t("editor.notebook.collapseAll")}
+            {t`Collapse All`}
           </span>
         </ToolbarButton>
         <ToolbarButton
           onClick={onExpandAll}
-          title={t("editor.notebook.expandAll")}
+          title={t`Expand All`}
         >
           <ChevronsUpDown size={14} />
           <span className="hidden @[720px]:inline">
-            {t("editor.notebook.expandAll")}
+            {t`Expand All`}
           </span>
         </ToolbarButton>
       </ToolbarGroup>
@@ -229,19 +229,19 @@ export function NotebookToolbar({
       <ToolbarGroup>
         <ToolbarButton
           onClick={(e) => openMenu(e, exportItems)}
-          title={t("editor.notebook.export")}
+          title={t`Export Notebook`}
         >
           <Download size={14} />
           <span className="hidden @[560px]:inline">
-            {t("editor.notebook.export")}
+            {t`Export Notebook`}
           </span>
           <ChevronDown size={12} className="text-muted" />
         </ToolbarButton>
 
-        <ToolbarButton onClick={onImport} title={t("editor.notebook.import")}>
+        <ToolbarButton onClick={onImport} title={t`Import Notebook`}>
           <Upload size={14} />
           <span className="hidden @[640px]:inline">
-            {t("editor.notebook.import")}
+            {t`Import Notebook`}
           </span>
         </ToolbarButton>
       </ToolbarGroup>

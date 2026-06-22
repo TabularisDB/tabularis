@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Database, Unlink } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import { useConnectionLayoutContext } from '../../../hooks/useConnectionLayoutContext';
 import { ContextMenu } from '../../ui/ContextMenu';
 import type { ConnectionStatus } from '../../../hooks/useConnectionManager';
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export const ConnectionGroupItem = ({ connections, mode }: Props) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const navigate = useNavigate();
   const { deactivateSplit, showSplitView } = useConnectionLayoutContext();
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -24,7 +24,7 @@ export const ConnectionGroupItem = ({ connections, mode }: Props) => {
 
   const menuItems = [
     {
-      label: t('sidebar.separateConnections'),
+      label: t`Separate Connections`,
       icon: Unlink,
       action: deactivateSplit,
     },
@@ -52,7 +52,7 @@ export const ConnectionGroupItem = ({ connections, mode }: Props) => {
 
         {/* Tooltip */}
         <div className="absolute left-14 top-1/2 -translate-y-1/2 bg-surface-secondary text-primary text-xs px-2 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30 pointer-events-none shadow-lg border border-default">
-          <div className="font-medium">{t('sidebar.splitGroup')}</div>
+          <div className="font-medium">{t`Split Group`}</div>
           {connections.map(c => (
             <div key={c.id} className="text-muted text-[10px]">
               {c.name}

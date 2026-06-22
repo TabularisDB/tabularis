@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Monitor, Code2 } from "lucide-react";
 import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
@@ -16,7 +16,7 @@ import { FontPicker } from "./FontPicker";
 import { ThemePicker } from "./ThemePicker";
 
 export function AppearanceTab() {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings, updateSetting } = useSettings();
   const { currentTheme, allThemes, setTheme } = useTheme();
   const [subTab, setSubTab] = useState<"general" | "editor">("general");
@@ -35,7 +35,7 @@ export function AppearanceTab() {
           )}
         >
           <Monitor size={15} />
-          {t("settings.appearance_general")}
+          {t({ message: "General", context: "settings" })}
         </button>
         <button
           onClick={() => setSubTab("editor")}
@@ -47,14 +47,14 @@ export function AppearanceTab() {
           )}
         >
           <Code2 size={15} />
-          {t("settings.appearance_sqlEditor")}
+          {t`SQL Editor`}
         </button>
       </div>
 
       {/* General sub-tab */}
       {subTab === "general" && (
         <>
-          <SettingSection title={t("settings.themeSelection")}>
+          <SettingSection title={t`Theme Selection`}>
             <div className="py-3">
               <ThemePicker
                 value={currentTheme.id}
@@ -64,7 +64,7 @@ export function AppearanceTab() {
             </div>
           </SettingSection>
 
-          <SettingSection title={t("settings.fontFamily")}>
+          <SettingSection title={t`Font Family`}>
             <div className="py-3">
               <FontPicker
                 value={settings.fontFamily ?? "System"}
@@ -79,10 +79,10 @@ export function AppearanceTab() {
             </div>
           </SettingSection>
 
-          <SettingSection title={t("settings.fontSize")}>
+          <SettingSection title={t`Font Size`}>
             <SettingRow
-              label={t("settings.fontSizeLabel")}
-              description={t("settings.fontSizeDesc")}
+              label={t`Font Size`}
+              description={t`Adjust the base font size used throughout the application (10-20px).`}
             >
               <SettingSlider
                 value={settings.fontSize || 14}
@@ -95,13 +95,13 @@ export function AppearanceTab() {
             </SettingRow>
             <div className="bg-base border border-default rounded-lg p-4 mt-2">
               <p className="text-xs text-muted mb-2">
-                {t("settings.preview")}:
+                {t({ message: "Preview", context: "settings" })}:
               </p>
               <p
                 className="text-primary"
                 style={{ fontSize: `${settings.fontSize || 14}px` }}
               >
-                Aa Bb Cc 123 - {t("settings.fontPreviewText")}
+                Aa Bb Cc 123 - {t`The quick brown fox jumps over the lazy dog`}
               </p>
             </div>
           </SettingSection>
@@ -111,9 +111,9 @@ export function AppearanceTab() {
       {/* Editor sub-tab */}
       {subTab === "editor" && (
         <>
-          <SettingSection title={t("settings.appearance_editorTheme")}>
+          <SettingSection title={t`Editor Theme`}>
             <p className="text-xs text-muted mb-3">
-              {t("settings.appearance_editorThemeDesc")}
+              {t`Choose an independent theme for the SQL editor, or keep it in sync with the app theme.`}
             </p>
             <div className="py-1">
               <ThemePicker
@@ -125,7 +125,7 @@ export function AppearanceTab() {
             </div>
           </SettingSection>
 
-          <SettingSection title={t("settings.appearance_editorFontFamily")}>
+          <SettingSection title={t`Editor Font Family`}>
             <div className="py-3">
               <FontPicker
                 value={settings.editorFontFamily ?? "JetBrains Mono"}
@@ -136,8 +136,8 @@ export function AppearanceTab() {
             </div>
           </SettingSection>
 
-          <SettingSection title={t("settings.appearance_editorFontSize")}>
-            <SettingRow label={t("settings.appearance_editorFontSize")}>
+          <SettingSection title={t`Editor Font Size`}>
+            <SettingRow label={t`Editor Font Size`}>
               <SettingSlider
                 value={settings.editorFontSize ?? 14}
                 onChange={(v) => updateSetting("editorFontSize", v)}
@@ -148,7 +148,7 @@ export function AppearanceTab() {
               />
             </SettingRow>
 
-            <SettingRow label={t("settings.appearance_editorLineHeight")}>
+            <SettingRow label={t`Line Height`}>
               <SettingSlider
                 value={settings.editorLineHeight ?? 1.5}
                 onChange={(v) => updateSetting("editorLineHeight", v)}
@@ -160,8 +160,8 @@ export function AppearanceTab() {
             </SettingRow>
           </SettingSection>
 
-          <SettingSection title={t("settings.appearance_editorTabSize")}>
-            <SettingRow label={t("settings.appearance_editorTabSize")}>
+          <SettingSection title={t`Tab Size`}>
+            <SettingRow label={t`Tab Size`}>
               <SettingButtonGroup
                 value={settings.editorTabSize ?? 2}
                 onChange={(v) => updateSetting("editorTabSize", v)}
@@ -175,10 +175,10 @@ export function AppearanceTab() {
             </SettingRow>
           </SettingSection>
 
-          <SettingSection title={t("settings.appearance_editorWordWrap")}>
+          <SettingSection title={t`Word Wrap`}>
             <SettingRow
-              label={t("settings.appearance_editorWordWrap")}
-              description={t("settings.appearance_editorWordWrapDesc")}
+              label={t`Word Wrap`}
+              description={t`Wrap long lines in the editor instead of scrolling horizontally.`}
             >
               <SettingToggle
                 checked={settings.editorWordWrap ?? true}
@@ -187,10 +187,8 @@ export function AppearanceTab() {
             </SettingRow>
 
             <SettingRow
-              label={t("settings.appearance_editorShowLineNumbers")}
-              description={t(
-                "settings.appearance_editorShowLineNumbersDesc",
-              )}
+              label={t`Show Line Numbers`}
+              description={t`Display line numbers in the editor gutter.`}
             >
               <SettingToggle
                 checked={settings.editorShowLineNumbers ?? true}
@@ -199,10 +197,8 @@ export function AppearanceTab() {
             </SettingRow>
 
             <SettingRow
-              label={t("settings.appearance_editorAcceptSuggestionOnEnter")}
-              description={t(
-                "settings.appearance_editorAcceptSuggestionOnEnterDesc",
-              )}
+              label={t`Accept Suggestion with Enter`}
+              description={t`Allow Enter (in addition to Tab) to accept the active autocomplete suggestion. When off, Enter always inserts a newline.`}
             >
               <SettingToggle
                 checked={settings.editorAcceptSuggestionOnEnter ?? true}

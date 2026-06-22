@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   Check,
   Code,
@@ -52,7 +52,7 @@ export const JsonInput: React.FC<JsonInputProps> = ({
   fillHeight = false,
   originalValue,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [mode, setMode] = useState<JsonInputMode>("code");
   const valueKey = JSON.stringify(value);
   const [text, setText] = useState(() => formatJsonForEditor(value));
@@ -136,9 +136,9 @@ export const JsonInput: React.FC<JsonInputProps> = ({
 
   const modes: Array<{ key: JsonInputMode; label: string; Icon: typeof Code }> =
     [
-      { key: "code", label: t("jsonInput.mode.code"), Icon: Code },
-      { key: "tree", label: t("jsonInput.mode.tree"), Icon: Network },
-      { key: "raw", label: t("jsonInput.mode.raw"), Icon: FileText },
+      { key: "code", label: t`Code`, Icon: Code },
+      { key: "tree", label: t`Tree`, Icon: Network },
+      { key: "raw", label: t`Raw`, Icon: FileText },
     ];
 
   const isTextMode = mode === "code" || mode === "raw";
@@ -183,7 +183,7 @@ export const JsonInput: React.FC<JsonInputProps> = ({
       {/* Mode selector */}
       <div
         role="tablist"
-        aria-label={t("jsonInput.mode.code")}
+        aria-label={t`Code`}
         className={`inline-flex items-center gap-0.5 bg-surface-secondary border border-default rounded p-0.5 ${
           fillHeight ? "flex-shrink-0" : ""
         }`}
@@ -262,7 +262,7 @@ export const JsonInput: React.FC<JsonInputProps> = ({
             data-testid="json-input-raw"
             value={text}
             onChange={handleRawChange}
-            placeholder={placeholder || t("jsonInput.placeholder")}
+            placeholder={placeholder || t`Enter JSON...`}
             spellCheck={false}
             readOnly={readOnly}
             className={`w-full px-3 py-2 bg-base border rounded-lg text-primary font-mono text-sm resize-y focus:outline-none transition-colors ${
@@ -290,10 +290,10 @@ export const JsonInput: React.FC<JsonInputProps> = ({
                 onClick={handleFormat}
                 disabled={!!error || text.trim() === ""}
                 className="px-2 py-1 text-xs bg-surface-secondary text-secondary rounded border border-default hover:bg-surface-tertiary transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
-                title={t("jsonInput.format")}
+                title={t`Format`}
               >
                 <WrapText size={12} />
-                {t("jsonInput.format")}
+                {t`Format`}
               </button>
             )}
             {mode === "code" && originalText !== null && (
@@ -307,10 +307,10 @@ export const JsonInput: React.FC<JsonInputProps> = ({
                     ? "bg-blue-600/30 text-blue-100 border-blue-500/50"
                     : "bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary"
                 }`}
-                title={t("jsonInput.diff", { defaultValue: "Diff" })}
+                title={t`Diff`}
               >
                 <GitCompare size={12} />
-                {t("jsonInput.diff", { defaultValue: "Diff" })}
+                {t`Diff`}
                 {hasDiff && (
                   <span
                     aria-hidden
@@ -329,10 +329,10 @@ export const JsonInput: React.FC<JsonInputProps> = ({
                     ? "bg-blue-600/30 text-blue-100 border-blue-500/50"
                     : "bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary"
                 }`}
-                title={t("jsonInput.sideBySide", { defaultValue: "Side by side" })}
+                title={t`Side by side`}
               >
                 <Columns2 size={12} />
-                {t("jsonInput.sideBySide", { defaultValue: "Side by side" })}
+                {t`Side by side`}
               </button>
             )}
             {!disableExpand && (
@@ -340,10 +340,10 @@ export const JsonInput: React.FC<JsonInputProps> = ({
                 type="button"
                 onClick={handleExpandToWindow}
                 className="px-2 py-1 text-xs bg-surface-secondary text-secondary rounded border border-default hover:bg-surface-tertiary transition-colors flex items-center gap-1"
-                title={t("jsonInput.expand")}
+                title={t({ message: "Expand", context: "jsonInput" })}
               >
                 <Maximize2 size={12} />
-                {t("jsonInput.expand")}
+                {t({ message: "Expand", context: "jsonInput" })}
               </button>
             )}
           </div>
@@ -355,12 +355,12 @@ export const JsonInput: React.FC<JsonInputProps> = ({
                 (error ? (
                   <span className="text-red-400 flex items-center gap-1">
                     <X size={12} />
-                    {t("jsonInput.invalid")}
+                    {t`Invalid JSON`}
                   </span>
                 ) : (
                   <span className="text-green-400 flex items-center gap-1">
                     <Check size={12} />
-                    {t("jsonInput.valid")}
+                    {t`Valid JSON`}
                   </span>
                 ))}
             </div>

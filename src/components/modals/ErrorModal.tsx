@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { AlertTriangle, X } from "lucide-react";
 import { Modal } from "../ui/Modal";
 
@@ -9,7 +9,7 @@ interface ErrorModalProps {
 }
 
 export const ErrorModal = ({ isOpen, onClose, message }: ErrorModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -20,7 +20,7 @@ export const ErrorModal = ({ isOpen, onClose, message }: ErrorModalProps) => {
               <AlertTriangle size={20} className="text-red-400" />
             </div>
             <h2 className="text-lg font-semibold text-primary">
-              {t("common.error")}
+              {t({ message: "Error", context: "common" })}
             </h2>
           </div>
           <button
@@ -40,7 +40,7 @@ export const ErrorModal = ({ isOpen, onClose, message }: ErrorModalProps) => {
             onClick={onClose}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
           >
-            {t("common.close")}
+            {t`Close`}
           </button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { X } from "lucide-react";
 import type { AiActivityEvent } from "../../../types/ai";
 import { formatDurationMs, formatLocalTimestamp } from "../../../utils/aiActivity";
@@ -12,7 +12,7 @@ interface EventDetailModalProps {
 }
 
 export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings } = useSettings();
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] backdrop-blur-sm">
@@ -20,7 +20,7 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div>
             <h2 className="text-base font-semibold text-primary">
-              {t("aiActivity.detailTitle")}
+              {t`Event details`}
             </h2>
             <p className="text-xs text-muted font-mono">{event.id}</p>
           </div>
@@ -33,12 +33,12 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
         </div>
         <div className="p-5 space-y-3 overflow-y-auto text-sm">
           <DetailRow
-            label={t("aiActivity.col.timestamp")}
+            label={t({ message: "Time", context: "aiActivity" })}
             value={formatLocalTimestamp(event.timestamp, settings.displayTimezone)}
           />
-          <DetailRow label={t("aiActivity.col.tool")} value={event.tool} />
+          <DetailRow label={t`Tool`} value={event.tool} />
           <DetailRow
-            label={t("aiActivity.col.connection")}
+            label={t`Connection`}
             value={
               event.connectionName
                 ? `${event.connectionName} (${event.connectionId ?? "?"})`
@@ -46,12 +46,12 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
             }
           />
           <DetailRow
-            label={t("aiActivity.col.duration")}
+            label={t`Duration`}
             value={formatDurationMs(event.durationMs)}
           />
           <div className="flex gap-3">
             <div className="text-xs text-muted uppercase font-bold w-32 shrink-0">
-              {t("aiActivity.col.status")}
+              {t`Status`}
             </div>
             <div className="flex items-center gap-2">
               <StatusBadge status={event.status} />
@@ -59,21 +59,21 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
             </div>
           </div>
           {event.clientHint && (
-            <DetailRow label={t("aiActivity.client")} value={event.clientHint} />
+            <DetailRow label={t`Client`} value={event.clientHint} />
           )}
           {event.rows !== null && event.rows !== undefined && (
             <DetailRow
-              label={t("aiActivity.rowsReturned")}
+              label={t`Rows returned`}
               value={String(event.rows)}
             />
           )}
           {event.approvalId && (
-            <DetailRow label={t("aiActivity.approvalId")} value={event.approvalId} />
+            <DetailRow label={t`Approval ID`} value={event.approvalId} />
           )}
           {event.error && (
             <div>
               <div className="text-xs text-muted uppercase font-bold mb-1">
-                {t("common.error")}
+                {t({ message: "Error", context: "common" })}
               </div>
               <pre className="bg-red-900/10 border border-red-900/30 rounded p-3 text-xs text-red-400 whitespace-pre-wrap break-words">
                 {event.error}
@@ -83,7 +83,7 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
           {event.query && (
             <div>
               <div className="text-xs text-muted uppercase font-bold mb-1">
-                {t("aiActivity.col.query")}
+                {t`Query`}
               </div>
               <pre className="bg-base border border-default rounded p-3 text-xs text-secondary font-mono whitespace-pre-wrap break-words max-h-64 overflow-auto">
                 {event.query}

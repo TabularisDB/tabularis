@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Calculator, ChevronDown } from "lucide-react";
 import { isGeometricType } from "../../utils/geometry";
 import {
@@ -39,7 +39,7 @@ export const GeometryInput = ({
   className = "",
   onSqlFunctionsClick,
 }: GeometryInputProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const isRawSqlMode = isRawSqlFunction(value);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -103,8 +103,8 @@ export const GeometryInput = ({
   const getPlaceholderText = () => {
     if (placeholder) return placeholder;
     return isRawSqlMode 
-      ? t("geometryInput.sqlPlaceholder") 
-      : t("geometryInput.wktPlaceholder");
+      ? t`ST_GeomFromText('POINT(30 40)', 4326)` 
+      : t`POINT(30 40)`;
   };
 
   const sqlFunctions = [
@@ -171,7 +171,7 @@ export const GeometryInput = ({
                 ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30"
                 : "bg-secondary/20 text-secondary hover:bg-secondary/30"
             }`}
-            title={isRawSqlMode ? t("geometryInput.sqlMode") : t("geometryInput.toggleTooltip")}
+            title={isRawSqlMode ? t`SQL Mode` : t`SQL Functions`}
           >
             <Calculator size={14} />
             <ChevronDown size={10} />
@@ -180,7 +180,7 @@ export const GeometryInput = ({
           {/* Tooltip on hover */}
           {showTooltip && !showDropdown && (
             <div className="absolute z-[60] bottom-full right-0 mb-1 p-2 bg-surface-secondary border border-strong rounded shadow-lg text-xs text-secondary whitespace-nowrap pointer-events-none">
-              {isRawSqlMode ? t("geometryInput.sqlMode") : t("geometryInput.toggleTooltip")}
+              {isRawSqlMode ? t`SQL Mode` : t`SQL Functions`}
             </div>
           )}
           
@@ -195,10 +195,10 @@ export const GeometryInput = ({
             >
               <div className="p-2 bg-surface-tertiary/50 border-b border-strong">
                 <p className="text-xs font-medium text-primary">
-                  {t("geometryInput.sqlMode")}
+                  {t`SQL Mode`}
                 </p>
                 <p className="text-[10px] text-secondary mt-0.5">
-                  {t("geometryInput.sqlHelper")}
+                  {t`Enter a complete SQL function (e.g., ST_GeomFromText('POINT(30 40)', 4326))`}
                 </p>
               </div>
                <div className="py-1">
@@ -230,8 +230,8 @@ export const GeometryInput = ({
                   className="w-full px-2 py-1.5 text-left text-xs text-secondary hover:text-primary transition-colors"
                 >
                   {isRawSqlMode 
-                    ? "← " + t("geometryInput.wktMode") 
-                    : "→ " + t("geometryInput.sqlMode")}
+                    ? "← " + t`WKT Mode` 
+                    : "→ " + t`SQL Mode`}
                 </button>
               </div>
             </div>

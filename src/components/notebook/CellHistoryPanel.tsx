@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { RotateCcw, X } from "lucide-react";
 import type { CellExecutionEntry } from "../../types/notebook";
 
@@ -72,13 +72,13 @@ export function CellHistoryPanel({
   onRestore,
   onClose,
 }: CellHistoryPanelProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   return (
     <div className="border-t border-default bg-elevated">
       <div className="flex items-center justify-between px-3 py-1.5">
         <span className="text-[10px] text-muted font-semibold uppercase">
-          {t("editor.notebook.executionHistory")} ({history.length})
+          {t`Execution History`} ({history.length})
         </span>
         <button
           type="button"
@@ -91,7 +91,7 @@ export function CellHistoryPanel({
       <div className="max-h-[200px] overflow-auto px-1 pb-2">
         {history.length === 0 ? (
           <p className="text-[10px] text-muted px-2 py-1">
-            {t("editor.notebook.noHistory")}
+            {t`No execution history yet`}
           </p>
         ) : (
           history.map((entry, index) => (

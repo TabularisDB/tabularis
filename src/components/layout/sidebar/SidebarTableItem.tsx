@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Table as TableIcon,
@@ -61,7 +61,7 @@ const SidebarTableItemImpl = ({
   schemaVersion,
   schema,
 }: SidebarTableItemProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   // Prevent unused variable warning
   void onAddColumn;
   void onAddIndex;
@@ -203,7 +203,7 @@ const SidebarTableItemImpl = ({
           {isLoading ? (
             <div className="flex items-center gap-2 p-2 text-xs text-muted">
               <Loader2 size={12} className="animate-spin" />
-              {t("sidebar.loadingSchema")}
+              {t`Loading schema...`}
             </div>
           ) : (
             <>
@@ -221,7 +221,7 @@ const SidebarTableItemImpl = ({
                   }}
                 >
                   <Folder size={12} className="text-blue-400/70" />
-                  <span>{t("sidebar.columns")}</span>
+                  <span>{t`columns`}</span>
                   <span className="ml-auto text-[10px] opacity-50">
                     {columns.length}
                   </span>
@@ -256,7 +256,7 @@ const SidebarTableItemImpl = ({
                     }}
                   >
                     <Folder size={12} className="text-yellow-500/70" />
-                    <span>{t("sidebar.keys")}</span>
+                    <span>{t`keys`}</span>
                     <span className="ml-auto text-[10px] opacity-50">
                       {keys.length}
                     </span>
@@ -298,7 +298,7 @@ const SidebarTableItemImpl = ({
                   : undefined}
                 >
                   <Folder size={12} className="text-purple-400/70" />
-                  <span>{t("sidebar.foreignKeys")}</span>
+                  <span>{t`foreign keys`}</span>
                   <span className="ml-auto text-[10px] opacity-50">
                     {foreignKeys.length}
                   </span>
@@ -333,7 +333,7 @@ const SidebarTableItemImpl = ({
                   : undefined}
                 >
                   <Folder size={12} className="text-green-400/70" />
-                  <span>{t("sidebar.indexes")}</span>
+                  <span>{t`indexes`}</span>
                   <span className="ml-auto text-[10px] opacity-50">
                     {indexesList.length}
                   </span>

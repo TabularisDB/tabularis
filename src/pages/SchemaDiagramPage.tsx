@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SchemaDiagram } from '../components/ui/SchemaDiagram';
 import { Maximize2, Minimize2, RefreshCw } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import { DatabaseProvider } from '../contexts/DatabaseProvider';
 import { EditorProvider } from '../contexts/EditorProvider';
 
 export const SchemaDiagramPage = () => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [searchParams] = useSearchParams();
@@ -48,10 +48,10 @@ export const SchemaDiagramPage = () => {
       <div className="w-screen h-screen flex items-center justify-center bg-base">
         <div className="text-center">
           <h1 className="text-xl font-semibold text-primary mb-2">
-            {t('erDiagram.noConnection')}
+            {t`No Connection ID`}
           </h1>
           <p className="text-secondary">
-            {t('erDiagram.noConnectionDesc')}
+            {t`Cannot display diagram without a connection ID.`}
           </p>
         </div>
       </div>
@@ -71,25 +71,25 @@ export const SchemaDiagramPage = () => {
               <button
                 onClick={handleRefresh}
                 className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary hover:bg-surface-tertiary text-primary rounded-lg border border-strong transition-colors text-sm"
-                title={t('sidebar.refresh')}
+                title={t`Refresh`}
               >
                 <RefreshCw size={16} />
-                {t('sidebar.refresh')}
+                {t`Refresh`}
               </button>
               <button
                 onClick={toggleFullscreen}
                 className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary hover:bg-surface-tertiary text-primary rounded-lg border border-strong transition-colors text-sm"
-                title={isFullscreen ? t('erDiagram.exitFullscreen') : t('erDiagram.enterFullscreen')}
+                title={isFullscreen ? t`Exit Fullscreen` : t`Fullscreen`}
               >
                 {isFullscreen ? (
                   <>
                     <Minimize2 size={16} />
-                    {t('erDiagram.exitFullscreen')}
+                    {t`Exit Fullscreen`}
                   </>
                 ) : (
                   <>
                     <Maximize2 size={16} />
-                    {t('erDiagram.enterFullscreen')}
+                    {t`Fullscreen`}
                   </>
                 )}
               </button>

@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Modal } from "../ui/Modal";
 import { X, Download, ExternalLink, CheckCircle, Loader2, AlertCircle } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -35,7 +35,7 @@ export const UpdateNotificationModal = ({
   onDownloadAndInstall,
   error
 }: UpdateNotificationModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   if (!updateInfo) return null;
 
@@ -55,7 +55,7 @@ export const UpdateNotificationModal = ({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
-                {t("update.newVersionAvailable")}
+                {t`New Version Available`}
               </h2>
               <p className="text-xs text-secondary">
                 v{updateInfo.currentVersion} → v{updateInfo.latestVersion}
@@ -79,7 +79,7 @@ export const UpdateNotificationModal = ({
             <div className="flex items-center gap-2 mb-2">
               <CheckCircle size={16} className="text-green-400" />
               <span className="text-sm font-medium text-primary">
-                {t("update.version")} {updateInfo.latestVersion}
+                {t`Version`} {updateInfo.latestVersion}
               </span>
               <span className="text-xs text-muted">
                 • {new Date(updateInfo.publishedAt).toLocaleDateString()}
@@ -92,7 +92,7 @@ export const UpdateNotificationModal = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-secondary">
-                  {downloadProgress < 100 ? t("update.downloading") : t("update.installing")}
+                  {downloadProgress < 100 ? t({ message: "Downloading...", context: "update" }) : t`Installing...`}
                 </span>
                 <span className="text-primary font-medium">{downloadProgress}%</span>
               </div>
@@ -104,7 +104,7 @@ export const UpdateNotificationModal = ({
               </div>
               {downloadProgress === 100 && (
                 <p className="text-xs text-muted text-center">
-                  {t("update.installingMessage")}
+                  {t`The app will restart automatically after installation`}
                 </p>
               )}
             </div>
@@ -115,7 +115,7 @@ export const UpdateNotificationModal = ({
             <div className="bg-error-bg border border-error-border text-error-text px-4 py-3 rounded flex items-start gap-2">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <div>
-                <div className="font-medium">{t("update.error")}</div>
+                <div className="font-medium">{t`Update Error`}</div>
                 <div className="text-xs mt-1">{error}</div>
               </div>
             </div>
@@ -124,7 +124,7 @@ export const UpdateNotificationModal = ({
           {/* Release Notes */}
           <div>
             <label className="text-xs uppercase font-bold text-muted mb-2 block">
-              {t("update.releaseNotes")}
+              {t`Release Notes`}
             </label>
             <div className="bg-base border border-default rounded-lg p-4 max-h-[300px] overflow-y-auto">
               <div className="prose prose-invert prose-sm max-w-none">
@@ -138,7 +138,7 @@ export const UpdateNotificationModal = ({
           {/* Follow us */}
           <div>
             <label className="text-xs uppercase font-bold text-muted mb-2 block">
-              {t("settings.followUs")}
+              {t`Follow Us`}
             </label>
             <SocialLinks iconSize={18} />
           </div>
@@ -152,7 +152,7 @@ export const UpdateNotificationModal = ({
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm flex items-center gap-2 disabled:opacity-50"
           >
             <ExternalLink size={16} />
-            {t("update.viewOnGitHub")}
+            {t`View on GitHub`}
           </button>
           <div className="flex gap-3">
             <button
@@ -160,7 +160,7 @@ export const UpdateNotificationModal = ({
               disabled={isDownloading}
               className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm disabled:opacity-50"
             >
-              {t("update.remindLater")}
+              {t`Remind Me Later`}
             </button>
             <button
               onClick={onDownloadAndInstall}
@@ -168,7 +168,7 @@ export const UpdateNotificationModal = ({
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
             >
               {isDownloading && <Loader2 size={16} className="animate-spin" />}
-              {isDownloading ? t("update.downloading") : t("update.downloadAndInstall")}
+              {isDownloading ? t({ message: "Downloading...", context: "update" }) : t`Download & Install`}
             </button>
           </div>
         </div>

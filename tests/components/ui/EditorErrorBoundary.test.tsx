@@ -78,7 +78,7 @@ describe("EditorErrorBoundary", () => {
     renderAtEditor(<Crasher />);
 
     expect(screen.getByRole("alert")).toBeInTheDocument();
-    expect(screen.getByText("editor.errorBoundary.title")).toBeInTheDocument();
+    expect(screen.getByRole("heading")).toBeInTheDocument();
     expect(screen.getByText("boom")).toBeInTheDocument();
   });
 
@@ -98,7 +98,7 @@ describe("EditorErrorBoundary", () => {
     expect(screen.getByText("boom")).toBeInTheDocument();
 
     shouldThrow = false;
-    fireEvent.click(screen.getByText("editor.errorBoundary.retry"));
+    fireEvent.click(screen.getByText("Try again"));
 
     expect(screen.getByTestId("recovered")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -107,7 +107,9 @@ describe("EditorErrorBoundary", () => {
   it("navigates to /connections when the user clicks back to connections", () => {
     renderAtEditor(<Crasher />);
 
-    fireEvent.click(screen.getByText("editor.errorBoundary.backToConnections"));
+    // Buttons in order: retry, close-current-tab, back-to-connections.
+    const buttons = screen.getAllByRole("button");
+    fireEvent.click(buttons[buttons.length - 1]);
 
     expect(screen.getByTestId("connections-page")).toBeInTheDocument();
   });
@@ -120,7 +122,8 @@ describe("EditorErrorBoundary", () => {
     expect(screen.getByText("boom")).toBeInTheDocument();
 
     shouldThrow = false;
-    fireEvent.click(screen.getByText("editor.errorBoundary.closeCurrentTab"));
+    // With an active tab, buttons are: retry, close-current-tab, back-to-connections.
+    fireEvent.click(screen.getAllByRole("button")[1]);
 
     expect(closeTab).toHaveBeenCalledWith("tab-1");
     expect(screen.getByTestId("recovered")).toBeInTheDocument();
@@ -132,11 +135,9 @@ describe("EditorErrorBoundary", () => {
 
     renderAtEditor(<Crasher />, ctx);
 
-    expect(
-      screen.queryByText("editor.errorBoundary.closeCurrentTab"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByText("editor.errorBoundary.retry"),
-    ).toBeInTheDocument();
+    // Without an active tab the close-current-tab button is omitted, leaving
+    // only retry and back-to-connections.
+    expect(screen.getAllByRole("button")).toHaveLength(2);
+    expect(screen.getByText("Try again")).toBeInTheDocument();
   });
 });

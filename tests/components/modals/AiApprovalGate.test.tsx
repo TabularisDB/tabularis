@@ -70,8 +70,8 @@ describe("AiApprovalGate", () => {
 
     expect(focusWindowForApproval).toHaveBeenCalledWith("approval-1");
     expect(notifyApprovalRequest).toHaveBeenCalledWith({
-      title: "aiApproval.notificationTitle",
-      body: "aiApproval.notificationBody",
+      title: "MCP approval needed",
+      body: "Open Tabularis to review the pending MCP approval.",
     });
     expect(restoreWindowAlwaysOnTop).not.toHaveBeenCalled();
   });
@@ -140,8 +140,8 @@ describe("AiApprovalGate", () => {
 
     expect(focusWindowForApproval).not.toHaveBeenCalled();
     expect(notifyApprovalRequest).toHaveBeenCalledWith({
-      title: "aiApproval.notificationTitle",
-      body: "aiApproval.notificationBody",
+      title: "MCP approval needed",
+      body: "Open Tabularis to review the pending MCP approval.",
     });
   });
 

@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   X,
@@ -28,7 +28,7 @@ export const WhatsNewModal = ({
   entries,
   isLoading,
 }: WhatsNewModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -41,11 +41,11 @@ export const WhatsNewModal = ({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
-                {t("whatsNew.title")}
+                {t`What's New`}
               </h2>
               {entries.length > 0 && (
                 <p className="text-xs text-secondary">
-                  {t("whatsNew.subtitle", { version: entries[0].version })}
+                  {t`Version ${entries[0].version}`}
                 </p>
               )}
             </div>
@@ -63,7 +63,7 @@ export const WhatsNewModal = ({
           {isLoading && (
             <div className="text-center py-8 text-muted">
               <Loader2 size={24} className="animate-spin mx-auto mb-2" />
-              {t("common.loading")}
+              {t`Loading...`}
             </div>
           )}
 
@@ -86,7 +86,7 @@ export const WhatsNewModal = ({
                       }
                       className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
                     >
-                      {t("whatsNew.readMore")}
+                      {t`Read more`}
                       <ExternalLink size={12} />
                     </button>
                   )}
@@ -95,7 +95,7 @@ export const WhatsNewModal = ({
                 {entry.features.length > 0 && (
                   <ChangelogSection
                     icon={<Rocket size={14} className="text-green-400" />}
-                    label={t("whatsNew.features")}
+                    label={t`New Features`}
                     items={entry.features}
                     dotColor="before:bg-green-400/60"
                   />
@@ -104,7 +104,7 @@ export const WhatsNewModal = ({
                 {entry.bugFixes.length > 0 && (
                   <ChangelogSection
                     icon={<Bug size={14} className="text-blue-400" />}
-                    label={t("whatsNew.bugFixes")}
+                    label={t`Bug Fixes`}
                     items={entry.bugFixes}
                     dotColor="before:bg-blue-400/60"
                   />
@@ -115,7 +115,7 @@ export const WhatsNewModal = ({
                     icon={
                       <AlertTriangle size={14} className="text-yellow-400" />
                     }
-                    label={t("whatsNew.breakingChanges")}
+                    label={t`Breaking Changes`}
                     items={entry.breakingChanges}
                     dotColor="before:bg-yellow-400/60"
                   />
@@ -135,7 +135,7 @@ export const WhatsNewModal = ({
             onClick={onClose}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
           >
-            {t("whatsNew.dismiss")}
+            {t`Got it`}
           </button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Folder, FolderOpen } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import type { ConnectionGroup } from "../../../contexts/DatabaseContext";
 import type { ConnectionStatus } from "../../../hooks/useConnectionManager";
 import type { PluginManifest } from "../../../types/plugins";
@@ -38,7 +38,7 @@ export const ConnectionGroupFolder = ({
   showShortcutHints = false,
   startIndex = 1,
 }: Props) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -104,7 +104,7 @@ export const ConnectionGroupFolder = ({
         <div className="absolute left-14 top-1/2 -translate-y-1/2 bg-surface-secondary text-primary text-xs px-2 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30 pointer-events-none shadow-lg border border-default">
           <div className="font-medium">{group.name}</div>
           <div className="text-muted text-[10px]">
-            {connections.length} {connections.length === 1 ? t("groups.connection") : t("groups.connections")}
+            {connections.length} {connections.length === 1 ? t`connection` : t`connections`}
             {connectedCount > 0 && ` (${connectedCount} open)`}
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { FileJson, FolderOpen, Loader2, RefreshCw } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -26,7 +26,7 @@ export const VisualExplainPage = ({
   initialPlan = null,
   compactMode = false,
 }: VisualExplainPageProps = {}) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings } = useSettings();
   const { search } = useLocation();
   const initialParamPath = parseExplainFileParam(search);
@@ -157,7 +157,7 @@ export const VisualExplainPage = ({
             </div>
             <div className="min-w-0">
               <h1 className="text-base font-semibold text-primary truncate">
-                {t("visualExplainPage.title")}
+                {t`Visual Explain`}
               </h1>
               {fileLabel ? (
                 <p
@@ -168,7 +168,7 @@ export const VisualExplainPage = ({
                 </p>
               ) : (
                 <p className="text-xs text-muted">
-                  {t("visualExplainPage.noFile")}
+                  {t`No file loaded`}
                 </p>
               )}
             </div>
@@ -179,7 +179,7 @@ export const VisualExplainPage = ({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-muted hover:text-primary hover:bg-surface-secondary/50 transition-colors"
             >
               <FolderOpen size={14} />
-              {t("visualExplainPage.openFile")}
+              {t`Open file`}
             </button>
             <button
               onClick={handleReload}
@@ -190,7 +190,7 @@ export const VisualExplainPage = ({
                 size={14}
                 className={isLoading ? "animate-spin" : ""}
               />
-              {t("visualExplainPage.reload")}
+              {t`Reload`}
             </button>
           </div>
         </div>
@@ -200,19 +200,19 @@ export const VisualExplainPage = ({
         {!compactMode && !filePath && !plan && !isLoading ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-muted">
             <FileJson size={32} className="opacity-30" />
-            <p className="text-sm">{t("visualExplainPage.emptyHint")}</p>
+            <p className="text-sm">{t`Select a file containing an EXPLAIN plan (Postgres JSON or text format) to visualize it.`}</p>
             <button
               onClick={handlePickFile}
               className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm font-medium transition-colors"
             >
               <FolderOpen size={14} />
-              {t("visualExplainPage.openFile")}
+              {t`Open file`}
             </button>
           </div>
         ) : isLoading && !plan ? (
           <div className="flex flex-col items-center justify-center h-full gap-2 text-muted">
             <Loader2 size={24} className="animate-spin" />
-            <span className="text-sm">{t("visualExplainPage.loading")}</span>
+            <span className="text-sm">{t`Loading explain plan…`}</span>
           </div>
         ) : (
           <VisualExplainView

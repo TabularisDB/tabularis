@@ -1,5 +1,5 @@
 import { Plus, ArrowDownToLine } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 
 type ImportMode = 'create' | 'append';
 
@@ -9,19 +9,19 @@ interface ModeToggleProps {
 }
 
 export function ModeToggle({ value, onChange }: ModeToggleProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const items: { id: ImportMode; icon: typeof Plus; title: string; hint: string }[] = [
     {
       id: 'create',
       icon: Plus,
-      title: t('clipboardImport.createNew'),
-      hint: t('clipboardImport.modeCreateHint'),
+      title: t`Create new table`,
+      hint: t`A new table will be created`,
     },
     {
       id: 'append',
       icon: ArrowDownToLine,
-      title: t('clipboardImport.appendTo'),
-      hint: t('clipboardImport.modeAppendHint'),
+      title: t`Append to existing`,
+      hint: t`Rows will be added to an existing table`,
     },
   ];
 

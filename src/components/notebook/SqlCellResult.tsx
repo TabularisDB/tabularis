@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { DataGrid } from "../ui/DataGrid";
 import { ErrorDisplay } from "../ui/ErrorDisplay";
 import type { QueryResult } from "../../types/editor";
@@ -30,7 +30,7 @@ export function SqlCellResult({
   resultHeight,
   onResultHeightChange,
 }: SqlCellResultProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [showChart, setShowChart] = useState(!!chartConfig);
   const height = resultHeight ?? 300;
 
@@ -38,7 +38,7 @@ export function SqlCellResult({
     return (
       <div className="flex items-center justify-center gap-2 p-4">
         <div className="w-4 h-4 border-2 border-surface-secondary border-t-blue-500 rounded-full animate-spin" />
-        <span className="text-xs text-muted">{t("editor.executingQuery")}</span>
+        <span className="text-xs text-muted">{t`Executing query...`}</span>
       </div>
     );
   }

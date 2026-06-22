@@ -1,4 +1,4 @@
-import { SUPPORTED_LANGUAGES, type AppLanguage } from "./config";
+import { SUPPORTED_LANGUAGES, type AppLanguage } from "./lingui";
 
 export function getAiExplanationLanguage(language: AppLanguage): string {
   const fallBackLanguage = "English";

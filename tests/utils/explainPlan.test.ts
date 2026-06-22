@@ -376,12 +376,16 @@ describe("explainPlan", () => {
       );
 
       expect(legend).toHaveLength(2);
-      expect(legend[0]).toBe("editor.visualExplain.postgresAnalyzeLegend1");
+      expect(legend[0].message).toBe(
+        "PostgreSQL ANALYZE includes actual rows, timing, loops, and buffer counters when available.",
+      );
     });
 
     it("should return sqlite notes", () => {
       const legend = getExplainDriverLegend(makePlan({ driver: "sqlite" }));
-      expect(legend[0]).toBe("editor.visualExplain.sqliteLegend1");
+      expect(legend[0].message).toBe(
+        "SQLite EXPLAIN QUERY PLAN is lightweight and mostly structural.",
+      );
     });
   });
 

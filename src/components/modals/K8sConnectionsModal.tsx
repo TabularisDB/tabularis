@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
+import { k8sErrorKeys } from "../../i18n/registries/k8sErrorKeys";
 import {
   X,
   Plus,
@@ -44,7 +45,7 @@ export function K8sConnectionsModal({
   onClose,
   defaultPort,
 }: K8sConnectionsModalProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const [connections, setConnections] = useState<K8sConnection[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -208,7 +209,7 @@ export function K8sConnectionsModal({
       port: effectivePort,
     });
     if (!validation.isValid) {
-      setValidationError(t(validation.errorKey));
+      setValidationError(i18n._(k8sErrorKeys[validation.errorKey]));
       return;
     }
     const input: K8sConnectionInput = validation.value;
@@ -259,9 +260,7 @@ export function K8sConnectionsModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-default bg-base">
           <h2 className="text-sm font-semibold text-primary">
-            {t("k8sConnections.title", {
-              defaultValue: "Kubernetes Connections",
-            })}
+            {t`Kubernetes Connections`}
           </h2>
           <div className="flex items-center gap-2">
             <button
@@ -269,7 +268,7 @@ export function K8sConnectionsModal({
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors"
             >
               <Plus size={12} />
-              {t("k8sConnections.add", { defaultValue: "Add" })}
+              {t`Add`}
             </button>
             <button
               onClick={onClose}
@@ -386,10 +385,7 @@ export function K8sConnectionsModal({
           {/* Empty state */}
           {connections.length === 0 && !isCreating && (
             <p className="text-xs text-muted italic text-center py-6">
-              {t("k8sConnections.empty", {
-                defaultValue:
-                  "No Kubernetes connections saved. Click \"Add\" to create one.",
-              })}
+              {t`No Kubernetes connections saved. Click "Add" to create one.`}
             </p>
           )}
         </div>
@@ -449,54 +445,54 @@ function EditForm({
   onSave,
   onCancel,
 }: EditFormProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   return (
     <div className="space-y-3">
       <div>
-        <label className={LabelClass}>{t("k8sConnections.name")}</label>
+        <label className={LabelClass}>{t`Name`}</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           className={InputClass}
-          placeholder={t("k8sConnections.namePlaceholder")}
+          placeholder={t`My K8s cluster`}
         />
       </div>
 
       <div>
-        <label className={LabelClass}>{t("k8sConnections.context")}</label>
+        <label className={LabelClass}>{t`Context`}</label>
         <Select
           value={context || null}
           options={contexts}
           onChange={(val) => setContext(val)}
-          placeholder={t("k8sConnections.chooseContext")}
-          searchPlaceholder={t("common.search")}
-          noResultsLabel={t("common.noResults")}
+          placeholder={t`Choose a context...`}
+          searchPlaceholder={t`Search...`}
+          noResultsLabel={t`No results found`}
         />
       </div>
 
       <div>
-        <label className={LabelClass}>{t("k8sConnections.namespace")}</label>
+        <label className={LabelClass}>{t`Namespace`}</label>
         <Select
           value={namespace || null}
           options={namespaces}
           onChange={(val) => setNamespace(val)}
-          placeholder={t("k8sConnections.chooseNamespace")}
-          searchPlaceholder={t("common.search")}
-          noResultsLabel={t("common.noResults")}
+          placeholder={t`Choose a namespace...`}
+          searchPlaceholder={t`Search...`}
+          noResultsLabel={t`No results found`}
         />
       </div>
 
       <div className="flex gap-3">
         <div className="flex-1">
           <label className={LabelClass}>
-            {t("k8sConnections.resourceType")}
+            {t`Resource Type`}
           </label>
           <Select
             value={resourceType}
             options={["service", "pod"]}
             labels={{
-              service: t("k8sConnections.resourceTypeService"),
-              pod: t("k8sConnections.resourceTypePod"),
+              service: t`Service`,
+              pod: t`Pod`,
             }}
             onChange={(val) => setResourceType(val)}
             searchable={false}
@@ -505,21 +501,21 @@ function EditForm({
 
         <div className="flex-1">
           <label className={LabelClass}>
-            {t("k8sConnections.resourceName")}
+            {t`Resource Name`}
           </label>
           <Select
             value={resourceName || null}
             options={resources}
             onChange={(val) => setResourceName(val)}
-            placeholder={t("k8sConnections.chooseResource")}
-            searchPlaceholder={t("common.search")}
-            noResultsLabel={t("common.noResults")}
+            placeholder={t`Choose a resource...`}
+            searchPlaceholder={t`Search...`}
+            noResultsLabel={t`No results found`}
           />
         </div>
       </div>
 
       <div>
-        <label className={LabelClass}>{t("k8sConnections.port")}</label>
+        <label className={LabelClass}>{t`Container Port`}</label>
         <input
           type="number"
           value={port ?? ""}
@@ -544,7 +540,7 @@ function EditForm({
           {testStatus === "testing" && (
             <span className="flex items-center gap-1.5">
               <Loader2 size={12} className="animate-spin" />
-              {t("k8sConnections.testing")}
+              {t`Testing...`}
             </span>
           )}
           {testStatus === "success" && (
@@ -579,20 +575,20 @@ function EditForm({
           ) : (
             <Zap size={12} />
           )}
-          {t("k8sConnections.test")}
+          {t`Test`}
         </button>
         <button
           onClick={onSave}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors"
         >
           <Check size={12} />
-          {t("common.save")}
+          {t`Save`}
         </button>
         <button
           onClick={onCancel}
           className="px-3 py-1.5 text-xs font-medium text-muted hover:text-secondary rounded-md transition-colors"
         >
-          {t("common.cancel")}
+          {t`Cancel`}
         </button>
       </div>
     </div>

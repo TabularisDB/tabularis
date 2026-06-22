@@ -8,24 +8,32 @@ import type { Settings } from "../../src/contexts/SettingsContext";
 
 vi.mock("@tauri-apps/api/core");
 
-// Mock react-i18next
-const mockChangeLanguage = vi.fn();
-const mockI18n = {
-  changeLanguage: mockChangeLanguage,
-  language: "en",
-};
-
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-    i18n: mockI18n,
-  }),
+// Mock the Lingui locale bridge. SettingsProvider activates the resolved locale
+// via dynamicActivate and reads the active locale from i18n.locale (no more
+// i18next changeLanguage / resolvedLanguage).
+const { mockDynamicActivate, mockI18n } = vi.hoisted(() => ({
+  mockDynamicActivate: vi.fn(),
+  mockI18n: { locale: "en" },
+}));
+vi.mock("../../src/i18n/lingui", () => ({
+  dynamicActivate: mockDynamicActivate,
+  i18n: mockI18n,
+  SUPPORTED_LANGUAGES: [
+    { id: "en", label: "English" },
+    { id: "it", label: "Italiano" },
+    { id: "es", label: "Español" },
+    { id: "zh", label: "中文" },
+    { id: "fr", label: "Français" },
+    { id: "de", label: "Deutsch" },
+    { id: "ja", label: "日本語" },
+    { id: "ru", label: "Русский" },
+  ],
 }));
 
 describe("SettingsProvider", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mockI18n.language = "en";
+    mockI18n.locale = "en";
     localStorage.clear();
 
     // Default mock for invoke
@@ -118,7 +126,7 @@ describe("SettingsProvider", () => {
   it("hydrates persisted settings even while language application is still pending", async () => {
     let resolveChangeLanguage: (() => void) | null = null;
 
-    mockChangeLanguage.mockImplementation(
+    mockDynamicActivate.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
           resolveChangeLanguage = resolve;
@@ -144,7 +152,7 @@ describe("SettingsProvider", () => {
     const { result } = renderHook(() => useSettings(), { wrapper });
 
     await waitFor(() => {
-      expect(mockChangeLanguage).toHaveBeenCalledWith("it");
+      expect(mockDynamicActivate).toHaveBeenCalledWith("it");
     });
 
     expect(result.current.isLoading).toBe(false);
@@ -161,7 +169,7 @@ describe("SettingsProvider", () => {
   });
 
   it("treats an already-active persisted language as settled immediately", async () => {
-    mockI18n.language = "it";
+    mockI18n.locale = "it";
 
     vi.mocked(invoke).mockImplementation((cmd: string) => {
       if (cmd === "get_config") {
@@ -185,7 +193,7 @@ describe("SettingsProvider", () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(mockChangeLanguage).not.toHaveBeenCalled();
+    expect(mockDynamicActivate).not.toHaveBeenCalled();
     expect(result.current.settings.language).toBe("it");
     expect(result.current.isLanguageReady).toBe(true);
     expect(result.current.isLanguageSettled).toBe(true);
@@ -193,7 +201,7 @@ describe("SettingsProvider", () => {
 
   it("fails open when language application never resolves", async () => {
     vi.useFakeTimers();
-    mockChangeLanguage.mockImplementation(() => new Promise<void>(() => {}));
+    mockDynamicActivate.mockImplementation(() => new Promise<void>(() => {}));
 
     vi.mocked(invoke).mockImplementation((cmd: string) => {
       if (cmd === "get_config") {
@@ -219,7 +227,7 @@ describe("SettingsProvider", () => {
     });
 
     expect(result.current.isLoading).toBe(false);
-    expect(mockChangeLanguage).toHaveBeenCalledWith("it");
+    expect(mockDynamicActivate).toHaveBeenCalledWith("it");
 
     expect(result.current.isLanguageReady).toBe(false);
     expect(result.current.isLanguageSettled).toBe(false);
@@ -388,7 +396,7 @@ describe("SettingsProvider", () => {
       expect(result.current.settings.language).toBe("it");
     });
 
-    expect(mockChangeLanguage).toHaveBeenCalledWith("it");
+    expect(mockDynamicActivate).toHaveBeenCalledWith("it");
   });
 
   it("should apply font settings to document", async () => {

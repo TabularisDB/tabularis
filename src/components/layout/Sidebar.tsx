@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Plug2, Settings, Cpu, PanelLeft, Layers, Star, Clock, BookOpen } from "lucide-react";
 import { DiscordIcon } from "../icons/DiscordIcon";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -29,7 +29,7 @@ import { useDrivers } from "../../hooks/useDrivers";
 import { useKeybindings } from "../../hooks/useKeybindings";
 
 export const Sidebar = () => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { currentTheme } = useTheme();
   const isDarkTheme = !currentTheme?.id?.includes("-light");
   const {
@@ -233,7 +233,7 @@ export const Sidebar = () => {
           <NavItem
             to="/connections"
             icon={Plug2}
-            label={t("sidebar.connections")}
+            label={t`Connections`}
             isConnected={!!activeConnectionId}
           />
 
@@ -298,13 +298,13 @@ export const Sidebar = () => {
           <NavItem
             to="/mcp"
             icon={Cpu}
-            label={t("sidebar.mcpServer")}
+            label={t`MCP Server`}
           />
 
           <NavItem
             to="/settings"
             icon={Settings}
-            label={t("sidebar.settings")}
+            label={t`Settings`}
           />
 
           <SlotAnchor
@@ -334,19 +334,19 @@ export const Sidebar = () => {
           <button
             onClick={() => setIsExplorerCollapsed(false)}
             className="text-muted hover:text-secondary hover:bg-surface-secondary rounded-lg p-2 transition-colors group relative"
-            title={t("sidebar.expandExplorer")}
+            title={t`Expand Explorer`}
           >
             <PanelLeft size={18} />
             <span className="absolute left-14 top-1/2 -translate-y-1/2 bg-surface-secondary text-primary text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30 pointer-events-none">
-              {t("sidebar.expandExplorer")}
+              {t`Expand Explorer`}
             </span>
           </button>
           <div className="w-6 h-px bg-default my-1" />
           {([
-            { id: "structure" as SidebarTab, icon: Layers, label: t("sidebar.structure") },
-            { id: "favorites" as SidebarTab, icon: Star, label: t("sidebar.favorites") },
-            { id: "history" as SidebarTab, icon: Clock, label: t("sidebar.queryHistory") },
-            { id: "notebooks" as SidebarTab, icon: BookOpen, label: t("sidebar.notebooks.tab") },
+            { id: "structure" as SidebarTab, icon: Layers, label: t`Structure` },
+            { id: "favorites" as SidebarTab, icon: Star, label: t`Favorites` },
+            { id: "history" as SidebarTab, icon: Clock, label: t`History` },
+            { id: "notebooks" as SidebarTab, icon: BookOpen, label: t`Notebooks` },
           ]).map((tab) => (
             <button
               key={tab.id}

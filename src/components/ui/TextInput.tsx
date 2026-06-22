@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Columns2, GitCompare } from "lucide-react";
 import { formatTextForEditor } from "../../utils/text";
 import { CellCodeEditor } from "./CellCodeEditor";
@@ -26,7 +26,7 @@ export const TextInput: React.FC<TextInputProps> = ({
   readOnly = false,
   originalValue,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const valueKey = useMemo(() => formatTextForEditor(value), [value]);
   const [text, setText] = useState(valueKey);
   const [prevValueKey, setPrevValueKey] = useState(valueKey);
@@ -106,10 +106,10 @@ export const TextInput: React.FC<TextInputProps> = ({
                 ? "bg-blue-600/30 text-blue-100 border-blue-500/50"
                 : "bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary"
             }`}
-            title={t("textInput.diff", { defaultValue: "Diff" })}
+            title={t`Diff`}
           >
             <GitCompare size={12} />
-            {t("textInput.diff", { defaultValue: "Diff" })}
+            {t`Diff`}
             {hasDiff && (
               <span
                 aria-hidden
@@ -127,10 +127,10 @@ export const TextInput: React.FC<TextInputProps> = ({
                   ? "bg-blue-600/30 text-blue-100 border-blue-500/50"
                   : "bg-surface-secondary text-secondary border-default hover:bg-surface-tertiary"
               }`}
-              title={t("textInput.sideBySide", { defaultValue: "Side by side" })}
+              title={t`Side by side`}
             >
               <Columns2 size={12} />
-              {t("textInput.sideBySide", { defaultValue: "Side by side" })}
+              {t`Side by side`}
             </button>
           )}
         </div>

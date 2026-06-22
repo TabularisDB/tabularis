@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { FileText, Sparkles, TableProperties, Network } from "lucide-react";
 import type { ExplainPlan } from "../../../types/explain";
 import { formatTime, formatCost, getMaxCost } from "../../../utils/explainPlan";
@@ -15,7 +15,7 @@ interface ExplainSummaryBarProps {
 
 export const ExplainSummaryBar = memo(
   ({ plan, viewMode, onViewModeChange, aiEnabled }: ExplainSummaryBarProps) => {
-    const { t } = useTranslation();
+    const { t } = useLingui();
 
     if (!plan) return null;
 
@@ -35,7 +35,7 @@ export const ExplainSummaryBar = memo(
         {plan.planning_time_ms != null && (
           <div className="flex items-center gap-1.5">
             <span className="text-muted">
-              {t("editor.visualExplain.planningTime")}:
+              {t`Planning`}:
             </span>
             <span className="text-primary font-mono font-semibold">
               {formatTime(plan.planning_time_ms)}
@@ -46,7 +46,7 @@ export const ExplainSummaryBar = memo(
         {plan.execution_time_ms != null && (
           <div className="flex items-center gap-1.5">
             <span className="text-muted">
-              {t("editor.visualExplain.executionTime")}:
+              {t`Execution`}:
             </span>
             <span className="text-primary font-mono font-semibold">
               {formatTime(plan.execution_time_ms)}
@@ -57,7 +57,7 @@ export const ExplainSummaryBar = memo(
         {maxCost > 0 && (
           <div className="flex items-center gap-1.5">
             <span className="text-muted">
-              {t("editor.visualExplain.totalCost")}:
+              {t`Total Cost`}:
             </span>
             <span className="text-primary font-mono font-semibold">
               {formatCost(maxCost)}
@@ -73,21 +73,21 @@ export const ExplainSummaryBar = memo(
             className={toggleButtonClass("graph")}
           >
             <Network size={12} />
-            {t("editor.visualExplain.graphView")}
+            {t`Graph`}
           </button>
           <button
             onClick={() => onViewModeChange("table")}
             className={toggleButtonClass("table")}
           >
             <TableProperties size={12} />
-            {t("editor.visualExplain.tableView")}
+            {t({ message: "Table", context: "editor.visualExplain.tableView" })}
           </button>
           <button
             onClick={() => onViewModeChange("raw")}
             className={toggleButtonClass("raw")}
           >
             <FileText size={12} />
-            {t("editor.visualExplain.rawOutput")}
+            {t`Raw Output`}
           </button>
           {aiEnabled && (
             <button
@@ -95,7 +95,7 @@ export const ExplainSummaryBar = memo(
               className={toggleButtonClass("ai")}
             >
               <Sparkles size={12} />
-              {t("editor.visualExplain.aiAnalysis")}
+              {t`AI Analysis`}
             </button>
           )}
         </div>

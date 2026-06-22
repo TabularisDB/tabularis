@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import type { ExplainNode } from "../../../types/explain";
 import { formatCost, formatRows, formatTime } from "../../../utils/explainPlan";
 
@@ -11,64 +11,64 @@ export function ExplainNodeDetails({
   node,
   hasAnalyzeData,
 }: ExplainNodeDetailsProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   if (!node) {
     return (
       <div className="p-4 text-xs text-muted">
-        {t("editor.visualExplain.selectNode")}
+        {t`Select a node to view details`}
       </div>
     );
   }
 
   const generalEntries: [string, string][] = [
-    [t("editor.visualExplain.nodeType"), node.node_type],
+    [t`Operation`, node.node_type],
     ...(node.relation
-      ? [[t("editor.visualExplain.relation"), node.relation] as [string, string]]
+      ? [[t({ message: "Table", context: "editor.visualExplain.relation" }), node.relation] as [string, string]]
       : []),
     ...(node.startup_cost != null && node.total_cost != null
       ? [
           [
-            t("editor.visualExplain.cost"),
+            t`Cost`,
             `${formatCost(node.startup_cost)} - ${formatCost(node.total_cost)}`,
           ] as [string, string],
         ]
       : node.total_cost != null
-        ? [[t("editor.visualExplain.cost"), formatCost(node.total_cost)] as [string, string]]
+        ? [[t`Cost`, formatCost(node.total_cost)] as [string, string]]
         : []),
     ...(node.plan_rows != null
-      ? [[t("editor.visualExplain.estRows"), formatRows(node.plan_rows)] as [string, string]]
+      ? [[t`Est. Rows`, formatRows(node.plan_rows)] as [string, string]]
       : []),
     ...(node.filter
-      ? [[t("editor.visualExplain.filter"), node.filter] as [string, string]]
+      ? [[t`Filter`, node.filter] as [string, string]]
       : []),
     ...(node.index_condition
-      ? [[t("editor.visualExplain.indexCondition"), node.index_condition] as [string, string]]
+      ? [[t`Index Cond.`, node.index_condition] as [string, string]]
       : []),
     ...(node.join_type
-      ? [[t("editor.visualExplain.joinType"), node.join_type] as [string, string]]
+      ? [[t`Join Type`, node.join_type] as [string, string]]
       : []),
     ...(node.hash_condition
-      ? [[t("editor.visualExplain.hashCondition"), node.hash_condition] as [string, string]]
+      ? [[t`Hash Cond.`, node.hash_condition] as [string, string]]
       : []),
   ];
 
   const analyzeEntries: [string, string][] = hasAnalyzeData
     ? [
         ...(node.actual_rows != null
-          ? [[t("editor.visualExplain.actualRows"), formatRows(node.actual_rows)] as [string, string]]
+          ? [[t`Actual Rows`, formatRows(node.actual_rows)] as [string, string]]
           : []),
         ...(node.actual_time_ms != null
-          ? [[t("editor.visualExplain.time"), formatTime(node.actual_time_ms)] as [string, string]]
+          ? [[t({ message: "Time", context: "editor" }), formatTime(node.actual_time_ms)] as [string, string]]
           : []),
         ...(node.actual_loops != null
-          ? [[t("editor.visualExplain.loops"), String(node.actual_loops)] as [string, string]]
+          ? [[t`Loops`, String(node.actual_loops)] as [string, string]]
           : []),
         ...(node.buffers_hit != null
-          ? [[t("editor.visualExplain.buffersHit"), String(node.buffers_hit)] as [string, string]]
+          ? [[t`Buffers Hit`, String(node.buffers_hit)] as [string, string]]
           : []),
         ...(node.buffers_read != null
-          ? [[t("editor.visualExplain.buffersRead"), String(node.buffers_read)] as [string, string]]
+          ? [[t`Buffers Read`, String(node.buffers_read)] as [string, string]]
           : []),
       ]
     : [];
@@ -80,18 +80,18 @@ export function ExplainNodeDetails({
   return (
     <div className="text-xs">
       <DetailSection
-        title={t("editor.visualExplain.general")}
+        title={t({ message: "General", context: "editor" })}
         entries={generalEntries}
       />
       {analyzeEntries.length > 0 && (
         <DetailSection
-          title={t("editor.visualExplain.analyzeData")}
+          title={t`Analyze Data`}
           entries={analyzeEntries}
         />
       )}
       {extraEntries.length > 0 && (
         <DetailSection
-          title={t("editor.visualExplain.extraDetails")}
+          title={t`Extra`}
           entries={extraEntries}
         />
       )}

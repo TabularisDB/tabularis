@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   Play,
   Check,
@@ -84,7 +84,7 @@ function ResultTab({
   onAiRename: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const displayLabel = getEntryDisplayLabel(entry, queryPrefix);
   const [isEditing, setIsEditing] = useState(initialEditing);
   const [editValue, setEditValue] = useState(
@@ -187,7 +187,7 @@ function ResultTab({
           }}
           disabled={aiRenaming}
           className="p-0.5 rounded-sm hover:bg-surface-secondary transition-opacity shrink-0 opacity-0 group-hover:opacity-100 disabled:opacity-50"
-          title={aiRenaming ? t("editor.multiResult.generatingName") : t("editor.multiResult.aiGenerateName")}
+          title={aiRenaming ? t`Generating name...` : t`Generate name with AI`}
         >
           {aiRenaming ? (
             <Loader2 size={10} className="animate-spin" />
@@ -205,7 +205,7 @@ function ResultTab({
             onRerun();
           }}
           className="p-0.5 rounded-sm hover:bg-surface-secondary transition-opacity shrink-0 opacity-0 group-hover:opacity-100"
-          title={t("editor.multiResult.rerun")}
+          title={t`Re-run query`}
         >
           <Play size={10} fill="currentColor" />
         </button>
@@ -244,7 +244,7 @@ export function MultiResultPanel({
   onCloseAllEntries,
   onRenameEntry,
 }: MultiResultPanelProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings } = useSettings();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -263,7 +263,7 @@ export function MultiResultPanel({
   const succeeded = countSucceeded(results);
   const failed = countFailed(results);
   const totalTime = totalExecutionTime(results);
-  const queryPrefix = t("editor.multiResult.queryPrefix");
+  const queryPrefix = t`Query`;
 
   const updateScrollArrows = useCallback(() => {
     const el = scrollRef.current;
@@ -345,7 +345,7 @@ export function MultiResultPanel({
     <button
       onClick={() => setViewMode((v) => (v === "tabs" ? "stacked" : "tabs"))}
       className="flex items-center justify-center w-8 h-full text-muted border-l border-default shrink-0 transition-colors hover:text-white hover:bg-surface-secondary"
-      title={viewMode === "tabs" ? t("editor.multiResult.viewStacked") : t("editor.multiResult.viewTabs")}
+      title={viewMode === "tabs" ? t`Stacked view` : t`Tab view`}
     >
       {viewMode === "tabs" ? <Rows3 size={14} /> : <PanelTop size={14} />}
     </button>
@@ -467,7 +467,7 @@ export function MultiResultPanel({
             <div className="flex items-center gap-2 px-3 flex-1 text-xs text-secondary">
               <Database size={12} className="text-muted shrink-0" />
               <span className="font-medium text-primary">
-                {t("editor.multiResult.results")}
+                {t`Results`}
               </span>
               <span className="text-muted">
                 ({results.length})
@@ -485,8 +485,8 @@ export function MultiResultPanel({
               className="flex items-center justify-center w-8 h-full text-muted border-l border-default shrink-0 transition-colors hover:text-white hover:bg-surface-secondary"
               title={
                 collapsedIds.size === results.length
-                  ? t("editor.multiResult.expandAll")
-                  : t("editor.multiResult.collapseAll")
+                  ? t`Expand all`
+                  : t`Collapse all`
               }
             >
               {collapsedIds.size === results.length ? (
@@ -537,7 +537,7 @@ export function MultiResultPanel({
           onClose={() => setContextMenu(null)}
           items={[
             {
-              label: t("editor.multiResult.rename"),
+              label: t`Rename`,
               icon: Pencil,
               action: () => setEditingEntryId(contextMenu.entryId),
             },
@@ -545,8 +545,8 @@ export function MultiResultPanel({
               ? [
                   {
                     label: aiRenamingEntryId === contextMenu.entryId
-                      ? t("editor.multiResult.generatingName")
-                      : t("editor.multiResult.aiGenerateName"),
+                      ? t`Generating name...`
+                      : t`Generate name with AI`,
                     icon: Sparkles,
                     action: () => handleAiRename(contextMenu.entryId),
                     disabled: aiRenamingEntryId !== null,
@@ -555,18 +555,18 @@ export function MultiResultPanel({
               : []),
             { separator: true },
             {
-              label: t("editor.closeTab"),
+              label: t`Close Tab`,
               icon: X,
               action: () => onCloseEntry(contextMenu.entryId),
             },
             {
-              label: t("editor.closeOthers"),
+              label: t`Close Other Tabs`,
               icon: XCircle,
               action: () => onCloseOtherEntries(contextMenu.entryId),
               disabled: results.length <= 1,
             },
             {
-              label: t("editor.closeRight"),
+              label: t`Close Tabs to Right`,
               icon: ArrowRightToLine,
               action: () => onCloseEntriesToRight(contextMenu.entryId),
               disabled:
@@ -574,7 +574,7 @@ export function MultiResultPanel({
                 results.length - 1,
             },
             {
-              label: t("editor.closeLeft"),
+              label: t`Close Tabs to Left`,
               icon: ArrowLeftToLine,
               action: () => onCloseEntriesToLeft(contextMenu.entryId),
               disabled:
@@ -582,7 +582,7 @@ export function MultiResultPanel({
             },
             { separator: true },
             {
-              label: t("editor.closeAll"),
+              label: t`Close All Tabs`,
               icon: Trash2,
               danger: true,
               action: () => onCloseAllEntries(),

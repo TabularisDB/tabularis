@@ -1,6 +1,7 @@
+import { plural } from "@lingui/core/macro";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { NewConnectionModal } from "../components/modals/NewConnectionModal";
 import { ConfirmModal } from "../components/modals/ConfirmModal";
 import { invoke } from "@tauri-apps/api/core";
@@ -33,7 +34,7 @@ import { ConnectionCard } from "../components/connections/ConnectionCard";
 import { ConnectionListItem } from "../components/connections/ConnectionListItem";
 
 export const Connections = () => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const navigate = useNavigate();
   const location = useLocation();
   const {
@@ -144,7 +145,7 @@ export const Connections = () => {
       await loadConnections();
     } catch (e) {
       console.error("Failed to create group:", e);
-      setError(t("groups.createError"));
+      setError(t`Failed to create group`);
     }
   };
 
@@ -163,9 +164,9 @@ export const Connections = () => {
 
   const handleExport = async () => {
     setConfirmModal({
-      title: t("connections.exportTitle"),
-      message: t("connections.exportWarning"),
-      confirmLabel: t("common.save"),
+      title: t({ message: "Export Connections", context: "connections.exportTitle" }),
+      message: t`The exported file will contain your database and SSH passwords in plaintext. Please store it securely.`,
+      confirmLabel: t`Save`,
       variant: "warning",
       confirmClassName: "px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors",
       onConfirm: async () => {
@@ -212,15 +213,15 @@ export const Connections = () => {
       await loadConnections();
     } catch (e) {
       console.error("Failed to rename group:", e);
-      setError(t("groups.renameError", { defaultValue: "Failed to rename group" }) + `: ${toErrorMessage(e)}`);
+      setError(t`Failed to rename group` + `: ${toErrorMessage(e)}`);
     }
   };
 
   const handleDeleteGroup = (groupId: string) => {
     const group = connectionGroups.find((g) => g.id === groupId);
     setConfirmModal({
-      title: t("groups.deleteTitle"),
-      message: t("groups.deleteConfirm", { name: group?.name }),
+      title: t`Delete Group`,
+      message: t`Are you sure you want to delete group "${group?.name}"? Connections in this group will be moved to ungrouped.`,
       onConfirm: async () => {
         setConfirmModal(null);
         try {
@@ -228,7 +229,7 @@ export const Connections = () => {
           await loadConnections();
         } catch (e) {
           console.error("Failed to delete group:", e);
-          setError(t("groups.deleteError", { defaultValue: "Failed to delete group" }) + `: ${toErrorMessage(e)}`);
+          setError(t`Failed to delete group` + `: ${toErrorMessage(e)}`);
         }
       },
     });
@@ -243,7 +244,7 @@ export const Connections = () => {
       await loadConnections();
     } catch (e) {
       console.error("Failed to move connection:", e);
-      setError(t("groups.moveError", { defaultValue: "Failed to move connection" }) + `: ${toErrorMessage(e)}`);
+      setError(t`Failed to move connection` + `: ${toErrorMessage(e)}`);
     }
   };
 
@@ -273,7 +274,7 @@ export const Connections = () => {
       navigate("/editor");
     } catch (e) {
       setError(
-        `${t("connections.failConnect", { name: conn.name })}\n\nError: ${toErrorMessage(e)}`,
+        `${t`Failed to connect to ${conn.name}. Please check your settings or ensuring the database is running.`}\n\nError: ${toErrorMessage(e)}`,
       );
     } finally {
       setConnectingId(null);
@@ -285,14 +286,14 @@ export const Connections = () => {
     try {
       await disconnect(connId);
     } catch (e) {
-      setError(`${t("connections.failDisconnect")}\n\nError: ${toErrorMessage(e)}`);
+      setError(`${t`Failed to disconnect from database`}\n\nError: ${toErrorMessage(e)}`);
     }
   };
 
   const handleDelete = (id: string) => {
     setConfirmModal({
-      title: t("connections.deleteTitle"),
-      message: t("connections.confirmDelete"),
+      title: t`Confirm Delete`,
+      message: t`Are you sure you want to delete this connection?`,
       onConfirm: async () => {
         setConfirmModal(null);
         try {
@@ -323,7 +324,7 @@ export const Connections = () => {
       void openEdit(newConn);
     } catch (e) {
       console.error(e);
-      setError(t("connections.failDuplicate"));
+      setError(t`Failed to duplicate connection`);
     }
   };
 
@@ -483,15 +484,13 @@ export const Connections = () => {
             </span>
           </div>
           <h1 className="text-xl font-bold text-primary tracking-tight">
-            {t("connections.title")}
+            {t`Connections`}
           </h1>
           <div className="flex items-center gap-3 mt-1.5">
             <span className="text-xs text-muted">
               {connections.length === 0
-                ? t("connections.noConnections")
-                : t("connections.connectionCount", {
-                    count: connections.length,
-                  })}
+                ? t`No active connections`
+                : plural(connections.length, { one: "# connection", other: "# connections" })}
             </span>
             {openCount > 0 && (
               <>
@@ -513,7 +512,7 @@ export const Connections = () => {
           className="relative flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-150 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-px"
         >
           <Plus size={15} />
-          {t("connections.addConnection")}
+          {t`Add Connection`}
         </button>
       </div>
 
@@ -547,10 +546,10 @@ export const Connections = () => {
               </div>
             </div>
             <p className="text-base font-bold text-primary mb-1.5">
-              {t("connections.noConnections")}
+              {t`No active connections`}
             </p>
             <p className="text-sm text-muted mb-6 max-w-xs leading-relaxed">
-              {t("connections.noConnectionsHint")}
+              {t`Create your first connection to get started.`}
             </p>
             <div className="flex items-center gap-2.5">
               <button
@@ -561,14 +560,14 @@ export const Connections = () => {
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/20 hover:-translate-y-px"
               >
                 <Plus size={14} />
-                {t("connections.createFirst")}
+                {t`Create your first connection`}
               </button>
               <button
                 onClick={handleImport}
                 className="flex items-center gap-2 bg-elevated border border-strong hover:border-blue-500/50 text-secondary hover:text-blue-400 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
               >
                 <Upload size={14} />
-                {t("connections.import")}
+                {t`Import Connections`}
               </button>
             </div>
           </div>
@@ -585,7 +584,7 @@ export const Connections = () => {
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder={t("connections.searchPlaceholder")}
+                  placeholder={t`Search connections...`}
                   className="w-full pl-10 pr-9 py-2.5 bg-elevated border border-strong rounded-xl text-sm text-primary placeholder:text-muted focus:border-blue-500/70 focus:outline-none transition-colors"
                 />
                 {search && (
@@ -612,7 +611,7 @@ export const Connections = () => {
                         setNewGroupName("");
                       }
                     }}
-                    placeholder={t("groups.groupName")}
+                    placeholder={t`Group name`}
                     autoFocus
                     className="w-40 px-3 py-2 bg-elevated border border-strong rounded-xl text-sm text-primary placeholder:text-muted focus:border-amber-500/70 focus:outline-none transition-colors"
                   />
@@ -637,11 +636,11 @@ export const Connections = () => {
                 <button
                   onClick={() => setIsCreatingGroup(true)}
                   className="flex items-center gap-1.5 px-3 py-2 bg-elevated border border-strong rounded-xl text-sm text-muted hover:text-amber-400 hover:border-amber-500/50 transition-colors shrink-0"
-                  title={t("groups.newGroup")}
+                  title={t`New Group`}
                 >
                   <FolderPlus size={14} />
                   <span className="hidden sm:inline">
-                    {t("groups.newGroup")}
+                    {t`New Group`}
                   </span>
                 </button>
               )}
@@ -651,14 +650,14 @@ export const Connections = () => {
                 <button
                   onClick={handleImport}
                   className="p-1.5 rounded-lg text-muted hover:text-blue-400 hover:bg-blue-500/10 transition-all duration-150"
-                  title={t("connections.import")}
+                  title={t`Import Connections`}
                 >
                   <Upload size={14} />
                 </button>
                 <button
                   onClick={handleExport}
                   className="p-1.5 rounded-lg text-muted hover:text-blue-400 hover:bg-blue-500/10 transition-all duration-150"
-                  title={t("connections.export")}
+                  title={t({ message: "Export Connections", context: "connections.export" })}
                 >
                   <Download size={14} />
                 </button>
@@ -674,7 +673,7 @@ export const Connections = () => {
                       ? "bg-blue-500/15 text-blue-400 shadow-sm"
                       : "text-muted hover:text-secondary hover:bg-surface-secondary",
                   )}
-                  title={t("connections.gridView")}
+                  title={t`Grid view`}
                 >
                   <LayoutGrid size={15} />
                 </button>
@@ -686,7 +685,7 @@ export const Connections = () => {
                       ? "bg-blue-500/15 text-blue-400 shadow-sm"
                       : "text-muted hover:text-secondary hover:bg-surface-secondary",
                   )}
-                  title={t("connections.listView")}
+                  title={t`List view`}
                 >
                   <List size={15} />
                 </button>
@@ -728,7 +727,7 @@ export const Connections = () => {
                     {sortedGroups.length > 0 && (
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-muted">
-                          {t("groups.ungrouped")}
+                          {t`Ungrouped`}
                         </span>
                         <span className="text-xs text-muted">
                           ({filteredUngroupedConnections.length})
@@ -755,7 +754,7 @@ export const Connections = () => {
                   filteredUngroupedConnections.length === 0 &&
                   search && (
                     <div className="text-center py-12 text-sm text-muted">
-                      {t("connections.noSearchResults", { query: search })}
+                      {t`No connections match "${search}"`}
                     </div>
                   )}
               </div>
@@ -794,7 +793,7 @@ export const Connections = () => {
                     {sortedGroups.length > 0 && (
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-muted">
-                          {t("groups.ungrouped")}
+                          {t`Ungrouped`}
                         </span>
                         <span className="text-xs text-muted">
                           ({filteredUngroupedConnections.length})
@@ -821,7 +820,7 @@ export const Connections = () => {
                   filteredUngroupedConnections.length === 0 &&
                   search && (
                     <div className="text-center py-12 text-sm text-muted">
-                      {t("connections.noSearchResults", { query: search })}
+                      {t`No connections match "${search}"`}
                     </div>
                   )}
               </div>
@@ -860,7 +859,7 @@ export const Connections = () => {
           y={groupContextMenu.y}
           items={[
             {
-              label: t("groups.rename"),
+              label: t`Rename`,
               icon: Edit,
               action: () => {
                 const group = connectionGroups.find(
@@ -874,7 +873,7 @@ export const Connections = () => {
             },
             { separator: true as const },
             {
-              label: t("groups.delete"),
+              label: t({ message: "Delete", context: "groups" }),
               icon: Trash2,
               action: () => handleDeleteGroup(groupContextMenu.groupId),
               danger: true,
@@ -915,7 +914,7 @@ export const Connections = () => {
                         ? [{ separator: true as const }]
                         : []),
                       {
-                        label: t("groups.removeFromGroup"),
+                        label: t`Remove from Group`,
                         icon: X,
                         action: () =>
                           void handleMoveToGroup(

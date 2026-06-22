@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Loader2 } from "lucide-react";
 import MonacoEditor from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
@@ -42,7 +42,7 @@ export const VisualExplainView = ({
   onSelectNode,
   aiEnabled,
 }: VisualExplainViewProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const editorTheme = useEditorTheme();
 
   const selectedNode = useMemo(
@@ -82,7 +82,7 @@ export const VisualExplainView = ({
           <div className="flex flex-col items-center justify-center h-full gap-2 text-muted">
             <Loader2 size={24} className="animate-spin" />
             <span className="text-sm">
-              {t("editor.visualExplain.loading")}
+              {t`Running EXPLAIN...`}
             </span>
           </div>
         ) : error ? (

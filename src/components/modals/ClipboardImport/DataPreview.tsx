@@ -1,5 +1,6 @@
+import { plural } from "@lingui/core/macro";
 import { Maximize2, Minimize2 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import { useColumnResize } from '../../../hooks/useColumnResize';
 
 const MAX_PREVIEW_ROWS = 10;
@@ -13,7 +14,7 @@ interface DataPreviewProps {
 }
 
 export function DataPreview({ headers, rows, rowCount, isMaximized, onToggleMaximize }: DataPreviewProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const previewRows = isMaximized ? rows : rows.slice(0, MAX_PREVIEW_ROWS);
   const { widths, startResize } = useColumnResize(headers.length, 160);
 
@@ -21,18 +22,18 @@ export function DataPreview({ headers, rows, rowCount, isMaximized, onToggleMaxi
     <div className="flex flex-col h-full min-h-0 border border-strong rounded-lg bg-base/50 overflow-hidden">
       <div className="bg-elevated/80 px-3 py-2 border-b border-strong flex items-center justify-between shrink-0 gap-2">
         <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider shrink-0">
-          {t('clipboardImport.dataPreview')}
+          {t`Data Preview`}
         </h3>
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-[10px] text-muted truncate">
-            {t('clipboardImport.rowsTotal', { count: rowCount })}
-            {!isMaximized && rowCount > MAX_PREVIEW_ROWS && ` (${t('clipboardImport.showingFirst', { count: MAX_PREVIEW_ROWS })})`}
+            {plural(rowCount, { one: "# row", other: "# rows" })}
+            {!isMaximized && rowCount > MAX_PREVIEW_ROWS && ` (${t`showing first ${MAX_PREVIEW_ROWS}`})`}
           </span>
           {onToggleMaximize && (
             <button
               onClick={onToggleMaximize}
               className="text-muted hover:text-primary transition-colors p-0.5 rounded hover:bg-surface-secondary/50 shrink-0"
-              title={t(isMaximized ? 'clipboardImport.minimize' : 'clipboardImport.maximize')}
+              title={isMaximized ? t`Minimize` : t`Maximize`}
             >
               {isMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
             </button>

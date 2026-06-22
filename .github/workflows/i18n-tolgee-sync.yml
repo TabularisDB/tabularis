@@ -1,0 +1,52 @@
+name: i18n Tolgee Sync
+
+# Pushes the current source strings to Tolgee on every push to main, so the
+# translation platform learns about new keys promptly and can start machine-
+# translating them. Finished translations flow back via i18n-tolgee-backsync.yml.
+#
+# Uses forceMode KEEP (configured in .tolgeerc.json) — it only ADDS new keys and
+# NEVER overwrites translations that already exist in Tolgee, so a typo fixed by a
+# translator in Tolgee is never clobbered by the bundled catalogs. English/source
+# text is owned by the code: fix source typos in the `t` string, not in Tolgee.
+#
+# Requires the repo secret TOLGEE_API_KEY (a Tolgee PAT or project API key with
+# write access to project 32587).
+
+concurrency:
+  group: i18n-tolgee-sync
+  cancel-in-progress: false
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '.tolgeerc.json'
+      - '.github/workflows/i18n-tolgee-sync.yml'
+  workflow_dispatch:
+
+jobs:
+  tolgee:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+        name: Install pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Regenerate source catalog
+        run: pnpm run i18n:extract
+
+      - name: Push source strings to Tolgee
+        run: npx --yes @tolgee/cli@latest push
+        env:
+          TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}

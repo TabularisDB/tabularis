@@ -1,9 +1,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { lingui } from '@lingui/vite-plugin'
+import { linguiWatch } from './scripts/i18n/vite-lingui-watch.mjs'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react({ babel: { plugins: ['@lingui/babel-plugin-lingui-macro'] } }),
+    lingui(),
+    // Dev-only: regenerate message catalogs on source change (no extra process).
+    linguiWatch(),
+  ],
   resolve: {
     alias: {
       // Polyfills for browser environment (needed by wkx library)
@@ -27,7 +34,7 @@ export default defineConfig({
           recharts: ['recharts'],
           xyflow: ['@xyflow/react', 'dagre'],
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          i18n: ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
+          i18n: ['@lingui/core', '@lingui/react'],
           markdown: ['react-markdown'],
           table: ['@tanstack/react-table', '@tanstack/react-virtual'],
           wkx: ['wkx', 'buffer', 'util'],

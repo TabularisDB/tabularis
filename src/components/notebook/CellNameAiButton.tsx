@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Sparkles, Loader2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettings } from "../../hooks/useSettings";
@@ -13,7 +13,7 @@ export function CellNameAiButton({
   content,
   onNameGenerated,
 }: CellNameAiButtonProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings } = useSettings();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -45,7 +45,7 @@ export function CellNameAiButton({
       onClick={handleGenerate}
       disabled={isLoading || !content.trim()}
       className="p-0.5 text-muted hover:text-purple-300 transition-colors rounded disabled:opacity-30 disabled:pointer-events-none"
-      title={isLoading ? t("editor.notebook.generatingName") : t("editor.notebook.aiGenerateName")}
+      title={isLoading ? t`Generating name...` : t`Generate name with AI`}
     >
       {isLoading ? (
         <Loader2 size={10} className="animate-spin" />

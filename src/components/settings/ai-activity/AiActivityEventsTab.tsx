@@ -1,5 +1,6 @@
+import { plural } from "@lingui/core/macro";
 import { useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   ArrowDown,
   ArrowUp,
@@ -44,7 +45,7 @@ interface ExplainTarget {
 }
 
 export function AiActivityEventsTab() {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { showAlert } = useAlert();
   const [filter, setFilter] = useState<AiEventFilter>({});
   const [detail, setDetail] = useState<AiActivityEvent | null>(null);
@@ -67,12 +68,12 @@ export function AiActivityEventsTab() {
   }, [events]);
 
   const handleClear = async () => {
-    if (!confirm(t("aiActivity.clearConfirm"))) return;
+    if (!confirm(t`Delete the entire AI activity history? This cannot be undone.`)) return;
     try {
       await clearAiActivity();
       await refetch();
     } catch (err) {
-      showAlert(String(err), { kind: "error", title: t("common.error") });
+      showAlert(String(err), { kind: "error", title: t({ message: "Error", context: "common" }) });
     }
   };
 
@@ -92,12 +93,12 @@ export function AiActivityEventsTab() {
       });
       if (typeof target === "string" && target.length > 0) {
         await writeTextFile(target, content);
-        showAlert(t("aiActivity.exportSuccess", { path: target }), {
+        showAlert(t`Exported to ${target}`, {
           kind: "info",
         });
       }
     } catch (err) {
-      showAlert(String(err), { kind: "error", title: t("common.error") });
+      showAlert(String(err), { kind: "error", title: t({ message: "Error", context: "common" }) });
     }
   };
 
@@ -124,16 +125,16 @@ export function AiActivityEventsTab() {
 
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="inline-flex items-center rounded-full border border-default bg-base/50 px-2.5 py-1 text-muted">
-          {t("aiActivity.eventsCount", { count: stats.total })}
+          {plural(stats.total, { one: "# event", other: "# events" })}
         </span>
         {stats.blocked > 0 && (
           <span className="inline-flex items-center rounded-full border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-yellow-300">
-            {t("aiActivity.blockedCount", { count: stats.blocked })}
+            {plural(stats.blocked, { one: "# blocked", other: "# blocked" })}
           </span>
         )}
         {stats.errors > 0 && (
           <span className="inline-flex items-center rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-red-300">
-            {t("aiActivity.errorsCount", { count: stats.errors })}
+            {plural(stats.errors, { one: "# error", other: "# errors" })}
           </span>
         )}
       </div>
@@ -144,7 +145,7 @@ export function AiActivityEventsTab() {
         onView={setDetail}
         onCopyQuery={(q) => {
           navigator.clipboard.writeText(q);
-          showAlert(t("aiActivity.copied"), { kind: "info" });
+          showAlert(t({ message: "Copied to clipboard", context: "aiActivity" }), { kind: "info" });
         }}
         onOpenInVisualExplain={handleOpenInVisualExplain}
       />
@@ -188,7 +189,7 @@ function FiltersBar({
   onExportCsv,
   refreshing,
 }: FiltersBarProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const update = (patch: Partial<AiEventFilter>) =>
     onFilterChange({ ...filter, ...patch });
   const toolOptions = [
@@ -206,14 +207,14 @@ function FiltersBar({
     "timeout",
     "blocked_readonly",
   ];
-  const toolLabels = { "": t("aiActivity.allTools") };
+  const toolLabels = { "": t`All tools` };
   const statusLabels = {
-    "": t("aiActivity.allStatuses"),
-    success: t("aiActivity.status.success"),
-    error: t("aiActivity.status.error"),
-    denied: t("aiActivity.status.denied"),
-    timeout: t("aiActivity.status.timeout"),
-    blocked_readonly: t("aiActivity.status.blocked_readonly"),
+    "": t`All statuses`,
+    success: t({ message: "Success", context: "aiActivity" }),
+    error: t({ message: "Error", context: "aiActivity" }),
+    denied: t`Denied`,
+    timeout: t({ message: "Timeout", context: "aiActivity" }),
+    blocked_readonly: t`Blocked (read-only)`,
   };
 
   return (
@@ -226,7 +227,7 @@ function FiltersBar({
           />
           <input
             type="text"
-            placeholder={t("aiActivity.searchQuery")}
+            placeholder={t`Search query…`}
             value={filter.queryContains ?? ""}
             onChange={(e) =>
               update({ queryContains: e.target.value || undefined })
@@ -240,7 +241,7 @@ function FiltersBar({
             options={toolOptions}
             labels={toolLabels}
             onChange={(value) => update({ tool: value || undefined })}
-            placeholder={t("aiActivity.allTools")}
+            placeholder={t`All tools`}
             searchable={false}
             className="min-w-0 lg:w-[180px]"
           />
@@ -253,7 +254,7 @@ function FiltersBar({
                 status: (value || undefined) as AiEventFilter["status"],
               })
             }
-            placeholder={t("aiActivity.allStatuses")}
+            placeholder={t`All statuses`}
             searchable={false}
             className="min-w-0 lg:w-[190px]"
           />
@@ -263,8 +264,8 @@ function FiltersBar({
             onClick={() => onRefresh()}
             disabled={refreshing}
             className="flex h-9 w-9 items-center justify-center rounded border border-strong bg-base text-muted transition-colors hover:bg-surface-tertiary hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
-            title={t("common.refresh", { defaultValue: "Refresh" })}
-            aria-label={t("common.refresh", { defaultValue: "Refresh" })}
+            title={t`Refresh`}
+            aria-label={t`Refresh`}
           >
             <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
           </button>
@@ -273,7 +274,7 @@ function FiltersBar({
             <button
               onClick={onExportCsv}
               className="flex h-9 items-center gap-1.5 px-2.5 text-xs text-muted transition-colors hover:bg-surface-tertiary hover:text-primary"
-              title={t("aiActivity.exportCsv", { defaultValue: "Export CSV" })}
+              title={t`Export CSV`}
             >
               <Download size={12} /> CSV
             </button>
@@ -281,7 +282,7 @@ function FiltersBar({
             <button
               onClick={onExportJson}
               className="flex h-9 items-center gap-1.5 px-2.5 text-xs text-muted transition-colors hover:bg-surface-tertiary hover:text-primary"
-              title={t("aiActivity.exportJson", { defaultValue: "Export JSON" })}
+              title={t`Export JSON`}
             >
               <Download size={12} /> JSON
             </button>
@@ -290,9 +291,9 @@ function FiltersBar({
           <button
             onClick={onClear}
             className="flex h-9 items-center gap-1.5 rounded border border-red-900/40 bg-red-900/10 px-2.5 text-xs text-red-400 transition-colors hover:bg-red-900/30 hover:text-red-300"
-            title={t("aiActivity.clearAll")}
+            title={t({ message: "Clear", context: "aiActivity" })}
           >
-            <Trash2 size={12} /> {t("aiActivity.clearAll")}
+            <Trash2 size={12} /> {t({ message: "Clear", context: "aiActivity" })}
           </button>
         </div>
       </div>
@@ -315,7 +316,7 @@ function EventsTable({
   onCopyQuery,
   onOpenInVisualExplain,
 }: EventsTableProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings } = useSettings();
   const [sortField, setSortField] = useState<EventSortField>("timestamp");
   const [sortDir, setSortDir] = useState<SortDirection>("desc");
@@ -337,14 +338,14 @@ function EventsTable({
   if (loading && events.length === 0) {
     return (
       <div className="text-center py-12 text-muted text-sm">
-        {t("common.loading")}
+        {t`Loading...`}
       </div>
     );
   }
   if (events.length === 0) {
     return (
       <div className="text-center py-12 text-muted text-sm">
-        {t("aiActivity.empty")}
+        {t`No MCP activity yet.`}
       </div>
     );
   }
@@ -356,7 +357,7 @@ function EventsTable({
             <tr className="text-left text-muted">
               <SortableHeader
                 field="timestamp"
-                label={t("aiActivity.col.timestamp")}
+                label={t({ message: "Time", context: "aiActivity" })}
                 activeField={sortField}
                 direction={sortDir}
                 onToggle={toggleSort}
@@ -364,7 +365,7 @@ function EventsTable({
               />
               <SortableHeader
                 field="tool"
-                label={t("aiActivity.col.tool")}
+                label={t`Tool`}
                 activeField={sortField}
                 direction={sortDir}
                 onToggle={toggleSort}
@@ -372,18 +373,18 @@ function EventsTable({
               />
               <SortableHeader
                 field="connection"
-                label={t("aiActivity.col.connection")}
+                label={t`Connection`}
                 activeField={sortField}
                 direction={sortDir}
                 onToggle={toggleSort}
                 className="w-[8rem]"
               />
               <th className="px-3 py-2 font-medium">
-                {t("aiActivity.col.query")}
+                {t`Query`}
               </th>
               <SortableHeader
                 field="kind"
-                label={t("aiActivity.col.kind")}
+                label={t`Kind`}
                 activeField={sortField}
                 direction={sortDir}
                 onToggle={toggleSort}
@@ -391,7 +392,7 @@ function EventsTable({
               />
               <SortableHeader
                 field="duration"
-                label={t("aiActivity.col.duration")}
+                label={t`Duration`}
                 activeField={sortField}
                 direction={sortDir}
                 onToggle={toggleSort}
@@ -400,14 +401,14 @@ function EventsTable({
               />
               <SortableHeader
                 field="status"
-                label={t("aiActivity.col.status")}
+                label={t`Status`}
                 activeField={sortField}
                 direction={sortDir}
                 onToggle={toggleSort}
                 className="w-[9.5rem]"
               />
               <th className="w-[5.25rem] px-3 py-2 text-right font-medium">
-                {t("aiActivity.col.actions")}
+                {t({ message: "Actions", context: "aiActivity" })}
               </th>
             </tr>
           </thead>
@@ -446,7 +447,7 @@ function EventsTable({
                     <button
                       onClick={() => onView(ev)}
                       className="rounded p-1 text-muted hover:bg-surface-tertiary hover:text-primary"
-                      title={t("aiActivity.viewDetails")}
+                      title={t`View details`}
                     >
                       <Eye size={12} />
                     </button>
@@ -454,7 +455,7 @@ function EventsTable({
                       <button
                         onClick={() => onCopyQuery(ev.query!)}
                         className="rounded p-1 text-muted hover:bg-surface-tertiary hover:text-primary"
-                        title={t("aiActivity.copyQuery")}
+                        title={t`Copy query`}
                       >
                         <Copy size={12} />
                       </button>
@@ -463,7 +464,7 @@ function EventsTable({
                       <button
                         onClick={() => onOpenInVisualExplain(ev)}
                         className="rounded p-1 text-muted hover:bg-green-900/20 hover:text-green-400"
-                        title={t("aiActivity.openVisualExplain")}
+                        title={t`Open in Visual Explain`}
                       >
                         <GitGraph size={12} />
                       </button>
@@ -498,7 +499,7 @@ function SortableHeader({
   className,
   align = "left",
 }: SortableHeaderProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const isActive = field === activeField;
   const Icon = isActive ? (direction === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
   const ariaSort = isActive
@@ -508,9 +509,9 @@ function SortableHeader({
     : "none";
   const nextLabel = isActive
     ? direction === "asc"
-      ? t("aiActivity.sort.toggleDescending", { defaultValue: "Sort descending" })
-      : t("aiActivity.sort.toggleAscending", { defaultValue: "Sort ascending" })
-    : t("aiActivity.sort.sortBy", { defaultValue: "Sort by {{field}}", field: label });
+      ? t`Sort descending`
+      : t`Sort ascending`
+    : t`Sort by ${field}`;
   return (
     <th
       className={`${className ?? ""} px-3 py-2 font-medium ${

@@ -1,5 +1,5 @@
 import { X, FileText, Loader2, CheckCircle, AlertCircle } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Modal } from "../ui/Modal";
 
 export type ExportStatus = "exporting" | "completed" | "error";
@@ -23,7 +23,7 @@ export const ExportProgressModal = ({
   fileName,
   errorMessage,
 }: ExportProgressModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -32,10 +32,10 @@ export const ExportProgressModal = ({
           <h3 className="text-lg font-semibold text-white flex items-center gap-2">
             <FileText className="text-blue-400" />
             {status === "exporting"
-              ? t("editor.exporting")
+              ? t`Exporting...`
               : status === "completed"
-              ? t("common.success")
-              : t("common.error")}
+              ? t({ message: "Success", context: "common" })
+              : t({ message: "Error", context: "common" })}
           </h3>
         </div>
 
@@ -63,7 +63,7 @@ export const ExportProgressModal = ({
               </p>
             ) : (
               <p className="text-secondary text-sm">
-                {t("editor.rowsProcessed")}:{" "}
+                {t`Rows Processed`}:{" "}
                 <span className="text-white font-mono font-bold">
                   {rowsProcessed.toLocaleString()}
                 </span>
@@ -79,14 +79,14 @@ export const ExportProgressModal = ({
               className="px-4 py-2 bg-red-900/30 hover:bg-red-900/50 text-red-200 border border-red-900/50 rounded flex items-center gap-2 transition-colors text-sm font-medium"
             >
               <X size={16} />
-              {t("common.cancel")}
+              {t`Cancel`}
             </button>
           ) : (
             <button
               onClick={onClose}
               className="px-4 py-2 bg-surface-tertiary hover:bg-surface-tertiary text-white rounded flex items-center gap-2 transition-colors text-sm font-medium"
             >
-              {t("common.close")} {/* Assicurati che "close" esista in common, altrimenti usa "cancel" o aggiungilo */}
+              {t`Close`} {/* Assicurati che "close" esista in common, altrimenti usa "cancel" o aggiungilo */}
             </button>
           )}
         </div>

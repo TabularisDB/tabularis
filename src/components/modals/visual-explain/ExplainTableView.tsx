@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import type { ExplainNode, ExplainPlan } from "../../../types/explain";
@@ -24,7 +24,7 @@ export function ExplainTableView({
   selectedId,
   onSelect,
 }: ExplainTableViewProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() =>
     collectExpandedIds(plan.root),
   );
@@ -51,30 +51,30 @@ export function ExplainTableView({
           <thead className="sticky top-0 z-10 bg-base border-b border-default">
             <tr>
               <th className="text-left px-3 py-2 text-muted font-semibold whitespace-nowrap">
-                {t("editor.visualExplain.nodeType")}
+                {t`Operation`}
               </th>
               <th className="text-left px-3 py-2 text-muted font-semibold whitespace-nowrap">
-                {t("editor.visualExplain.relation")}
+                {t({ message: "Table", context: "editor.visualExplain.relation" })}
               </th>
               <th className="text-right px-3 py-2 text-muted font-semibold whitespace-nowrap">
-                {t("editor.visualExplain.cost")}
+                {t`Cost`}
               </th>
               <th className="text-right px-3 py-2 text-muted font-semibold whitespace-nowrap">
-                {t("editor.visualExplain.estRows")}
+                {t`Est. Rows`}
               </th>
               {plan.has_analyze_data && (
                 <th className="text-right px-3 py-2 text-muted font-semibold whitespace-nowrap">
-                  {t("editor.visualExplain.actualRows")}
+                  {t`Actual Rows`}
                 </th>
               )}
               <th className="text-right px-3 py-2 text-muted font-semibold whitespace-nowrap">
-                {t("editor.visualExplain.time")}
+                {t({ message: "Time", context: "editor" })}
               </th>
               <th className="text-right px-3 py-2 text-muted font-semibold whitespace-nowrap">
-                {t("editor.visualExplain.largestEstimateGap")}
+                {t`Estimate Gap`}
               </th>
               <th className="text-left px-3 py-2 text-muted font-semibold whitespace-nowrap">
-                {t("editor.visualExplain.filter")}
+                {t`Filter`}
               </th>
             </tr>
           </thead>

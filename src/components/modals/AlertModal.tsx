@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { AlertTriangle, Info, AlertCircle, X } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import type { AlertKind } from "../../contexts/AlertContext";
@@ -18,7 +18,7 @@ const iconConfig: Record<AlertKind, { Icon: typeof Info; bgClass: string; textCl
 };
 
 export const AlertModal = ({ isOpen, onClose, title, message, kind }: AlertModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { Icon, bgClass, textClass } = iconConfig[kind];
 
   return (
@@ -48,7 +48,7 @@ export const AlertModal = ({ isOpen, onClose, title, message, kind }: AlertModal
             onClick={onClose}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
           >
-            {t("common.ok", "OK")}
+            {t`OK`}
           </button>
         </div>
       </div>

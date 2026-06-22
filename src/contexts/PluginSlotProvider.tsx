@@ -2,7 +2,8 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import * as React from "react";
 import * as ReactJSXRuntime from "react/jsx-runtime";
 import { invoke } from "@tauri-apps/api/core";
-import i18n from "i18next";
+import { i18n } from "../i18n/lingui";
+import { loadPluginTranslations } from "../i18n/pluginI18n";
 
 import { PluginSlotContext } from "./PluginSlotContext";
 import type { PluginSlotRegistryType } from "./PluginSlotContext";
@@ -34,29 +35,6 @@ function exposePluginGlobals() {
   (window as unknown as Record<string, unknown>).ReactJSXRuntime = ReactJSXRuntime;
   (window as unknown as Record<string, unknown>).__TABULARIS_API__ = pluginApi;
   (window as unknown as Record<string, unknown>).__TABULARIS_API_VERSION__ = HOST_API_VERSION;
-}
-
-/**
- * Loads translation files for a plugin and registers them in i18next.
- * Tries the current language first, then falls back to 'en'.
- * Missing locale files are silently skipped.
- * Each plugin's translations are registered under its own namespace (plugin id).
- */
-async function loadPluginTranslations(pluginId: string): Promise<void> {
-  const langs = Array.from(new Set([i18n.language?.split("-")[0], "en"])).filter(Boolean) as string[];
-  for (const lang of langs) {
-    if (i18n.hasResourceBundle(lang, pluginId)) continue;
-    try {
-      const raw = await invoke<string>("read_plugin_file", {
-        pluginId,
-        filePath: `locales/${lang}.json`,
-      });
-      const translations = JSON.parse(raw) as Record<string, unknown>;
-      i18n.addResourceBundle(lang, pluginId, translations, true, true);
-    } catch {
-      // Locale file absent or invalid — silently skip.
-    }
-  }
 }
 
 /**
@@ -178,7 +156,7 @@ export const PluginSlotProvider = ({ children }: PluginSlotProviderProps) => {
         if (cancelled) break;
         try {
           const manifest = await invoke<PluginManifest>("get_plugin_manifest", { pluginId });
-          await loadPluginTranslations(pluginId);
+          await loadPluginTranslations(pluginId, i18n.locale);
           const pluginContributions = await loadExternalPluginContributions(manifest);
           loaded.push(...pluginContributions);
         } catch (err) {

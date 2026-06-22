@@ -1,4 +1,6 @@
 import type { Node, Edge } from "@xyflow/react";
+import { msg } from "@lingui/core/macro";
+import type { MessageDescriptor } from "@lingui/core";
 import type { ExplainNode, ExplainPlan } from "../types/explain";
 import type { ExplainPlanNodeData } from "../components/ui/ExplainPlanNode";
 import dagre from "dagre";
@@ -336,32 +338,32 @@ export function getExplainPlanSummary(plan: ExplainPlan): ExplainPlanSummary {
   };
 }
 
-export function getExplainDriverLegend(plan: ExplainPlan): string[] {
+export function getExplainDriverLegend(plan: ExplainPlan): MessageDescriptor[] {
   switch (plan.driver) {
     case "postgres":
       return plan.has_analyze_data
         ? [
-            "editor.visualExplain.postgresAnalyzeLegend1",
-            "editor.visualExplain.postgresAnalyzeLegend2",
+            msg`PostgreSQL ANALYZE includes actual rows, timing, loops, and buffer counters when available.`,
+            msg`Large estimate gaps usually indicate stale statistics or predicates the planner cannot model well.`,
           ]
         : [
-            "editor.visualExplain.postgresEstimateLegend1",
-            "editor.visualExplain.postgresEstimateLegend2",
+            msg`PostgreSQL without ANALYZE shows planner estimates only.`,
+            msg`Enable ANALYZE to inspect actual rows, timing, loops, and buffers.`,
           ];
     case "mysql":
       return plan.has_analyze_data
         ? [
-            "editor.visualExplain.mysqlAnalyzeLegend1",
-            "editor.visualExplain.mysqlAnalyzeLegend2",
+            msg`MySQL and MariaDB expose actual metrics only on supported EXPLAIN ANALYZE or ANALYZE FORMAT variants.`,
+            msg`Older servers may fall back to estimated plans with fewer metrics.`,
           ]
         : [
-            "editor.visualExplain.mysqlEstimateLegend1",
-            "editor.visualExplain.mysqlEstimateLegend2",
+            msg`MySQL and MariaDB may fall back to EXPLAIN FORMAT=JSON or tabular EXPLAIN depending on server version.`,
+            msg`If timing is missing, the server likely returned an estimate-only plan.`,
           ];
     case "sqlite":
       return [
-        "editor.visualExplain.sqliteLegend1",
-        "editor.visualExplain.sqliteLegend2",
+        msg`SQLite EXPLAIN QUERY PLAN is lightweight and mostly structural.`,
+        msg`Cost, timing, and row estimates are often unavailable compared with PostgreSQL and MySQL.`,
       ];
     default:
       return [];

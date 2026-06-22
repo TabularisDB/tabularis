@@ -146,9 +146,9 @@ describe("FieldEditor", () => {
       />
     );
 
-    expect(screen.getByTitle("dataGrid.setGenerate")).toBeInTheDocument();
-    expect(screen.getByTitle("dataGrid.setNull")).toBeInTheDocument();
-    expect(screen.getByTitle("dataGrid.setEmpty")).toBeInTheDocument();
+    expect(screen.getByTitle("Set GENERATED")).toBeInTheDocument();
+    expect(screen.getByTitle("Set NULL")).toBeInTheDocument();
+    expect(screen.getByTitle("Set EMPTY")).toBeInTheDocument();
   });
 
   it("should call onChange with null when SET GENERATED is clicked", () => {
@@ -164,7 +164,7 @@ describe("FieldEditor", () => {
       />
     );
 
-    const generateBtn = screen.getByTitle("dataGrid.setGenerate");
+    const generateBtn = screen.getByTitle("Set GENERATED");
     fireEvent.click(generateBtn);
 
     expect(onChange).toHaveBeenCalledWith(null);
@@ -182,7 +182,7 @@ describe("FieldEditor", () => {
       />
     );
 
-    const nullBtn = screen.getByTitle("dataGrid.setNull");
+    const nullBtn = screen.getByTitle("Set NULL");
     fireEvent.click(nullBtn);
 
     expect(onChange).toHaveBeenCalledWith(null);
@@ -201,7 +201,7 @@ describe("FieldEditor", () => {
       />
     );
 
-    const defaultBtn = screen.getByTitle("dataGrid.setDefault");
+    const defaultBtn = screen.getByTitle("Set DEFAULT");
     fireEvent.click(defaultBtn);
 
     expect(onChange).toHaveBeenCalledWith("__USE_DEFAULT__");
@@ -220,7 +220,7 @@ describe("FieldEditor", () => {
       />
     );
 
-    const defaultBtn = screen.getByTitle("dataGrid.setDefault");
+    const defaultBtn = screen.getByTitle("Set DEFAULT");
     fireEvent.click(defaultBtn);
 
     expect(onChange).toHaveBeenCalledWith(null);
@@ -238,7 +238,7 @@ describe("FieldEditor", () => {
       />
     );
 
-    const emptyBtn = screen.getByTitle("dataGrid.setEmpty");
+    const emptyBtn = screen.getByTitle("Set EMPTY");
     fireEvent.click(emptyBtn);
 
     expect(onChange).toHaveBeenCalledWith(" ");
@@ -257,7 +257,7 @@ describe("FieldEditor", () => {
       />
     );
 
-    expect(screen.queryByTitle("dataGrid.setGenerate")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Set GENERATED")).not.toBeInTheDocument();
   });
 
   it("should not show quick actions when field has no special properties", () => {
@@ -275,9 +275,9 @@ describe("FieldEditor", () => {
       />
     );
 
-    expect(screen.queryByTitle("dataGrid.setGenerate")).not.toBeInTheDocument();
-    expect(screen.queryByTitle("dataGrid.setNull")).not.toBeInTheDocument();
-    expect(screen.queryByTitle("dataGrid.setDefault")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Set GENERATED")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Set NULL")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Set DEFAULT")).not.toBeInTheDocument();
   });
 
   it("should format geometric values for display (WKB to WKT)", () => {

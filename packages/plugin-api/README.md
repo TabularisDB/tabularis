@@ -41,7 +41,7 @@ export default MySlot.component;
 | `usePluginModal()` | `{ openModal, closeModal }` | Host-managed modal with custom content |
 | `usePluginSetting(pluginId)` | `{ getSetting, setSetting, setSettings }` | Read/write the plugin's own settings |
 | `usePluginTheme()` | `{ themeId, themeName, isDark, colors }` | Current theme tokens |
-| `usePluginTranslation(pluginId)` | `t(key)` | Plugin-scoped i18next translator |
+| `usePluginTranslation(pluginId)` | `t(key, options?)` | Plugin-scoped translator from `locales/<lang>.json` (`{{var}}` + ICU `{var}`) |
 | `openUrl(url)` | `Promise<void>` | Open a URL in the system browser |
 
 All hooks must run inside a React component loaded by Tabularis. Calling them outside the host throws a clear error instead of failing silently.

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { X, Save, Loader2, AlertTriangle, Columns, Plus } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { SqlPreview } from "../ui/SqlPreview";
@@ -40,7 +40,7 @@ export const ModifyColumnModal = ({
   driver,
   column,
 }: ModifyColumnModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { activeSchema } = useDatabase();
   const { dataTypes } = useDataTypes(driver);
   const { allDrivers } = useDrivers();
@@ -94,7 +94,7 @@ export const ModifyColumnModal = ({
   // Generate SQL preview via backend
   const generatePreview = useCallback(async () => {
     if (!form.name) {
-      setSqlPreview("-- " + t("modifyColumn.nameRequired"));
+      setSqlPreview("-- " + t`Column name is required`);
       return;
     }
 
@@ -141,7 +141,7 @@ export const ModifyColumnModal = ({
 
   const handleSubmit = async () => {
     if (!form.name.trim()) {
-      setError(t("modifyColumn.nameRequired"));
+      setError(t`Column name is required`);
       return;
     }
     setLoading(true);
@@ -189,7 +189,7 @@ export const ModifyColumnModal = ({
       onClose();
     } catch (e) {
       console.error(e);
-      setError(t("modifyColumn.fail") + String(e));
+      setError(t`Failed: ` + String(e));
     } finally {
       setLoading(false);
     }
@@ -205,7 +205,7 @@ export const ModifyColumnModal = ({
               {isEdit ? <Columns size={20} className="text-purple-400" /> : <Plus size={20} className="text-blue-400" />}
             </div>
             <h2 className="text-lg font-semibold text-primary">
-              {isEdit ? t("modifyColumn.titleEdit") : t("modifyColumn.titleAdd")}
+              {isEdit ? t({ message: "Modify Column", context: "modifyColumn" }) : t({ message: "Add Column", context: "modifyColumn" })}
             </h2>
           </div>
           <button
@@ -221,13 +221,13 @@ export const ModifyColumnModal = ({
           {!canAlterColumn && isEdit && (
             <div className="bg-warning-bg border border-warning-border text-warning-text text-xs p-3 rounded-lg flex items-start gap-2">
               <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-              <span>{t("modifyColumn.sqliteWarn")}</span>
+              <span>{t`SQLite only supports renaming columns. Other modifications require recreating the table manually.`}</span>
             </div>
           )}
 
           <div>
             <label className="block text-xs uppercase font-bold text-muted mb-1">
-              {t("modifyColumn.name")}
+              {t`Name`}
             </label>
             <input
               value={form.name}
@@ -241,7 +241,7 @@ export const ModifyColumnModal = ({
           <div className="flex gap-4">
             <div className="flex-1">
               <label className="block text-xs uppercase font-bold text-muted mb-1">
-                {t("modifyColumn.type")}
+                {t`Type`}
               </label>
               <Select
                 value={form.type}
@@ -259,20 +259,20 @@ export const ModifyColumnModal = ({
                   });
                 }}
                 disabled={!canAlterColumn && isEdit}
-                placeholder={t("modifyColumn.type")}
-                searchPlaceholder={t("common.search")}
-                noResultsLabel={t("common.noResults")}
+                placeholder={t`Type`}
+                searchPlaceholder={t`Search...`}
+                noResultsLabel={t`No results found`}
               />
               {availableTypes.find((t) => t.name === form.type)?.requires_extension && (
                 <div className="text-xs text-amber-400 mt-1 flex items-center gap-1">
                   <AlertTriangle size={12} />
-                  <span>{t("modifyColumn.requiresExtension", { ext: availableTypes.find((t) => t.name === form.type)?.requires_extension })}</span>
+                  <span>{t`Requires extension: ${availableTypes.find((t) => t.name === form.type)?.requires_extension}`}</span>
                 </div>
               )}
             </div>
             <div className="w-24">
               <label className="block text-xs uppercase font-bold text-muted mb-1">
-                {t("modifyColumn.length")}
+                {t`Length`}
               </label>
               <input
                 value={form.length}
@@ -293,7 +293,7 @@ export const ModifyColumnModal = ({
           <div className="flex gap-4">
             <div className="flex-1">
               <label className="block text-xs uppercase font-bold text-muted mb-1">
-                {t("modifyColumn.default")}
+                {t`Default Value`}
               </label>
               <input
                 value={form.isAutoInc ? "" : form.defaultValue}
@@ -323,7 +323,7 @@ export const ModifyColumnModal = ({
                 htmlFor="isNullable"
                 className={`text-sm select-none cursor-pointer ${form.isAutoInc ? "text-muted" : "text-secondary"}`}
               >
-                {t("modifyColumn.notNull")}
+                {t`Not Null`}
               </label>
             </div>
 
@@ -339,9 +339,9 @@ export const ModifyColumnModal = ({
               <label
                 htmlFor="isPk"
                 className={`text-sm select-none cursor-pointer ${isEdit || !canAlterPk ? "text-muted" : "text-secondary"}`}
-                title={!canAlterPk ? t("modifyColumn.pkNotSupported") : undefined}
+                title={!canAlterPk ? t`This driver only supports primary keys at table creation time` : undefined}
               >
-                {t("modifyColumn.primaryKey")}
+                {t`Primary Key`}
               </label>
             </div>
 
@@ -363,7 +363,7 @@ export const ModifyColumnModal = ({
                 htmlFor="isAutoInc"
                 className={`text-sm select-none cursor-pointer ${(isEdit && !(canAlterColumn && !!driverCapabilities?.auto_increment_keyword)) || !availableTypes.find((t) => t.name === form.type)?.supports_auto_increment ? "text-muted" : "text-secondary"}`}
               >
-                {t("modifyColumn.autoInc")}
+                {t`Auto Increment`}
               </label>
             </div>
           </div>
@@ -371,7 +371,7 @@ export const ModifyColumnModal = ({
           {/* Preview */}
           <div className="mt-2">
             <div className="text-[10px] text-muted mb-1 uppercase tracking-wider">
-              {t("modifyColumn.sqlPreview")}
+              {t`SQL Preview`}
             </div>
             <SqlPreview
               sql={sqlPreview}
@@ -394,7 +394,7 @@ export const ModifyColumnModal = ({
             onClick={onClose}
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
-            {t("modifyColumn.cancel")}
+            {t`Cancel`}
           </button>
           <button
             onClick={handleSubmit}
@@ -407,7 +407,7 @@ export const ModifyColumnModal = ({
           >
             {loading && <Loader2 size={16} className="animate-spin" />}
             <Save size={16} />{" "}
-            {isEdit ? t("modifyColumn.save") : t("modifyColumn.add")}
+            {isEdit ? t`Save Changes` : t({ message: "Add Column", context: "modifyColumn" })}
           </button>
         </div>
       </div>

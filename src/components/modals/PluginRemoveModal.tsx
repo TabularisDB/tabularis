@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { ConfirmModal } from "./ConfirmModal";
 
 interface PluginRemoveModalProps {
@@ -14,15 +14,15 @@ export const PluginRemoveModal = ({
   pluginName,
   onConfirm,
 }: PluginRemoveModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   return (
     <ConfirmModal
       isOpen={isOpen}
       onClose={onClose}
-      title={t("settings.plugins.removeTitle")}
-      message={t("settings.plugins.confirmRemove", { name: pluginName })}
-      confirmLabel={t("settings.plugins.remove")}
+      title={t`Remove Plugin`}
+      message={t`Are you sure you want to remove "${pluginName}"? This will delete the plugin files.`}
+      confirmLabel={t({ message: "Remove", context: "settings" })}
       onConfirm={onConfirm}
     />
   );

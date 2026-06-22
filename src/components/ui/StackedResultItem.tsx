@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   Loader2,
   XCircle,
@@ -51,12 +51,12 @@ export function StackedResultItem({
   onAiRename,
   onClose,
 }: StackedResultItemProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [queryExpanded, setQueryExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const displayLabel = getEntryDisplayLabel(
     entry,
-    t("editor.multiResult.queryPrefix"),
+    t`Query`,
   );
   const [editValue, setEditValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -164,7 +164,7 @@ export function StackedResultItem({
               startEditing();
             }}
             className="p-0.5 rounded-sm hover:bg-surface-secondary text-muted hover:text-white shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-            title={t("editor.multiResult.rename")}
+            title={t`Rename`}
           >
             <Pencil size={10} />
           </button>
@@ -179,7 +179,7 @@ export function StackedResultItem({
             }}
             disabled={aiRenaming}
             className="p-0.5 rounded-sm hover:bg-surface-secondary shrink-0 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-            title={aiRenaming ? t("editor.multiResult.generatingName") : t("editor.multiResult.aiGenerateName")}
+            title={aiRenaming ? t`Generating name...` : t`Generate name with AI`}
           >
             {aiRenaming ? (
               <Loader2 size={10} className="animate-spin text-muted" />
@@ -197,7 +197,7 @@ export function StackedResultItem({
               onRerun();
             }}
             className="p-0.5 rounded-sm hover:bg-surface-secondary text-muted hover:text-white shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-            title={t("editor.multiResult.rerun")}
+            title={t`Re-run query`}
           >
             <Play size={10} fill="currentColor" />
           </button>
@@ -210,7 +210,7 @@ export function StackedResultItem({
             onClose();
           }}
           className="p-0.5 rounded-sm hover:bg-surface-secondary text-muted hover:text-white shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-          title={t("editor.multiResult.close")}
+          title={t`Close tab`}
         >
           <X size={12} />
         </button>
@@ -223,11 +223,11 @@ export function StackedResultItem({
           <div className="flex items-center gap-2 shrink-0">
             {entry.result!.pagination?.has_more && (
               <span className="px-1.5 py-0.5 bg-yellow-900/30 text-yellow-400 rounded text-[10px] font-semibold uppercase tracking-wide border border-yellow-500/30">
-                {t("editor.autoPaginated")}
+                {t`Auto paginated`}
               </span>
             )}
             <span className="text-muted text-[11px]">
-              {t("editor.rowsRetrieved", { count: entry.result!.rows.length })}
+              {t`${entry.result!.rows.length} rows retrieved`}
               {entry.executionTime !== null && (
                 <span className="font-mono ml-1">
                   ({formatDuration(entry.executionTime)})
@@ -284,7 +284,7 @@ export function StackedResultItem({
           {entry.isLoading ? (
             <div className="flex items-center gap-2 px-3 py-4 text-muted text-xs">
               <div className="w-3 h-3 border-2 border-surface-secondary border-t-blue-500 rounded-full animate-spin" />
-              <span>{t("editor.executingQuery")}</span>
+              <span>{t`Executing query...`}</span>
             </div>
           ) : entry.error ? (
             <div className="max-h-[150px] overflow-auto">

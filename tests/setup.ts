@@ -65,29 +65,43 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
   openUrl: vi.fn(),
 }));
 
-// Mock react-i18next
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => {
-      if (options) {
-        // Simple interpolation for testing
-        let result = key;
-        Object.entries(options).forEach(([k, v]) => {
-          result = result.replace(`{{${k}}}`, String(v));
-        });
-        return result;
-      }
-      return key;
-    },
-    i18n: {
-      language: "en",
-      changeLanguage: vi.fn(),
-    },
-  }),
-  initReactI18next: {
-    type: "3rdParty",
-    init: vi.fn(),
+// Mock Lingui so components render their source English without an I18nProvider.
+// `t` handles both the tagged-template macro (t`...${x}...`) and the descriptor
+// form (t({ message, context })); `i18n._` resolves a MessageDescriptor to its
+// message. Mirrors how the macros behave at runtime for source-text catalogs.
+// Loosely typed: the macro `t` is called both as a tagged template and with a
+// descriptor object, which TS can't narrow cleanly via Array.isArray here.
+const linguiT = (strings: unknown, ...values: unknown[]): string => {
+  if (Array.isArray(strings)) {
+    return strings.reduce(
+      (acc: string, s: string, i: number) => acc + s + (i < values.length ? String(values[i]) : ""),
+      "",
+    );
+  }
+  if (typeof strings === "object" && strings !== null) {
+    const d = strings as { message?: string; id?: string };
+    return d.message ?? d.id ?? "";
+  }
+  return String(strings);
+};
+const linguiI18n = {
+  _: (d: { message?: string; id?: string } | string, values?: Record<string, unknown>) => {
+    let msg = typeof d === "string" ? d : (d?.message ?? d?.id ?? "");
+    if (values) for (const [k, v] of Object.entries(values)) msg = msg.replaceAll(`{${k}}`, String(v));
+    return msg;
   },
+  locale: "en",
+  load: vi.fn(),
+  activate: vi.fn(),
+};
+vi.mock("@lingui/react/macro", () => ({
+  useLingui: () => ({ t: linguiT, i18n: linguiI18n }),
+  Trans: ({ children }: { children?: unknown }) => children,
+}));
+vi.mock("@lingui/react", () => ({
+  useLingui: () => ({ i18n: linguiI18n, _: linguiI18n._ }),
+  I18nProvider: ({ children }: { children?: unknown }) => children,
+  Trans: ({ children }: { children?: unknown }) => children,
 }));
 
 // Mock Monaco Editor

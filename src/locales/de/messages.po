@@ -1,0 +1,5409 @@
+msgid ""
+msgstr ""
+"POT-Creation-Date: 2026-06-18 21:59+0200\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: @lingui/cli\n"
+"Language: de\n"
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Plural-Forms: \n"
+
+#: src/components/modals/NewRowModal.tsx
+msgid "(Auto-generated)"
+msgstr "(Automatisch generiert)"
+
+#. placeholder {0}: stats.blocked
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "{0, plural, one {# blocked} other {# blocked}}"
+msgstr "{0, plural, one {# blockiert} other {# blockiert}}"
+
+#. placeholder {0}: proc.children.length
+#. placeholder {0}: stats.child_count
+#: src/pages/TaskManagerPage.tsx
+msgid "{0, plural, one {# child process} other {# child processes}}"
+msgstr "{0, plural, one {# Kindprozess} other {# Kindprozesse}}"
+
+#. placeholder {0}: connections.length
+#: src/pages/Connections.tsx
+msgid "{0, plural, one {# connection} other {# connections}}"
+msgstr "{0, plural, one {# Verbindung(en)} other {# Verbindung(en)}}"
+
+#. placeholder {0}: stats.errors
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "{0, plural, one {# error} other {# errors}}"
+msgstr "{0, plural, one {# Fehler} other {# Fehler}}"
+
+#. placeholder {0}: stats.total
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "{0, plural, one {# event} other {# events}}"
+msgstr "{0, plural, one {# Ereignis} other {# Ereignisse}}"
+
+#. placeholder {0}: queries.length
+#: src/components/modals/ExplainSelectionModal.tsx
+msgid "{0, plural, one {# explainable query found} other {# explainable queries found}}"
+msgstr "{0, plural, one {# erklärbare Abfragen gefunden} other {# erklärbare Abfragen gefunden}}"
+
+#. placeholder {0}: parsed.warnings.length
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "{0, plural, one {# parsing warning} other {# parsing warnings}}"
+msgstr "{0, plural, one {# Parser-Warnungen} other {# Parser-Warnungen}}"
+
+#. placeholder {0}: queries.length
+#: src/components/modals/QuerySelectionModal.tsx
+msgid "{0, plural, one {# query found} other {# queries found}}"
+msgstr "{0, plural, one {# Abfragen gefunden} other {# Abfragen gefunden}}"
+
+#. placeholder {0}: result.rows.length
+#. placeholder {1}: executionTime != null ? Math.round(executionTime) : "—"
+#. placeholder {2}: executionTime != null ? Math.round(executionTime) : "—"
+#: src/components/notebook/ResultToolbar.tsx
+msgid "{0, plural, one {# row · {1}ms} other {# rows · {2}ms}}"
+msgstr "{0, plural, one {# Zeilen · {1} ms} other {# Zeilen · {2} ms}}"
+
+#. placeholder {0}: result.rows_inserted
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "{0, plural, one {# row imported into \"{tableName}\"} other {# rows imported into \"{tableName}\"}}"
+msgstr "{0, plural, one {# Zeilen in \"{tableName}\" importiert} other {# Zeilen in \"{tableName}\" importiert}}"
+
+#. placeholder {0}: parsed.rowCount
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "{0, plural, one {# row} other {# rows}}"
+msgstr "{0, plural, one {# Zeilen} other {# Zeilen}}"
+
+#. placeholder {0}: visibleSessions.length
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "{0, plural, one {# session} other {# sessions}}"
+msgstr "{0, plural, one {# Sitzung} other {# Sitzungen}}"
+
+#. placeholder {0}: systemStats.process_count
+#: src/pages/TaskManagerPage.tsx
+msgid "{0, plural, one {# system process running} other {# system processes running}}"
+msgstr "{0, plural, one {# Systemprozess läuft} other {# Systemprozesse laufen}}"
+
+#. placeholder {0}: tabs.length
+#: src/components/modals/TabSwitcherModal.tsx
+msgid "{0, plural, one {# tab} other {# tabs}}"
+msgstr "{0, plural, one {# Tab} other {# Tabs}}"
+
+#. placeholder {0}: parsed.rowCount
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "{0, plural, one {Import # row} other {Import # rows}}"
+msgstr "{0, plural, one {# Zeilen importieren} other {# Zeilen importieren}}"
+
+#. placeholder {0}: progress.statements_executed
+#. placeholder {1}: progress.total_statements
+#: src/components/modals/ImportDatabaseModal.tsx
+msgid "{0} / {1} statements"
+msgstr "{0} / {1} Statements"
+
+#. placeholder {0}: getProviderLabel(settings.aiProvider)
+#: src/components/settings/AiTab.tsx
+msgid "{0} API Key"
+msgstr "{0} API-Schlüssel"
+
+#. placeholder {0}: selectedDatabasesState.length
+#: src/components/modals/NewConnectionModal.tsx
+msgid "{0} database(s) selected"
+msgstr "{0} Datenbank(en) ausgewählt"
+
+#. placeholder {0}: filteredItems.length
+#: src/components/modals/QuickNavigatorModal.tsx
+msgid "{0} elements"
+msgstr "{0} Elemente"
+
+#. placeholder {0}: approval.clientHint
+#. placeholder {1}: approval.connectionName
+#: src/components/modals/AiApprovalModal.tsx
+msgid "{0} on {1} — review and decide before it executes."
+msgstr "{0} auf {1} — vor Ausführung prüfen."
+
+#. placeholder {0}: activeTab.result.rows.length
+#. placeholder {0}: entry.result!.rows.length
+#. placeholder {0}: entry.result.rows.length
+#: src/components/ui/ResultEntryContent.tsx
+#: src/components/ui/StackedResultItem.tsx
+#: src/pages/Editor.tsx
+msgid "{0} rows retrieved"
+msgstr "{0} Zeilen abgerufen"
+
+#. placeholder {0}: selected.size
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+msgid "{0} selected"
+msgstr "{0} ausgewählt"
+
+#. placeholder {0}: structuredFilters.length
+#: src/components/ui/TableToolbar.tsx
+msgid "{activeFilterCount} of {0} active"
+msgstr "{activeFilterCount} von {0} aktiv"
+
+#: src/components/ui/DataGrid.tsx
+msgid "{deleteRowCount, plural, one {Delete # row} other {Delete # rows}}"
+msgstr "{deleteRowCount, plural, one {# Zeilen löschen} other {# Zeilen löschen}}"
+
+#: src/components/modals/PluginSettingsModal.tsx
+#: src/components/settings/PluginSettingsPage.tsx
+msgid "{label} is required"
+msgstr "{label} ist erforderlich"
+
+#: src/components/modals/ClipboardImport/DataPreview.tsx
+msgid "{rowCount, plural, one {# row} other {# rows}}"
+msgstr "{rowCount, plural, one {# Zeilen} other {# Zeilen}}"
+
+#: src/components/modals/OpenSourceLibrariesModal.tsx
+msgid "{totalLibraries} libraries"
+msgstr "{totalLibraries} Bibliotheken"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "/absolute/path/to/db.sqlite"
+msgstr "/absoluter/pfad/zu/db.sqlite"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "/absolute/path/to/folder"
+msgstr "/absoluter/pfad/zum/ordner"
+
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "/path/to/id_rsa"
+msgstr "/pfad/zu/id_rsa"
+
+#: src/components/modals/QuickNavigatorModal.tsx
+msgid "↑↓ to navigate, Enter to open"
+msgstr "↑↓ zum Navigieren, Enter zum Öffnen"
+
+#. placeholder {0}: previewResult.rows.length - 5
+#: src/components/modals/ViewEditorModal.tsx
+msgid "+{0} more rows"
+msgstr "+{0} weitere Zeilen"
+
+#: src/components/modals/QuickNavigatorModal.tsx
+msgid "1 element"
+msgstr "1 Element"
+
+#: src/components/ConnectionHealthMonitor.tsx
+msgid "A database connection was lost"
+msgstr "Eine Datenbankverbindung wurde verloren"
+
+#: src/components/modals/ClipboardImport/ModeToggle.tsx
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "A new table will be created"
+msgstr "Eine neue Tabelle wird erstellt"
+
+#: src/components/modals/ConfigJsonModal.tsx
+msgid "A restart is required to apply changes."
+msgstr "Ein Neustart ist erforderlich, um Änderungen anzuwenden."
+
+#: src/components/modals/CommunityModal.tsx
+msgid "A star helps others discover the project"
+msgstr "Ein Stern hilft anderen, das Projekt zu entdecken"
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgid "Accent color"
+msgstr "Akzentfarbe"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Accept Suggestion with Enter"
+msgstr "Vorschlag mit Eingabetaste übernehmen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Actions"
+msgstr ""
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgctxt "aiActivity"
+msgid "Actions"
+msgstr "Aktionen"
+
+#: src/pages/TaskManagerPage.tsx
+msgctxt "taskManager"
+msgid "Actions"
+msgstr "Aktionen"
+
+#: src/components/connections/StatusBadge.tsx
+msgid "Active"
+msgstr "Aktiv"
+
+#: src/components/notebook/NotebookCellHeader.tsx
+#: src/pages/Editor.tsx
+msgid "Active database"
+msgstr "Aktive Datenbank"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Active queries and connections through this plugin will be interrupted."
+msgstr "Aktive Abfragen und Verbindungen über dieses Plugin werden unterbrochen."
+
+#: src/pages/McpPage.tsx
+msgid "Activity"
+msgstr "Aktivität"
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+#: src/components/modals/visual-explain/ExplainTableView.tsx
+#: src/components/ui/ExplainPlanNode.tsx
+msgid "Actual Rows"
+msgstr "Tatsächliche Zeilen"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+#: src/components/ui/ExplainPlanNode.tsx
+msgid "Actual rows exceed estimate"
+msgstr "Tatsächliche Zeilen übersteigen die Schätzung"
+
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/notebook/NotebookToolbar.tsx
+msgid "Add"
+msgstr "Hinzufügen"
+
+#: src/components/modals/CreateTableModal.tsx
+msgctxt "createTable"
+msgid "Add Column"
+msgstr "Spalte hinzufügen"
+
+#: src/components/modals/ModifyColumnModal.tsx
+msgctxt "modifyColumn"
+msgid "Add Column"
+msgstr "Spalte hinzufügen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgctxt "sidebar"
+msgid "Add Column"
+msgstr "Spalte hinzufügen"
+
+#: src/pages/Connections.tsx
+msgid "Add Connection"
+msgstr "Verbindung hinzufügen"
+
+#: src/components/ui/TableToolbar.tsx
+msgid "Add filter"
+msgstr "Filter hinzufügen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Add Foreign Key"
+msgstr "Fremdschlüssel hinzufügen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Add Index"
+msgstr "Index hinzufügen"
+
+#: src/components/notebook/AddCellButton.tsx
+msgid "Add Markdown Cell"
+msgstr "Markdown-Zelle hinzufügen"
+
+#: src/components/notebook/AddCellButton.tsx
+msgid "Add SQL Cell"
+msgstr "SQL-Zelle hinzufügen"
+
+#: src/components/ui/TableToolbar.tsx
+msgid "add the first filter"
+msgstr "den ersten Filter hinzufügen"
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgid "Add this to your client config file manually if automatic install fails."
+msgstr "Füge dies manuell zur Konfigurationsdatei deines Clients hinzu, falls die automatische Installation fehlschlägt."
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Add to Favorites"
+msgstr "Zu Favoriten hinzufügen"
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Added Markdown cell {n}"
+msgstr "Markdown-Zelle {n} hinzugefügt"
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Added SQL cell {n}"
+msgstr "SQL-Zelle {n} hinzugefügt"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Adjust the base font size used throughout the application (10-20px)."
+msgstr "Passt die in der gesamten Anwendung verwendete Grundschriftgröße an (10-20 px)."
+
+#: src/pages/Settings.tsx
+msgid "AI"
+msgstr "KI"
+
+#: src/components/modals/CreateTableModal.tsx
+msgctxt "createTable"
+msgid "AI"
+msgstr "AI"
+
+#: src/components/settings/AiActivityPanel.tsx
+#: src/pages/Settings.tsx
+msgid "AI Activity"
+msgstr "KI-Aktivität"
+
+#: src/components/modals/visual-explain/ExplainSummaryBar.tsx
+msgid "AI Analysis"
+msgstr "KI-Analyse"
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgid "AI CLIENTS"
+msgstr "KI-CLIENTS"
+
+#: src/components/settings/AiTab.tsx
+msgid "AI models refreshed from providers"
+msgstr "KI-Modelle von Anbietern aktualisiert"
+
+#: src/components/modals/visual-explain/ExplainAiAnalysis.tsx
+msgid "AI Provider not configured. Please go to Settings > AI."
+msgstr "KI-Anbieter nicht konfiguriert. Bitte gehe zu Einstellungen > KI."
+
+#: src/components/modals/visual-explain/ExplainAiAnalysis.tsx
+msgid "AI Query Plan Analysis"
+msgstr "KI-Analyse des Abfrageplans"
+
+#: src/components/modals/AiApprovalModal.tsx
+msgid "AI requested a database write"
+msgstr "KI möchte in die Datenbank schreiben"
+
+#: src/components/modals/ClipboardImport/TableNameInput.tsx
+msgid "AI Suggest"
+msgstr "KI-Vorschlag"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "All"
+msgstr "Alle"
+
+#: src/components/settings/LogsTab.tsx
+msgid "All levels"
+msgstr "Alle Level"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "All other connections stay read-only. Only the connections checked here may execute writes."
+msgstr "Andere bleiben nur lesbar. Nur markierte dürfen schreiben."
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "All queries"
+msgstr "Alle Abfragen"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "All statuses"
+msgstr "Alle Status"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "All tools"
+msgstr "Alle Tools"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Allow"
+msgstr "Erlauben"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Allow Enter (in addition to Tab) to accept the active autocomplete suggestion. When off, Enter always inserts a newline."
+msgstr "Erlaubt der Eingabetaste (zusätzlich zu Tab), den aktiven Autovervollständigungsvorschlag zu übernehmen. Bei deaktivierter Option fügt Enter immer einen Zeilenumbruch ein."
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Allow writes from MCP"
+msgstr "Schreibvorgänge erlauben"
+
+#: src/components/modals/ClipboardImport/TableNameInput.tsx
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "Already exists"
+msgstr "Bereits vorhanden"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "Alter View"
+msgstr ""
+
+#: src/components/settings/AiTab.tsx
+msgid "An environment variable is present, but you can override it by setting a key above."
+msgstr "Eine Umgebungsvariable ist vorhanden, aber du kannst sie überschreiben, indem du oben einen Schlüssel setzt."
+
+#: src/components/modals/PluginInstallErrorModal.tsx
+msgid "An error occurred while installing the plugin. See the details below."
+msgstr "Bei der Installation des Plugins ist ein Fehler aufgetreten. Siehe Details unten."
+
+#: src/components/modals/VisualExplainModal.tsx
+msgid "Analyze"
+msgstr "Analysieren"
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+msgid "Analyze Data"
+msgstr "Daten analysieren"
+
+#: src/components/modals/VisualExplainModal.tsx
+msgid "ANALYZE executes the query. Use with caution on data-modifying statements."
+msgstr "ANALYZE führt die Abfrage aus. Bei datenverändernden Statements mit Vorsicht verwenden."
+
+#: src/components/modals/visual-explain/ExplainAiAnalysis.tsx
+msgid "Analyzing query plan with AI..."
+msgstr "Abfrageplan wird mit KI analysiert..."
+
+#: src/components/settings/AiTab.tsx
+msgid "API Key is stored securely in your system keychain. Setting a key here overrides the environment variable."
+msgstr "Der API-Schlüssel wird sicher im System-Keychain gespeichert. Ein hier gesetzter Schlüssel überschreibt die Umgebungsvariable."
+
+#: src/pages/Settings.tsx
+msgid "Appearance"
+msgstr "Darstellung"
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgctxt "connectionAppearance"
+msgid "Appearance"
+msgstr "Darstellung"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgctxt "newConnection"
+msgid "Appearance"
+msgstr "Erscheinungsbild"
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "Append rows"
+msgstr "Zeilen anhängen"
+
+#: src/components/modals/ClipboardImport/ModeToggle.tsx
+msgid "Append to existing"
+msgstr "An bestehende anhängen"
+
+#: src/components/ui/FilterRow.tsx
+msgid "Applied"
+msgstr "Angewendet"
+
+#: src/components/ui/FilterRow.tsx
+msgid "Apply"
+msgstr "Anwenden"
+
+#: src/components/ui/TableToolbar.tsx
+msgid "Apply All"
+msgstr "Alle anwenden"
+
+#: src/pages/Editor.tsx
+msgid "Apply to all"
+msgstr "Auf alle anwenden"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Approval gate"
+msgstr "Freigabe"
+
+#: src/components/settings/ai-activity/EventDetailModal.tsx
+msgid "Approval ID"
+msgstr "Freigabe-ID"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Approval required"
+msgstr "Freigabe erforderlich"
+
+#: src/components/modals/AiApprovalModal.tsx
+msgid "Approve"
+msgstr "Freigeben"
+
+#: src/components/settings/LogsTab.tsx
+msgid "Are you sure you want to clear all logs?"
+msgstr "Möchtest du wirklich alle Logs löschen?"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Are you sure you want to clear all query history for this connection?"
+msgstr "Möchtest du den gesamten Abfrageverlauf für diese Verbindung wirklich löschen?"
+
+#. placeholder {0}: column.name
+#: src/components/layout/sidebar/SidebarColumnItem.tsx
+msgid "Are you sure you want to delete column \"{0}\" from table \"{tableName}\"?\n"
+"\n"
+"WARNING: This will permanently delete all data in this column. This action cannot be undone."
+msgstr "Möchtest du die Spalte \"{0}\" aus der Tabelle \"{tableName}\" wirklich löschen?\n"
+"\n"
+"WARNUNG: Dadurch werden alle Daten in dieser Spalte dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden."
+
+#. placeholder {0}: group?.name
+#: src/pages/Connections.tsx
+msgid "Are you sure you want to delete group \"{0}\"? Connections in this group will be moved to ungrouped."
+msgstr "Möchtest du die Gruppe \"{0}\" wirklich löschen? Verbindungen in dieser Gruppe werden in Ungruppiert verschoben."
+
+#. placeholder {0}: queries.find((q) => q.id === favoriteDeleteConfirm)?.name ?? ""
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Are you sure you want to delete query \"{0}\"?"
+msgstr "Möchtest du die Abfrage \"{0}\" wirklich löschen?"
+
+#. placeholder {0}: contextMenu.id
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Are you sure you want to delete table \"{0}\"?"
+msgstr "Möchtest du die Tabelle \"{0}\" wirklich löschen?"
+
+#: src/pages/Connections.tsx
+msgid "Are you sure you want to delete this connection?"
+msgstr "Möchtest du diese Verbindung wirklich löschen?"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Are you sure you want to delete this query from history?"
+msgstr "Möchtest du diese Abfrage wirklich aus dem Verlauf löschen?"
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Are you sure you want to delete this SSH connection?"
+msgstr "Möchtest du diese SSH-Verbindung wirklich löschen?"
+
+#. placeholder {0}: contextMenu.id
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Are you sure you want to drop trigger \"{0}\"?"
+msgstr ""
+
+#. placeholder {0}: contextMenu.id
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Are you sure you want to drop view \"{0}\"?"
+msgstr "Möchtest du die Ansicht \"{0}\" wirklich löschen?"
+
+#. placeholder {0}: file.split(/[\\/]/).pop()
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Are you sure you want to import \"{0}\"?\n"
+"This may overwrite existing data."
+msgstr "Möchtest du \"{0}\" wirklich importieren?\n"
+"Dadurch können vorhandene Daten überschrieben werden."
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "Are you sure you want to modify view \"{name}\"?"
+msgstr "Möchtest du die Ansicht \"{name}\" wirklich ändern?"
+
+#: src/components/modals/PluginRemoveModal.tsx
+msgid "Are you sure you want to remove \"{pluginName}\"? This will delete the plugin files."
+msgstr "Möchtest du \"{pluginName}\" wirklich entfernen? Dadurch werden die Plugin-Dateien gelöscht."
+
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "Asc"
+msgstr "Aufst."
+
+#: src/components/modals/CreateTableModal.tsx
+msgid "At least one column is required"
+msgstr "Mindestens eine Spalte ist erforderlich"
+
+#: src/components/modals/CreateIndexModal.tsx
+msgid "At least one column must be selected"
+msgstr "Mindestens eine Spalte muss ausgewählt werden"
+
+#: src/components/settings/AiActivityPanel.tsx
+msgid "Audit log of every MCP tool call, plus the queries waiting for your approval. Stored locally — never sent anywhere."
+msgstr "Protokoll aller MCP-Aufrufe und ausstehender Freigaben. Lokal gespeichert."
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Authentication Type"
+msgstr "Authentifizierungstyp"
+
+#: src/components/modals/NewRowModal.tsx
+msgid "Auto"
+msgstr "Auto"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Auto (System)"
+msgstr "Auto (System)"
+
+#: src/components/modals/ModifyColumnModal.tsx
+msgid "Auto Increment"
+msgstr "Auto Increment"
+
+#: src/components/ui/ResultEntryContent.tsx
+#: src/components/ui/StackedResultItem.tsx
+#: src/pages/Editor.tsx
+msgid "Auto paginated"
+msgstr "Automatisch paginiert"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Automatic updates"
+msgstr ""
+
+#: src/components/settings/InfoTab.tsx
+msgid "Automatically check for new versions when the app launches"
+msgstr "Automatisch nach neuen Versionen suchen, wenn die App gestartet wird"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Available Plugins"
+msgstr "Verfügbare Plugins"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Block any non-SELECT statement coming through MCP unless the connection is explicitly allowed below."
+msgstr "Blockiere jede Nicht-SELECT-Anweisung über MCP, außer für die unten erlaubten Verbindungen."
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/i18n/registries/aiActivityStatus.ts
+msgid "Blocked (read-only)"
+msgstr "Blockiert (nur lesen)"
+
+#: src/components/layout/sidebar/DiscordCommunityCallout.tsx
+msgid "Brand-new Discord community!"
+msgstr "Neue Discord-Community!"
+
+#: src/components/modals/WhatsNewModal.tsx
+msgid "Breaking Changes"
+msgstr "Breaking Changes"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Bring approval dialog to the front"
+msgstr ""
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Browse and install plugins from the registry."
+msgstr "Durchsuche und installiere Plugins aus dem Registry."
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Browse file"
+msgstr "Datei auswählen"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Browse folder"
+msgstr "Ordner auswählen"
+
+#: src/components/modals/OpenSourceLibrariesModal.tsx
+msgid "Browse the direct open source dependencies used across the app, backend, and tooling."
+msgstr "Durchsuche die direkten Open-Source-Abhängigkeiten, die in App, Backend und Tooling verwendet werden."
+
+#: src/components/modals/PluginSettingsModal.tsx
+#: src/components/settings/PluginSettingsPage.tsx
+msgid "Browse..."
+msgstr "Durchsuchen..."
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+msgid "Buffers Hit"
+msgstr "Buffer-Treffer"
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+msgid "Buffers Read"
+msgstr "Buffer gelesen"
+
+#: src/components/modals/WhatsNewModal.tsx
+msgid "Bug Fixes"
+msgstr "Fehlerbehebungen"
+
+#: src/components/settings/ShortcutsTab.tsx
+msgid "Built-in, not customizable"
+msgstr "Integriert, nicht anpassbar"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "by"
+msgstr "von"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "CA Certificate"
+msgstr ""
+
+#: src/components/modals/ExplainSelectionModal.tsx
+msgid "cancel"
+msgstr "abbrechen"
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+#: src/components/modals/ClipboardImportModal.tsx
+#: src/components/modals/ConfigJsonModal.tsx
+#: src/components/modals/ConfirmModal.tsx
+#: src/components/modals/CreateForeignKeyModal.tsx
+#: src/components/modals/CreateIndexModal.tsx
+#: src/components/modals/CreateTableModal.tsx
+#: src/components/modals/DumpDatabaseModal.tsx
+#: src/components/modals/ExportProgressModal.tsx
+#: src/components/modals/ImportDatabaseModal.tsx
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/ModifyColumnModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/NewRowModal.tsx
+#: src/components/modals/PluginSettingsModal.tsx
+#: src/components/modals/QueryParamsModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+#: src/components/modals/TriggerEditorModal.tsx
+#: src/components/modals/ViewEditorModal.tsx
+#: src/components/settings/ShortcutsTab.tsx
+#: src/components/ui/JsonExpansionEditor.tsx
+#: src/components/ui/TextExpansionEditor.tsx
+#: src/pages/JsonViewerPage.tsx
+#: src/pages/TaskManagerPage.tsx
+msgid "Cancel"
+msgstr "Abbrechen"
+
+#: src/pages/SchemaDiagramPage.tsx
+msgid "Cannot display diagram without a connection ID."
+msgstr "Diagramm kann ohne Verbindungs-ID nicht angezeigt werden."
+
+#: src/i18n/registries/openSourceLibrariesEcosystem.ts
+msgid "Cargo ecosystem"
+msgstr "Cargo-Ökosystem"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Certificate paths are optional. Leave empty to use system defaults."
+msgstr ""
+
+#: src/components/settings/AiTab.tsx
+msgid "Change"
+msgstr "Ändern"
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Changed chart (cell {n})"
+msgstr "Diagramm geändert (Zelle {n})"
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Changed database (cell {n})"
+msgstr "Datenbank geändert (Zelle {n})"
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Changed parameters"
+msgstr "Parameter geändert"
+
+#: src/components/notebook/CellChart.tsx
+msgid "Chart"
+msgstr "Diagramm"
+
+#: src/components/modals/CommunityModal.tsx
+msgid "Chat with the community, get help, suggest features"
+msgstr "Mit der Community chatten, Hilfe bekommen, Features vorschlagen"
+
+#: src/components/settings/InfoTab.tsx
+msgid "Check for Updates Now"
+msgstr "Jetzt nach Updates suchen"
+
+#: src/components/settings/InfoTab.tsx
+msgid "Check for updates on startup"
+msgstr "Beim Start nach Updates suchen"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Check interval"
+msgstr ""
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgid "Checking configuration..."
+msgstr "Konfiguration wird geprüft..."
+
+#: src/components/settings/InfoTab.tsx
+msgid "Checking..."
+msgstr "Prüfung läuft..."
+
+#: src/pages/TaskManagerPage.tsx
+msgid "child process"
+msgstr "Kindprozess"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Choose a connection..."
+msgstr "Verbindung auswählen..."
+
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Choose a context..."
+msgstr "Kontext auswählen..."
+
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Choose a namespace..."
+msgstr "Namespace auswählen..."
+
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Choose a resource..."
+msgstr "Ressource auswählen..."
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Choose an independent theme for the SQL editor, or keep it in sync with the app theme."
+msgstr "Wähle ein unabhängiges Thema für den SQL-Editor oder halte es mit dem App-Thema synchron."
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgid "Choose image…"
+msgstr "Bild auswählen…"
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+msgid "Choose target..."
+msgstr "Ziel wählen..."
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Choose the default delimiter character used when copying or exporting rows as CSV."
+msgstr "Wähle das Standard-Trennzeichen für das Kopieren oder Exportieren von Zeilen als CSV."
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Choose the default format when copying rows with Ctrl+C / Cmd+C."
+msgstr "Wähle das Standardformat beim Kopieren von Zeilen mit Ctrl+C / Cmd+C."
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Choose the default layout direction for ER diagrams"
+msgstr "Wähle die Standard-Layout-Richtung für ER-Diagramme"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Choose your preferred language. 'Auto' will use your system language."
+msgstr "Wähle deine bevorzugte Sprache. \"Auto\" verwendet die Systemsprache."
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgctxt "aiActivity"
+msgid "Clear"
+msgstr "Leeren"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgctxt "common"
+msgid "Clear"
+msgstr ""
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgctxt "connectionAppearance"
+msgid "Clear"
+msgstr ""
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/QueryHistorySection.tsx
+msgid "Clear All History"
+msgstr "Gesamten Verlauf löschen"
+
+#: src/components/settings/LogsTab.tsx
+msgid "Clear Logs"
+msgstr "Logs löschen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Clear Query History"
+msgstr "Abfrageverlauf löschen"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Clear sort"
+msgstr "Sortierung löschen"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "Click 'Run Preview' to see results"
+msgstr "Klicke auf 'Vorschau ausführen', um Ergebnisse zu sehen"
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgid "Click another emoji below to change."
+msgstr ""
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Click Load Databases to fetch available databases."
+msgstr ""
+
+#: src/pages/Editor.tsx
+msgid "Click to jump to page"
+msgstr "Klicken, um zur Seite zu springen"
+
+#: src/components/settings/ai-activity/EventDetailModal.tsx
+msgid "Client"
+msgstr "Client"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Client Certificate"
+msgstr ""
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Client Key"
+msgstr ""
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+msgid "Clipboard column"
+msgstr "Zwischenablage-Spalte"
+
+#: src/components/connections/ActionButtons.tsx
+msgid "Clone"
+msgstr "Klonen"
+
+#: src/components/modals/AiApprovalModal.tsx
+#: src/components/modals/ClipboardImportModal.tsx
+#: src/components/modals/ErrorModal.tsx
+#: src/components/modals/ExportProgressModal.tsx
+#: src/components/modals/ImportDatabaseModal.tsx
+#: src/components/modals/McpModal.tsx
+#: src/components/modals/OpenSourceLibrariesModal.tsx
+#: src/components/modals/PluginInstallErrorModal.tsx
+#: src/components/modals/PluginStartErrorModal.tsx
+#: src/components/modals/SchemaModal.tsx
+#: src/components/modals/VisualExplainModal.tsx
+#: src/pages/JsonViewerPage.tsx
+msgid "Close"
+msgstr "Schließen"
+
+#: src/components/ui/MultiResultPanel.tsx
+#: src/pages/Editor.tsx
+msgid "Close All Tabs"
+msgstr "Alle Tabs schließen"
+
+#: src/components/ui/TableToolbar.tsx
+msgid "Close filter panel (ESC)"
+msgstr "Filterpanel schließen (ESC)"
+
+#: src/components/ui/MultiResultPanel.tsx
+#: src/pages/Editor.tsx
+msgid "Close Other Tabs"
+msgstr "Andere Tabs schließen"
+
+#: src/components/layout/SplitPaneLayout.tsx
+msgid "Close panel"
+msgstr "Panel schließen"
+
+#: src/components/ui/StackedResultItem.tsx
+#: src/i18n/registries/shortcutLabels.ts
+msgid "Close tab"
+msgstr "Tab schließen"
+
+#: src/components/modals/TabSwitcherModal.tsx
+#: src/components/ui/MultiResultPanel.tsx
+#: src/pages/Editor.tsx
+msgid "Close Tab"
+msgstr "Tab schließen"
+
+#: src/components/ui/MultiResultPanel.tsx
+#: src/pages/Editor.tsx
+msgid "Close Tabs to Left"
+msgstr "Tabs links schließen"
+
+#: src/components/ui/MultiResultPanel.tsx
+#: src/pages/Editor.tsx
+msgid "Close Tabs to Right"
+msgstr "Tabs rechts schließen"
+
+#: src/components/ui/JsonInput.tsx
+msgid "Code"
+msgstr "Code"
+
+#: src/components/modals/AiApprovalModal.tsx
+msgid "Collapse"
+msgstr "Verkleinern"
+
+#: src/components/ui/MultiResultPanel.tsx
+msgid "Collapse all"
+msgstr "Alle einklappen"
+
+#: src/components/notebook/NotebookToolbar.tsx
+msgid "Collapse All"
+msgstr "Alle einklappen"
+
+#: src/components/notebook/NotebookCellHeader.tsx
+msgid "Collapse Cell"
+msgstr "Zelle einklappen"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Collapse child processes"
+msgstr "Kindprozesse einklappen"
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Collapsed/expanded cells"
+msgstr "Zellen ein-/ausgeklappt"
+
+#: src/components/settings/LogsTab.tsx
+msgid "Collect application logs in memory for debugging"
+msgstr "Anwendungslogs zur Fehlersuche im Speicher sammeln"
+
+#: src/components/modals/ModifyColumnModal.tsx
+msgid "Column name is required"
+msgstr "Spaltenname ist erforderlich"
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+msgid "Column Schema"
+msgstr "Spalten-Schema"
+
+#: src/components/layout/sidebar/SidebarTableItem.tsx
+#: src/components/layout/sidebar/SidebarViewItem.tsx
+#: src/components/modals/ClipboardImport/ParseSummary.tsx
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "columns"
+msgstr "Spalten"
+
+#: src/components/modals/CreateIndexModal.tsx
+#: src/components/modals/CreateTableModal.tsx
+msgid "Columns"
+msgstr "Spalten"
+
+#: src/components/settings/GeneralTab.tsx
+#: src/pages/Editor.tsx
+msgid "Comma (,)"
+msgstr "Komma (,)"
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgid "Config file not found (create manually)"
+msgstr "Konfigurationsdatei nicht gefunden (manuell erstellen)"
+
+#: src/components/modals/ConfigJsonModal.tsx
+msgid "config.json"
+msgstr "config.json"
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgid "Configuration installed successfully for {clientName}! Restart the app to apply."
+msgstr "Konfiguration für {clientName} erfolgreich installiert! Starte die App neu, um sie anzuwenden."
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "Configure destination"
+msgstr "Ziel konfigurieren"
+
+#: src/components/modals/PluginStartErrorModal.tsx
+msgid "Configure Interpreter"
+msgstr "Interpreter konfigurieren"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Configure SSH Inline"
+msgstr "SSH inline konfigurieren"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Configure SSL/TLS for secure database connections (optional)."
+msgstr ""
+
+#: src/components/settings/AiTab.tsx
+msgid "Configured"
+msgstr "Konfiguriert"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Confirm"
+msgstr "Bestätigen"
+
+#: src/pages/Connections.tsx
+msgid "Confirm Delete"
+msgstr "Löschen bestätigen"
+
+#: src/components/connections/ActionButtons.tsx
+msgid "Connect"
+msgstr "Verbinden"
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgid "Connect Tabularis to Claude Desktop, Cursor, and more"
+msgstr "Verbinde Tabularis mit Claude Desktop, Cursor und mehr"
+
+#: src/i18n/registries/pluginBuiltinSettings.ts
+msgid "Connect Timeout"
+msgstr "Verbindungs-Timeout"
+
+#: src/pages/Editor.tsx
+msgid "Connected"
+msgstr "Verbunden"
+
+#: src/components/layout/sidebar/ConnectionGroupFolder.tsx
+msgid "connection"
+msgstr "Verbindung"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/components/settings/ai-activity/EventDetailModal.tsx
+msgid "Connection"
+msgstr "Verbindung"
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Connection Health Check"
+msgstr "Verbindungszustandsprüfung"
+
+#: src/components/ConnectionHealthMonitor.tsx
+msgid "Connection Lost"
+msgstr "Verbindung verloren"
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Connection Name"
+msgstr "Verbindungsname"
+
+#: src/i18n/registries/k8sErrorKeys.ts
+msgid "Connection name is required"
+msgstr "Der Verbindungsname ist erforderlich"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgctxt "newConnection"
+msgid "Connection name is required"
+msgstr "Verbindungsname ist erforderlich"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Connection String"
+msgstr ""
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Connection test failed"
+msgstr "Verbindungstest fehlgeschlagen"
+
+#: src/i18n/registries/pluginBuiltinSettings.ts
+msgid "Connection timeout in milliseconds."
+msgstr "Verbindungs-Timeout in Millisekunden."
+
+#: src/components/layout/sidebar/ConnectionGroupFolder.tsx
+msgid "connections"
+msgstr "Verbindungen"
+
+#: src/components/layout/Sidebar.tsx
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+#: src/pages/Connections.tsx
+msgid "Connections"
+msgstr "Verbindungen"
+
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Container Port"
+msgstr "Container-Port"
+
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Context"
+msgstr "Kontext"
+
+#: src/pages/Editor.tsx
+msgid "Convert to Console"
+msgstr "In Konsole umwandeln"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgctxt "aiActivity"
+msgid "Copied to clipboard"
+msgstr "In Zwischenablage kopiert"
+
+#: src/components/modals/GenerateSQLModal.tsx
+#: src/components/modals/PluginInstallErrorModal.tsx
+#: src/components/modals/PluginStartErrorModal.tsx
+msgid "Copied!"
+msgstr "Kopiert!"
+
+#: src/components/modals/PluginInstallErrorModal.tsx
+#: src/components/modals/PluginStartErrorModal.tsx
+msgid "Copy"
+msgstr "Kopieren"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Copy as `column`"
+msgstr "Als `column` kopieren"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Copy as table.column"
+msgstr "Als table.column kopieren"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Copy Cell"
+msgstr "Zelle kopieren"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Copy column name"
+msgstr "Spaltennamen kopieren"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Copy error message"
+msgstr "Fehlermeldung kopieren"
+
+#: src/components/modals/QuickNavigatorModal.tsx
+msgid "Copy name"
+msgstr "Namen kopieren"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/OpenConnectionItem.tsx
+#: src/components/layout/sidebar/SidebarColumnItem.tsx
+msgid "Copy Name"
+msgstr "Namen kopieren"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "Copy query"
+msgstr "Abfrage kopieren"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Copy Query"
+msgstr "Abfrage kopieren"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Copy selected row(s)"
+msgstr "Ausgewählte Zeile(n) kopieren"
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "Copy selection"
+msgstr "Auswahl kopieren"
+
+#: src/components/modals/GenerateSQLModal.tsx
+msgid "Copy SQL"
+msgstr "SQL kopieren"
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+#: src/components/modals/visual-explain/ExplainTableView.tsx
+#: src/components/ui/ExplainPlanNode.tsx
+msgid "Cost"
+msgstr "Kosten"
+
+#: src/utils/explainPlan.ts
+msgid "Cost, timing, and row estimates are often unavailable compared with PostgreSQL and MySQL."
+msgstr "Kosten, Laufzeit und Zeilenschätzungen sind im Vergleich zu PostgreSQL und MySQL oft nicht verfügbar."
+
+#: src/components/modals/QuickNavigatorModal.tsx
+msgid "Count rows"
+msgstr "Zeilen zählen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Count Rows"
+msgstr "Zeilen zählen"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "CPU"
+msgstr "CPU"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Create a new database trigger"
+msgstr ""
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "Create a new database view"
+msgstr "Neue Datenbankansicht erstellen"
+
+#: src/components/modals/CreateForeignKeyModal.tsx
+msgctxt "createFk.create"
+msgid "Create Foreign Key"
+msgstr "Fremdschlüssel erstellen"
+
+#: src/components/modals/CreateForeignKeyModal.tsx
+msgctxt "createFk.title"
+msgid "Create Foreign Key"
+msgstr "Fremdschlüssel erstellen"
+
+#: src/components/modals/CreateIndexModal.tsx
+msgctxt "createIndex.create"
+msgid "Create Index"
+msgstr "Index erstellen"
+
+#: src/components/modals/CreateIndexModal.tsx
+msgctxt "createIndex.title"
+msgid "Create Index"
+msgstr "Index erstellen"
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+msgid "Create new column"
+msgstr "Neue Spalte erstellen"
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Create New SSH Connection"
+msgstr "Neue SSH-Verbindung erstellen"
+
+#: src/components/modals/ClipboardImport/ModeToggle.tsx
+msgid "Create new table"
+msgstr "Neue Tabelle erstellen"
+
+#: src/components/modals/CreateTableModal.tsx
+msgid "Create New Table"
+msgstr "Neue Tabelle erstellen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "Create New Trigger"
+msgstr ""
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "Create New View"
+msgstr "Neue Ansicht erstellen"
+
+#: src/components/modals/GenerateSQLModal.tsx
+msgid "Create Table"
+msgstr "Tabelle erstellen"
+
+#: src/components/modals/CreateTableModal.tsx
+msgctxt "createTable"
+msgid "Create Table"
+msgstr "Tabelle erstellen"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Create Trigger"
+msgstr ""
+
+#: src/components/modals/ViewEditorModal.tsx
+msgctxt "views.create"
+msgid "Create View"
+msgstr "Ansicht erstellen"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgctxt "views.createView"
+msgid "Create View"
+msgstr "Ansicht erstellen"
+
+#: src/pages/Connections.tsx
+msgid "Create your first connection"
+msgstr "Erstelle deine erste Verbindung"
+
+#: src/pages/Connections.tsx
+msgid "Create your first connection to get started."
+msgstr "Erstelle deine erste Verbindung, um loszulegen."
+
+#: src/components/settings/GeneralTab.tsx
+#: src/pages/Editor.tsx
+msgid "CSV Delimiter"
+msgstr "CSV-Trennzeichen"
+
+#: src/components/modals/TabSwitcherModal.tsx
+msgid "Ctrl+Tab"
+msgstr "Ctrl+Tab"
+
+#: src/components/settings/LogsTab.tsx
+msgid "Current Logs"
+msgstr "Aktuelle Logs"
+
+#: src/components/settings/InfoTab.tsx
+msgid "Current Version"
+msgstr "Aktuelle Version"
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgid "Custom"
+msgstr "Benutzerdefiniert"
+
+#: src/components/settings/FontPicker.tsx
+msgid "Custom Font"
+msgstr "Benutzerdefinierte Schrift"
+
+#: src/components/settings/AiTab.tsx
+msgid "Custom key deleted successfully"
+msgstr "Benutzerdefinierter Schlüssel erfolgreich gelöscht"
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Customize instructions for AI analysis of EXPLAIN query plans. Use {{LANGUAGE}} for the output language."
+msgstr "Passe die Anweisungen für die KI-Analyse von EXPLAIN-Abfrageplänen an. Verwende {LANGUAGE} für die Ausgabesprache."
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Customize instructions for AI notebook cell name generation. The cell content (SQL or Markdown) is sent as the user message."
+msgstr "Passe die Anweisungen für die KI-Namensgenerierung von Notebook-Zellen an. Der Zelleninhalt (SQL oder Markdown) wird als Benutzernachricht gesendet."
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Customize instructions for AI query result tab name generation. The SQL query is sent as the user message."
+msgstr "Passe die Anweisungen für die KI-Namensgenerierung von Abfrage-Ergebnis-Tabs an. Die SQL-Abfrage wird als Benutzernachricht gesendet."
+
+#: src/components/modals/DumpDatabaseModal.tsx
+msgid "Data (INSERT)"
+msgstr "Daten (INSERT)"
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Data Editor"
+msgstr "Dateneditor"
+
+#: src/i18n/registries/shortcutCategories.ts
+msgid "Data Grid"
+msgstr "Datenraster"
+
+#: src/components/modals/ClipboardImport/DataPreview.tsx
+msgid "Data Preview"
+msgstr "Datenvorschau"
+
+#: src/components/modals/QueryModal.tsx
+msgid "Database"
+msgstr "Datenbank"
+
+#: src/components/modals/DumpDatabaseModal.tsx
+msgid "Database exported successfully"
+msgstr "Datenbank erfolgreich exportiert"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Database name"
+msgstr "Datenbankname"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Database Name"
+msgstr "Datenbankname"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Database name is required"
+msgstr "Datenbankname ist erforderlich"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Database Type"
+msgstr "Datenbanktyp"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Databases"
+msgstr "Datenbanken"
+
+#: src/i18n/registries/aiActivityQueryKind.ts
+msgid "DDL"
+msgstr "DDL"
+
+#: src/components/settings/LogsTab.tsx
+msgid "Debug"
+msgstr "Debug"
+
+#: src/i18n/registries/connectionAppearanceTabs.ts
+msgid "Default"
+msgstr "Standard"
+
+#: src/components/modals/CreateTableModal.tsx
+msgctxt "createTable"
+msgid "Default"
+msgstr "Standardwert"
+
+#: src/components/settings/GeneralTab.tsx
+#: src/pages/Editor.tsx
+msgid "Default Copy Format"
+msgstr "Standard-Kopierformat"
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Default Layout"
+msgstr "Standard-Layout"
+
+#: src/components/settings/AiTab.tsx
+msgid "Default Model"
+msgstr "Standard-Modell"
+
+#: src/components/settings/AiTab.tsx
+msgid "Default Provider"
+msgstr "Standard-Anbieter"
+
+#: src/components/modals/ModifyColumnModal.tsx
+msgid "Default Value"
+msgstr "Standardwert"
+
+#: src/components/modals/GenerateSQLModal.tsx
+msgid "Delete"
+msgstr "DELETE"
+
+#: src/components/ui/BlobInput.tsx
+msgctxt "blobInput"
+msgid "Delete"
+msgstr "Löschen"
+
+#: src/components/modals/ConfirmModal.tsx
+#: src/components/settings/LogsTab.tsx
+msgctxt "common"
+msgid "Delete"
+msgstr "Löschen"
+
+#: src/components/connections/ActionButtons.tsx
+msgctxt "connections"
+msgid "Delete"
+msgstr "Löschen"
+
+#: src/pages/Connections.tsx
+msgctxt "groups"
+msgid "Delete"
+msgstr "Löschen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/NotebooksSection.tsx
+msgctxt "sidebar"
+msgid "Delete"
+msgstr "Löschen"
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgctxt "sshConnections"
+msgid "Delete"
+msgstr "Löschen"
+
+#: src/components/notebook/NotebookCellHeader.tsx
+msgid "Delete Cell"
+msgstr "Zelle löschen"
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+msgid "Delete column"
+msgstr "Spalte löschen"
+
+#: src/components/layout/sidebar/SidebarColumnItem.tsx
+msgid "Delete Column"
+msgstr "Spalte löschen"
+
+#: src/components/settings/AiTab.tsx
+msgid "Delete custom key and revert to environment variable (if present)"
+msgstr "Benutzerdefinierten Schlüssel löschen und auf Umgebungsvariable zurücksetzen (falls vorhanden)"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Delete FK"
+msgstr "FK löschen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Delete foreign key \"{name}\"?"
+msgstr "Fremdschlüssel \"{name}\" löschen?"
+
+#: src/pages/Connections.tsx
+msgid "Delete Group"
+msgstr "Gruppe löschen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Delete Index"
+msgstr "Index löschen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Delete index \"{name}\"?"
+msgstr "Index \"{name}\" löschen?"
+
+#. placeholder {0}: pendingDelete?.title ?? ""
+#: src/components/layout/sidebar/NotebooksSection.tsx
+msgid "Delete notebook \"{0}\"? This cannot be undone."
+msgstr "Notebook \"{0}\" löschen? Dies kann nicht rückgängig gemacht werden."
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Delete Query"
+msgstr "Abfrage löschen"
+
+#: src/components/ui/DataGrid.tsx
+#: src/pages/Editor.tsx
+msgid "Delete Row"
+msgstr "Zeile löschen"
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+msgid "Delete selected"
+msgstr "Auswahl löschen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Delete Table"
+msgstr "Tabelle löschen"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "Delete the entire AI activity history? This cannot be undone."
+msgstr "Den gesamten KI-Aktivitätsverlauf löschen? Unwiderruflich."
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Deleted cell {n}"
+msgstr "Zelle {n} gelöscht"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/i18n/registries/aiActivityStatus.ts
+msgid "Denied"
+msgstr "Abgelehnt"
+
+#: src/components/modals/AiApprovalModal.tsx
+msgid "Deny"
+msgstr "Ablehnen"
+
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "Desc"
+msgstr "Abst."
+
+#: src/components/modals/DumpDatabaseModal.tsx
+msgctxt "dump"
+msgid "Deselect All"
+msgstr "Alle abwählen"
+
+#: src/components/modals/QuerySelectionModal.tsx
+msgctxt "editor"
+msgid "Deselect All"
+msgstr "Alle abwählen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgctxt "sidebar"
+msgid "Deselect All"
+msgstr "Alle abwählen"
+
+#: src/components/ui/FilterRow.tsx
+msgid "Deselect from Apply All"
+msgstr "Von \"Alle anwenden\" abwählen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Details"
+msgstr "Details"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Detect JSON in text columns"
+msgstr "JSON in Text-Spalten erkennen"
+
+#: src/components/ui/JsonExpansionEditor.tsx
+#: src/components/ui/JsonInput.tsx
+#: src/components/ui/TextExpansionEditor.tsx
+#: src/components/ui/TextInput.tsx
+msgid "Diff"
+msgstr ""
+
+#: src/components/modals/OpenSourceLibrariesModal.tsx
+msgid "Direct dependencies declared in package.json and src-tauri/Cargo.toml."
+msgstr "Direkte Abhängigkeiten, deklariert in package.json und src-tauri/Cargo.toml."
+
+#: src/components/modals/ConfigJsonModal.tsx
+msgid "Directly edit the raw configuration file. A restart is required to apply changes."
+msgstr "Bearbeite die rohe Konfigurationsdatei direkt. Ein Neustart ist erforderlich, um Änderungen anzuwenden."
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Disable"
+msgstr "Deaktivieren"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Disabled"
+msgstr ""
+
+#: src/components/connections/ActionButtons.tsx
+#: src/components/layout/sidebar/OpenConnectionItem.tsx
+msgid "Disconnect"
+msgstr "Trennen"
+
+#: src/pages/Editor.tsx
+msgid "Disconnected"
+msgstr "Getrennt"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Disk R/W"
+msgstr "Datenträger L/S"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Disk Read/s"
+msgstr "Datenträger lesen/s"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Disk Write/s"
+msgstr "Datenträger schreiben/s"
+
+#: src/components/layout/sidebar/DiscordCommunityCallout.tsx
+msgctxt "discordCallout"
+msgid "Dismiss"
+msgstr "Schließen"
+
+#: src/components/layout/sidebar/QueryHistorySection.tsx
+msgctxt "sidebar"
+msgid "Dismiss"
+msgstr "Schließen"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Display line numbers in the editor gutter."
+msgstr "Zeigt Zeilennummern im Rand des Editors an."
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Display the welcome screen when the application starts."
+msgstr "Willkommensbildschirm beim Start der Anwendung anzeigen."
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Downgrade to"
+msgstr "Herabstufen auf"
+
+#: src/components/ui/BlobInput.tsx
+msgid "Download"
+msgstr "Herunterladen"
+
+#: src/components/modals/UpdateNotificationModal.tsx
+msgid "Download & Install"
+msgstr "Herunterladen und installieren"
+
+#: src/components/ui/BlobInput.tsx
+msgid "Download unavailable - only preview loaded"
+msgstr "Download nicht verfügbar - nur Vorschau geladen"
+
+#: src/components/ui/BlobInput.tsx
+msgctxt "blobInput"
+msgid "Downloading..."
+msgstr "Wird heruntergeladen..."
+
+#: src/components/modals/UpdateNotificationModal.tsx
+msgctxt "update"
+msgid "Downloading..."
+msgstr "Wird heruntergeladen..."
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+msgid "Driver Notes"
+msgstr "Treiberhinweise"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Drop Trigger"
+msgstr ""
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Drop View"
+msgstr "Ansicht löschen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+msgctxt "dump.dumpDatabase"
+msgid "Dump Database"
+msgstr "Datenbank sichern"
+
+#: src/components/modals/DumpDatabaseModal.tsx
+msgctxt "dump.title"
+msgid "Dump Database"
+msgstr "Datenbank sichern"
+
+#: src/components/ui/FilterRow.tsx
+msgid "Duplicate filter"
+msgstr "Filter duplizieren"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Duplicate Row"
+msgstr "Zeile duplizieren"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/components/settings/ai-activity/EventDetailModal.tsx
+msgid "Duration"
+msgstr "Dauer"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "e.g. active_users, order_summary"
+msgstr "z. B. active_users, order_summary"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "e.g. before_insert_user"
+msgstr ""
+
+#: src/components/modals/AiApprovalModal.tsx
+msgid "e.g. Looks risky on prod, please confirm…"
+msgstr "z.B. In Prod riskant, bestätigen…"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "e.g. mysql://user:pass@localhost:3306/db"
+msgstr ""
+
+#: src/components/modals/PluginSettingsModal.tsx
+#: src/components/settings/PluginSettingsPage.tsx
+msgid "e.g. python3"
+msgstr "z. B. python3"
+
+#: src/components/modals/ClipboardImport/TableNameInput.tsx
+msgid "e.g. sales_data"
+msgstr "z.B. verkaufsdaten"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "e.g. users"
+msgstr ""
+
+#: src/components/modals/CreateTableModal.tsx
+msgid "e.g. users, orders, products"
+msgstr "z. B. users, orders, products"
+
+#: src/components/settings/FontPicker.tsx
+msgid "e.g., Comic Sans MS"
+msgstr "z. B. Comic Sans MS"
+
+#: src/components/connections/ActionButtons.tsx
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+#: src/components/settings/ShortcutsTab.tsx
+msgid "Edit"
+msgstr "Bearbeiten"
+
+#: src/components/modals/AiApprovalModal.tsx
+msgid "Edit before approving"
+msgstr "Vor Freigabe bearbeiten"
+
+#: src/components/notebook/NotebookCellHeader.tsx
+msgid "Edit cell name"
+msgstr "Zellnamen bearbeiten"
+
+#: src/pages/Settings.tsx
+msgid "Edit config.json"
+msgstr "config.json bearbeiten"
+
+#: src/components/notebook/NotebookHistoryPanel.tsx
+#: src/components/notebook/NotebookToolbar.tsx
+msgid "Edit history"
+msgstr "Bearbeitungsverlauf"
+
+#: src/components/ui/RowEditorSidebar.tsx
+msgid "Edit Row"
+msgstr "Zeile bearbeiten"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Edit Schemas"
+msgstr "Schemata bearbeiten"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Edit Trigger"
+msgstr ""
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/modals/ViewEditorModal.tsx
+msgid "Edit View"
+msgstr "Ansicht bearbeiten"
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Edited cell {n}"
+msgstr "Zelle {n} bearbeitet"
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Edited notebook"
+msgstr "Notebook bearbeitet"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Editing a trigger requires dropping and recreating it. Continue modifying \"{name}\"?"
+msgstr ""
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Editing trigger: {name}"
+msgstr ""
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "Editing view: {name}"
+msgstr "Ansicht wird bearbeitet: {name}"
+
+#: src/i18n/registries/shortcutCategories.ts
+msgid "Editor"
+msgstr "Editor"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Editor Font Family"
+msgstr "Editor-Schriftfamilie"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Editor Font Size"
+msgstr "Editor-Schriftgröße"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Editor Theme"
+msgstr "Editor-Thema"
+
+#: src/components/modals/DumpDatabaseModal.tsx
+#: src/components/modals/ImportDatabaseModal.tsx
+msgid "Elapsed time"
+msgstr "Verstrichene Zeit"
+
+#: src/i18n/registries/connectionAppearanceTabs.ts
+msgid "Emoji"
+msgstr "Emoji"
+
+#: src/utils/explainPlan.ts
+msgid "Enable ANALYZE to inspect actual rows, timing, loops, and buffers."
+msgstr "Aktiviere ANALYZE, um tatsächliche Zeilen, Laufzeit, Schleifen und Buffer zu prüfen."
+
+#: src/components/settings/LogsTab.tsx
+msgid "Enable Logging"
+msgstr "Logging aktivieren"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Enabled"
+msgstr "Aktiviert"
+
+#: src/components/settings/AiTab.tsx
+msgid "Endpoint URL"
+msgstr "Endpoint-URL"
+
+#. placeholder {0}: getProviderLabel(settings.aiProvider)
+#: src/components/settings/AiTab.tsx
+msgid "Enter {0} Key"
+msgstr "{0}-Schlüssel eingeben"
+
+#: src/components/ui/GeometryInput.tsx
+msgid "Enter a complete SQL function (e.g., ST_GeomFromText('POINT(30 40)', 4326))"
+msgstr "Gib eine vollständige SQL-Funktion ein (z. B. ST_GeomFromText('POINT(30 40)', 4326))"
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Enter explain plan analysis prompt..."
+msgstr "Prompt für Explain-Plan-Analyse eingeben..."
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Enter explain prompt..."
+msgstr "Explain-Prompt eingeben..."
+
+#: src/components/settings/FontPicker.tsx
+msgid "Enter font name above"
+msgstr "Schriftnamen oben eingeben"
+
+#: src/components/ui/JsonInput.tsx
+msgid "Enter JSON..."
+msgstr "JSON eingeben..."
+
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Enter key passphrase if encrypted"
+msgstr "Passphrase eingeben, falls der Schlüssel verschlüsselt ist"
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Enter notebook cell name prompt..."
+msgstr "Prompt für Notebook-Zellnamen eingeben..."
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Enter password"
+msgstr "Passwort eingeben"
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Enter query tab name prompt..."
+msgstr "Prompt für Abfrage-Tabnamen eingeben..."
+
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Enter SSH password"
+msgstr "SSH-Passwort eingeben"
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Enter system prompt..."
+msgstr "System-Prompt eingeben..."
+
+#: src/components/settings/AiTab.tsx
+msgid "Enter the exact model name for your OpenAI-compatible provider."
+msgstr "Gib den exakten Modellnamen für deinen OpenAI-kompatiblen Anbieter ein."
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Enter username"
+msgstr "Benutzername eingeben"
+
+#: src/components/ui/FieldEditor.tsx
+#: src/components/ui/RowEditorSidebar.tsx
+msgid "Enter value..."
+msgstr "Wert eingeben..."
+
+#: src/components/settings/GeneralTab.tsx
+msgid "entries"
+msgstr "Einträge"
+
+#: src/components/settings/AiTab.tsx
+msgid "Environment"
+msgstr "Umgebung"
+
+#: src/components/settings/GeneralTab.tsx
+msgid "ER Diagram"
+msgstr "ER-Diagramm"
+
+#: src/i18n/registries/aiActivityStatus.ts
+msgid "Error"
+msgstr "Fehler"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgctxt "aiActivity"
+msgid "Error"
+msgstr "Fehler"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/NotebooksSection.tsx
+#: src/components/layout/sidebar/SidebarColumnItem.tsx
+#: src/components/modals/ErrorModal.tsx
+#: src/components/modals/ExportProgressModal.tsx
+#: src/components/modals/GenerateSQLModal.tsx
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+#: src/components/settings/ai-activity/EventDetailModal.tsx
+#: src/components/settings/AiTab.tsx
+#: src/components/ui/DataGrid.tsx
+#: src/pages/Editor.tsx
+msgctxt "common"
+msgid "Error"
+msgstr "Fehler"
+
+#: src/components/settings/LogsTab.tsx
+msgctxt "settings"
+msgid "Error"
+msgstr "Fehler"
+
+#: src/components/modals/PluginInstallErrorModal.tsx
+msgctxt "settings.plugins.installError.details"
+msgid "Error Details"
+msgstr "Fehlerdetails"
+
+#: src/components/modals/PluginStartErrorModal.tsx
+msgctxt "settings.plugins.startError.details"
+msgid "Error Details"
+msgstr "Fehlerdetails"
+
+#: src/components/modals/QuickNavigatorModal.tsx
+msgctxt "editor.quickNavigator.escHint"
+msgid "Esc to close"
+msgstr "Esc zum Schließen"
+
+#: src/components/modals/TabSwitcherModal.tsx
+msgctxt "editor.tabSwitcher.escHint"
+msgid "Esc to close"
+msgstr "Esc zum Schließen"
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+#: src/components/modals/visual-explain/ExplainTableView.tsx
+#: src/components/ui/ExplainPlanNode.tsx
+msgid "Est. Rows"
+msgstr "Geschätzte Zeilen"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+#: src/components/ui/ExplainPlanNode.tsx
+msgid "Estimate exceeds actual rows"
+msgstr "Schätzung übersteigt tatsächliche Zeilen"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+#: src/components/modals/visual-explain/ExplainTableView.tsx
+#: src/components/ui/ExplainPlanNode.tsx
+msgid "Estimate Gap"
+msgstr "Größte Schätzabweichung"
+
+#: src/components/settings/ai-activity/EventDetailModal.tsx
+msgid "Event details"
+msgstr "Ereignisdetails"
+
+#: src/components/settings/AiActivityPanel.tsx
+msgid "Events"
+msgstr "Ereignisse"
+
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgctxt "aiActivity.events"
+msgid "Events"
+msgstr "Ereignisse"
+
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgctxt "aiActivity.sort.eventCount"
+msgid "Events"
+msgstr "Ereignisse"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgctxt "triggers"
+msgid "Events"
+msgstr ""
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Execute"
+msgstr "Ausführen"
+
+#: src/components/ui/ResultEntryContent.tsx
+#: src/pages/Editor.tsx
+msgid "Execute a query to see results"
+msgstr "Führe eine Abfrage aus, um Ergebnisse zu sehen"
+
+#: src/components/notebook/NotebookToolbar.tsx
+msgid "Execute all SQL cells top to bottom"
+msgstr "Alle SQL-Zellen von oben nach unten ausführen"
+
+#: src/components/notebook/SqlCellResult.tsx
+#: src/components/ui/ResultEntryContent.tsx
+#: src/components/ui/StackedResultItem.tsx
+#: src/pages/Editor.tsx
+msgid "Executing query..."
+msgstr "Abfrage wird ausgeführt..."
+
+#: src/components/modals/visual-explain/ExplainSummaryBar.tsx
+msgid "Execution"
+msgstr "Ausführung"
+
+#: src/components/notebook/CellHistoryPanel.tsx
+#: src/components/notebook/NotebookCellHeader.tsx
+msgid "Execution History"
+msgstr "Ausführungsverlauf"
+
+#: src/pages/SchemaDiagramPage.tsx
+msgid "Exit Fullscreen"
+msgstr "Vollbild verlassen"
+
+#: src/components/modals/AiApprovalModal.tsx
+msgctxt "aiApproval"
+msgid "Expand"
+msgstr "Vergrößern"
+
+#: src/components/ui/JsonInput.tsx
+msgctxt "jsonInput"
+msgid "Expand"
+msgstr "Aufklappen"
+
+#: src/components/ui/MultiResultPanel.tsx
+msgid "Expand all"
+msgstr "Alle ausklappen"
+
+#: src/components/notebook/NotebookToolbar.tsx
+msgid "Expand All"
+msgstr "Alle ausklappen"
+
+#: src/components/notebook/NotebookCellHeader.tsx
+msgid "Expand Cell"
+msgstr "Zelle ausklappen"
+
+#: src/components/layout/Sidebar.tsx
+msgid "Expand Explorer"
+msgstr "Explorer ausklappen"
+
+#: src/components/ui/AiDropdownButton.tsx
+msgid "Explain"
+msgstr "Erklären"
+
+#. placeholder {0}: approval.explainError
+#: src/components/modals/AiApprovalModal.tsx
+msgid "EXPLAIN failed: {0}"
+msgstr "EXPLAIN fehlgeschlagen: {0}"
+
+#: src/components/modals/ExplainSelectionModal.tsx
+msgid "explain focused"
+msgstr "fokussierte erklären"
+
+#: src/components/modals/VisualExplainModal.tsx
+msgid "EXPLAIN is only supported for DML statements (SELECT, INSERT, UPDATE, DELETE). DDL statements like CREATE, DROP, or ALTER cannot be explained."
+msgstr "EXPLAIN wird nur für DML-Statements (SELECT, INSERT, UPDATE, DELETE) unterstützt. DDL-Statements wie CREATE, DROP oder ALTER können nicht erklärt werden."
+
+#: src/components/modals/ExplainSelectionModal.tsx
+msgid "explain Nth"
+msgstr "n-te erklären"
+
+#: src/components/notebook/NotebookAiButtons.tsx
+#: src/pages/Editor.tsx
+msgid "Explain Plan"
+msgstr "Plan erklären"
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Explain Plan Analysis Prompt"
+msgstr "Prompt für Explain-Plan-Analyse"
+
+#: src/components/modals/ExplainSelectionModal.tsx
+msgid "Explain this query"
+msgstr "Diese Abfrage erklären"
+
+#: src/components/modals/AiApprovalModal.tsx
+msgid "EXPLAIN unavailable for this query."
+msgstr "EXPLAIN nicht verfügbar."
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Explorer"
+msgstr "Explorer"
+
+#: src/components/modals/DumpDatabaseModal.tsx
+#: src/pages/Editor.tsx
+msgid "Export"
+msgstr "Exportieren"
+
+#: src/components/notebook/ResultToolbar.tsx
+msgid "Export as CSV"
+msgstr "Als CSV exportieren"
+
+#: src/components/layout/sidebar/NotebooksSection.tsx
+#: src/components/notebook/NotebookToolbar.tsx
+msgid "Export as HTML"
+msgstr "Als HTML exportieren"
+
+#: src/components/notebook/ResultToolbar.tsx
+msgid "Export as JSON"
+msgstr "Als JSON exportieren"
+
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "Export as Notebook"
+msgstr "Als Notebook exportieren"
+
+#: src/pages/Connections.tsx
+msgctxt "connections.export"
+msgid "Export Connections"
+msgstr "Verbindungen exportieren"
+
+#: src/pages/Connections.tsx
+msgctxt "connections.exportTitle"
+msgid "Export Connections"
+msgstr "Verbindungen exportieren"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "Export CSV"
+msgstr ""
+
+#: src/components/notebook/NotebookView.tsx
+msgid "Export failed"
+msgstr ""
+
+#: src/components/modals/DumpDatabaseModal.tsx
+msgid "Export failed: "
+msgstr "Export fehlgeschlagen: "
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "Export JSON"
+msgstr ""
+
+#: src/components/settings/LogsTab.tsx
+msgid "Export Logs"
+msgstr "Logs exportieren"
+
+#: src/components/layout/sidebar/NotebooksSection.tsx
+#: src/components/notebook/NotebookToolbar.tsx
+msgid "Export Notebook"
+msgstr "Notebook exportieren"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "Exported to {target}"
+msgstr "Exportiert nach {target}"
+
+#: src/components/modals/ExportProgressModal.tsx
+msgid "Exporting..."
+msgstr "Wird exportiert..."
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+msgid "Extra"
+msgstr "Zusätzlich"
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "Fail with error"
+msgstr "Fehler"
+
+#: src/components/notebook/RunAllSummary.tsx
+msgid "failed"
+msgstr "fehlgeschlagen"
+
+#. placeholder {0}: conn.name
+#: src/pages/Connections.tsx
+msgid "Failed to connect to {0}. Please check your settings or ensuring the database is running."
+msgstr "Verbindung zu {0} fehlgeschlagen. Bitte prüfe deine Einstellungen oder stelle sicher, dass die Datenbank läuft."
+
+#: src/pages/Connections.tsx
+msgid "Failed to create group"
+msgstr "Erstellen der Gruppe fehlgeschlagen"
+
+#: src/pages/Editor.tsx
+msgid "Failed to create new row: "
+msgstr "Erstellen einer neuen Zeile fehlgeschlagen: "
+
+#: src/components/modals/CreateTableModal.tsx
+msgid "Failed to create table: "
+msgstr "Erstellen der Tabelle fehlgeschlagen: "
+
+#: src/components/layout/sidebar/SidebarColumnItem.tsx
+msgid "Failed to delete column: "
+msgstr "Löschen der Spalte fehlgeschlagen: "
+
+#: src/pages/Connections.tsx
+msgid "Failed to delete group"
+msgstr ""
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Failed to delete index: "
+msgstr "Löschen des Index fehlgeschlagen: "
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Failed to delete SSH connection"
+msgstr "Löschen der SSH-Verbindung fehlgeschlagen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Failed to delete table: "
+msgstr "Löschen der Tabelle fehlgeschlagen: "
+
+#: src/pages/Connections.tsx
+msgid "Failed to disconnect from database"
+msgstr "Trennen von der Datenbank fehlgeschlagen"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Failed to drop existing trigger: "
+msgstr ""
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Failed to drop trigger: "
+msgstr ""
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Failed to drop view: "
+msgstr "Löschen der Ansicht fehlgeschlagen: "
+
+#: src/pages/Connections.tsx
+msgid "Failed to duplicate connection"
+msgstr "Duplizieren der Verbindung fehlgeschlagen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/modals/QuickNavigatorModal.tsx
+msgid "Failed to get routine definition: "
+msgstr "Abrufen der Routinen-Definition fehlgeschlagen: "
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/modals/QuickNavigatorModal.tsx
+msgid "Failed to get trigger definition: "
+msgstr ""
+
+#: src/components/modals/NewRowModal.tsx
+msgid "Failed to insert row: "
+msgstr "Einfügen der Zeile fehlgeschlagen: "
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Failed to load databases. Check your credentials."
+msgstr "Laden der Datenbanken fehlgeschlagen. Prüfe deine Anmeldedaten."
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Failed to load registry"
+msgstr "Laden des Registry fehlgeschlagen"
+
+#: src/components/modals/NewRowModal.tsx
+msgid "Failed to load schema: "
+msgstr "Laden des Schemas fehlgeschlagen: "
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Failed to load schemas"
+msgstr "Schemata konnten nicht geladen werden"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Failed to load trigger definition: "
+msgstr ""
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "Failed to load view definition: "
+msgstr "Laden der Ansichtsdefinition fehlgeschlagen: "
+
+#: src/pages/Connections.tsx
+msgid "Failed to move connection"
+msgstr ""
+
+#: src/pages/Editor.tsx
+msgid "Failed to process insertions: "
+msgstr "Verarbeitung von Einfügungen fehlgeschlagen: "
+
+#: src/components/settings/AiTab.tsx
+msgid "Failed to refresh models"
+msgstr "Aktualisierung der Modelle fehlgeschlagen"
+
+#: src/pages/Connections.tsx
+msgid "Failed to rename group"
+msgstr ""
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Failed to save connection"
+msgstr "Speichern der Verbindung fehlgeschlagen"
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Failed to save SSH connection"
+msgstr "Speichern der SSH-Verbindung fehlgeschlagen"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Failed to save trigger: "
+msgstr ""
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "Failed to save view: "
+msgstr "Speichern der Ansicht fehlgeschlagen: "
+
+#: src/components/modals/ModifyColumnModal.tsx
+msgid "Failed: "
+msgstr "Fehlgeschlagen: "
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/Sidebar.tsx
+msgid "Favorites"
+msgstr "Favoriten"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Fetch the latest translations from the cloud without waiting for an app update."
+msgstr ""
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "File Path"
+msgstr "Dateipfad"
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+#: src/components/modals/visual-explain/ExplainTableView.tsx
+#: src/components/ui/ExplainPlanNode.tsx
+msgid "Filter"
+msgstr "Filter"
+
+#: src/components/settings/LogsTab.tsx
+msgid "Filter by level"
+msgstr "Nach Level filtern"
+
+#: src/components/ui/TableToolbar.tsx
+msgid "Filter conditions"
+msgstr "Filterbedingungen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Filter databases..."
+msgstr "Datenbanken filtern..."
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "Filter tables..."
+msgstr "Tabellen filtern..."
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "Filter triggers..."
+msgstr ""
+
+#: src/components/ui/TableToolbar.tsx
+msgid "Filters"
+msgstr "Filter"
+
+#: src/components/modals/ClipboardImport/ParseSummary.tsx
+msgid "First row as header"
+msgstr "Erste Zeile als Kopfzeile"
+
+#: src/components/modals/CreateForeignKeyModal.tsx
+msgid "FK Name (Optional)"
+msgstr "FK-Name (optional)"
+
+#: src/components/ui/SchemaDiagram.tsx
+msgid "Focus on Table"
+msgstr "Auf Tabelle fokussieren"
+
+#: src/components/ui/SchemaDiagram.tsx
+msgid "Focused on"
+msgstr "Fokussiert auf"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Folder Path"
+msgstr "Ordnerpfad"
+
+#: src/components/modals/UpdateNotificationModal.tsx
+#: src/components/settings/InfoTab.tsx
+msgid "Follow Us"
+msgstr ""
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Font Family"
+msgstr "Schriftfamilie"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Font Size"
+msgstr "Schriftgröße"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Force Kill"
+msgstr "Zwangsweise beenden"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Force Kill Plugin Process"
+msgstr "Plugin-Prozess zwangsweise beenden"
+
+#: src/components/layout/sidebar/SidebarTableItem.tsx
+msgid "foreign keys"
+msgstr "Fremdschlüssel"
+
+#: src/components/ui/JsonInput.tsx
+msgid "Format"
+msgstr "Formatieren"
+
+#: src/components/ui/FilterRow.tsx
+msgid "from"
+msgstr "von"
+
+#: src/i18n/registries/openSourceLibrariesSections.ts
+msgid "Frontend Dependencies"
+msgstr "Frontend-Abhängigkeiten"
+
+#: src/i18n/registries/openSourceLibrariesSections.ts
+msgid "Frontend Dev Dependencies"
+msgstr "Frontend-Entwicklungsabhängigkeiten"
+
+#: src/pages/SchemaDiagramPage.tsx
+msgid "Fullscreen"
+msgstr "Vollbild"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "Functions"
+msgstr "Funktionen"
+
+#: src/pages/Settings.tsx
+msgid "General"
+msgstr "Allgemein"
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+msgctxt "editor"
+msgid "General"
+msgstr "Allgemein"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgctxt "newConnection"
+msgid "General"
+msgstr ""
+
+#: src/components/settings/AppearanceTab.tsx
+msgctxt "settings"
+msgid "General"
+msgstr "Allgemein"
+
+#: src/components/notebook/CellNameAiButton.tsx
+#: src/components/ui/MultiResultPanel.tsx
+#: src/components/ui/StackedResultItem.tsx
+msgid "Generate name with AI"
+msgstr "Namen mit KI generieren"
+
+#: src/components/notebook/NotebookOutline.tsx
+msgid "Generate names for unnamed cells with AI"
+msgstr "Namen für unbenannte Zellen mit KI generieren"
+
+#: src/components/ui/AiDropdownButton.tsx
+msgctxt "ai"
+msgid "Generate SQL"
+msgstr "SQL generieren"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgctxt "sidebar"
+msgid "Generate SQL"
+msgstr "SQL generieren"
+
+#: src/components/modals/QuickNavigatorModal.tsx
+msgid "Generate SQL templates"
+msgstr "SQL-Vorlagen generieren"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Generated SQL Preview"
+msgstr ""
+
+#: src/components/modals/GenerateSQLModal.tsx
+msgid "Generated SQL: {tableName}"
+msgstr "Generiertes SQL: {tableName}"
+
+#: src/components/notebook/CellNameAiButton.tsx
+#: src/components/ui/MultiResultPanel.tsx
+#: src/components/ui/StackedResultItem.tsx
+msgid "Generating name..."
+msgstr "Name wird generiert..."
+
+#: src/components/modals/GenerateSQLModal.tsx
+msgid "Generating SQL..."
+msgstr "SQL wird generiert..."
+
+#: src/components/modals/WhatsNewModal.tsx
+msgid "Got it"
+msgstr "Verstanden"
+
+#: src/components/modals/visual-explain/ExplainSummaryBar.tsx
+msgid "Graph"
+msgstr "Graph"
+
+#: src/pages/Connections.tsx
+msgid "Grid view"
+msgstr "Rasteransicht"
+
+#: src/pages/Connections.tsx
+msgid "Group name"
+msgstr "Gruppenname"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Guided"
+msgstr ""
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+msgid "Hash Cond."
+msgstr "Hash-Bedingung"
+
+#: src/components/modals/CommunityModal.tsx
+msgid "Help tabularis grow"
+msgstr "Hilf tabularis zu wachsen"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+msgid "Hide overview"
+msgstr "Übersicht ausblenden"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+msgid "Highest Cost"
+msgstr "Höchste Kosten"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/Sidebar.tsx
+msgid "History"
+msgstr "Verlauf"
+
+#: src/components/settings/GeneralTab.tsx
+#: src/components/ui/SchemaDiagram.tsx
+msgid "Horizontal"
+msgstr "Horizontal"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Host"
+msgstr "Host"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "How long the MCP subprocess will wait for the user's decision before failing the request."
+msgstr "Wie lange gewartet wird, bevor abgebrochen wird."
+
+#: src/components/settings/LogsTab.tsx
+msgid "How many logs to keep in memory (1-10000)"
+msgstr "Wie viele Logs im Speicher behalten werden sollen (1-10000)"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "How often to check for new translations."
+msgstr ""
+
+#: src/components/settings/GeneralTab.tsx
+msgid "How often to check if active connections are still alive. Set to 0 to disable."
+msgstr "Wie oft geprüft werden soll, ob aktive Verbindungen noch erreichbar sind. Setze 0, um die Prüfung zu deaktivieren."
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+#: src/i18n/registries/connectionAppearanceTabs.ts
+msgid "Icon"
+msgstr "Symbol"
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "If exists"
+msgstr "Falls vorhanden"
+
+#: src/utils/explainPlan.ts
+msgid "If timing is missing, the server likely returned an estimate-only plan."
+msgstr "Fehlen Zeitwerte, hat der Server wahrscheinlich nur einen geschätzten Plan geliefert."
+
+#: src/components/settings/InfoTab.tsx
+msgid "If you like tabularis and want to see more features, consider supporting the project by contributing code, reporting bugs, or starring the repo."
+msgstr "Wenn dir tabularis gefällt und du mehr Funktionen sehen möchtest, unterstütze das Projekt durch Code-Beiträge, Bug-Reports oder einen Stern auf GitHub."
+
+#: src/i18n/registries/connectionAppearanceTabs.ts
+msgid "Image"
+msgstr "Bild"
+
+#: src/components/ui/BlobInput.tsx
+msgid "Image preview"
+msgstr "Bildvorschau"
+
+#: src/components/modals/ImportDatabaseModal.tsx
+msgid "Import cancelled"
+msgstr "Import abgebrochen"
+
+#: src/pages/Connections.tsx
+msgid "Import Connections"
+msgstr "Verbindungen importieren"
+
+#: src/components/modals/ImportDatabaseModal.tsx
+msgid "Import Database"
+msgstr "Datenbank importieren"
+
+#: src/components/modals/ImportDatabaseModal.tsx
+msgid "Import failed"
+msgstr "Import fehlgeschlagen"
+
+#: src/components/modals/ImportDatabaseModal.tsx
+msgid "Import failed: "
+msgstr "Import fehlgeschlagen: "
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "Import from Clipboard"
+msgstr "Aus Zwischenablage importieren"
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgctxt "clipboardImport"
+msgid "Import from Clipboard"
+msgstr "Aus Zwischenablage importieren"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Import from Clipboard..."
+msgstr "Aus Zwischenablage importieren..."
+
+#: src/components/layout/sidebar/NotebooksSection.tsx
+#: src/components/notebook/NotebookToolbar.tsx
+msgid "Import Notebook"
+msgstr "Notebook importieren"
+
+#: src/components/modals/ImportDatabaseModal.tsx
+msgid "Importing from"
+msgstr "Importiere aus"
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "Importing..."
+msgstr "Importiert..."
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+#: src/components/ui/ExplainPlanNode.tsx
+msgid "Index Cond."
+msgstr "Index-Bedingung"
+
+#: src/components/modals/CreateIndexModal.tsx
+msgid "Index Name"
+msgstr "Indexname"
+
+#: src/components/modals/CreateIndexModal.tsx
+msgid "Index name is required"
+msgstr "Indexname ist erforderlich"
+
+#: src/components/layout/sidebar/SidebarTableItem.tsx
+msgid "indexes"
+msgstr "Indizes"
+
+#: src/components/settings/LogsTab.tsx
+#: src/pages/Settings.tsx
+msgid "Info"
+msgstr "Info"
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Initial version"
+msgstr "Erste Version"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Inline"
+msgstr "Inline"
+
+#: src/components/modals/NewRowModal.tsx
+msgid "Insert"
+msgstr "Einfügen"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Insert Current Timestamp"
+msgstr "Aktuellen Zeitstempel einfügen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Insert to Editor"
+msgstr "In Editor einfügen"
+
+#: src/components/modals/QuickNavigatorModal.tsx
+msgid "Inspect structure"
+msgstr "Struktur anzeigen"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Install"
+msgstr "Installieren"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Install and enable plugins to see them here"
+msgstr "Installiere und aktiviere Plugins, um sie hier zu sehen"
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgid "Install Config"
+msgstr "Konfiguration installieren"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Install extensions, manage plugin drivers, and keep runtime settings under control."
+msgstr "Installiere Erweiterungen, verwalte Plugin-Treiber und behalte Laufzeiteinstellungen im Blick."
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgctxt "mcp"
+msgid "Installation Failed"
+msgstr "Installation fehlgeschlagen"
+
+#: src/components/modals/PluginInstallErrorModal.tsx
+msgctxt "settings"
+msgid "Installation Failed"
+msgstr "Installation fehlgeschlagen"
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgctxt "mcp"
+msgid "Installed"
+msgstr "Installiert"
+
+#: src/components/settings/PluginsTab.tsx
+msgctxt "settings.plugins.filterInstalled"
+msgid "Installed"
+msgstr "Installiert"
+
+#: src/components/settings/PluginsTab.tsx
+msgctxt "settings.plugins.installed"
+msgid "Installed"
+msgstr "Installiert"
+
+#: src/components/settings/PluginsTab.tsx
+msgctxt "settings.plugins.installedMetric"
+msgid "Installed"
+msgstr "Installiert"
+
+#: src/components/modals/UpdateNotificationModal.tsx
+msgid "Installing..."
+msgstr "Wird installiert..."
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Instructions for AI-powered query explanation. Use {{LANGUAGE}} as a placeholder for the output language."
+msgstr "Anweisungen für KI-gestützte Abfrageerklärungen. Verwende {LANGUAGE} als Platzhalter für die Ausgabesprache."
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Instructions for AI-powered SQL generation. Use {{SCHEMA}} as a placeholder for the database structure."
+msgstr "Anweisungen für KI-gestützte SQL-Generierung. Verwende {SCHEMA} als Platzhalter für die Datenbankstruktur."
+
+#: src/components/modals/PluginSettingsModal.tsx
+#: src/components/settings/PluginSettingsPage.tsx
+msgid "Interpreter"
+msgstr "Interpreter"
+
+#: src/components/ui/JsonInput.tsx
+msgid "Invalid JSON"
+msgstr "Ungültiges JSON"
+
+#: src/components/layout/sidebar/NotebooksSection.tsx
+#: src/components/notebook/NotebookView.tsx
+msgid "Invalid notebook file format"
+msgstr "Ungültiges Notebook-Dateiformat"
+
+#: src/components/notebook/ParamsPanel.tsx
+msgid "Invalid parameter name"
+msgstr "Ungültiger Parametername"
+
+#: src/components/modals/CommunityModal.tsx
+msgid "Join Discord"
+msgstr "Discord beitreten"
+
+#: src/components/layout/sidebar/DiscordCommunityCallout.tsx
+msgid "Join now"
+msgstr "Jetzt beitreten"
+
+#: src/components/modals/CommunityModal.tsx
+msgid "Join the Community"
+msgstr "Der Community beitreten"
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+msgid "Join Type"
+msgstr "Join-Typ"
+
+#: src/components/modals/SchemaModal.tsx
+msgid "Key"
+msgstr "Schlüssel"
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Key file"
+msgstr "Schlüsseldatei"
+
+#: src/components/settings/ShortcutsTab.tsx
+#: src/pages/Settings.tsx
+msgid "Keyboard Shortcuts"
+msgstr "Tastenkürzel"
+
+#: src/components/layout/sidebar/SidebarTableItem.tsx
+msgid "keys"
+msgstr "Schlüssel"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Kill"
+msgstr "Beenden"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Killing"
+msgstr "Das Beenden von"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "Kind"
+msgstr "Typ"
+
+#: src/components/modals/K8sConnectionsModal.tsx
+msgid "Kubernetes Connections"
+msgstr "Kubernetes-Verbindungen"
+
+#: src/i18n/registries/k8sErrorKeys.ts
+msgid "Kubernetes context is required"
+msgstr "Der Kubernetes-Kontext ist erforderlich"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Kubernetes is not available for this driver."
+msgstr "Kubernetes ist für diesen Treiber nicht verfügbar."
+
+#: src/components/notebook/CellChart.tsx
+msgid "Label"
+msgstr "Beschriftung"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Language"
+msgstr "Sprache"
+
+#: src/utils/explainPlan.ts
+msgid "Large estimate gaps usually indicate stale statistics or predicates the planner cannot model well."
+msgstr "Große Schätzabweichungen deuten meist auf veraltete Statistiken oder Prädikate hin, die der Planner schlecht modellieren kann."
+
+#: src/components/modals/CreateTableModal.tsx
+msgid "Len"
+msgstr "Länge"
+
+#: src/components/modals/ModifyColumnModal.tsx
+msgid "Length"
+msgstr "Länge"
+
+#: src/components/settings/LogsTab.tsx
+msgid "Level"
+msgstr "Level"
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Limits the number of rows fetched per query to prevent performance issues. Set to 0 to disable (not recommended)."
+msgstr "Begrenzt die Anzahl der pro Abfrage geladenen Zeilen, um Performance-Probleme zu vermeiden. Setze den Wert auf 0, um die Begrenzung zu deaktivieren (nicht empfohlen)."
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Line Height"
+msgstr "Zeilenhöhe"
+
+#: src/pages/Connections.tsx
+msgid "List view"
+msgstr "Listenansicht"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Load Databases"
+msgstr "Datenbanken laden"
+
+#: src/pages/Editor.tsx
+msgid "Load row count"
+msgstr "Zeilenanzahl laden"
+
+#: src/pages/VisualExplainPage.tsx
+msgid "Loading explain plan…"
+msgstr "Ausführungsplan wird geladen…"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Loading plugin registry..."
+msgstr "Plugin-Registry wird geladen..."
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Loading processes…"
+msgstr "Prozesse werden geladen…"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/QueryHistorySection.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarRoutineItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+#: src/components/layout/sidebar/SidebarTableItem.tsx
+#: src/components/layout/sidebar/SidebarViewItem.tsx
+#: src/components/modals/SchemaModal.tsx
+msgid "Loading schema..."
+msgstr "Schema wird geladen..."
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Loading trigger definition..."
+msgstr ""
+
+#: src/components/modals/ClipboardImportModal.tsx
+#: src/components/modals/ConfigJsonModal.tsx
+#: src/components/modals/CreateForeignKeyModal.tsx
+#: src/components/modals/CreateIndexModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/NewRowModal.tsx
+#: src/components/modals/WhatsNewModal.tsx
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+#: src/pages/JsonViewerPage.tsx
+msgid "Loading..."
+msgstr "Wird geladen..."
+
+#: src/components/modals/CreateForeignKeyModal.tsx
+msgid "Local Column"
+msgstr "Lokale Spalte"
+
+#: src/components/settings/LocalizationTab.tsx
+#: src/pages/Settings.tsx
+msgid "Localization"
+msgstr "Lokalisierung"
+
+#: src/components/modals/AiApprovalModal.tsx
+msgid "Lock query"
+msgstr "Sperren"
+
+#: src/components/settings/LogsTab.tsx
+msgid "Log Settings"
+msgstr "Log-Einstellungen"
+
+#: src/components/settings/LogsTab.tsx
+#: src/pages/Settings.tsx
+msgid "Logs"
+msgstr "Logs"
+
+#: src/components/settings/LogsTab.tsx
+msgid "Logs exported to clipboard"
+msgstr "Logs in die Zwischenablage exportiert"
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+#: src/components/ui/ExplainPlanNode.tsx
+msgid "Loops"
+msgstr "Schleifen"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Make all MCP queries read-only"
+msgstr "Alle MCP-Abfragen nur lesen"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Manage"
+msgstr "Verwalten"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Manage Databases"
+msgstr "Datenbanken verwalten"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Manage SSH Connections"
+msgstr "SSH-Verbindungen verwalten"
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgid "MANUAL COMMAND"
+msgstr "MANUELLER BEFEHL"
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgid "MANUAL CONFIGURATION"
+msgstr "MANUELLE KONFIGURATION"
+
+#: src/components/notebook/NotebookCellHeader.tsx
+#: src/components/notebook/NotebookToolbar.tsx
+#: src/components/notebook/NotebookView.tsx
+msgid "Markdown"
+msgstr "Markdown"
+
+#: src/i18n/registries/pluginBuiltinSettings.ts
+msgid "Max Allowed Packet"
+msgstr "Max Allowed Packet"
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Max History Entries"
+msgstr "Maximale Verlaufseinträge"
+
+#: src/components/settings/LogsTab.tsx
+msgid "Max Log Entries"
+msgstr "Maximale Log-Einträge"
+
+#: src/components/modals/ClipboardImport/DataPreview.tsx
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+msgid "Maximize"
+msgstr "Maximieren"
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Maximum number of query history entries stored per connection."
+msgstr "Maximale Anzahl an Abfrageverlaufseinträgen pro Verbindung."
+
+#: src/i18n/registries/pluginBuiltinSettings.ts
+msgid "Maximum packet size used by the MySQL connector."
+msgstr "Maximale Paketgröße, die vom MySQL-Connector verwendet wird."
+
+#: src/components/modals/CommunityModal.tsx
+msgid "Maybe later"
+msgstr "Vielleicht später"
+
+#: src/components/modals/AiApprovalGate.tsx
+msgid "MCP approval needed"
+msgstr ""
+
+#: src/components/layout/Sidebar.tsx
+msgid "MCP Server"
+msgstr "MCP-Server"
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgid "MCP Server Integration"
+msgstr "MCP-Server-Integration"
+
+#: src/components/settings/LogsTab.tsx
+msgid "Message"
+msgstr "Nachricht"
+
+#: src/components/modals/ClipboardImport/DataPreview.tsx
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+msgid "Minimize"
+msgstr "Minimieren"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "minutes"
+msgstr ""
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+msgid "Mixed types detected, defaulted to TEXT"
+msgstr "Gemischte Typen erkannt, Standard TEXT"
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "Mode"
+msgstr "Modus"
+
+#. placeholder {0}: settings.aiModel
+#. placeholder {1}: getProviderLabel(settings.aiProvider)
+#: src/components/settings/AiTab.tsx
+msgid "Model <0>{0}</0> not found in <1>{1}</1>. It may not work correctly."
+msgstr "Modell <strong>{0}</strong> wurde in <strong>{1}</strong> nicht gefunden. Es funktioniert möglicherweise nicht korrekt."
+
+#: src/components/modals/ModifyColumnModal.tsx
+msgctxt "modifyColumn"
+msgid "Modify Column"
+msgstr "Spalte ändern"
+
+#: src/components/layout/sidebar/SidebarColumnItem.tsx
+msgctxt "sidebar"
+msgid "Modify Column"
+msgstr "Spalte ändern"
+
+#: src/components/settings/InfoTab.tsx
+msgid "Monitor plugin processes, CPU, RAM and disk usage in real time"
+msgstr "Überwache Plugin-Prozesse, CPU, RAM und Datenträgernutzung in Echtzeit"
+
+#: src/components/notebook/NotebookCellHeader.tsx
+msgid "Move Down"
+msgstr "Nach unten"
+
+#: src/components/notebook/NotebookCellHeader.tsx
+msgid "Move Up"
+msgstr "Nach oben"
+
+#: src/components/modals/K8sConnectionsModal.tsx
+msgid "My K8s cluster"
+msgstr "Mein K8s-Cluster"
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "My SSH Server"
+msgstr "Mein SSH-Server"
+
+#: src/utils/explainPlan.ts
+msgid "MySQL and MariaDB expose actual metrics only on supported EXPLAIN ANALYZE or ANALYZE FORMAT variants."
+msgstr "MySQL und MariaDB liefern echte Metriken nur bei unterstützten EXPLAIN ANALYZE- oder ANALYZE FORMAT-Varianten."
+
+#: src/utils/explainPlan.ts
+msgid "MySQL and MariaDB may fall back to EXPLAIN FORMAT=JSON or tabular EXPLAIN depending on server version."
+msgstr "MySQL und MariaDB können je nach Serverversion auf EXPLAIN FORMAT=JSON oder tabellarisches EXPLAIN zurückfallen."
+
+#: src/components/notebook/ParamsPanel.tsx
+msgid "name"
+msgstr "name"
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+#: src/components/modals/CreateTableModal.tsx
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/ModifyColumnModal.tsx
+#: src/components/modals/SchemaModal.tsx
+#: src/pages/TaskManagerPage.tsx
+msgid "Name"
+msgstr "Name"
+
+#: src/components/modals/CreateForeignKeyModal.tsx
+msgid "Name is required"
+msgstr ""
+
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Namespace"
+msgstr "Namespace"
+
+#: src/i18n/registries/k8sErrorKeys.ts
+msgid "Namespace is required"
+msgstr "Der Namespace ist erforderlich"
+
+#: src/i18n/registries/shortcutCategories.ts
+msgid "Navigation"
+msgstr "Navigation"
+
+#: src/components/ui/DataGrid.tsx
+msgid "NEW"
+msgstr "NEU"
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "New connection"
+msgstr "Neue Verbindung"
+
+#: src/components/modals/QuickNavigatorModal.tsx
+msgid "New console"
+msgstr "Neue Konsole"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/pages/Editor.tsx
+msgid "New Console"
+msgstr "Neue Konsole"
+
+#: src/components/modals/WhatsNewModal.tsx
+msgid "New Features"
+msgstr "Neue Funktionen"
+
+#: src/pages/Connections.tsx
+msgid "New Group"
+msgstr "Neue Gruppe"
+
+#: src/pages/Editor.tsx
+msgid "New Notebook"
+msgstr "Neues Notebook"
+
+#: src/components/modals/NewRowModal.tsx
+#: src/pages/Editor.tsx
+msgid "New Row"
+msgstr "Neue Zeile"
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "New tab"
+msgstr "Neuer Tab"
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "New table created"
+msgstr "Neue Tabelle erstellt"
+
+#: src/components/modals/UpdateNotificationModal.tsx
+msgid "New Version Available"
+msgstr "Neue Version verfügbar"
+
+#: src/pages/Editor.tsx
+msgid "New Visual Query"
+msgstr "Neue visuelle Abfrage"
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "Next page"
+msgstr "Nächste Seite"
+
+#: src/components/modals/CreateTableModal.tsx
+msgid "NN"
+msgstr "NN"
+
+#: src/components/modals/SchemaModal.tsx
+msgid "NO"
+msgstr "NEIN"
+
+#: src/pages/Connections.tsx
+msgid "No active connections"
+msgstr "Keine aktiven Verbindungen"
+
+#: src/components/ui/TableToolbar.tsx
+msgid "no active filters"
+msgstr "keine aktiven Filter"
+
+#: src/pages/Editor.tsx
+msgid "No active session. Please select a connection."
+msgstr "Keine aktive Sitzung. Bitte wähle eine Verbindung aus."
+
+#: src/components/ui/BlobInput.tsx
+msgid "No BLOB data"
+msgstr "Keine BLOB-Daten"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "No child processes"
+msgstr "Keine Kindprozesse"
+
+#: src/pages/SchemaDiagramPage.tsx
+msgid "No Connection ID"
+msgstr "Keine Verbindungs-ID"
+
+#: src/pages/Connections.tsx
+msgid "No connections match \"{search}\""
+msgstr "Keine Verbindung entspricht \"{search}\""
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "No contexts found (is kubectl installed?)"
+msgstr "Keine Kontexte gefunden (ist kubectl installiert?)"
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "No data found in clipboard"
+msgstr "Keine Daten in der Zwischenablage"
+
+#: src/components/ui/DataGrid.tsx
+msgid "No data to display"
+msgstr "Keine Daten zum Anzeigen"
+
+#: src/components/modals/QueryModal.tsx
+msgid "No database"
+msgstr "Keine Datenbank"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "No databases found"
+msgstr "Keine Datenbanken gefunden"
+
+#: src/components/notebook/CellHistoryPanel.tsx
+msgid "No execution history yet"
+msgstr "Noch kein Ausführungsverlauf"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "No favorites match your search"
+msgstr "Keine Favoriten entsprechen deiner Suche"
+
+#: src/pages/VisualExplainPage.tsx
+msgid "No file loaded"
+msgstr "Keine Datei geladen"
+
+#: src/components/ui/TableToolbar.tsx
+msgid "No filters —"
+msgstr "Keine Filter —"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "No general settings available for this driver."
+msgstr ""
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgid "No icons match."
+msgstr ""
+
+#: src/components/modals/K8sConnectionsModal.tsx
+msgid "No Kubernetes connections saved. Click \"Add\" to create one."
+msgstr "Keine Kubernetes-Verbindungen gespeichert. Klicke auf „Hinzufügen“, um eine zu erstellen."
+
+#: src/components/settings/LogsTab.tsx
+msgid "No logs available"
+msgstr "Keine Logs verfügbar"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+msgid "No major issues detected in the current plan summary."
+msgstr "In der aktuellen Planzusammenfassung wurden keine größeren Probleme erkannt."
+
+#: src/components/modals/QuickNavigatorModal.tsx
+msgid "No matching elements found"
+msgstr "Keine passenden Elemente gefunden"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "No MCP activity yet."
+msgstr "Noch keine MCP-Aktivität."
+
+#: src/components/settings/AiTab.tsx
+msgid "No models found"
+msgstr "Keine Modelle gefunden"
+
+#: src/components/layout/sidebar/NotebooksSection.tsx
+msgid "No notebooks match your search."
+msgstr "Keine Notebooks entsprechen der Suche."
+
+#: src/pages/Editor.tsx
+msgid "No open tabs for this connection."
+msgstr "Keine geöffneten Tabs für diese Verbindung."
+
+#: src/components/modals/NewRowModal.tsx
+msgid "No options found"
+msgstr "Keine Optionen gefunden"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "No plugin processes are running"
+msgstr "Es laufen keine Plugin-Prozesse"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "No plugins available in the registry."
+msgstr "Keine Plugins im Registry verfügbar."
+
+#: src/components/settings/PluginsTab.tsx
+msgid "No plugins match your search."
+msgstr "Keine Plugins entsprechen der Suche."
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgid "No preview"
+msgstr ""
+
+#: src/components/layout/sidebar/QueryHistorySection.tsx
+msgid "No queries match your search"
+msgstr "Keine Abfragen entsprechen deiner Suche"
+
+#: src/components/layout/sidebar/QueryHistorySection.tsx
+msgid "No query history"
+msgstr "Kein Abfrageverlauf"
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+#: src/components/modals/ClipboardImportModal.tsx
+#: src/components/modals/CreateTableModal.tsx
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/ModifyColumnModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgid "No results found"
+msgstr "Keine Ergebnisse gefunden"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "No routines found"
+msgstr "Keine Routinen gefunden"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "No saved connections — create one below"
+msgstr "Keine gespeicherten Verbindungen — erstelle unten eine"
+
+#: src/components/layout/sidebar/NotebooksSection.tsx
+msgid "No saved notebooks yet."
+msgstr "Noch keine gespeicherten Notebooks."
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "No saved queries"
+msgstr "Keine gespeicherten Abfragen"
+
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "No sessions match the current filters."
+msgstr "Keine Sitzung entspricht den Filtern."
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "No SSH connections available"
+msgstr "Keine SSH-Verbindungen verfügbar"
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "No SSH connections configured yet"
+msgstr "Noch keine SSH-Verbindungen konfiguriert"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "No tables found"
+msgstr "Keine Tabellen gefunden"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "No tables match"
+msgstr "Keine passende Tabelle"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "No triggers found"
+msgstr ""
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "No triggers match your filter"
+msgstr ""
+
+#: src/pages/Editor.tsx
+msgid "No valid queries found"
+msgstr "Keine gültigen Abfragen gefunden"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "No views found"
+msgstr "Keine Ansichten gefunden"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Not available for your platform"
+msgstr "Für deine Plattform nicht verfügbar"
+
+#: src/components/settings/AiTab.tsx
+msgid "Not configured"
+msgstr "Nicht konfiguriert"
+
+#: src/components/modals/ModifyColumnModal.tsx
+msgid "Not Null"
+msgstr "Nicht Null"
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Notebook Cell Name Prompt"
+msgstr "Notebook-Zellnamen-Prompt"
+
+#: src/components/layout/sidebar/NotebooksSection.tsx
+#: src/components/notebook/NotebookView.tsx
+msgid "Notebook exported successfully"
+msgstr "Notebook erfolgreich exportiert"
+
+#: src/components/layout/sidebar/NotebooksSection.tsx
+#: src/components/notebook/NotebookView.tsx
+msgid "Notebook imported successfully"
+msgstr "Notebook erfolgreich importiert"
+
+#: src/components/layout/sidebar/NotebooksSection.tsx
+msgid "Notebook name"
+msgstr "Notebook-Name"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/Sidebar.tsx
+msgid "Notebooks"
+msgstr "Notebooks"
+
+#: src/i18n/registries/openSourceLibrariesEcosystem.ts
+msgid "npm ecosystem"
+msgstr "npm-Ökosystem"
+
+#: src/components/modals/SchemaModal.tsx
+msgid "Nullable"
+msgstr "Nullable"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Objects"
+msgstr "Objekte"
+
+#. placeholder {0}: sessions.length
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "of {0}"
+msgstr "von {0}"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Off"
+msgstr "Aus"
+
+#: src/components/modals/AlertModal.tsx
+#: src/components/modals/ConfirmModal.tsx
+msgid "OK"
+msgstr "OK"
+
+#: src/i18n/registries/sidebarDateGroups.ts
+msgid "Older"
+msgstr "Älter"
+
+#: src/utils/explainPlan.ts
+msgid "Older servers may fall back to estimated plans with fewer metrics."
+msgstr "Ältere Server können auf geschätzte Pläne mit weniger Metriken zurückfallen."
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Older versions"
+msgstr "Ältere Versionen"
+
+#. placeholder {0}: ( settings.aiCustomModels?.["ollama"] || availableModels["ollama"] || [] ).length
+#: src/components/settings/AiTab.tsx
+msgid "Ollama connected ({0} models found)"
+msgstr "Ollama verbunden ({0} Modelle gefunden)"
+
+#. placeholder {0}: settings.aiOllamaPort || 11434
+#: src/components/settings/AiTab.tsx
+msgid "Ollama not detected on port {0}. Is it running?"
+msgstr "Ollama wurde auf Port {0} nicht erkannt. Läuft es?"
+
+#: src/components/settings/AiTab.tsx
+msgid "Ollama Port"
+msgstr "Ollama-Port"
+
+#. placeholder {0}: trigger.table_name
+#: src/components/layout/sidebar/SidebarTriggerItem.tsx
+msgid "on {0}"
+msgstr ""
+
+#. placeholder {0}: approval.connectionName
+#: src/components/modals/AiApprovalModal.tsx
+msgid "On {0} — review and decide before it executes."
+msgstr "Auf {0} — vor Ausführung prüfen."
+
+#: src/components/modals/CreateForeignKeyModal.tsx
+msgid "On Delete"
+msgstr "Bei Löschen"
+
+#: src/components/modals/CreateForeignKeyModal.tsx
+msgid "On Update"
+msgstr "Bei Aktualisierung"
+
+#: src/components/connections/StatusBadge.tsx
+msgctxt "connections"
+msgid "Open"
+msgstr "Öffnen"
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "Open connections"
+msgstr "Verbindungen öffnen"
+
+#: src/pages/VisualExplainPage.tsx
+msgid "Open file"
+msgstr "Datei öffnen"
+
+#: src/components/layout/sidebar/OpenConnectionItem.tsx
+msgid "Open in Editor"
+msgstr "Im Editor öffnen"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Open in JSON Editor"
+msgstr "Im JSON-Editor öffnen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Open in New Tab"
+msgstr "In neuem Tab öffnen"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "Open in Visual Explain"
+msgstr "In Visual Explain öffnen"
+
+#: src/components/ui/JsonCell.tsx
+msgid "Open JSON viewer"
+msgstr "JSON-Viewer öffnen"
+
+#: src/components/modals/OpenSourceLibrariesModal.tsx
+msgid "Open package page"
+msgstr "Paketseite öffnen"
+
+#. placeholder {0}: fkForContextPreview.ref_table
+#: src/components/ui/DataGrid.tsx
+msgid "Open referenced row in {0}"
+msgstr "Referenzierte Zeile in {0} öffnen"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Open Sidebar Editor"
+msgstr "Seitenleisten-Editor öffnen"
+
+#: src/components/modals/OpenSourceLibrariesModal.tsx
+#: src/components/settings/InfoTab.tsx
+msgid "Open Source Libraries"
+msgstr "Open-Source-Bibliotheken"
+
+#: src/components/modals/TabSwitcherModal.tsx
+msgid "Open Tabs"
+msgstr "Geöffnete Tabs"
+
+#: src/components/modals/AiApprovalGate.tsx
+msgid "Open Tabularis to review the pending MCP approval."
+msgstr ""
+
+#: src/components/settings/InfoTab.tsx
+msgid "Open Task Manager"
+msgstr "Task-Manager öffnen"
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+#: src/components/modals/visual-explain/ExplainTableView.tsx
+msgid "Operation"
+msgstr "Operation"
+
+#: src/components/modals/PluginSettingsModal.tsx
+#: src/components/settings/PluginSettingsPage.tsx
+msgid "Optional. Specify the executable used to run this plugin (e.g. python3 on macOS/Linux, python or a full path on Windows). Leave blank to use the default."
+msgstr "Optional. Gib die ausführbare Datei an, die zum Starten dieses Plugins verwendet wird (z. B. python3 unter macOS/Linux, python oder ein vollständiger Pfad unter Windows). Leer lassen, um den Standard zu verwenden."
+
+#: src/components/notebook/NotebookOutline.tsx
+msgid "Outline"
+msgstr "Gliederung"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+msgid "Overview"
+msgstr "Übersicht"
+
+#. placeholder {0}: activeTab.result.pagination.page
+#. placeholder {0}: pagination.page
+#: src/components/ui/PaginationControls.tsx
+#: src/pages/Editor.tsx
+msgid "Page {0}"
+msgstr "Seite {0}"
+
+#. placeholder {0}: activeTab.result.pagination.page
+#. placeholder {1}: Math.ceil( activeTab.result.pagination.total_rows / activeTab.result.pagination.page_size, )
+#: src/pages/Editor.tsx
+msgid "Page {0} of {1}"
+msgstr "Seite {0} von {1}"
+
+#. placeholder {0}: pagination.page
+#: src/components/ui/PaginationControls.tsx
+msgid "Page {0} of {totalPages}"
+msgstr "Seite {0} von {totalPages}"
+
+#: src/components/notebook/NotebookCellHeader.tsx
+msgid "Parallel Execution (Run All)"
+msgstr "Parallele Ausführung (Alle ausführen)"
+
+#: src/components/notebook/ParamsPanel.tsx
+#: src/pages/Editor.tsx
+msgid "Parameters"
+msgstr "Parameter"
+
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Password"
+msgstr "Passwort"
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Password saved in system keychain"
+msgstr "Passwort im System-Keychain gespeichert"
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "Paste structured data and preview the schema before importing"
+msgstr "Strukturierte Daten einfügen und Schema vor dem Import prüfen"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Pause writes (or every query) and ask the user to approve them inside Tabularis before they hit the database."
+msgstr "Pausiert Schreibvorgänge (oder jede Abfrage) und fragt den Nutzer vor der Ausführung."
+
+#: src/i18n/registries/aiActivityStatus.ts
+msgid "Pending approval"
+msgstr "Ausstehend"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "PID"
+msgstr "PID"
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Ping Interval"
+msgstr "Ping-Intervall"
+
+#: src/components/settings/GeneralTab.tsx
+#: src/pages/Editor.tsx
+msgid "Pipe (|)"
+msgstr "Pipe (|)"
+
+#: src/components/modals/CreateTableModal.tsx
+msgid "PK"
+msgstr "PK"
+
+#: src/components/modals/visual-explain/ExplainSummaryBar.tsx
+msgid "Planning"
+msgstr "Planung"
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Please fill in all required fields"
+msgstr "Bitte fülle alle erforderlichen Felder aus"
+
+#: src/i18n/registries/dumpErrorKeys.ts
+msgid "Please select at least one table"
+msgstr "Bitte wähle mindestens eine Tabelle"
+
+#: src/i18n/registries/dumpErrorKeys.ts
+msgid "Please select at least Structure or Data"
+msgstr "Bitte wähle mindestens Struktur oder Daten"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Plugin"
+msgstr "Plugin"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Plugin Center"
+msgstr "Plugin-Center"
+
+#: src/components/connections/ActionButtons.tsx
+#: src/components/connections/ConnectionCard.tsx
+#: src/components/connections/ConnectionListItem.tsx
+msgid "Plugin disabled"
+msgstr "Plugin deaktiviert"
+
+#: src/components/modals/PluginStartErrorModal.tsx
+msgid "Plugin Failed to Start"
+msgstr "Plugin konnte nicht gestartet werden"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Plugin Processes"
+msgstr "Plugin-Prozesse"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Plugin processes & system resources"
+msgstr "Plugin-Prozesse und Systemressourcen"
+
+#: src/components/modals/PluginSettingsModal.tsx
+#: src/components/settings/PluginSettingsPage.tsx
+#: src/components/settings/PluginsTab.tsx
+msgid "Plugin Settings"
+msgstr "Plugin-Einstellungen"
+
+#: src/pages/Settings.tsx
+msgid "Plugins"
+msgstr "Plugins"
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgid "PNG, JPG, WebP or SVG · max 512 KB"
+msgstr "PNG, JPG, WebP oder SVG · max. 512 KB"
+
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Pod"
+msgstr "Pod"
+
+#: src/components/ui/GeometryInput.tsx
+msgid "POINT(30 40)"
+msgstr "POINT(30 40)"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Port"
+msgstr "Port"
+
+#: src/i18n/registries/k8sErrorKeys.ts
+msgid "Port must be between 1 and 65535"
+msgstr "Der Port muss zwischen 1 und 65535 liegen"
+
+#: src/utils/explainPlan.ts
+msgid "PostgreSQL ANALYZE includes actual rows, timing, loops, and buffer counters when available."
+msgstr "PostgreSQL ANALYZE enthält tatsächliche Zeilen, Laufzeit, Schleifen und Buffer-Zähler, sofern verfügbar."
+
+#: src/utils/explainPlan.ts
+msgid "PostgreSQL without ANALYZE shows planner estimates only."
+msgstr "PostgreSQL ohne ANALYZE zeigt nur Schätzungen des Planners."
+
+#: src/components/modals/AiApprovalModal.tsx
+msgid "Pre-flight execution plan"
+msgstr "Vorab-Ausführungsplan"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Pre-flight EXPLAIN"
+msgstr "Vorab-EXPLAIN"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Prefer"
+msgstr "Bevorzugen"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Preferred"
+msgstr ""
+
+#: src/components/settings/ShortcutsTab.tsx
+msgid "Press key combination..."
+msgstr "Tastenkombination drücken..."
+
+#: src/pages/Editor.tsx
+msgid "Press Run (Ctrl/Command+F5) to load table data"
+msgstr "Drücke Ausführen (Ctrl/Command+F5), um Tabellendaten zu laden"
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgctxt "connectionAppearance"
+msgid "Preview"
+msgstr ""
+
+#: src/components/settings/AppearanceTab.tsx
+msgctxt "settings"
+msgid "Preview"
+msgstr "Vorschau"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgctxt "views"
+msgid "Preview"
+msgstr "Vorschau"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "Preview failed: "
+msgstr "Vorschau fehlgeschlagen: "
+
+#: src/components/ui/BlobInput.tsx
+msgid "Preview only - full data not loaded"
+msgstr "Nur Vorschau - vollständige Daten nicht geladen"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Preview related record"
+msgstr "Verknüpften Datensatz anzeigen"
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "Previous page"
+msgstr "Vorherige Seite"
+
+#: src/components/modals/ModifyColumnModal.tsx
+#: src/components/modals/NewRowModal.tsx
+msgid "Primary Key"
+msgstr "Primärschlüssel"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "Procedures"
+msgstr "Prozeduren"
+
+#: src/components/settings/InfoTab.tsx
+msgid "Project Status"
+msgstr "Projektstatus"
+
+#: src/components/settings/AiTab.tsx
+msgid "Prompt Customization"
+msgstr "Prompt-Anpassung"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Provide your connection name"
+msgstr "Gib deinen Verbindungsnamen an"
+
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "Queries"
+msgstr "Abfragen"
+
+#: src/components/modals/AiApprovalModal.tsx
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/components/settings/ai-activity/EventDetailModal.tsx
+#: src/components/ui/MultiResultPanel.tsx
+#: src/components/ui/StackedResultItem.tsx
+msgid "Query"
+msgstr "Abfrage"
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Query Explanation"
+msgstr "Abfrageerklärung"
+
+#: src/pages/Editor.tsx
+msgid "Query failed."
+msgstr "Abfrage fehlgeschlagen."
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Query History"
+msgstr "Abfrageverlauf"
+
+#: src/components/layout/sidebar/QueryHistorySection.tsx
+msgid "Query history was reset"
+msgstr "Abfrageverlauf zurückgesetzt"
+
+#: src/components/modals/QueryParamsModal.tsx
+#: src/pages/Editor.tsx
+msgid "Query Parameters"
+msgstr "Abfrageparameter"
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "Query Tab Name Prompt"
+msgstr "Prompt für Abfrage-Tabnamen"
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Quick connection test"
+msgstr "Schneller Verbindungstest"
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "Quick Navigator"
+msgstr "Schnellnavigation"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "RAM"
+msgstr "RAM"
+
+#: src/components/ui/JsonInput.tsx
+msgid "Raw"
+msgstr "Rohtext"
+
+#: src/components/modals/visual-explain/ExplainSummaryBar.tsx
+msgid "Raw Output"
+msgstr "Rohausgabe"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Raw SQL"
+msgstr ""
+
+#: src/components/modals/VisualExplainModal.tsx
+msgid "Re-run"
+msgstr "Erneut ausführen"
+
+#: src/components/ui/MultiResultPanel.tsx
+#: src/components/ui/StackedResultItem.tsx
+msgid "Re-run query"
+msgstr "Abfrage erneut ausführen"
+
+#: src/components/modals/WhatsNewModal.tsx
+msgid "Read more"
+msgstr "Mehr lesen"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Read-only connections"
+msgstr "Nur-Lese-Verbindungen"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Read-only mode"
+msgstr "Nur-Lese-Modus"
+
+#: src/components/modals/AiApprovalModal.tsx
+msgid "Reason (optional)"
+msgstr "Grund (optional)"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Recreate Trigger"
+msgstr ""
+
+#: src/components/notebook/NotebookToolbar.tsx
+msgid "Redo"
+msgstr "Wiederholen"
+
+#: src/components/modals/CreateForeignKeyModal.tsx
+msgid "Referenced Column"
+msgstr "Referenzierte Spalte"
+
+#: src/components/modals/CreateForeignKeyModal.tsx
+msgid "Referenced Table"
+msgstr "Referenzierte Tabelle"
+
+#: src/components/layout/sidebar/NotebooksSection.tsx
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+#: src/components/settings/LogsTab.tsx
+#: src/components/settings/PluginsTab.tsx
+#: src/pages/SchemaDiagramPage.tsx
+#: src/pages/TaskManagerPage.tsx
+msgid "Refresh"
+msgstr "Aktualisieren"
+
+#: src/components/settings/AiTab.tsx
+msgid "Refresh Models"
+msgstr "Modelle aktualisieren"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Refresh Routines"
+msgstr "Routinen aktualisieren"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "Refresh Tables"
+msgstr "Tabellen aktualisieren"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Refresh Triggers"
+msgstr ""
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Refresh Views"
+msgstr "Ansichten aktualisieren"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Registry"
+msgstr "Registry"
+
+#: src/components/modals/UpdateNotificationModal.tsx
+msgid "Release Notes"
+msgstr "Release Notes"
+
+#: src/pages/VisualExplainPage.tsx
+msgid "Reload"
+msgstr "Neu laden"
+
+#: src/components/modals/UpdateNotificationModal.tsx
+msgid "Remind Me Later"
+msgstr "Später erinnern"
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgctxt "connectionAppearance"
+msgid "Remove"
+msgstr "Entfernen"
+
+#: src/components/modals/PluginRemoveModal.tsx
+#: src/components/settings/PluginsTab.tsx
+msgctxt "settings"
+msgid "Remove"
+msgstr "Entfernen"
+
+#: src/components/ui/FilterRow.tsx
+msgid "Remove filter"
+msgstr "Filter entfernen"
+
+#: src/pages/Connections.tsx
+msgid "Remove from Group"
+msgstr "Aus Gruppe entfernen"
+
+#: src/components/modals/PluginRemoveModal.tsx
+msgid "Remove Plugin"
+msgstr "Plugin entfernen"
+
+#: src/components/layout/sidebar/NotebooksSection.tsx
+#: src/components/ui/MultiResultPanel.tsx
+#: src/components/ui/StackedResultItem.tsx
+#: src/pages/Connections.tsx
+#: src/pages/Editor.tsx
+msgid "Rename"
+msgstr "Umbenennen"
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Renamed cell {n}"
+msgstr "Zelle {n} umbenannt"
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Reordered cells"
+msgstr "Zellen neu angeordnet"
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "Replace table"
+msgstr "Tabelle ersetzen"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Require"
+msgstr "Erforderlich"
+
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/NewRowModal.tsx
+msgid "Required"
+msgstr "Erforderlich"
+
+#. placeholder {0}: availableTypes.find((t) => t.name === form.type)?.requires_extension
+#. placeholder {0}: exts.join(', ')
+#: src/components/modals/CreateTableModal.tsx
+#: src/components/modals/ModifyColumnModal.tsx
+msgid "Requires extension: {0}"
+msgstr "Erfordert Erweiterung: {0}"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Requires Tabularis ≥ {minVersion}"
+msgstr "Erfordert Tabularis ≥ {minVersion}"
+
+#: src/components/settings/AiTab.tsx
+msgid "Reset"
+msgstr "Zurücksetzen"
+
+#: src/components/modals/PluginSettingsModal.tsx
+#: src/components/settings/PluginSettingsPage.tsx
+#: src/components/settings/ShortcutsTab.tsx
+msgid "Reset to default"
+msgstr "Auf Standard zurücksetzen"
+
+#: src/components/settings/AiTab.tsx
+msgid "Reset to Default"
+msgstr "Auf Standard zurücksetzen"
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgid "Reset to driver default"
+msgstr "Auf Treiber-Standard zurücksetzen"
+
+#: src/components/ui/RowEditorSidebar.tsx
+msgid "Resize sidebar"
+msgstr ""
+
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Resource Name"
+msgstr "Ressourcenname"
+
+#: src/i18n/registries/k8sErrorKeys.ts
+msgid "Resource name is required"
+msgstr "Der Ressourcenname ist erforderlich"
+
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Resource Type"
+msgstr "Ressourcentyp"
+
+#: src/i18n/registries/k8sErrorKeys.ts
+msgid "Resource type must be \"service\" or \"pod\""
+msgstr "Der Ressourcentyp muss \"service\" oder \"pod\" sein"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Restart"
+msgstr "Neu starten"
+
+#: src/components/modals/ConfigJsonModal.tsx
+msgid "Restart Now"
+msgstr "Jetzt neu starten"
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Result Page Size (Limit)"
+msgstr "Ergebnisse pro Seite (Limit)"
+
+#: src/components/ui/MultiResultPanel.tsx
+msgid "Results"
+msgstr "Ergebnisse"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Revert Selected"
+msgstr "Auswahl zurücksetzen"
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "Review & adjust"
+msgstr "Überprüfen & anpassen"
+
+#: src/pages/Editor.tsx
+msgid "Rollback Changes"
+msgstr "Änderungen zurückrollen"
+
+#: src/i18n/registries/quickNavigatorType.ts
+msgid "routine"
+msgstr "Routine"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "Routines"
+msgstr "Routinen"
+
+#. placeholder {0}: rowIndex + 1
+#: src/components/ui/RowEditorSidebar.tsx
+msgid "Row #{0}"
+msgstr "Zeile #{0}"
+
+#: src/components/modals/ClipboardImport/ParseSummary.tsx
+#: src/components/modals/ClipboardImportModal.tsx
+msgctxt "clipboardImport"
+msgid "rows"
+msgstr "Zeilen"
+
+#: src/components/settings/GeneralTab.tsx
+msgctxt "settings"
+msgid "rows"
+msgstr "Zeilen"
+
+#: src/components/modals/ExportProgressModal.tsx
+msgid "Rows Processed"
+msgstr "Verarbeitete Zeilen"
+
+#: src/components/settings/ai-activity/EventDetailModal.tsx
+msgid "Rows returned"
+msgstr "Zeilen zurück"
+
+#: src/components/modals/ClipboardImport/ModeToggle.tsx
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "Rows will be added to an existing table"
+msgstr "Zeilen werden an eine bestehende Tabelle angehängt"
+
+#: src/components/modals/QueryParamsModal.tsx
+#: src/pages/Editor.tsx
+msgid "Run"
+msgstr "Ausführen"
+
+#: src/components/notebook/NotebookToolbar.tsx
+msgctxt "editor.notebook.runAll"
+msgid "Run All"
+msgstr "Alle ausführen"
+
+#: src/components/modals/QuerySelectionModal.tsx
+msgctxt "editor.querySelection.runAll"
+msgid "Run All"
+msgstr "Alle ausführen"
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "Run All Cells"
+msgstr "Alle Zellen ausführen"
+
+#: src/components/notebook/RunAllSummary.tsx
+msgid "Run All Complete"
+msgstr "Alle Ausführungen abgeschlossen"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Run an EXPLAIN against the query before showing the approval modal so the user sees the execution plan."
+msgstr "Führt vor dem Modal ein EXPLAIN aus, damit der Plan sichtbar ist."
+
+#: src/components/notebook/NotebookCellHeader.tsx
+msgid "Run Cell"
+msgstr "Zelle ausführen"
+
+#: src/components/modals/GenerateSQLModal.tsx
+msgid "Run in console"
+msgstr "In Konsole ausführen"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "Run Preview"
+msgstr "Vorschau ausführen"
+
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "Run queries"
+msgstr "Ausgeführte Abfragen"
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "Run query"
+msgstr "Abfrage ausführen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Run Query"
+msgstr "Abfrage ausführen"
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "Run query (in editor)"
+msgstr "Abfrage ausführen (im Editor)"
+
+#: src/components/modals/QuickNavigatorModal.tsx
+msgid "Run SELECT query"
+msgstr "SELECT-Abfrage ausführen"
+
+#. placeholder {0}: selectedIndices.size
+#: src/components/modals/QuerySelectionModal.tsx
+msgid "Run Selected ({0})"
+msgstr "Ausgewählte ausführen ({0})"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+msgid "Run SQL File..."
+msgstr "SQL-Datei ausführen..."
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgid "Run this command in your terminal, then restart Claude Code."
+msgstr "Führe diesen Befehl im Terminal aus und starte anschließend Claude Code neu."
+
+#: src/components/modals/QuerySelectionModal.tsx
+msgid "Run this query"
+msgstr "Diese Abfrage ausführen"
+
+#: src/i18n/registries/taskManagerProcessStatus.ts
+#: src/pages/TaskManagerPage.tsx
+msgid "running"
+msgstr "läuft"
+
+#: src/components/explain/VisualExplainView.tsx
+msgid "Running EXPLAIN..."
+msgstr "EXPLAIN wird ausgeführt..."
+
+#: src/i18n/registries/openSourceLibrariesSections.ts
+msgid "Rust Build and Test"
+msgstr "Rust-Build und Tests"
+
+#: src/i18n/registries/openSourceLibrariesSections.ts
+msgid "Rust Dependencies"
+msgstr "Rust-Abhängigkeiten"
+
+#: src/pages/McpPage.tsx
+msgid "Safety"
+msgstr "Sicherheit"
+
+#: src/components/settings/ThemePicker.tsx
+msgid "Same as App"
+msgstr "Wie App"
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+msgid "Sample values"
+msgstr "Beispielwerte"
+
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/PluginSettingsModal.tsx
+#: src/components/modals/QueryParamsModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+#: src/components/settings/AiTab.tsx
+#: src/components/settings/PluginSettingsPage.tsx
+#: src/components/settings/ShortcutsTab.tsx
+#: src/components/ui/JsonExpansionEditor.tsx
+#: src/components/ui/TextExpansionEditor.tsx
+#: src/pages/Connections.tsx
+#: src/pages/JsonViewerPage.tsx
+msgid "Save"
+msgstr "Speichern"
+
+#: src/components/modals/ConfigJsonModal.tsx
+msgid "Save & Restart"
+msgstr "Speichern und neu starten"
+
+#: src/components/modals/ModifyColumnModal.tsx
+#: src/components/modals/TriggerEditorModal.tsx
+#: src/components/modals/ViewEditorModal.tsx
+msgid "Save Changes"
+msgstr "Änderungen speichern"
+
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Save passwords in Keychain"
+msgstr "Passwörter im Keychain speichern"
+
+#: src/components/settings/AiTab.tsx
+msgid "Save Prompt"
+msgstr "Prompt speichern"
+
+#: src/pages/Editor.tsx
+msgid "Save Query"
+msgstr "Abfrage speichern"
+
+#: src/pages/Editor.tsx
+msgid "Save this query"
+msgstr "Diese Abfrage speichern"
+
+#: src/components/settings/PluginSettingsPage.tsx
+msgid "Saved"
+msgstr "Gespeichert"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Saved Connection"
+msgstr "Gespeicherte Verbindung"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+msgid "Scan-heavy operations detected"
+msgstr "Scan-lastige Operationen erkannt"
+
+#: src/components/modals/SchemaModal.tsx
+msgid "Schema: {tableName}"
+msgstr "Schema: {tableName}"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Schemas"
+msgstr "Schemata"
+
+#: src/components/ui/JsonTreeView.tsx
+msgid "Search"
+msgstr "Suchen"
+
+#: src/pages/Connections.tsx
+msgid "Search connections..."
+msgstr "Verbindungen suchen..."
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgid "Search emoji…"
+msgstr ""
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Search favorites..."
+msgstr "Favoriten durchsuchen..."
+
+#: src/components/layout/sidebar/QueryHistorySection.tsx
+msgid "Search history..."
+msgstr "Verlauf durchsuchen..."
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgid "Search icons…"
+msgstr ""
+
+#: src/components/settings/AiTab.tsx
+msgid "Search models..."
+msgstr "Modelle suchen..."
+
+#: src/components/layout/sidebar/NotebooksSection.tsx
+msgid "Search notebooks"
+msgstr "Notebooks suchen"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Search plugins…"
+msgstr "Plugins suchen…"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "Search query…"
+msgstr "In Abfrage suchen…"
+
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "Search session, client, connection…"
+msgstr "Suche Sitzung, Client, Verbindung…"
+
+#: src/components/modals/QuickNavigatorModal.tsx
+msgid "Search tables, views, routines, triggers..."
+msgstr "Tabellen, Views, Routinen, Trigger suchen..."
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Search timezones..."
+msgstr ""
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+#: src/components/modals/ClipboardImportModal.tsx
+#: src/components/modals/CreateTableModal.tsx
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/ModifyColumnModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Search..."
+msgstr "Suchen..."
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+#: src/components/settings/GeneralTab.tsx
+msgid "seconds"
+msgstr "Sekunden"
+
+#: src/i18n/registries/aiActivityQueryKind.ts
+msgid "Select"
+msgstr "Lesen"
+
+#: src/components/modals/GenerateSQLModal.tsx
+msgid "Select [fields]"
+msgstr "SELECT [Felder]"
+
+#: src/components/modals/GenerateSQLModal.tsx
+msgid "Select *"
+msgstr "SELECT *"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Select a context first"
+msgstr "Zuerst einen Kontext auswählen"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Select a database"
+msgstr "Datenbank auswählen"
+
+#: src/pages/VisualExplainPage.tsx
+msgid "Select a file containing an EXPLAIN plan (Postgres JSON or text format) to visualize it."
+msgstr "Wählen Sie eine Datei mit einem EXPLAIN-Plan (PostgreSQL JSON- oder Textformat), um ihn zu visualisieren."
+
+#: src/components/settings/AiTab.tsx
+msgid "Select a model"
+msgstr "Modell auswählen"
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+msgid "Select a node to view details"
+msgstr "Wähle einen Knoten aus, um Details zu sehen"
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "Select a table..."
+msgstr "Tabelle auswählen..."
+
+#: src/components/modals/DumpDatabaseModal.tsx
+msgctxt "dump"
+msgid "Select All"
+msgstr "Alle auswählen"
+
+#: src/components/modals/QuerySelectionModal.tsx
+msgctxt "editor"
+msgid "Select All"
+msgstr "Alle auswählen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgctxt "sidebar"
+msgid "Select All"
+msgstr "Alle auswählen"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Select at least one database"
+msgstr "Wähle mindestens eine Datenbank aus"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Select context/namespace/type first"
+msgstr "Zuerst Kontext/Namespace/Typ auswählen"
+
+#: src/components/ui/FilterRow.tsx
+msgid "Select for Apply All"
+msgstr "Für \"Alle anwenden\" auswählen"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Select K8s Connection"
+msgstr "K8s-Verbindung auswählen"
+
+#: src/components/modals/QuerySelectionModal.tsx
+msgid "Select Query to Execute"
+msgstr "Abfrage zum Ausführen auswählen"
+
+#: src/components/modals/ExplainSelectionModal.tsx
+msgid "Select Query to Explain"
+msgstr "Abfrage zum Erklären auswählen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Select schemas to load:"
+msgstr "Wähle die zu ladenden Schemata aus:"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Select SSH Connection"
+msgstr "SSH-Verbindung auswählen"
+
+#: src/components/modals/DumpDatabaseModal.tsx
+msgid "Select Tables"
+msgstr "Tabellen auswählen"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Select the databases to include in this connection."
+msgstr ""
+
+#: src/components/settings/AiTab.tsx
+msgid "Select the model to be used for generation and explanation."
+msgstr "Wähle das Modell, das für Generierung und Erklärung verwendet werden soll."
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Select type..."
+msgstr "Typ auswählen..."
+
+#: src/components/modals/NewRowModal.tsx
+msgid "Select Value..."
+msgstr "Wert auswählen..."
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgid "Selected emoji"
+msgstr ""
+
+#: src/components/settings/GeneralTab.tsx
+#: src/pages/Editor.tsx
+msgid "Semicolon (;)"
+msgstr "Semikolon (;)"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Send notification and play sound"
+msgstr ""
+
+#: src/components/layout/sidebar/ConnectionGroupItem.tsx
+msgid "Separate Connections"
+msgstr "Verbindungen trennen"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+msgid "Sequential Scans"
+msgstr "Sequentielle Scans"
+
+#: src/components/modals/K8sConnectionsModal.tsx
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Service"
+msgstr "Service"
+
+#: src/i18n/registries/pluginBuiltinSettings.ts
+msgid "Session timezone sent to MySQL after connect."
+msgstr "Sitzungszeitzone, die nach dem Verbindungsaufbau an MySQL gesendet wird."
+
+#: src/components/settings/AiActivityPanel.tsx
+msgid "Sessions"
+msgstr "Sitzungen"
+
+#: src/components/layout/sidebar/OpenConnectionItem.tsx
+msgid "Set as Active"
+msgstr "Als aktiv festlegen"
+
+#: src/components/ui/DataGrid.tsx
+#: src/components/ui/FieldEditor.tsx
+msgid "Set DEFAULT"
+msgstr "DEFAULT setzen"
+
+#: src/components/ui/DataGrid.tsx
+#: src/components/ui/FieldEditor.tsx
+msgid "Set EMPTY"
+msgstr "EMPTY setzen"
+
+#: src/components/ui/DataGrid.tsx
+#: src/components/ui/FieldEditor.tsx
+msgid "Set GENERATED"
+msgstr "GENERATED setzen"
+
+#: src/components/ui/DataGrid.tsx
+#: src/components/ui/FieldEditor.tsx
+msgid "Set NULL"
+msgstr "NULL setzen"
+
+#: src/components/layout/Sidebar.tsx
+msgid "Settings"
+msgstr "Einstellungen"
+
+#: src/pages/McpPage.tsx
+msgid "Setup"
+msgstr "Einrichtung"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Show a native system notification and play a short alert sound when a new MCP approval request arrives."
+msgstr ""
+
+#: src/components/settings/AiTab.tsx
+msgid "Show AI Assist and Explain buttons in the editor"
+msgstr "Zeigt die Schaltflächen AI Assist und Explain im Editor an"
+
+#: src/components/ui/SchemaDiagram.tsx
+msgid "Show All"
+msgstr "Alle anzeigen"
+
+#: src/components/ui/SchemaDiagram.tsx
+msgid "Show All Tables"
+msgstr "Alle Tabellen anzeigen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "Show Data"
+msgstr "Daten anzeigen"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Show Line Numbers"
+msgstr "Zeilennummern anzeigen"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+msgid "Show overview"
+msgstr "Übersicht anzeigen"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Show the JSON viewer affordance when a non-typed text cell contains a JSON object or array. Adds a small per-cell parse cost."
+msgstr "Zeigt JSON-Viewer-Bedienelemente, wenn eine nicht typisierte Text-Zelle ein JSON-Objekt oder -Array enthält. Verursacht kleine Parse-Kosten pro Zelle."
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Show Welcome Screen"
+msgstr "Willkommensbildschirm anzeigen"
+
+#. placeholder {0}: all.length
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgid "Showing {RESULT_LIMIT} of {0} — refine search to narrow down."
+msgstr ""
+
+#: src/components/modals/ClipboardImport/DataPreview.tsx
+msgid "showing first {MAX_PREVIEW_ROWS}"
+msgstr "erste {MAX_PREVIEW_ROWS}"
+
+#: src/components/ui/JsonExpansionEditor.tsx
+#: src/components/ui/JsonInput.tsx
+#: src/components/ui/TextExpansionEditor.tsx
+#: src/components/ui/TextInput.tsx
+msgid "Side by side"
+msgstr ""
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+msgid "Skip (do not import)"
+msgstr "Überspringen (nicht importieren)"
+
+#: src/components/notebook/RunAllSummary.tsx
+msgid "skipped"
+msgstr "übersprungen"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+msgid "Slowest Step"
+msgstr "Langsamster Schritt"
+
+#: src/i18n/registries/pluginBuiltinSettings.ts
+msgid "Socket Timeout"
+msgstr "Socket-Timeout"
+
+#: src/i18n/registries/pluginBuiltinSettings.ts
+msgid "Socket timeout in milliseconds."
+msgstr "Socket-Timeout in Millisekunden."
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "Sort ascending"
+msgstr "Aufsteigend sortieren"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Sort by {colName} ASC"
+msgstr "Nach {colName} ASC sortieren"
+
+#: src/components/ui/DataGrid.tsx
+msgid "Sort by {colName} DESC"
+msgstr "Nach {colName} DESC sortieren"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "Sort by {field}"
+msgstr "Sortieren nach {field}"
+
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "Sort by…"
+msgstr "Sortieren nach…"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "Sort descending"
+msgstr "Absteigend sortieren"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+msgid "Sort or temp work detected"
+msgstr "Sortier- oder temporäre Arbeit erkannt"
+
+#: src/components/layout/sidebar/ConnectionGroupItem.tsx
+msgid "Split Group"
+msgstr "Gruppe teilen"
+
+#: src/components/layout/sidebar/OpenConnectionItem.tsx
+msgid "Split Horizontal"
+msgstr "Horizontal teilen"
+
+#: src/components/layout/sidebar/OpenConnectionItem.tsx
+msgid "Split Vertical"
+msgstr "Vertikal teilen"
+
+#: src/components/notebook/NotebookCellHeader.tsx
+#: src/components/notebook/NotebookToolbar.tsx
+#: src/components/notebook/NotebookView.tsx
+#: src/components/ui/TableToolbar.tsx
+msgid "SQL"
+msgstr "SQL"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "SQL Editor"
+msgstr "SQL-Editor"
+
+#: src/components/modals/ImportDatabaseModal.tsx
+msgid "SQL file executed successfully"
+msgstr "SQL-Datei erfolgreich ausgeführt"
+
+#: src/components/ui/GeometryInput.tsx
+msgid "SQL Functions"
+msgstr "SQL-Funktionen"
+
+#: src/i18n/registries/aiPromptKinds.ts
+msgid "SQL Generation"
+msgstr "SQL-Generierung"
+
+#: src/components/ui/GeometryInput.tsx
+msgid "SQL Mode"
+msgstr "SQL-Modus"
+
+#: src/components/modals/CreateForeignKeyModal.tsx
+#: src/components/modals/CreateIndexModal.tsx
+#: src/components/modals/CreateTableModal.tsx
+#: src/components/modals/ModifyColumnModal.tsx
+msgid "SQL Preview"
+msgstr "SQL-Vorschau"
+
+#: src/components/modals/CreateForeignKeyModal.tsx
+msgid "SQLite does not support dropping FKs via ALTER TABLE."
+msgstr "SQLite unterstützt das Löschen von Fremdschlüsseln via ALTER TABLE nicht."
+
+#: src/utils/explainPlan.ts
+msgid "SQLite EXPLAIN QUERY PLAN is lightweight and mostly structural."
+msgstr "SQLite EXPLAIN QUERY PLAN ist leichtgewichtig und hauptsächlich strukturell."
+
+#: src/components/modals/ModifyColumnModal.tsx
+msgid "SQLite only supports renaming columns. Other modifications require recreating the table manually."
+msgstr "SQLite unterstützt nur das Umbenennen von Spalten. Andere Änderungen erfordern, dass die Tabelle manuell neu erstellt wird."
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "SSH Connections"
+msgstr "SSH-Verbindungen"
+
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "SSH Host"
+msgstr "SSH-Host"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "SSH is not available for this driver."
+msgstr ""
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "SSH Key"
+msgstr "SSH-Schlüssel"
+
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "SSH Key File (Optional)"
+msgstr "SSH-Schlüsseldatei (optional)"
+
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "SSH Key Passphrase (Optional)"
+msgstr "Passphrase für SSH-Schlüssel (optional)"
+
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "SSH Password"
+msgstr "SSH-Passwort"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "SSH Password missing. Please re-enter."
+msgstr "SSH-Passwort fehlt. Bitte erneut eingeben."
+
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "SSH Port"
+msgstr "SSH-Port"
+
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "SSH User"
+msgstr "SSH-Benutzer"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "SSL Mode"
+msgstr "SSL-Modus"
+
+#: src/components/ui/GeometryInput.tsx
+msgid "ST_GeomFromText('POINT(30 40)', 4326)"
+msgstr "ST_GeomFromText('POINT(30 40)', 4326)"
+
+#: src/components/ui/MultiResultPanel.tsx
+msgid "Stacked view"
+msgstr "Gestapelte Ansicht"
+
+#: src/components/modals/CommunityModal.tsx
+#: src/components/settings/InfoTab.tsx
+msgid "Star on GitHub"
+msgstr "Auf GitHub mit Stern markieren"
+
+#: src/components/settings/ai-activity/AiActivitySessionsTab.tsx
+msgid "Started"
+msgstr "Start"
+
+#: src/components/settings/GeneralTab.tsx
+msgid "Startup"
+msgstr "Start"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/components/settings/ai-activity/EventDetailModal.tsx
+#: src/pages/TaskManagerPage.tsx
+msgid "Status"
+msgstr "Status"
+
+#: src/components/settings/InfoTab.tsx
+msgid "Stay up to date and connect with the community on your favorite platform."
+msgstr ""
+
+#: src/components/modals/DumpDatabaseModal.tsx
+#: src/pages/Editor.tsx
+msgid "Stop"
+msgstr "Stopp"
+
+#: src/components/notebook/NotebookToolbar.tsx
+msgid "Stop execution when a cell fails"
+msgstr "Ausführung stoppen, wenn eine Zelle fehlschlägt"
+
+#: src/components/notebook/NotebookToolbar.tsx
+msgid "Stop on Error"
+msgstr "Bei Fehler stoppen"
+
+#: src/i18n/registries/taskManagerProcessStatus.ts
+msgid "stopped"
+msgstr "gestoppt"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/Sidebar.tsx
+msgid "Structure"
+msgstr "Struktur"
+
+#: src/components/modals/DumpDatabaseModal.tsx
+msgid "Structure (DDL)"
+msgstr "Struktur (DDL)"
+
+#: src/pages/Editor.tsx
+msgid "Submit Changes"
+msgstr "Änderungen übernehmen"
+
+#: src/components/notebook/RunAllSummary.tsx
+msgid "succeeded"
+msgstr "erfolgreich"
+
+#: src/i18n/registries/aiActivityStatus.ts
+msgid "Success"
+msgstr "Erfolg"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgctxt "aiActivity"
+msgid "Success"
+msgstr "Erfolg"
+
+#: src/components/modals/ExportProgressModal.tsx
+#: src/components/settings/AiTab.tsx
+#: src/components/settings/LogsTab.tsx
+msgctxt "common"
+msgid "Success"
+msgstr "Erfolg"
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgctxt "mcp"
+msgid "Success"
+msgstr "Erfolg"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Sum of RSS across the process tree — may overcount shared memory"
+msgstr "Summe des RSS über den Prozessbaum — gemeinsam genutzter Speicher kann doppelt gezählt werden"
+
+#: src/components/settings/InfoTab.tsx
+msgid "Support the Development"
+msgstr "Entwicklung unterstützen"
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "Switch tab"
+msgstr "Tab wechseln"
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "Switch to connection 1–9"
+msgstr "Zu Verbindung 1-9 wechseln"
+
+#: src/components/ui/SchemaDiagram.tsx
+msgid "Switch to Horizontal Layout"
+msgstr "Zum horizontalen Layout wechseln"
+
+#: src/components/ui/TableToolbar.tsx
+msgid "Switch to SQL WHERE input"
+msgstr "Zum SQL-WHERE-Eingabefeld wechseln"
+
+#: src/components/ui/SchemaDiagram.tsx
+msgid "Switch to Vertical Layout"
+msgstr "Zum vertikalen Layout wechseln"
+
+#: src/pages/TaskManagerPage.tsx
+msgid "System Resources"
+msgstr "Systemressourcen"
+
+#: src/components/settings/GeneralTab.tsx
+#: src/pages/Editor.tsx
+msgid "Tab"
+msgstr "Tabulator"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Tab Size"
+msgstr "Tabgröße"
+
+#: src/components/ui/MultiResultPanel.tsx
+msgid "Tab view"
+msgstr "Tab-Ansicht"
+
+#: src/i18n/registries/quickNavigatorType.ts
+msgid "table"
+msgstr "Tabelle"
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+#: src/components/modals/visual-explain/ExplainTableView.tsx
+#: src/components/ui/ExplainPlanNode.tsx
+msgctxt "editor.visualExplain.relation"
+msgid "Table"
+msgstr "Tabelle"
+
+#: src/components/modals/visual-explain/ExplainSummaryBar.tsx
+msgctxt "editor.visualExplain.tableView"
+msgid "Table"
+msgstr "Tabelle"
+
+#: src/components/modals/ClipboardImport/TableNameInput.tsx
+#: src/components/modals/ClipboardImportModal.tsx
+msgid "Table name"
+msgstr "Tabellenname"
+
+#: src/components/modals/CreateTableModal.tsx
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Table Name"
+msgstr "Tabellenname"
+
+#: src/components/modals/CreateTableModal.tsx
+msgid "Table name is required"
+msgstr "Tabellenname ist erforderlich"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "Tables"
+msgstr "Tabellen"
+
+#: src/components/modals/CommunityModal.tsx
+msgid "Tabularis is a free, open-source project. If you find it useful, consider supporting the project and connecting with the community."
+msgstr "Tabularis ist ein freies Open-Source-Projekt. Wenn du es nützlich findest, unterstütze das Projekt und vernetze dich mit der Community."
+
+#: src/pages/TaskManagerPage.tsx
+msgid "Tabularis Process"
+msgstr "Tabularis-Prozess"
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+msgid "Target column"
+msgstr "Zielspalte"
+
+#: src/components/settings/InfoTab.tsx
+#: src/pages/TaskManagerPage.tsx
+msgid "Task Manager"
+msgstr "Task-Manager"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+msgid "Temp or Sort Ops"
+msgstr "Temporäre oder Sortier-Operationen"
+
+#: src/components/modals/K8sConnectionsModal.tsx
+msgid "Test"
+msgstr "Testen"
+
+#: src/components/modals/NewConnectionModal.tsx
+#: src/components/modals/SshConnectionsModal.tsx
+msgid "Test Connection"
+msgstr "Verbindung testen"
+
+#: src/components/modals/K8sConnectionsModal.tsx
+msgid "Testing..."
+msgstr "Wird getestet..."
+
+#: src/components/modals/UpdateNotificationModal.tsx
+msgid "The app will restart automatically after installation"
+msgstr "Die App wird nach der Installation automatisch neu gestartet"
+
+#: src/components/settings/AiTab.tsx
+msgid "The base URL of your OpenAI-compatible API. Examples: https://api.groq.com/openai/v1, http://localhost:8000/v1"
+msgstr "Die Basis-URL deiner OpenAI-kompatiblen API. Beispiele: https://api.groq.com/openai/v1, http://localhost:8000/v1"
+
+#: src/components/modals/ConfigJsonModal.tsx
+msgid "The configuration file has been saved. Restart now to apply the changes?"
+msgstr "Die Konfigurationsdatei wurde gespeichert. Jetzt neu starten, um die Änderungen anzuwenden?"
+
+#: src/pages/Connections.tsx
+msgid "The exported file will contain your database and SSH passwords in plaintext. Please store it securely."
+msgstr "Die exportierte Datei enthält deine Datenbank- und SSH-Passwörter im Klartext. Bewahre sie sicher auf."
+
+#: src/components/layout/sidebar/QueryHistorySection.tsx
+msgid "The history file was corrupted and has been moved aside. New queries will be recorded as usual. Backup file:"
+msgstr "Die Verlaufsdatei war beschädigt und wurde beiseitegelegt. Neue Abfragen werden wie gewohnt aufgezeichnet. Sicherungsdatei:"
+
+#: src/components/modals/McpModal.tsx
+#: src/pages/McpPage.tsx
+msgid "The Model Context Protocol (MCP) allows AI assistants (like Claude) to connect to your local tools. Tabularis exposes an MCP server that lets AI read your database schema and execute queries safely."
+msgstr "Das Model Context Protocol (MCP) ermöglicht KI-Assistenten (wie Claude), sich mit deinen lokalen Tools zu verbinden. Tabularis stellt einen MCP-Server bereit, über den KI dein Datenbankschema lesen und Abfragen sicher ausführen kann."
+
+#: src/components/modals/PluginStartErrorModal.tsx
+msgid "The plugin process could not be launched. Check the error details below."
+msgstr "Der Plugin-Prozess konnte nicht gestartet werden. Prüfe die Fehlerdetails unten."
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "The quick brown fox jumps over the lazy dog"
+msgstr "Franz jagt im komplett verwahrlosten Taxi quer durch Bayern"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Theme Selection"
+msgstr "Themaauswahl"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "These connections will reject writes from MCP. Other connections behave normally."
+msgstr "Diese Verbindungen lehnen Schreibvorgänge ab. Andere verhalten sich normal."
+
+#: src/pages/TaskManagerPage.tsx
+msgid "This action cannot be undone immediately"
+msgstr "Diese Aktion kann nicht sofort rückgängig gemacht werden"
+
+#: src/components/modals/ModifyColumnModal.tsx
+msgid "This driver only supports primary keys at table creation time"
+msgstr "Dieser Treiber unterstützt Primärschlüssel nur beim Erstellen einer Tabelle"
+
+#: src/components/settings/AiTab.tsx
+msgid "This key is loaded from an environment variable"
+msgstr "Dieser Schlüssel wird aus einer Umgebungsvariable geladen"
+
+#: src/i18n/registries/sidebarDateGroups.ts
+msgid "This Month"
+msgstr "Diesen Monat"
+
+#: src/components/notebook/NotebookView.tsx
+msgid "This notebook is empty. Add a cell to get started."
+msgstr "Dieses Notebook ist leer. Füge eine Zelle hinzu, um zu beginnen."
+
+#: src/components/modals/PluginStartErrorModal.tsx
+msgid "This plugin may require an interpreter (e.g. Python). Use Plugin Settings to configure the interpreter path."
+msgstr "Dieses Plugin benötigt möglicherweise einen Interpreter (z. B. Python). Verwende die Plugin-Einstellungen, um den Interpreter-Pfad zu konfigurieren."
+
+#: src/components/settings/InfoTab.tsx
+msgid "This project is a Work In Progress (WIP). Core features are stable, but we have big plans."
+msgstr "Dieses Projekt ist Work in Progress (WIP). Die Kernfunktionen sind stabil, aber wir haben große Pläne."
+
+#: src/i18n/registries/sidebarDateGroups.ts
+msgid "This Week"
+msgstr "Diese Woche"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/components/settings/ai-activity/EventDetailModal.tsx
+msgctxt "aiActivity"
+msgid "Time"
+msgstr "Zeit"
+
+#: src/components/modals/visual-explain/ExplainNodeDetails.tsx
+#: src/components/modals/visual-explain/ExplainTableView.tsx
+#: src/components/ui/ExplainPlanNode.tsx
+msgctxt "editor"
+msgid "Time"
+msgstr "Zeit"
+
+#: src/i18n/registries/aiActivityStatus.ts
+msgid "Timeout"
+msgstr "Zeitüberschreitung"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgctxt "aiActivity"
+msgid "Timeout"
+msgstr "Zeitüberschreitung"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgctxt "mcp"
+msgid "Timeout"
+msgstr "Zeitlimit"
+
+#: src/components/settings/LogsTab.tsx
+msgid "Timestamp"
+msgstr "Zeitstempel"
+
+#: src/components/settings/LocalizationTab.tsx
+#: src/i18n/registries/pluginBuiltinSettings.ts
+msgid "Timezone"
+msgstr "Zeitzone"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Timezone used to display timestamps and exports. 'Auto' follows your system timezone."
+msgstr ""
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Timing"
+msgstr ""
+
+#: src/components/ui/FilterRow.tsx
+msgid "to"
+msgstr "bis"
+
+#: src/i18n/registries/sidebarDateGroups.ts
+msgid "Today"
+msgstr "Heute"
+
+#: src/components/notebook/ResultToolbar.tsx
+msgid "Toggle Chart"
+msgstr "Diagramm umschalten"
+
+#: src/components/ui/JsonCell.tsx
+msgid "Toggle inline JSON tree"
+msgstr "JSON-Baum ein-/ausklappen"
+
+#: src/components/ui/TextCell.tsx
+msgid "Toggle inline text editor"
+msgstr ""
+
+#: src/components/notebook/NotebookCellHeader.tsx
+msgid "Toggle Preview"
+msgstr "Vorschau umschalten"
+
+#: src/i18n/registries/shortcutLabels.ts
+msgid "Toggle sidebar"
+msgstr "Seitenleiste umschalten"
+
+#: src/components/ui/TableToolbar.tsx
+msgid "Toggle structured filter panel"
+msgstr "Strukturiertes Filterpanel ein-/ausblenden"
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Toggled parallel (cell {n})"
+msgstr "Parallel umgeschaltet (Zelle {n})"
+
+#: src/i18n/registries/notebookHistoryChange.ts
+msgid "Toggled stop on error"
+msgstr "Bei Fehler stoppen umgeschaltet"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+#: src/components/settings/ai-activity/EventDetailModal.tsx
+msgid "Tool"
+msgstr "Tool"
+
+#: src/components/modals/visual-explain/ExplainOverviewBar.tsx
+msgid "Top Issues"
+msgstr "Wichtigste Probleme"
+
+#: src/components/modals/visual-explain/ExplainSummaryBar.tsx
+msgid "Total Cost"
+msgstr "Gesamtkosten"
+
+#: src/components/settings/LocalizationTab.tsx
+msgid "Translation updates"
+msgstr ""
+
+#: src/components/ui/JsonInput.tsx
+msgid "Tree"
+msgstr "Baum"
+
+#. placeholder {0}: formatBytes(stats.total_memory_bytes)
+#: src/pages/TaskManagerPage.tsx
+msgid "Tree total: {0}"
+msgstr "Baum-Gesamt: {0}"
+
+#: src/i18n/registries/quickNavigatorType.ts
+msgid "trigger"
+msgstr "Trigger"
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Trigger Body (SQL)"
+msgstr ""
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Trigger created successfully"
+msgstr ""
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Trigger Name"
+msgstr ""
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Trigger SQL is required"
+msgstr ""
+
+#: src/components/modals/TriggerEditorModal.tsx
+msgid "Trigger updated successfully"
+msgstr ""
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "Triggers"
+msgstr ""
+
+#: src/components/modals/ClipboardImportModal.tsx
+msgctxt "clipboardImport"
+msgid "Try again"
+msgstr "Erneut versuchen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgctxt "sidebar"
+msgid "Try again"
+msgstr "Erneut versuchen"
+
+#: src/components/modals/ClipboardImport/SchemaEditor.tsx
+#: src/components/modals/CreateTableModal.tsx
+#: src/components/modals/ModifyColumnModal.tsx
+#: src/components/modals/SchemaModal.tsx
+msgid "Type"
+msgstr "Typ"
+
+#: src/components/notebook/NotebookToolbar.tsx
+msgid "Undo"
+msgstr "Rückgängig"
+
+#: src/pages/Connections.tsx
+msgid "Ungrouped"
+msgstr "Ungruppiert"
+
+#: src/components/modals/CreateIndexModal.tsx
+msgid "Unique Index"
+msgstr "Eindeutiger Index"
+
+#: src/i18n/registries/taskManagerProcessStatus.ts
+msgid "unknown"
+msgstr "unbekannt"
+
+#: src/i18n/registries/aiActivityQueryKind.ts
+msgid "Unknown"
+msgstr "Unbekannt"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Unnamed connection"
+msgstr ""
+
+#: src/components/ui/TableToolbar.tsx
+msgid "Unset"
+msgstr "Nicht gesetzt"
+
+#: src/components/notebook/NotebookCellHeader.tsx
+#: src/components/notebook/NotebookView.tsx
+msgid "Untitled"
+msgstr "Ohne Titel"
+
+#: src/components/settings/PluginsTab.tsx
+msgid "Up to date"
+msgstr "Aktuell"
+
+#: src/components/modals/GenerateSQLModal.tsx
+msgid "Update"
+msgstr "UPDATE"
+
+#: src/components/settings/PluginsTab.tsx
+msgctxt "settings"
+msgid "Update"
+msgstr "Aktualisieren"
+
+#: src/components/modals/SshConnectionsModal.tsx
+msgctxt "sshConnections"
+msgid "Update"
+msgstr "Aktualisieren"
+
+#: src/components/modals/UpdateNotificationModal.tsx
+msgid "Update Error"
+msgstr "Update-Fehler"
+
+#: src/components/ui/DataGrid.tsx
+#: src/pages/Editor.tsx
+msgid "Update failed: "
+msgstr "Aktualisierung fehlgeschlagen: "
+
+#: src/components/settings/InfoTab.tsx
+#: src/components/settings/PluginsTab.tsx
+msgid "Updates"
+msgstr "Updates"
+
+#. placeholder {0}: ({ aur: "AUR", snap: "Snap Store", flatpak: "Flathub" } as Record<string, string>)[ installationSource ] ?? installationSource
+#: src/components/settings/InfoTab.tsx
+msgid "Updates managed by {0}"
+msgstr "Updates werden von {0} verwaltet"
+
+#: src/components/ui/BlobInput.tsx
+msgid "Upload File"
+msgstr "Datei hochladen"
+
+#: src/components/ui/BlobInput.tsx
+msgid "Uploading..."
+msgstr "Wird hochgeladen..."
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Use Existing SSH Connection"
+msgstr "Vorhandene SSH-Verbindung verwenden"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Use Kubernetes Port-Forward"
+msgstr "Kubernetes-Port-Forward verwenden"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Use SSH Tunnel"
+msgstr "SSH-Tunnel verwenden"
+
+#: src/components/settings/InfoTab.tsx
+msgid "Use your package manager to update Tabularis."
+msgstr "Verwende deinen Paketmanager, um Tabularis zu aktualisieren."
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Username"
+msgstr "Benutzername"
+
+#: src/components/modals/NewConnectionModal/AppearanceSection.tsx
+msgid "Using the driver's default icon."
+msgstr ""
+
+#: src/components/ui/JsonInput.tsx
+msgid "Valid JSON"
+msgstr "Gültiges JSON"
+
+#: src/components/notebook/ParamsPanel.tsx
+msgctxt "editor"
+msgid "value"
+msgstr "wert"
+
+#: src/components/ui/FilterRow.tsx
+msgctxt "toolbar"
+msgid "value"
+msgstr "Wert"
+
+#: src/components/modals/QueryParamsModal.tsx
+msgid "Value (e.g. 'text' or 123)"
+msgstr "Wert (z. B. 'Text' oder 123)"
+
+#: src/components/notebook/CellChart.tsx
+msgid "Values"
+msgstr "Werte"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Verify CA"
+msgstr "CA prüfen"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Verify Full"
+msgstr "Vollständig prüfen"
+
+#: src/components/modals/NewConnectionModal.tsx
+msgid "Verify Identity"
+msgstr ""
+
+#: src/components/modals/UpdateNotificationModal.tsx
+#: src/components/settings/InfoTab.tsx
+msgid "Version"
+msgstr "Version"
+
+#. placeholder {0}: entries[0].version
+#: src/components/modals/WhatsNewModal.tsx
+msgid "Version {0}"
+msgstr "Version {0}"
+
+#. placeholder {0}: updateInfo.latestVersion
+#: src/components/settings/InfoTab.tsx
+msgid "Version {0} is available"
+msgstr "Version {0} ist verfügbar"
+
+#: src/components/settings/GeneralTab.tsx
+#: src/components/ui/SchemaDiagram.tsx
+msgid "Vertical"
+msgstr "Vertikal"
+
+#: src/i18n/registries/quickNavigatorType.ts
+msgid "view"
+msgstr "View"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "View created successfully"
+msgstr "Ansicht erfolgreich erstellt"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgctxt "sidebar.viewDefinition"
+msgid "View Definition"
+msgstr "Ansichtsdefinition"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgctxt "sidebar.viewTriggerDefinition"
+msgid "View Definition"
+msgstr ""
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "View Definition (SQL)"
+msgstr "Ansichtsdefinition (SQL)"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "View definition is required"
+msgstr "Ansichtsdefinition ist erforderlich"
+
+#: src/components/settings/ai-activity/AiActivityEventsTab.tsx
+msgid "View details"
+msgstr "Details anzeigen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+msgid "View ER Diagram"
+msgstr "ER-Diagramm anzeigen"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "View Name"
+msgstr "Ansichtsname"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "View name is required"
+msgstr "Ansichtsname ist erforderlich"
+
+#: src/components/modals/UpdateNotificationModal.tsx
+msgid "View on GitHub"
+msgstr "Auf GitHub ansehen"
+
+#: src/components/layout/ExplorerSidebar.tsx
+msgid "View Schema"
+msgstr "Schema anzeigen"
+
+#: src/components/modals/ViewEditorModal.tsx
+msgid "View updated successfully"
+msgstr "Ansicht erfolgreich aktualisiert"
+
+#: src/components/layout/ExplorerSidebar.tsx
+#: src/components/layout/sidebar/SidebarDatabaseItem.tsx
+#: src/components/layout/sidebar/SidebarSchemaItem.tsx
+msgid "Views"
+msgstr "Ansichten"
+
+#: src/components/modals/VisualExplainModal.tsx
+#: src/components/notebook/NotebookAiButtons.tsx
+#: src/pages/Editor.tsx
+#: src/pages/VisualExplainPage.tsx
+msgid "Visual Explain"
+msgstr "Visual Explain"
+
+#: src/components/settings/LogsTab.tsx
+msgid "Warn"
+msgstr "Warnung"
+
+#: src/components/layout/sidebar/DiscordCommunityCallout.tsx
+msgid "We just launched a dedicated home for Tabularis users. Get help, share tips, shape the roadmap."
+msgstr "Wir haben einen eigenen Treffpunkt für Tabularis-Nutzer eröffnet: Hilfe, Tipps und Mitgestaltung der Roadmap."
+
+#: src/components/modals/WhatsNewModal.tsx
+#: src/components/settings/InfoTab.tsx
+msgid "What's New"
+msgstr "Neuigkeiten"
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "When a non-read MCP action needs approval, bring Tabularis to the front and keep it temporarily above other windows."
+msgstr ""
+
+#: src/pages/TaskManagerPage.tsx
+msgid "will forcefully stop its process. Any active database connections using this plugin will stop working until the plugin is restarted."
+msgstr "stoppt den Prozess sofort. Alle aktiven Datenbankverbindungen über dieses Plugin funktionieren erst wieder, wenn das Plugin neu gestartet wird."
+
+#: src/components/ui/GeometryInput.tsx
+msgid "WKT Mode"
+msgstr "WKT-Modus"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Word Wrap"
+msgstr "Zeilenumbruch"
+
+#: src/components/settings/AppearanceTab.tsx
+msgid "Wrap long lines in the editor instead of scrolling horizontally."
+msgstr "Lange Zeilen im Editor umbrechen statt horizontal zu scrollen."
+
+#: src/i18n/registries/aiActivityQueryKind.ts
+msgid "Write"
+msgstr "Schreiben"
+
+#: src/components/notebook/MarkdownCell.tsx
+msgid "Write Markdown here..."
+msgstr "Markdown hier schreiben..."
+
+#: src/components/modals/mcp/McpSafetySection.tsx
+msgid "Writes only"
+msgstr "Nur Schreibvorgänge"
+
+#: src/components/modals/SchemaModal.tsx
+msgid "YES"
+msgstr "JA"
+
+#: src/i18n/registries/sidebarDateGroups.ts
+msgid "Yesterday"
+msgstr "Gestern"
+
+#: src/components/settings/InfoTab.tsx
+msgid "You're up to date"
+msgstr "Du bist auf dem neuesten Stand"

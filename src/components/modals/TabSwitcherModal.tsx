@@ -1,5 +1,6 @@
+import { plural } from "@lingui/core/macro";
 import { useEffect, useRef } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { X, FileCode, Network, BookOpen } from "lucide-react";
 import { Table as TableIcon } from "lucide-react";
 import type { Tab } from "../../types/editor";
@@ -22,7 +23,7 @@ export const TabSwitcherModal = ({
   onClose,
   onDismiss,
 }: TabSwitcherModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,9 +52,9 @@ export const TabSwitcherModal = ({
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-default bg-base">
           <h2 className="text-sm font-semibold text-primary">
-            {t("editor.tabSwitcher.title")}
+            {t`Open Tabs`}
           </h2>
-          <span className="text-xs text-muted">{t("editor.tabSwitcher.hint")}</span>
+          <span className="text-xs text-muted">{t`Ctrl+Tab`}</span>
         </div>
 
         {/* Tab list */}
@@ -82,7 +83,7 @@ export const TabSwitcherModal = ({
                     onClose(tab.id);
                   }}
                   className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-surface-tertiary text-muted hover:text-primary transition-all shrink-0"
-                  title={t("editor.closeTab")}
+                  title={t`Close Tab`}
                 >
                   <X size={12} />
                 </button>
@@ -93,8 +94,8 @@ export const TabSwitcherModal = ({
 
         {/* Footer */}
         <div className="px-4 py-2 border-t border-default bg-base/50 flex justify-between text-xs text-muted">
-          <span>{t("editor.tabSwitcher.tabs", { count: tabs.length })}</span>
-          <span>{t("editor.tabSwitcher.escHint")}</span>
+          <span>{plural(tabs.length, { one: "# tab", other: "# tabs" })}</span>
+          <span>{t({ message: "Esc to close", context: "editor.tabSwitcher.escHint" })}</span>
         </div>
       </div>
     </div>

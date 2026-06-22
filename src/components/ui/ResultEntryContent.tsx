@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { DataGrid } from "./DataGrid";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { PaginationControls } from "./PaginationControls";
@@ -23,21 +23,21 @@ export function ResultEntryContent({
   onPageChange,
   compact,
 }: ResultEntryContentProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   if (entry.isLoading) {
     if (compact) {
       return (
         <div className="flex items-center gap-2 px-3 py-4 text-muted text-xs">
           <div className="w-3 h-3 border-2 border-surface-secondary border-t-blue-500 rounded-full animate-spin" />
-          <span>{t("editor.executingQuery")}</span>
+          <span>{t`Executing query...`}</span>
         </div>
       );
     }
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted">
         <div className="w-12 h-12 border-4 border-surface-secondary border-t-blue-500 rounded-full animate-spin mb-4" />
-        <p className="text-sm">{t("editor.executingQuery")}</p>
+        <p className="text-sm">{t`Executing query...`}</p>
       </div>
     );
   }
@@ -54,7 +54,7 @@ export function ResultEntryContent({
     if (compact) return null;
     return (
       <div className="flex items-center justify-center h-full text-surface-tertiary text-sm">
-        {t("editor.executePrompt")}
+        {t`Execute a query to see results`}
       </div>
     );
   }
@@ -86,9 +86,7 @@ export function ResultEntryContent({
       <div className="p-2 bg-elevated text-xs text-secondary border-b border-default flex justify-between items-center shrink-0">
         <div className="flex items-center gap-4">
           <span>
-            {t("editor.rowsRetrieved", {
-              count: entry.result.rows.length,
-            })}{" "}
+            {t`${entry.result.rows.length} rows retrieved`}{" "}
             {entry.executionTime !== null && (
               <span className="text-muted ml-2 font-mono">
                 ({formatDuration(entry.executionTime)})
@@ -97,7 +95,7 @@ export function ResultEntryContent({
           </span>
           {entry.result.pagination?.has_more && (
             <span className="px-2 py-0.5 bg-yellow-900/30 text-yellow-400 rounded text-[10px] font-semibold uppercase tracking-wide border border-yellow-500/30">
-              {t("editor.autoPaginated")}
+              {t`Auto paginated`}
             </span>
           )}
         </div>

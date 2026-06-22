@@ -110,7 +110,7 @@ describe("JsonInput", () => {
     });
 
     expect(onChange).not.toHaveBeenCalled();
-    expect(screen.getByText("jsonInput.invalid")).toBeInTheDocument();
+    expect(screen.getByText("Invalid JSON")).toBeInTheDocument();
   });
 
   it("emits parsed values when Raw mode edits produce valid JSON", () => {
@@ -124,7 +124,7 @@ describe("JsonInput", () => {
     });
 
     expect(onChange).toHaveBeenLastCalledWith({ a: 3 });
-    expect(screen.getByText("jsonInput.valid")).toBeInTheDocument();
+    expect(screen.getByText("Valid JSON")).toBeInTheDocument();
   });
 
   it("emits raw values from Tree mode edits", () => {
@@ -142,9 +142,9 @@ describe("JsonInput", () => {
 
     fireEvent.click(getTab("tree"));
 
-    expect(screen.queryByTitle("jsonInput.format")).not.toBeInTheDocument();
-    expect(screen.queryByText("jsonInput.valid")).not.toBeInTheDocument();
-    expect(screen.queryByText("jsonInput.invalid")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Format")).not.toBeInTheDocument();
+    expect(screen.queryByText("Valid JSON")).not.toBeInTheDocument();
+    expect(screen.queryByText("Invalid JSON")).not.toBeInTheDocument();
   });
 
   it("Format button pretty-prints minified JSON in Raw mode", () => {
@@ -156,7 +156,7 @@ describe("JsonInput", () => {
     const raw = screen.getByTestId("json-input-raw") as HTMLTextAreaElement;
     fireEvent.change(raw, { target: { value: '{"a":1,"b":2}' } });
 
-    fireEvent.click(screen.getByTitle("jsonInput.format"));
+    fireEvent.click(screen.getByTitle("Format"));
 
     expect(raw.value).toBe('{\n  "a": 1,\n  "b": 2\n}');
     expect(onChange).toHaveBeenLastCalledWith({ a: 1, b: 2 });
@@ -216,7 +216,7 @@ describe("JsonInput", () => {
     it("hides the Format button when readOnly", () => {
       render(<JsonInput value={{ a: 1 }} onChange={vi.fn()} readOnly />);
 
-      expect(screen.queryByTitle("jsonInput.format")).not.toBeInTheDocument();
+      expect(screen.queryByTitle("Format")).not.toBeInTheDocument();
     });
   });
 });

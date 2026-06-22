@@ -1,5 +1,5 @@
 import { useRef, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { X } from "lucide-react";
 import { FieldEditor } from "./FieldEditor";
 import { SlotAnchor } from "./SlotAnchor";
@@ -45,7 +45,7 @@ export const RowEditorSidebar = ({
   pkColumn,
   schema,
 }: RowEditorSidebarProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { width, startResize } = useRowEditorResize();
   const { editedData, updateField } = useRowEditor({
     initialData: rowData,
@@ -88,10 +88,8 @@ export const RowEditorSidebar = ({
         <button
           type="button"
           onMouseDown={startResize}
-          aria-label={t("rowEditor.resize", {
-            defaultValue: "Resize sidebar",
-          })}
-          title={t("rowEditor.resize", { defaultValue: "Resize sidebar" })}
+          aria-label={t`Resize sidebar`}
+          title={t`Resize sidebar`}
           className="absolute top-0 bottom-0 -left-1 w-2 cursor-col-resize group/resize z-10"
         >
           <span
@@ -104,10 +102,10 @@ export const RowEditorSidebar = ({
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div>
             <h2 className="text-lg font-semibold text-primary">
-              {t("rowEditor.title")}
+              {t`Edit Row`}
             </h2>
             <p className="text-xs text-secondary mt-0.5">
-              {t("rowEditor.subtitle", { row: rowIndex + 1 })}
+              {t`Row #${rowIndex + 1}`}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -162,7 +160,7 @@ export const RowEditorSidebar = ({
                   originalValue={originalRowData?.[column.name]}
                   detectJsonInTextColumns={detectJsonInTextColumns}
                   onChange={(newValue) => updateField(column.name, newValue)}
-                  placeholder={t("rowEditor.enterValue")}
+                  placeholder={t`Enter value...`}
                   isInsertion={isInsertion}
                   isAutoIncrement={autoIncrementColumns?.includes(column.name)}
                   hasDefault={defaultValueColumns?.includes(column.name)}

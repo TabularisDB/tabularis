@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Plus, X, Variable } from "lucide-react";
 import type { NotebookParam } from "../../types/notebook";
 import {
@@ -52,7 +52,7 @@ function AddParamForm({
 }: {
   onAdd: (name: string, value: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
@@ -61,7 +61,7 @@ function AddParamForm({
     const trimmedName = name.trim();
     if (!trimmedName) return;
     if (!validateParamName(trimmedName)) {
-      setError(t("editor.notebook.invalidParamName"));
+      setError(t`Invalid parameter name`);
       return;
     }
     onAdd(trimmedName, value);
@@ -80,7 +80,7 @@ function AddParamForm({
           setName(e.target.value);
           setError("");
         }}
-        placeholder={t("editor.notebook.paramName")}
+        placeholder={t`name`}
         className="w-24 text-[11px] bg-surface-secondary border border-strong rounded px-1.5 py-0.5 text-primary font-mono outline-none focus:border-blue-500"
         onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
       />
@@ -89,7 +89,7 @@ function AddParamForm({
         type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder={t("editor.notebook.paramValue")}
+        placeholder={t({ message: "value", context: "editor" })}
         className="flex-1 text-[11px] bg-surface-secondary border border-strong rounded px-1.5 py-0.5 text-primary font-mono outline-none focus:border-blue-500 min-w-0"
         onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
       />
@@ -110,7 +110,7 @@ function AddParamForm({
 }
 
 export function ParamsPanel({ params, onParamsChange }: ParamsPanelProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [isExpanded, setIsExpanded] = useState(params.length > 0);
 
   return (
@@ -122,7 +122,7 @@ export function ParamsPanel({ params, onParamsChange }: ParamsPanelProps) {
       >
         <Variable size={12} />
         <span className="font-semibold uppercase">
-          {t("editor.notebook.parameters")}
+          {t`Parameters`}
         </span>
         {params.length > 0 && (
           <span className="text-[9px] bg-surface-secondary rounded px-1 py-0.5">

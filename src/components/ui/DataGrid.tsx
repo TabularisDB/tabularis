@@ -1,3 +1,4 @@
+import { plural } from "@lingui/core/macro";
 import React, {
   useState,
   useEffect,
@@ -5,7 +6,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   useReactTable,
   getCoreRowModel,
@@ -146,7 +147,7 @@ export const DataGrid = React.memo(
     onSort,
     readonly: readonlyProp,
   }: DataGridProps) => {
-    const { t } = useTranslation();
+    const { t } = useLingui();
     const { activeSchema, connections } = useDatabase();
     const { showAlert } = useAlert();
 
@@ -268,7 +269,7 @@ export const DataGrid = React.memo(
 
     const buildRowLabel = useCallback(
       (rowData: unknown[], rowIndex: number, isInsertion: boolean): string => {
-        if (isInsertion) return t("dataGrid.newRow", { defaultValue: "NEW" });
+        if (isInsertion) return t`NEW`;
         if (pkColumn && pkIndexMap !== null) {
           const pkVal = rowData[pkIndexMap];
           if (pkVal !== null && pkVal !== undefined && pkVal !== "") {
@@ -610,8 +611,8 @@ export const DataGrid = React.memo(
           if (onRefresh) onRefresh();
         } catch (e) {
           console.error("Update failed:", e);
-          showAlert(t("dataGrid.updateFailed") + e, {
-            title: t("common.error"),
+          showAlert(t`Update failed: ` + e, {
+            title: t({ message: "Error", context: "common" }),
             kind: "error",
           });
         }
@@ -708,10 +709,10 @@ export const DataGrid = React.memo(
                   title={
                     onSort
                       ? displaySortState === "none"
-                        ? t("dataGrid.sortByAsc", { col: colName })
+                        ? t`Sort by ${colName} ASC`
                         : displaySortState === "asc"
-                          ? t("dataGrid.sortByDesc", { col: colName })
-                          : t("dataGrid.clearSort")
+                          ? t`Sort by ${colName} DESC`
+                          : t`Clear sort`
                       : undefined
                   }
                 >
@@ -1008,7 +1009,7 @@ export const DataGrid = React.memo(
           }
         })
         .catch((err) => {
-          showAlert(String(err), { title: t("general.error"), kind: "error" });
+          showAlert(String(err), { title: t({ message: "Error", context: "common" }), kind: "error" });
         });
     }, [
       contextMenu,
@@ -1025,12 +1026,10 @@ export const DataGrid = React.memo(
       async (text: string) => {
         try {
           await copyTextToClipboard(text);
-          // Optional: show a brief success message
-          // showAlert(t("dataGrid.copied"), { title: t("common.success"), kind: "info" });
         } catch (e) {
           console.error("Copy failed:", e);
-          showAlert(t("common.error") + ": " + e, {
-            title: t("common.error"),
+          showAlert(t({ message: "Error", context: "common" }) + ": " + e, {
+            title: t({ message: "Error", context: "common" }),
             kind: "error",
           });
         }
@@ -1215,7 +1214,7 @@ export const DataGrid = React.memo(
     if (columns.length === 0) {
       return (
         <div className="h-full flex items-center justify-center text-muted">
-          {t("dataGrid.noData")}
+          {t`No data to display`}
         </div>
       );
     }
@@ -1352,21 +1351,21 @@ export const DataGrid = React.memo(
                 // SET GENERATED only for insertion rows, not for existing rows
                 if (isAutoIncrement && isInsertion) {
                   menuItems.push({
-                    label: t("dataGrid.setGenerate"),
+                    label: t`Set GENERATED`,
                     icon: Sparkles,
                     action: setCellGenerate,
                   });
                 }
                 if (isNullable) {
                   menuItems.push({
-                    label: t("dataGrid.setNull"),
+                    label: t`Set NULL`,
                     icon: Ban,
                     action: setCellNull,
                   });
                 }
                 if (hasDefault) {
                   menuItems.push({
-                    label: t("dataGrid.setDefault"),
+                    label: t`Set DEFAULT`,
                     icon: FileDigit,
                     action: setCellDefault,
                   });
@@ -1375,21 +1374,21 @@ export const DataGrid = React.memo(
                 const colDataType = columnTypeMap?.get(colName) ?? "";
                 if (!isBlobColumn(colDataType, columnLengthMap?.get(colName))) {
                   menuItems.push({
-                    label: t("dataGrid.setEmpty"),
+                    label: t`Set EMPTY`,
                     icon: Copy,
                     action: setCellEmpty,
                   });
                 }
                 if (getDateInputMode(colDataType) !== null) {
                   menuItems.push({
-                    label: t("dataGrid.setServerNow"),
+                    label: t`Insert Current Timestamp`,
                     icon: Clock,
                     action: setCellServerNow,
                   });
                 }
                 if (isJsonColumn(colDataType)) {
                   menuItems.push({
-                    label: t("contextMenu.openJsonEditor"),
+                    label: t`Open in JSON Editor`,
                     icon: Braces,
                     action: openJsonEditor,
                   });
@@ -1412,7 +1411,7 @@ export const DataGrid = React.memo(
               if (fkForContextPreview) {
                 if (onForeignKeyShowPanel) {
                   menuItems.push({
-                    label: t("dataGrid.previewReferenced"),
+                    label: t`Preview related record`,
                     icon: PanelBottomOpen,
                     action: () => {
                       setFocusedCell({
@@ -1430,9 +1429,7 @@ export const DataGrid = React.memo(
                 }
                 if (onForeignKeyNavigate) {
                   menuItems.push({
-                    label: t("dataGrid.openReferenced", {
-                      table: fkForContextPreview.ref_table,
-                    }),
+                    label: t`Open referenced row in ${fkForContextPreview.ref_table}`,
                     icon: ExternalLink,
                     action: () => {
                       onForeignKeyNavigate(
@@ -1449,13 +1446,13 @@ export const DataGrid = React.memo(
               }
 
               menuItems.push({
-                label: t("dataGrid.copyCell"),
+                label: t`Copy Cell`,
                 icon: Copy,
                 action: copyCellFromContext,
               });
 
               menuItems.push({
-                label: t("dataGrid.copySelectedRows"),
+                label: t`Copy selected row(s)`,
                 icon: Copy,
                 action: copySelectedOrContextRow,
               });
@@ -1463,25 +1460,25 @@ export const DataGrid = React.memo(
               if (!readonlyProp) {
                 menuItems.push(
                   {
-                    label: t("contextMenu.openSidebar"),
+                    label: t`Open Sidebar Editor`,
                     icon: Edit,
                     action: openSidebarEditor,
                   },
                   {
-                    label: t("dataGrid.duplicateRow"),
+                    label: t`Duplicate Row`,
                     icon: CopyPlus,
                     action: duplicateSelectedRow,
                   },
                   {
                     label: deleteRowCount > 1
-                      ? t("dataGrid.deleteRows", { count: deleteRowCount })
-                      : t("dataGrid.deleteRow"),
+                      ? plural(deleteRowCount, { one: "Delete # row", other: "Delete # rows" })
+                      : t`Delete Row`,
                     icon: Trash2,
                     danger: true,
                     action: deleteSelectedRow,
                   },
                   {
-                    label: t("dataGrid.revertSelected"),
+                    label: t`Revert Selected`,
                     icon: Undo,
                     action: revertSelectedRow,
                     disabled: !canRevert,
@@ -1522,17 +1519,17 @@ export const DataGrid = React.memo(
               onClose={() => setHeaderContextMenu(null)}
               items={[
                 {
-                  label: t("dataGrid.copyColumnName"),
+                  label: t`Copy column name`,
                   icon: Copy,
                   action: copyHeaderName,
                 },
                 {
-                  label: t("dataGrid.copyColumnNameQuoted"),
+                  label: t({ message: "Copy as `column`" }),
                   icon: Copy,
                   action: copyHeaderNameQuoted,
                 },
                 {
-                  label: t("dataGrid.copyColumnNameTable"),
+                  label: t`Copy as table.column`,
                   icon: Copy,
                   action: copyHeaderNameTable,
                 },

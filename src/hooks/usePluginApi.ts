@@ -2,7 +2,7 @@ import { useState, useCallback, useContext, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import { openUrl as openExternal } from "@tauri-apps/plugin-opener";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react";
 
 import { ThemeContext } from "../contexts/ThemeContext";
 import { DatabaseContext } from "../contexts/DatabaseContext";
@@ -10,6 +10,7 @@ import { SettingsContext } from "../contexts/SettingsContext";
 import { PluginModalContext } from "../contexts/PluginModalContext";
 import type { PluginModalOptions } from "../contexts/PluginModalContext";
 import { toErrorMessage } from "../utils/errors";
+import { translatePlugin } from "../i18n/pluginI18n";
 
 /**
  * Hook for plugin components to execute read-only database queries.
@@ -143,13 +144,21 @@ export function usePluginSetting(pluginId: string) {
 }
 
 /**
- * Hook for plugin components to access their own translations.
- * Uses the plugin ID as the i18next namespace, which must be pre-loaded
- * by the Tabularis plugin loader before the component mounts.
+ * Hook for plugin components to access their own translations. Returns a
+ * `PluginTranslator` — `(key, options?) => string` — with the same behaviour
+ * plugins have always relied on: keys are scoped to this plugin, missing keys
+ * fall back to the key itself, and `{{var}}` placeholders interpolate from
+ * `options`. The plugin's `locales/<lang>.json` is loaded by the host before the
+ * component mounts. Re-renders on locale change (reads the active Lingui locale).
  */
 export function usePluginTranslation(pluginId: string) {
-  const { t } = useTranslation(pluginId);
-  return t;
+  const { i18n } = useLingui();
+  const locale = i18n.locale;
+  return useCallback(
+    (key: string, options?: Record<string, unknown>) =>
+      translatePlugin(pluginId, locale, key, options),
+    [pluginId, locale],
+  );
 }
 
 /**

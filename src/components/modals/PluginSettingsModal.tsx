@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
+import { pluginBuiltinSettings } from "../../i18n/registries/pluginBuiltinSettings";
 import { Settings, X, FolderOpen, RotateCcw } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Modal } from "../ui/Modal";
@@ -27,7 +28,7 @@ export const PluginSettingsModal = ({
   manifest,
   onSave,
 }: PluginSettingsModalProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const [interpreter, setInterpreter] = useState(getDisplayInterpreter(currentConfig));
 
   const definitions = manifest?.settings ?? [];
@@ -38,23 +39,24 @@ export const PluginSettingsModal = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const getSettingLabel = useCallback(
-    (def: PluginSettingDefinition) =>
-      t(
-        `settings.plugins.pluginSettings.builtin.${pluginId}.${def.key}.label`,
-        { defaultValue: def.label },
-      ),
-    [pluginId, t],
+    (def: PluginSettingDefinition) => {
+      const descriptor =
+        pluginBuiltinSettings[`${pluginId}.${def.key}.label`];
+      return descriptor ? i18n._(descriptor) : def.label;
+    },
+    [pluginId, i18n],
   );
 
   const getSettingDescription = useCallback(
-    (def: PluginSettingDefinition) =>
-      def.description
-        ? t(
-            `settings.plugins.pluginSettings.builtin.${pluginId}.${def.key}.description`,
-            { defaultValue: def.description },
-          )
-        : undefined,
-    [pluginId, t],
+    (def: PluginSettingDefinition) => {
+      if (!def.description) {
+        return undefined;
+      }
+      const descriptor =
+        pluginBuiltinSettings[`${pluginId}.${def.key}.description`];
+      return descriptor ? i18n._(descriptor) : def.description;
+    },
+    [pluginId, i18n],
   );
 
   const handleBrowse = async () => {
@@ -85,7 +87,7 @@ export const PluginSettingsModal = ({
     if (Object.keys(validationErrors).length > 0) {
       const errorMessages: Record<string, string> = {};
       for (const [key, label] of Object.entries(validationErrors)) {
-        errorMessages[key] = t("settings.plugins.pluginSettings.fieldRequired", { label });
+        errorMessages[key] = t`${label} is required`;
       }
       setErrors(errorMessages);
       return;
@@ -114,8 +116,8 @@ export const PluginSettingsModal = ({
         onClick={() => handleResetField(def)}
         disabled={isDefaultValue}
         className="inline-flex items-center justify-center w-8 h-8 border border-default rounded-md text-muted hover:text-primary hover:border-strong disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
-        title={t("settings.plugins.pluginSettings.resetToDefault")}
-        aria-label={t("settings.plugins.pluginSettings.resetToDefault")}
+        title={t`Reset to default`}
+        aria-label={t`Reset to default`}
       >
         <RotateCcw size={12} />
       </button>
@@ -189,7 +191,7 @@ export const PluginSettingsModal = ({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
-                {t("settings.plugins.pluginSettings.title")}
+                {t`Plugin Settings`}
               </h2>
               <p className="text-xs text-secondary font-mono">{pluginId}</p>
             </div>
@@ -204,16 +206,16 @@ export const PluginSettingsModal = ({
           {/* Interpreter */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-primary">
-              {t("settings.plugins.pluginSettings.interpreter")}
+              {t`Interpreter`}
             </label>
             <p className="text-xs text-secondary">
-              {t("settings.plugins.pluginSettings.interpreterDesc")}
+              {t`Optional. Specify the executable used to run this plugin (e.g. python3 on macOS/Linux, python or a full path on Windows). Leave blank to use the default.`}
             </p>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={interpreter}
-                placeholder={t("settings.plugins.pluginSettings.interpreterPlaceholder")}
+                placeholder={t`e.g. python3`}
                 onChange={(e) => setInterpreter(e.target.value)}
                 className="flex-1 bg-base border border-default rounded-lg px-3 py-2 text-sm text-primary placeholder:text-muted focus:outline-none focus:border-blue-500/50"
                 autoFocus
@@ -223,7 +225,7 @@ export const PluginSettingsModal = ({
                 className="flex items-center gap-1.5 px-3 py-2 bg-surface-secondary hover:bg-surface-tertiary border border-default rounded-lg text-sm text-secondary hover:text-primary transition-colors"
               >
                 <FolderOpen size={15} />
-                {t("settings.plugins.pluginSettings.browse")}
+                {t`Browse...`}
               </button>
             </div>
           </div>
@@ -259,13 +261,13 @@ export const PluginSettingsModal = ({
             onClick={onClose}
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
-            {t("common.cancel")}
+            {t`Cancel`}
           </button>
           <button
             onClick={handleSave}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
           >
-            {t("common.save")}
+            {t`Save`}
           </button>
         </div>
       </div>

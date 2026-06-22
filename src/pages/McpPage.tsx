@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import clsx from "clsx";
 import Editor from "@monaco-editor/react";
 import {
@@ -61,7 +61,7 @@ const ClientIcon = ({
 };
 
 export function McpPage() {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [tab, setTab] = useState<McpPageTab>("setup");
 
   const tabs: Array<{
@@ -69,9 +69,9 @@ export function McpPage() {
     icon: React.ComponentType<{ size: number }>;
     label: string;
   }> = [
-    { id: "setup", icon: Cpu, label: t("mcp.tabs.setup") },
-    { id: "activity", icon: Activity, label: t("mcp.tabs.activity") },
-    { id: "safety", icon: ShieldCheck, label: t("mcp.tabs.safety") },
+    { id: "setup", icon: Cpu, label: t`Setup` },
+    { id: "activity", icon: Activity, label: t`Activity` },
+    { id: "safety", icon: ShieldCheck, label: t`Safety` },
   ];
 
   return (
@@ -84,13 +84,13 @@ export function McpPage() {
             </div>
             <div className="min-w-0">
               <h1 className="text-xl font-semibold text-primary">
-                {t("mcp.title")}
+                {t`MCP Server Integration`}
               </h1>
-              <p className="mt-1 text-sm text-muted">{t("mcp.subtitle")}</p>
+              <p className="mt-1 text-sm text-muted">{t`Connect Tabularis to Claude Desktop, Cursor, and more`}</p>
             </div>
           </div>
           <p className="max-w-3xl text-sm leading-relaxed text-secondary">
-            {t("mcp.description")}
+            {t`The Model Context Protocol (MCP) allows AI assistants (like Claude) to connect to your local tools. Tabularis exposes an MCP server that lets AI read your database schema and execute queries safely.`}
           </p>
         </header>
 
@@ -125,7 +125,7 @@ export function McpPage() {
 }
 
 function McpSetupPanel() {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const editorTheme = useEditorTheme();
   const { showAlert } = useAlert();
   const [clients, setClients] = useState<McpClientStatus[]>([]);
@@ -190,13 +190,13 @@ function McpSetupPanel() {
       const clientName = await invoke<string>("install_mcp_config", {
         clientId,
       });
-      showAlert(t("mcp.successMsg", { client: clientName }), {
+      showAlert(t`Configuration installed successfully for ${clientName}! Restart the app to apply.`, {
         kind: "info",
-        title: t("mcp.successTitle"),
+        title: t({ message: "Success", context: "mcp" }),
       });
       await loadStatus();
     } catch (e) {
-      showAlert(String(e), { kind: "error", title: t("mcp.errorTitle") });
+      showAlert(String(e), { kind: "error", title: t({ message: "Installation Failed", context: "mcp" }) });
     }
   };
 
@@ -205,7 +205,7 @@ function McpSetupPanel() {
   if (loading) {
     return (
       <div className="rounded-lg border border-default bg-surface-secondary/25 py-12 text-center text-sm text-muted">
-        {t("mcp.checking")}
+        {t`Checking configuration...`}
       </div>
     );
   }
@@ -214,7 +214,7 @@ function McpSetupPanel() {
     <div className="grid gap-4 lg:grid-cols-[minmax(280px,420px)_minmax(0,1fr)]">
       <section className="space-y-2">
         <h2 className="text-xs font-bold uppercase text-muted">
-          {t("mcp.clients")}
+          {t`AI CLIENTS`}
         </h2>
         <div className="space-y-2">
           {clients.map((client) => (
@@ -240,14 +240,14 @@ function McpSetupPanel() {
                     )}
                   </div>
                   <div className="mt-0.5 truncate font-mono text-xs text-muted">
-                    {client.config_path ?? t("mcp.notFound")}
+                    {client.config_path ?? t`Config file not found (create manually)`}
                   </div>
                 </div>
               </div>
               {client.installed ? (
                 <div className="ml-3 flex shrink-0 items-center gap-2 rounded-full border border-green-900/50 bg-green-900/20 px-3 py-1 text-xs font-medium text-green-400">
                   <Check size={12} />
-                  <span>{t("mcp.installed")}</span>
+                  <span>{t({ message: "Installed", context: "mcp" })}</span>
                 </div>
               ) : (
                 <button
@@ -257,7 +257,7 @@ function McpSetupPanel() {
                   }}
                   className="ml-3 shrink-0 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-lg shadow-blue-900/20 transition-colors hover:bg-blue-500"
                 >
-                  {t("mcp.install")}
+                  {t`Install Config`}
                 </button>
               )}
             </button>
@@ -269,7 +269,7 @@ function McpSetupPanel() {
         {selectedClient && !selectedClient.installed ? (
           <>
             <h2 className="text-xs font-bold uppercase text-muted">
-              {isCommandClient ? t("mcp.manualCommand") : t("mcp.manualConfig")}
+              {isCommandClient ? t`MANUAL COMMAND` : t`MANUAL CONFIGURATION`}
               {" - "}
               {selectedClient.client_name}
             </h2>
@@ -331,12 +331,12 @@ function McpSetupPanel() {
               </div>
             )}
             <p className="text-xs text-muted">
-              {isCommandClient ? t("mcp.manualCommandText") : t("mcp.manualText")}
+              {isCommandClient ? t`Run this command in your terminal, then restart Claude Code.` : t`Add this to your client config file manually if automatic install fails.`}
             </p>
           </>
         ) : (
           <div className="flex min-h-[240px] items-center justify-center rounded-lg border border-default bg-surface-secondary/20 p-6 text-center text-sm text-muted">
-            {t("mcp.installed")}
+            {t({ message: "Installed", context: "mcp" })}
           </div>
         )}
       </section>

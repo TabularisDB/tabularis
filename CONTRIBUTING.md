@@ -24,6 +24,7 @@ All types of contributions are encouraged and valued. See the [Table of Contents
   - [Suggesting Enhancements](#suggesting-enhancements)
   - [Your First Code Contribution](#your-first-code-contribution)
   - [Improving The Documentation](#improving-the-documentation)
+  - [Translations](#translations)
 - [Styleguides](#styleguides)
   - [Commit Messages](#commit-messages)
 - [Join The Project Team](#join-the-project-team)
@@ -153,6 +154,23 @@ include Setup of env, IDE and typical getting started instructions?
 Updating, improving and correcting the documentation
 
 -->
+
+### Translations
+
+Tabularis is localized with [Lingui](https://lingui.dev), and the source language is English.
+
+**For code contributors — you don't have to translate anything.** Just wrap every user-facing string in a Lingui macro and write it in English:
+
+```tsx
+import { useLingui } from "@lingui/react/macro";
+
+const { t } = useLingui();
+return <button>{t`Add Connection`}</button>;
+```
+
+`pnpm tauri dev` regenerates the catalogs (`src/locales/<lng>/messages.po` and the compiled `messages.ts`) automatically on save, so you never edit them by hand — commit the regenerated catalogs alongside your change. If you forget, CI regenerates and commits them on your PR. Strings without a translation fall back to English. After extracting you _may_ fill in other locales' `.po` files, but it is entirely optional; leave them and a translator (or the maintainers) will.
+
+**For translators.** Translations live in [Tolgee](https://tolgee.io), not in the repository: source strings are pushed there, translated, reviewed, and delivered to the app over the air — so a corrected translation reaches users without waiting for a release. You never need to touch `.po` files or open a PR to translate. If you'd like to help translate Tabularis, or want a new language added, open an [issue](https://github.com/TabularisDB/tabularis/issues) or ping us on [Discord](https://discord.com/invite/K2hmhfHRSt) and we'll get you set up.
 
 ## Styleguides
 

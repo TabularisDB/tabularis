@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   Search,
   Loader2,
@@ -47,7 +47,7 @@ export function NotebooksSection({
   onRename,
   onDelete,
 }: NotebooksSectionProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings } = useSettings();
   const { showAlert } = useAlert();
   const [notebooks, setNotebooks] = useState<NotebookMetadata[]>([]);
@@ -143,9 +143,9 @@ export function NotebooksSection({
       });
       if (!target) return;
       await writeTextFile(target, JSON.stringify(file, null, 2));
-      showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      showAlert(t`Notebook exported successfully`, { kind: "info" });
     } catch (e) {
-      showAlert(String(e), { kind: "error", title: t("common.error") });
+      showAlert(String(e), { kind: "error", title: t({ message: "Error", context: "common" }) });
     }
   };
 
@@ -161,9 +161,9 @@ export function NotebooksSection({
       });
       if (!target) return;
       await writeTextFile(target, html);
-      showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      showAlert(t`Notebook exported successfully`, { kind: "info" });
     } catch (e) {
-      showAlert(String(e), { kind: "error", title: t("common.error") });
+      showAlert(String(e), { kind: "error", title: t({ message: "Error", context: "common" }) });
     }
   };
 
@@ -184,38 +184,38 @@ export function NotebooksSection({
         { cells, params, stopOnError },
         connectionId,
       );
-      showAlert(t("editor.notebook.importSuccess"), { kind: "info" });
+      showAlert(t`Notebook imported successfully`, { kind: "info" });
       // createNotebookFromState emits NOTEBOOKS_CHANGED_EVENT → reload().
       onOpen({ id: notebookId, title });
     } catch {
-      showAlert(t("editor.notebook.invalidFile"), { kind: "error" });
+      showAlert(t`Invalid notebook file format`, { kind: "error" });
     }
   };
 
   const contextMenuItems = (nb: NotebookMetadata): ContextMenuItem[] => [
     {
-      label: t("sidebar.notebooks.rename"),
+      label: t`Rename`,
       icon: Pencil,
       action: () => startRename(nb),
     },
     {
-      label: t("editor.notebook.export"),
+      label: t`Export Notebook`,
       icon: Download,
       action: () => handleExport(nb),
     },
     {
-      label: t("editor.notebook.exportHtml"),
+      label: t`Export as HTML`,
       icon: FileCode,
       action: () => handleExportHtml(nb),
     },
     {
-      label: t("editor.notebook.import"),
+      label: t`Import Notebook`,
       icon: Upload,
       action: () => handleImport(),
     },
     { separator: true },
     {
-      label: t("sidebar.notebooks.delete"),
+      label: t({ message: "Delete", context: "sidebar" }),
       icon: Trash2,
       danger: true,
       action: () => setPendingDelete(nb),
@@ -234,7 +234,7 @@ export function NotebooksSection({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("sidebar.notebooks.search")}
+            placeholder={t`Search notebooks`}
             className="w-full pl-6 pr-2 py-1 text-xs bg-surface-secondary border border-default rounded text-primary placeholder:text-muted focus:outline-none focus:border-blue-500/50"
           />
         </div>
@@ -242,14 +242,14 @@ export function NotebooksSection({
           onClick={handleImport}
           disabled={!connectionId}
           className="p-1.5 text-muted hover:text-secondary rounded transition-colors shrink-0 disabled:opacity-40"
-          title={t("editor.notebook.import")}
+          title={t`Import Notebook`}
         >
           <Upload size={12} />
         </button>
         <button
           onClick={reload}
           className="p-1.5 text-muted hover:text-secondary rounded transition-colors shrink-0"
-          title={t("sidebar.notebooks.refresh")}
+          title={t`Refresh`}
         >
           <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} />
         </button>
@@ -261,11 +261,11 @@ export function NotebooksSection({
         </div>
       ) : notebooks.length === 0 ? (
         <div className="text-center p-4 text-xs text-muted italic">
-          {t("sidebar.notebooks.empty")}
+          {t`No saved notebooks yet.`}
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center p-2 text-xs text-muted italic">
-          {t("sidebar.notebooks.noSearchResults")}
+          {t`No notebooks match your search.`}
         </div>
       ) : (
         filtered.map((nb) => (
@@ -291,7 +291,7 @@ export function NotebooksSection({
                   if (e.key === "Enter") commitRename();
                   if (e.key === "Escape") setEditingId(null);
                 }}
-                placeholder={t("sidebar.notebooks.renamePlaceholder")}
+                placeholder={t`Notebook name`}
                 className="w-full px-1.5 py-0.5 text-[13px] bg-base border border-blue-500/50 rounded text-primary focus:outline-none"
               />
             ) : (
@@ -328,10 +328,8 @@ export function NotebooksSection({
       <ConfirmModal
         isOpen={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
-        title={t("sidebar.notebooks.delete")}
-        message={t("sidebar.notebooks.deleteConfirm", {
-          title: pendingDelete?.title ?? "",
-        })}
+        title={t({ message: "Delete", context: "sidebar" })}
+        message={t`Delete notebook "${pendingDelete?.title ?? ""}"? This cannot be undone.`}
         onConfirm={confirmDelete}
         variant="danger"
       />

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.tolgee.io/cli-schema.json",
+  "apiUrl": "https://app.tolgee.io",
+  "projectId": 32587,
+  "format": "PO_ICU",
+  "patterns": [
+    "./src/**/*.ts?(x)"
+  ],
+  "push": {
+    "files": [
+      {
+        "path": "src/locales/en/messages.po",
+        "language": "en"
+      },
+      {
+        "path": "src/locales/de/messages.po",
+        "language": "de"
+      },
+      {
+        "path": "src/locales/es/messages.po",
+        "language": "es"
+      },
+      {
+        "path": "src/locales/fr/messages.po",
+        "language": "fr"
+      },
+      {
+        "path": "src/locales/it/messages.po",
+        "language": "it"
+      },
+      {
+        "path": "src/locales/ja/messages.po",
+        "language": "ja"
+      },
+      {
+        "path": "src/locales/ru/messages.po",
+        "language": "ru"
+      },
+      {
+        "path": "src/locales/zh/messages.po",
+        "language": "zh"
+      }
+    ],
+    "forceMode": "KEEP"
+  }
+}

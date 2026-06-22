@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   AlertTriangle,
   BookOpenText,
@@ -30,7 +30,7 @@ export function ExplainOverviewBar({
   plan,
   onSelectNode,
 }: ExplainOverviewBarProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const summary = useMemo(() => getExplainPlanSummary(plan), [plan]);
   const legend = useMemo(() => getExplainDriverLegend(plan), [plan]);
   const [overviewExpanded, setOverviewExpanded] = useState(true);
@@ -38,7 +38,7 @@ export function ExplainOverviewBar({
   const findings = [
     summary.highestCostNode && {
       key: "highest-cost",
-      label: t("editor.visualExplain.highestCost"),
+      label: t`Highest Cost`,
       value: formatCost(summary.highestCostNode.value),
       description: formatNodeLabel(
         summary.highestCostNode.nodeType,
@@ -50,7 +50,7 @@ export function ExplainOverviewBar({
     },
     summary.slowestNode && {
       key: "slowest-step",
-      label: t("editor.visualExplain.slowestStep"),
+      label: t`Slowest Step`,
       value: formatTime(summary.slowestNode.value),
       description: formatNodeLabel(
         summary.slowestNode.nodeType,
@@ -62,31 +62,30 @@ export function ExplainOverviewBar({
     },
     summary.largestRowMismatchNode?.ratio != null && {
       key: "estimate-gap",
-      label: t("editor.visualExplain.largestEstimateGap"),
+      label: t`Estimate Gap`,
       value: formatRatio(summary.largestRowMismatchNode.value),
-      description: t(
+      description:
         summary.largestRowMismatchNode.ratio >= 1
-          ? "editor.visualExplain.overEstimate"
-          : "editor.visualExplain.underEstimate",
-      ),
+          ? t`Actual rows exceed estimate`
+          : t`Estimate exceeds actual rows`,
       nodeId: summary.largestRowMismatchNode.nodeId,
       icon: AlertTriangle,
       tone: "red" as const,
     },
     summary.sequentialScans > 0 && {
       key: "sequential-scans",
-      label: t("editor.visualExplain.sequentialScans"),
+      label: t`Sequential Scans`,
       value: String(summary.sequentialScans),
-      description: t("editor.visualExplain.scanOperations"),
+      description: t`Scan-heavy operations detected`,
       nodeId: summary.highestCostNode?.nodeId ?? plan.root.id,
       icon: ScanSearch,
       tone: "amber" as const,
     },
     summary.tempOperations > 0 && {
       key: "temp-operations",
-      label: t("editor.visualExplain.tempOperations"),
+      label: t`Temp or Sort Ops`,
       value: String(summary.tempOperations),
-      description: t("editor.visualExplain.sortOrTempOperations"),
+      description: t`Sort or temp work detected`,
       nodeId: summary.slowestNode?.nodeId ?? plan.root.id,
       icon: Database,
       tone: "purple" as const,
@@ -105,20 +104,20 @@ export function ExplainOverviewBar({
           </div>
           <div className="min-w-0 text-left">
             <div className="text-[11px] uppercase tracking-[0.14em] text-muted font-semibold">
-              {t("editor.visualExplain.overview")}
+              {t`Overview`}
             </div>
             <div className="text-xs text-secondary">
-              {findings.length} {t("editor.visualExplain.topIssues").toLowerCase()}
+              {findings.length} {t`Top Issues`.toLowerCase()}
               {legend.length > 0
-                ? ` • ${legend.length} ${t("editor.visualExplain.driverNotes").toLowerCase()}`
+                ? ` • ${legend.length} ${t`Driver Notes`.toLowerCase()}`
                 : ""}
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2 text-[11px] text-muted">
             <span>
               {overviewExpanded
-                ? t("editor.visualExplain.hideOverview")
-                : t("editor.visualExplain.showOverview")}
+                ? t`Hide overview`
+                : t`Show overview`}
             </span>
             {overviewExpanded ? (
               <ChevronDown size={14} />
@@ -133,7 +132,7 @@ export function ExplainOverviewBar({
             <div className="flex flex-wrap gap-2">
               {findings.length === 0 ? (
                 <div className="text-xs text-secondary">
-                  {t("editor.visualExplain.noIssues")}
+                  {t`No major issues detected in the current plan summary.`}
                 </div>
               ) : (
                 findings.map((finding) => {
@@ -177,17 +176,17 @@ export function ExplainOverviewBar({
                     <BookOpenText size={13} />
                   </div>
                   <span className="text-[11px] uppercase tracking-[0.14em] text-muted font-semibold">
-                    {t("editor.visualExplain.driverNotes")}
+                    {t`Driver Notes`}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                  {legend.map((entry) => (
+                  {legend.map((entry, idx) => (
                     <div
-                      key={entry}
+                      key={idx}
                       className="flex items-start gap-2 text-xs text-secondary leading-relaxed max-w-[720px]"
                     >
                       <span className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400/80" />
-                      <span>{t(entry)}</span>
+                      <span>{i18n._(entry)}</span>
                     </div>
                   ))}
                 </div>

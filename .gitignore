@@ -33,3 +33,6 @@ plugins/**/target
 .gitnexus
 .pi/
 .atl/
+
+# Lingui: never commit CJS compile output (we ship the --typescript ES catalogs)
+src/locales/**/*.js

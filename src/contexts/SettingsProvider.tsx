@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import {
   SettingsContext,
@@ -7,6 +6,20 @@ import {
   type Settings,
 } from "./SettingsContext";
 import { getFontCSS } from "../utils/settings";
+import { dynamicActivate, SUPPORTED_LANGUAGES, i18n } from "../i18n/lingui";
+
+// Resolve the "auto" language setting to a supported locale via the browser
+// language, falling back to English.
+function resolveLocale(language: string): string {
+  if (language !== "auto") {
+    return language;
+  }
+  const ids = SUPPORTED_LANGUAGES.map((l) => l.id) as readonly string[];
+  const preferred = (navigator.languages ?? [navigator.language])
+    .map((tag) => tag.split("-")[0])
+    .find((base) => ids.includes(base));
+  return preferred ?? "en";
+}
 
 const LANGUAGE_APPLICATION_TIMEOUT_MS = 3000;
 
@@ -36,7 +49,6 @@ function matchesAppliedLanguage(
 }
 
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
-  const { i18n } = useTranslation();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const [languageState, setLanguageState] = useState<LanguageState>({
@@ -50,9 +62,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const languageQueueRef = useRef(Promise.resolve(false));
 
   const isLanguageApplied = useCallback((language: Settings["language"]) => {
-    const activeLanguage = i18n.resolvedLanguage ?? i18n.language;
-    return matchesAppliedLanguage(activeLanguage, language);
-  }, [i18n.language, i18n.resolvedLanguage]);
+    return matchesAppliedLanguage(i18n.locale, language);
+  }, [i18n.locale]);
 
   const queueLanguageApplication = useCallback((language: Settings["language"]) => {
     if (
@@ -72,7 +83,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
           return false;
         }
 
-        const nextLanguage = language === "auto" ? undefined : language;
+        const targetLocale = resolveLocale(language);
 
         try {
           await new Promise<void>((resolve, reject) => {
@@ -82,7 +93,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
               ));
             }, LANGUAGE_APPLICATION_TIMEOUT_MS);
 
-            Promise.resolve(i18n.changeLanguage(nextLanguage)).then(
+            Promise.resolve(dynamicActivate(targetLocale)).then(
               () => {
                 clearTimeout(timeoutId);
                 resolve();
@@ -113,7 +124,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       });
 
     return languageQueueRef.current;
-  }, [i18n]);
+  }, []);
 
   const currentLanguageApplied = isLanguageApplied(settings.language);
   const trackedLanguageState =

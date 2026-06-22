@@ -1,5 +1,6 @@
 import React from "react";
 import { ExternalLink } from "lucide-react";
+import type { LinguiT } from "../../i18n/lingui";
 import {
   formatCellValue,
   resolveInsertionCellDisplay,
@@ -41,7 +42,7 @@ export interface RowCtx {
   columnLengthMap: Map<string, number | undefined> | null;
   isJsonCellTarget: (colType: string | undefined, value: unknown) => boolean;
   fksByColumn: Map<string, ForeignKey>;
-  t: (key: string, opts?: Record<string, unknown>) => string;
+  t: LinguiT;
   mergedRows: MergedRow[];
   pkIndexMap: number | null;
   parentViewportWidth: number;
@@ -304,7 +305,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
           // the rendered content (previously formatted twice).
           const formattedDisplay = formatCellValue(
             displayValue,
-            t("dataGrid.null"),
+            t`null`,
             colTypeForCell,
             columnLengthMap?.get(colName),
           );
@@ -569,7 +570,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                               }
                             }}
                             className="opacity-0 group-hover/blobcell:opacity-100 transition-opacity p-0.5 rounded text-muted hover:text-secondary hover:bg-surface-tertiary flex-shrink-0"
-                            title={t("blobInput.openSidebar")}
+                            title={t`Open in editor`}
                           >
                             <ExternalLink size={11} />
                           </button>
@@ -593,9 +594,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                               onForeignKeyNavigate(fkForPreview, rawCellValue);
                             }}
                             className="opacity-0 group-hover/fkcell:opacity-100 transition-opacity p-0.5 rounded text-muted hover:text-blue-400 hover:bg-surface-tertiary flex-shrink-0"
-                            title={t("dataGrid.openReferenced", {
-                              table: fkForPreview.ref_table,
-                            })}
+                            title={t`Open referenced row in ${fkForPreview.ref_table}`}
                           >
                             <ExternalLink size={11} />
                           </button>

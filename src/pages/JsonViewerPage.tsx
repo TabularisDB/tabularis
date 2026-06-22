@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { JsonInput } from "../components/ui/JsonInput";
@@ -13,7 +13,7 @@ interface SessionDto {
 }
 
 export const JsonViewerPage = () => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get("session") ?? "";
 
@@ -75,7 +75,7 @@ export const JsonViewerPage = () => {
             fillHeight
           />
         ) : (
-          <p className="text-muted text-sm">{t("common.loading")}</p>
+          <p className="text-muted text-sm">{t`Loading...`}</p>
         )}
       </div>
 
@@ -87,14 +87,14 @@ export const JsonViewerPage = () => {
               onClick={handleClose}
               className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
             >
-              {t("common.cancel")}
+              {t`Cancel`}
             </button>
             <button
               type="button"
               onClick={handleSave}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
             >
-              {t("jsonViewer.save")}
+              {t`Save`}
             </button>
           </>
         ) : (
@@ -103,7 +103,7 @@ export const JsonViewerPage = () => {
             onClick={handleClose}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
           >
-            {t("jsonViewer.close")}
+            {t`Close`}
           </button>
         )}
       </div>

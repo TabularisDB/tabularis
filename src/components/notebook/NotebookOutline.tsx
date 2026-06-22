@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { List, ChevronDown, Sparkles, Loader2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import type { NotebookCell } from "../../types/notebook";
@@ -20,7 +20,7 @@ function OutlineAiButton({
   cells: NotebookCell[];
   onCellNameGenerated: (cellId: string, name: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings } = useSettings();
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -60,7 +60,7 @@ function OutlineAiButton({
         if (e.key === "Enter") handleClick(e as unknown as React.MouseEvent);
       }}
       className="p-0.5 text-muted hover:text-purple-300 transition-colors rounded"
-      title={t("editor.notebook.aiGenerateOutlineNames")}
+      title={t`Generate names for unnamed cells with AI`}
     >
       {isGenerating ? (
         <Loader2 size={10} className="animate-spin" />
@@ -83,7 +83,7 @@ export function NotebookOutline({
   onScrollToCell,
   onCellNameGenerated,
 }: NotebookOutlineProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const entries = useMemo(() => extractOutline(cells), [cells]);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -102,7 +102,7 @@ export function NotebookOutline({
         />
         <List size={12} className="text-muted" />
         <span className="text-[10px] font-semibold uppercase text-muted flex-1 text-left">
-          {t("editor.notebook.outline")}
+          {t`Outline`}
         </span>
         {onCellNameGenerated && (
           <OutlineAiButton cells={cells} onCellNameGenerated={onCellNameGenerated} />

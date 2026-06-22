@@ -1,5 +1,5 @@
 import { useContext, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Search } from "lucide-react";
 import {
   JsonEditor,
@@ -87,7 +87,7 @@ export const JsonTreeView = ({
   onCopy,
   fillHeight = false,
 }: JsonTreeViewProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const themeContext = useContext(ThemeContext);
   const currentTheme = themeContext?.currentTheme;
   const [internalSearch, setInternalSearch] = useState("");
@@ -122,7 +122,7 @@ export const JsonTreeView = ({
               role="searchbox"
               value={internalSearch}
               onChange={(e) => setInternalSearch(e.target.value)}
-              placeholder={t("jsonInput.search")}
+              placeholder={t`Search`}
               spellCheck={false}
               className="w-full bg-transparent border-none text-sm text-primary focus:outline-none placeholder:text-muted"
             />
@@ -171,7 +171,7 @@ export const JsonTreeView = ({
             role="searchbox"
             value={internalSearch}
             onChange={(e) => setInternalSearch(e.target.value)}
-            placeholder={t("jsonInput.search")}
+            placeholder={t`Search`}
             spellCheck={false}
             className="w-full bg-transparent border-none text-sm text-primary focus:outline-none placeholder:text-muted"
           />

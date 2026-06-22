@@ -1,0 +1,40 @@
+src/pages/Settings.tsx:180  non-literal t() key  t(labelKey)
+src/pages/TaskManagerPage.tsx:379  non-literal t() key  t(`taskManager.pluginProcesses.status.${proc.status}`, proc.status)
+src/components/settings/AiActivityPanel.tsx:47  non-literal t() key  t(labelKey)
+src/components/settings/AiTab.tsx:602  non-literal t() key  t(`settings.ai.${type}Prompt`)
+src/components/settings/AiTab.tsx:605  non-literal t() key  t(`settings.ai.${type}PromptDesc`)
+src/components/settings/AiTab.tsx:623  non-literal t() key  t(
+                        `settings.ai.enter${type === "system" ? "System" : ty
+src/components/settings/PluginSettingsPage.tsx:77  non-literal t() key  t(
+        `settings.plugins.pluginSettings.builtin.${pluginId}.${def.key}.label
+src/components/settings/PluginSettingsPage.tsx:87  non-literal t() key  t(
+            `settings.plugins.pluginSettings.builtin.${pluginId}.${def.key}.d
+src/components/settings/ShortcutsTab.tsx:144  non-literal t() key  t(s.i18nKey as Parameters<typeof t>[0])
+src/components/settings/ShortcutsTab.tsx:212  non-literal t() key  t(
+                    `settings.shortcuts.categories.${cat}` as Parameters<type
+src/components/settings/ShortcutsTab.tsx:246  non-literal t() key  t(s.i18nKey as Parameters<typeof t>[0])
+src/components/settings/ai-activity/QueryKindBadge.tsx:13  non-literal t() key  t(`aiActivity.queryKind.${kind}`, { defaultValue: kind })
+src/components/settings/ai-activity/StatusBadge.tsx:12  non-literal t() key  t(`aiActivity.status.${status}`, { defaultValue: status })
+src/components/notebook/NotebookCellHeader.tsx:162  non-literal t() key  t(isCollapsed ? "editor.notebook.expandCell" : "editor.notebook.collapseCell")
+src/components/notebook/NotebookHistoryPanel.tsx:42  non-literal t() key  t(`editor.notebook.history.change.${d.kind}`, { n: d.n ?? 0 })
+src/components/modals/DumpDatabaseModal.tsx:79  non-literal t() key  t(validation.errorKey)
+src/components/modals/GenerateSQLModal.tsx:207  non-literal t() key  t(labelKey)
+src/components/modals/K8sConnectionsModal.tsx:211  non-literal t() key  t(validation.errorKey)
+src/components/modals/OpenSourceLibrariesModal.tsx:67  non-literal t() key  t(`settings.openSourceLibrariesSections.${section.id}`)
+src/components/modals/OpenSourceLibrariesModal.tsx:70  non-literal t() key  t(
+                        `settings.openSourceLibrariesEcosystem.${section.ecos
+src/components/modals/PluginSettingsModal.tsx:42  non-literal t() key  t(
+        `settings.plugins.pluginSettings.builtin.${pluginId}.${def.key}.label
+src/components/modals/PluginSettingsModal.tsx:52  non-literal t() key  t(
+            `settings.plugins.pluginSettings.builtin.${pluginId}.${def.key}.d
+src/components/modals/QuickNavigatorModal.tsx:490  non-literal t() key  t(`editor.quickNavigator.type_${item.type}`)
+src/components/modals/visual-explain/ExplainOverviewBar.tsx:67  non-literal t() key  t(
+        summary.largestRowMismatchNode.ratio >= 1
+          ? "editor.visualE
+src/components/modals/visual-explain/ExplainOverviewBar.tsx:190  non-literal t() key  t(entry)
+src/components/modals/NewConnectionModal/AppearanceSection.tsx:280  non-literal t() key  t(`connectionAppearance.tabs.${k}`)
+src/components/modals/ClipboardImport/DataPreview.tsx:35  non-literal t() key  t(isMaximized ? 'clipboardImport.minimize' : 'clipboardImport.maximize')
+src/components/modals/ClipboardImport/SchemaEditor.tsx:134  non-literal t() key  t(isMaximized ? 'clipboardImport.minimize' : 'clipboardImport.maximize')
+src/components/layout/ExplorerSidebar.tsx:523  key not in en  t("sidebar.actions")
+src/components/layout/ExplorerSidebar.tsx:705  non-literal t() key  t(`sidebar.${groupKey}`)
+src/components/layout/sidebar/QueryHistorySection.tsx:151  non-literal t() key  t(`sidebar.${groupKey}`)

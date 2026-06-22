@@ -1,5 +1,6 @@
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
+import { connectionAppearanceTabs } from "../../../i18n/registries/connectionAppearanceTabs";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { HexColorPicker, HexColorInput } from "react-colorful";
@@ -50,7 +51,7 @@ export function AppearanceSection({
   connectionName,
   onImageUploaded,
 }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const [customOpen, setCustomOpen] = useState(false);
 
   // Derive the active tab from the icon type. userTab holds an explicit user
@@ -129,7 +130,7 @@ export function AppearanceSection({
     setIcon(undefined);
   }
 
-  const previewLabel = connectionName ?? t("connectionAppearance.section");
+  const previewLabel = connectionName ?? t({ message: "Appearance", context: "connectionAppearance" });
   const previewConn = { appearance: value };
 
   const accent = value.accentColor ?? "#3f3f46";
@@ -156,7 +157,7 @@ export function AppearanceSection({
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-[9px] uppercase font-semibold tracking-widest text-muted">
-              {t("connectionAppearance.previewLabel", { defaultValue: "Preview" })}
+              {t({ message: "Preview", context: "connectionAppearance" })}
             </span>
             <span className="text-sm font-medium text-primary truncate">{previewLabel}</span>
           </div>
@@ -167,7 +168,7 @@ export function AppearanceSection({
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
           <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-            {t("connectionAppearance.accentColor")}
+            {t`Accent color`}
           </label>
           {value.accentColor && (
             <button
@@ -176,7 +177,7 @@ export function AppearanceSection({
               onClick={() => setAccent(undefined)}
               className="text-xs text-muted hover:text-primary transition-colors"
             >
-              {t("connectionAppearance.resetColor")}
+              {t`Reset to driver default`}
             </button>
           )}
         </div>
@@ -218,7 +219,7 @@ export function AppearanceSection({
             )}
           >
             <Pipette size={12} />
-            <span>{t("connectionAppearance.customColor")}</span>
+            <span>{t`Custom`}</span>
           </button>
         </div>
 
@@ -251,7 +252,7 @@ export function AppearanceSection({
       {/* Icon */}
       <div className="flex flex-col gap-2.5">
         <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-          {t("connectionAppearance.icon")}
+          {t`Icon`}
         </label>
 
         <div role="tablist" className="inline-flex rounded-md border border-strong overflow-hidden w-fit bg-elevated">
@@ -277,7 +278,7 @@ export function AppearanceSection({
                 )}
               >
                 <TabIcon size={13} />
-                <span>{t(`connectionAppearance.tabs.${k}`)}</span>
+                <span>{i18n._(connectionAppearanceTabs[k])}</span>
               </button>
             );
           })}
@@ -287,9 +288,7 @@ export function AppearanceSection({
           <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-md border border-dashed border-default bg-base">
             <Sparkles size={14} className="text-muted shrink-0" />
             <p className="text-xs text-muted">
-              {t("connectionAppearance.defaultHint", {
-                defaultValue: "Using the driver's default icon.",
-              })}
+              {t`Using the driver's default icon.`}
             </p>
           </div>
         )}
@@ -300,7 +299,7 @@ export function AppearanceSection({
               type="text"
               value={iconSearch}
               onChange={e => setIconSearch(e.target.value)}
-              placeholder={t("connectionAppearance.iconSearch", { defaultValue: "Search icons…" })}
+              placeholder={t`Search icons…`}
               aria-label="icon search"
               autoCorrect="off"
               autoCapitalize="off"
@@ -345,16 +344,12 @@ export function AppearanceSection({
                   </div>
                   {all.length > RESULT_LIMIT && (
                     <div className="text-xs text-muted">
-                      {t("connectionAppearance.iconResultsTruncated", {
-                        defaultValue: "Showing {{shown}} of {{total}} — refine search to narrow down.",
-                        shown: RESULT_LIMIT,
-                        total: all.length,
-                      })}
+                      {t`Showing ${RESULT_LIMIT} of ${all.length} — refine search to narrow down.`}
                     </div>
                   )}
                   {all.length === 0 && (
                     <div className="text-xs text-muted">
-                      {t("connectionAppearance.iconNoResults", { defaultValue: "No icons match." })}
+                      {t`No icons match.`}
                     </div>
                   )}
                 </>
@@ -373,12 +368,10 @@ export function AppearanceSection({
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="text-[9px] uppercase font-semibold tracking-widest text-muted">
-                      {t("connectionAppearance.emojiSelected", { defaultValue: "Selected emoji" })}
+                      {t`Selected emoji`}
                     </span>
                     <span className="text-xs text-secondary truncate">
-                      {t("connectionAppearance.emojiHint", {
-                        defaultValue: "Click another emoji below to change.",
-                      })}
+                      {t`Click another emoji below to change.`}
                     </span>
                   </div>
                 </div>
@@ -389,7 +382,7 @@ export function AppearanceSection({
                   className="inline-flex items-center gap-1 px-2 py-1 text-xs text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors shrink-0"
                 >
                   <Trash2 size={12} />
-                  <span>{t("connectionAppearance.removeEmoji", { defaultValue: "Clear" })}</span>
+                  <span>{t({ message: "Clear", context: "connectionAppearance" })}</span>
                 </button>
               </div>
             )}
@@ -399,7 +392,7 @@ export function AppearanceSection({
                 emojiStyle={EmojiStyle.NATIVE}
                 width="100%"
                 height={340}
-                searchPlaceholder={t("connectionAppearance.emojiSearch", { defaultValue: "Search emoji…" })}
+                searchPlaceholder={t`Search emoji…`}
                 suggestedEmojisMode={SuggestionMode.RECENT}
                 skinTonePickerLocation={SkinTonePickerLocation.SEARCH}
                 previewConfig={{ showPreview: false }}
@@ -419,7 +412,7 @@ export function AppearanceSection({
                   size={64}
                   fallback={
                     <div className="w-16 h-16 bg-elevated border border-strong rounded-md flex items-center justify-center text-muted text-[10px] text-center px-1">
-                      {t("connectionAppearance.noPreview", { defaultValue: "No preview" })}
+                      {t`No preview`}
                     </div>
                   }
                 />
@@ -430,7 +423,7 @@ export function AppearanceSection({
               )}
               <div className="flex-1 flex flex-col gap-2 min-w-0">
                 <p className="text-xs text-muted leading-snug">
-                  {t("connectionAppearance.imageHint")}
+                  {t`PNG, JPG, WebP or SVG · max 512 KB`}
                 </p>
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
@@ -441,7 +434,7 @@ export function AppearanceSection({
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-elevated hover:bg-surface-secondary border border-strong rounded-md text-xs font-medium text-secondary hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Upload size={12} />
-                    <span>{t("connectionAppearance.chooseImage")}</span>
+                    <span>{t`Choose image…`}</span>
                   </button>
                   {value.icon?.type === "image" && (
                     <button
@@ -451,7 +444,7 @@ export function AppearanceSection({
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-md transition-colors"
                     >
                       <Trash2 size={12} />
-                      <span>{t("connectionAppearance.removeImage")}</span>
+                      <span>{t({ message: "Remove", context: "connectionAppearance" })}</span>
                     </button>
                   )}
                 </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { Network } from "lucide-react";
 import { AiQueryModal } from "../modals/AiQueryModal";
 import { AiExplainModal } from "../modals/AiExplainModal";
@@ -19,7 +19,7 @@ export function NotebookAiButtons({
   connectionId,
   schema,
 }: NotebookAiButtonsProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
   const [isExplainOpen, setIsExplainOpen] = useState(false);
   const [isVisualExplainOpen, setIsVisualExplainOpen] = useState(false);
@@ -32,10 +32,10 @@ export function NotebookAiButtons({
           onClick={() => setIsVisualExplainOpen(true)}
           disabled={!content.trim() || !connectionId}
           className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted hover:text-green-300 bg-elevated/80 hover:bg-green-900/40 border border-default hover:border-green-500/40 transition-all disabled:opacity-30 disabled:pointer-events-none backdrop-blur-sm"
-          title={t("editor.visualExplain.title")}
+          title={t`Visual Explain`}
         >
           <Network size={10} />
-          {t("editor.visualExplain.buttonShort")}
+          {t`Explain Plan`}
         </button>
         <AiDropdownButton
           onGenerate={() => setIsGenerateOpen(true)}

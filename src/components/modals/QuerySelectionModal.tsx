@@ -1,5 +1,6 @@
+import { plural } from "@lingui/core/macro";
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import { X, Play, Check, ListChecks } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { statementLabel } from '../../utils/sql';
@@ -14,7 +15,7 @@ interface QuerySelectionModalProps {
 }
 
 const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onClose }: Omit<QuerySelectionModalProps, 'isOpen'>) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const listRef = useRef<HTMLDivElement>(null);
@@ -87,9 +88,9 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-default">
         <div>
-          <h3 className="text-base font-semibold text-white">{t('editor.querySelection.title')}</h3>
+          <h3 className="text-base font-semibold text-white">{t`Select Query to Execute`}</h3>
           <p className="text-xs text-muted mt-0.5">
-            {t('editor.querySelection.queriesFound', { count: queries.length })}
+            {plural(queries.length, { one: "# query found", other: "# queries found" })}
           </p>
         </div>
         <button
@@ -148,7 +149,7 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
               <button
                 onClick={(e) => { e.stopPropagation(); onSelect(q); }}
                 className="mt-0.5 shrink-0 p-1.5 rounded-md text-muted opacity-0 group-hover:opacity-100 hover:bg-blue-500/20 hover:text-blue-400 transition-all"
-                title={t('editor.querySelection.runSingle')}
+                title={t`Run this query`}
               >
                 <Play size={13} fill="currentColor" />
               </button>
@@ -166,7 +167,7 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
             className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-xs font-semibold rounded-lg transition-colors"
           >
             <Play size={12} fill="currentColor" />
-            {t('editor.querySelection.runAll')}
+            {t({ message: "Run All", context: "editor.querySelection.runAll" })}
           </button>
 
           <button
@@ -175,14 +176,14 @@ const QuerySelectionContent = ({ queries, onSelect, onRunAll, onRunSelected, onC
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <ListChecks size={13} />
-            {t('editor.querySelection.runSelected', { count: selectedIndices.size })}
+            {t`Run Selected (${selectedIndices.size})`}
           </button>
 
           <button
             onClick={toggleAll}
             className="ml-auto text-[11px] text-muted hover:text-secondary transition-colors px-2 py-1.5 rounded-md hover:bg-surface-secondary"
           >
-            {allSelected ? t('editor.querySelection.deselectAll') : t('editor.querySelection.selectAll')}
+            {allSelected ? t({ message: "Deselect All", context: "editor" }) : t({ message: "Select All", context: "editor" })}
           </button>
         </div>
 

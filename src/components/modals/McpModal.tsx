@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { X, Check, Copy, Cpu, Terminal } from "lucide-react";
 import { useAlert } from "../../hooks/useAlert";
 import Editor from "@monaco-editor/react";
@@ -56,7 +56,7 @@ const ClientIcon = ({
 };
 
 export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const editorTheme = useEditorTheme();
   const { showAlert } = useAlert();
   const [clients, setClients] = useState<McpClientStatus[]>([]);
@@ -113,13 +113,13 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
   const handleInstall = async (clientId: string) => {
     try {
       const clientName = await invoke<string>("install_mcp_config", { clientId });
-      showAlert(t("mcp.successMsg", { client: clientName }), {
+      showAlert(t`Configuration installed successfully for ${clientName}! Restart the app to apply.`, {
         kind: "info",
-        title: t("mcp.successTitle"),
+        title: t({ message: "Success", context: "mcp" }),
       });
       await loadStatus();
     } catch (e) {
-      showAlert(String(e), { kind: "error", title: t("mcp.errorTitle") });
+      showAlert(String(e), { kind: "error", title: t({ message: "Installation Failed", context: "mcp" }) });
     }
   };
 
@@ -135,8 +135,8 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
               <Cpu size={20} className="text-purple-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-primary">{t("mcp.title")}</h2>
-              <p className="text-xs text-secondary">{t("mcp.subtitle")}</p>
+              <h2 className="text-lg font-semibold text-primary">{t`MCP Server Integration`}</h2>
+              <p className="text-xs text-secondary">{t`Connect Tabularis to Claude Desktop, Cursor, and more`}</p>
             </div>
           </div>
           <button
@@ -151,17 +151,17 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
         <div className="p-6 space-y-5 overflow-y-auto">
           <div className="bg-surface-secondary/50 p-4 rounded-lg border border-strong">
             <p className="text-sm text-secondary leading-relaxed">
-              {t("mcp.description")}
+              {t`The Model Context Protocol (MCP) allows AI assistants (like Claude) to connect to your local tools. Tabularis exposes an MCP server that lets AI read your database schema and execute queries safely.`}
             </p>
           </div>
 
           {loading ? (
-            <div className="text-center py-8 text-muted">{t("mcp.checking")}</div>
+            <div className="text-center py-8 text-muted">{t`Checking configuration...`}</div>
           ) : (
             <>
               {/* Client cards */}
               <div className="space-y-2">
-                <label className="text-xs uppercase font-bold text-muted">{t("mcp.clients")}</label>
+                <label className="text-xs uppercase font-bold text-muted">{t`AI CLIENTS`}</label>
                 <div className="space-y-2">
                   {clients.map((client) => (
                     <button
@@ -185,14 +185,14 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
                             )}
                           </div>
                           <div className="text-xs text-muted font-mono mt-0.5 truncate max-w-[360px]">
-                            {client.config_path ?? t("mcp.notFound")}
+                            {client.config_path ?? t`Config file not found (create manually)`}
                           </div>
                         </div>
                       </div>
                       {client.installed ? (
                         <div className="flex items-center gap-2 text-green-400 bg-green-900/20 px-3 py-1 rounded-full text-xs font-medium border border-green-900/50 shrink-0">
                           <Check size={12} />
-                          <span>{t("mcp.installed")}</span>
+                          <span>{t({ message: "Installed", context: "mcp" })}</span>
                         </div>
                       ) : (
                         <button
@@ -202,7 +202,7 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
                           }}
                           className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition-colors shadow-lg shadow-blue-900/20 shrink-0"
                         >
-                          {t("mcp.install")}
+                          {t`Install Config`}
                         </button>
                       )}
                     </button>
@@ -214,7 +214,7 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
               {selectedClient && !selectedClient.installed && (
                 <div className="space-y-2">
                   <label className="text-xs uppercase font-bold text-muted">
-                    {isCommandClient ? t("mcp.manualCommand") : t("mcp.manualConfig")}
+                    {isCommandClient ? t`MANUAL COMMAND` : t`MANUAL CONFIGURATION`}
                     {" — "}
                     {selectedClient.client_name}
                   </label>
@@ -281,7 +281,7 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
                     </div>
                   )}
                   <p className="text-xs text-muted">
-                    {isCommandClient ? t("mcp.manualCommandText") : t("mcp.manualText")}
+                    {isCommandClient ? t`Run this command in your terminal, then restart Claude Code.` : t`Add this to your client config file manually if automatic install fails.`}
                   </p>
                 </div>
               )}
@@ -300,7 +300,7 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
             onClick={onClose}
             className="px-4 py-2 text-secondary hover:text-primary hover:bg-surface-tertiary transition-colors text-sm rounded-lg"
           >
-            {t("common.close")}
+            {t`Close`}
           </button>
         </div>
       </div>

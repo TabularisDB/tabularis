@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { X, Loader2, Eye, AlertCircle, Play } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
@@ -26,7 +26,7 @@ export const ViewEditorModal = ({
   isNewView = false,
   onSuccess,
 }: ViewEditorModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { activeSchema } = useDatabase();
   const { showAlert } = useAlert();
   const [name, setName] = useState("");
@@ -54,7 +54,7 @@ export const ViewEditorModal = ({
       setDefinition(selectPart);
       setOriginalDefinition(selectPart);
     } catch (e) {
-      setError(t("views.failLoadDefinition") + String(e));
+      setError(t`Failed to load view definition: ` + String(e));
     } finally {
       setLoading(false);
     }
@@ -97,7 +97,7 @@ export const ViewEditorModal = ({
         rows: result.rows,
       });
     } catch (e) {
-      setError(t("views.previewError") + String(e));
+      setError(t`Preview failed: ` + String(e));
       setPreviewResult(null);
     } finally {
       setPreviewLoading(false);
@@ -106,12 +106,12 @@ export const ViewEditorModal = ({
 
   const handleSave = async () => {
     if (!name.trim()) {
-      showAlert(t("views.nameRequired"), { kind: "error" });
+      showAlert(t`View name is required`, { kind: "error" });
       return;
     }
 
     if (!definition.trim()) {
-      showAlert(t("views.definitionRequired"), { kind: "error" });
+      showAlert(t`View definition is required`, { kind: "error" });
       return;
     }
 
@@ -126,13 +126,13 @@ export const ViewEditorModal = ({
           definition,
           ...(activeSchema ? { schema: activeSchema } : {}),
         });
-        showAlert(t("views.createSuccess"), { kind: "info" });
+        showAlert(t`View created successfully`, { kind: "info" });
       } else {
         // Check if definition changed
         if (definition !== originalDefinition) {
           const confirmed = await ask(
-            t("views.confirmAlter", { view: name }),
-            { title: t("views.alterView"), kind: "warning" }
+            t`Are you sure you want to modify view "${name}"?`,
+            { title: t`Alter View`, kind: "warning" }
           );
           if (!confirmed) {
             setSaving(false);
@@ -146,13 +146,13 @@ export const ViewEditorModal = ({
           definition,
           ...(activeSchema ? { schema: activeSchema } : {}),
         });
-        showAlert(t("views.alterSuccess"), { kind: "info" });
+        showAlert(t`View updated successfully`, { kind: "info" });
       }
 
       onSuccess?.();
       onClose();
     } catch (e) {
-      setError(t("views.saveError") + String(e));
+      setError(t`Failed to save view: ` + String(e));
     } finally {
       setSaving(false);
     }
@@ -169,12 +169,12 @@ export const ViewEditorModal = ({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
-                {isNewView ? t("views.createView") : t("views.editView")}
+                {isNewView ? t({ message: "Create View", context: "views.createView" }) : t`Edit View`}
               </h2>
               <p className="text-xs text-secondary">
                 {isNewView
-                  ? t("views.createSubtitle")
-                  : t("views.editSubtitle", { name })}
+                  ? t`Create a new database view`
+                  : t`Editing view: ${name}`}
               </p>
             </div>
           </div>
@@ -198,7 +198,7 @@ export const ViewEditorModal = ({
           {/* View Name */}
           <div>
             <label htmlFor="view-name" className="text-xs uppercase font-bold text-muted mb-1 block">
-              {t("views.viewName")}
+              {t`View Name`}
             </label>
             <input
               id="view-name"
@@ -207,7 +207,7 @@ export const ViewEditorModal = ({
               onChange={(e) => setName(e.target.value)}
               disabled={!isNewView || loading}
               className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none disabled:opacity-50"
-              placeholder={t("views.viewNamePlaceholder")}
+              placeholder={t`e.g. active_users, order_summary`}
               autoFocus={isNewView}
             />
           </div>
@@ -215,7 +215,7 @@ export const ViewEditorModal = ({
           {/* View Definition */}
           <div>
             <label className="text-xs uppercase font-bold text-muted mb-1 block">
-              {t("views.viewDefinition")}
+              {t`View Definition (SQL)`}
             </label>
             <div className="border border-strong rounded-lg overflow-hidden h-48">
               <SqlEditorWrapper
@@ -234,7 +234,7 @@ export const ViewEditorModal = ({
           <div className="border border-default rounded-lg overflow-hidden">
             <div className="flex items-center justify-between p-3 bg-base border-b border-default">
               <span className="text-sm font-medium text-primary">
-                {t("views.preview")}
+                {t({ message: "Preview", context: "views" })}
               </span>
               <button
                 onClick={handlePreview}
@@ -246,7 +246,7 @@ export const ViewEditorModal = ({
                 ) : (
                   <Play size={14} />
                 )}
-                {t("views.runPreview")}
+                {t`Run Preview`}
               </button>
             </div>
 
@@ -287,7 +287,7 @@ export const ViewEditorModal = ({
                 </table>
                 {previewResult.rows.length > 5 && (
                   <div className="p-2 text-center text-xs text-muted">
-                    {t("views.moreRows", { count: previewResult.rows.length - 5 })}
+                    {t`+${previewResult.rows.length - 5} more rows`}
                   </div>
                 )}
               </div>
@@ -295,7 +295,7 @@ export const ViewEditorModal = ({
 
             {!previewResult && !previewLoading && (
               <div className="p-8 text-center text-muted text-sm">
-                {t("views.previewEmpty")}
+                {t`Click 'Run Preview' to see results`}
               </div>
             )}
           </div>
@@ -307,7 +307,7 @@ export const ViewEditorModal = ({
             onClick={onClose}
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
-            {t("common.cancel")}
+            {t`Cancel`}
           </button>
           <button
             onClick={handleSave}
@@ -315,7 +315,7 @@ export const ViewEditorModal = ({
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
           >
             {saving && <Loader2 size={16} className="animate-spin" />}
-            {isNewView ? t("views.create") : t("views.save")}
+            {isNewView ? t({ message: "Create View", context: "views.create" }) : t`Save Changes`}
           </button>
         </div>
       </div>

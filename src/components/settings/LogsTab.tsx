@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { invoke } from "@tauri-apps/api/core";
 import { ask, save } from "@tauri-apps/plugin-dialog";
 import {
@@ -34,7 +34,7 @@ const LOG_LEVEL_COLORS: Record<string, string> = {
 };
 
 export function LogsTab() {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings, updateSetting } = useSettings();
   const { showAlert } = useAlert();
 
@@ -74,8 +74,8 @@ export function LogsTab() {
 
   const handleClearLogs = useCallback(async () => {
     try {
-      const confirmed = await ask(t("settings.clearLogsConfirm"), {
-        title: t("common.delete"),
+      const confirmed = await ask(t`Are you sure you want to clear all logs?`, {
+        title: t({ message: "Delete", context: "common" }),
         kind: "warning",
       });
       if (!confirmed) return;
@@ -94,8 +94,8 @@ export function LogsTab() {
       });
       if (!filePath) return;
       await invoke("export_logs", { filePath });
-      showAlert(t("settings.exportLogsSuccess"), {
-        title: t("common.success"),
+      showAlert(t`Logs exported to clipboard`, {
+        title: t({ message: "Success", context: "common" }),
         kind: "info",
       });
     } catch (e) {
@@ -153,10 +153,10 @@ export function LogsTab() {
   return (
     <div>
       {/* Settings */}
-      <SettingSection title={t("settings.logSettings")}>
+      <SettingSection title={t`Log Settings`}>
         <SettingRow
-          label={t("settings.enableLogging")}
-          description={t("settings.enableLoggingDesc")}
+          label={t`Enable Logging`}
+          description={t`Collect application logs in memory for debugging`}
         >
           <SettingToggle
             checked={settings.loggingEnabled !== false}
@@ -165,8 +165,8 @@ export function LogsTab() {
         </SettingRow>
 
         <SettingRow
-          label={t("settings.maxLogEntries")}
-          description={`${t("settings.maxLogEntriesDesc")} — ${t("settings.currentLogCount")}: ${logSettings.current_count}`}
+          label={t`Max Log Entries`}
+          description={`${t`How many logs to keep in memory (1-10000)`} — ${t`Current Logs`}: ${logSettings.current_count}`}
         >
           <SettingNumberInput
             value={settings.maxLogEntries || 1000}
@@ -184,14 +184,14 @@ export function LogsTab() {
             className="flex items-center gap-2 px-4 py-2 bg-surface-secondary hover:bg-red-900/20 text-secondary hover:text-red-400 border border-strong hover:border-red-900/30 rounded-lg text-sm font-medium transition-colors"
           >
             <Trash2 size={16} />
-            {t("settings.clearLogs")}
+            {t`Clear Logs`}
           </button>
           <button
             onClick={handleExportLogs}
             className="flex items-center gap-2 px-4 py-2 bg-surface-secondary hover:bg-surface-tertiary text-secondary hover:text-primary border border-strong rounded-lg text-sm font-medium transition-colors"
           >
             <FileDown size={16} />
-            {t("settings.exportLogs")}
+            {t`Export Logs`}
           </button>
           <button
             onClick={loadLogs}
@@ -202,34 +202,34 @@ export function LogsTab() {
               size={16}
               className={isLoading ? "animate-spin" : ""}
             />
-            {t("settings.refreshLogs")}
+            {t`Refresh`}
           </button>
         </div>
       </SettingSection>
 
       {/* Log viewer */}
-      <SettingSection title={t("settings.logs")}>
+      <SettingSection title={t`Logs`}>
         <div className="flex items-center justify-end gap-2 py-2">
           <span className="text-sm text-secondary">
-            {t("settings.filterByLevel")}:
+            {t`Filter by level`}:
           </span>
           <select
             value={levelFilter}
             onChange={(e) => setLevelFilter(e.target.value)}
             className="bg-base border border-strong rounded px-3 py-1.5 text-sm text-primary focus:outline-none focus:border-blue-500"
           >
-            <option value="">{t("settings.allLevels")}</option>
-            <option value="DEBUG">{t("settings.debug")}</option>
-            <option value="INFO">{t("settings.info")}</option>
-            <option value="WARN">{t("settings.warn")}</option>
-            <option value="ERROR">{t("settings.error")}</option>
+            <option value="">{t`All levels`}</option>
+            <option value="DEBUG">{t`Debug`}</option>
+            <option value="INFO">{t`Info`}</option>
+            <option value="WARN">{t`Warn`}</option>
+            <option value="ERROR">{t({ message: "Error", context: "settings" })}</option>
           </select>
         </div>
 
         <div className="bg-base border border-default rounded-lg overflow-hidden">
           {logs.length === 0 ? (
             <div className="p-8 text-center text-muted">
-              {t("settings.noLogs")}
+              {t`No logs available`}
             </div>
           ) : (
             <div className="max-h-96 overflow-auto">
@@ -237,13 +237,13 @@ export function LogsTab() {
                 <thead className="bg-surface-secondary sticky top-0">
                   <tr>
                     <th className="text-left px-4 py-2 text-secondary font-medium">
-                      {t("settings.logTimestamp")}
+                      {t`Timestamp`}
                     </th>
                     <th className="text-left px-4 py-2 text-secondary font-medium w-20">
-                      {t("settings.logLevel")}
+                      {t`Level`}
                     </th>
                     <th className="text-left px-4 py-2 text-secondary font-medium">
-                      {t("settings.logMessage")}
+                      {t`Message`}
                     </th>
                   </tr>
                 </thead>

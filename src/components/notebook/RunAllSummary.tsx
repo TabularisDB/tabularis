@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { X, AlertTriangle, CheckCircle2 } from "lucide-react";
 import type { RunAllResult } from "../../types/notebook";
 
@@ -13,7 +13,7 @@ export function RunAllSummary({
   onDismiss,
   onScrollToCell,
 }: RunAllSummaryProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const hasErrors = result.failed > 0;
 
   return (
@@ -32,24 +32,24 @@ export function RunAllSummary({
             <CheckCircle2 size={14} className="text-green-400" />
           )}
           <span className={hasErrors ? "text-red-400" : "text-green-400"}>
-            {t("editor.notebook.runAllComplete")}
+            {t`Run All Complete`}
           </span>
           <span className="text-muted">
             {result.succeeded > 0 && (
               <span className="text-green-400">
-                {result.succeeded} {t("editor.notebook.succeeded")}
+                {result.succeeded} {t`succeeded`}
               </span>
             )}
             {result.failed > 0 && (
               <span className="text-red-400">
                 {result.succeeded > 0 && ", "}
-                {result.failed} {t("editor.notebook.failed")}
+                {result.failed} {t`failed`}
               </span>
             )}
             {result.skipped > 0 && (
               <span className="text-muted">
                 {(result.succeeded > 0 || result.failed > 0) && ", "}
-                {result.skipped} {t("editor.notebook.skipped")}
+                {result.skipped} {t`skipped`}
               </span>
             )}
           </span>

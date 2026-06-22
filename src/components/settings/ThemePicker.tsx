@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { CheckCircle2, Monitor } from "lucide-react";
 import clsx from "clsx";
 import type { Theme } from "../../types/theme";
@@ -16,7 +16,7 @@ export function ThemePicker({
   themes,
   showSameAsApp,
 }: ThemePickerProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -33,7 +33,7 @@ export function ThemePicker({
           <div className="flex items-center gap-2 mb-3">
             <Monitor size={16} className="text-muted" />
             <span className="text-sm font-medium text-primary">
-              {t("settings.appearance_sameAsApp")}
+              {t`Same as App`}
             </span>
           </div>
           {!value && <CheckCircle2 size={14} className="text-blue-500" />}

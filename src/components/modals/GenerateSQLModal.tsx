@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
+import { msg } from "@lingui/core/macro";
 import clsx from "clsx";
 import {X, Loader2, Copy, Check, FileCode, List, Table2, PenLine, Trash2, Play} from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
@@ -27,7 +28,7 @@ export const GenerateSQLModal = ({
   onClose,
   tableName,
 }: GenerateSQLModalProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useLingui();
   const navigate = useNavigate();
   const { activeConnectionId, activeDriver, activeSchema, activeCapabilities } =
     useDatabase();
@@ -75,7 +76,7 @@ export const GenerateSQLModal = ({
         setSql(generatedSQL);
       } catch (err) {
         console.error(err);
-        showAlert(String(err), { title: t("common.error"), kind: "error" });
+        showAlert(String(err), { title: t({ message: "Error", context: "common" }), kind: "error" });
       } finally {
         setLoading(false);
       }
@@ -150,7 +151,7 @@ export const GenerateSQLModal = ({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
-                {t("generateSQL.title", { table: tableName })}
+                {t`Generated SQL: ${tableName}`}
               </h2>
             </div>
           </div>
@@ -169,30 +170,30 @@ export const GenerateSQLModal = ({
               {
                 id: "create" as SqlTab,
                 icon: FileCode,
-                labelKey: "generateSQL.tabCreateTable",
+                label: msg`Create Table`,
               },
               {
                 id: "select-all" as SqlTab,
                 icon: List,
-                labelKey: "generateSQL.tabSelectAll",
+                label: msg`Select *`,
               },
               {
                 id: "select-fields" as SqlTab,
                 icon: Table2,
-                labelKey: "generateSQL.tabSelectFields",
+                label: msg`Select [fields]`,
               },
               {
                 id: "update" as SqlTab,
                 icon: PenLine,
-                labelKey: "generateSQL.tabUpdate",
+                label: msg`Update`,
               },
               {
                 id: "delete" as SqlTab,
                 icon: Trash2,
-                labelKey: "generateSQL.tabDelete",
+                label: msg`Delete`,
               },
             ] as const
-          ).map(({ id: tabId, icon: Icon, labelKey }) => (
+          ).map(({ id: tabId, icon: Icon, label }) => (
             <button
               key={tabId}
               onClick={() => setTab(tabId)}
@@ -204,7 +205,7 @@ export const GenerateSQLModal = ({
               )}
             >
               <Icon size={14} />
-              {t(labelKey)}
+              {i18n._(label)}
             </button>
           ))}
         </div>
@@ -214,7 +215,7 @@ export const GenerateSQLModal = ({
           {loading ? (
             <div className="text-center py-8 text-muted">
               <Loader2 size={24} className="animate-spin mx-auto mb-2" />
-              <span>{t("generateSQL.loading")}</span>
+              <span>{t`Generating SQL...`}</span>
             </div>
           ) : (
             <div className="flex-1 flex flex-col gap-4">
@@ -238,14 +239,14 @@ export const GenerateSQLModal = ({
               className="px-4 py-2 bg-surface-secondary hover:bg-surface-tertiary text-secondary hover:text-primary border border-default rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
             >
               <Play size={16} />
-              {t("generateSQL.runInConsole")}
+              {t`Run in console`}
             </button>
             <button
               onClick={handleCopy}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
-              {copied ? t("generateSQL.copied") : t("generateSQL.copy")}
+              {copied ? t`Copied!` : t`Copy SQL`}
             </button>
           </div>
         )}

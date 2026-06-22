@@ -1,5 +1,6 @@
+import { plural } from "@lingui/core/macro";
 import { useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import {
   ArrowDown,
   ArrowUp,
@@ -34,7 +35,7 @@ import { StatusBadge } from "./StatusBadge";
 import { Select } from "../../ui/Select";
 
 export function AiActivitySessionsTab() {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { sessions, loading, refetch } = useAiSessions();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -43,9 +44,9 @@ export function AiActivitySessionsTab() {
 
   const sortOptions: SessionSortField[] = ["started", "events", "runQueries"];
   const sortLabels: Record<SessionSortField, string> = {
-    started: t("aiActivity.sort.started", { defaultValue: "Started" }),
-    events: t("aiActivity.sort.eventCount", { defaultValue: "Events" }),
-    runQueries: t("aiActivity.sort.runQueries", { defaultValue: "Run queries" }),
+    started: t`Started`,
+    events: t({ message: "Events", context: "aiActivity.sort.eventCount" }),
+    runQueries: t`Run queries`,
   };
 
   const visibleSessions = useMemo(() => {
@@ -64,9 +65,7 @@ export function AiActivitySessionsTab() {
             />
             <input
               type="text"
-              placeholder={t("aiActivity.searchSessions", {
-                defaultValue: "Search session, client, connection…",
-              })}
+              placeholder={t`Search session, client, connection…`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-9 w-full rounded border border-strong bg-base pl-9 pr-3 text-sm text-primary placeholder:text-muted focus:border-blue-500 focus:outline-none"
@@ -77,9 +76,7 @@ export function AiActivitySessionsTab() {
             options={sortOptions}
             labels={sortLabels}
             onChange={(value) => setSortField(value as SessionSortField)}
-            placeholder={t("aiActivity.sort.sortByPlaceholder", {
-              defaultValue: "Sort by…",
-            })}
+            placeholder={t`Sort by…`}
             searchable={false}
             className="min-w-0"
           />
@@ -88,32 +85,24 @@ export function AiActivitySessionsTab() {
             className="flex h-9 items-center gap-1.5 rounded border border-strong bg-base px-2.5 text-xs text-muted transition-colors hover:bg-surface-tertiary hover:text-primary"
             title={
               sortDir === "asc"
-                ? t("aiActivity.sort.toggleDescending", {
-                    defaultValue: "Sort descending",
-                  })
-                : t("aiActivity.sort.toggleAscending", {
-                    defaultValue: "Sort ascending",
-                  })
+                ? t`Sort descending`
+                : t`Sort ascending`
             }
             aria-label={
               sortDir === "asc"
-                ? t("aiActivity.sort.toggleDescending", {
-                    defaultValue: "Sort descending",
-                  })
-                : t("aiActivity.sort.toggleAscending", {
-                    defaultValue: "Sort ascending",
-                  })
+                ? t`Sort descending`
+                : t`Sort ascending`
             }
           >
             {sortDir === "asc" ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
             {sortDir === "asc"
-              ? t("aiActivity.sort.ascending", { defaultValue: "Asc" })
-              : t("aiActivity.sort.descending", { defaultValue: "Desc" })}
+              ? t`Asc`
+              : t`Desc`}
           </button>
           <button
             onClick={refetch}
             className="flex h-9 w-9 items-center justify-center rounded text-muted transition-colors hover:bg-surface-tertiary hover:text-primary"
-            title={t("common.refresh", { defaultValue: "Refresh" })}
+            title={t`Refresh`}
           >
             <RefreshCw size={14} />
           </button>
@@ -122,29 +111,24 @@ export function AiActivitySessionsTab() {
 
       <div className="flex items-center gap-2 text-xs">
         <span className="inline-flex items-center rounded-full border border-default bg-base/50 px-2.5 py-1 text-muted">
-          {t("aiActivity.sessionsCount", { count: visibleSessions.length })}
+          {plural(visibleSessions.length, { one: "# session", other: "# sessions" })}
         </span>
         {search && visibleSessions.length !== sessions.length && (
           <span className="text-muted">
-            {t("aiActivity.filteredFrom", {
-              defaultValue: "of {{total}}",
-              total: sessions.length,
-            })}
+            {t`of ${sessions.length}`}
           </span>
         )}
       </div>
 
       {loading && sessions.length === 0 ? (
         <div className="text-center py-12 text-muted text-sm">
-          {t("common.loading")}
+          {t`Loading...`}
         </div>
       ) : visibleSessions.length === 0 ? (
         <div className="text-center py-12 text-muted text-sm">
           {sessions.length === 0
-            ? t("aiActivity.empty")
-            : t("aiActivity.noMatches", {
-                defaultValue: "No sessions match the current filters.",
-              })}
+            ? t`No MCP activity yet.`
+            : t`No sessions match the current filters.`}
         </div>
       ) : (
         <div className="space-y-2">
@@ -173,7 +157,7 @@ interface SessionCardProps {
 }
 
 function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { showAlert } = useAlert();
   const { settings } = useSettings();
 
@@ -192,12 +176,12 @@ function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
       });
       if (typeof target === "string" && target.length > 0) {
         await writeTextFile(target, JSON.stringify(file, null, 2));
-        showAlert(t("aiActivity.exportSuccess", { path: target }), {
+        showAlert(t`Exported to ${target}`, {
           kind: "info",
         });
       }
     } catch (err) {
-      showAlert(String(err), { kind: "error", title: t("common.error") });
+      showAlert(String(err), { kind: "error", title: t({ message: "Error", context: "common" }) });
     }
   };
 
@@ -225,14 +209,14 @@ function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
             </div>
             <div className="text-xs text-muted mt-1 flex flex-wrap gap-x-3">
               <span>
-                {t("aiActivity.events")}: {session.eventCount}
+                {t({ message: "Events", context: "aiActivity.events" })}: {session.eventCount}
               </span>
               <span>
-                {t("aiActivity.runQueries")}: {session.runQueryCount}
+                {t`Queries`}: {session.runQueryCount}
               </span>
               {session.connectionNames.length > 0 && (
                 <span className="truncate max-w-[260px]">
-                  {t("aiActivity.connections")}:{" "}
+                  {t`Connections`}:{" "}
                   {session.connectionNames.join(", ")}
                 </span>
               )}
@@ -250,7 +234,7 @@ function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
           className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-muted hover:text-primary hover:bg-surface-tertiary rounded transition-colors shrink-0"
         >
           <FileDown size={12} />
-          {t("aiActivity.exportNotebook")}
+          {t`Export as Notebook`}
         </button>
       </button>
       {expanded && <SessionEventList sessionId={session.sessionId} />}
@@ -259,18 +243,18 @@ function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
 }
 
 function SessionEventList({ sessionId }: { sessionId: string }) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { settings } = useSettings();
   const { events, loading } = useAiSessionEvents(sessionId);
   if (loading) {
     return (
-      <div className="px-4 py-3 text-xs text-muted">{t("common.loading")}</div>
+      <div className="px-4 py-3 text-xs text-muted">{t`Loading...`}</div>
     );
   }
   if (events.length === 0) {
     return (
       <div className="px-4 py-3 text-xs text-muted">
-        {t("aiActivity.empty")}
+        {t`No MCP activity yet.`}
       </div>
     );
   }

@@ -1,13 +1,13 @@
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Home, RotateCcw, XCircle } from "lucide-react";
-import type { TFunction } from "i18next";
+import type { LinguiT } from "../../i18n/lingui";
 import { useEditor } from "../../hooks/useEditor";
 
 interface InnerProps {
-  t: TFunction;
+  t: LinguiT;
   onBackToConnections: () => void;
   onCloseActiveTab: (() => void) | null;
   children: ReactNode;
@@ -66,10 +66,10 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-lg font-semibold text-primary">
-                {t("editor.errorBoundary.title")}
+                {t`The editor crashed unexpectedly`}
               </h2>
               <p className="mt-1 text-sm text-secondary">
-                {t("editor.errorBoundary.description")}
+                {t`Something in the editor failed to render. The error is shown below — try again, or go back to your connections.`}
               </p>
 
               <div className="mt-3 rounded-md border border-red-900/40 bg-red-900/10 px-3 py-2">
@@ -81,7 +81,7 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
               {details && (
                 <details className="mt-3">
                   <summary className="cursor-pointer text-xs text-secondary hover:text-primary select-none">
-                    {t("editor.errorBoundary.showDetails")}
+                    {t`Show technical details`}
                   </summary>
                   <pre className="mt-2 max-h-64 overflow-auto rounded bg-base/60 p-2 text-[11px] text-secondary whitespace-pre-wrap">
                     {details}
@@ -96,7 +96,7 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-sm font-medium transition-colors"
                 >
                   <RotateCcw size={14} />
-                  {t("editor.errorBoundary.retry")}
+                  {t({ message: "Try again", context: "editor" })}
                 </button>
                 {onCloseActiveTab && (
                   <button
@@ -105,7 +105,7 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-base hover:bg-elevated border border-default text-primary rounded-md text-sm font-medium transition-colors"
                   >
                     <XCircle size={14} />
-                    {t("editor.errorBoundary.closeCurrentTab")}
+                    {t`Close current tab`}
                   </button>
                 )}
                 <button
@@ -114,7 +114,7 @@ class EditorErrorBoundaryInner extends Component<InnerProps, InnerState> {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-base hover:bg-elevated border border-default text-primary rounded-md text-sm font-medium transition-colors"
                 >
                   <Home size={14} />
-                  {t("editor.errorBoundary.backToConnections")}
+                  {t`Back to connections`}
                 </button>
               </div>
             </div>
@@ -130,7 +130,7 @@ interface EditorErrorBoundaryProps {
 }
 
 export function EditorErrorBoundary({ children }: EditorErrorBoundaryProps) {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const navigate = useNavigate();
   const { activeTabId, closeTab } = useEditor();
 

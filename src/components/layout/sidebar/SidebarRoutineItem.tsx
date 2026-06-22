@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Code2,
@@ -40,7 +40,7 @@ export const SidebarRoutineItem = ({
   connectionId,
   schema,
 }: SidebarRoutineItemProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [parameters, setParameters] = useState<RoutineParameter[]>([]);
@@ -108,7 +108,7 @@ export const SidebarRoutineItem = ({
           {isLoading ? (
             <div className="flex items-center gap-2 p-2 text-xs text-muted">
               <Loader2 size={12} className="animate-spin" />
-              {t("sidebar.loadingSchema")}
+              {t`Loading schema...`}
             </div>
           ) : (
             <div className="flex flex-col">

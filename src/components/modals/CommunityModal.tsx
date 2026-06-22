@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { useLingui } from "@lingui/react/macro";
 import { X, Github, Star } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GITHUB_URL, DISCORD_URL } from "../../config/links";
@@ -12,7 +12,7 @@ interface CommunityModalProps {
 }
 
 export const CommunityModal = ({ isOpen, onClose }: CommunityModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -24,8 +24,8 @@ export const CommunityModal = ({ isOpen, onClose }: CommunityModalProps) => {
               <Star size={20} className="text-blue-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-primary">{t("community.title")}</h2>
-              <p className="text-xs text-secondary">{t("community.subtitle")}</p>
+              <h2 className="text-lg font-semibold text-primary">{t`Join the Community`}</h2>
+              <p className="text-xs text-secondary">{t`Help tabularis grow`}</p>
             </div>
           </div>
           <button onClick={onClose} className="text-secondary hover:text-primary transition-colors">
@@ -36,7 +36,7 @@ export const CommunityModal = ({ isOpen, onClose }: CommunityModalProps) => {
         {/* Content */}
         <div className="p-6 space-y-5">
           <p className="text-sm text-secondary leading-relaxed">
-            {t("community.description")}
+            {t`Tabularis is a free, open-source project. If you find it useful, consider supporting the project and connecting with the community.`}
           </p>
 
           {/* GitHub Star */}
@@ -48,8 +48,8 @@ export const CommunityModal = ({ isOpen, onClose }: CommunityModalProps) => {
               <Github size={22} className="text-secondary group-hover:text-yellow-400 transition-colors" />
             </div>
             <div className="text-left flex-1">
-              <div className="text-sm font-medium text-primary">{t("community.starTitle")}</div>
-              <div className="text-xs text-muted mt-0.5">{t("community.starDesc")}</div>
+              <div className="text-sm font-medium text-primary">{t`Star on GitHub`}</div>
+              <div className="text-xs text-muted mt-0.5">{t`A star helps others discover the project`}</div>
             </div>
             <Star size={18} className="text-muted group-hover:text-yellow-400 transition-colors" />
           </button>
@@ -63,8 +63,8 @@ export const CommunityModal = ({ isOpen, onClose }: CommunityModalProps) => {
               <DiscordIcon size={22} className="text-secondary group-hover:text-indigo-400 transition-colors" />
             </div>
             <div className="text-left flex-1">
-              <div className="text-sm font-medium text-primary">{t("community.discordTitle")}</div>
-              <div className="text-xs text-muted mt-0.5">{t("community.discordDesc")}</div>
+              <div className="text-sm font-medium text-primary">{t`Join Discord`}</div>
+              <div className="text-xs text-muted mt-0.5">{t`Chat with the community, get help, suggest features`}</div>
             </div>
           </button>
 
@@ -82,7 +82,7 @@ export const CommunityModal = ({ isOpen, onClose }: CommunityModalProps) => {
             onClick={onClose}
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
-            {t("community.dismiss")}
+            {t`Maybe later`}
           </button>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useLingui } from '@lingui/react/macro';
 import { X, Loader2, Key, Table2 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useDatabase } from '../../hooks/useDatabase';
@@ -20,7 +20,7 @@ interface SchemaModalProps {
 }
 
 export const SchemaModal = ({ isOpen, onClose, tableName, schema }: SchemaModalProps) => {
-  const { t } = useTranslation();
+  const { t } = useLingui();
   const { activeConnectionId, activeSchema } = useDatabase();
   const [columns, setColumns] = useState<TableColumn[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,7 +61,7 @@ export const SchemaModal = ({ isOpen, onClose, tableName, schema }: SchemaModalP
               <Table2 size={20} className="text-blue-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-primary">{t('schema.title', { table: tableName })}</h2>
+              <h2 className="text-lg font-semibold text-primary">{t`Schema: ${tableName}`}</h2>
               {resolvedSchema && <p className="text-xs text-secondary font-mono">{resolvedSchema}</p>}
             </div>
           </div>
@@ -75,7 +75,7 @@ export const SchemaModal = ({ isOpen, onClose, tableName, schema }: SchemaModalP
           {loading ? (
             <div className="flex items-center justify-center h-40 gap-2 text-muted">
               <Loader2 size={24} className="animate-spin" />
-              <span>{t('schema.loading')}</span>
+              <span>{t`Loading schema...`}</span>
             </div>
           ) : error ? (
             <div className="p-6 text-error-text text-sm text-center">{error}</div>
@@ -83,10 +83,10 @@ export const SchemaModal = ({ isOpen, onClose, tableName, schema }: SchemaModalP
             <table className="w-full text-left border-collapse">
               <thead className="bg-base sticky top-0">
                 <tr>
-                  <th className="px-4 py-2.5 text-[10px] uppercase font-bold text-muted border-b border-strong">{t('schema.colName')}</th>
-                  <th className="px-4 py-2.5 text-[10px] uppercase font-bold text-muted border-b border-strong">{t('schema.colType')}</th>
-                  <th className="px-4 py-2.5 text-[10px] uppercase font-bold text-muted border-b border-strong text-center">{t('schema.colNullable')}</th>
-                  <th className="px-4 py-2.5 text-[10px] uppercase font-bold text-muted border-b border-strong text-center">{t('schema.colKey')}</th>
+                  <th className="px-4 py-2.5 text-[10px] uppercase font-bold text-muted border-b border-strong">{t`Name`}</th>
+                  <th className="px-4 py-2.5 text-[10px] uppercase font-bold text-muted border-b border-strong">{t`Type`}</th>
+                  <th className="px-4 py-2.5 text-[10px] uppercase font-bold text-muted border-b border-strong text-center">{t`Nullable`}</th>
+                  <th className="px-4 py-2.5 text-[10px] uppercase font-bold text-muted border-b border-strong text-center">{t`Key`}</th>
                 </tr>
               </thead>
               <tbody>
@@ -95,7 +95,7 @@ export const SchemaModal = ({ isOpen, onClose, tableName, schema }: SchemaModalP
                     <td className="px-4 py-2.5 text-sm text-primary font-mono">{col.name}</td>
                     <td className="px-4 py-2.5 text-sm text-blue-300 font-mono">{col.data_type}</td>
                     <td className="px-4 py-2.5 text-xs text-secondary text-center">
-                      {col.is_nullable ? t('schema.yes') : t('schema.no')}
+                      {col.is_nullable ? t`YES` : t`NO`}
                     </td>
                     <td className="px-4 py-2.5 text-center">
                       {col.is_pk && <Key size={14} className="text-yellow-500 mx-auto" />}
@@ -110,7 +110,7 @@ export const SchemaModal = ({ isOpen, onClose, tableName, schema }: SchemaModalP
         {/* Footer */}
         <div className="p-4 border-t border-default bg-base/50 flex justify-end">
           <button onClick={onClose} className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm">
-            {t('schema.close', { defaultValue: 'Close' })}
+            {t`Close`}
           </button>
         </div>
       </div>
