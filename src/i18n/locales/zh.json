@@ -663,7 +663,11 @@
     "selectK8sConnection": "选择 K8s 连接",
     "selectTypeFirst": "请先选择上下文/命名空间/类型",
     "useK8s": "使用 Kubernetes 端口转发",
-    "useK8sConnection": "已保存的连接"
+    "useK8sConnection": "已保存的连接",
+    "advanced": "高级",
+    "startupScript": "启动脚本",
+    "startupScriptDescription": "每次新建到此数据源的连接时执行的 SQL。可用于会话设置，例如 SET / set_config（如绕过 RLS）。多条语句请用分号分隔。",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);"
   },
   "sshConnections": {
     "title": "SSH 连接",

@@ -372,3 +372,101 @@ mod postgres_tls_connector_tests {
         let _ = std::fs::remove_file(&file_path);
     }
 }
+
+#[cfg(test)]
+mod startup_script_tests {
+    use crate::models::{ConnectionParams, DatabaseSelection};
+    use crate::pool_manager::{close_pool_with_id, get_sqlite_pool_with_id};
+    use tempfile::NamedTempFile;
+
+    fn sqlite_params(path: &str, startup_script: Option<&str>) -> ConnectionParams {
+        ConnectionParams {
+            driver: "sqlite".to_string(),
+            database: DatabaseSelection::Single(path.to_string()),
+            startup_script: startup_script.map(ToOwned::to_owned),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn startup_script_runs_on_each_new_connection() {
+        let file = NamedTempFile::new().expect("temp file");
+        let path = file.path().to_str().expect("utf8 path").to_string();
+        // Unique connection id keeps this pool out of other tests' cached pools.
+        let conn_id = format!("startup-runs-{}", ulid::Ulid::new());
+
+        let params = sqlite_params(
+            &path,
+            Some(
+                "CREATE TABLE IF NOT EXISTS startup_marker (id INTEGER); \
+                 INSERT INTO startup_marker (id) VALUES (1);",
+            ),
+        );
+
+        let pool = get_sqlite_pool_with_id(&params, Some(&conn_id))
+            .await
+            .expect("pool should be created");
+
+        // The marker table only exists if the startup script ran on the
+        // physical connection the pool just handed out.
+        let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM startup_marker")
+            .fetch_one(&pool)
+            .await
+            .expect("startup_marker table should exist");
+        assert!(count >= 1, "expected at least one startup INSERT, got {count}");
+
+        close_pool_with_id(&params, Some(&conn_id)).await;
+    }
+
+    #[tokio::test]
+    async fn blank_startup_script_is_skipped() {
+        let file = NamedTempFile::new().expect("temp file");
+        let path = file.path().to_str().expect("utf8 path").to_string();
+        let conn_id = format!("startup-blank-{}", ulid::Ulid::new());
+
+        // A whitespace-only script must be treated as absent: if it were run
+        // as SQL the connection would fail and `SELECT 1` below would error.
+        let params = sqlite_params(&path, Some("   \n  "));
+
+        let pool = get_sqlite_pool_with_id(&params, Some(&conn_id))
+            .await
+            .expect("pool should be created");
+
+        let (one,): (i64,) = sqlx::query_as("SELECT 1")
+            .fetch_one(&pool)
+            .await
+            .expect("query on pool with blank startup script should work");
+        assert_eq!(one, 1);
+
+        close_pool_with_id(&params, Some(&conn_id)).await;
+    }
+
+    #[tokio::test]
+    async fn invalid_startup_script_surfaces_error() {
+        let file = NamedTempFile::new().expect("temp file");
+        let path = file.path().to_str().expect("utf8 path").to_string();
+        let conn_id = format!("startup-invalid-{}", ulid::Ulid::new());
+
+        let params = sqlite_params(&path, Some("THIS IS NOT VALID SQL;"));
+
+        // The pool may build lazily, so the bad script can surface either at
+        // pool creation or on first acquire. Either way the error must reach
+        // the caller rather than silently succeeding.
+        let result = async {
+            let pool = get_sqlite_pool_with_id(&params, Some(&conn_id)).await?;
+            sqlx::query("SELECT 1")
+                .execute(&pool)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok::<_, String>(())
+        }
+        .await;
+
+        assert!(
+            result.is_err(),
+            "invalid startup script should fail the connection"
+        );
+
+        close_pool_with_id(&params, Some(&conn_id)).await;
+    }
+}

@@ -688,7 +688,11 @@
     "selectTypeFirst": "Сначала выберите контекст/пространство имён/тип",
     "useK8s": "Использовать проброс портов Kubernetes",
     "useK8sConnection": "Сохранённое подключение",
-    "appearance": "Внешний вид"
+    "appearance": "Внешний вид",
+    "advanced": "Дополнительно",
+    "startupScript": "Сценарий запуска",
+    "startupScriptDescription": "SQL, выполняемый при каждом новом подключении к этому источнику данных. Используйте его для настроек сеанса, таких как SET / set_config (например, для обхода RLS). Разделяйте операторы точкой с запятой.",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);"
   },
   "sshConnections": {
     "title": "SSH-подключения",

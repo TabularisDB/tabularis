@@ -1,5 +1,5 @@
 use crate::models::ConnectionParams;
-use deadpool_postgres::{Manager as PgPoolManager, Pool as PgPool};
+use deadpool_postgres::{Hook as PgHook, HookError as PgHookError, Manager as PgPoolManager, Pool as PgPool};
 use once_cell::sync::Lazy;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::client::{verify_server_cert_signed_by_trust_anchor, WebPkiServerVerifier};
@@ -11,7 +11,7 @@ use rustls::server::ParsedCertificate;
 use rustls::{DigitallySignedStruct};
 use rustls::{ClientConfig, Error as TlsError, RootCertStore};
 use rustls_platform_verifier::BuilderVerifierExt;
-use sqlx::{sqlite::SqliteConnectOptions, MySql, Pool, Sqlite};
+use sqlx::{sqlite::SqliteConnectOptions, Executor, MySql, Pool, Sqlite};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -469,6 +469,18 @@ fn build_sqlite_connectoptions(params: &ConnectionParams) -> SqliteConnectOption
     SqliteConnectOptions::new().filename(params.database.to_string())
 }
 
+/// Return the connection's startup script if it is set and not blank.
+/// Whitespace-only scripts are treated as absent so the per-connection
+/// hook is skipped entirely rather than issuing an empty query.
+fn startup_script(params: &ConnectionParams) -> Option<String> {
+    params
+        .startup_script
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+}
+
 pub async fn get_mysql_pool(params: &ConnectionParams) -> Result<Pool<MySql>, String> {
     let connection_id = params.connection_id.as_deref();
     get_mysql_pool_with_id(params, connection_id).await
@@ -525,12 +537,17 @@ async fn get_mysql_pool_for_database_with_id(
         "connectTimeout",
         DEFAULT_MYSQL_CONNECT_TIMEOUT_MS,
     ));
-    let pool = tokio::time::timeout(
-        connect_timeout,
-        sqlx::mysql::MySqlPoolOptions::new()
-            .max_connections(10)
-            .connect_with(options),
-    )
+    let mut pool_options = sqlx::mysql::MySqlPoolOptions::new().max_connections(10);
+    if let Some(script) = startup_script(params) {
+        pool_options = pool_options.after_connect(move |conn, _meta| {
+            let script = script.clone();
+            Box::pin(async move {
+                conn.execute(script.as_str()).await?;
+                Ok(())
+            })
+        });
+    }
+    let pool = tokio::time::timeout(connect_timeout, pool_options.connect_with(options))
     .await
     .map_err(|_| {
         format!(
@@ -597,14 +614,24 @@ pub async fn get_postgres_pool_with_id(
         e
     })?;
 
-    let pool = PgPool::builder(PgPoolManager::new(cfg, tls_connector))
-        .max_size(10)
-        .build()
-        .map_err(|e| {
-            let detail = format_error_chain(&e);
-            log::error!("Failed to create PostgreSQL connection pool: {}", detail);
-            detail
-        })?;
+    let mut builder = PgPool::builder(PgPoolManager::new(cfg, tls_connector)).max_size(10);
+    if let Some(script) = startup_script(params) {
+        builder = builder.post_create(PgHook::async_fn(move |client, _metrics| {
+            let script = script.clone();
+            Box::pin(async move {
+                client
+                    .batch_execute(&script)
+                    .await
+                    .map_err(PgHookError::Backend)?;
+                Ok(())
+            })
+        }));
+    }
+    let pool = builder.build().map_err(|e| {
+        let detail = format_error_chain(&e);
+        log::error!("Failed to create PostgreSQL connection pool: {}", detail);
+        detail
+    })?;
 
     log::info!(
         "PostgreSQL connection pool created successfully for: {} (key: {})",
@@ -652,14 +679,20 @@ pub async fn get_sqlite_pool_with_id(
         key
     );
     let options = build_sqlite_connectoptions(params);
-    let pool = sqlx::sqlite::SqlitePoolOptions::new()
-        .max_connections(5) // SQLite has lower concurrency needs
-        .connect_with(options)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to create SQLite connection pool: {}", e);
-            e.to_string()
-        })?;
+    let mut pool_options = sqlx::sqlite::SqlitePoolOptions::new().max_connections(5); // SQLite has lower concurrency needs
+    if let Some(script) = startup_script(params) {
+        pool_options = pool_options.after_connect(move |conn, _meta| {
+            let script = script.clone();
+            Box::pin(async move {
+                conn.execute(script.as_str()).await?;
+                Ok(())
+            })
+        });
+    }
+    let pool = pool_options.connect_with(options).await.map_err(|e| {
+        log::error!("Failed to create SQLite connection pool: {}", e);
+        e.to_string()
+    })?;
 
     log::info!(
         "SQLite connection pool created successfully for: {} (key: {})",

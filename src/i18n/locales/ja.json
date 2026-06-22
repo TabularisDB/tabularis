@@ -709,7 +709,11 @@
     "selectK8sConnection": "K8s 接続を選択",
     "selectTypeFirst": "先にコンテキスト/ネームスペース/タイプを選択してください",
     "useK8s": "Kubernetes ポートフォワードを使用",
-    "useK8sConnection": "保存された接続"
+    "useK8sConnection": "保存された接続",
+    "advanced": "詳細設定",
+    "startupScript": "起動スクリプト",
+    "startupScriptDescription": "このデータソースへの新規接続ごとに実行される SQL です。SET / set_config（例: RLS のバイパス）などのセッション設定に使用します。複数のステートメントはセミコロンで区切ってください。",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);"
   },
   "sshConnections": {
     "title": "SSH 接続",

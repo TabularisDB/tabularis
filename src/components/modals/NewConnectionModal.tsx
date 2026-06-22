@@ -76,6 +76,8 @@ interface ConnectionParams {
   k8s_resource_type?: string;
   k8s_resource_name?: string;
   k8s_port?: number;
+  // SQL run on every new connection (e.g. SET / set_config)
+  startup_script?: string;
 }
 
 interface SavedConnection {
@@ -186,7 +188,7 @@ export const NewConnectionModal = ({
 
   // ── tab ──
   const [activeTab, setActiveTab] = useState<
-    "general" | "databases" | "ssh" | "ssl" | "k8s" | "appearance"
+    "general" | "databases" | "ssh" | "ssl" | "k8s" | "advanced" | "appearance"
   >("general");
 
   // ── SSH ──
@@ -1128,6 +1130,34 @@ export const NewConnectionModal = ({
     />
   );
 
+  // ── rendered Advanced tab content (per-connection startup SQL) ──
+  const advancedTabContent = (
+    <div className="space-y-2">
+      <label className="text-[10px] uppercase font-semibold tracking-wider text-muted block">
+        {t("newConnection.startupScript", { defaultValue: "Startup Script" })}
+      </label>
+      <p className="text-xs text-muted leading-snug">
+        {t("newConnection.startupScriptDescription", {
+          defaultValue:
+            "SQL run on every new connection to this data source. Use it for session settings such as SET / set_config (e.g. bypassing RLS). Separate statements with semicolons.",
+        })}
+      </p>
+      <textarea
+        value={formData.startup_script ?? ""}
+        onChange={(e) => updateField("startup_script", e.target.value)}
+        rows={8}
+        spellCheck={false}
+        autoCorrect="off"
+        autoCapitalize="off"
+        autoComplete="off"
+        className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary font-mono placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors resize-none"
+        placeholder={t("newConnection.startupScriptPlaceholder", {
+          defaultValue: "SELECT set_config('app.bypass_rls', 'on', false);",
+        })}
+      />
+    </div>
+  );
+
   // ── rendered Databases tab content (multi-db selection) ──
   const databasesTabContent = (
     <div className="space-y-3">
@@ -2003,13 +2033,19 @@ export const NewConnectionModal = ({
                   ...(isNetworkDriver ? [{ id: "ssh", label: "SSH" }] : []),
                   ...(isNetworkDriver ? [{ id: "k8s", label: "Kubernetes" }] : []),
                   {
+                    id: "advanced",
+                    label: t("newConnection.advanced", {
+                      defaultValue: "Advanced",
+                    }),
+                  },
+                  {
                     id: "appearance",
                     label: t("newConnection.appearance", {
                       defaultValue: "Appearance",
                     }),
                   },
                 ] as {
-                  id: "general" | "databases" | "ssh" | "ssl" | "k8s" | "appearance";
+                  id: "general" | "databases" | "ssh" | "ssl" | "k8s" | "advanced" | "appearance";
                   label: string;
                 }[]
               ).map((tab) => (
@@ -2051,7 +2087,9 @@ export const NewConnectionModal = ({
                       ? k8sTabContent
                       : activeTab === "ssh"
                         ? sshTabContent
-                        : appearanceTabContent}
+                        : activeTab === "advanced"
+                          ? advancedTabContent
+                          : appearanceTabContent}
             </div>
           </div>
         </div>
