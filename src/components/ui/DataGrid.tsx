@@ -41,8 +41,10 @@ import {
   getColumnSortState,
   calculateSelectionRange,
   toggleSetValue,
+  getResultValueType,
   type MergedRow,
 } from "../../utils/dataGrid";
+import { useSettings } from "../../hooks/useSettings";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
 import { isJsonColumn, isJsonContent } from "../../utils/json";
@@ -149,6 +151,8 @@ export const DataGrid = React.memo(
     const { t } = useTranslation();
     const { activeSchema, connections } = useDatabase();
     const { showAlert } = useAlert();
+    const { settings } = useSettings();
+    const colorByType = settings.resultColorByType ?? false;
 
     const detectJsonInTextColumns = useMemo(() => {
       if (!connectionId) return false;
@@ -254,6 +258,19 @@ export const DataGrid = React.memo(
         columnMetadata.map((col) => [col.name, col.character_maximum_length]),
       );
     }, [columnMetadata]);
+
+    // Precompute the result-coloring class per column once (the type is fixed
+    // per column), so rows don't reclassify every cell on each render. `null`
+    // when the feature is off, which makes rows skip the wrapper entirely.
+    const resultColorClassMap = useMemo(() => {
+      if (!colorByType) return null;
+      const map = new Map<string, string>();
+      for (const colName of columns) {
+        const colType = columnTypeMap?.get(colName);
+        if (colType) map.set(colName, `rcell-${getResultValueType(undefined, colType)}`);
+      }
+      return map;
+    }, [colorByType, columns, columnTypeMap]);
 
     const isJsonCellTarget = useCallback(
       (colType: string | undefined, value: unknown): boolean => {
@@ -1190,6 +1207,7 @@ export const DataGrid = React.memo(
         pendingChanges,
         columnTypeMap,
         columnLengthMap,
+        resultColorClassMap,
         isJsonCellTarget,
         fksByColumn,
         t,
@@ -1226,6 +1244,7 @@ export const DataGrid = React.memo(
         pendingChanges,
         columnTypeMap,
         columnLengthMap,
+        resultColorClassMap,
         isJsonCellTarget,
         fksByColumn,
         t,
