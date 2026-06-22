@@ -8,12 +8,10 @@ import {
   Rocket,
   ExternalLink,
   Loader2,
-  Github,
 } from "lucide-react";
 import { Modal } from "../ui/Modal";
-import { DiscordIcon } from "../icons/DiscordIcon";
+import { SocialLinks } from "../SocialLinks";
 import { type ChangelogEntry } from "../../utils/changelog";
-import { GITHUB_URL, DISCORD_URL } from "../../config/links";
 
 interface WhatsNewModalProps {
   isOpen: boolean;
@@ -132,22 +130,7 @@ export const WhatsNewModal = ({
 
         {/* Footer */}
         <div className="p-4 border-t border-default bg-base/50 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => openUrl(GITHUB_URL)}
-              className="p-2 text-secondary hover:text-primary hover:bg-surface-tertiary rounded-lg transition-colors"
-              title="GitHub"
-            >
-              <Github size={18} />
-            </button>
-            <button
-              onClick={() => openUrl(DISCORD_URL)}
-              className="p-2 text-secondary hover:text-indigo-400 hover:bg-indigo-900/20 rounded-lg transition-colors"
-              title="Discord"
-            >
-              <DiscordIcon size={18} />
-            </button>
-          </div>
+          <SocialLinks iconSize={18} />
           <button
             onClick={onClose}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"

@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Activity,
   Sparkles,
+  Share2,
 } from "lucide-react";
 import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
@@ -26,6 +27,7 @@ import { ROADMAP } from "../../utils/settings";
 import { SettingRow, SettingSection, SettingToggle } from "./SettingControls";
 import { WhatsNewModal } from "../modals/WhatsNewModal";
 import { OpenSourceLibrariesModal } from "../modals/OpenSourceLibrariesModal";
+import { SocialLinks } from "../SocialLinks";
 
 export function InfoTab() {
   const { t } = useLingui();
@@ -274,6 +276,17 @@ export function InfoTab() {
         }
       >
         <div />
+      </SettingSection>
+
+      {/* Follow us */}
+      <SettingSection
+        title={t`Follow Us`}
+        icon={<Share2 size={14} className="text-muted" />}
+        description={t`Stay up to date and connect with the community on your favorite platform.`}
+      >
+        <div className="pt-3">
+          <SocialLinks showLabels />
+        </div>
       </SettingSection>
 
       {/* Support */}

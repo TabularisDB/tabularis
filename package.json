@@ -5,7 +5,10 @@
   "type": "module",
   "links": {
     "discord": "https://discord.com/invite/K2hmhfHRSt",
-    "github": "https://github.com/TabularisDB/tabularis"
+    "github": "https://github.com/TabularisDB/tabularis",
+    "x": "https://x.com/tabularisdb",
+    "bluesky": "https://bsky.app/profile/tabularis.bsky.social",
+    "mastodon": "https://mastodon.social/@tabularis"
   },
   "scripts": {
     "dev": "vite",

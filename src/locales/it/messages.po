@@ -2367,6 +2367,11 @@ msgstr "Focus su"
 msgid "Folder Path"
 msgstr "Percorso Cartella"
 
+#: src/components/modals/UpdateNotificationModal.tsx
+#: src/components/settings/InfoTab.tsx
+msgid "Follow Us"
+msgstr ""
+
 #: src/components/settings/AppearanceTab.tsx
 msgid "Font Family"
 msgstr "Famiglia Font"
@@ -4716,6 +4721,10 @@ msgstr "Avvio"
 #: src/pages/TaskManagerPage.tsx
 msgid "Status"
 msgstr "Stato"
+
+#: src/components/settings/InfoTab.tsx
+msgid "Stay up to date and connect with the community on your favorite platform."
+msgstr ""
 
 #: src/components/modals/DumpDatabaseModal.tsx
 #: src/pages/Editor.tsx

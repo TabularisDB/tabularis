@@ -2367,6 +2367,11 @@ msgstr "Focalisé sur"
 msgid "Folder Path"
 msgstr "Chemin du dossier"
 
+#: src/components/modals/UpdateNotificationModal.tsx
+#: src/components/settings/InfoTab.tsx
+msgid "Follow Us"
+msgstr ""
+
 #: src/components/settings/AppearanceTab.tsx
 msgid "Font Family"
 msgstr "Famille de police"
@@ -4716,6 +4721,10 @@ msgstr "Démarrage"
 #: src/pages/TaskManagerPage.tsx
 msgid "Status"
 msgstr "Statut"
+
+#: src/components/settings/InfoTab.tsx
+msgid "Stay up to date and connect with the community on your favorite platform."
+msgstr ""
 
 #: src/components/modals/DumpDatabaseModal.tsx
 #: src/pages/Editor.tsx

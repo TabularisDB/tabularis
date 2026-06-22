@@ -208,6 +208,8 @@ vi.mock("lucide-react", () => ({
   ChevronsUpDown: () => null,
   AlertTriangle: () => null,
   Home: () => null,
+  Github: () => null,
+  Share2: () => null,
   // CONNECTION_ICON_PACK icons
   Server: () => null,
   HardDrive: () => null,
