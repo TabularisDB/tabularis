@@ -13,9 +13,13 @@ import React from "react";
 export function renderDefaultCellContent(
   value: unknown,
   formatted: string,
+  colorClass?: string,
 ): React.ReactNode {
   if (value === null || value === undefined) {
     return <span className="text-muted italic">{formatted}</span>;
+  }
+  if (colorClass) {
+    return <span className={colorClass}>{formatted}</span>;
   }
   return formatted;
 }

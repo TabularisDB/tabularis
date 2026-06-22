@@ -25,6 +25,13 @@ pub struct AppConfig {
     pub result_page_size: Option<u32>,
     pub font_family: Option<String>,
     pub font_size: Option<u32>,
+    /// Colorize query result cell values by their data type (number, string,
+    /// date, boolean). Default: false — values render in the primary text color.
+    pub result_color_by_type: Option<bool>,
+    /// Per-type hex color overrides for result cell values. Keys: "number",
+    /// "string", "date", "boolean". Missing keys fall back to the active theme's
+    /// semantic colors.
+    pub result_type_colors: Option<HashMap<String, String>>,
     pub ai_enabled: Option<bool>,
     pub ai_provider: Option<String>,
     pub ai_model: Option<String>,
@@ -225,6 +232,12 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.font_size.is_some() {
             existing_config.font_size = config.font_size;
+        }
+        if config.result_color_by_type.is_some() {
+            existing_config.result_color_by_type = config.result_color_by_type;
+        }
+        if config.result_type_colors.is_some() {
+            existing_config.result_type_colors = config.result_type_colors;
         }
         if config.ai_enabled.is_some() {
             existing_config.ai_enabled = config.ai_enabled;

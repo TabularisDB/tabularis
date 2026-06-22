@@ -24,6 +24,10 @@ export interface Settings {
   displayTimezone?: string;
   fontFamily: string;
   fontSize: number;
+  /** Colorize query result cell values by their data type. Default: false. */
+  resultColorByType?: boolean;
+  /** Per-type hex color overrides for result cell values (keys: number, string, date, boolean). */
+  resultTypeColors?: Record<string, string>;
   aiEnabled: boolean;
   aiProvider: AiProvider | null;
   aiModel: string | null;
@@ -88,6 +92,8 @@ export const DEFAULT_SETTINGS: Settings = {
   displayTimezone: "auto",
   fontFamily: "System",
   fontSize: 14,
+  resultColorByType: false,
+  resultTypeColors: {},
   aiEnabled: false,
   aiProvider: null,
   aiModel: null,

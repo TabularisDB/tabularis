@@ -5,6 +5,7 @@ import {
   resolveInsertionCellDisplay,
   resolveExistingCellDisplay,
   getCellStateClass,
+  getResultValueType,
   type ColumnDisplayInfo,
   type MergedRow,
 } from "../../utils/dataGrid";
@@ -288,6 +289,17 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
             isModified,
             isJsonCell,
           });
+
+          const isPlainCell =
+            !isPendingDelete &&
+            !isInsertion &&
+            !isModified &&
+            !isAutoIncrementPlaceholder &&
+            !isDefaultValuePlaceholder;
+          const valueColorClass =
+            isPlainCell && rawCellValue !== null && rawCellValue !== undefined
+              ? `rcell-${getResultValueType(rawCellValue, colTypeForCell)}`
+              : undefined;
 
           const isFocused =
             focusedCell?.rowIndex === rowIndex &&
@@ -584,6 +596,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                             {renderDefaultCellContent(
                               displayValue,
                               formattedDisplay,
+                              valueColorClass,
                             )}
                           </span>
                           <button
@@ -606,6 +619,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                     return renderDefaultCellContent(
                       displayValue,
                       formattedDisplay,
+                      valueColorClass,
                     );
                   })()}
             </td>
