@@ -1,0 +1,65 @@
+name: i18n Catalogs
+
+# Keeps the Lingui message catalogs in sync with the source, so a contributor
+# who never ran `pnpm tauri dev` (which auto-regenerates them) doesn't leave the
+# catalogs stale. On a PR it regenerates and commits the catalogs back onto the
+# PR branch; on main it does the same as a safety net (e.g. for fork PRs that
+# couldn't be auto-committed). This does NOT touch Tolgee — that happens only on
+# release (see i18n-tolgee-sync.yml).
+
+concurrency:
+  group: i18n-catalogs-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'lingui.config.ts'
+      - '.github/workflows/i18n-catalogs.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'lingui.config.ts'
+      - '.github/workflows/i18n-catalogs.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  catalogs:
+    runs-on: ubuntu-24.04
+    # Auto-commit can only push to branches in this repo, not forks. Fork PRs
+    # are covered by the main run after merge.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: pnpm/action-setup@v5
+        name: Install pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Regenerate message catalogs
+        run: |
+          pnpm run i18n:extract
+          pnpm run i18n:compile
+
+      - name: Commit refreshed catalogs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/locales
+          git diff --staged --quiet || (git commit -m "chore(i18n): refresh message catalogs [skip ci]" && git push)

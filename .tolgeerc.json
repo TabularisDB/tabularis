@@ -1,6 +1,7 @@
 {
   "$schema": "https://docs.tolgee.io/cli-schema.json",
   "apiUrl": "https://app.tolgee.io",
+  "projectId": 32587,
   "format": "PO_ICU",
   "patterns": [
     "./src/**/*.ts?(x)"
@@ -40,6 +41,6 @@
         "language": "zh"
       }
     ],
-    "forceMode": "OVERRIDE"
+    "forceMode": "KEEP"
   }
 }

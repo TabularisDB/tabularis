@@ -1,0 +1,67 @@
+name: i18n Tolgee Backsync
+
+# Pulls finished translations (human + machine translation) back from Tolgee into
+# the bundled catalogs. Runs on a schedule because machine translation completes
+# asynchronously — there's no event telling us when it's ready, so we poll.
+#
+# Only the target languages are pulled (never `en` — English/source is owned by
+# the code), and only TRANSLATED/REVIEWED states, so untranslated keys keep their
+# English fallback. After pulling, `lingui extract` re-normalizes the catalogs to
+# the canonical Lingui format (matching by source+context, so msgstr is preserved)
+# and `lingui compile` rebuilds messages.ts. Changes are committed with [skip ci].
+#
+# Requires the repo secret TOLGEE_API_KEY.
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # daily 03:00 UTC — tune for how fast you want MT to land
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: i18n-tolgee-backsync
+  cancel-in-progress: false
+
+jobs:
+  backsync:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: pnpm/action-setup@v5
+        name: Install pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Pull translations from Tolgee
+        run: >
+          npx --yes @tolgee/cli@latest pull
+          --path src/locales
+          --file-structure-template "{languageTag}/messages.{extension}"
+          --languages de es fr it ja ru zh
+          --states TRANSLATED REVIEWED
+        env:
+          TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}
+
+      - name: Re-normalize and compile catalogs
+        run: |
+          pnpm run i18n:extract
+          pnpm run i18n:compile
+
+      - name: Commit synced translations
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/locales
+          git diff --staged --quiet || (git commit -m "chore(i18n): backsync translations from Tolgee [skip ci]" && git push)
