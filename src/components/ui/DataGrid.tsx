@@ -482,31 +482,16 @@ export const DataGrid = React.memo(
 
       const colName = columns[colIndex];
 
-      // For existing rows of a single-table SELECT result, only allow editing
-      // columns that map to a real physical column of the table, and only when
-      // the primary key is present in the result (needed for the UPDATE WHERE).
-      // This prevents malformed UPDATEs (e.g. on aliased/computed columns) that
-      // would otherwise fail at the database with "Unknown column".
-      if (
-        mergedRow.type !== "insertion" &&
-        columnMetadata &&
-        columnMetadata.length > 0
-      ) {
-        const realColumns = new Set(
-          columnMetadata.map((c) => c.name.toLowerCase()),
-        );
-        if (!realColumns.has(colName.toLowerCase())) {
-          showAlert(
-            t("dataGrid.columnNotEditable", {
-              column: colName,
-              table: tableName,
-              defaultValue:
-                'Column "{{column}}" can\'t be edited — it is not a direct column of table "{{table}}" (likely an alias or computed value).',
-            }),
-            { title: t("common.error"), kind: "warning" },
-          );
-          return;
-        }
+      // For existing rows we must be able to build a safe UPDATE. Two guards,
+      // each running whenever the data it depends on is available, so they
+      // don't silently no-op when a driver omits result metadata:
+      //
+      // 1. The primary key must be present in the result set (needed for the
+      //    WHERE clause). Depends only on pkColumn + columns.
+      // 2. The edited column must map to a real physical column of the table
+      //    (prevents malformed UPDATEs on aliased/computed columns). Requires
+      //    columnMetadata; skipped when it's unavailable.
+      if (mergedRow.type !== "insertion") {
         if (
           pkColumn &&
           !columns.some((c) => c.toLowerCase() === pkColumn.toLowerCase())
@@ -520,6 +505,24 @@ export const DataGrid = React.memo(
             { title: t("common.error"), kind: "warning" },
           );
           return;
+        }
+
+        if (columnMetadata && columnMetadata.length > 0) {
+          const realColumns = new Set(
+            columnMetadata.map((c) => c.name.toLowerCase()),
+          );
+          if (!realColumns.has(colName.toLowerCase())) {
+            showAlert(
+              t("dataGrid.columnNotEditable", {
+                column: colName,
+                table: tableName,
+                defaultValue:
+                  'Column "{{column}}" can\'t be edited — it is not a direct column of table "{{table}}" (likely an alias or computed value).',
+              }),
+              { title: t("common.error"), kind: "warning" },
+            );
+            return;
+          }
         }
       }
 
