@@ -52,6 +52,11 @@ static SQLITE_POOLS: Lazy<PoolMap<Sqlite>> = Lazy::new(|| Arc::new(RwLock::new(H
 const DEFAULT_MYSQL_CONNECT_TIMEOUT_MS: u64 = 60_000;
 const DEFAULT_MYSQL_TIMEZONE: &str = "SYSTEM";
 
+/// SQLite is file-based so the preflight is effectively local, but a custom
+/// VFS or a path on a stalled network mount could still hang it; bound it so a
+/// broken script can never wedge pool creation indefinitely.
+const SQLITE_STARTUP_SCRIPT_TIMEOUT_MS: u64 = 30_000;
+
 fn mysql_setting_value(key: &str) -> Option<serde_json::Value> {
     crate::config::get_cached_config()
         .plugins
@@ -739,7 +744,15 @@ pub async fn get_sqlite_pool_with_id(
     let options = build_sqlite_connectoptions(params);
     let mut pool_options = sqlx::sqlite::SqlitePoolOptions::new().max_connections(5); // SQLite has lower concurrency needs
     if let Some(script) = startup_script(params) {
-        run_sqlite_startup_script(&options, &script).await?;
+        let timeout = Duration::from_millis(SQLITE_STARTUP_SCRIPT_TIMEOUT_MS);
+        tokio::time::timeout(timeout, run_sqlite_startup_script(&options, &script))
+            .await
+            .map_err(|_| {
+                format!(
+                    "Timed out running SQLite startup script after {} ms",
+                    timeout.as_millis()
+                )
+            })??;
         pool_options = pool_options.after_connect(move |conn, _meta| {
             let script = script.clone();
             Box::pin(async move {
