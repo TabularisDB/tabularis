@@ -2009,6 +2009,26 @@ export const Editor = () => {
     showAlert,
   ]);
 
+  // Cmd/Ctrl+S: commit the active tab's pending grid changes (like TablePlus).
+  useEffect(() => {
+    const focused = isFocusedPane(explorerConnectionId, activeConnectionId);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!focused) return;
+      if (matchesShortcut(e, "save_grid_changes")) {
+        e.preventDefault();
+        if (hasPendingChanges) handleSubmitChanges();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    explorerConnectionId,
+    activeConnectionId,
+    matchesShortcut,
+    hasPendingChanges,
+    handleSubmitChanges,
+  ]);
+
   const handleParamsSubmit = useCallback(
     (values: Record<string, string>) => {
       const { pendingTabId, mode, sql, pendingPageNum, pendingMultiQueries } =

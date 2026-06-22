@@ -464,6 +464,48 @@ export const DataGrid = React.memo(
       if (mergedRow.type !== "insertion" && !pkColumn) return;
 
       const colName = columns[colIndex];
+
+      // For existing rows of a single-table SELECT result, only allow editing
+      // columns that map to a real physical column of the table, and only when
+      // the primary key is present in the result (needed for the UPDATE WHERE).
+      // This prevents malformed UPDATEs (e.g. on aliased/computed columns) that
+      // would otherwise fail at the database with "Unknown column".
+      if (
+        mergedRow.type !== "insertion" &&
+        columnMetadata &&
+        columnMetadata.length > 0
+      ) {
+        const realColumns = new Set(
+          columnMetadata.map((c) => c.name.toLowerCase()),
+        );
+        if (!realColumns.has(colName.toLowerCase())) {
+          showAlert(
+            t("dataGrid.columnNotEditable", {
+              column: colName,
+              table: tableName,
+              defaultValue:
+                'Column "{{column}}" can\'t be edited — it is not a direct column of table "{{table}}" (likely an alias or computed value).',
+            }),
+            { title: t("common.error"), kind: "warning" },
+          );
+          return;
+        }
+        if (
+          pkColumn &&
+          !columns.some((c) => c.toLowerCase() === pkColumn.toLowerCase())
+        ) {
+          showAlert(
+            t("dataGrid.pkRequiredToEdit", {
+              pk: pkColumn,
+              defaultValue:
+                'To edit this result, include the primary key column "{{pk}}" in your SELECT.',
+            }),
+            { title: t("common.error"), kind: "warning" },
+          );
+          return;
+        }
+      }
+
       const colType = columnTypeMap?.get(colName);
 
       if (
@@ -518,8 +560,11 @@ export const DataGrid = React.memo(
         columns,
         columnTypeMap,
         columnLengthMap,
+        columnMetadata,
         buildRowDataWithPending,
         openJsonViewerWindow,
+        showAlert,
+        t,
       ],
     );
 
