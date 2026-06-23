@@ -37,6 +37,7 @@ chrono = { version = "0.4.43", features = ["serde"] }
 chrono-tz = "0.10"
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
+tauri-plugin-notification = "2"
 russh = "0.43"
 russh-keys = "0.43"
 async-trait = "0.1"

@@ -50,6 +50,10 @@ export interface Settings {
   pingInterval?: number;
   queryHistoryMaxEntries?: number;
   showWelcome?: boolean;
+  /** Reconnect to the last active connection on startup. Default: true. */
+  autoConnectLastConnection?: boolean;
+  /** Maximize the window on startup. Default: false. */
+  startMaximized?: boolean;
   // AI / MCP safety
   aiAuditEnabled?: boolean;
   aiAuditMaxEntries?: number;
@@ -59,6 +63,8 @@ export interface Settings {
   mcpApprovalMode?: "off" | "writes_only" | "all";
   mcpApprovalTimeoutSeconds?: number;
   mcpPreflightExplain?: boolean;
+  mcpApprovalAlwaysOnTop?: boolean;
+  mcpApprovalNotifySound?: boolean;
 }
 
 export interface SettingsContextType {
@@ -68,6 +74,8 @@ export interface SettingsContextType {
     value: Settings[K],
   ) => Promise<void>;
   isLoading: boolean;
+  isLanguageReady: boolean;
+  isLanguageSettled: boolean;
 }
 
 export const SettingsContext = createContext<SettingsContextType | undefined>(
@@ -101,6 +109,8 @@ export const DEFAULT_SETTINGS: Settings = {
   editorAcceptSuggestionOnEnter: true,
   pingInterval: 30,
   queryHistoryMaxEntries: 500,
+  autoConnectLastConnection: true,
+  startMaximized: false,
   aiAuditEnabled: true,
   aiAuditMaxEntries: 5000,
   aiSessionGapMinutes: 10,
@@ -109,4 +119,6 @@ export const DEFAULT_SETTINGS: Settings = {
   mcpApprovalMode: "writes_only",
   mcpApprovalTimeoutSeconds: 120,
   mcpPreflightExplain: true,
+  mcpApprovalAlwaysOnTop: true,
+  mcpApprovalNotifySound: true,
 };

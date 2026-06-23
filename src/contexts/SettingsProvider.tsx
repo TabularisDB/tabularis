@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -8,10 +8,121 @@ import {
 } from "./SettingsContext";
 import { getFontCSS } from "../utils/settings";
 
+const LANGUAGE_APPLICATION_TIMEOUT_MS = 3000;
+
+type LanguageState = {
+  language: Settings["language"] | null;
+  ready: boolean;
+  settled: boolean;
+};
+
+function matchesAppliedLanguage(
+  activeLanguage: string | null | undefined,
+  requestedLanguage: Settings["language"],
+): boolean {
+  if (requestedLanguage === "auto") {
+    return true;
+  }
+
+  if (!activeLanguage) {
+    return false;
+  }
+
+  return (
+    activeLanguage === requestedLanguage ||
+    activeLanguage.startsWith(`${requestedLanguage}-`) ||
+    activeLanguage.startsWith(`${requestedLanguage}_`)
+  );
+}
+
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const { i18n } = useTranslation();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
+  const [languageState, setLanguageState] = useState<LanguageState>({
+    language: null,
+    ready: false,
+    settled: false,
+  });
+  const appliedLanguageRef = useRef<Settings["language"] | null>(null);
+  const requestedLanguageRef = useRef<Settings["language"] | null>(null);
+  const languageRequestIdRef = useRef(0);
+  const languageQueueRef = useRef(Promise.resolve(false));
+
+  const isLanguageApplied = useCallback((language: Settings["language"]) => {
+    const activeLanguage = i18n.resolvedLanguage ?? i18n.language;
+    return matchesAppliedLanguage(activeLanguage, language);
+  }, [i18n.language, i18n.resolvedLanguage]);
+
+  const queueLanguageApplication = useCallback((language: Settings["language"]) => {
+    if (
+      requestedLanguageRef.current === language &&
+      appliedLanguageRef.current !== language
+    ) {
+      return languageQueueRef.current;
+    }
+
+    requestedLanguageRef.current = language;
+    const requestId = ++languageRequestIdRef.current;
+
+    languageQueueRef.current = languageQueueRef.current
+      .catch(() => false)
+      .then(async () => {
+        if (requestId !== languageRequestIdRef.current) {
+          return false;
+        }
+
+        const nextLanguage = language === "auto" ? undefined : language;
+
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+              reject(new Error(
+                `Language application timed out after ${LANGUAGE_APPLICATION_TIMEOUT_MS}ms`,
+              ));
+            }, LANGUAGE_APPLICATION_TIMEOUT_MS);
+
+            Promise.resolve(i18n.changeLanguage(nextLanguage)).then(
+              () => {
+                clearTimeout(timeoutId);
+                resolve();
+              },
+              (error) => {
+                clearTimeout(timeoutId);
+                reject(error);
+              },
+            );
+          });
+        } catch (error) {
+          console.error("Failed to apply language:", error);
+
+          if (requestId === languageRequestIdRef.current) {
+            requestedLanguageRef.current = appliedLanguageRef.current;
+          }
+
+          return false;
+        }
+
+        if (requestId !== languageRequestIdRef.current) {
+          return false;
+        }
+
+        appliedLanguageRef.current = language;
+        requestedLanguageRef.current = language;
+        return true;
+      });
+
+    return languageQueueRef.current;
+  }, [i18n]);
+
+  const currentLanguageApplied = isLanguageApplied(settings.language);
+  const trackedLanguageState =
+    languageState.language === settings.language ? languageState : null;
+  const isLanguageReady =
+    !isLoading && (currentLanguageApplied || trackedLanguageState?.ready === true);
+  const isLanguageSettled =
+    !isLoading &&
+    (currentLanguageApplied || trackedLanguageState?.settled === true);
 
   // Load settings from backend on mount
   useEffect(() => {
@@ -120,7 +231,22 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         document.body.style.fontFamily = fontFamily;
         document.body.style.fontSize = `${fontSize}px`;
 
+        const languageAlreadyApplied = isLanguageApplied(finalSettings.language);
+        if (languageAlreadyApplied) {
+          appliedLanguageRef.current = finalSettings.language;
+          requestedLanguageRef.current = finalSettings.language;
+        }
+
         setSettings(finalSettings);
+        setLanguageState({
+          language: finalSettings.language,
+          ready: languageAlreadyApplied,
+          settled: languageAlreadyApplied,
+        });
+
+        if (!languageAlreadyApplied) {
+          void queueLanguageApplication(finalSettings.language);
+        }
       } catch (error) {
         console.error("Failed to load settings:", error);
       } finally {
@@ -133,12 +259,46 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
   // Update i18n when language changes
   useEffect(() => {
-    if (settings.language === "auto") {
-      i18n.changeLanguage();
-    } else {
-      i18n.changeLanguage(settings.language);
+    if (isLoading || currentLanguageApplied || trackedLanguageState?.settled) {
+      if (currentLanguageApplied) {
+        appliedLanguageRef.current = settings.language;
+        requestedLanguageRef.current = settings.language;
+      }
+      return;
     }
-  }, [settings.language, i18n]);
+
+    let cancelled = false;
+
+    const applyLanguage = async () => {
+      const didApply = await queueLanguageApplication(settings.language);
+
+      if (cancelled) return;
+
+      setLanguageState((previous) => {
+        if (previous.language !== settings.language) {
+          return previous;
+        }
+
+        return {
+          language: settings.language,
+          ready: didApply && appliedLanguageRef.current === settings.language,
+          settled: true,
+        };
+      });
+    };
+
+    void applyLanguage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentLanguageApplied,
+    isLoading,
+    queueLanguageApplication,
+    settings.language,
+    trackedLanguageState?.settled,
+  ]);
 
   // Apply font family
   useEffect(() => {
@@ -181,6 +341,22 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   ): Promise<void> => {
     let persistPromise = Promise.resolve();
 
+    if (key === "language") {
+      const nextLanguage = value as Settings["language"];
+      const languageAlreadyApplied = isLanguageApplied(nextLanguage);
+
+      if (languageAlreadyApplied) {
+        appliedLanguageRef.current = nextLanguage;
+        requestedLanguageRef.current = nextLanguage;
+      }
+
+      setLanguageState({
+        language: nextLanguage,
+        ready: languageAlreadyApplied,
+        settled: languageAlreadyApplied,
+      });
+    }
+
     setSettings((prev) => {
       const newSettings = { ...prev, [key]: value };
 
@@ -211,7 +387,13 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <SettingsContext.Provider value={{ settings, updateSetting, isLoading }}>
+    <SettingsContext.Provider value={{
+      settings,
+      updateSetting,
+      isLoading,
+      isLanguageReady,
+      isLanguageSettled,
+    }}>
       {children}
     </SettingsContext.Provider>
   );

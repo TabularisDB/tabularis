@@ -773,6 +773,22 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.activeExternalDrivers]);
 
+  // Persist the active connection so the app can reconnect to it on next launch.
+  // Skip null so a fresh launch (activeConnectionId starts null) doesn't wipe
+  // the value before the startup auto-connect gets a chance to read it.
+  useEffect(() => {
+    if (!activeConnectionId) return;
+    invoke('set_last_active_connection', { connectionId: activeConnectionId }).catch(() => {});
+  }, [activeConnectionId]);
+
+  // Persist the full set of open connections so the app can reopen all of them
+  // on next launch. Skip the empty startup state so the saved list isn't wiped
+  // before the startup auto-connect gets a chance to read it.
+  useEffect(() => {
+    if (openConnectionIds.length === 0) return;
+    invoke('set_last_open_connections', { connectionIds: openConnectionIds }).catch(() => {});
+  }, [openConnectionIds]);
+
   // Listen for backend health-check failures and clean up dead connections.
   useEffect(() => {
     const unlisten = listen<{ connectionId: string; error: string }>(
