@@ -15,6 +15,8 @@ import {
   Info,
   Eye,
   EyeOff,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import type { ConnectionAppearance } from "../../contexts/DatabaseContext";
@@ -191,6 +193,49 @@ export const NewConnectionModal = ({
   const [activeTab, setActiveTab] = useState<
     "general" | "databases" | "ssh" | "ssl" | "k8s" | "advanced" | "appearance"
   >("general");
+
+  // ── Tab bar horizontal scroll affordance ──
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const [tabFade, setTabFade] = useState<{ left: boolean; right: boolean }>({
+    left: false,
+    right: false,
+  });
+
+  const updateTabFade = useCallback(() => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setTabFade({
+      left: scrollLeft > 1,
+      right: scrollLeft + clientWidth < scrollWidth - 1,
+    });
+  }, []);
+
+  // Recompute fades when the visible tab set changes and keep the active tab
+  // scrolled into view; also follow window resizes.
+  useEffect(() => {
+    updateTabFade();
+    const el = tabBarRef.current;
+    const activeEl = el?.querySelector<HTMLElement>('[data-active="true"]');
+    if (el && activeEl) {
+      const left = activeEl.offsetLeft;
+      const right = left + activeEl.offsetWidth;
+      if (left < el.scrollLeft) {
+        el.scrollTo({ left: left - 20, behavior: "smooth" });
+      } else if (right > el.scrollLeft + el.clientWidth) {
+        el.scrollTo({ left: right - el.clientWidth + 20, behavior: "smooth" });
+      }
+    }
+    window.addEventListener("resize", updateTabFade);
+    return () => window.removeEventListener("resize", updateTabFade);
+  }, [updateTabFade, driver, activeTab, selectedDatabasesState.length]);
+
+  // Step the tab strip left/right (used by the edge arrows).
+  const scrollTabs = useCallback((dir: -1 | 1) => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.7, behavior: "smooth" });
+  }, []);
 
   // ── SSH ──
   const [sshConnections, setSshConnections] = useState<SshConnection[]>([]);
@@ -2012,7 +2057,22 @@ export const NewConnectionModal = ({
           {/* Right: form area */}
           <div className="flex-1 flex flex-col min-h-0 min-w-0">
             {/* Tab bar */}
-            <div className="flex items-center border-b border-default px-5 bg-base/50">
+            <div className="relative">
+            <div
+              ref={tabBarRef}
+              onScroll={updateTabFade}
+              style={{
+                maskImage:
+                  tabFade.left || tabFade.right
+                    ? `linear-gradient(to right, ${tabFade.left ? "transparent" : "black"}, black 28px, black calc(100% - 28px), ${tabFade.right ? "transparent" : "black"})`
+                    : undefined,
+                WebkitMaskImage:
+                  tabFade.left || tabFade.right
+                    ? `linear-gradient(to right, ${tabFade.left ? "transparent" : "black"}, black 28px, black calc(100% - 28px), ${tabFade.right ? "transparent" : "black"})`
+                    : undefined,
+              }}
+              className="flex items-center border-b border-default px-5 bg-base/50 overflow-x-auto no-scrollbar scroll-smooth"
+            >
               {(
                 [
                   {
@@ -2053,9 +2113,10 @@ export const NewConnectionModal = ({
               ).map((tab) => (
                 <button
                   key={tab.id}
+                  data-active={activeTab === tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={clsx(
-                    "px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 -mb-px",
+                    "flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 -mb-px",
                     activeTab === tab.id
                       ? "border-blue-500 text-blue-400"
                       : "border-transparent text-muted hover:text-secondary",
@@ -2075,6 +2136,27 @@ export const NewConnectionModal = ({
                     )}
                 </button>
               ))}
+            </div>
+              {tabFade.left && (
+                <button
+                  type="button"
+                  aria-label="Scroll tabs left"
+                  onClick={() => scrollTabs(-1)}
+                  className="absolute left-1 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-elevated text-muted shadow ring-1 ring-default hover:text-primary transition-colors"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+              )}
+              {tabFade.right && (
+                <button
+                  type="button"
+                  aria-label="Scroll tabs right"
+                  onClick={() => scrollTabs(1)}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-elevated text-muted shadow ring-1 ring-default hover:text-primary transition-colors"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              )}
             </div>
 
             {/* Tab content */}
