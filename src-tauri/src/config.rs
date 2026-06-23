@@ -62,6 +62,8 @@ pub struct AppConfig {
     pub query_history_max_entries: Option<u32>,
     /// Whether to show the welcome screen on startup. Default: true (first launch).
     pub show_welcome: Option<bool>,
+    /// Maximize the window on startup. Default: false.
+    pub start_maximized: Option<bool>,
     /// IANA timezone name (e.g. `Asia/Tokyo`) used to render timestamps in the
     /// UI and exports. `None` or `"auto"` follows the OS local timezone.
     pub display_timezone: Option<String>,
@@ -98,6 +100,14 @@ pub struct AppConfig {
     /// Send a native notification and play a short sound when a new MCP
     /// approval request arrives. Default: true.
     pub mcp_approval_notify_sound: Option<bool>,
+
+    // ----- Session restore -----
+    /// Reconnect to the last active connection on startup. Default: true.
+    pub auto_connect_last_connection: Option<bool>,
+    /// Id of the connection that was active when the app was last closed.
+    pub last_active_connection_id: Option<String>,
+    /// Ids of all connections that were open when the app was last closed.
+    pub last_open_connection_ids: Option<Vec<String>>,
 }
 
 static CONFIG_CACHE: Lazy<RwLock<AppConfig>> = Lazy::new(|| RwLock::new(AppConfig::default()));
@@ -315,6 +325,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         if config.show_welcome.is_some() {
             existing_config.show_welcome = config.show_welcome;
         }
+        if config.start_maximized.is_some() {
+            existing_config.start_maximized = config.start_maximized;
+        }
         if config.display_timezone.is_some() {
             existing_config.display_timezone = config.display_timezone;
         }
@@ -347,6 +360,15 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.mcp_approval_notify_sound.is_some() {
             existing_config.mcp_approval_notify_sound = config.mcp_approval_notify_sound;
+        }
+        if config.auto_connect_last_connection.is_some() {
+            existing_config.auto_connect_last_connection = config.auto_connect_last_connection;
+        }
+        if config.last_active_connection_id.is_some() {
+            existing_config.last_active_connection_id = config.last_active_connection_id;
+        }
+        if config.last_open_connection_ids.is_some() {
+            existing_config.last_open_connection_ids = config.last_open_connection_ids;
         }
 
         let content = serde_json::to_string_pretty(&existing_config).map_err(|e| e.to_string())?;
@@ -382,6 +404,60 @@ pub fn set_schema_preference(
         prefs.insert(connection_id, schema);
         let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
         fs::write(config_path, content).map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("Could not resolve config directory".to_string())
+    }
+}
+
+#[tauri::command]
+pub fn get_last_active_connection(app: AppHandle) -> Option<String> {
+    load_config_internal(&app).last_active_connection_id
+}
+
+#[tauri::command]
+pub fn set_last_active_connection(
+    app: AppHandle,
+    connection_id: Option<String>,
+) -> Result<(), String> {
+    if let Some(config_dir) = get_config_dir(&app) {
+        if !config_dir.exists() {
+            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
+        }
+        let config_path = config_dir.join("config.json");
+        let mut config = load_config_internal(&app);
+        config.last_active_connection_id = connection_id;
+        let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+        fs::write(config_path, content).map_err(|e| e.to_string())?;
+        cache_config(&config);
+        Ok(())
+    } else {
+        Err("Could not resolve config directory".to_string())
+    }
+}
+
+#[tauri::command]
+pub fn get_last_open_connections(app: AppHandle) -> Vec<String> {
+    load_config_internal(&app)
+        .last_open_connection_ids
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub fn set_last_open_connections(
+    app: AppHandle,
+    connection_ids: Vec<String>,
+) -> Result<(), String> {
+    if let Some(config_dir) = get_config_dir(&app) {
+        if !config_dir.exists() {
+            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
+        }
+        let config_path = config_dir.join("config.json");
+        let mut config = load_config_internal(&app);
+        config.last_open_connection_ids = Some(connection_ids);
+        let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+        fs::write(config_path, content).map_err(|e| e.to_string())?;
+        cache_config(&config);
         Ok(())
     } else {
         Err("Could not resolve config directory".to_string())
