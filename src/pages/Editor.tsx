@@ -2493,16 +2493,16 @@ export const Editor = () => {
               )}
             >
               {activeTabId === tab.id && (
-                <div className="absolute top-0 left-0 right-0 h-[2px] bg-blue-500" />
+                <div className="absolute top-0 left-0 right-0 h-[2px] bg-(--accent-primary)" />
               )}
               {tab.type === "table" ? (
-                <TableIcon size={12} className="text-blue-400 shrink-0" />
+                <TableIcon size={12} className="text-accent shrink-0" />
               ) : tab.type === "query_builder" ? (
-                <Network size={12} className="text-purple-400 shrink-0" />
+                <Network size={12} className="text-accent-secondary shrink-0" />
               ) : tab.type === "notebook" ? (
                 <BookOpen size={12} className="text-orange-400 shrink-0" />
               ) : (
-                <FileCode size={12} className="text-green-500 shrink-0" />
+                <FileCode size={12} className="text-accent-secondary shrink-0" />
               )}
               {editingTabId === tab.id ? (
                 <input
