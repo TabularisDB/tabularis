@@ -193,7 +193,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       const [tablesResult, viewsResult, materializedViewsResult, routinesResult, triggersResult] = await Promise.all([
         invoke<TableInfo[]>('get_tables', { connectionId: connId, schema }),
         invoke<ViewInfo[]>('get_views', { connectionId: connId, schema }),
-        invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[]),
+        (currentData.capabilities?.materialized_views
+          ? invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[])
+          : Promise.resolve([] as ViewInfo[])),
         invoke<RoutineInfo[]>('get_routines', { connectionId: connId, schema }),
         invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
       ]);
@@ -250,7 +252,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       const [tablesResult, viewsResult, materializedViewsResult, routinesResult, triggersResult] = await Promise.all([
         invoke<TableInfo[]>('get_tables', { connectionId: connId, schema }),
         invoke<ViewInfo[]>('get_views', { connectionId: connId, schema }),
-        invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[]),
+        (currentData.capabilities?.materialized_views
+          ? invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[])
+          : Promise.resolve([] as ViewInfo[])),
         invoke<RoutineInfo[]>('get_routines', { connectionId: connId, schema }),
         invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
       ]);
@@ -602,7 +606,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
             const [tablesResult, viewsResult, materializedViewsResult, routinesResult, triggersResult] = await Promise.all([
               invoke<TableInfo[]>('get_tables', { connectionId, schema: preferredSchema }),
               invoke<ViewInfo[]>('get_views', { connectionId, schema: preferredSchema }),
-              invoke<ViewInfo[]>('get_materialized_views', { connectionId, schema: preferredSchema }).catch(() => [] as ViewInfo[]),
+              (capabilities?.materialized_views
+                ? invoke<ViewInfo[]>('get_materialized_views', { connectionId, schema: preferredSchema }).catch(() => [] as ViewInfo[])
+                : Promise.resolve([] as ViewInfo[])),
               invoke<RoutineInfo[]>('get_routines', { connectionId, schema: preferredSchema }),
               invoke<TriggerInfo[]>('get_triggers', { connectionId, schema: preferredSchema }).catch(() => [] as TriggerInfo[]),
             ]);

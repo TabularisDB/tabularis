@@ -56,8 +56,9 @@ pub struct DriverCapabilities {
     pub schemas: bool,
     /// Supports views.
     pub views: bool,
-    /// Supports materialized views (e.g. PostgreSQL). Gates the
-    /// "Materialized Views" tree group in the UI. Defaults to `false`.
+    /// Supports materialized views (e.g. PostgreSQL). When `false`, the
+    /// frontend skips the materialized-view metadata fetch entirely (so
+    /// other drivers don't pay for an empty round-trip). Defaults to `false`.
     #[serde(default)]
     pub materialized_views: bool,
     /// Supports stored procedures and functions.
