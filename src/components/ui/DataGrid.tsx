@@ -705,7 +705,6 @@ export const DataGrid = React.memo(
                 <div
                   role={onSort ? "button" : undefined}
                   tabIndex={onSort ? 0 : undefined}
-                  aria-sort={onSort ? (displaySortState === "none" ? "none" : displaySortState === "asc" ? "ascending" : "descending") : undefined}
                   className={`flex items-center gap-2 select-none group/header ${onSort ? "cursor-pointer" : ""}`}
                   onClick={() => onSort && onSort(colName)}
                   onKeyDown={(e) => { if (onSort && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSort(colName); } }}
