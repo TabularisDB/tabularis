@@ -9,8 +9,14 @@
 export const LINKS = {
   DISCORD: "https://discord.com/invite/K2hmhfHRSt",
   GITHUB: "https://github.com/TabularisDB/tabularis",
+  X: "https://x.com/tabularisdb",
+  BLUESKY: "https://bsky.app/profile/tabularis.bsky.social",
+  MASTODON: "https://mastodon.social/@tabularis",
 } as const;
 
 // Named exports for convenience
 export const DISCORD_URL = LINKS.DISCORD;
 export const GITHUB_URL = LINKS.GITHUB;
+export const X_URL = LINKS.X;
+export const BLUESKY_URL = LINKS.BLUESKY;
+export const MASTODON_URL = LINKS.MASTODON;

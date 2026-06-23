@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../../hooks/useAlert";
 import { useDatabase } from "../../hooks/useDatabase";
+import { isMultiDatabaseCapable } from "../../utils/database";
 import { Modal } from "../ui/Modal";
 import { Loader2, Download, Database, Square, CheckSquare } from "lucide-react";
 import {
@@ -29,7 +30,8 @@ export const DumpDatabaseModal = ({
   tables,
 }: DumpDatabaseModalProps) => {
   const { t } = useTranslation();
-  const { activeSchema } = useDatabase();
+  const { activeSchema, activeCapabilities, databaseDataMap, refreshDatabaseData } =
+    useDatabase();
   const { showAlert } = useAlert();
   const [includeStructure, setIncludeStructure] = useState(true);
   const [includeData, setIncludeData] = useState(true);
@@ -40,13 +42,45 @@ export const DumpDatabaseModal = ({
   const [elapsedTime, setElapsedTime] = useState(0); // in seconds
   const [startTime, setStartTime] = useState<number | null>(null);
 
+  const isMultiDb = isMultiDatabaseCapable(activeCapabilities);
+
+  // On a multi-database connection (e.g. MySQL) the dump targets a specific
+  // database whose cached table list may be missing or belong to a different
+  // database. Reload it whenever the dialog opens so the dump reflects the
+  // target database's current schema. A ref keeps refreshDatabaseData out of the
+  // dependency list (its identity changes on every store update, which would
+  // otherwise loop).
+  const refreshRef = useRef(refreshDatabaseData);
+  refreshRef.current = refreshDatabaseData;
+  useEffect(() => {
+    if (isOpen && isMultiDb && databaseName) {
+      refreshRef.current(databaseName);
+    }
+  }, [isOpen, isMultiDb, databaseName]);
+
+  // For multi-database connections read the table list straight from the target
+  // database's freshly-loaded data (never the active-database fallback); other
+  // drivers keep using the list resolved by the parent.
+  const targetDbData = isMultiDb ? databaseDataMap[databaseName] : undefined;
+  const tablesLoading = isMultiDb ? (targetDbData?.isLoading ?? false) : false;
+  const effectiveTables = useMemo(
+    () => (isMultiDb ? (targetDbData?.tables ?? []).map((tbl) => tbl.name) : tables),
+    [isMultiDb, targetDbData, tables],
+  );
+
+  // Detect content changes without reacting to array-reference churn; the actual
+  // list is read from a ref so table names containing the separator stay intact.
+  const tablesKey = effectiveTables.join("\n");
+  const effectiveTablesRef = useRef(effectiveTables);
+  effectiveTablesRef.current = effectiveTables;
+
   useEffect(() => {
     if (isOpen) {
-      setSelectedTables(new Set(tables));
+      setSelectedTables(new Set(effectiveTablesRef.current));
       setElapsedTime(0);
       setStartTime(null);
     }
-  }, [isOpen, tables]);
+  }, [isOpen, tablesKey]);
 
   // Timer for elapsed time
   useEffect(() => {
@@ -65,7 +99,7 @@ export const DumpDatabaseModal = ({
   };
 
   const handleSelectAll = () => {
-    setSelectedTables(selectAllTables(selectedTables, tables));
+    setSelectedTables(selectAllTables(selectedTables, effectiveTables));
   };
 
   const handleExport = async () => {
@@ -97,6 +131,11 @@ export const DumpDatabaseModal = ({
       setStartTime(Date.now());
       setElapsedTime(0);
 
+      // On multi-database connections (e.g. MySQL) scope the dump to the selected
+      // database so it does not fall back to the connection's primary database.
+      const databaseParam =
+        isMultiDb && databaseName ? { database: databaseName } : {};
+
       // Rust command expects `options` struct
       await invoke("dump_database", {
         connectionId,
@@ -107,6 +146,7 @@ export const DumpDatabaseModal = ({
           tables: Array.from(selectedTables),
         },
         ...(activeSchema ? { schema: activeSchema } : {}),
+        ...databaseParam,
       });
 
       showAlert(t("dump.success"), { kind: "info" });
@@ -138,14 +178,14 @@ export const DumpDatabaseModal = ({
             </h2>
             <button onClick={onClose} className="text-muted hover:text-primary text-xl leading-none" disabled={isExporting}>&times;</button>
           </div>
-          
+
           <div className="p-4 flex-1 overflow-y-auto flex flex-col gap-4">
             {/* Options */}
             <div className="flex gap-6 p-3 bg-surface-secondary rounded border border-default">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input 
-                        type="checkbox" 
-                        checked={includeStructure} 
+                    <input
+                        type="checkbox"
+                        checked={includeStructure}
                         onChange={e => setIncludeStructure(e.target.checked)}
                         className="rounded border-default bg-base focus:ring-blue-500 w-4 h-4"
                         disabled={isExporting}
@@ -153,9 +193,9 @@ export const DumpDatabaseModal = ({
                     <span>{t("dump.includeStructure")}</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input 
-                        type="checkbox" 
-                        checked={includeData} 
+                    <input
+                        type="checkbox"
+                        checked={includeData}
                         onChange={e => setIncludeData(e.target.checked)}
                         className="rounded border-default bg-base focus:ring-blue-500 w-4 h-4"
                         disabled={isExporting}
@@ -167,29 +207,35 @@ export const DumpDatabaseModal = ({
             {/* Table Selection */}
             <div className="flex-1 flex flex-col border border-default rounded overflow-hidden max-h-[400px]">
                 <div className="p-2 bg-surface-secondary border-b border-default flex justify-between items-center shrink-0">
-                    <span className="text-xs font-semibold uppercase text-muted">{t("dump.selectTables")} ({selectedTables.size}/{tables.length})</span>
-                    <button 
-                        onClick={handleSelectAll} 
+                    <span className="text-xs font-semibold uppercase text-muted">{t("dump.selectTables")} ({selectedTables.size}/{effectiveTables.length})</span>
+                    <button
+                        onClick={handleSelectAll}
                         className="text-xs text-blue-500 hover:underline"
-                        disabled={isExporting}
+                        disabled={isExporting || tablesLoading}
                     >
-                        {selectedTables.size === tables.length ? t("dump.deselectAll") : t("dump.selectAll")}
+                        {selectedTables.size === effectiveTables.length ? t("dump.deselectAll") : t("dump.selectAll")}
                     </button>
                 </div>
                 <div className="overflow-y-auto p-2 grid grid-cols-2 gap-2">
-                    {tables.map(table => {
-                        const isSelected = selectedTables.has(table);
-                        return (
-                            <div key={table} 
-                                onClick={() => !isExporting && handleToggleTable(table)}
-                                className={`flex items-center gap-2 p-2 rounded cursor-pointer border transition-colors ${isSelected ? 'bg-blue-500/10 border-blue-500/50' : 'hover:bg-surface-secondary border-transparent'} ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                <div className={`w-4 h-4 flex items-center justify-center ${isSelected ? 'text-blue-500' : 'text-muted'}`}>
-                                    {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                    {tablesLoading && effectiveTables.length === 0 ? (
+                        <div className="col-span-2 flex items-center justify-center gap-2 p-4 text-muted text-sm">
+                            <Loader2 size={16} className="animate-spin" />
+                        </div>
+                    ) : (
+                        effectiveTables.map(table => {
+                            const isSelected = selectedTables.has(table);
+                            return (
+                                <div key={table}
+                                    onClick={() => !isExporting && handleToggleTable(table)}
+                                    className={`flex items-center gap-2 p-2 rounded cursor-pointer border transition-colors ${isSelected ? 'bg-blue-500/10 border-blue-500/50' : 'hover:bg-surface-secondary border-transparent'} ${isExporting ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    <div className={`w-4 h-4 flex items-center justify-center ${isSelected ? 'text-blue-500' : 'text-muted'}`}>
+                                        {isSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                                    </div>
+                                    <span className="truncate text-sm select-none" title={table}>{table}</span>
                                 </div>
-                                <span className="truncate text-sm select-none" title={table}>{table}</span>
-                            </div>
-                        );
-                    })}
+                            );
+                        })
+                    )}
                 </div>
             </div>
 
@@ -202,15 +248,15 @@ export const DumpDatabaseModal = ({
           </div>
 
           <div className="p-4 border-t border-default flex justify-end gap-2 shrink-0">
-             <button 
-                onClick={onClose} 
+             <button
+                onClick={onClose}
                 disabled={isExporting}
                 className="px-4 py-2 rounded hover:bg-surface-secondary transition-colors"
              >
                 {t("common.cancel")}
              </button>
              {isExporting ? (
-                 <button 
+                 <button
                     onClick={handleStop}
                     className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded flex items-center gap-2 transition-colors"
                  >
@@ -218,9 +264,10 @@ export const DumpDatabaseModal = ({
                     {t("editor.stop")}
                  </button>
              ) : (
-                 <button 
+                 <button
                     onClick={handleExport}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-2 transition-colors"
+                    disabled={tablesLoading}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                     <Download size={16} />
                     {t("dump.export")}

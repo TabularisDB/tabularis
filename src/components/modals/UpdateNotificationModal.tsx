@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Modal } from "../ui/Modal";
 import { X, Download, ExternalLink, CheckCircle, Loader2, AlertCircle } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { SocialLinks } from "../SocialLinks";
 
 interface UpdateNotificationModalProps {
   isOpen: boolean;
@@ -132,6 +133,14 @@ export const UpdateNotificationModal = ({
                 </pre>
               </div>
             </div>
+          </div>
+
+          {/* Follow us */}
+          <div>
+            <label className="text-xs uppercase font-bold text-muted mb-2 block">
+              {t("settings.followUs")}
+            </label>
+            <SocialLinks iconSize={18} />
           </div>
         </div>
 

@@ -1,0 +1,96 @@
+import type { Theme } from '../../types/theme';
+
+export const gruvboxDark: Theme = {
+  id: 'gruvbox-material-dark',
+  name: 'Gruvbox Material Dark',
+  author: 'sainnhe',
+  isPreset: true,
+  isReadOnly: true,
+  colors: {
+    bg: {
+      base: '#292828',
+      elevated: '#32302f',
+      overlay: '#3c3836',
+      input: '#292828',
+      tooltip: '#32302f',
+    },
+    surface: {
+      primary: '#32302f',
+      secondary: '#3c3836',
+      tertiary: '#45403d',
+      hover: '#383432',
+      active: '#504945',
+      disabled: '#32302f',
+    },
+    text: {
+      primary: '#d4be98',
+      secondary: '#ddc7a1',
+      muted: '#a89984',
+      disabled: '#7c6f64',
+      accent: '#7daea3',
+      inverse: '#292828',
+    },
+    accent: {
+      primary: '#7daea3',
+      secondary: '#a9b665',
+      success: '#a9b665',
+      warning: '#d8a657',
+      error: '#ea6962',
+      info: '#89b482',
+    },
+    border: {
+      subtle: '#3c3836',
+      default: '#45403d',
+      strong: '#5a524c',
+      focus: '#7daea3',
+    },
+    semantic: {
+      string: '#d8a657',
+      number: '#d3869b',
+      boolean: '#d3869b',
+      date: '#89b482',
+      null: '#7c6f64',
+      primaryKey: '#e78a4e',
+      foreignKey: '#7daea3',
+      index: '#d3869b',
+      connectionActive: '#a9b665',
+      connectionInactive: '#7c6f64',
+      modified: '#7daea3',
+      deleted: '#ea6962',
+      new: '#a9b665',
+    },
+  },
+  typography: {
+    fontFamily: {
+      base: 'Inter, system-ui, sans-serif',
+      mono: 'Menlo, Consolas, monospace',
+    },
+    fontSize: {
+      xs: '0.75rem',
+      sm: '0.875rem',
+      base: '1rem',
+      lg: '1.125rem',
+      xl: '1.25rem',
+    },
+  },
+  layout: {
+    borderRadius: {
+      sm: '0.25rem',
+      base: '0.5rem',
+      lg: '0.75rem',
+      xl: '1rem',
+    },
+    spacing: {
+      xs: '0.25rem',
+      sm: '0.5rem',
+      base: '1rem',
+      lg: '1.5rem',
+      xl: '2rem',
+    },
+  },
+  monacoTheme: {
+    base: 'vs-dark',
+    inherit: true,
+    themeName: 'Gruvbox Material Dark',
+  },
+};
