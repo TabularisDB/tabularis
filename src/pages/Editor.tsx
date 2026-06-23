@@ -2375,12 +2375,24 @@ export const Editor = () => {
       });
       setExportMenuOpen(false);
 
+      // On multi-database connections (e.g. MySQL) scope the export to the
+      // selected database so the query runs against the database the user is
+      // viewing rather than the connection's primary database. The tab may not
+      // carry its own schema (e.g. a console query), so fall back to the active
+      // database — mirroring how execute_query resolves the schema.
+      const targetDatabase = activeTab?.schema ?? activeSchema ?? undefined;
+      const databaseParam =
+        isMultiDatabaseCapable(activeCapabilities) && targetDatabase
+          ? { database: targetDatabase }
+          : {};
+
       await invoke("export_query_to_file", {
         connectionId: activeConnectionId,
         query,
         filePath,
         format,
         csvDelimiter: format === "csv" ? csvDelimiter : undefined,
+        ...databaseParam,
       });
 
       // Success: update modal state instead of showing toast
