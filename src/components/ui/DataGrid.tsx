@@ -432,7 +432,9 @@ export const DataGrid = React.memo(
           : copyFormat === "sql-insert"
           ? rowsToSqlInsert(allRows, columns, tableName ?? "table")
           : rowsToCSVWithHeaders(allRows, columns, "null", csvDelimiter);
-        copyTextToClipboard(text).catch(console.error);
+        copyTextToClipboard(text).catch((e) => {
+          showAlert(t("common.error") + ": " + e, { title: t("common.error"), kind: "error" });
+        });
       }
     }, [
       selectedRowIndices.size,
@@ -443,6 +445,8 @@ export const DataGrid = React.memo(
       copyFormat,
       csvDelimiter,
       tableName,
+      showAlert,
+      t,
     ]);
 
     useEffect(() => {
@@ -1069,7 +1073,7 @@ export const DataGrid = React.memo(
           ? getSelectedRows(data, selectedRowIndices)
           : [contextMenu.row];
 
-      await copyToClipboard(formatRows(rows));
+      await copyToClipboard(formatRows(rows, true));
     }, [contextMenu, selectedRowIndices, data, formatRows, copyToClipboard]);
 
     const copyHeaderName = useCallback(async () => {
