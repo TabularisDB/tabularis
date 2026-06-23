@@ -211,7 +211,11 @@
       "approvalTimeout": "Timeout",
       "approvalTimeoutDesc": "Quanti secondi il processo MCP attende la decisione dell'utente prima di abortire.",
       "preflightExplain": "EXPLAIN preliminare",
-      "preflightExplainDesc": "Esegui un EXPLAIN della query prima di mostrare il modal di approvazione, così l'utente vede il piano di esecuzione."
+      "preflightExplainDesc": "Esegui un EXPLAIN della query prima di mostrare il modal di approvazione, così l'utente vede il piano di esecuzione.",
+      "approvalAlwaysOnTop": "Porta il dialogo di approvazione in primo piano",
+      "approvalAlwaysOnTopDesc": "Quando un’azione MCP diversa dalla sola lettura richiede approvazione, porta Tabularis in primo piano e tienilo temporaneamente sopra le altre finestre.",
+      "approvalNotifySound": "Invia notifica e riproduci un suono",
+      "approvalNotifySoundDesc": "Mostra una notifica nativa del sistema e riproduce un breve suono di avviso quando arriva una nuova richiesta di approvazione MCP."
     }
   },
   "connections": {
@@ -342,6 +346,8 @@
     "roadmapDesc": "Questo progetto è un Work In Progress (WIP). Le funzioni principali sono stabili, ma abbiamo grandi piani.",
     "support": "Supporta lo Sviluppo",
     "supportDesc": "Se ti piace tabularis e vuoi vedere nuove funzionalità, considera di supportare il progetto contribuendo al codice, segnalando bug o mettendo una stella su GitHub.",
+    "followUs": "Seguici",
+    "followUsDesc": "Resta aggiornato e connettiti con la community sulla tua piattaforma preferita.",
     "version": "Versione",
     "starOnGithub": "Star su GitHub",
     "ai": {
@@ -461,6 +467,10 @@
     "startup": "Avvio",
     "showWelcome": "Mostra schermata di benvenuto",
     "showWelcomeDesc": "Mostra la schermata di benvenuto all'avvio dell'applicazione.",
+    "autoConnectLastConnection": "Riapri ultime connessioni",
+    "autoConnectLastConnectionDesc": "Riconnette alle connessioni aperte alla chiusura dell'app.",
+    "startMaximized": "Avvia ingrandita",
+    "startMaximizedDesc": "Apre la finestra ingrandita per riempire lo schermo all'avvio.",
     "erDiagram": "Diagramma ER",
     "erDiagramDefaultLayout": "Layout Predefinito",
     "erDiagramDefaultLayoutDesc": "Scegli la direzione di default per i diagrammi ER",
@@ -1499,7 +1509,9 @@
     "reasonLabel": "Motivo (opzionale)",
     "reasonPlaceholder": "es. Sembra rischiosa in produzione, conferma…",
     "approve": "Approva",
-    "deny": "Nega"
+    "deny": "Nega",
+    "notificationTitle": "Approvazione MCP necessaria",
+    "notificationBody": "Apri Tabularis per esaminare l’approvazione MCP in sospeso."
   },
   "discordCallout": {
     "title": "Nuova community Discord!",

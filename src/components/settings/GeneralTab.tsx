@@ -25,6 +25,26 @@ export function GeneralTab() {
             onChange={(v) => updateSetting("showWelcome", v)}
           />
         </SettingRow>
+
+        <SettingRow
+          label={t("settings.autoConnectLastConnection")}
+          description={t("settings.autoConnectLastConnectionDesc")}
+        >
+          <SettingToggle
+            checked={settings.autoConnectLastConnection !== false}
+            onChange={(v) => updateSetting("autoConnectLastConnection", v)}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t("settings.startMaximized")}
+          description={t("settings.startMaximizedDesc")}
+        >
+          <SettingToggle
+            checked={settings.startMaximized === true}
+            onChange={(v) => updateSetting("startMaximized", v)}
+          />
+        </SettingRow>
       </SettingSection>
 
       <SettingSection title={t("settings.dataEditor")}>
