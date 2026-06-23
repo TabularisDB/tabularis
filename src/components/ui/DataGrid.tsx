@@ -59,6 +59,7 @@ import { RowEditorSidebar } from "./RowEditorSidebar";
 import { useDatabase } from "../../hooks/useDatabase";
 import {
   rowsToCSV,
+  rowsToCSVWithHeaders,
   rowsToJSON,
   rowsToSqlInsert,
   getSelectedRows,
@@ -425,12 +426,23 @@ export const DataGrid = React.memo(
       } else {
         const allIndices = new Set(mergedRows.map((_, i) => i));
         updateSelection(allIndices);
+        const allRows = mergedRows.map((r) => r.rowData);
+        const text = copyFormat === "json"
+          ? rowsToJSON(allRows, columns)
+          : copyFormat === "sql-insert"
+          ? rowsToSqlInsert(allRows, columns, tableName ?? "table")
+          : rowsToCSVWithHeaders(allRows, columns, "null", csvDelimiter);
+        copyTextToClipboard(text).catch(console.error);
       }
     }, [
       selectedRowIndices.size,
       mergedRows,
       updateSelection,
       onForeignKeyHidePanel,
+      columns,
+      copyFormat,
+      csvDelimiter,
+      tableName,
     ]);
 
     useEffect(() => {
@@ -1039,10 +1051,11 @@ export const DataGrid = React.memo(
     );
 
     const formatRows = useCallback(
-      (rows: unknown[][]) => {
+      (rows: unknown[][], withHeaders = false) => {
         if (copyFormat === "json") return rowsToJSON(rows, columns);
         if (copyFormat === "sql-insert")
           return rowsToSqlInsert(rows, columns, tableName ?? "table");
+        if (withHeaders) return rowsToCSVWithHeaders(rows, columns, "null", csvDelimiter);
         return rowsToCSV(rows, "null", csvDelimiter);
       },
       [columns, copyFormat, csvDelimiter, tableName],
@@ -1081,7 +1094,7 @@ export const DataGrid = React.memo(
     const copySelectedCells = useCallback(async () => {
       if (selectedRowIndices.size === 0) return;
       await copyToClipboard(
-        formatRows(getSelectedRows(data, selectedRowIndices)),
+        formatRows(getSelectedRows(data, selectedRowIndices), true),
       );
     }, [selectedRowIndices, data, formatRows, copyToClipboard]);
 
