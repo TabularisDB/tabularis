@@ -1,5 +1,8 @@
 packages:
   - packages/*
 
+# Supply-chain hardening: only install package versions published >=3 days ago
+minimumReleaseAge: 4320
+
 ignoredBuiltDependencies:
   - esbuild
