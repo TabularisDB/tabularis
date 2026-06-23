@@ -37,6 +37,8 @@ export interface Settings {
   erDiagramDefaultLayout?: ERDiagramLayout;
   copyFormat?: CopyFormat;
   csvDelimiter?: string;
+  /** Whether copied CSV output includes a header row. Default: true. */
+  csvIncludeHeaders?: boolean;
   activeExternalDrivers?: string[];
   plugins?: Record<string, PluginConfig>;
   editorTheme?: string;
@@ -99,6 +101,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxLogEntries: 1000,
   copyFormat: "csv",
   csvDelimiter: ",",
+  csvIncludeHeaders: true,
   erDiagramDefaultLayout: "LR",
   editorFontFamily: "JetBrains Mono",
   editorFontSize: 14,

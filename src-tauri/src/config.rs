@@ -41,6 +41,8 @@ pub struct AppConfig {
     pub max_blob_size: Option<u64>,
     pub copy_format: Option<String>,
     pub csv_delimiter: Option<String>,
+    /// Whether copied CSV output includes a header row. Default: true.
+    pub csv_include_headers: Option<bool>,
     pub active_external_drivers: Option<Vec<String>>,
     pub custom_registry_url: Option<String>,
     pub plugins: Option<HashMap<String, PluginConfig>>,
@@ -273,6 +275,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.csv_delimiter.is_some() {
             existing_config.csv_delimiter = config.csv_delimiter;
+        }
+        if config.csv_include_headers.is_some() {
+            existing_config.csv_include_headers = config.csv_include_headers;
         }
         if config.active_external_drivers.is_some() {
             existing_config.active_external_drivers = config.active_external_drivers;

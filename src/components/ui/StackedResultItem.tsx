@@ -25,6 +25,7 @@ interface StackedResultItemProps {
   connectionId: string | null;
   copyFormat: "csv" | "json" | "sql-insert";
   csvDelimiter: string;
+  csvIncludeHeaders: boolean;
   collapsed: boolean;
   aiEnabled: boolean;
   aiRenaming: boolean;
@@ -41,6 +42,7 @@ export function StackedResultItem({
   connectionId,
   copyFormat,
   csvDelimiter,
+  csvIncludeHeaders,
   collapsed,
   aiEnabled,
   aiRenaming,
@@ -293,6 +295,7 @@ export function StackedResultItem({
                 connectionId={connectionId}
                 copyFormat={copyFormat}
                 csvDelimiter={csvDelimiter}
+                csvIncludeHeaders={csvIncludeHeaders}
                 onPageChange={onPageChange}
                 compact
               />
@@ -305,6 +308,7 @@ export function StackedResultItem({
                   connectionId={connectionId}
                   copyFormat={copyFormat}
                   csvDelimiter={csvDelimiter}
+                  csvIncludeHeaders={csvIncludeHeaders}
                   onPageChange={onPageChange}
                   compact
                 />

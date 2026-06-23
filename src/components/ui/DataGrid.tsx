@@ -108,6 +108,7 @@ interface DataGridProps {
   onSelectionChange?: (indices: Set<number>) => void;
   copyFormat?: "csv" | "json" | "sql-insert";
   csvDelimiter?: string;
+  csvIncludeHeaders?: boolean;
   sortClause?: string;
   onSort?: (colName: string) => void;
   readonly?: boolean;
@@ -143,6 +144,7 @@ export const DataGrid = React.memo(
     onSelectionChange,
     copyFormat,
     csvDelimiter = ",",
+    csvIncludeHeaders = true,
     sortClause,
     onSort,
     readonly: readonlyProp,
@@ -431,7 +433,9 @@ export const DataGrid = React.memo(
           ? rowsToJSON(allRows, columns)
           : copyFormat === "sql-insert"
           ? rowsToSqlInsert(allRows, columns, tableName ?? "table")
-          : rowsToCSVWithHeaders(allRows, columns, "null", csvDelimiter);
+          : csvIncludeHeaders
+          ? rowsToCSVWithHeaders(allRows, columns, "null", csvDelimiter)
+          : rowsToCSV(allRows, "null", csvDelimiter);
         copyTextToClipboard(text).catch((e) => {
           showAlert(t("common.error") + ": " + e, { title: t("common.error"), kind: "error" });
         });
@@ -444,6 +448,7 @@ export const DataGrid = React.memo(
       columns,
       copyFormat,
       csvDelimiter,
+      csvIncludeHeaders,
       tableName,
       showAlert,
       t,
@@ -1059,10 +1064,11 @@ export const DataGrid = React.memo(
         if (copyFormat === "json") return rowsToJSON(rows, columns);
         if (copyFormat === "sql-insert")
           return rowsToSqlInsert(rows, columns, tableName ?? "table");
-        if (withHeaders) return rowsToCSVWithHeaders(rows, columns, "null", csvDelimiter);
+        if (withHeaders && csvIncludeHeaders)
+          return rowsToCSVWithHeaders(rows, columns, "null", csvDelimiter);
         return rowsToCSV(rows, "null", csvDelimiter);
       },
-      [columns, copyFormat, csvDelimiter, tableName],
+      [columns, copyFormat, csvDelimiter, csvIncludeHeaders, tableName],
     );
 
     const copySelectedOrContextRow = useCallback(async () => {
