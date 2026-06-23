@@ -69,6 +69,8 @@
     "confirmDeleteQuery": "确定要删除查询 \"{{name}}\" 吗？",
     "confirmDeleteTitle": "删除查询",
     "noTables": "未找到表",
+    "expandTable": "展开表 {{name}}",
+    "collapseTable": "折叠表 {{name}}",
     "columns": "列",
     "keys": "键",
     "foreignKeys": "外键",

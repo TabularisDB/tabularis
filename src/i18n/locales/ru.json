@@ -70,6 +70,8 @@
     "confirmDeleteQuery": "Удалить запрос \"{{name}}\"?",
     "confirmDeleteTitle": "Удалить запрос",
     "noTables": "Таблицы не найдены",
+    "expandTable": "Развернуть таблицу {{name}}",
+    "collapseTable": "Свернуть таблицу {{name}}",
     "columns": "столбцы",
     "keys": "ключи",
     "foreignKeys": "внешние ключи",

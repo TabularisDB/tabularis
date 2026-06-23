@@ -70,6 +70,8 @@
     "confirmDeleteQuery": "Are you sure you want to delete query \"{{name}}\"?",
     "confirmDeleteTitle": "Delete Query",
     "noTables": "No tables found",
+    "expandTable": "Expand table {{name}}",
+    "collapseTable": "Collapse table {{name}}",
     "columns": "columns",
     "keys": "keys",
     "foreignKeys": "foreign keys",

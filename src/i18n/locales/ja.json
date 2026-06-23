@@ -70,6 +70,8 @@
     "confirmDeleteQuery": "クエリ「{{name}}」を削除してもよろしいですか？",
     "confirmDeleteTitle": "クエリを削除",
     "noTables": "テーブルが見つかりません",
+    "expandTable": "テーブル {{name}} を展開",
+    "collapseTable": "テーブル {{name}} を折りたたむ",
     "columns": "カラム",
     "keys": "キー",
     "foreignKeys": "外部キー",

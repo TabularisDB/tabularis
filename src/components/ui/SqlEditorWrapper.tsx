@@ -154,6 +154,7 @@ const SqlEditorInternal = ({
         beforeMount={handleBeforeMount}
         onMount={handleEditorMount}
         options={{
+          accessibilitySupport: 'on',
           minimap: { enabled: false },
           fontSize: settings.editorFontSize ?? 14,
           fontFamily: getFontCSS(settings.editorFontFamily ?? "JetBrains Mono"),

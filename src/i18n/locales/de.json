@@ -70,6 +70,8 @@
     "confirmDeleteQuery": "Möchtest du die Abfrage \"{{name}}\" wirklich löschen?",
     "confirmDeleteTitle": "Abfrage löschen",
     "noTables": "Keine Tabellen gefunden",
+    "expandTable": "Tabelle {{name}} erweitern",
+    "collapseTable": "Tabelle {{name}} einklappen",
     "columns": "Spalten",
     "keys": "Schlüssel",
     "foreignKeys": "Fremdschlüssel",

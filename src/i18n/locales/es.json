@@ -70,6 +70,8 @@
     "confirmDeleteQuery": "¿Estás seguro de que quieres eliminar la consulta \"{{name}}\"?",
     "confirmDeleteTitle": "Eliminar Consulta",
     "noTables": "No se encontraron tablas",
+    "expandTable": "Expandir tabla {{name}}",
+    "collapseTable": "Contraer tabla {{name}}",
     "columns": "columnas",
     "keys": "claves",
     "foreignKeys": "claves foráneas",
