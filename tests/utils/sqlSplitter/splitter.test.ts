@@ -205,6 +205,12 @@ describe('splitStatements', () => {
       ]);
     });
 
+    it('treats a CRLF slash line as a separator', () => {
+      expect(
+        splitQueries('SELECT 1 FROM dual\r\n/\r\nSELECT 2 FROM dual', 'oracle'),
+      ).toEqual(['SELECT 1 FROM dual', 'SELECT 2 FROM dual']);
+    });
+
     it('keeps generic splitting unchanged for line-leading slash input', () => {
       const sql = ['SELECT 1', '/', 'SELECT 2'].join('\n');
       expect(splitQueries(sql, 'generic')).toEqual([sql]);
@@ -318,6 +324,60 @@ describe('splitStatements', () => {
       expect(result[0]).toContain('return "a;b";');
     });
 
+    it('keeps CREATE AND RESOLVE NOFORCE JAVA SOURCE blocks together', () => {
+      const sql = [
+        'CREATE OR REPLACE AND RESOLVE NOFORCE JAVA SOURCE NAMED "Demo" AS',
+        'public class Demo {',
+        '  public static String name() {',
+        '    return "a;b";',
+        '  }',
+        '}',
+        '/',
+      ].join('\n');
+
+      const result = splitQueries(sql, 'oracle');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain('return "a;b";');
+    });
+
+    it('does not treat CREATE TYPE specs or CREATE LIBRARY as block openers', () => {
+      expect(
+        splitQueries(
+          'CREATE TYPE t_demo AS OBJECT (id NUMBER); SELECT 1 FROM dual',
+          'oracle',
+        ),
+      ).toEqual([
+        'CREATE TYPE t_demo AS OBJECT (id NUMBER)',
+        'SELECT 1 FROM dual',
+      ]);
+
+      expect(
+        splitQueries(
+          "CREATE LIBRARY lib_demo AS '/tmp/libdemo.so'; SELECT 1 FROM dual",
+          'oracle',
+        ),
+      ).toEqual([
+        "CREATE LIBRARY lib_demo AS '/tmp/libdemo.so'",
+        'SELECT 1 FROM dual',
+      ]);
+    });
+
+    it('keeps CREATE TYPE BODY blocks together', () => {
+      const sql = [
+        'CREATE TYPE BODY t_demo AS',
+        '  MEMBER FUNCTION name RETURN VARCHAR IS',
+        '  BEGIN',
+        "    RETURN 'a;b';",
+        '  END;',
+        'END;',
+        '/',
+      ].join('\n');
+
+      const result = splitQueries(sql, 'oracle');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain("RETURN 'a;b';");
+    });
+
     it('shields semicolons and slash lines inside q-quoted strings', () => {
       const sql = [
         "SELECT q'[first;",
@@ -384,6 +444,21 @@ describe('splitStatements', () => {
       ).toHaveLength(1);
     });
 
+    it('treats WITH PROCEDURE as a PL/SQL block', () => {
+      const inlineProcedure = [
+        'WITH PROCEDURE p IS',
+        'BEGIN',
+        '  NULL;',
+        'END;',
+        'SELECT 1 FROM dual',
+        '/',
+      ].join('\n');
+
+      const result = splitQueries(inlineProcedure, 'oracle');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain('NULL;');
+    });
+
     it('keeps a PL/SQL block together at EOF without a trailing slash', () => {
       const sql = ['CREATE OR REPLACE PROCEDURE p_demo AS', 'BEGIN', '  NULL;', 'END;'].join(
         '\n',
@@ -391,6 +466,7 @@ describe('splitStatements', () => {
       const result = splitQueries(sql, 'oracle');
       expect(result).toHaveLength(1);
       expect(result[0]).toContain('NULL;');
+      expect(result[0]).toContain('END;');
     });
 
     it('keeps END semicolon ownership when the slash terminates the following whitespace segment', () => {

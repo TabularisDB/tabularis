@@ -177,6 +177,17 @@ describe('scanToken', () => {
       expect(t).toEqual({ kind: 'string', length: src.length });
     });
 
+    it('does not consume q-quoted strings with whitespace delimiters', () => {
+      const t = scanToken("q' bad; delimiter '", 0, OR, freshState());
+      expect(t).toEqual({ kind: 'data', length: 1 });
+    });
+
+    it('allows a single quote q-quote delimiter', () => {
+      const src = "q'''it; works''";
+      const t = scanToken(src, 0, OR, freshState());
+      expect(t).toEqual({ kind: 'string', length: src.length });
+    });
+
     it('does not start q-quoting after an identifier character', () => {
       const src = "colq'[x]'";
       const t = scanToken(src, 3, OR, freshState());

@@ -69,7 +69,7 @@ export interface DialectOptions {
   readonly dollarQuoting: boolean;
   readonly customDelimiter: boolean;
   readonly goDelimiter: boolean;
-  readonly slashTerminator: boolean;
+  readonly slashDelimiter: boolean;
   readonly plsqlBlocks: boolean;
   readonly qQuoting: boolean;
   readonly lineComments: boolean;
@@ -110,7 +110,7 @@ const POSTGRES: DialectOptions = {
   dollarQuoting: true,
   customDelimiter: false,
   goDelimiter: false,
-  slashTerminator: false,
+  slashDelimiter: false,
   plsqlBlocks: false,
   qQuoting: false,
   lineComments: true,
@@ -130,7 +130,7 @@ const MYSQL: DialectOptions = {
   dollarQuoting: false,
   customDelimiter: true,
   goDelimiter: false,
-  slashTerminator: false,
+  slashDelimiter: false,
   plsqlBlocks: false,
   qQuoting: false,
   lineComments: true,
@@ -150,7 +150,7 @@ const MSSQL: DialectOptions = {
   dollarQuoting: false,
   customDelimiter: false,
   goDelimiter: true,
-  slashTerminator: false,
+  slashDelimiter: false,
   plsqlBlocks: false,
   qQuoting: false,
   lineComments: true,
@@ -171,7 +171,7 @@ const SQLITE: DialectOptions = {
   dollarQuoting: false,
   customDelimiter: false,
   goDelimiter: false,
-  slashTerminator: false,
+  slashDelimiter: false,
   plsqlBlocks: false,
   qQuoting: false,
   lineComments: true,
@@ -187,7 +187,7 @@ const ORACLE: DialectOptions = {
   dollarQuoting: false,
   customDelimiter: false,
   goDelimiter: false,
-  slashTerminator: true,
+  slashDelimiter: true,
   plsqlBlocks: true,
   qQuoting: true,
   lineComments: true,
@@ -203,7 +203,7 @@ const GENERIC: DialectOptions = {
   dollarQuoting: false,
   customDelimiter: false,
   goDelimiter: false,
-  slashTerminator: false,
+  slashDelimiter: false,
   plsqlBlocks: false,
   qQuoting: false,
   lineComments: true,

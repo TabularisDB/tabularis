@@ -41,6 +41,9 @@ interface FoldedGroup {
   readonly meaningful: Span;
 }
 
+const MAX_LEADING_TOKENS = 12;
+const WORD_RE = /[A-Za-z_][A-Za-z0-9_$#]*/y;
+
 export function splitInto(sql: string, options: DialectOptions): Statement[] {
   if (sql.length === 0) return [];
   const segments = collectSegments(sql, options);
@@ -131,14 +134,15 @@ function foldBlocks(
       endIndex++;
     }
 
-    if (endIndex >= segments.length) {
+    const foldedToEof = endIndex >= segments.length;
+    if (foldedToEof) {
       endIndex = segments.length - 1;
     }
 
     const endSegment = segments[endIndex];
     output.push({
       start: segment.start,
-      end: endSegment.end,
+      end: foldedToEof ? sql.length : endSegment.end,
       hasMeaningful: true,
       terminator: endSegment.terminator,
     });
@@ -149,7 +153,7 @@ function foldBlocks(
 }
 
 function isPlsqlBlockOpener(sql: string, segment: RawSegment): boolean {
-  const tokens = leadingSignificantTokens(sql.slice(segment.start, segment.end));
+  const tokens = leadingSignificantTokens(sql, segment.start, segment.end);
   let index = 0;
   while (tokens[index] === '<<') {
     const labelEnd = tokens.indexOf('>>', index + 1);
@@ -191,6 +195,9 @@ function isCreateBlockOpener(
   if (tokens[index] === 'AND' && isJavaCompileOption(tokens[index + 1])) {
     index += 2;
   }
+  if (tokens[index] === 'NOFORCE') {
+    index++;
+  }
 
   const kind = tokens[index];
   const next = tokens[index + 1];
@@ -198,14 +205,16 @@ function isCreateBlockOpener(
     case 'FUNCTION':
     case 'PROCEDURE':
     case 'TRIGGER':
-    case 'LIBRARY':
       return true;
+    case 'LIBRARY':
+      return false;
     case 'PACKAGE':
-    case 'TYPE':
     case 'CLASS':
-      return next === 'BODY' || next !== undefined;
+      return next !== undefined;
+    case 'TYPE':
+      return next === 'BODY';
     case 'JAVA':
-      return next === 'SOURCE' || next === 'CLASS';
+      return next === 'SOURCE' || next === 'CLASS' || next === 'RESOURCE';
     default:
       return false;
   }
@@ -215,13 +224,17 @@ function isJavaCompileOption(token: string | undefined): boolean {
   return token === 'COMPILE' || token === 'RESOLVE';
 }
 
-function leadingSignificantTokens(source: string): string[] {
+function leadingSignificantTokens(
+  source: string,
+  start: number,
+  end: number,
+): string[] {
   const tokens: string[] = [];
-  let position = 0;
+  let position = start;
 
-  while (position < source.length && tokens.length < 12) {
-    const next = skipTrivia(source, position);
-    if (next >= source.length) break;
+  while (position < end && tokens.length < MAX_LEADING_TOKENS) {
+    const next = skipTrivia(source, position, end);
+    if (next >= end) break;
     position = next;
 
     if (source.startsWith('<<', position)) {
@@ -242,7 +255,8 @@ function leadingSignificantTokens(source: string): string[] {
       continue;
     }
 
-    const word = /^[A-Za-z_][A-Za-z0-9_$#]*/.exec(source.slice(position));
+    WORD_RE.lastIndex = position;
+    const word = WORD_RE.exec(source);
     if (word) {
       tokens.push(word[0].toUpperCase());
       position += word[0].length;
@@ -255,18 +269,18 @@ function leadingSignificantTokens(source: string): string[] {
   return tokens;
 }
 
-function skipTrivia(source: string, position: number): number {
+function skipTrivia(source: string, position: number, end: number): number {
   let p = position;
   for (;;) {
-    while (p < source.length && isAsciiSpace(source.charCodeAt(p))) p++;
+    while (p < end && isAsciiSpace(source.charCodeAt(p))) p++;
     if (source.startsWith('--', p)) {
       p += 2;
-      while (p < source.length && source[p] !== '\n') p++;
+      while (p < end && source[p] !== '\n') p++;
       continue;
     }
     if (source.startsWith('/*', p)) {
       p += 2;
-      while (p + 1 < source.length) {
+      while (p + 1 < end) {
         if (source[p] === '*' && source[p + 1] === '/') {
           p += 2;
           break;

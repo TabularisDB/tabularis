@@ -107,7 +107,7 @@ export function scanToken(
       const token = readGoDelimiter(source, position);
       if (token) return token;
     }
-    if (options.slashTerminator && ch === '/') {
+    if (options.slashDelimiter && ch === '/') {
       const token = readSlashDelimiter(source, position);
       if (token) return token;
     }
@@ -238,6 +238,7 @@ function scanQQuoted(source: string, position: number): Token | null {
   if (openCodePoint === undefined) return null;
 
   const openDelimiter = String.fromCodePoint(openCodePoint);
+  if (isQQuoteWhitespaceDelimiter(openDelimiter)) return null;
   const openLength = openCodePoint > 0xffff ? 2 : 1;
   const closeDelimiter = qQuoteCloseDelimiter(openDelimiter);
   let p = delimiterPosition + openLength;
@@ -257,6 +258,15 @@ function scanQQuoted(source: string, position: number): Token | null {
   }
 
   return { kind: 'string', length: source.length - position };
+}
+
+function isQQuoteWhitespaceDelimiter(delimiter: string): boolean {
+  return (
+    delimiter === ' ' ||
+    delimiter === '\t' ||
+    delimiter === '\r' ||
+    delimiter === '\n'
+  );
 }
 
 function qQuoteCloseDelimiter(openDelimiter: string): string {
