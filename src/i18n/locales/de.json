@@ -52,6 +52,9 @@
     "createView": "Neue Ansicht erstellen",
     "views": "Ansichten",
     "noViews": "Keine Ansichten gefunden",
+    "materializedViews": "Materialisierte Ansichten",
+    "refreshMaterializedView": "Aktualisieren",
+    "showDefinition": "Definition anzeigen",
     "editView": "Ansicht bearbeiten",
     "viewDefinition": "Ansichtsdefinition",
     "dropView": "Ansicht löschen",
@@ -1175,6 +1178,9 @@
     "createSuccess": "Ansicht erfolgreich erstellt",
     "alterSuccess": "Ansicht erfolgreich aktualisiert",
     "saveError": "Speichern der Ansicht fehlgeschlagen: ",
+    "refreshSuccess": "Materialisierte Ansicht \"{{view}}\" aktualisiert",
+    "refreshError": "Aktualisieren der materialisierten Ansicht fehlgeschlagen: ",
+    "failGetDefinition": "Abrufen der Definition fehlgeschlagen: ",
     "confirmAlter": "Möchtest du die Ansicht \"{{view}}\" wirklich ändern?"
   },
   "community": {

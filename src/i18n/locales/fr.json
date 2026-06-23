@@ -52,6 +52,9 @@
     "createView": "Créer une nouvelle vue",
     "views": "Vues",
     "noViews": "Aucune vue trouvée",
+    "materializedViews": "Vues matérialisées",
+    "refreshMaterializedView": "Actualiser",
+    "showDefinition": "Afficher la définition",
     "editView": "Modifier la vue",
     "viewDefinition": "Définition de la vue",
     "dropView": "Supprimer la vue",
@@ -1175,6 +1178,9 @@
     "createSuccess": "Vue créée avec succès",
     "alterSuccess": "Vue mise à jour avec succès",
     "saveError": "Échec de l’enregistrement de la vue : ",
+    "refreshSuccess": "Vue matérialisée \"{{view}}\" actualisée",
+    "refreshError": "Échec de l’actualisation de la vue matérialisée : ",
+    "failGetDefinition": "Échec de la récupération de la définition : ",
     "confirmAlter": "Voulez-vous vraiment modifier la vue \"{{view}}\" ?"
   },
   "community": {
