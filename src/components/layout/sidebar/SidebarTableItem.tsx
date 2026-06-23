@@ -178,7 +178,7 @@ const SidebarTableItemImpl = ({
         className={clsx(
           "flex items-center gap-1 pl-1 pr-3 py-1.5 text-sm cursor-pointer group select-none transition-colors border-l-2",
           activeTable === table.name
-            ? "bg-blue-900/40 text-blue-200 border-blue-500"
+            ? "bg-[color-mix(in_srgb,var(--accent-primary)_20%,transparent)] text-accent border-focus"
             : "text-secondary hover:bg-surface-secondary border-transparent hover:text-primary",
         )}
       >
@@ -192,8 +192,8 @@ const SidebarTableItemImpl = ({
           size={14}
           className={
             activeTable === table.name
-              ? "text-blue-400"
-              : "text-muted group-hover:text-blue-400"
+              ? "text-accent"
+              : "text-muted group-hover:text-accent"
           }
         />
         <span className="truncate flex-1">{table.name}</span>
