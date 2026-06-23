@@ -194,6 +194,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const [favoriteDeleteConfirm, setFavoriteDeleteConfirm] = useState<string | null>(null);
   const [tableFilter, setTableFilter] = useState("");
   const [favoritesFilter, setFavoritesFilter] = useState("");
+  const [refreshingMatView, setRefreshingMatView] = useState<string | null>(null);
   const [selectedFavoriteId, setSelectedFavoriteId] = useState<string | null>(null);
   const [tablesOpen, setTablesOpen] = useState(true);
   const [viewsOpen, setViewsOpen] = useState(true);
@@ -1102,6 +1103,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             setTriggerEditorModal({ isOpen: true, isNewTrigger: true, schema })
                           }
                           showTriggers={activeCapabilities?.triggers === true}
+                          refreshingMatView={refreshingMatView}
                         />
                       ))}
                     </>
@@ -2014,16 +2016,20 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 label: t("sidebar.refreshMaterializedView"),
                                 icon: RefreshCw,
                                 action: async () => {
+                                  const mvName = contextMenu.id;
+                                  setRefreshingMatView(mvName);
                                   try {
                                     await invoke("refresh_materialized_view", {
                                       connectionId: activeConnectionId,
-                                      viewName: contextMenu.id,
+                                      viewName: mvName,
                                       ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
                                     });
-                                    showAlert(t("views.refreshSuccess", { view: contextMenu.id }), { kind: "info" });
+                                    showAlert(t("views.refreshSuccess", { view: mvName }), { kind: "info" });
                                   } catch (e) {
                                     console.error(e);
                                     showAlert(t("views.refreshError") + String(e), { kind: "error" });
+                                  } finally {
+                                    setRefreshingMatView(null);
                                   }
                                 },
                               },

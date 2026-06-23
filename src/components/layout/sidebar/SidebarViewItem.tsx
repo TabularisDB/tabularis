@@ -31,6 +31,7 @@ interface SidebarViewItemProps {
   driver: string;
   schema?: string;
   materialized?: boolean;
+  isRefreshing?: boolean;
 }
 
 export const SidebarViewItem = ({
@@ -43,6 +44,7 @@ export const SidebarViewItem = ({
   driver,
   schema,
   materialized = false,
+  isRefreshing = false,
 }: SidebarViewItemProps) => {
   const { t } = useTranslation();
   const ViewIcon = materialized ? Layers : Eye;
@@ -130,14 +132,18 @@ export const SidebarViewItem = ({
         >
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
-        <ViewIcon
-          size={14}
-          className={
-            activeView === view.name
-              ? "text-purple-400"
-              : "text-muted group-hover:text-purple-400"
-          }
-        />
+        {isRefreshing ? (
+          <Loader2 size={14} className="animate-spin text-purple-400 shrink-0" />
+        ) : (
+          <ViewIcon
+            size={14}
+            className={
+              activeView === view.name
+                ? "text-purple-400"
+                : "text-muted group-hover:text-purple-400"
+            }
+          />
+        )}
         <span className="truncate flex-1">{view.name}</span>
       </div>
       {isExpanded && (

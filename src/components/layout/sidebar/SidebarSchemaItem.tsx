@@ -54,6 +54,7 @@ interface SidebarSchemaItemProps {
   onCreateView: () => void;
   onCreateTrigger: (schema: string) => void;
   showTriggers?: boolean;
+  refreshingMatView?: string | null;
 }
 
 export const SidebarSchemaItem = ({
@@ -83,6 +84,7 @@ export const SidebarSchemaItem = ({
   onCreateView,
   onCreateTrigger,
   showTriggers = false,
+  refreshingMatView = null,
 }: SidebarSchemaItemProps) => {
   const { t } = useTranslation();
 
@@ -326,6 +328,7 @@ export const SidebarSchemaItem = ({
                         driver={driver}
                         schema={schemaName}
                         materialized
+                        isRefreshing={refreshingMatView === view.name}
                       />
                     ))}
                   </div>
