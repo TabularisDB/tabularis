@@ -1161,7 +1161,7 @@ pub async fn get_materialized_view_columns(
         ORDER BY a.attnum
     "#;
 
-    let rows = query_all(&pool, &query, &[&schema, &view_name]).await?;
+    let rows = query_all(&pool, query, &[&schema, &view_name]).await?;
 
     Ok(rows
         .iter()
