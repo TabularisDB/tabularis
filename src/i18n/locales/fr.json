@@ -580,7 +580,8 @@
       "notebookRunAll": "Exécuter toutes les cellules",
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Importer depuis le Presse-papiers",
-      "quickNavigator": "Navigateur rapide"
+      "quickNavigator": "Navigateur rapide",
+      "triggerSuggestions": "Afficher les suggestions"
     },
     "aiActivity": "Activité IA"
   },

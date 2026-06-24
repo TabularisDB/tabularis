@@ -614,7 +614,8 @@
       "notebookRunAll": "Run All Cells",
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Import from Clipboard",
-      "quickNavigator": "Quick Navigator"
+      "quickNavigator": "Quick Navigator",
+      "triggerSuggestions": "Trigger suggestions"
     },
     "aiActivity": "AI Activity"
   },

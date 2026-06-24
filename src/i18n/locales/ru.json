@@ -575,7 +575,8 @@
       "notebookRunAll": "Выполнить все ячейки",
       "categories_notebook": "Ноутбук",
       "pasteImportClipboard": "Импортировать из буфера обмена",
-      "quickNavigator": "Быстрый навигатор"
+      "quickNavigator": "Быстрый навигатор",
+      "triggerSuggestions": "Показать подсказки"
     },
     "aiActivity": "Активность AI"
   },

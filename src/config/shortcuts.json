@@ -158,5 +158,15 @@
     "winMatch": { "ctrlKey": true, "key": "p" },
     "i18nKey": "settings.shortcuts.quickNavigator",
     "overridable": true
+  },
+  {
+    "id": "trigger_suggestions",
+    "category": "editor",
+    "defaultMac": "⌘+I",
+    "defaultWin": "Ctrl+Space",
+    "macMatch": { "metaKey": true, "key": "i" },
+    "winMatch": { "ctrlKey": true, "key": " " },
+    "i18nKey": "settings.shortcuts.triggerSuggestions",
+    "overridable": true
   }
 ]
