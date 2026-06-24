@@ -710,7 +710,9 @@
     "advanced": "Avanzate",
     "startupScript": "Script di avvio",
     "startupScriptDescription": "SQL eseguito a ogni nuova connessione a questa origine dati. Usalo per le impostazioni di sessione come SET / set_config (ad es. per bypassare la RLS). Separa le istruzioni con punto e virgola.",
-    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);"
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Scorri schede a sinistra",
+    "scrollTabsRight": "Scorri schede a destra"
   },
   "sshConnections": {
     "title": "Connessioni SSH",

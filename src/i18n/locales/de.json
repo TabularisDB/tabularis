@@ -705,7 +705,9 @@
     "advanced": "Erweitert",
     "startupScript": "Startskript",
     "startupScriptDescription": "SQL, das bei jeder neuen Verbindung zu dieser Datenquelle ausgeführt wird. Verwenden Sie es für Sitzungseinstellungen wie SET / set_config (z. B. zum Umgehen von RLS). Trennen Sie Anweisungen mit Semikolons.",
-    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);"
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Registerkarten nach links blättern",
+    "scrollTabsRight": "Registerkarten nach rechts blättern"
   },
   "sshConnections": {
     "title": "SSH-Verbindungen",

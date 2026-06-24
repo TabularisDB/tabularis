@@ -57,6 +57,11 @@ const DEFAULT_MYSQL_TIMEZONE: &str = "SYSTEM";
 /// broken script can never wedge pool creation indefinitely.
 const SQLITE_STARTUP_SCRIPT_TIMEOUT_MS: u64 = 30_000;
 
+/// The PostgreSQL startup-script preflight opens a real network connection, so
+/// bound it the same way as SQLite: a broken script or a stalled host must
+/// never wedge pool creation indefinitely.
+const POSTGRES_STARTUP_SCRIPT_TIMEOUT_MS: u64 = 30_000;
+
 fn mysql_setting_value(key: &str) -> Option<serde_json::Value> {
     crate::config::get_cached_config()
         .plugins
@@ -507,10 +512,14 @@ fn startup_script_error(err: impl std::fmt::Display) -> String {
     format!("Startup script failed: {err}")
 }
 
-/// Run the startup script once on a throwaway connection so a broken script
-/// fails fast with a clearly attributed error. The per-connection hooks
-/// (`after_connect`/`post_create`) still run it on every pooled connection;
-/// this preflight exists only for early, well-labelled failures: sqlx swallows
+/// Validate the startup script on a throwaway connection so a broken script
+/// fails fast with a clearly attributed error, **without** applying its side
+/// effects. The statements run inside a transaction that is rolled back, so a
+/// side-effecting script (`INSERT`, counters, …) is not executed twice on the
+/// first pooled connection — the per-connection hooks (`after_connect`/
+/// `post_create`) remain the single place the script actually takes effect.
+///
+/// This preflight exists only for early, well-labelled failures: sqlx swallows
 /// `after_connect` errors and retries until the acquire timeout, which would
 /// otherwise report a misleading "pool timed out". A failure to open the
 /// connection is returned verbatim so genuine connectivity problems are not
@@ -520,9 +529,14 @@ async fn run_mysql_startup_script(
     script: &str,
 ) -> Result<(), String> {
     let mut conn = options.connect().await.map_err(|e| e.to_string())?;
-    let outcome = conn.execute(script).await;
+    let outcome: Result<(), sqlx::Error> = async {
+        let mut tx = conn.begin().await?;
+        tx.execute(script).await?;
+        tx.rollback().await
+    }
+    .await;
     let _ = conn.close().await;
-    outcome.map(|_| ()).map_err(startup_script_error)
+    outcome.map_err(startup_script_error)
 }
 
 /// SQLite counterpart to [`run_mysql_startup_script`].
@@ -531,9 +545,42 @@ async fn run_sqlite_startup_script(
     script: &str,
 ) -> Result<(), String> {
     let mut conn = options.connect().await.map_err(|e| e.to_string())?;
-    let outcome = conn.execute(script).await;
+    let outcome: Result<(), sqlx::Error> = async {
+        let mut tx = conn.begin().await?;
+        tx.execute(script).await?;
+        tx.rollback().await
+    }
+    .await;
     let _ = conn.close().await;
-    outcome.map(|_| ()).map_err(startup_script_error)
+    outcome.map_err(startup_script_error)
+}
+
+/// PostgreSQL counterpart to [`run_mysql_startup_script`]. deadpool surfaces a
+/// failing `post_create` hook as a raw `PoolError::PostCreateHook(..)` debug
+/// struct on first use; this preflight instead fails fast at pool-creation time
+/// with the same clean `Startup script failed: …` attribution as the other
+/// drivers. The script is validated inside a transaction that is rolled back,
+/// so side effects are applied only by the per-connection `post_create` hook.
+async fn run_postgres_startup_script(
+    cfg: &PgConfig,
+    tls: MakeRustlsConnect,
+    script: &str,
+) -> Result<(), String> {
+    let (mut client, connection) =
+        cfg.connect(tls).await.map_err(|e| format_error_chain(&e))?;
+    // tokio_postgres needs the connection future polled on its own task.
+    let driver = tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    let outcome: Result<(), tokio_postgres::Error> = async {
+        let tx = client.transaction().await?;
+        tx.batch_execute(script).await?;
+        tx.rollback().await
+    }
+    .await;
+    drop(client);
+    driver.abort();
+    outcome.map_err(|e| startup_script_error(format_error_chain(&e)))
 }
 
 pub async fn get_mysql_pool(params: &ConnectionParams) -> Result<Pool<MySql>, String> {
@@ -676,6 +723,21 @@ pub async fn get_postgres_pool_with_id(
         log::error!("Failed to create TLS connector for PostgreSQL pool: {}", e);
         e
     })?;
+
+    if let Some(script) = startup_script(params) {
+        let timeout = Duration::from_millis(POSTGRES_STARTUP_SCRIPT_TIMEOUT_MS);
+        tokio::time::timeout(
+            timeout,
+            run_postgres_startup_script(&cfg, tls_connector.clone(), &script),
+        )
+        .await
+        .map_err(|_| {
+            format!(
+                "Timed out running PostgreSQL startup script after {} ms",
+                timeout.as_millis()
+            )
+        })??;
+    }
 
     let mut builder = PgPool::builder(PgPoolManager::new(cfg, tls_connector)).max_size(10);
     if let Some(script) = startup_script(params) {

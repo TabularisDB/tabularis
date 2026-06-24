@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   X,
@@ -213,7 +213,7 @@ export const NewConnectionModal = ({
 
   // Recompute fades when the visible tab set changes and keep the active tab
   // scrolled into view; also follow window resizes.
-  useEffect(() => {
+  useLayoutEffect(() => {
     updateTabFade();
     const el = tabBarRef.current;
     const activeEl = el?.querySelector<HTMLElement>('[data-active="true"]');
@@ -2140,7 +2140,7 @@ export const NewConnectionModal = ({
               {tabFade.left && (
                 <button
                   type="button"
-                  aria-label="Scroll tabs left"
+                  aria-label={t("newConnection.scrollTabsLeft", { defaultValue: "Scroll tabs left" })}
                   onClick={() => scrollTabs(-1)}
                   className="absolute left-1 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-elevated text-muted shadow ring-1 ring-default hover:text-primary transition-colors"
                 >
@@ -2150,7 +2150,7 @@ export const NewConnectionModal = ({
               {tabFade.right && (
                 <button
                   type="button"
-                  aria-label="Scroll tabs right"
+                  aria-label={t("newConnection.scrollTabsRight", { defaultValue: "Scroll tabs right" })}
                   onClick={() => scrollTabs(1)}
                   className="absolute right-1 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-elevated text-muted shadow ring-1 ring-default hover:text-primary transition-colors"
                 >

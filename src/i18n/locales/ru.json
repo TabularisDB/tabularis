@@ -698,7 +698,9 @@
     "advanced": "Дополнительно",
     "startupScript": "Сценарий запуска",
     "startupScriptDescription": "SQL, выполняемый при каждом новом подключении к этому источнику данных. Используйте его для настроек сеанса, таких как SET / set_config (например, для обхода RLS). Разделяйте операторы точкой с запятой.",
-    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);"
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Прокрутить вкладки влево",
+    "scrollTabsRight": "Прокрутить вкладки вправо"
   },
   "sshConnections": {
     "title": "SSH-подключения",
