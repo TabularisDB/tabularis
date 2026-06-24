@@ -5,7 +5,7 @@ import type { SqlDialect } from './sql';
  * Maps Tabularis' internal SQL dialect to the matching `sql-formatter`
  * language. Unknown or generic dialects fall back to standard `sql`.
  */
-function toFormatterLanguage(dialect: SqlDialect | undefined): SqlLanguage {
+export function toFormatterLanguage(dialect: SqlDialect | undefined): SqlLanguage {
   switch (dialect) {
     case 'postgres':
       return 'postgresql';

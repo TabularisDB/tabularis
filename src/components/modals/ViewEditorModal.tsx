@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Loader2, Eye, AlertCircle, Play, Sparkles } from "lucide-react";
+import type { OnMount } from "@monaco-editor/react";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../../hooks/useAlert";
@@ -41,6 +42,7 @@ export const ViewEditorModal = ({
     rows: unknown[][];
   } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
 
   const loadViewDefinition = useCallback(async (vName: string) => {
     setLoading(true);
@@ -77,8 +79,12 @@ export const ViewEditorModal = ({
   }, [isOpen, viewName, isNewView, loadViewDefinition]);
 
   const handleFormat = () => {
-    if (!definition.trim()) return;
-    setDefinition(formatSql(definition, activeCapabilities?.sql_dialect));
+    // Read the editor's live value rather than `definition`, which lags
+    // behind by the wrapper's 300ms onChange debounce — otherwise edits
+    // typed within that window would be discarded by the format.
+    const current = editorRef.current?.getValue() ?? definition;
+    if (!current.trim()) return;
+    setDefinition(formatSql(current, activeCapabilities?.sql_dialect));
   };
 
   const handlePreview = async () => {
@@ -240,6 +246,9 @@ export const ViewEditorModal = ({
                 initialValue={definition}
                 onChange={setDefinition}
                 onRun={handlePreview}
+                onMount={(editor) => {
+                  editorRef.current = editor;
+                }}
                 height="100%"
                 options={{
                   readOnly: loading,
