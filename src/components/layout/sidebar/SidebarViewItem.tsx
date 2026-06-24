@@ -4,7 +4,6 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   Eye,
   Layers,
-  List,
   Loader2,
   Folder,
   ChevronDown,
@@ -12,6 +11,8 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { SidebarColumnItem } from "./SidebarColumnItem";
+import { SidebarIndexList } from "./SidebarIndexList";
+import { groupIndexes } from "../../../utils/indexes";
 import type { TableColumn, Index } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
 
@@ -103,15 +104,7 @@ export const SidebarViewItem = ({
     onContextMenu(e, materialized ? "materialized_view" : "view", view.name, view.name, { tableName: view.name, schema });
   };
 
-  // API returns one row per index column; group them by index name.
-  const groupedIndexes = React.useMemo(() => {
-    const groups: Record<string, Index & { columns: string[] }> = {};
-    indexes.forEach((idx) => {
-      if (!groups[idx.name]) groups[idx.name] = { ...idx, columns: [] };
-      groups[idx.name].columns.push(idx.column_name);
-    });
-    return Object.values(groups);
-  }, [indexes]);
+  const groupedIndexes = React.useMemo(() => groupIndexes(indexes), [indexes]);
 
   return (
     <div className="flex flex-col">
@@ -179,48 +172,11 @@ export const SidebarViewItem = ({
                 ))}
               </div>
               {materialized && (
-                <div className="flex flex-col">
-                  <div
-                    className="flex items-center gap-2 px-2 py-1 text-xs text-muted hover:text-secondary cursor-pointer select-none"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setExpandIndexes(!expandIndexes);
-                    }}
-                  >
-                    <Folder size={12} className="text-green-400/70" />
-                    <span>{t("sidebar.indexes")}</span>
-                    <span className="ml-auto text-[10px] opacity-50">
-                      {groupedIndexes.length}
-                    </span>
-                  </div>
-                  {expandIndexes && (
-                    <div className="ml-4 border-l border-default/50">
-                      {groupedIndexes.map((idx) => (
-                        <div
-                          key={idx.name}
-                          className="flex items-center gap-2 px-3 py-1 text-xs text-secondary hover:bg-surface-secondary hover:text-primary cursor-pointer group font-mono"
-                          title={idx.columns.join(", ")}
-                        >
-                          <List
-                            size={12}
-                            className={idx.is_unique ? "text-blue-400" : "text-green-400"}
-                          />
-                          <span className="truncate flex-1">
-                            {idx.name}{" "}
-                            <span className="text-muted">
-                              ({idx.columns.join(", ")})
-                            </span>
-                          </span>
-                          {idx.is_unique && (
-                            <span className="text-[9px] text-muted border border-strong px-1 rounded bg-elevated/50">
-                              UNIQUE
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <SidebarIndexList
+                  indexes={groupedIndexes}
+                  isOpen={expandIndexes}
+                  onToggle={() => setExpandIndexes(!expandIndexes)}
+                />
               )}
             </div>
           )}
