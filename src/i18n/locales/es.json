@@ -1157,6 +1157,7 @@
     "viewNamePlaceholder": "ej. usuarios_activos, resumen_pedidos",
     "viewDefinition": "Definición de Vista (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Embellecer",
     "preview": "Vista Previa",
     "runPreview": "Ejecutar Vista Previa",
     "previewEmpty": "Haz clic en 'Ejecutar Vista Previa' para ver resultados",

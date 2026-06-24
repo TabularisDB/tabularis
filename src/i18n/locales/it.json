@@ -1164,6 +1164,7 @@
     "viewNamePlaceholder": "es. utenti_attivi, riepilogo_ordini",
     "viewDefinition": "Definizione Vista (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Formatta",
     "preview": "Anteprima",
     "runPreview": "Esegui Anteprima",
     "previewEmpty": "Clicca 'Esegui Anteprima' per vedere i risultati",

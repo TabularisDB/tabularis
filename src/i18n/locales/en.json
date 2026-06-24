@@ -1183,6 +1183,7 @@
     "viewNamePlaceholder": "e.g. active_users, order_summary",
     "viewDefinition": "View Definition (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Beautify",
     "preview": "Preview",
     "runPreview": "Run Preview",
     "previewEmpty": "Click 'Run Preview' to see results",

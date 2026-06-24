@@ -1107,6 +1107,7 @@
     "viewNamePlaceholder": "例如：active_users, order_summary",
     "viewDefinition": "视图定义 (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "格式化",
     "preview": "预览",
     "runPreview": "运行预览",
     "previewEmpty": "点击\"运行预览\"查看结果",

@@ -1174,6 +1174,7 @@
     "viewNamePlaceholder": "例: active_users, order_summary",
     "viewDefinition": "ビュー定義 (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "整形",
     "preview": "プレビュー",
     "runPreview": "プレビューを実行",
     "previewEmpty": "「プレビューを実行」をクリックすると結果が表示されます",

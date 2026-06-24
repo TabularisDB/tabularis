@@ -1168,6 +1168,7 @@
     "viewNamePlaceholder": "например, active_users, order_summary",
     "viewDefinition": "Определение представления (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Форматировать",
     "preview": "Предпросмотр",
     "runPreview": "Запустить предпросмотр",
     "previewEmpty": "Нажмите «Запустить предпросмотр», чтобы увидеть результаты",

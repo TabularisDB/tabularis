@@ -1162,6 +1162,7 @@
     "viewNamePlaceholder": "ex. active_users, order_summary",
     "viewDefinition": "Définition de la vue (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Embellir",
     "preview": "Aperçu",
     "runPreview": "Exécuter l’aperçu",
     "previewEmpty": "Cliquez sur \"Exécuter l’aperçu\" pour voir les résultats",
