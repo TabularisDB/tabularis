@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SchemaDiagram } from '../components/ui/SchemaDiagram';
+import { resolveDiagramSchema } from '../utils/schemaDiagram';
 import { Maximize2, Minimize2, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DatabaseProvider } from '../contexts/DatabaseProvider';
@@ -15,6 +16,11 @@ export const SchemaDiagramPage = () => {
   const connectionName = searchParams.get('connectionName') || 'Unknown';
   const databaseName = searchParams.get('databaseName') || 'Unknown';
   const schema = searchParams.get('schema') || undefined;
+
+  // On a single connection that exposes multiple databases (e.g. MySQL), the
+  // diagram must be scoped to the selected database rather than the connection's
+  // primary one. See resolveDiagramSchema for the full rationale.
+  const effectiveSchema = resolveDiagramSchema(schema, databaseName);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -98,7 +104,7 @@ export const SchemaDiagramPage = () => {
 
           {/* Diagram Canvas */}
           <div className="flex-1 overflow-hidden">
-            <SchemaDiagram connectionId={connectionId} refreshTrigger={refreshTrigger} schema={schema} />
+            <SchemaDiagram connectionId={connectionId} refreshTrigger={refreshTrigger} schema={effectiveSchema} />
           </div>
         </div>
       </EditorProvider>

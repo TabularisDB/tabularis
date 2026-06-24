@@ -3394,7 +3394,36 @@ pub async fn open_er_diagram_window(
         url.push_str(&format!("&schema={}", encode(s)));
     }
 
-    let _webview = WebviewWindowBuilder::new(&app, "er-diagram", WebviewUrl::App(url.into()))
+    // Derive a unique window label per (connection, database, schema) so that
+    // diagrams for different databases on the same connection do not collide on a
+    // shared label (which previously kept showing the first database's diagram).
+    // Tauri window labels only allow a limited character set, so sanitize anything
+    // else to '_'.
+    let raw_label = format!(
+        "er-diagram:{}:{}:{}",
+        connection_id,
+        database_name,
+        schema.as_deref().unwrap_or("")
+    );
+    let label: String = raw_label
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+
+    // If a diagram window for this exact database already exists, just focus it
+    // instead of failing to build a second window with the same label.
+    if let Some(existing) = app.get_webview_window(&label) {
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+
+    let _webview = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
         .title(&title)
         .inner_size(1200.0, 800.0)
         .center()

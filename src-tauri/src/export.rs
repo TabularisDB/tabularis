@@ -73,12 +73,19 @@ pub async fn export_query_to_file<R: Runtime>(
     file_path: String,
     format: String,
     csv_delimiter: Option<String>,
+    database: Option<String>,
 ) -> Result<(), String> {
     let sanitized_query = sanitize_query(&query);
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    // Scope the export to the selected database on connections that expose multiple
+    // databases (e.g. MySQL/MariaDB), so the query runs against the database the
+    // user is viewing rather than the connection's primary database.
+    if let Some(db) = database {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
     let driver = saved_conn.params.driver.clone();
 
     let export_format = ExportFormat::parse(&format)?;

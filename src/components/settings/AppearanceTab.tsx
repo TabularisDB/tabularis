@@ -14,6 +14,7 @@ import {
 } from "./SettingControls";
 import { FontPicker } from "./FontPicker";
 import { ThemePicker } from "./ThemePicker";
+import { ResultColorsSection } from "./ResultColorsSection";
 
 export function AppearanceTab() {
   const { t } = useTranslation();
@@ -105,6 +106,8 @@ export function AppearanceTab() {
               </p>
             </div>
           </SettingSection>
+
+          <ResultColorsSection />
         </>
       )}
 

@@ -151,8 +151,8 @@ export const SidebarSchemaItem = ({
             size={14}
             className={
               activeSchema === schemaName
-                ? "text-blue-400 shrink-0"
-                : "text-muted group-hover/schema:text-blue-400 shrink-0"
+                ? "text-accent shrink-0"
+                : "text-muted group-hover/schema:text-accent shrink-0"
             }
           />
           <span className="text-sm font-medium text-secondary truncate">

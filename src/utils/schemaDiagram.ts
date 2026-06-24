@@ -26,6 +26,30 @@ export function parseConnectionParams(searchParams: URLSearchParams): Connection
 }
 
 /**
+ * Resolve the `schema` argument sent to the backend when loading a diagram.
+ *
+ * The backend uses this value to decide which database/schema to snapshot. The
+ * MySQL/MariaDB driver treats it as the database name and falls back to the
+ * connection's primary database when it is absent — so on a single connection
+ * that exposes multiple databases, omitting it would always snapshot the first
+ * database. When no explicit schema is provided, fall back to the selected
+ * database name. PostgreSQL always provides an explicit schema, so its behaviour
+ * is unchanged.
+ *
+ * @param schema - Explicit schema from the URL (PostgreSQL), if any
+ * @param databaseName - The selected database name (may be the 'Unknown' sentinel)
+ * @returns The schema/database to request, or undefined to use the backend default
+ */
+export function resolveDiagramSchema(
+  schema: string | undefined,
+  databaseName: string | undefined,
+): string | undefined {
+  if (schema) return schema;
+  if (databaseName && databaseName !== 'Unknown') return databaseName;
+  return undefined;
+}
+
+/**
  * Format a diagram title from database and connection names
  * @param databaseName - Name of the database
  * @param connectionName - Name of the connection
