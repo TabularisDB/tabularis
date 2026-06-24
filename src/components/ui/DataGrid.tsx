@@ -41,8 +41,10 @@ import {
   getColumnSortState,
   calculateSelectionRange,
   toggleSetValue,
+  getResultValueType,
   type MergedRow,
 } from "../../utils/dataGrid";
+import { useSettings } from "../../hooks/useSettings";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
 import { isJsonColumn, isJsonContent } from "../../utils/json";
@@ -59,6 +61,7 @@ import { RowEditorSidebar } from "./RowEditorSidebar";
 import { useDatabase } from "../../hooks/useDatabase";
 import {
   rowsToCSV,
+  rowsToCSVWithHeaders,
   rowsToJSON,
   rowsToSqlInsert,
   getSelectedRows,
@@ -107,6 +110,7 @@ interface DataGridProps {
   onSelectionChange?: (indices: Set<number>) => void;
   copyFormat?: "csv" | "json" | "sql-insert";
   csvDelimiter?: string;
+  csvIncludeHeaders?: boolean;
   sortClause?: string;
   onSort?: (colName: string) => void;
   readonly?: boolean;
@@ -142,6 +146,7 @@ export const DataGrid = React.memo(
     onSelectionChange,
     copyFormat,
     csvDelimiter = ",",
+    csvIncludeHeaders = true,
     sortClause,
     onSort,
     readonly: readonlyProp,
@@ -149,6 +154,8 @@ export const DataGrid = React.memo(
     const { t } = useTranslation();
     const { activeSchema, connections } = useDatabase();
     const { showAlert } = useAlert();
+    const { settings } = useSettings();
+    const colorByType = settings.resultColorByType ?? false;
 
     const detectJsonInTextColumns = useMemo(() => {
       if (!connectionId) return false;
@@ -254,6 +261,19 @@ export const DataGrid = React.memo(
         columnMetadata.map((col) => [col.name, col.character_maximum_length]),
       );
     }, [columnMetadata]);
+
+    // Precompute the result-coloring class per column once (the type is fixed
+    // per column), so rows don't reclassify every cell on each render. `null`
+    // when the feature is off, which makes rows skip the wrapper entirely.
+    const resultColorClassMap = useMemo(() => {
+      if (!colorByType) return null;
+      const map = new Map<string, string>();
+      for (const colName of columns) {
+        const colType = columnTypeMap?.get(colName);
+        if (colType) map.set(colName, `rcell-${getResultValueType(undefined, colType)}`);
+      }
+      return map;
+    }, [colorByType, columns, columnTypeMap]);
 
     const isJsonCellTarget = useCallback(
       (colType: string | undefined, value: unknown): boolean => {
@@ -425,12 +445,30 @@ export const DataGrid = React.memo(
       } else {
         const allIndices = new Set(mergedRows.map((_, i) => i));
         updateSelection(allIndices);
+        const allRows = mergedRows.map((r) => r.rowData);
+        const text = copyFormat === "json"
+          ? rowsToJSON(allRows, columns)
+          : copyFormat === "sql-insert"
+          ? rowsToSqlInsert(allRows, columns, tableName ?? "table")
+          : csvIncludeHeaders
+          ? rowsToCSVWithHeaders(allRows, columns, "null", csvDelimiter)
+          : rowsToCSV(allRows, "null", csvDelimiter);
+        copyTextToClipboard(text).catch((e) => {
+          showAlert(t("common.error") + ": " + e, { title: t("common.error"), kind: "error" });
+        });
       }
     }, [
       selectedRowIndices.size,
       mergedRows,
       updateSelection,
       onForeignKeyHidePanel,
+      columns,
+      copyFormat,
+      csvDelimiter,
+      csvIncludeHeaders,
+      tableName,
+      showAlert,
+      t,
     ]);
 
     useEffect(() => {
@@ -464,6 +502,51 @@ export const DataGrid = React.memo(
       if (mergedRow.type !== "insertion" && !pkColumn) return;
 
       const colName = columns[colIndex];
+
+      // For existing rows we must be able to build a safe UPDATE. Two guards,
+      // each running whenever the data it depends on is available, so they
+      // don't silently no-op when a driver omits result metadata:
+      //
+      // 1. The primary key must be present in the result set (needed for the
+      //    WHERE clause). Depends only on pkColumn + columns.
+      // 2. The edited column must map to a real physical column of the table
+      //    (prevents malformed UPDATEs on aliased/computed columns). Requires
+      //    columnMetadata; skipped when it's unavailable.
+      if (mergedRow.type !== "insertion") {
+        if (
+          pkColumn &&
+          !columns.some((c) => c.toLowerCase() === pkColumn.toLowerCase())
+        ) {
+          showAlert(
+            t("dataGrid.pkRequiredToEdit", {
+              pk: pkColumn,
+              defaultValue:
+                'To edit this result, include the primary key column "{{pk}}" in your SELECT.',
+            }),
+            { title: t("common.error"), kind: "warning" },
+          );
+          return;
+        }
+
+        if (columnMetadata && columnMetadata.length > 0) {
+          const realColumns = new Set(
+            columnMetadata.map((c) => c.name.toLowerCase()),
+          );
+          if (!realColumns.has(colName.toLowerCase())) {
+            showAlert(
+              t("dataGrid.columnNotEditable", {
+                column: colName,
+                table: tableName,
+                defaultValue:
+                  'Column "{{column}}" can\'t be edited — it is not a direct column of table "{{table}}" (likely an alias or computed value).',
+              }),
+              { title: t("common.error"), kind: "warning" },
+            );
+            return;
+          }
+        }
+      }
+
       const colType = columnTypeMap?.get(colName);
 
       if (
@@ -518,8 +601,11 @@ export const DataGrid = React.memo(
         columns,
         columnTypeMap,
         columnLengthMap,
+        columnMetadata,
         buildRowDataWithPending,
         openJsonViewerWindow,
+        showAlert,
+        t,
       ],
     );
 
@@ -1039,13 +1125,15 @@ export const DataGrid = React.memo(
     );
 
     const formatRows = useCallback(
-      (rows: unknown[][]) => {
+      (rows: unknown[][], withHeaders = false) => {
         if (copyFormat === "json") return rowsToJSON(rows, columns);
         if (copyFormat === "sql-insert")
           return rowsToSqlInsert(rows, columns, tableName ?? "table");
+        if (withHeaders && csvIncludeHeaders)
+          return rowsToCSVWithHeaders(rows, columns, "null", csvDelimiter);
         return rowsToCSV(rows, "null", csvDelimiter);
       },
-      [columns, copyFormat, csvDelimiter, tableName],
+      [columns, copyFormat, csvDelimiter, csvIncludeHeaders, tableName],
     );
 
     const copySelectedOrContextRow = useCallback(async () => {
@@ -1056,7 +1144,7 @@ export const DataGrid = React.memo(
           ? getSelectedRows(data, selectedRowIndices)
           : [contextMenu.row];
 
-      await copyToClipboard(formatRows(rows));
+      await copyToClipboard(formatRows(rows, true));
     }, [contextMenu, selectedRowIndices, data, formatRows, copyToClipboard]);
 
     const copyHeaderName = useCallback(async () => {
@@ -1081,7 +1169,7 @@ export const DataGrid = React.memo(
     const copySelectedCells = useCallback(async () => {
       if (selectedRowIndices.size === 0) return;
       await copyToClipboard(
-        formatRows(getSelectedRows(data, selectedRowIndices)),
+        formatRows(getSelectedRows(data, selectedRowIndices), true),
       );
     }, [selectedRowIndices, data, formatRows, copyToClipboard]);
 
@@ -1145,6 +1233,7 @@ export const DataGrid = React.memo(
         pendingChanges,
         columnTypeMap,
         columnLengthMap,
+        resultColorClassMap,
         isJsonCellTarget,
         fksByColumn,
         t,
@@ -1181,6 +1270,7 @@ export const DataGrid = React.memo(
         pendingChanges,
         columnTypeMap,
         columnLengthMap,
+        resultColorClassMap,
         isJsonCellTarget,
         fksByColumn,
         t,

@@ -25,6 +25,13 @@ pub struct AppConfig {
     pub result_page_size: Option<u32>,
     pub font_family: Option<String>,
     pub font_size: Option<u32>,
+    /// Colorize query result cell values by their data type (number, string,
+    /// date, boolean). Default: false — values render in the primary text color.
+    pub result_color_by_type: Option<bool>,
+    /// Per-type hex color overrides for result cell values. Keys: "number",
+    /// "string", "date", "boolean". Missing keys fall back to the active theme's
+    /// semantic colors.
+    pub result_type_colors: Option<HashMap<String, String>>,
     pub ai_enabled: Option<bool>,
     pub ai_provider: Option<String>,
     pub ai_model: Option<String>,
@@ -41,6 +48,8 @@ pub struct AppConfig {
     pub max_blob_size: Option<u64>,
     pub copy_format: Option<String>,
     pub csv_delimiter: Option<String>,
+    /// Whether copied CSV output includes a header row. Default: true.
+    pub csv_include_headers: Option<bool>,
     pub active_external_drivers: Option<Vec<String>>,
     pub custom_registry_url: Option<String>,
     pub plugins: Option<HashMap<String, PluginConfig>>,
@@ -226,6 +235,12 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         if config.font_size.is_some() {
             existing_config.font_size = config.font_size;
         }
+        if config.result_color_by_type.is_some() {
+            existing_config.result_color_by_type = config.result_color_by_type;
+        }
+        if config.result_type_colors.is_some() {
+            existing_config.result_type_colors = config.result_type_colors;
+        }
         if config.ai_enabled.is_some() {
             existing_config.ai_enabled = config.ai_enabled;
         }
@@ -273,6 +288,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.csv_delimiter.is_some() {
             existing_config.csv_delimiter = config.csv_delimiter;
+        }
+        if config.csv_include_headers.is_some() {
+            existing_config.csv_include_headers = config.csv_include_headers;
         }
         if config.active_external_drivers.is_some() {
             existing_config.active_external_drivers = config.active_external_drivers;

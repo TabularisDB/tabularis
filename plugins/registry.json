@@ -236,6 +236,24 @@
           }
         }
       ]
+    },
+    {
+      "id": "informix",
+      "name": "IBM Informix",
+      "description": "IBM Informix 11.70+ driver plugin for Tabularis (ODBC; requires the Informix Client SDK)",
+      "author": "Daniel Núñez <https://github.com/danielnuld>",
+      "homepage": "https://github.com/danielnuld/tabularis-informix-plugin",
+      "latest_version": "0.1.2",
+      "releases": [
+        {
+          "version": "0.1.2",
+          "min_tabularis_version": "0.9.17",
+          "assets": {
+            "linux-x64": "https://github.com/danielnuld/tabularis-informix-plugin/releases/download/v0.1.2/tabularis-informix-plugin-linux-x64-v0.1.2.zip",
+            "win-x64": "https://github.com/danielnuld/tabularis-informix-plugin/releases/download/v0.1.2/tabularis-informix-plugin-win-x64-v0.1.2.zip"
+          }
+        }
+      ]
     }
   ]
 }

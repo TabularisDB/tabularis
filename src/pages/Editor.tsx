@@ -332,6 +332,9 @@ export const Editor = () => {
   const [csvDelimiter, setCsvDelimiter] = useState(
     settings.csvDelimiter ?? ",",
   );
+  const [csvIncludeHeaders, setCsvIncludeHeaders] = useState(
+    settings.csvIncludeHeaders ?? true,
+  );
 
   const activeTabType = activeTab?.type;
   const activeTabQuery = activeTab?.query;
@@ -2013,6 +2016,26 @@ export const Editor = () => {
     showAlert,
   ]);
 
+  // Cmd/Ctrl+S: commit the active tab's pending grid changes (like TablePlus).
+  useEffect(() => {
+    const focused = isFocusedPane(explorerConnectionId, activeConnectionId);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!focused) return;
+      if (matchesShortcut(e, "save_grid_changes")) {
+        e.preventDefault();
+        if (hasPendingChanges) handleSubmitChanges();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    explorerConnectionId,
+    activeConnectionId,
+    matchesShortcut,
+    hasPendingChanges,
+    handleSubmitChanges,
+  ]);
+
   const handleParamsSubmit = useCallback(
     (values: Record<string, string>) => {
       const { pendingTabId, mode, sql, pendingPageNum, pendingMultiQueries } =
@@ -2379,12 +2402,24 @@ export const Editor = () => {
       });
       setExportMenuOpen(false);
 
+      // On multi-database connections (e.g. MySQL) scope the export to the
+      // selected database so the query runs against the database the user is
+      // viewing rather than the connection's primary database. The tab may not
+      // carry its own schema (e.g. a console query), so fall back to the active
+      // database — mirroring how execute_query resolves the schema.
+      const targetDatabase = activeTab?.schema ?? activeSchema ?? undefined;
+      const databaseParam =
+        isMultiDatabaseCapable(activeCapabilities) && targetDatabase
+          ? { database: targetDatabase }
+          : {};
+
       await invoke("export_query_to_file", {
         connectionId: activeConnectionId,
         query,
         filePath,
         format,
         csvDelimiter: format === "csv" ? csvDelimiter : undefined,
+        ...databaseParam,
       });
 
       // Success: update modal state instead of showing toast
@@ -2541,13 +2576,13 @@ export const Editor = () => {
                 />
               )}
               {tab.type === "table" ? (
-                <TableIcon size={12} className="text-blue-400 shrink-0" />
+                <TableIcon size={12} className="text-accent shrink-0" />
               ) : tab.type === "query_builder" ? (
-                <Network size={12} className="text-purple-400 shrink-0" />
+                <Network size={12} className="text-accent-secondary shrink-0" />
               ) : tab.type === "notebook" ? (
                 <BookOpen size={12} className="text-orange-400 shrink-0" />
               ) : (
-                <FileCode size={12} className="text-green-500 shrink-0" />
+                <FileCode size={12} className="text-accent-secondary shrink-0" />
               )}
               {editingTabId === tab.id ? (
                 <input
@@ -3014,6 +3049,7 @@ export const Editor = () => {
                 connectionId={activeConnectionId}
                 copyFormat={copyFormat}
                 csvDelimiter={csvDelimiter}
+                csvIncludeHeaders={csvIncludeHeaders}
                 onSelectResult={(entryId) =>
                   updateTab(activeTab.id, { activeResultId: entryId })
                 }
@@ -3331,6 +3367,24 @@ export const Editor = () => {
                           </option>
                         </select>
                       )}
+                      {copyFormat === "csv" && (
+                        <label
+                          className="flex items-center gap-1 cursor-pointer select-none text-[11px] text-secondary hover:text-primary"
+                          title={t("settings.csvIncludeHeaders")}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={csvIncludeHeaders}
+                            onChange={(e) =>
+                              setCsvIncludeHeaders(e.target.checked)
+                            }
+                            className="w-3 h-3 cursor-pointer accent-blue-500"
+                          />
+                          <span className="font-medium tracking-wide">
+                            {t("settings.csvHeaders")}
+                          </span>
+                        </label>
+                      )}
                     </div>
 
                     {/* Separator */}
@@ -3415,6 +3469,7 @@ export const Editor = () => {
                       onSelectionChange={handleSelectionChange}
                       copyFormat={copyFormat}
                       csvDelimiter={csvDelimiter}
+                      csvIncludeHeaders={csvIncludeHeaders}
                       sortClause={activeTab.sortClause}
                       onSort={
                         activeTab.type === "table" &&

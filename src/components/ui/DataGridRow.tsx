@@ -5,6 +5,7 @@ import {
   resolveInsertionCellDisplay,
   resolveExistingCellDisplay,
   getCellStateClass,
+  getResultValueType,
   type ColumnDisplayInfo,
   type MergedRow,
 } from "../../utils/dataGrid";
@@ -39,6 +40,12 @@ export interface RowCtx {
   >;
   columnTypeMap: Map<string, string> | null;
   columnLengthMap: Map<string, number | undefined> | null;
+  /**
+   * Per-column result-coloring class (e.g. "rcell-number"), precomputed once in
+   * DataGrid. `null` when colorize-by-type is disabled — in that case cells
+   * render plain text with no extra wrapper, matching the original behavior.
+   */
+  resultColorClassMap: Map<string, string> | null;
   isJsonCellTarget: (colType: string | undefined, value: unknown) => boolean;
   fksByColumn: Map<string, ForeignKey>;
   t: (key: string, opts?: Record<string, unknown>) => string;
@@ -154,6 +161,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
     pendingChanges,
     columnTypeMap,
     columnLengthMap,
+    resultColorClassMap,
     isJsonCellTarget,
     fksByColumn,
     t,
@@ -288,6 +296,22 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
             isModified,
             isJsonCell,
           });
+
+          let valueColorClass: string | undefined;
+          if (
+            resultColorClassMap &&
+            rawCellValue !== null &&
+            rawCellValue !== undefined &&
+            !isPendingDelete &&
+            !isInsertion &&
+            !isModified &&
+            !isAutoIncrementPlaceholder &&
+            !isDefaultValuePlaceholder
+          ) {
+            valueColorClass =
+              resultColorClassMap.get(colName) ??
+              `rcell-${getResultValueType(rawCellValue, colTypeForCell)}`;
+          }
 
           const isFocused =
             focusedCell?.rowIndex === rowIndex &&
@@ -584,6 +608,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                             {renderDefaultCellContent(
                               displayValue,
                               formattedDisplay,
+                              valueColorClass,
                             )}
                           </span>
                           <button
@@ -606,6 +631,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                     return renderDefaultCellContent(
                       displayValue,
                       formattedDisplay,
+                      valueColorClass,
                     );
                   })()}
             </td>
