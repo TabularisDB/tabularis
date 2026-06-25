@@ -164,6 +164,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(commands::QueryCancellationState::default())
         .manage(export::ExportCancellationState::default())
@@ -214,6 +215,18 @@ pub fn run() {
             // when Tabularis is closed and fail fast on approval-gated
             // queries instead of waiting for the full approval timeout.
             heartbeat::spawn();
+
+            // Maximize the window on startup if the user enabled it.
+            if crate::config::load_config_internal(&app.handle())
+                .start_maximized
+                .unwrap_or(false)
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    if let Err(e) = window.maximize() {
+                        log::warn!("Failed to maximize window on startup: {e}");
+                    }
+                }
+            }
 
             // Open devtools automatically in debug mode
             if args.debug {
@@ -336,6 +349,10 @@ pub fn run() {
             // Config
             config::get_schema_preference,
             config::set_schema_preference,
+            config::get_last_active_connection,
+            config::set_last_active_connection,
+            config::get_last_open_connections,
+            config::set_last_open_connections,
             config::get_selected_schemas,
             config::set_selected_schemas,
             config::get_config,

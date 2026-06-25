@@ -9,6 +9,8 @@ import { githubDark } from './presets/githubDark';
 import { solarizedDark } from './presets/solarizedDark';
 import { solarizedLight } from './presets/solarizedLight';
 import { highContrast } from './presets/highContrast';
+import { gruvboxDark } from './presets/gruvboxDark';
+import { gruvboxLight } from './presets/gruvboxLight';
 
 class ThemeRegistry {
   private presets: Map<string, Theme> = new Map();
@@ -24,6 +26,8 @@ class ThemeRegistry {
     this.registerPreset(solarizedDark);
     this.registerPreset(solarizedLight);
     this.registerPreset(highContrast);
+    this.registerPreset(gruvboxDark);
+    this.registerPreset(gruvboxLight);
   }
 
   private registerPreset(theme: Theme): void {

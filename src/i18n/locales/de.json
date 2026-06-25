@@ -211,7 +211,11 @@
       "approvalTimeout": "Zeitlimit",
       "approvalTimeoutDesc": "Wie lange gewartet wird, bevor abgebrochen wird.",
       "preflightExplain": "Vorab-EXPLAIN",
-      "preflightExplainDesc": "Führt vor dem Modal ein EXPLAIN aus, damit der Plan sichtbar ist."
+      "preflightExplainDesc": "Führt vor dem Modal ein EXPLAIN aus, damit der Plan sichtbar ist.",
+      "approvalAlwaysOnTop": "Freigabedialog in den Vordergrund holen",
+      "approvalAlwaysOnTopDesc": "Wenn eine nicht lesende MCP-Aktion eine Freigabe benötigt, bringt Tabularis sich in den Vordergrund und bleibt vorübergehend über anderen Fenstern.",
+      "approvalNotifySound": "Benachrichtigung senden und Ton abspielen",
+      "approvalNotifySoundDesc": "Zeigt eine native Systembenachrichtigung an und spielt einen kurzen Hinweiston ab, wenn eine neue MCP-Freigabeanfrage eingeht."
     }
   },
   "connections": {
@@ -283,6 +287,9 @@
     "delimiterSemicolon": "Semikolon (;)",
     "delimiterTab": "Tabulator",
     "delimiterPipe": "Pipe (|)",
+    "csvIncludeHeaders": "CSV-Kopfzeile einschließen",
+    "csvIncludeHeadersDesc": "Beim Kopieren von Zeilen als CSV eine Kopfzeile mit den Spaltennamen einfügen.",
+    "csvHeaders": "Spaltennamen exportieren",
     "detectJsonInTextColumns": "JSON in Text-Spalten erkennen",
     "detectJsonInTextColumnsDesc": "Zeigt JSON-Viewer-Bedienelemente, wenn eine nicht typisierte Text-Zelle ein JSON-Objekt oder -Array enthält. Verursacht kleine Parse-Kosten pro Zelle.",
     "appearance": "Darstellung",
@@ -337,6 +344,8 @@
     "roadmapDesc": "Dieses Projekt ist Work in Progress (WIP). Die Kernfunktionen sind stabil, aber wir haben große Pläne.",
     "support": "Entwicklung unterstützen",
     "supportDesc": "Wenn dir tabularis gefällt und du mehr Funktionen sehen möchtest, unterstütze das Projekt durch Code-Beiträge, Bug-Reports oder einen Stern auf GitHub.",
+    "followUs": "Folge uns",
+    "followUsDesc": "Bleib auf dem Laufenden und vernetze dich mit der Community auf deiner Lieblingsplattform.",
     "version": "Version",
     "starOnGithub": "Auf GitHub mit Stern markieren",
     "ai": {
@@ -456,6 +465,10 @@
     "startup": "Start",
     "showWelcome": "Willkommensbildschirm anzeigen",
     "showWelcomeDesc": "Willkommensbildschirm beim Start der Anwendung anzeigen.",
+    "autoConnectLastConnection": "Letzte Verbindungen wieder öffnen",
+    "autoConnectLastConnectionDesc": "Stellt die Verbindungen wieder her, die beim letzten Schließen der App geöffnet waren.",
+    "startMaximized": "Maximiert starten",
+    "startMaximizedDesc": "Öffnet das Fenster beim Start maximiert, um den Bildschirm auszufüllen.",
     "erDiagram": "ER-Diagramm",
     "erDiagramDefaultLayout": "Standard-Layout",
     "erDiagramDefaultLayoutDesc": "Wähle die Standard-Layout-Richtung für ER-Diagramme",
@@ -1519,7 +1532,9 @@
     "reasonLabel": "Grund (optional)",
     "reasonPlaceholder": "z.B. In Prod riskant, bestätigen…",
     "approve": "Freigeben",
-    "deny": "Ablehnen"
+    "deny": "Ablehnen",
+    "notificationTitle": "MCP-Freigabe erforderlich",
+    "notificationBody": "Öffne Tabularis, um die ausstehende MCP-Freigabe zu prüfen."
   },
   "discordCallout": {
     "title": "Neue Discord-Community!",

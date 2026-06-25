@@ -11,6 +11,7 @@ interface ResultEntryContentProps {
   connectionId: string | null;
   copyFormat: "csv" | "json" | "sql-insert";
   csvDelimiter: string;
+  csvIncludeHeaders: boolean;
   onPageChange: (page: number) => void;
   compact?: boolean;
 }
@@ -20,6 +21,7 @@ export function ResultEntryContent({
   connectionId,
   copyFormat,
   csvDelimiter,
+  csvIncludeHeaders,
   onPageChange,
   compact,
 }: ResultEntryContentProps) {
@@ -74,6 +76,7 @@ export function ResultEntryContent({
           onSelectionChange={() => {}}
           copyFormat={copyFormat}
           csvDelimiter={csvDelimiter}
+          csvIncludeHeaders={csvIncludeHeaders}
           readonly={true}
         />
       </div>
@@ -121,6 +124,7 @@ export function ResultEntryContent({
           onSelectionChange={() => {}}
           copyFormat={copyFormat}
           csvDelimiter={csvDelimiter}
+          csvIncludeHeaders={csvIncludeHeaders}
           readonly={true}
         />
       </div>

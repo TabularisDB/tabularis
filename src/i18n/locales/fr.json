@@ -211,7 +211,11 @@
       "approvalTimeout": "Délai",
       "approvalTimeoutDesc": "Temps d'attente avant échec.",
       "preflightExplain": "EXPLAIN préalable",
-      "preflightExplainDesc": "Exécute EXPLAIN avant d'afficher le modal pour montrer le plan."
+      "preflightExplainDesc": "Exécute EXPLAIN avant d'afficher le modal pour montrer le plan.",
+      "approvalAlwaysOnTop": "Mettre la boîte d’approbation au premier plan",
+      "approvalAlwaysOnTopDesc": "Quand une action MCP autre qu’en lecture nécessite une approbation, Tabularis passe au premier plan et reste temporairement au-dessus des autres fenêtres.",
+      "approvalNotifySound": "Envoyer une notification et jouer un son",
+      "approvalNotifySoundDesc": "Affiche une notification système native et joue un court son d’alerte lorsqu’une nouvelle demande d’approbation MCP arrive."
     }
   },
   "connections": {
@@ -283,6 +287,9 @@
     "delimiterSemicolon": "Point-virgule (;)",
     "delimiterTab": "Tabulation",
     "delimiterPipe": "Barre verticale (|)",
+    "csvIncludeHeaders": "Inclure les en-têtes CSV",
+    "csvIncludeHeadersDesc": "Inclure une ligne d'en-tête avec les noms des colonnes lors de la copie des lignes au format CSV.",
+    "csvHeaders": "Exporter les noms de colonnes",
     "detectJsonInTextColumns": "Détecter le JSON dans les colonnes texte",
     "detectJsonInTextColumnsDesc": "Affiche le visualiseur JSON lorsqu'une cellule texte non typée contient un objet ou un tableau JSON. Ajoute un petit coût d'analyse par cellule.",
     "appearance": "Apparence",
@@ -337,6 +344,8 @@
     "roadmapDesc": "Ce projet est un Work In Progress (WIP). Les fonctionnalités principales sont stables, mais nous avons de grands projets.",
     "support": "Soutenir le développement",
     "supportDesc": "Si vous aimez tabularis et souhaitez voir davantage de fonctionnalités, pensez à soutenir le projet en contribuant au code, en signalant des bugs ou en mettant une étoile au dépôt.",
+    "followUs": "Suivez-nous",
+    "followUsDesc": "Restez informé et échangez avec la communauté sur votre plateforme préférée.",
     "version": "Version",
     "starOnGithub": "Mettre une étoile sur GitHub",
     "ai": {
@@ -456,6 +465,10 @@
     "startup": "Démarrage",
     "showWelcome": "Afficher l’écran d’accueil",
     "showWelcomeDesc": "Afficher l’écran d’accueil au démarrage de l’application.",
+    "autoConnectLastConnection": "Rouvrir les dernières connexions",
+    "autoConnectLastConnectionDesc": "Se reconnecte aux connexions ouvertes lors de la dernière fermeture de l’application.",
+    "startMaximized": "Démarrer agrandi",
+    "startMaximizedDesc": "Ouvre la fenêtre agrandie pour remplir l’écran au démarrage.",
     "erDiagram": "Diagramme ER",
     "erDiagramDefaultLayout": "Disposition par défaut",
     "erDiagramDefaultLayoutDesc": "Choisissez la direction de disposition par défaut pour les diagrammes ER",
@@ -1519,7 +1532,9 @@
     "reasonLabel": "Motif (facultatif)",
     "reasonPlaceholder": "ex. Risqué en prod, confirmez…",
     "approve": "Approuver",
-    "deny": "Refuser"
+    "deny": "Refuser",
+    "notificationTitle": "Approbation MCP requise",
+    "notificationBody": "Ouvrez Tabularis pour examiner l’approbation MCP en attente."
   },
   "discordCallout": {
     "title": "Nouvelle communauté Discord !",

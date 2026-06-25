@@ -81,12 +81,14 @@ import {
 import { formatDuration } from "../utils/formatTime";
 import { SqlEditorWrapper } from "../components/ui/SqlEditorWrapper";
 import { NotebookView } from "../components/notebook/NotebookView";
+import { useSqlAutocompleteRegistration } from "../hooks/useSqlAutocompleteRegistration";
 import { createNotebook, renameNotebook } from "../utils/notebookStore";
-import { registerSqlAutocomplete } from "../utils/autocomplete";
 import { type OnMount, type Monaco } from "@monaco-editor/react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../hooks/useAlert";
 import { useDatabase } from "../hooks/useDatabase";
+import { useDrivers } from "../hooks/useDrivers";
+import { getConnectionAccent } from "../utils/driverUI";
 import { useSavedQueries } from "../hooks/useSavedQueries";
 import { useQueryHistory } from "../hooks/useQueryHistory";
 import { useSettings } from "../hooks/useSettings";
@@ -137,7 +139,7 @@ export const Editor = () => {
   const { t } = useTranslation();
   const {
     activeConnectionId,
-    tables,
+    connections,
     views,
     activeDriver,
     activeSchema,
@@ -145,9 +147,8 @@ export const Editor = () => {
     selectedDatabases,
     activeConnectionName,
     activeDatabaseName,
-    schemaDataMap,
-    databaseDataMap,
   } = useDatabase();
+  const { allDrivers } = useDrivers();
   const { explorerConnectionId } = useConnectionLayoutContext();
   const { settings } = useSettings();
   const { saveQuery } = useSavedQueries();
@@ -327,6 +328,9 @@ export const Editor = () => {
   );
   const [csvDelimiter, setCsvDelimiter] = useState(
     settings.csvDelimiter ?? ",",
+  );
+  const [csvIncludeHeaders, setCsvIncludeHeaders] = useState(
+    settings.csvIncludeHeaders ?? true,
   );
 
   const activeTabType = activeTab?.type;
@@ -2009,6 +2013,26 @@ export const Editor = () => {
     showAlert,
   ]);
 
+  // Cmd/Ctrl+S: commit the active tab's pending grid changes (like TablePlus).
+  useEffect(() => {
+    const focused = isFocusedPane(explorerConnectionId, activeConnectionId);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!focused) return;
+      if (matchesShortcut(e, "save_grid_changes")) {
+        e.preventDefault();
+        if (hasPendingChanges) handleSubmitChanges();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    explorerConnectionId,
+    activeConnectionId,
+    matchesShortcut,
+    hasPendingChanges,
+    handleSubmitChanges,
+  ]);
+
   const handleParamsSubmit = useCallback(
     (values: Record<string, string>) => {
       const { pendingTabId, mode, sql, pendingPageNum, pendingMultiQueries } =
@@ -2186,25 +2210,11 @@ export const Editor = () => {
     });
   };
 
-  useEffect(() => {
-    if (monacoInstance && activeConnectionId) {
-      let effectiveTables = tables;
-      if (activeCapabilities?.schemas && activeSchema) {
-        effectiveTables = schemaDataMap[activeSchema]?.tables ?? tables;
-      } else if (isMultiDb) {
-        effectiveTables = selectedDatabases.flatMap(db =>
-          (databaseDataMap[db]?.tables ?? []).map(t => ({ ...t, schema: db }))
-        );
-      }
-      const disposable = registerSqlAutocomplete(
-        monacoInstance,
-        activeConnectionId,
-        effectiveTables,
-        activeSchema,
-      );
-      return () => disposable.dispose();
-    }
-  }, [monacoInstance, activeConnectionId, tables, activeSchema, activeCapabilities, schemaDataMap, databaseDataMap, isMultiDb, selectedDatabases]);
+  useSqlAutocompleteRegistration(activeConnectionId, {
+    monaco: monacoInstance,
+    schema: activeSchema,
+    enabled: !isNotebookTab,
+  });
 
   useEffect(() => {
     const state = location.state as EditorState;
@@ -2375,12 +2385,24 @@ export const Editor = () => {
       });
       setExportMenuOpen(false);
 
+      // On multi-database connections (e.g. MySQL) scope the export to the
+      // selected database so the query runs against the database the user is
+      // viewing rather than the connection's primary database. The tab may not
+      // carry its own schema (e.g. a console query), so fall back to the active
+      // database — mirroring how execute_query resolves the schema.
+      const targetDatabase = activeTab?.schema ?? activeSchema ?? undefined;
+      const databaseParam =
+        isMultiDatabaseCapable(activeCapabilities) && targetDatabase
+          ? { database: targetDatabase }
+          : {};
+
       await invoke("export_query_to_file", {
         connectionId: activeConnectionId,
         query,
         filePath,
         format,
         csvDelimiter: format === "csv" ? csvDelimiter : undefined,
+        ...databaseParam,
       });
 
       // Success: update modal state instead of showing toast
@@ -2451,21 +2473,44 @@ export const Editor = () => {
     );
   }
 
+  const activeConnection = connections.find((c) => c.id === activeConnectionId);
+  const tabBarAccent = activeConnectionId
+    ? getConnectionAccent(
+        activeConnection,
+        allDrivers.find((d) => d.id === activeDriver),
+      )
+    : null;
+  // Active-tab accents (indicator line, loading bar, rename border) follow the
+  // connection color when present, falling back to the default blue otherwise.
+  const tabAccentColor = tabBarAccent ?? "#3b82f6";
+
   return (
     <div className="flex flex-col h-full bg-base">
-      {/* Tab Bar */}
-      <div className="flex items-center bg-elevated border-b border-default h-9 shrink-0">
+      {/* Tab Bar — tinted with the active connection's accent color */}
+      <div
+        className="flex items-center bg-elevated border-b border-default h-9 shrink-0"
+        style={
+          tabBarAccent
+            ? {
+                // Vertical accent wash (stronger at top) + accent-tinted bottom
+                // border so the bar reads as part of the active connection.
+                backgroundImage: `linear-gradient(${tabBarAccent}30, ${tabBarAccent}20)`,
+                borderBottomColor: `${tabBarAccent}50`,
+              }
+            : undefined
+        }
+      >
         <button
           onClick={() => scrollTabs("left")}
           disabled={!canScrollLeft}
-          className="flex items-center justify-center w-7 h-full text-muted border-r border-default shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:enabled:text-white hover:enabled:bg-surface-secondary"
+          className="flex items-center justify-center w-7 h-full text-muted border-r border-default shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:enabled:text-primary hover:enabled:bg-surface-secondary"
         >
           <ChevronLeft size={14} />
         </button>
         <button
           onClick={() => scrollTabs("right")}
           disabled={!canScrollRight}
-          className="flex items-center justify-center w-7 h-full text-muted border-r border-default shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:enabled:text-white hover:enabled:bg-surface-secondary"
+          className="flex items-center justify-center w-7 h-full text-muted border-r border-default shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:enabled:text-primary hover:enabled:bg-surface-secondary"
         >
           <ChevronRight size={14} />
         </button>
@@ -2486,23 +2531,41 @@ export const Editor = () => {
                 }
               }}
               className={clsx(
-                "flex items-center gap-2 px-3 h-full border-r border-default cursor-pointer min-w-[140px] max-w-[220px] text-xs transition-all group relative select-none",
+                "flex items-center gap-2 px-3 h-full border-r border-default cursor-pointer min-w-[140px] max-w-[220px] text-xs transition-all duration-150 group relative select-none",
                 activeTabId === tab.id
                   ? "bg-base text-primary font-medium"
-                  : "text-muted hover:bg-surface-secondary hover:text-secondary",
+                  : "text-muted hover:bg-[var(--tab-hover)] hover:text-secondary",
               )}
+              style={
+                activeTabId === tab.id
+                  ? {
+                      // Active tab keeps the content background (so it reads as
+                      // connected to the pane below) but carries a soft accent
+                      // body, stronger at the top, tinted by the connection.
+                      backgroundImage: `linear-gradient(${tabAccentColor}30, ${tabAccentColor}20)`,
+                    }
+                  : // Inactive tabs pick up a soft accent wash on hover instead of
+                    // a flat neutral grey, keeping the strip tied to the connection.
+                    ({ "--tab-hover": `${tabAccentColor}33` } as React.CSSProperties)
+              }
             >
               {activeTabId === tab.id && (
-                <div className="absolute top-0 left-0 right-0 h-[2px] bg-blue-500" />
+                <div
+                  className="absolute top-0 left-0 right-0 h-[2px] rounded-b-sm"
+                  style={{
+                    backgroundColor: `${tabAccentColor}cc`,
+                    boxShadow: `0 0 5px ${tabAccentColor}59`,
+                  }}
+                />
               )}
               {tab.type === "table" ? (
-                <TableIcon size={12} className="text-blue-400 shrink-0" />
+                <TableIcon size={12} className="text-accent shrink-0" />
               ) : tab.type === "query_builder" ? (
-                <Network size={12} className="text-purple-400 shrink-0" />
+                <Network size={12} className="text-accent-secondary shrink-0" />
               ) : tab.type === "notebook" ? (
                 <BookOpen size={12} className="text-orange-400 shrink-0" />
               ) : (
-                <FileCode size={12} className="text-green-500 shrink-0" />
+                <FileCode size={12} className="text-accent-secondary shrink-0" />
               )}
               {editingTabId === tab.id ? (
                 <input
@@ -2517,7 +2580,8 @@ export const Editor = () => {
                     if (e.key === "Enter") commitTabRename();
                     if (e.key === "Escape") setEditingTabId(null);
                   }}
-                  className="flex-1 min-w-0 bg-surface-secondary border border-blue-500/50 rounded px-1 py-0.5 text-xs text-primary focus:outline-none"
+                  className="flex-1 min-w-0 bg-surface-secondary border rounded px-1 py-0.5 text-xs text-primary focus:outline-none"
+                  style={{ borderColor: `${tabAccentColor}80` }}
                 />
               ) : (
                 <span
@@ -2545,7 +2609,7 @@ export const Editor = () => {
                   handleCloseTab(tab.id);
                 }}
                 className={clsx(
-                  "p-0.5 rounded-sm hover:bg-surface-secondary transition-opacity shrink-0",
+                  "p-0.5 rounded hover:bg-surface-secondary hover:text-primary hover:scale-110 transition-all duration-150 shrink-0",
                   activeTabId === tab.id
                     ? "opacity-100"
                     : "opacity-0 group-hover:opacity-100",
@@ -2554,7 +2618,12 @@ export const Editor = () => {
                 <X size={12} />
               </button>
               {tab.isLoading && (
-                <div className="absolute bottom-0 left-0 h-0.5 bg-blue-500 animate-pulse w-full" />
+                <div
+                  className="absolute bottom-0 left-0 h-0.5 w-full animate-pulse"
+                  style={{
+                    backgroundImage: `linear-gradient(90deg, transparent, ${tabAccentColor}, transparent)`,
+                  }}
+                />
               )}
             </div>
           ))}
@@ -2566,14 +2635,14 @@ export const Editor = () => {
               ...(isMultiDb ? { schema: selectedDatabases[0] } : {}),
             })
           }
-          className="flex items-center justify-center w-9 h-full text-muted hover:text-white hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+          className="flex items-center justify-center w-9 h-full text-muted hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
           title={t("editor.newConsole")}
         >
           <Plus size={16} />
         </button>
         <button
           onClick={() => addTab({ type: "query_builder" })}
-          className="flex items-center justify-center w-9 h-full text-purple-500 hover:text-white hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+          className="flex items-center justify-center w-9 h-full text-purple-500 hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
           title={t("editor.newVisualQuery")}
         >
           <Network size={16} />
@@ -2589,7 +2658,7 @@ export const Editor = () => {
               ...(isMultiDb ? { schema: selectedDatabases[0] } : {}),
             });
           }}
-          className="flex items-center justify-center w-9 h-full text-orange-400 hover:text-white hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+          className="flex items-center justify-center w-9 h-full text-orange-400 hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
           title={t("editor.newNotebook")}
         >
           <BookOpen size={16} />
@@ -2963,6 +3032,7 @@ export const Editor = () => {
                 connectionId={activeConnectionId}
                 copyFormat={copyFormat}
                 csvDelimiter={csvDelimiter}
+                csvIncludeHeaders={csvIncludeHeaders}
                 onSelectResult={(entryId) =>
                   updateTab(activeTab.id, { activeResultId: entryId })
                 }
@@ -3280,6 +3350,24 @@ export const Editor = () => {
                           </option>
                         </select>
                       )}
+                      {copyFormat === "csv" && (
+                        <label
+                          className="flex items-center gap-1 cursor-pointer select-none text-[11px] text-secondary hover:text-primary"
+                          title={t("settings.csvIncludeHeaders")}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={csvIncludeHeaders}
+                            onChange={(e) =>
+                              setCsvIncludeHeaders(e.target.checked)
+                            }
+                            className="w-3 h-3 cursor-pointer accent-blue-500"
+                          />
+                          <span className="font-medium tracking-wide">
+                            {t("settings.csvHeaders")}
+                          </span>
+                        </label>
+                      )}
                     </div>
 
                     {/* Separator */}
@@ -3364,6 +3452,7 @@ export const Editor = () => {
                       onSelectionChange={handleSelectionChange}
                       copyFormat={copyFormat}
                       csvDelimiter={csvDelimiter}
+                      csvIncludeHeaders={csvIncludeHeaders}
                       sortClause={activeTab.sortClause}
                       onSort={
                         activeTab.type === "table" &&

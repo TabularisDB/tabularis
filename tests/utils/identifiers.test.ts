@@ -103,18 +103,39 @@ describe('quoteTableRef', () => {
 });
 
 describe('formatSqlIdentifier', () => {
-  it('should quote identifiers for postgres', () => {
+  it('should not quote plain lowercase identifiers for postgres', () => {
+    expect(formatSqlIdentifier('users', 'postgres')).toBe('users');
+    expect(formatSqlIdentifier('user_status', 'postgres')).toBe('user_status');
+  });
+
+  it('should quote mixed case identifiers for postgres', () => {
     expect(formatSqlIdentifier('Status', 'postgres')).toBe('"Status"');
-    expect(formatSqlIdentifier('user_status', 'postgres')).toBe('"user_status"');
+    expect(formatSqlIdentifier('AccountEventLog', 'postgres')).toBe('"AccountEventLog"');
+    expect(formatSqlIdentifier('AccountId', 'postgres')).toBe('"AccountId"');
+  });
+
+  it('should quote reserved words for postgres', () => {
+    expect(formatSqlIdentifier('select', 'postgres')).toBe('"select"');
+    expect(formatSqlIdentifier('user', 'postgres')).toBe('"user"');
+    expect(formatSqlIdentifier('table', 'postgres')).toBe('"table"');
+  });
+
+  it('should quote identifiers with special characters or spaces for postgres', () => {
+    expect(formatSqlIdentifier('my table', 'postgres')).toBe('"my table"');
+    expect(formatSqlIdentifier('table-name', 'postgres')).toBe('"table-name"');
   });
 
   it('should leave identifiers unchanged for mysql', () => {
     expect(formatSqlIdentifier('Status', 'mysql')).toBe('Status');
     expect(formatSqlIdentifier('user_status', 'mariadb')).toBe('user_status');
+    expect(formatSqlIdentifier('AccountEventLog', 'mysql')).toBe('AccountEventLog');
+    expect(formatSqlIdentifier('select', 'mysql')).toBe('select');
   });
 
   it('should leave identifiers unchanged for sqlite and unknown drivers', () => {
     expect(formatSqlIdentifier('Status', 'sqlite')).toBe('Status');
     expect(formatSqlIdentifier('Status', null)).toBe('Status');
+    expect(formatSqlIdentifier('users', 'sqlite')).toBe('users');
+    expect(formatSqlIdentifier('AccountEventLog', 'sqlite')).toBe('AccountEventLog');
   });
 });
