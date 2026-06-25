@@ -254,6 +254,44 @@
           }
         }
       ]
+    },
+    {
+      "id": "mongodb",
+      "name": "MongoDB",
+      "description": "MongoDB (6.0+) driver plugin for Tabularis: multi-database browsing, schema inference, native queries (find/aggregate/CRUD) and indexes.",
+      "author": "Daniel Núñez <https://github.com/danielnuld>",
+      "homepage": "https://github.com/danielnuld/tabularis-mongodb-plugin",
+      "latest_version": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "min_tabularis_version": "0.9.17",
+          "assets": {
+            "win-x64": "https://github.com/danielnuld/tabularis-mongodb-plugin/releases/download/v0.1.0/tabularis-mongodb-plugin-win-x64-v0.1.0.zip",
+            "linux-x64": "https://github.com/danielnuld/tabularis-mongodb-plugin/releases/download/v0.1.0/tabularis-mongodb-plugin-linux-x64-v0.1.0.zip",
+            "linux-arm64": "https://github.com/danielnuld/tabularis-mongodb-plugin/releases/download/v0.1.0/tabularis-mongodb-plugin-linux-arm64-v0.1.0.zip",
+            "darwin-arm64": "https://github.com/danielnuld/tabularis-mongodb-plugin/releases/download/v0.1.0/tabularis-mongodb-plugin-darwin-arm64-v0.1.0.zip"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cloudflare-d1",
+      "name": "Cloudflare D1",
+      "description": "Browse and manage Cloudflare D1 serverless SQLite databases from Tabularis.",
+      "author": "josejorge <https://github.com/josejorge>",
+      "homepage": "https://github.com/josejorge/tabularis_cloudflare_d1_plugin",
+      "latest_version": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "min_tabularis_version": "0.8.15",
+          "assets": {
+            "linux-x64": "https://github.com/josejorge/tabularis_cloudflare_d1_plugin/releases/download/v0.1.0/cloudflare-d1-linux-x64-0.1.0.zip",
+            "win-x64": "https://github.com/josejorge/tabularis_cloudflare_d1_plugin/releases/download/v0.1.0/cloudflare-d1-win-x64-0.1.0.zip"
+          }
+        }
+      ]
     }
   ]
 }
