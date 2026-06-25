@@ -5,6 +5,14 @@ export interface ParsedTableRef {
   schema?: string;
 }
 
+// Removes wrapping SQL identifier quotes/backticks.
+// Unquoted identifiers are normalized to lowercase.
+function stripIdentifierQuotes(token: string): string {
+  const q = token[0];
+  if (q === '"' || q === '`') return token.slice(1, -1).replaceAll(q + q, q);
+  return token.toLowerCase();
+}
+
 // Isolate the FROM/JOIN section of a SQL statement so clause keywords
 // (WHERE, HAVING, etc.) are never present when the alias-capture regex runs.
 const extractFromSection = (sql: string): string => {
@@ -23,8 +31,7 @@ const extractFromSection = (sql: string): string => {
     .replace(/\busing\s*\([^)]*\)/gi, ' ');
 };
 
-// Optimized table parser - returns alias → ParsedTableRef.
-// Handles both unqualified (table) and qualified (schema.table) references.
+// Returns alias → ParsedTableRef. Handles quoted identifiers, schema.table, and comma-separated FROM.
 export const parseTablesFromQuery = (sql: string): Map<string, ParsedTableRef> | null => {
   if (!sql || sql.length === 0) return null;
 
@@ -32,21 +39,22 @@ export const parseTablesFromQuery = (sql: string): Map<string, ParsedTableRef> |
   if (!fromSection) return null;
 
   const tableMap = new Map<string, ParsedTableRef>();
-  // Groups: 1=first-id (schema when group 2 present, else table), 2=table (qualified), 3=alias.
-  // The negative-lookahead stops the optional alias group from swallowing a keyword that
-  // legally follows a table name (JOIN/LEFT/NATURAL/FOR/…). Without it the keyword is both
-  // mis-registered as an alias and consumed, dropping the table that follows it.
-  const fromPattern = /(?:from|join)\s+`?([a-z_][a-z0-9_]*)`?(?:\.`?([a-z_][a-z0-9_]*)`?)?(?:\s+(?:as\s+)?`?(?!(?:join|left|right|inner|outer|cross|natural|full|on|using|where|group|order|having|limit|offset|union|intersect|except|for|fetch|window|lateral|tablesample|qualify|straight_join)\b)([a-z_][a-z0-9_]*)`?)?/gi;
+  const fromPattern =
+    /(?:from|join|,)\s+("(?:[^"]|"")*"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*)(?:\.("(?:[^"]|"")*"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*))?(?:\s+(?:as\s+)?("(?:[^"]|"")*"|`[^`]+`|(?!(?:join|left|right|inner|outer|cross|natural|full|on|using|where|group|order|having|limit|offset|union|intersect|except|for|fetch|window|lateral|tablesample|qualify|straight_join)\b)[a-zA-Z_][a-zA-Z0-9_]*))?/gi;
 
   let match;
   let matchCount = 0;
   const MAX_MATCHES = 10;
 
-  while ((match = fromPattern.exec(fromSection.toLowerCase())) !== null && matchCount++ < MAX_MATCHES) {
-    const qualified = !!match[2];
-    const tableName = qualified ? match[2] : match[1];
-    const schema = qualified ? match[1] : undefined;
-    const alias = match[3] || tableName;
+  while ((match = fromPattern.exec(fromSection)) !== null && matchCount++ < MAX_MATCHES) {
+    const schemaToken = match[2] ? match[1] : undefined;
+    const tableToken = match[2] ?? match[1];
+    if (!tableToken) continue;
+
+    const tableName = stripIdentifierQuotes(tableToken);
+    const schema = schemaToken ? stripIdentifierQuotes(schemaToken) : undefined;
+    const aliasToken = match[3];
+    const alias = aliasToken ? stripIdentifierQuotes(aliasToken) : tableName;
     tableMap.set(alias, { name: tableName, schema });
   }
 
@@ -56,20 +64,21 @@ export const parseTablesFromQuery = (sql: string): Map<string, ParsedTableRef> |
 // Optimized statement extractor - avoid full text scan when possible
 export const getCurrentStatement = (model: { getValue: () => string; getOffsetAt: (position: { lineNumber: number; column: number }) => number }, position: { lineNumber: number; column: number }): string => {
   const fullText = model.getValue();
-  
+
   // For small files, just return full text
   if (fullText.length < 500) {
     return fullText;
   }
-  
+
   const offset = model.getOffsetAt(position);
   let start = 0;
   let end = fullText.length;
-  
+
+
   // Search within reasonable bounds (±2000 chars from cursor)
   const searchStart = Math.max(0, offset - 2000);
   const searchEnd = Math.min(fullText.length, offset + 2000);
-  
+
   // Find previous semicolon
   for (let i = offset - 1; i >= searchStart; i--) {
     if (fullText[i] === ';') {
@@ -77,7 +86,7 @@ export const getCurrentStatement = (model: { getValue: () => string; getOffsetAt
       break;
     }
   }
-  
+
   // Find next semicolon
   for (let i = offset; i < searchEnd; i++) {
     if (fullText[i] === ';') {
@@ -85,6 +94,6 @@ export const getCurrentStatement = (model: { getValue: () => string; getOffsetAt
       break;
     }
   }
-  
+
   return fullText.substring(start, end).trim();
 };

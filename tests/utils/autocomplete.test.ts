@@ -151,6 +151,135 @@ describe('autocomplete', () => {
       expect(tableSuggestions[1].label).toBe('orders');
     });
 
+    it('inserts double-quoted table names for postgres', async () => {
+      const monaco = createMockMonaco();
+      registerSqlAutocomplete(
+        monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+        'conn1',
+        [{ name: 'AccountEventLog' }],
+        null,
+        'postgres',
+      );
+
+      const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+      const result = await provider.provideCompletionItems(
+        createMockModel('SELECT * FROM '),
+        { lineNumber: 1, column: 15 },
+      );
+
+      const tableSuggestions = result.suggestions.filter((s: { sortText?: string }) =>
+        s.sortText?.startsWith('1_'),
+      );
+      expect(tableSuggestions[0]?.insertText).toBe('"AccountEventLog"');
+    });
+
+    it('does not prefix schema and quotes table name only if needed for postgres', async () => {
+      const monaco = createMockMonaco();
+      registerSqlAutocomplete(
+        monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+        'conn1',
+        [{ name: 'AccountEventLog' }],
+        'public',
+        'postgres',
+      );
+
+      const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+      const result = await provider.provideCompletionItems(
+        createMockModel('SELECT * FROM '),
+        { lineNumber: 1, column: 15 },
+      );
+
+      const tableSuggestions = result.suggestions.filter((s: { sortText?: string }) =>
+        s.sortText?.startsWith('1_'),
+      );
+      expect(tableSuggestions[0]?.insertText).toBe('"AccountEventLog"');
+    });
+
+    it('swallows the auto-closed quote pair when an opening quote was typed (postgres)', async () => {
+      const monaco = createMockMonaco();
+      registerSqlAutocomplete(
+        monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+        'conn1',
+        [{ name: 'AccountEventLog' }],
+        null,
+        'postgres',
+      );
+
+      const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+      // `SELECT * FROM ""` — Monaco auto-closed the quote, cursor between the pair.
+      const model = createMockModel('SELECT * FROM ""');
+      model.getWordUntilPosition = vi.fn(() => ({ startColumn: 16, endColumn: 16 }));
+
+      const result = await provider.provideCompletionItems(model, {
+        lineNumber: 1,
+        column: 16,
+      });
+
+      const table = result.suggestions.find((s: { sortText?: string }) =>
+        s.sortText?.startsWith('1_'),
+      );
+      // Canonical quoted identifier, range swallows BOTH surrounding quotes so
+      // the result is exactly "AccountEventLog" (not ""AccountEventLog"").
+      expect(table?.insertText).toBe('"AccountEventLog"');
+      expect(table?.range.startColumn).toBe(15);
+      expect(table?.range.endColumn).toBe(17);
+      // Range starts at the opening quote, so filterText must also be quoted or
+      // Monaco filters every suggestion out.
+      expect(table?.filterText).toBe('"AccountEventLog"');
+    });
+
+    it('still closes the identifier when the auto-closed quote was deleted (postgres)', async () => {
+      const monaco = createMockMonaco();
+      registerSqlAutocomplete(
+        monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+        'conn1',
+        [{ name: 'AccountEventLog' }],
+        null,
+        'postgres',
+      );
+
+      const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+      // `SELECT * FROM "` — user deleted the auto-closed quote, only the opening one remains.
+      const model = createMockModel('SELECT * FROM "');
+      model.getWordUntilPosition = vi.fn(() => ({ startColumn: 16, endColumn: 16 }));
+
+      const result = await provider.provideCompletionItems(model, {
+        lineNumber: 1,
+        column: 16,
+      });
+
+      const table = result.suggestions.find((s: { sortText?: string }) =>
+        s.sortText?.startsWith('1_'),
+      );
+      // Full quoted identifier replaces the lone opening quote → "AccountEventLog".
+      expect(table?.insertText).toBe('"AccountEventLog"');
+      expect(table?.range.startColumn).toBe(15);
+      expect(table?.range.endColumn).toBe(16);
+      expect(table?.filterText).toBe('"AccountEventLog"');
+    });
+
+    it('does not quote plain lowercase table names for postgres', async () => {
+      const monaco = createMockMonaco();
+      registerSqlAutocomplete(
+        monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+        'conn1',
+        [{ name: 'users' }],
+        null,
+        'postgres',
+      );
+
+      const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+      const result = await provider.provideCompletionItems(
+        createMockModel('SELECT * FROM '),
+        { lineNumber: 1, column: 15 },
+      );
+
+      const tableSuggestions = result.suggestions.filter((s: { sortText?: string }) =>
+        s.sortText?.startsWith('1_'),
+      );
+      expect(tableSuggestions[0]?.insertText).toBe('users');
+    });
+
     it('should include all table suggestions regardless of count', async () => {
       const monaco = createMockMonaco();
       const tables: TableInfo[] = Array.from({ length: 60 }, (_, i) => ({
@@ -320,6 +449,60 @@ describe('autocomplete', () => {
       
       // Should include column suggestions
       expect(result.suggestions.length).toBeGreaterThan(0);
+    });
+
+    it('inserts double-quoted column names for postgres', async () => {
+      const mockInvoke = invoke as unknown as ReturnType<typeof vi.fn>;
+      mockInvoke.mockResolvedValue([{ name: 'CreatedAt', data_type: 'timestamp' }]);
+
+      const { parseTablesFromQuery } = await import('../../src/utils/sqlAnalysis');
+      (parseTablesFromQuery as ReturnType<typeof vi.fn>).mockReturnValue(
+        new Map([['ael', { name: 'AccountEventLog' }]]),
+      );
+
+      const monaco = createMockMonaco();
+      registerSqlAutocomplete(
+        monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+        'conn1',
+        [{ name: 'AccountEventLog' }],
+        'public',
+        'postgres',
+      );
+
+      const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+      const model = createMockModel('SELECT ael.');
+      model.getValueInRange = vi.fn(() => 'SELECT ael.');
+
+      const result = await provider.provideCompletionItems(model, { lineNumber: 1, column: 12 });
+
+      expect(result.suggestions[0]?.insertText).toBe('"CreatedAt"');
+    });
+
+    it('does not quote plain lowercase column names for postgres', async () => {
+      const mockInvoke = invoke as unknown as ReturnType<typeof vi.fn>;
+      mockInvoke.mockResolvedValue([{ name: 'email', data_type: 'varchar' }]);
+
+      const { parseTablesFromQuery } = await import('../../src/utils/sqlAnalysis');
+      (parseTablesFromQuery as ReturnType<typeof vi.fn>).mockReturnValue(
+        new Map([['u', { name: 'users' }]]),
+      );
+
+      const monaco = createMockMonaco();
+      registerSqlAutocomplete(
+        monaco as unknown as Parameters<typeof registerSqlAutocomplete>[0],
+        'conn1',
+        [{ name: 'users' }],
+        'public',
+        'postgres',
+      );
+
+      const provider = monaco.languages.registerCompletionItemProvider.mock.calls[0][1];
+      const model = createMockModel('SELECT u.');
+      model.getValueInRange = vi.fn(() => 'SELECT u.');
+
+      const result = await provider.provideCompletionItems(model, { lineNumber: 1, column: 10 });
+
+      expect(result.suggestions[0]?.insertText).toBe('email');
     });
   });
 

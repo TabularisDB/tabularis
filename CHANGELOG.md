@@ -1,3 +1,29 @@
+## [0.13.3](https://github.com/TabularisDB/tabularis/compare/v0.13.2...v0.13.3) (2026-06-24)
+
+
+### Bug Fixes
+
+* address PR review warnings ([941629b](https://github.com/TabularisDB/tabularis/commit/941629b0bc72eb0535241bb5a1caba44c1df36b7))
+* **ai:** fetch Anthropic and MiniMax models from their APIs ([#359](https://github.com/TabularisDB/tabularis/issues/359)) ([ec72177](https://github.com/TabularisDB/tabularis/commit/ec72177a79d6f0abed1fcd2792e54e595fe78806)), closes [#358](https://github.com/TabularisDB/tabularis/issues/358)
+* **k8s:** avoid MySQL fallback in K8s connection modal ([f7e50fb](https://github.com/TabularisDB/tabularis/commit/f7e50fb71e2cd622a5a65a5f9221e48b56511535))
+* **k8s:** correct inline connection port defaults ([36d4d1f](https://github.com/TabularisDB/tabularis/commit/36d4d1fe115222fd06ba807f8d7ab6f80266a53b))
+* **k8s:** return localized validation results ([1506412](https://github.com/TabularisDB/tabularis/commit/15064126189e10e69e4d1363146d49a74afbbb2e))
+* **mcp:** play approval alert via OS notification sound on Linux ([ed9c12f](https://github.com/TabularisDB/tabularis/commit/ed9c12fcd41f56a8a2fdbbccde7bff4565d0f37b))
+* **mcp:** unblock approval gate during language settle ([8601478](https://github.com/TabularisDB/tabularis/commit/86014782594d0dec3fce641cd8ee2f27195a1225))
+* scope multi-database operations to the selected database ([#346](https://github.com/TabularisDB/tabularis/issues/346)) ([cf7c1eb](https://github.com/TabularisDB/tabularis/commit/cf7c1eb16cb07e8a9b0b55dde74ae7ff4a2b62f4))
+* **view-editor:** robustly extract the SELECT body from view definitions ([#320](https://github.com/TabularisDB/tabularis/issues/320)) ([f073d54](https://github.com/TabularisDB/tabularis/commit/f073d54a494896ec1d159a565c6019cb19d81c7b))
+
+
+### Features
+
+* **editor:** tint tab bar with active connection color ([#333](https://github.com/TabularisDB/tabularis/issues/333)) ([b328a97](https://github.com/TabularisDB/tabularis/commit/b328a979f605044e6870f1f680a954a371c14c32))
+* **k8s:** add resource port utility ([8dc81a1](https://github.com/TabularisDB/tabularis/commit/8dc81a134a616326c6de5407488a6fb405e9c83e))
+* **k8s:** add service port discovery command ([a721001](https://github.com/TabularisDB/tabularis/commit/a72100101389502e15aebdea81d257401ed5f312))
+* **k8s:** improve selection dialog defaults ([6c15048](https://github.com/TabularisDB/tabularis/commit/6c15048d087da38eb424628aad15eb095c870fdc))
+* **mcp:** add approval attention controls and localized notifications ([ae8637c](https://github.com/TabularisDB/tabularis/commit/ae8637cd16261e6df2c238da3c176776e5727022)), closes [#307](https://github.com/TabularisDB/tabularis/issues/307)
+* restore previous session connections and add start-maximized option ([#332](https://github.com/TabularisDB/tabularis/issues/332)) ([567a33c](https://github.com/TabularisDB/tabularis/commit/567a33cd7e62729f2a22dc404acde6b989a88365))
+* **ui:** show project social links across update, what's new and welcome modals ([#353](https://github.com/TabularisDB/tabularis/issues/353)) ([97576d1](https://github.com/TabularisDB/tabularis/commit/97576d11066a4b6194c689e063a470008f1ecd6b))
+
 ## [0.13.2](https://github.com/TabularisDB/tabularis/compare/v0.13.1...v0.13.2) (2026-06-16)
 
 
