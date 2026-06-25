@@ -8,7 +8,7 @@ use rustls::crypto::verify_tls13_signature;
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::server::ParsedCertificate;
-use rustls::{DigitallySignedStruct};
+use rustls::DigitallySignedStruct;
 use rustls::{ClientConfig, Error as TlsError, RootCertStore};
 use rustls_platform_verifier::BuilderVerifierExt;
 use sqlx::{sqlite::SqliteConnectOptions, MySql, Pool, Sqlite};
@@ -179,14 +179,21 @@ pub(crate) fn build_mysql_options(
 
     // Optionally enable the mysql_clear_password (cleartext) auth plugin, used by
     // bastions like Warpgate. Cleartext credentials must never be sent over an
-    // unencrypted link, so refuse to enable it when TLS is disabled.
+    // unencrypted link, so require a TLS mode that actually guarantees
+    // encryption. `Preferred` only attempts TLS and silently falls back to
+    // plaintext, so it is rejected alongside `Disabled`.
     if params.enable_cleartext_plugin.unwrap_or(false) {
-        if matches!(ssl_mode, MySqlSslMode::Disabled) {
-            return Err("Cleartext password plugin requires a TLS/SSL mode to be \
-                enabled (Preferred, Required, Verify CA, or Verify Identity). \
-                Refusing to send the password in cleartext over an unencrypted \
-                connection."
-                .to_string());
+        if !matches!(
+            ssl_mode,
+            MySqlSslMode::Required | MySqlSslMode::VerifyCa | MySqlSslMode::VerifyIdentity
+        ) {
+            return Err(
+                "Cleartext password plugin requires an enforced TLS/SSL mode \
+                (Required, Verify CA, or Verify Identity). Preferred is not enough \
+                because it can silently fall back to an unencrypted connection. \
+                Refusing to send the password in cleartext."
+                    .to_string(),
+            );
         }
         options = options.enable_cleartext_plugin(true);
     }
@@ -365,8 +372,7 @@ struct NoCertVerifier {
 
 impl NoCertVerifier {
     fn new() -> Self {
-        let provider = CryptoProvider::get_default()
-            .expect("rustls CryptoProvider not installed");
+        let provider = CryptoProvider::get_default().expect("rustls CryptoProvider not installed");
         Self {
             supported: provider.signature_verification_algorithms,
         }
@@ -425,16 +431,13 @@ struct VerifyCaCertVerifier {
 impl VerifyCaCertVerifier {
     fn new(roots: RootCertStore) -> Result<Self, String> {
         if roots.is_empty() {
-            return Err(
-                "No root certificates available. For verify-ca mode, \
+            return Err("No root certificates available. For verify-ca mode, \
                 you must specify an explicit CA file via the connection's \
                 CA Certificate field. On macOS, the system keychain does \
                 not provide root anchors compatible with strict EKU checks."
-                    .to_string(),
-            );
+                .to_string());
         }
-        let provider = CryptoProvider::get_default()
-            .ok_or("No rustls CryptoProvider installed")?;
+        let provider = CryptoProvider::get_default().ok_or("No rustls CryptoProvider installed")?;
         Ok(Self {
             roots: Arc::new(roots),
             supported: provider.signature_verification_algorithms,

@@ -41,11 +41,29 @@ fn build_connection_url_includes_disabled_ssl_mode() {
 
 #[test]
 fn mysql_string_literal_quotes_and_escapes() {
-    assert_eq!(mysql_string_literal("public"), "'public'");
-    assert_eq!(mysql_string_literal("o'brien"), "'o\\'brien'");
-    assert_eq!(mysql_string_literal("a\\b"), "'a\\\\b'");
-    assert_eq!(mysql_string_literal("line\nbreak"), "'line\\nbreak'");
-    assert_eq!(mysql_string_literal(""), "''");
+    // Default sql_mode: backslash escapes enabled.
+    assert_eq!(mysql_string_literal("public", false), "'public'");
+    assert_eq!(mysql_string_literal("o'brien", false), "'o\\'brien'");
+    assert_eq!(mysql_string_literal("a\\b", false), "'a\\\\b'");
+    assert_eq!(mysql_string_literal("line\nbreak", false), "'line\\nbreak'");
+    assert_eq!(mysql_string_literal("", false), "''");
+}
+
+#[test]
+fn mysql_string_literal_no_backslash_escapes_mode() {
+    // Under NO_BACKSLASH_ESCAPES the backslash is literal, so quotes are
+    // doubled and backslashes are left untouched. Escaping a single quote as
+    // `\'` (the default-mode form) would be mis-parsed here and is an
+    // injection vector — verify we use `''` instead.
+    assert_eq!(mysql_string_literal("public", true), "'public'");
+    assert_eq!(mysql_string_literal("o'brien", true), "'o''brien'");
+    assert_eq!(mysql_string_literal("a\\b", true), "'a\\b'");
+    // A trailing backslash must not escape the closing quote.
+    assert_eq!(mysql_string_literal("ends\\", true), "'ends\\'");
+    assert_eq!(
+        mysql_string_literal("' OR '1'='1", true),
+        "''' OR ''1''=''1'"
+    );
 }
 
 #[test]
@@ -59,7 +77,7 @@ fn mysql_bytes_literal_hex_encodes() {
 fn inline_str_placeholders_substitutes_in_order() {
     let sql = "WHERE table_schema = ? AND table_name = ?";
     assert_eq!(
-        inline_str_placeholders(sql, &["mydb", "users"]),
+        inline_str_placeholders(sql, &["mydb", "users"], false),
         "WHERE table_schema = 'mydb' AND table_name = 'users'"
     );
 }
@@ -68,8 +86,13 @@ fn inline_str_placeholders_substitutes_in_order() {
 fn inline_str_placeholders_escapes_injection_attempt() {
     let sql = "WHERE table_schema = ?";
     assert_eq!(
-        inline_str_placeholders(sql, &["x' OR '1'='1"]),
+        inline_str_placeholders(sql, &["x' OR '1'='1"], false),
         "WHERE table_schema = 'x\\' OR \\'1\\'=\\'1'"
+    );
+    // Same payload under NO_BACKSLASH_ESCAPES: quotes are doubled.
+    assert_eq!(
+        inline_str_placeholders(sql, &["x' OR '1'='1"], true),
+        "WHERE table_schema = 'x'' OR ''1''=''1'"
     );
 }
 
@@ -77,11 +100,11 @@ fn inline_str_placeholders_escapes_injection_attempt() {
 fn inline_str_placeholders_leaves_extra_placeholders() {
     // Fewer binds than placeholders: the surplus `?` stays untouched.
     assert_eq!(
-        inline_str_placeholders("a = ? AND b = ?", &["1"]),
+        inline_str_placeholders("a = ? AND b = ?", &["1"], false),
         "a = '1' AND b = ?"
     );
     assert_eq!(
-        inline_str_placeholders("no params here", &[]),
+        inline_str_placeholders("no params here", &[], false),
         "no params here"
     );
 }

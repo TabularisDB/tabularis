@@ -658,7 +658,7 @@
     "sslMode": "Режим SSL",
     "enableCleartextPlugin": "Включить плагин пароля в открытом виде",
     "enableCleartextPluginHint": "Отправляет пароль через mysql_clear_password. Требуется для бастионов, таких как Warpgate. Используется только при TLS-соединении.",
-    "enableCleartextPluginTlsRequired": "Включите режим SSL выше, чтобы использовать плагин пароля в открытом виде.",
+    "enableCleartextPluginTlsRequired": "Выберите выше строгий режим TLS (Required, Verify CA или Verify Identity), чтобы использовать плагин пароля в открытом виде.",
     "sslModes": {
       "disable": "Отключён",
       "allow": "Разрешён",

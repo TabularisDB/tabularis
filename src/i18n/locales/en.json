@@ -685,7 +685,7 @@
     "sslMode": "SSL Mode",
     "enableCleartextPlugin": "Enable cleartext password plugin",
     "enableCleartextPluginHint": "Sends the password using mysql_clear_password. Required for bastions like Warpgate. Only used over a TLS connection.",
-    "enableCleartextPluginTlsRequired": "Enable an SSL mode above to use the cleartext password plugin.",
+    "enableCleartextPluginTlsRequired": "Select an enforced TLS mode above (Required, Verify CA, or Verify Identity) to use the cleartext password plugin.",
     "sslModes": {
       "disable": "Disable",
       "allow": "Allow",

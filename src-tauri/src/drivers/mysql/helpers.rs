@@ -10,21 +10,42 @@ pub(super) fn escape_identifier(name: &str) -> String {
 /// Used when a query has to bypass the prepared-statement protocol (e.g.
 /// behind a Warpgate-style bastion that rejects `COM_STMT_PREPARE`): the
 /// value can no longer travel as a bind parameter, so it is inlined as an
-/// escaped literal instead. Mirrors `mysql_real_escape_string` for the
-/// default `sql_mode` (backslash escapes enabled).
-pub(super) fn mysql_string_literal(s: &str) -> String {
+/// escaped literal instead.
+///
+/// The escaping depends on the server's `sql_mode`: when `NO_BACKSLASH_ESCAPES`
+/// is set (ANSI mode, some bastion targets) the backslash is an ordinary
+/// character, so a value like `o\'brien` must close the quote by doubling it
+/// (`''`) rather than `\'` — otherwise the literal is mis-parsed and user cell
+/// values become an injection vector. Quote doubling is also valid in the
+/// default mode, but backslash escaping is not portable, so callers must pass
+/// the actual server setting via `no_backslash_escapes`.
+pub(super) fn mysql_string_literal(s: &str, no_backslash_escapes: bool) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('\'');
-    for ch in s.chars() {
-        match ch {
-            '\0' => out.push_str("\\0"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\\' => out.push_str("\\\\"),
-            '\'' => out.push_str("\\'"),
-            '"' => out.push_str("\\\""),
-            '\u{1a}' => out.push_str("\\Z"),
-            c => out.push(c),
+    if no_backslash_escapes {
+        // Backslash is literal here; the single quote is the only metacharacter
+        // inside the literal and is escaped by doubling it. Everything else
+        // (including control bytes and backslashes) is emitted verbatim.
+        for ch in s.chars() {
+            if ch == '\'' {
+                out.push_str("''");
+            } else {
+                out.push(ch);
+            }
+        }
+    } else {
+        // Default mode: mirror `mysql_real_escape_string` (backslash escapes on).
+        for ch in s.chars() {
+            match ch {
+                '\0' => out.push_str("\\0"),
+                '\n' => out.push_str("\\n"),
+                '\r' => out.push_str("\\r"),
+                '\\' => out.push_str("\\\\"),
+                '\'' => out.push_str("\\'"),
+                '"' => out.push_str("\\\""),
+                '\u{1a}' => out.push_str("\\Z"),
+                c => out.push(c),
+            }
         }
     }
     out.push('\'');
@@ -48,16 +69,26 @@ pub(super) fn mysql_bytes_literal(bytes: &[u8]) -> String {
 /// literal from `binds`, in order. Used to turn a parameterised
 /// introspection query into a text-protocol statement. Placeholders past
 /// the end of `binds` (and `?` chars when `binds` is empty) are left as-is.
+/// `no_backslash_escapes` is forwarded to [`mysql_string_literal`] so the
+/// literals match the server's `sql_mode`.
 ///
-/// Note: this is only safe for the driver's own queries, whose `?` chars are
-/// exclusively bind placeholders (never literal question marks in strings).
-pub(super) fn inline_str_placeholders(sql: &str, binds: &[&str]) -> String {
+/// # Safety
+///
+/// This treats every `?` as a bind placeholder, so it is only sound for the
+/// driver's own hand-written introspection queries (whose `?` chars are
+/// exclusively placeholders). It must never be used to render arbitrary user
+/// SQL, where a `?` could appear inside a string literal.
+pub(super) fn inline_str_placeholders(
+    sql: &str,
+    binds: &[&str],
+    no_backslash_escapes: bool,
+) -> String {
     let mut out = String::with_capacity(sql.len());
     let mut iter = binds.iter();
     for ch in sql.chars() {
         if ch == '?' {
             if let Some(b) = iter.next() {
-                out.push_str(&mysql_string_literal(b));
+                out.push_str(&mysql_string_literal(b, no_backslash_escapes));
                 continue;
             }
         }

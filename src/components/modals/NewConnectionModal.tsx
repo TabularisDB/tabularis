@@ -1457,7 +1457,12 @@ export const NewConnectionModal = ({
       {driver === "mysql" &&
         (() => {
           const effectiveSslMode = formData.ssl_mode || "required";
-          const tlsOff = effectiveSslMode === "disabled";
+          // Cleartext credentials must travel over enforced TLS. `preferred`
+          // only attempts TLS and can silently fall back to plaintext, so it is
+          // gated off here to match the backend (build_mysql_options).
+          const tlsOff = !["required", "verify_ca", "verify_identity"].includes(
+            effectiveSslMode,
+          );
           return (
             <div className="space-y-1.5 pt-2 border-t border-strong">
               <label
@@ -1486,7 +1491,7 @@ export const NewConnectionModal = ({
                 {tlsOff
                   ? t("newConnection.enableCleartextPluginTlsRequired", {
                       defaultValue:
-                        "Enable an SSL mode above to use the cleartext password plugin.",
+                        "Select an enforced TLS mode above (Required, Verify CA, or Verify Identity) to use the cleartext password plugin.",
                     })
                   : t("newConnection.enableCleartextPluginHint", {
                       defaultValue:

@@ -174,11 +174,26 @@ mod tests {
     }
 
     #[test]
-    fn cleartext_plugin_allowed_with_tls() {
-        let mut params = mysql_params("required");
+    fn cleartext_plugin_rejected_with_preferred_tls() {
+        // `Preferred` only attempts TLS and silently falls back to plaintext,
+        // so cleartext credentials could still cross an unencrypted link.
+        let mut params = mysql_params("preferred");
         params.enable_cleartext_plugin = Some(true);
 
-        assert!(build_mysql_options(&params, None).is_ok());
+        assert!(build_mysql_options(&params, None).is_err());
+    }
+
+    #[test]
+    fn cleartext_plugin_allowed_with_enforced_tls() {
+        for mode in ["required", "verify_ca", "verify_identity"] {
+            let mut params = mysql_params(mode);
+            params.enable_cleartext_plugin = Some(true);
+
+            assert!(
+                build_mysql_options(&params, None).is_ok(),
+                "cleartext should be allowed with enforced TLS mode {mode}"
+            );
+        }
     }
 }
 

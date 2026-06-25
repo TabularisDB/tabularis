@@ -678,7 +678,7 @@
     "sslMode": "SSL モード",
     "enableCleartextPlugin": "クリアテキストパスワードプラグインを有効にする",
     "enableCleartextPluginHint": "mysql_clear_password を使用してパスワードを送信します。Warpgate などのバスティオンで必要です。TLS 接続でのみ使用されます。",
-    "enableCleartextPluginTlsRequired": "クリアテキストパスワードプラグインを使用するには、上で SSL モードを有効にしてください。",
+    "enableCleartextPluginTlsRequired": "クリアテキストパスワードプラグインを使用するには、上で強制 TLS モード（Required、Verify CA、または Verify Identity）を選択してください。",
     "sslModes": {
       "disable": "無効",
       "allow": "許可",
