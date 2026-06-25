@@ -171,7 +171,7 @@ export const Editor = () => {
     closeTabsToRight,
   } = useEditor();
   const location = useLocation();
-  const { matchesShortcut } = useKeybindings();
+  const { matchesShortcut, isMac } = useKeybindings();
   const { showAlert } = useAlert();
   const navigate = useNavigate();
 
@@ -2697,7 +2697,7 @@ export const Editor = () => {
               onClick={handleRunButton}
               disabled={!activeConnectionId}
               aria-label={`${t("editor.run")} (Ctrl+Enter)`}
-              aria-keyshortcuts="Control+Enter"
+              aria-keyshortcuts={isMac ? "Meta+Enter" : "Control+Enter"}
               title={`${t("editor.run")} (Ctrl+Enter)`}
               className={clsx(
                 "flex items-center gap-2 px-3 py-1.5 text-white text-sm font-medium disabled:opacity-50 hover:bg-green-600",
