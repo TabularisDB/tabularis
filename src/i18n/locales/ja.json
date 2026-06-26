@@ -679,6 +679,7 @@
     "sshKeyFilePlaceholder": "/path/to/id_rsa",
     "sshKeyPassphrase": "SSH 鍵のパスフレーズ (任意)",
     "sshKeyPassphrasePlaceholder": "鍵が暗号化されている場合はパスフレーズを入力",
+    "allowSshPrompt": "SSHパスワード/PINプロンプトを許可する",
     "saveKeychain": "パスワードをキーチェーンに保存",
     "testConnection": "接続テスト",
     "save": "保存",
@@ -742,6 +743,12 @@
     "quickTest": "簡易接続テスト",
     "testFailed": "接続テストに失敗しました",
     "savedInKeychain": "パスワードをシステムのキーチェーンに保存しました"
+  },
+  "sshAskpass": {
+    "title": "SSH認証",
+    "subtitle": "SSH接続には入力が必要です",
+    "placeholder": "PINまたはパスフレーズ",
+    "waiting": "セキュリティキーを待っています — タッチして確認してください。"
   },
   "dataGrid": {
     "noData": "表示するデータがありません",

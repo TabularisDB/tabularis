@@ -665,6 +665,7 @@
     "sshKeyFilePlaceholder": "/pfad/zu/id_rsa",
     "sshKeyPassphrase": "Passphrase für SSH-Schlüssel (optional)",
     "sshKeyPassphrasePlaceholder": "Passphrase eingeben, falls der Schlüssel verschlüsselt ist",
+    "allowSshPrompt": "SSH-Passwort/PIN-Eingabeaufforderung erlauben",
     "saveKeychain": "Passwörter im Keychain speichern",
     "testConnection": "Verbindung testen",
     "save": "Speichern",
@@ -728,6 +729,12 @@
     "quickTest": "Schneller Verbindungstest",
     "testFailed": "Verbindungstest fehlgeschlagen",
     "savedInKeychain": "Passwort im System-Keychain gespeichert"
+  },
+  "sshAskpass": {
+    "title": "SSH-Authentifizierung",
+    "subtitle": "Die SSH-Verbindung benötigt Ihre Eingabe",
+    "placeholder": "PIN oder Passphrase",
+    "waiting": "Warten auf Ihren Sicherheitsschlüssel — zum Bestätigen berühren."
   },
   "dataGrid": {
     "newRow": "NEU",
