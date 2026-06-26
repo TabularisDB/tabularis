@@ -651,7 +651,10 @@ pub async fn create_view(
     let pool = get_mysql_pool(params).await?;
     let escaped_name = escape_identifier(view_name);
     let query = format!("CREATE VIEW `{}` AS {}", escaped_name, definition);
-    sqlx::query(&query)
+    // `CREATE VIEW` is not supported by MySQL's prepared-statement protocol
+    // (server error 1295), so it must go through `raw_sql()` (text protocol)
+    // rather than `sqlx::query()`. See `is_text_protocol_stmt` for context.
+    sqlx::raw_sql(&query)
         .execute(&pool)
         .await
         .map_err(|e| format!("Failed to create view: {}", e))?;
@@ -666,7 +669,10 @@ pub async fn alter_view(
     let pool = get_mysql_pool(params).await?;
     let escaped_name = escape_identifier(view_name);
     let query = format!("ALTER VIEW `{}` AS {}", escaped_name, definition);
-    sqlx::query(&query)
+    // `ALTER VIEW` is not supported by MySQL's prepared-statement protocol
+    // (server error 1295), so it must go through `raw_sql()` (text protocol)
+    // rather than `sqlx::query()`. See `is_text_protocol_stmt` for context.
+    sqlx::raw_sql(&query)
         .execute(&pool)
         .await
         .map_err(|e| format!("Failed to alter view: {}", e))?;
@@ -677,7 +683,10 @@ pub async fn drop_view(params: &ConnectionParams, view_name: &str) -> Result<(),
     let pool = get_mysql_pool(params).await?;
     let escaped_name = escape_identifier(view_name);
     let query = format!("DROP VIEW IF EXISTS `{}`", escaped_name);
-    sqlx::query(&query)
+    // Routed through `raw_sql()` (text protocol) for consistency with
+    // create/alter view, which the prepared-statement protocol rejects
+    // with server error 1295.
+    sqlx::raw_sql(&query)
         .execute(&pool)
         .await
         .map_err(|e| format!("Failed to drop view: {}", e))?;
