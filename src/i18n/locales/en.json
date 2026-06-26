@@ -171,7 +171,19 @@
     "dateGroupYesterday": "Yesterday",
     "dateGroupThisWeek": "This Week",
     "dateGroupThisMonth": "This Month",
-    "dateGroupOlder": "Older"
+    "dateGroupOlder": "Older",
+    "notebooks": {
+      "tab": "Notebooks",
+      "search": "Search notebooks",
+      "refresh": "Refresh",
+      "empty": "No saved notebooks yet.",
+      "noSearchResults": "No notebooks match your search.",
+      "open": "Open",
+      "rename": "Rename",
+      "delete": "Delete",
+      "deleteConfirm": "Delete notebook \"{{title}}\"? This cannot be undone.",
+      "renamePlaceholder": "Notebook name"
+    }
   },
   "mcp": {
     "title": "MCP Server Integration",
@@ -212,7 +224,11 @@
       "approvalTimeout": "Timeout",
       "approvalTimeoutDesc": "How long the MCP subprocess will wait for the user's decision before failing the request.",
       "preflightExplain": "Pre-flight EXPLAIN",
-      "preflightExplainDesc": "Run an EXPLAIN against the query before showing the approval modal so the user sees the execution plan."
+      "preflightExplainDesc": "Run an EXPLAIN against the query before showing the approval modal so the user sees the execution plan.",
+      "approvalAlwaysOnTop": "Bring approval dialog to the front",
+      "approvalAlwaysOnTopDesc": "When a non-read MCP action needs approval, bring Tabularis to the front and keep it temporarily above other windows.",
+      "approvalNotifySound": "Send notification and play sound",
+      "approvalNotifySoundDesc": "Show a native system notification and play a short alert sound when a new MCP approval request arrives."
     }
   },
   "connections": {
@@ -289,6 +305,9 @@
     "delimiterSemicolon": "Semicolon (;)",
     "delimiterTab": "Tab",
     "delimiterPipe": "Pipe (|)",
+    "csvIncludeHeaders": "Include CSV headers",
+    "csvIncludeHeadersDesc": "Include a header row with column names when copying rows as CSV.",
+    "csvHeaders": "Export column names",
     "detectJsonInTextColumns": "Detect JSON in text columns",
     "detectJsonInTextColumnsDesc": "Show the JSON viewer affordance when a non-typed text cell contains a JSON object or array. Adds a small per-cell parse cost.",
     "appearance": "Appearance",
@@ -307,6 +326,18 @@
     "fontSizeDesc": "Adjust the base font size used throughout the application (10-20px).",
     "preview": "Preview",
     "fontPreviewText": "The quick brown fox jumps over the lazy dog",
+    "resultColors": {
+      "title": "Result Colors",
+      "enable": "Colorize values by type",
+      "enableDesc": "Color query result cells based on their data type.",
+      "number": "Number",
+      "string": "Text",
+      "date": "Date / Time",
+      "boolean": "Boolean",
+      "reset": "Reset to theme",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
     "appearance_general": "General",
     "appearance_sqlEditor": "SQL Editor",
     "appearance_editorTheme": "Editor Theme",
@@ -346,6 +377,8 @@
     "roadmapDesc": "This project is a Work In Progress (WIP). Core features are stable, but we have big plans.",
     "support": "Support the Development",
     "supportDesc": "If you like tabularis and want to see more features, consider supporting the project by contributing code, reporting bugs, or starring the repo.",
+    "followUs": "Follow Us",
+    "followUsDesc": "Stay up to date and connect with the community on your favorite platform.",
     "version": "Version",
     "starOnGithub": "Star on GitHub",
     "ai": {
@@ -465,6 +498,10 @@
     "startup": "Startup",
     "showWelcome": "Show Welcome Screen",
     "showWelcomeDesc": "Display the welcome screen when the application starts.",
+    "autoConnectLastConnection": "Reopen Last Connections",
+    "autoConnectLastConnectionDesc": "Reconnect to the connections that were open when the app was last closed.",
+    "startMaximized": "Start Maximized",
+    "startMaximizedDesc": "Open the window maximized to fill the screen on startup.",
     "erDiagram": "ER Diagram",
     "erDiagramDefaultLayout": "Default Layout",
     "erDiagramDefaultLayoutDesc": "Choose the default layout direction for ER diagrams",
@@ -569,6 +606,7 @@
       "closeTab": "Close tab",
       "nextPage": "Next page",
       "prevPage": "Previous page",
+      "saveGridChanges": "Save pending changes",
       "switchConnection": "Switch to connection 1–9",
       "resetToDefault": "Reset to default",
       "notOverridable": "Built-in, not customizable",
@@ -639,7 +677,7 @@
     "dbNamePlaceholder": "Database name",
     "loadDatabases": "Load Databases",
     "loadingDatabases": "Loading...",
-    "selectDatabases": "Select Databases",
+    "selectDatabases": "Databases",
     "appearance": "Appearance",
     "noDatabasesSelected": "Select at least one database",
     "selectedDatabases": "{{count}} database(s) selected",
@@ -742,6 +780,8 @@
     "deleteTitle": "Delete Row",
     "updateFailed": "Update failed: ",
     "deleteFailed": "Failed to delete row: ",
+    "columnNotEditable": "Column \"{{column}}\" can't be edited — it is not a direct column of table \"{{table}}\" (likely an alias or computed value).",
+    "pkRequiredToEdit": "To edit this result, include the primary key column \"{{pk}}\" in your SELECT.",
     "null": "null",
     "sortByAsc": "Sort by {{col}} ASC",
     "sortByDesc": "Sort by {{col}} DESC",
@@ -949,6 +989,7 @@
     "notebook": {
       "addSqlCell": "Add SQL Cell",
       "addMarkdownCell": "Add Markdown Cell",
+      "addCell": "Add",
       "runAll": "Run All",
       "runAllTooltip": "Execute all SQL cells top to bottom",
       "runCell": "Run Cell",
@@ -999,7 +1040,28 @@
       "editCellName": "Edit cell name",
       "aiGenerateName": "Generate name with AI",
       "generatingName": "Generating name...",
-      "aiGenerateOutlineNames": "Generate names for unnamed cells with AI"
+      "aiGenerateOutlineNames": "Generate names for unnamed cells with AI",
+      "undo": "Undo",
+      "redo": "Redo",
+      "history": {
+        "title": "Edit history",
+        "change": {
+          "initial": "Initial version",
+          "editCell": "Edited cell {{n}}",
+          "addSql": "Added SQL cell {{n}}",
+          "addMarkdown": "Added Markdown cell {{n}}",
+          "deleteCell": "Deleted cell {{n}}",
+          "reorder": "Reordered cells",
+          "renameCell": "Renamed cell {{n}}",
+          "schemaCell": "Changed database (cell {{n}})",
+          "chartCell": "Changed chart (cell {{n}})",
+          "parallelCell": "Toggled parallel (cell {{n}})",
+          "collapse": "Collapsed/expanded cells",
+          "params": "Changed parameters",
+          "stopOnError": "Toggled stop on error",
+          "other": "Edited notebook"
+        }
+      }
     },
     "querySelection": {
       "title": "Select Query to Execute",
@@ -1550,7 +1612,9 @@
     "reasonLabel": "Reason (optional)",
     "reasonPlaceholder": "e.g. Looks risky on prod, please confirm…",
     "approve": "Approve",
-    "deny": "Deny"
+    "deny": "Deny",
+    "notificationTitle": "MCP approval needed",
+    "notificationBody": "Open Tabularis to review the pending MCP approval."
   },
   "discordCallout": {
     "title": "Brand-new Discord community!",
@@ -1576,6 +1640,14 @@
     "port": "Container Port",
     "test": "Test",
     "testing": "Testing...",
-    "validationFailed": "Validation failed"
+    "validationFailed": "Validation failed",
+    "errors": {
+      "nameRequired": "Connection name is required",
+      "contextRequired": "Kubernetes context is required",
+      "namespaceRequired": "Namespace is required",
+      "resourceTypeInvalid": "Resource type must be \"service\" or \"pod\"",
+      "resourceNameRequired": "Resource name is required",
+      "portInvalid": "Port must be between 1 and 65535"
+    }
   }
 }

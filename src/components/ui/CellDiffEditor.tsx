@@ -1,7 +1,7 @@
-import { useContext, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { DiffEditor, type DiffOnMount } from "@monaco-editor/react";
 import type * as MonacoTypes from "monaco-editor";
-import { ThemeContext } from "../../contexts/ThemeContext";
+import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 
 interface CellDiffEditorProps {
@@ -14,8 +14,6 @@ interface CellDiffEditorProps {
   language?: "json" | "plaintext";
 }
 
-const DEFAULT_THEME = "vs-dark";
-
 export const CellDiffEditor = ({
   original,
   modified,
@@ -25,25 +23,22 @@ export const CellDiffEditor = ({
   renderSideBySide = false,
   language = "json",
 }: CellDiffEditorProps) => {
-  const themeCtx = useContext(ThemeContext);
-  const currentTheme = themeCtx?.currentTheme;
+  const editorTheme = useEditorTheme();
   const monacoRef = useRef<typeof MonacoTypes | null>(null);
   const editorRef = useRef<MonacoTypes.editor.IStandaloneDiffEditor | null>(
     null,
   );
 
   useEffect(() => {
-    if (monacoRef.current && currentTheme) {
-      loadMonacoTheme(currentTheme, monacoRef.current);
+    if (monacoRef.current) {
+      loadMonacoTheme(editorTheme, monacoRef.current);
     }
-  }, [currentTheme]);
+  }, [editorTheme]);
 
   const handleMount: DiffOnMount = (editor, monaco) => {
     monacoRef.current = monaco;
     editorRef.current = editor;
-    if (currentTheme) {
-      loadMonacoTheme(currentTheme, monaco);
-    }
+    loadMonacoTheme(editorTheme, monaco);
 
     editor.getOriginalEditor().updateOptions({ readOnly: true });
     editor.getModifiedEditor().updateOptions({ readOnly });
@@ -59,7 +54,7 @@ export const CellDiffEditor = ({
       key={renderSideBySide ? "sbs" : "inline"}
       height={height}
       language={language}
-      theme={currentTheme?.id ?? DEFAULT_THEME}
+      theme={editorTheme.id}
       original={original}
       modified={modified}
       onMount={handleMount}

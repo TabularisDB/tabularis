@@ -12,6 +12,15 @@ use crate::models::{
     TableSchema, TriggerInfo, ViewInfo,
 };
 
+/// Callback invoked the moment each statement in a batch finishes, with the
+/// statement's zero-based index and its outcome. Drivers call this — when one
+/// is supplied — after every statement so the UI can mark that result tab done
+/// immediately, instead of waiting for the whole batch to return. Pass `None`
+/// to run without progress reporting (the full `Vec` is still returned either
+/// way). Kept Tauri-agnostic so drivers stay decoupled from the event layer;
+/// the command layer supplies a closure that emits a Tauri event.
+pub type BatchProgressFn = dyn Fn(usize, &BatchStatementResult) + Send + Sync;
+
 /// SQL dialect declaration used by the frontend statement splitter
 /// (`src/utils/sqlSplitter/`) to pick per-dialect tokenizer rules:
 /// string-literal quoting, identifier quoting (backticks vs brackets),
@@ -99,6 +108,11 @@ pub struct DriverCapabilities {
     /// Supports listing and managing database triggers.
     #[serde(default)]
     pub triggers: bool,
+    /// Supports the SSL/TLS configuration tab (mode + CA/client cert/key) in the
+    /// connection modal. Built-in network drivers set this; plugins opt in via
+    /// their manifest. Defaults to `false`.
+    #[serde(default, alias = "supportsSsl")]
+    pub supports_ssl: bool,
     /// When `true`, the driver is read-only: all data modification operations
     /// (INSERT, UPDATE, DELETE) are disabled in the UI.
     /// Table/column management is also hidden regardless of `manage_tables`.
@@ -378,12 +392,17 @@ pub trait DatabaseDriver: Send + Sync {
         limit: Option<u32>,
         page: u32,
         schema: Option<&str>,
+        on_progress: Option<&BatchProgressFn>,
     ) -> Result<Vec<BatchStatementResult>, String> {
         let mut results = Vec::with_capacity(queries.len());
-        for q in queries {
+        for (idx, q) in queries.iter().enumerate() {
             let start = std::time::Instant::now();
             let outcome = self.execute_query(params, q, limit, page, schema).await;
-            results.push(BatchStatementResult::from_outcome(start, outcome));
+            let res = BatchStatementResult::from_outcome(start, outcome);
+            if let Some(cb) = on_progress {
+                cb(idx, &res);
+            }
+            results.push(res);
         }
         Ok(results)
     }

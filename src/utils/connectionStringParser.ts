@@ -41,6 +41,25 @@ interface ResolvedDriver {
   local: boolean;
 }
 
+/**
+ * Groups of interchangeable URI schemes. When a driver registers any
+ * protocol of a group, the other members become aliases for the same
+ * driver (e.g. `postgresql://` works wherever `postgres://` does).
+ */
+const PROTOCOL_ALIAS_GROUPS: ReadonlyArray<ReadonlyArray<string>> = [
+  ["postgres", "postgresql"],
+  ["mysql", "mariadb"],
+  ["sqlite", "sqlite3"],
+];
+
+function getProtocolAliases(protocol: string): string[] {
+  const group = PROTOCOL_ALIAS_GROUPS.find((aliases) =>
+    aliases.includes(protocol),
+  );
+  if (!group) return [];
+  return group.filter((alias) => alias !== protocol);
+}
+
 function normalizeProtocol(protocol: string): string {
   return protocol.replace(/:$/, "").trim().toLowerCase();
 }
@@ -96,6 +115,16 @@ function buildProtocolRegistry(
 
     if (exampleProtocol) {
       registry.set(exampleProtocol, { id: driver.id, local });
+    }
+  }
+
+  // Second pass: expand well-known aliases without overriding protocols
+  // explicitly registered by another driver.
+  for (const [protocol, resolved] of Array.from(registry.entries())) {
+    for (const alias of getProtocolAliases(protocol)) {
+      if (!registry.has(alias)) {
+        registry.set(alias, resolved);
+      }
     }
   }
 

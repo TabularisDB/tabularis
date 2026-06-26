@@ -25,6 +25,7 @@ import { SshAskpassGate } from "./components/modals/SshAskpassGate";
 import { useUpdate } from "./hooks/useUpdate";
 import { useChangelog } from "./hooks/useChangelog";
 import { useSettings } from "./hooks/useSettings";
+import { useResultTypeColors } from "./hooks/useResultTypeColors";
 import { APP_VERSION } from "./version";
 import { isVersionAtMost, isVersionNewer } from "./utils/versionCompare";
 
@@ -40,6 +41,7 @@ export function App() {
     error: updateError,
   } = useUpdate();
   const { settings, updateSetting, isLoading: isSettingsLoading } = useSettings();
+  useResultTypeColors();
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [isCommunityModalDismissed, setIsCommunityModalDismissed] = useState(false);
 

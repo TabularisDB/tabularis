@@ -5,6 +5,11 @@
 # tabularis
 
 <p align="center">
+  <strong>Tabularis 是一款开源的桌面 SQL 工作台，支持 PostgreSQL、MySQL/MariaDB、SQLite 以及 DuckDB、ClickHouse、Redis 和 Firestore 等 12+ 种数据库。<br />
+  其内置的 MCP 服务器可让 Claude、Cursor 和 Devin（原 Windsurf）在你日常使用的同一款应用中读取数据库结构并执行查询。</strong>
+</p>
+
+<p align="center">
   <strong>README:</strong>
   <a href="./README.md">English</a> |
   <a href="./README.it.md">Italiano</a> |
@@ -16,7 +21,27 @@
   <a href="./README.ru.md">Русский</a>
 </p>
 
-面向现代数据库的开源桌面客户端。支持 PostgreSQL、MySQL/MariaDB 和 SQLite，内置 SQL 笔记本、AI 功能、MCP 集成以及外部插件系统。
+<p align="center">
+  
+![](https://img.shields.io/github/release/TabularisDB/tabularis.svg?style=flat)
+![](https://img.shields.io/github/stars/TabularisDB/tabularis?style=flat)
+![](https://img.shields.io/github/downloads/TabularisDB/tabularis/total.svg?style=flat)
+![Build & Release](https://github.com/TabularisDB/tabularis/workflows/Release/badge.svg)
+[![Discord](https://img.shields.io/discord/1502944695808950282?color=5865F2&logo=discord&logoColor=white)](https://discord.com/invite/K2hmhfHRSt)
+[![Gitster](https://gitster.dev/api/repositories/badge/cmlko1jr60005ne4yh7i7oy3e)](https://gitster.dev/repo/TabularisDB/tabularis)
+
+</p>
+
+<p align="center">
+  <a href="https://snapcraft.io/tabularis"><img src="https://img.shields.io/badge/snap-tabularis-blue?logo=snapcraft" alt="Snap Store" /></a>
+  <a href="https://flatpark.org/apps/dev.tabularis.Tabularis/"><img src="https://img.shields.io/badge/flatpak-tabularis-4A90D9?logo=flatpak&logoColor=white" alt="Flatpak (Flatpark)" /></a>
+  <a href="https://aur.archlinux.org/packages/tabularis-bin"><img src="https://img.shields.io/badge/AUR-tabularis--bin-1793D1?logo=archlinux&logoColor=white" alt="AUR" /></a>
+  <a href="https://winstall.app/apps/Debba.Tabularis"><img src="https://img.shields.io/winget/v/Debba.Tabularis?label=WinGet&logo=windows&color=0078D4" alt="WinGet" /></a>
+</p>
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/TabularisDB/website/main/public/img/overview.gif" alt="Tabularis" />
+</div>
 
 **Discord** - [加入社区](https://discord.com/invite/K2hmhfHRSt)，与维护者交流、提交反馈并获取帮助。
 
@@ -24,11 +49,39 @@
 
 ## 下载
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.9.18/tabularis_0.9.18_x64-setup.exe)
-[![macOS](https://img.shields.io/badge/macOS-Download-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.9.18/tabularis_0.9.18_x64.dmg)
-[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.9.18/tabularis_0.9.18_amd64.AppImage)
-[![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.9.18/tabularis_0.9.18_amd64.deb)
-[![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.9.18/tabularis-0.9.7-1.x86_64.rpm)
+```bash
+winget install Debba.Tabularis                                   # Windows
+brew tap TabularisDB/tabularis && brew install --cask tabularis  # macOS
+sudo snap install tabularis                                      # Linux
+```
+
+或直接下载安装包：
+
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis-0.13.1-1.x86_64.rpm)
+
+应用界面支持英语、意大利语、西班牙语、简体中文、法语、德语、日语和俄语。
+
+## 为什么选择 tabularis？
+
+|  | **tabularis** | DBeaver CE | TablePlus | Beekeeper Studio |
+|---|---|---|---|---|
+| 许可证 | Apache 2.0，免费 | Apache 2.0，免费（Pro 版收费） | 商业软件 | GPLv3（付费版本） |
+| SQL 笔记本（SQL + Markdown 单元、跨单元变量、图表） | ✅ | ❌ | ❌ | ❌ |
+| 面向 AI 代理的内置 MCP 服务器 | ✅ | ❌ | ❌ | ❌ |
+| 支持**任意语言**编写插件（基于 stdio 的 JSON-RPC） | ✅ | Java/Eclipse 插件 | JavaScript 插件 | ❌ |
+| 支持**本地模型**（Ollama）的 AI text-to-SQL | ✅ | 基于云端的 AI 助手 | ❌ | ❌ |
+| 带交互式计划图的可视化 EXPLAIN | ✅ | ✅ | ❌ | ❌ |
+| 开箱即用支持的数据库 | 3 种内置 + 12 个官方插件 | 100+ | 20+ | 约 10 种 |
+
+> 对比数据截至 2026 年 6 月，其他工具的功能此后可能已有变化。如果你需要几十种驱动，请使用 DBeaver——tabularis 专注于把少数几种数据库做好。
+
+### 数据库支持
+
+PostgreSQL、MySQL/MariaDB 和 SQLite 为内置支持。其余均为插件——下面列出每个集成当前的状态，与网站上的[驱动与插件覆盖](https://tabularis.dev/#driver-coverage)保持一致。
+
+ClickHouse（已发布）、Cloudflare D1（已发布）、DuckDB（已发布）、Firestore（已发布）、IBM Db2（已发布）、IBM Informix（已发布）、Redis（已发布）、CSV Folder（已发布）、Google Sheets（已发布）、HackerNews（已发布）、Google BigQuery（已认领）、LibSQL / Turso（已认领）、Meilisearch（已认领）、MongoDB（已认领）、Oracle（已认领）、SQL Server（已认领）、Amazon Redshift（已规划）、CockroachDB（已规划）、TiDB（已规划）、DynamoDB（即将推出）、Snowflake（即将推出）、Cassandra（开放中）、Elasticsearch（开放中）、Etcd（开放中）、Firebird（开放中）、ScyllaDB（开放中）、SQL Anywhere（开放中）、SurrealDB（开放中）、Trino / Presto（开放中）。
+
+> 标记为**已发布**的驱动可从[插件注册表](https://tabularis.dev/plugins)安装。其余均在[悬赏看板](https://tabularis.dev/plugins/bounties)上——你可以认领、赞助，或[申请新数据库](https://github.com/TabularisDB/tabularis/discussions)。
 
 ## 安装
 
@@ -47,11 +100,16 @@ brew tap TabularisDB/tabularis
 brew install --cask tabularis
 ```
 
-如果你从 release 直接安装，可能还需要执行：
+从 **v0.13.1** 起，构建版本已由 Apple 签名并公证，直接打开即可，无需任何额外步骤。
 
-```bash
-xattr -c /Applications/tabularis.app
-```
+以下说明仅适用于直接下载的旧版本（v0.13.1 之前）：
+
+- 你需要在“隐私与安全性”中授予 tabularis 应用辅助功能（Accessibility）访问权限。如果你是升级安装，并且 tabularis 已在允许列表中，请先手动将其移除，然后才能为新版本授予辅助功能访问权限。
+- 将应用复制到“应用程序”目录后，可能还需要执行：
+
+  ```bash
+  xattr -c /Applications/tabularis.app
+  ```
 
 ### Linux
 
@@ -59,6 +117,13 @@ Snap：
 
 ```bash
 sudo snap install tabularis
+```
+
+Flatpak：
+
+```bash
+flatpak remote-add --if-not-exists flatpark https://dl.flatpark.org/flatpark.flatpakrepo
+flatpak install flatpark dev.tabularis.Tabularis
 ```
 
 AppImage：
@@ -229,6 +294,30 @@ pnpm tauri build
 - Data Compare / Diff Tool
 - Team Collaboration
 
+## 贡献
+
+欢迎贡献——参阅 [CONTRIBUTING.md](./CONTRIBUTING.md)。不错的切入点：
+
+- [SQL Server 驱动——实现路线图与贡献者招募](https://github.com/TabularisDB/tabularis/issues/150)
+- [UI 设计系统与视觉识别——贡献者招募](https://github.com/TabularisDB/tabularis/issues/195)
+- 用任意语言编写驱动插件——参阅[插件指南](./plugins/PLUGIN_GUIDE.md)
+
+## 项目起源
+
+Tabularis 始于一次实验：AI 辅助开发能在多大程度上从零构建出一款可用的工具？结果超出预期——如今它已是一个持续维护的项目，定期发布新版本，并拥有自己的插件生态。
+
 ## 许可证
 
 Apache License 2.0
+
+---
+
+<p align="center">
+  喜欢 tabularis？欢迎<a href="https://github.com/TabularisDB/tabularis">为仓库点个 Star</a> ⭐——这对项目帮助很大。
+</p>
+
+<p align="center">
+  <a href="https://repostars.dev/?repos=TabularisDB%2Ftabularis&theme=dark">
+    <img src="https://repostars.dev/api/embed?repo=TabularisDB%2Ftabularis&theme=dark" alt="RepoStars" />
+  </a>
+</p>

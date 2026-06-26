@@ -83,15 +83,24 @@ pub(crate) fn build_connection_key(
     params: &ConnectionParams,
     connection_id: Option<&str>,
 ) -> String {
-    let tls_key = (params.driver == "mysql").then(|| {
-        format!(
+    let tls_key = match params.driver.as_str() {
+        "mysql" => Some(format!(
             "ssl:{}:{}:{}:{}",
             params.ssl_mode.as_deref().unwrap_or("default"),
             params.ssl_ca.as_deref().unwrap_or(""),
             params.ssl_cert.as_deref().unwrap_or(""),
             params.ssl_key.as_deref().unwrap_or("")
-        )
-    });
+        )),
+        "postgres" => {
+            let ssl_mode = params.ssl_mode.as_deref().unwrap_or("prefer");
+            let ssl_ca = match ssl_mode {
+                "verify-ca" | "verify-full" => params.ssl_ca.as_deref().unwrap_or(""),
+                _ => "",
+            };
+            Some(format!("ssl:{ssl_mode}:{ssl_ca}"))
+        }
+        _ => None,
+    };
 
     let base_key = if let Some(conn_id) = connection_id {
         // Include database in key so different databases on the same connection use separate pools

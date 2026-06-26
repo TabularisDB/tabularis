@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, Loader2, BookOpen } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettings } from "../../hooks/useSettings";
-import { useTheme } from "../../hooks/useTheme";
+import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { getAiExplanationLanguage } from "../../i18n/language";
 import { Modal } from "../ui/Modal";
-import MonacoEditor from "@monaco-editor/react";
+import MonacoEditor, { type BeforeMount } from "@monaco-editor/react";
+import type * as MonacoTypes from "monaco-editor";
+import { loadMonacoTheme } from "../../themes/themeUtils";
 
 interface AiExplainModalProps {
   isOpen: boolean;
@@ -15,10 +17,24 @@ interface AiExplainModalProps {
 
 export const AiExplainModal = ({ isOpen, onClose, query }: AiExplainModalProps) => {
   const { settings } = useSettings();
-  const { currentTheme } = useTheme();
+  const editorTheme = useEditorTheme();
+  const monacoRef = useRef<typeof MonacoTypes | null>(null);
   const [explanation, setExplanation] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Update Monaco theme when theme changes
+  useEffect(() => {
+    if (monacoRef.current) {
+      loadMonacoTheme(editorTheme, monacoRef.current);
+    }
+  }, [editorTheme]);
+
+  const handleBeforeMount: BeforeMount = (monaco) => {
+    monacoRef.current = monaco;
+    // Define the theme before the editor is created (Monaco themes are global)
+    loadMonacoTheme(editorTheme, monaco);
+  };
 
   useEffect(() => {
     if (isOpen && query) {
@@ -86,8 +102,9 @@ export const AiExplainModal = ({ isOpen, onClose, query }: AiExplainModalProps) 
                 <MonacoEditor
                     height="100%"
                     language="sql"
-                    theme={currentTheme.id}
+                    theme={editorTheme.id}
                     value={query}
+                    beforeMount={handleBeforeMount}
                     options={{
                         readOnly: true,
                         minimap: { enabled: false },

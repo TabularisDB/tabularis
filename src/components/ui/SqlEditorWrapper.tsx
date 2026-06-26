@@ -1,7 +1,7 @@
 import React, { useRef, useCallback, useEffect } from "react";
 import MonacoEditor, { type OnMount, type BeforeMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
-import { useTheme } from "../../hooks/useTheme";
+import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { useSettings } from "../../hooks/useSettings";
@@ -31,12 +31,8 @@ const SqlEditorInternal = ({
   const monacoRef = useRef<typeof Monaco | null>(null);
   const onRunRef = useRef(onRun);
   onRunRef.current = onRun;
-  const { currentTheme, allThemes } = useTheme();
+  const editorTheme = useEditorTheme();
   const { settings } = useSettings();
-
-  const editorTheme = settings.editorTheme
-    ? (allThemes.find((t) => t.id === settings.editorTheme) ?? currentTheme)
-    : currentTheme;
 
   // Dispose editor on unmount to prevent "domNode" errors from ResizeObserver
   // firing after the DOM container is removed (e.g., cell deletion/movement)

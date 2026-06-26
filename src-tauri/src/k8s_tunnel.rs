@@ -367,6 +367,52 @@ pub fn get_k8s_resources(
     Ok(resources)
 }
 
+/// List exposed service ports in a given context and namespace.
+pub fn get_k8s_resource_ports(
+    context: &str,
+    namespace: &str,
+    resource_type: &str,
+    resource_name: &str,
+) -> Result<Vec<u16>, String> {
+    if resource_type != "service" {
+        return Err(format!(
+            "Unsupported resource type '{}'. Only 'service' is supported.",
+            resource_type
+        ));
+    }
+
+    let output = Command::new("kubectl")
+        .args([
+            "--context",
+            context,
+            "--namespace",
+            namespace,
+            "get",
+            resource_type,
+            resource_name,
+            "-o",
+            "jsonpath={.spec.ports[*].port}",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| format!("Failed to execute kubectl: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "Failed to list ports for {} '{}' in context '{}' namespace '{}': {}",
+            resource_type,
+            resource_name,
+            context,
+            namespace,
+            stderr.trim()
+        ));
+    }
+
+    Ok(parse_resource_ports(&String::from_utf8_lossy(&output.stdout)))
+}
+
 /// Parse newline-separated output into a list of trimmed, non-empty strings.
 fn parse_lines(output: &str) -> Vec<String> {
     output
@@ -384,6 +430,13 @@ fn parse_lines_with_prefix(output: &str, prefix: &str) -> Vec<String> {
         .map(|l| l.trim().strip_prefix(prefix).unwrap_or(l.trim()))
         .filter(|l| !l.is_empty())
         .map(String::from)
+        .collect()
+}
+
+fn parse_resource_ports(output: &str) -> Vec<u16> {
+    output
+        .split_whitespace()
+        .filter_map(|value| value.parse::<u16>().ok())
         .collect()
 }
 
@@ -498,6 +551,34 @@ mod tests {
         #[test]
         fn test_empty_output() {
             let result = parse_lines_with_prefix("", "namespace/");
+            assert!(result.is_empty());
+        }
+    }
+
+    mod parse_resource_ports_tests {
+        use super::*;
+
+        #[test]
+        fn test_single_port() {
+            let result = parse_resource_ports("5432");
+            assert_eq!(result, vec![5432]);
+        }
+
+        #[test]
+        fn test_multiple_ports() {
+            let result = parse_resource_ports("80 443 5432");
+            assert_eq!(result, vec![80, 443, 5432]);
+        }
+
+        #[test]
+        fn test_ignores_invalid_values() {
+            let result = parse_resource_ports("abc 3306 70000 8123");
+            assert_eq!(result, vec![3306, 8123]);
+        }
+
+        #[test]
+        fn test_empty_output() {
+            let result = parse_resource_ports("");
             assert!(result.is_empty());
         }
     }

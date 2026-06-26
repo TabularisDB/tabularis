@@ -158,7 +158,19 @@
     "dateGroupYesterday": "Gestern",
     "dateGroupThisWeek": "Diese Woche",
     "dateGroupThisMonth": "Diesen Monat",
-    "dateGroupOlder": "Älter"
+    "dateGroupOlder": "Älter",
+    "notebooks": {
+      "tab": "Notebooks",
+      "search": "Notebooks suchen",
+      "refresh": "Aktualisieren",
+      "empty": "Noch keine gespeicherten Notebooks.",
+      "noSearchResults": "Keine Notebooks entsprechen der Suche.",
+      "open": "Öffnen",
+      "rename": "Umbenennen",
+      "delete": "Löschen",
+      "deleteConfirm": "Notebook \"{{title}}\" löschen? Dies kann nicht rückgängig gemacht werden.",
+      "renamePlaceholder": "Notebook-Name"
+    }
   },
   "mcp": {
     "title": "MCP-Server-Integration",
@@ -199,7 +211,11 @@
       "approvalTimeout": "Zeitlimit",
       "approvalTimeoutDesc": "Wie lange gewartet wird, bevor abgebrochen wird.",
       "preflightExplain": "Vorab-EXPLAIN",
-      "preflightExplainDesc": "Führt vor dem Modal ein EXPLAIN aus, damit der Plan sichtbar ist."
+      "preflightExplainDesc": "Führt vor dem Modal ein EXPLAIN aus, damit der Plan sichtbar ist.",
+      "approvalAlwaysOnTop": "Freigabedialog in den Vordergrund holen",
+      "approvalAlwaysOnTopDesc": "Wenn eine nicht lesende MCP-Aktion eine Freigabe benötigt, bringt Tabularis sich in den Vordergrund und bleibt vorübergehend über anderen Fenstern.",
+      "approvalNotifySound": "Benachrichtigung senden und Ton abspielen",
+      "approvalNotifySoundDesc": "Zeigt eine native Systembenachrichtigung an und spielt einen kurzen Hinweiston ab, wenn eine neue MCP-Freigabeanfrage eingeht."
     }
   },
   "connections": {
@@ -271,6 +287,9 @@
     "delimiterSemicolon": "Semikolon (;)",
     "delimiterTab": "Tabulator",
     "delimiterPipe": "Pipe (|)",
+    "csvIncludeHeaders": "CSV-Kopfzeile einschließen",
+    "csvIncludeHeadersDesc": "Beim Kopieren von Zeilen als CSV eine Kopfzeile mit den Spaltennamen einfügen.",
+    "csvHeaders": "Spaltennamen exportieren",
     "detectJsonInTextColumns": "JSON in Text-Spalten erkennen",
     "detectJsonInTextColumnsDesc": "Zeigt JSON-Viewer-Bedienelemente, wenn eine nicht typisierte Text-Zelle ein JSON-Objekt oder -Array enthält. Verursacht kleine Parse-Kosten pro Zelle.",
     "appearance": "Darstellung",
@@ -325,6 +344,8 @@
     "roadmapDesc": "Dieses Projekt ist Work in Progress (WIP). Die Kernfunktionen sind stabil, aber wir haben große Pläne.",
     "support": "Entwicklung unterstützen",
     "supportDesc": "Wenn dir tabularis gefällt und du mehr Funktionen sehen möchtest, unterstütze das Projekt durch Code-Beiträge, Bug-Reports oder einen Stern auf GitHub.",
+    "followUs": "Folge uns",
+    "followUsDesc": "Bleib auf dem Laufenden und vernetze dich mit der Community auf deiner Lieblingsplattform.",
     "version": "Version",
     "starOnGithub": "Auf GitHub mit Stern markieren",
     "ai": {
@@ -444,6 +465,10 @@
     "startup": "Start",
     "showWelcome": "Willkommensbildschirm anzeigen",
     "showWelcomeDesc": "Willkommensbildschirm beim Start der Anwendung anzeigen.",
+    "autoConnectLastConnection": "Letzte Verbindungen wieder öffnen",
+    "autoConnectLastConnectionDesc": "Stellt die Verbindungen wieder her, die beim letzten Schließen der App geöffnet waren.",
+    "startMaximized": "Maximiert starten",
+    "startMaximizedDesc": "Öffnet das Fenster beim Start maximiert, um den Bildschirm auszufüllen.",
     "erDiagram": "ER-Diagramm",
     "erDiagramDefaultLayout": "Standard-Layout",
     "erDiagramDefaultLayoutDesc": "Wähle die Standard-Layout-Richtung für ER-Diagramme",
@@ -618,7 +643,7 @@
     "dbNamePlaceholder": "Datenbankname",
     "loadDatabases": "Datenbanken laden",
     "loadingDatabases": "Wird geladen...",
-    "selectDatabases": "Datenbanken auswählen",
+    "selectDatabases": "Datenbanken",
     "appearance": "Erscheinungsbild",
     "noDatabasesSelected": "Wähle mindestens eine Datenbank aus",
     "selectedDatabases": "{{count}} Datenbank(en) ausgewählt",
@@ -928,6 +953,7 @@
     "notebook": {
       "addSqlCell": "SQL-Zelle hinzufügen",
       "addMarkdownCell": "Markdown-Zelle hinzufügen",
+      "addCell": "Hinzufügen",
       "runAll": "Alle ausführen",
       "runAllTooltip": "Alle SQL-Zellen von oben nach unten ausführen",
       "runCell": "Zelle ausführen",
@@ -978,7 +1004,28 @@
       "editCellName": "Zellnamen bearbeiten",
       "aiGenerateName": "Namen mit KI generieren",
       "generatingName": "Name wird generiert...",
-      "aiGenerateOutlineNames": "Namen für unbenannte Zellen mit KI generieren"
+      "aiGenerateOutlineNames": "Namen für unbenannte Zellen mit KI generieren",
+      "undo": "Rückgängig",
+      "redo": "Wiederholen",
+      "history": {
+        "title": "Bearbeitungsverlauf",
+        "change": {
+          "initial": "Erste Version",
+          "editCell": "Zelle {{n}} bearbeitet",
+          "addSql": "SQL-Zelle {{n}} hinzugefügt",
+          "addMarkdown": "Markdown-Zelle {{n}} hinzugefügt",
+          "deleteCell": "Zelle {{n}} gelöscht",
+          "reorder": "Zellen neu angeordnet",
+          "renameCell": "Zelle {{n}} umbenannt",
+          "schemaCell": "Datenbank geändert (Zelle {{n}})",
+          "chartCell": "Diagramm geändert (Zelle {{n}})",
+          "parallelCell": "Parallel umgeschaltet (Zelle {{n}})",
+          "collapse": "Zellen ein-/ausgeklappt",
+          "params": "Parameter geändert",
+          "stopOnError": "Bei Fehler stoppen umgeschaltet",
+          "other": "Notebook bearbeitet"
+        }
+      }
     },
     "querySelection": {
       "title": "Abfrage zum Ausführen auswählen",
@@ -1489,7 +1536,9 @@
     "reasonLabel": "Grund (optional)",
     "reasonPlaceholder": "z.B. In Prod riskant, bestätigen…",
     "approve": "Freigeben",
-    "deny": "Ablehnen"
+    "deny": "Ablehnen",
+    "notificationTitle": "MCP-Freigabe erforderlich",
+    "notificationBody": "Öffne Tabularis, um die ausstehende MCP-Freigabe zu prüfen."
   },
   "discordCallout": {
     "title": "Neue Discord-Community!",
@@ -1515,6 +1564,14 @@
     "port": "Container-Port",
     "test": "Testen",
     "testing": "Wird getestet...",
-    "validationFailed": "Validierung fehlgeschlagen"
+    "validationFailed": "Validierung fehlgeschlagen",
+    "errors": {
+      "nameRequired": "Der Verbindungsname ist erforderlich",
+      "contextRequired": "Der Kubernetes-Kontext ist erforderlich",
+      "namespaceRequired": "Der Namespace ist erforderlich",
+      "resourceTypeInvalid": "Der Ressourcentyp muss \"service\" oder \"pod\" sein",
+      "resourceNameRequired": "Der Ressourcenname ist erforderlich",
+      "portInvalid": "Der Port muss zwischen 1 und 65535 liegen"
+    }
   }
 }

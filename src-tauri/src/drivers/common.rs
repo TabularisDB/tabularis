@@ -10,7 +10,8 @@ pub use blob::{
     DEFAULT_MAX_BLOB_SIZE, MAX_BLOB_PREVIEW_SIZE,
 };
 pub use query::{
-    build_paginated_query, calculate_offset, extract_user_limit, is_explainable_query,
+    build_paginated_query, calculate_offset, extract_user_limit, extract_user_offset,
+    is_explainable_query,
     is_select_query, returns_result_set, strip_leading_sql_comments, strip_limit_offset,
 };
 pub use safe_int::{

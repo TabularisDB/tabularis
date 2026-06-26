@@ -1,4 +1,4 @@
-use super::explain::parse_mysql_query_block;
+use super::explain::{parse_analyze_actual, parse_mysql_analyze_text, parse_mysql_query_block};
 use super::MysqlDriver;
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::ExplainNode;
@@ -550,4 +550,54 @@ fn test_filesort_with_direct_table() {
     assert_eq!(table.node_type, "Full Table Scan");
     assert_eq!(table.relation.as_deref(), Some("t"));
     assert!((table.actual_rows.unwrap() - 100.0).abs() < 0.1);
+}
+
+#[test]
+fn parse_analyze_actual_multiplies_per_loop_time_by_loops() {
+    // MySQL tree-format EXPLAIN ANALYZE reports per-loop time. The total node
+    // time is the per-loop end time multiplied by the loop count.
+    // Regression for github issue #300.
+    let (time_ms, rows, loops) =
+        parse_analyze_actual("  (actual time=0.00773..0.00798 rows=1 loops=331603)");
+
+    assert_eq!(loops, Some(331603));
+    assert_eq!(rows, Some(1.0));
+    // 0.00798 * 331603 ≈ 2646.19 ms (not the bare 0.00798 ms per loop)
+    let total = time_ms.expect("time should be parsed");
+    assert!(
+        (total - 2646.19).abs() < 1.0,
+        "expected ~2646ms total, got {total}"
+    );
+}
+
+#[test]
+fn parse_analyze_actual_single_loop_is_unchanged() {
+    let (time_ms, _, loops) =
+        parse_analyze_actual("  (actual time=0.10..0.42 rows=5 loops=1)");
+    assert_eq!(loops, Some(1));
+    assert!((time_ms.unwrap() - 0.42).abs() < 1e-9);
+}
+
+#[test]
+fn parse_analyze_actual_missing_loops_keeps_per_loop_time() {
+    let (time_ms, _, loops) = parse_analyze_actual("  (actual time=0.10..0.42 rows=5)");
+    assert_eq!(loops, None);
+    assert!((time_ms.unwrap() - 0.42).abs() < 1e-9);
+}
+
+#[test]
+fn parse_mysql_analyze_text_reports_total_time_for_looped_node() {
+    let text = "-> Nested loop inner join  (cost=10.00 rows=5) (actual time=0.50..1.20 rows=5 loops=1)\n    -> Index lookup on ms using <auto_key0>  (cost=0.35 rows=1) (actual time=0.00773..0.00798 rows=1 loops=331603)";
+    let mut counter = 0;
+    let root = parse_mysql_analyze_text(text, &mut counter);
+
+    assert_eq!(root.node_type, "Nested Loop");
+    let lookup = &root.children[0];
+    assert_eq!(lookup.node_type, "Index Lookup");
+    assert_eq!(lookup.actual_loops, Some(331603));
+    let total = lookup.actual_time_ms.expect("looped node has a time");
+    assert!(
+        (total - 2646.19).abs() < 1.0,
+        "expected ~2646ms total for index lookup, got {total}"
+    );
 }

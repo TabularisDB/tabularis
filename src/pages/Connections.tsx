@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useDatabase } from "../hooks/useDatabase";
 import { useDrivers } from "../hooks/useDrivers";
+import { useSettings } from "../hooks/useSettings";
 import clsx from "clsx";
 import { ContextMenu } from "../components/ui/ContextMenu";
 import type { SavedConnection } from "../contexts/DatabaseContext";
@@ -32,8 +33,11 @@ import { GroupHeader } from "../components/connections/GroupHeader";
 import { ConnectionCard } from "../components/connections/ConnectionCard";
 import { ConnectionListItem } from "../components/connections/ConnectionListItem";
 
+let autoConnectAttempted = false;
+
 export const Connections = () => {
   const { t } = useTranslation();
+  const { settings } = useSettings();
   const navigate = useNavigate();
   const location = useLocation();
   const {
@@ -92,6 +96,53 @@ export const Connections = () => {
   useEffect(() => {
     void loadConnections();
   }, [loadConnections]);
+
+  useEffect(() => {
+    if (autoConnectAttempted) return;
+    if (connections.length === 0) return;
+    if (settings.autoConnectLastConnection === false) return;
+    autoConnectAttempted = true;
+    void (async () => {
+      try {
+        const [openIds, activeId] = await Promise.all([
+          invoke<string[]>("get_last_open_connections"),
+          invoke<string | null>("get_last_active_connection"),
+        ]);
+        const toRestore = (openIds ?? []).filter(
+          (id) => connections.some((c) => c.id === id) && !isConnectionOpen(id),
+        );
+        if (toRestore.length === 0) return;
+        const connected: string[] = [];
+        for (const id of toRestore) {
+          setConnectingId(id);
+          try {
+            await connect(id);
+            connected.push(id);
+          } catch (e) {
+            console.error(`Auto-connect to connection ${id} failed:`, e);
+          }
+        }
+        if (connected.length === 0) return;
+        const target =
+          activeId && connected.includes(activeId)
+            ? activeId
+            : connected[connected.length - 1];
+        switchConnection(target);
+        navigate("/editor");
+      } catch (e) {
+        console.error("Auto-connect to last connections failed:", e);
+      } finally {
+        setConnectingId(null);
+      }
+    })();
+  }, [
+    connections,
+    settings.autoConnectLastConnection,
+    isConnectionOpen,
+    connect,
+    switchConnection,
+    navigate,
+  ]);
 
   // Initialize collapsed groups from saved state
   useEffect(() => {

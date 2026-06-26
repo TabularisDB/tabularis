@@ -4,6 +4,7 @@ import { X, Loader2, Eye, AlertCircle, Play } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../../hooks/useAlert";
+import { extractEditableViewDefinition } from "../../utils/sql";
 import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
 import { useDatabase } from "../../hooks/useDatabase";
 import { Modal } from "../ui/Modal";
@@ -49,12 +50,7 @@ export const ViewEditorModal = ({
         viewName: vName,
         ...(activeSchema ? { schema: activeSchema } : {}),
       });
-      // Extract just the SELECT part for editing
-      let selectPart = def;
-      if (def.toUpperCase().includes(" AS ")) {
-        const asIndex = def.toUpperCase().indexOf(" AS ");
-        selectPart = def.substring(asIndex + 4).trim();
-      }
+      const selectPart = extractEditableViewDefinition(def);
       setDefinition(selectPart);
       setOriginalDefinition(selectPart);
     } catch (e) {

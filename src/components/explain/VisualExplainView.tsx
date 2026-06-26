@@ -5,7 +5,7 @@ import MonacoEditor from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
 import type { ExplainPlan } from "../../types/explain";
 import { findExplainNode } from "../../utils/explainPlan";
-import { useTheme } from "../../hooks/useTheme";
+import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 import {
   ExplainSummaryBar,
@@ -43,7 +43,7 @@ export const VisualExplainView = ({
   aiEnabled,
 }: VisualExplainViewProps) => {
   const { t } = useTranslation();
-  const { currentTheme } = useTheme();
+  const editorTheme = useEditorTheme();
 
   const selectedNode = useMemo(
     () => (plan ? findExplainNode(plan.root, selectedNodeId) : null),
@@ -60,9 +60,9 @@ export const VisualExplainView = ({
 
   const handleBeforeMount = useCallback(
     (monacoInstance: typeof monaco) => {
-      loadMonacoTheme(currentTheme, monacoInstance);
+      loadMonacoTheme(editorTheme, monacoInstance);
     },
-    [currentTheme],
+    [editorTheme],
   );
 
   return (
@@ -96,7 +96,7 @@ export const VisualExplainView = ({
             <MonacoEditor
               height="100%"
               language={rawLanguage}
-              theme={currentTheme.id}
+              theme={editorTheme.id}
               value={plan.raw_output}
               beforeMount={handleBeforeMount}
               options={{

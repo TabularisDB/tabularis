@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, ShieldAlert, X, Pencil, Maximize2, Minimize2 } from "lucide-react";
 import Editor from "@monaco-editor/react";
-import { useTheme } from "../../hooks/useTheme";
+import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 import type { ExplainPlan } from "../../types/explain";
 import type { PendingApproval } from "../../types/ai";
@@ -25,7 +25,7 @@ export function AiApprovalModal({
   onClose,
 }: AiApprovalModalProps) {
   const { t } = useTranslation();
-  const { currentTheme } = useTheme();
+  const editorTheme = useEditorTheme();
   const [editing, setEditing] = useState(false);
   const [editedQuery, setEditedQuery] = useState(approval.query);
   const [reason, setReason] = useState("");
@@ -156,10 +156,10 @@ export function AiApprovalModal({
               <Editor
                 height="180px"
                 defaultLanguage="sql"
-                theme={currentTheme.id}
+                theme={editorTheme.id}
                 value={editing ? editedQuery : approval.query}
                 onChange={(v) => setEditedQuery(v ?? "")}
-                beforeMount={(monaco) => loadMonacoTheme(currentTheme, monaco)}
+                beforeMount={(monaco) => loadMonacoTheme(editorTheme, monaco)}
                 options={{
                   readOnly: !editing,
                   minimap: { enabled: false },

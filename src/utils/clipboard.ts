@@ -12,6 +12,12 @@ export function rowsToCSV(rows: unknown[][], nullLabel: string = "null", delimit
     .join("\n");
 }
 
+export function rowsToCSVWithHeaders(rows: unknown[][], columns: string[], nullLabel: string = "null", delimiter: string = ","): string {
+  const header = columns.join(delimiter);
+  const body = rowsToCSV(rows, nullLabel, delimiter);
+  return body ? `${header}\n${body}` : header;
+}
+
 export function rowToJSON(row: unknown[], columns: string[]): string {
   const obj: Record<string, unknown> = {};
   columns.forEach((col, i) => {

@@ -158,7 +158,19 @@
     "dateGroupYesterday": "Ieri",
     "dateGroupThisWeek": "Questa Settimana",
     "dateGroupThisMonth": "Questo Mese",
-    "dateGroupOlder": "Precedenti"
+    "dateGroupOlder": "Precedenti",
+    "notebooks": {
+      "tab": "Notebook",
+      "search": "Cerca notebook",
+      "refresh": "Aggiorna",
+      "empty": "Nessun notebook salvato.",
+      "noSearchResults": "Nessun notebook corrisponde alla ricerca.",
+      "open": "Apri",
+      "rename": "Rinomina",
+      "delete": "Elimina",
+      "deleteConfirm": "Eliminare il notebook \"{{title}}\"? L'operazione non è reversibile.",
+      "renamePlaceholder": "Nome del notebook"
+    }
   },
   "mcp": {
     "title": "Integrazione Server MCP",
@@ -199,7 +211,11 @@
       "approvalTimeout": "Timeout",
       "approvalTimeoutDesc": "Quanti secondi il processo MCP attende la decisione dell'utente prima di abortire.",
       "preflightExplain": "EXPLAIN preliminare",
-      "preflightExplainDesc": "Esegui un EXPLAIN della query prima di mostrare il modal di approvazione, così l'utente vede il piano di esecuzione."
+      "preflightExplainDesc": "Esegui un EXPLAIN della query prima di mostrare il modal di approvazione, così l'utente vede il piano di esecuzione.",
+      "approvalAlwaysOnTop": "Porta il dialogo di approvazione in primo piano",
+      "approvalAlwaysOnTopDesc": "Quando un’azione MCP diversa dalla sola lettura richiede approvazione, porta Tabularis in primo piano e tienilo temporaneamente sopra le altre finestre.",
+      "approvalNotifySound": "Invia notifica e riproduci un suono",
+      "approvalNotifySoundDesc": "Mostra una notifica nativa del sistema e riproduce un breve suono di avviso quando arriva una nuova richiesta di approvazione MCP."
     }
   },
   "connections": {
@@ -276,6 +292,9 @@
     "delimiterSemicolon": "Punto e virgola (;)",
     "delimiterTab": "Tab",
     "delimiterPipe": "Pipe (|)",
+    "csvIncludeHeaders": "Includi intestazioni CSV",
+    "csvIncludeHeadersDesc": "Includi una riga di intestazione con i nomi delle colonne quando copi le righe come CSV.",
+    "csvHeaders": "Esporta nomi colonne",
     "detectJsonInTextColumns": "Rileva JSON nelle colonne di testo",
     "detectJsonInTextColumnsDesc": "Mostra il visualizzatore JSON quando una cella di testo non tipizzata contiene un oggetto o un array JSON. Aggiunge un piccolo costo di analisi per cella.",
     "appearance": "Aspetto",
@@ -330,6 +349,8 @@
     "roadmapDesc": "Questo progetto è un Work In Progress (WIP). Le funzioni principali sono stabili, ma abbiamo grandi piani.",
     "support": "Supporta lo Sviluppo",
     "supportDesc": "Se ti piace tabularis e vuoi vedere nuove funzionalità, considera di supportare il progetto contribuendo al codice, segnalando bug o mettendo una stella su GitHub.",
+    "followUs": "Seguici",
+    "followUsDesc": "Resta aggiornato e connettiti con la community sulla tua piattaforma preferita.",
     "version": "Versione",
     "starOnGithub": "Star su GitHub",
     "ai": {
@@ -449,6 +470,10 @@
     "startup": "Avvio",
     "showWelcome": "Mostra schermata di benvenuto",
     "showWelcomeDesc": "Mostra la schermata di benvenuto all'avvio dell'applicazione.",
+    "autoConnectLastConnection": "Riapri ultime connessioni",
+    "autoConnectLastConnectionDesc": "Riconnette alle connessioni aperte alla chiusura dell'app.",
+    "startMaximized": "Avvia ingrandita",
+    "startMaximizedDesc": "Apre la finestra ingrandita per riempire lo schermo all'avvio.",
     "erDiagram": "Diagramma ER",
     "erDiagramDefaultLayout": "Layout Predefinito",
     "erDiagramDefaultLayoutDesc": "Scegli la direzione di default per i diagrammi ER",
@@ -623,7 +648,7 @@
     "dbNamePlaceholder": "Nome database",
     "loadDatabases": "Carica Database",
     "loadingDatabases": "Caricamento...",
-    "selectDatabases": "Seleziona Database",
+    "selectDatabases": "Database",
     "appearance": "Aspetto",
     "noDatabasesSelected": "Seleziona almeno un database",
     "selectedDatabases": "{{count}} database selezionato/i",
@@ -930,6 +955,7 @@
     "notebook": {
       "addSqlCell": "Aggiungi Cella SQL",
       "addMarkdownCell": "Aggiungi Cella Markdown",
+      "addCell": "Aggiungi",
       "runAll": "Esegui Tutto",
       "runAllTooltip": "Esegui tutte le celle SQL dall'alto in basso",
       "runCell": "Esegui Cella",
@@ -980,7 +1006,28 @@
       "editCellName": "Modifica nome cella",
       "aiGenerateName": "Genera nome con AI",
       "generatingName": "Generazione nome...",
-      "aiGenerateOutlineNames": "Genera nomi per le celle senza nome con AI"
+      "aiGenerateOutlineNames": "Genera nomi per le celle senza nome con AI",
+      "undo": "Annulla",
+      "redo": "Ripeti",
+      "history": {
+        "title": "Cronologia modifiche",
+        "change": {
+          "initial": "Versione iniziale",
+          "editCell": "Modificata cella {{n}}",
+          "addSql": "Aggiunta cella SQL {{n}}",
+          "addMarkdown": "Aggiunta cella Markdown {{n}}",
+          "deleteCell": "Eliminata cella {{n}}",
+          "reorder": "Celle riordinate",
+          "renameCell": "Rinominata cella {{n}}",
+          "schemaCell": "Database cambiato (cella {{n}})",
+          "chartCell": "Grafico cambiato (cella {{n}})",
+          "parallelCell": "Parallelo commutato (cella {{n}})",
+          "collapse": "Celle compresse/espanse",
+          "params": "Parametri modificati",
+          "stopOnError": "Stop on error commutato",
+          "other": "Notebook modificato"
+        }
+      }
     },
     "querySelection": {
       "title": "Seleziona la query da eseguire",
@@ -1472,7 +1519,9 @@
     "reasonLabel": "Motivo (opzionale)",
     "reasonPlaceholder": "es. Sembra rischiosa in produzione, conferma…",
     "approve": "Approva",
-    "deny": "Nega"
+    "deny": "Nega",
+    "notificationTitle": "Approvazione MCP necessaria",
+    "notificationBody": "Apri Tabularis per esaminare l’approvazione MCP in sospeso."
   },
   "discordCallout": {
     "title": "Nuova community Discord!",
@@ -1498,6 +1547,14 @@
     "port": "Porta container",
     "test": "Test",
     "testing": "Test in corso...",
-    "validationFailed": "Validazione fallita"
+    "validationFailed": "Validazione fallita",
+    "errors": {
+      "nameRequired": "Il nome della connessione è obbligatorio",
+      "contextRequired": "Il contesto Kubernetes è obbligatorio",
+      "namespaceRequired": "Il namespace è obbligatorio",
+      "resourceTypeInvalid": "Il tipo di risorsa deve essere \"service\" o \"pod\"",
+      "resourceNameRequired": "Il nome della risorsa è obbligatorio",
+      "portInvalid": "La porta deve essere compresa tra 1 e 65535"
+    }
   }
 }

@@ -54,6 +54,9 @@ export function LocalizationTab() {
       labels[zone] = `${zone} (${zoneOffset(zone, now)})`;
     }
     return labels;
+    // dayBucket is intentionally a dependency: it changes once per calendar day
+    // so a long-running window refreshes DST/offset labels.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zones, t, dayBucket]);
 
   return (

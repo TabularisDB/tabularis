@@ -1,7 +1,7 @@
 import { useRef, useEffect } from "react";
 import MonacoEditor, { type BeforeMount } from "@monaco-editor/react";
 import type * as MonacoTypes from "monaco-editor";
-import { useTheme } from "../../hooks/useTheme";
+import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 
 interface SqlPreviewProps {
@@ -17,20 +17,20 @@ export const SqlPreview = ({
   height = "120px",
   showLineNumbers = false,
 }: SqlPreviewProps) => {
-  const { currentTheme } = useTheme();
+  const editorTheme = useEditorTheme();
   const monacoRef = useRef<typeof MonacoTypes | null>(null);
 
   // Update Monaco theme when theme changes
   useEffect(() => {
     if (monacoRef.current) {
-      loadMonacoTheme(currentTheme, monacoRef.current);
+      loadMonacoTheme(editorTheme, monacoRef.current);
     }
-  }, [currentTheme]);
+  }, [editorTheme]);
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     monacoRef.current = monaco;
     // Load Monaco theme before editor is created
-    loadMonacoTheme(currentTheme, monaco);
+    loadMonacoTheme(editorTheme, monaco);
   };
 
   return (
@@ -38,7 +38,7 @@ export const SqlPreview = ({
       <MonacoEditor
         height={height}
         language="sql"
-        theme={currentTheme.id}
+        theme={editorTheme.id}
         value={sql}
         beforeMount={handleBeforeMount}
         options={{

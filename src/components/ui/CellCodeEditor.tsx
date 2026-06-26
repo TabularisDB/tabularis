@@ -1,10 +1,10 @@
-import { useContext, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import MonacoEditor, {
   type BeforeMount,
   type OnValidate,
 } from "@monaco-editor/react";
 import type * as MonacoTypes from "monaco-editor";
-import { ThemeContext } from "../../contexts/ThemeContext";
+import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 
 interface CellCodeEditorProps {
@@ -16,8 +16,6 @@ interface CellCodeEditorProps {
   language?: "json" | "plaintext";
 }
 
-const DEFAULT_THEME = "vs-dark";
-
 export const CellCodeEditor = ({
   value,
   onChange,
@@ -26,21 +24,18 @@ export const CellCodeEditor = ({
   readOnly = false,
   language = "json",
 }: CellCodeEditorProps) => {
-  const themeCtx = useContext(ThemeContext);
-  const currentTheme = themeCtx?.currentTheme;
+  const editorTheme = useEditorTheme();
   const monacoRef = useRef<typeof MonacoTypes | null>(null);
 
   useEffect(() => {
-    if (monacoRef.current && currentTheme) {
-      loadMonacoTheme(currentTheme, monacoRef.current);
+    if (monacoRef.current) {
+      loadMonacoTheme(editorTheme, monacoRef.current);
     }
-  }, [currentTheme]);
+  }, [editorTheme]);
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     monacoRef.current = monaco;
-    if (currentTheme) {
-      loadMonacoTheme(currentTheme, monaco);
-    }
+    loadMonacoTheme(editorTheme, monaco);
   };
 
   const handleChange = (next: string | undefined) => {
@@ -55,7 +50,7 @@ export const CellCodeEditor = ({
     <MonacoEditor
       height={height}
       language={language}
-      theme={currentTheme?.id ?? DEFAULT_THEME}
+      theme={editorTheme.id}
       value={value}
       beforeMount={handleBeforeMount}
       onChange={handleChange}

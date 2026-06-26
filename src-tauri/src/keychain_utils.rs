@@ -159,14 +159,22 @@ pub fn set_ai_key(provider: &str, key: &str) -> Result<(), String> {
     })
 }
 
-pub fn get_ai_key(provider: &str) -> Result<String, String> {
+/// Read an AI key from the keychain.
+///
+/// Returns `Ok(Some(key))` when present, `Ok(None)` when the keychain
+/// definitively has no such entry (`NoEntry`), and `Err` only for genuine /
+/// transient failures (access denied, prompt timeout, securityd error, ...).
+/// Distinguishing the two lets the cache layer avoid storing a transient
+/// failure as a permanent "absent" — which would otherwise make a configured
+/// key appear missing until the app restarts.
+pub fn get_ai_key(provider: &str) -> Result<Option<String>, String> {
     #[cfg(debug_assertions)]
     log::info!("[Keychain] Getting AI key for {}", provider);
     let entry =
         Entry::new(SERVICE_NAME, &format!("ai_key:{}", provider)).map_err(|e| e.to_string())?;
     match entry.get_password() {
-        Ok(pwd) => Ok(pwd),
-        Err(keyring::Error::NoEntry) => Err("No key found".to_string()),
+        Ok(pwd) => Ok(Some(pwd)),
+        Err(keyring::Error::NoEntry) => Ok(None),
         Err(e) => {
             eprintln!("[Keychain] Error getting AI key for {}: {}", provider, e);
             Err(e.to_string())

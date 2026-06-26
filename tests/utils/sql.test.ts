@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitQueries, extractTableName, isExplainableQuery, stripLeadingSqlComments, getExplainableQueries } from '../../src/utils/sql';
+import { splitQueries, extractTableName, extractEditableViewDefinition, isExplainableQuery, stripLeadingSqlComments, getExplainableQueries } from '../../src/utils/sql';
 
 describe('sql utils', () => {
   describe('splitQueries', () => {
@@ -194,6 +194,75 @@ describe('sql utils', () => {
 
     it('should return null for subquery in FROM clause', () => {
         expect(extractTableName('SELECT * FROM (SELECT * FROM users WHERE active = 1) sub')).toBeNull();
+    });
+  });
+
+  describe('extractEditableViewDefinition', () => {
+    it.each([
+      {
+        name: 'extracts the SELECT from a MySQL SHOW CREATE VIEW definition',
+        sql: 'CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `active_users` AS select `users`.`id` AS `id` from `users`',
+        expected: 'select `users`.`id` AS `id` from `users`',
+      },
+      {
+        name: 'extracts multiline SQLite definitions',
+        sql: 'CREATE VIEW "active_users" AS\nSELECT id, name\nFROM users\nWHERE active = 1;',
+        expected: 'SELECT id, name\nFROM users\nWHERE active = 1;',
+      },
+      {
+        name: 'returns bare pg_get_viewdef output unchanged',
+        sql: 'SELECT id FROM users;',
+        expected: 'SELECT id FROM users;',
+      },
+      {
+        name: 'keeps SELECT aliases in bare pg_get_viewdef output',
+        sql: 'SELECT count(*) AS total FROM users',
+        expected: 'SELECT count(*) AS total FROM users',
+      },
+      {
+        name: 'ignores AS inside strings, comments, and quoted identifiers',
+        sql: `CREATE VIEW report_view AS SELECT "AS column" AS "label", 'AS literal' AS literal_value /* AS block */ FROM logs -- AS line
+      WHERE message = 'still AS';`,
+        expected: `SELECT "AS column" AS "label", 'AS literal' AS literal_value /* AS block */ FROM logs -- AS line
+      WHERE message = 'still AS';`,
+      },
+      {
+        name: 'supports SQL Server bracket identifiers',
+        sql: 'CREATE VIEW [dbo].[Order Summary] AS SELECT [Order AS Label] AS [Alias AS Name] FROM [Sales].[Order Lines];',
+        expected: 'SELECT [Order AS Label] AS [Alias AS Name] FROM [Sales].[Order Lines];',
+      },
+      {
+        name: 'ignores AS before the view body inside a column list',
+        sql: 'CREATE VIEW revenue_view ("AS_total", total_amount) AS SELECT total AS "AS_total", amount AS total_amount FROM invoices;',
+        expected: 'SELECT total AS "AS_total", amount AS total_amount FROM invoices;',
+      },
+      {
+        name: 'preserves WITH CHECK OPTION',
+        sql: 'CREATE VIEW active_users AS SELECT * FROM users WHERE active = true WITH CHECK OPTION',
+        expected: 'SELECT * FROM users WHERE active = true WITH CHECK OPTION',
+      },
+      {
+        name: 'preserves WITH READ ONLY',
+        sql: 'CREATE VIEW reporting_users AS SELECT * FROM users WITH READ ONLY',
+        expected: 'SELECT * FROM users WITH READ ONLY',
+      },
+      {
+        name: 'falls back to trimmed input when no top-level AS follows VIEW',
+        sql: 'CREATE VIEW broken_view SELECT 1',
+        expected: 'CREATE VIEW broken_view SELECT 1',
+      },
+      {
+        name: 'extracts the SELECT from a Postgres MATERIALIZED VIEW',
+        sql: 'CREATE MATERIALIZED VIEW mv AS SELECT 1 AS x FROM t',
+        expected: 'SELECT 1 AS x FROM t',
+      },
+      {
+        name: 'extracts the SELECT from CREATE OR REPLACE VIEW',
+        sql: 'CREATE OR REPLACE VIEW v AS SELECT a AS b FROM t',
+        expected: 'SELECT a AS b FROM t',
+      },
+    ])('$name', ({ sql, expected }) => {
+      expect(extractEditableViewDefinition(sql)).toBe(expected);
     });
   });
 });

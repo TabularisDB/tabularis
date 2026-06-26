@@ -171,7 +171,19 @@
     "dateGroupYesterday": "昨日",
     "dateGroupThisWeek": "今週",
     "dateGroupThisMonth": "今月",
-    "dateGroupOlder": "それ以前"
+    "dateGroupOlder": "それ以前",
+    "notebooks": {
+      "tab": "ノートブック",
+      "search": "ノートブックを検索",
+      "refresh": "更新",
+      "empty": "保存されたノートブックはまだありません。",
+      "noSearchResults": "一致するノートブックがありません。",
+      "open": "開く",
+      "rename": "名前を変更",
+      "delete": "削除",
+      "deleteConfirm": "ノートブック「{{title}}」を削除しますか？この操作は元に戻せません。",
+      "renamePlaceholder": "ノートブック名"
+    }
   },
   "mcp": {
     "title": "MCP サーバー連携",
@@ -212,7 +224,11 @@
       "approvalTimeout": "タイムアウト",
       "approvalTimeoutDesc": "MCP サブプロセスがリクエストをタイムアウトさせる前にユーザーの判断を待つ時間。",
       "preflightExplain": "プリフライト EXPLAIN",
-      "preflightExplainDesc": "承認モーダルを表示する前にクエリに対して EXPLAIN を実行し、ユーザーに実行計画を表示します。"
+      "preflightExplainDesc": "承認モーダルを表示する前にクエリに対して EXPLAIN を実行し、ユーザーに実行計画を表示します。",
+      "approvalAlwaysOnTop": "承認ダイアログを最前面に表示",
+      "approvalAlwaysOnTopDesc": "読み取り以外の MCP アクションに承認が必要なとき、Tabularis を前面に出して一時的に他のウィンドウより上に表示します。",
+      "approvalNotifySound": "通知を送信して音を鳴らす",
+      "approvalNotifySoundDesc": "新しい MCP 承認リクエストが届いたときに、ネイティブ通知を表示して短い通知音を再生します。"
     }
   },
   "connections": {
@@ -284,6 +300,9 @@
     "delimiterSemicolon": "セミコロン (;)",
     "delimiterTab": "タブ",
     "delimiterPipe": "パイプ (|)",
+    "csvIncludeHeaders": "CSVヘッダーを含める",
+    "csvIncludeHeadersDesc": "行をCSVとしてコピーするときに、列名のヘッダー行を含めます。",
+    "csvHeaders": "列名をエクスポート",
     "appearance": "外観",
     "localization": "ローカライズ",
     "themeSelection": "テーマ選択",
@@ -339,6 +358,8 @@
     "roadmapDesc": "このプロジェクトは現在開発中 (WIP) です。主要機能は安定していますが、より大きな構想も進めています。",
     "support": "開発をサポート",
     "supportDesc": "Tabularis を気に入っていただけたら、コードへの貢献、バグ報告、リポジトリへのスターなどでプロジェクトのサポートをご検討ください。",
+    "followUs": "フォローする",
+    "followUsDesc": "お気に入りのプラットフォームで最新情報を入手し、コミュニティとつながりましょう。",
     "version": "バージョン",
     "starOnGithub": "GitHub でスター",
     "ai": {
@@ -458,6 +479,10 @@
     "startup": "起動",
     "showWelcome": "ウェルカム画面を表示",
     "showWelcomeDesc": "アプリ起動時にウェルカム画面を表示します。",
+    "autoConnectLastConnection": "前回の接続を再度開く",
+    "autoConnectLastConnectionDesc": "アプリを最後に閉じたときに開いていた接続に再接続します。",
+    "startMaximized": "最大化して起動",
+    "startMaximizedDesc": "起動時にウィンドウを最大化して画面いっぱいに表示します。",
     "erDiagram": "ER 図",
     "erDiagramDefaultLayout": "デフォルトレイアウト",
     "erDiagramDefaultLayoutDesc": "ER 図のデフォルトのレイアウト方向を選択します",
@@ -632,7 +657,7 @@
     "dbNamePlaceholder": "データベース名",
     "loadDatabases": "データベースを読み込み",
     "loadingDatabases": "読み込み中...",
-    "selectDatabases": "データベースを選択",
+    "selectDatabases": "データベース",
     "appearance": "外観",
     "noDatabasesSelected": "少なくとも 1 つのデータベースを選択してください",
     "selectedDatabases": "{{count}} 個のデータベースを選択中",
@@ -940,6 +965,7 @@
     "notebook": {
       "addSqlCell": "SQL セルを追加",
       "addMarkdownCell": "Markdown セルを追加",
+      "addCell": "追加",
       "runAll": "すべて実行",
       "runAllTooltip": "上から下へすべての SQL セルを実行",
       "runCell": "セルを実行",
@@ -990,7 +1016,28 @@
       "editCellName": "セル名を編集",
       "aiGenerateName": "AI で名前を生成",
       "generatingName": "名前を生成中...",
-      "aiGenerateOutlineNames": "AI で未命名セルの名前を生成"
+      "aiGenerateOutlineNames": "AI で未命名セルの名前を生成",
+      "undo": "元に戻す",
+      "redo": "やり直す",
+      "history": {
+        "title": "編集履歴",
+        "change": {
+          "initial": "初期バージョン",
+          "editCell": "セル {{n}} を編集",
+          "addSql": "SQL セル {{n}} を追加",
+          "addMarkdown": "Markdown セル {{n}} を追加",
+          "deleteCell": "セル {{n}} を削除",
+          "reorder": "セルを並べ替え",
+          "renameCell": "セル {{n}} の名前を変更",
+          "schemaCell": "データベースを変更（セル {{n}}）",
+          "chartCell": "チャートを変更（セル {{n}}）",
+          "parallelCell": "並列を切り替え（セル {{n}}）",
+          "collapse": "セルを折りたたみ/展開",
+          "params": "パラメータを変更",
+          "stopOnError": "エラー時に停止を切り替え",
+          "other": "ノートブックを編集"
+        }
+      }
     },
     "querySelection": {
       "title": "実行するクエリを選択",
@@ -1508,7 +1555,9 @@
     "reasonLabel": "理由 (任意)",
     "reasonPlaceholder": "例: 本番環境でリスクがありそう、確認お願いします…",
     "approve": "承認",
-    "deny": "拒否"
+    "deny": "拒否",
+    "notificationTitle": "MCP の承認が必要です",
+    "notificationBody": "保留中の MCP 承認を確認するには Tabularis を開いてください。"
   },
   "discordCallout": {
     "title": "Discord コミュニティが新登場！",
@@ -1534,6 +1583,14 @@
     "port": "コンテナポート",
     "test": "テスト",
     "testing": "テスト中...",
-    "validationFailed": "検証に失敗しました"
+    "validationFailed": "検証に失敗しました",
+    "errors": {
+      "nameRequired": "接続名は必須です",
+      "contextRequired": "Kubernetes コンテキストは必須です",
+      "namespaceRequired": "ネームスペースは必須です",
+      "resourceTypeInvalid": "リソースタイプは \"service\" または \"pod\" である必要があります",
+      "resourceNameRequired": "リソース名は必須です",
+      "portInvalid": "ポートは 1 から 65535 の範囲で指定してください"
+    }
   }
 }

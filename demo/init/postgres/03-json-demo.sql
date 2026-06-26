@@ -44,3 +44,32 @@ INSERT INTO json_demo (label, payload, notes_text) VALUES
   ('unicode + emoji',
    '{"greeting":"こんにちは","emoji":"🦊🐾","math":"∑(α+β)²"}'::jsonb,
    '{"emoji":"⚙️"}');
+
+-- -------------------------------------------------------------
+-- Large payload — reproduces grid lag with big JSON cells (#283).
+-- ~3000 nested objects build a multi-hundred-KB / ~1MB JSON blob.
+-- The grid must stay responsive: only a truncated preview renders
+-- inline, the full value opens in the JSON viewer on demand.
+-- -------------------------------------------------------------
+INSERT INTO json_demo (label, payload, notes_text)
+SELECT
+  'large payload (perf stress, 3000 items)',
+  jsonb_build_object(
+    'generated', true,
+    'count', 3000,
+    'items', (
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'id', i,
+          'name', 'item-' || i,
+          'description', repeat('lorem ipsum dolor sit amet consectetur ', 4),
+          'value', i * 1.5,
+          'active', (i % 2 = 0),
+          'tags', jsonb_build_array('alpha', 'beta', 'gamma', 'delta'),
+          'nested', jsonb_build_object('a', i, 'b', 'x-' || i, 'c', jsonb_build_array(i, i + 1, i + 2))
+        )
+      )
+      FROM generate_series(1, 3000) AS i
+    )
+  ),
+  'large JSON blob — see issue #283 (grid must not freeze)';

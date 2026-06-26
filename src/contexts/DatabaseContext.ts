@@ -3,6 +3,7 @@ import type { DriverCapabilities } from '../types/plugins';
 
 export interface TableInfo {
   name: string;
+  schema?: string; // database/schema the table belongs to (populated in multiDb mode)
 }
 
 export interface ViewInfo {

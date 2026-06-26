@@ -378,8 +378,18 @@ pub fn classify_query_kind(sql: &str) -> &'static str {
     {
         return "unknown";
     }
-    let upper = trimmed.to_uppercase();
-    let first = first_keyword(&upper);
+    // Peel any leading `(` (and surrounding whitespace) before reading the
+    // first keyword. A parenthesized query expression such as
+    // `(SELECT ...) UNION ALL (SELECT ...)` — the shape you get when each
+    // UNION branch needs its own ORDER BY / LIMIT — starts with `(`, so the
+    // first keyword would otherwise come back empty and fall through to
+    // "unknown", needlessly tripping the read-only and approval gates for a
+    // pure read. Multi-statement payloads are already rejected above, so the
+    // inner leading keyword is a safe basis for classification.
+    let peeled_upper = trimmed
+        .trim_start_matches(|c: char| c == '(' || c.is_whitespace())
+        .to_uppercase();
+    let first = first_keyword(&peeled_upper);
 
     match first.as_str() {
         "SELECT" | "SHOW" | "EXPLAIN" | "DESCRIBE" | "DESC" | "PRAGMA" | "VALUES" => "select",
@@ -387,7 +397,7 @@ pub fn classify_query_kind(sql: &str) -> &'static str {
         "CREATE" | "DROP" | "ALTER" | "TRUNCATE" | "RENAME" | "GRANT" | "REVOKE" | "COMMENT" => {
             "ddl"
         }
-        "WITH" => classify_cte(&upper),
+        "WITH" => classify_cte(&peeled_upper),
         _ => "unknown",
     }
 }

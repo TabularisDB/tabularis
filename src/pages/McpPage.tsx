@@ -21,7 +21,7 @@ import {
 import { AiActivityPanel } from "../components/settings/AiActivityPanel";
 import { McpSafetySection } from "../components/modals/mcp/McpSafetySection";
 import { useAlert } from "../hooks/useAlert";
-import { useTheme } from "../hooks/useTheme";
+import { useEditorTheme } from "../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../themes/themeUtils";
 
 interface McpClientStatus {
@@ -126,7 +126,7 @@ export function McpPage() {
 
 function McpSetupPanel() {
   const { t } = useTranslation();
-  const { currentTheme } = useTheme();
+  const editorTheme = useEditorTheme();
   const { showAlert } = useAlert();
   const [clients, setClients] = useState<McpClientStatus[]>([]);
   const [loading, setLoading] = useState(true);
@@ -298,9 +298,9 @@ function McpSetupPanel() {
                 <Editor
                   height="220px"
                   defaultLanguage="json"
-                  theme={currentTheme.id}
+                  theme={editorTheme.id}
                   value={jsonValue}
-                  beforeMount={(monaco) => loadMonacoTheme(currentTheme, monaco)}
+                  beforeMount={(monaco) => loadMonacoTheme(editorTheme, monaco)}
                   options={{
                     readOnly: true,
                     minimap: { enabled: false },

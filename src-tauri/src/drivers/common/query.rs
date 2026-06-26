@@ -264,6 +264,23 @@ pub fn extract_user_limit(query: &str) -> Option<u32> {
     None
 }
 
+/// Extract the numeric value from a trailing OFFSET clause, if present.
+///
+/// Mirrors [`extract_user_limit`] and only recognises the `… OFFSET <n>`
+/// shape that [`strip_limit_offset`] removes (the common `LIMIT x OFFSET y`
+/// ordering). Uses a token-aware scan so `OFFSET` inside an identifier or
+/// string literal is never misidentified.
+pub fn extract_user_offset(query: &str) -> Option<u32> {
+    let tokens = tokenize_sql_with_pos(query.trim());
+    let end = tokens.len();
+
+    if end >= 2 && tokens[end - 2].0.to_uppercase() == "OFFSET" {
+        return tokens[end - 1].0.parse().ok();
+    }
+
+    None
+}
+
 /// Build a paginated query by stripping any user-supplied LIMIT/OFFSET and
 /// appending pagination clauses directly. ORDER BY is left in place so that
 /// table-qualified column references (e.g. `o.created_at`) remain valid —
@@ -271,20 +288,26 @@ pub fn extract_user_limit(query: &str) -> Option<u32> {
 /// of scope and cause "unknown column" errors.
 ///
 /// When the user wrote an explicit LIMIT, it is honoured as a cap on the total
-/// number of rows returned across all pages.
+/// number of rows returned across all pages. A user-supplied OFFSET is honoured
+/// too: it is added to the per-page offset so that pagination walks the result
+/// set the user actually asked for (the rows after their OFFSET). Discarding it
+/// silently collapsed `LIMIT 1 OFFSET 1` to `LIMIT 1 OFFSET 0` on page 1.
 pub fn build_paginated_query(query: &str, page_size: u32, page: u32) -> String {
-    let offset = calculate_offset(page, page_size);
+    let page_offset = calculate_offset(page, page_size);
     let user_limit = extract_user_limit(query);
+    let user_offset = extract_user_offset(query).unwrap_or(0);
     let base = strip_limit_offset(query);
 
     let fetch_count = match user_limit {
         Some(ul) => {
-            let remaining = ul.saturating_sub(offset);
+            let remaining = ul.saturating_sub(page_offset);
             // +1 for has_more detection, but capped by user's LIMIT
             remaining.min(page_size + 1)
         }
         None => page_size + 1,
     };
+
+    let offset = user_offset.saturating_add(page_offset);
 
     format!("{} LIMIT {} OFFSET {}", base, fetch_count, offset)
 }

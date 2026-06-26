@@ -83,20 +83,33 @@ mod tests {
     }
 
     #[test]
-    fn postgres_pool_key_ignores_mysql_ssl_key_fields() {
-        let required = connection_params("postgres", Some("required"));
-        let disabled = connection_params("postgres", Some("disabled"));
+    fn postgres_pool_key_changes_when_ssl_mode_changes() {
+        let required = connection_params("postgres", Some("require"));
+        let disabled = connection_params("postgres", Some("disable"));
 
-        assert_eq!(
+        assert_ne!(
             build_connection_key(&required, Some("conn-1")),
             build_connection_key(&disabled, Some("conn-1"))
         );
     }
 
     #[test]
-    fn sqlite_pool_key_ignores_mysql_ssl_key_fields() {
+    fn postgres_pool_key_changes_when_ssl_ca_changes() {
+        let without_ca = connection_params("postgres", Some("verify-ca"));
+        let mut with_ca = connection_params("postgres", Some("verify-ca"));
+        with_ca.ssl_ca = Some("/tmp/postgres-ca.pem".to_string());
+
+        assert_ne!(
+            build_connection_key(&without_ca, Some("conn-1")),
+            build_connection_key(&with_ca, Some("conn-1"))
+        );
+    }
+
+    #[test]
+    fn sqlite_pool_key_ignores_tls_key_fields() {
         let required = connection_params("sqlite", Some("required"));
-        let disabled = connection_params("sqlite", Some("disabled"));
+        let mut disabled = connection_params("sqlite", Some("disabled"));
+        disabled.ssl_ca = Some("/tmp/sqlite-ca.pem".to_string());
 
         assert_eq!(
             build_connection_key(&required, Some("conn-1")),

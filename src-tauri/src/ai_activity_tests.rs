@@ -438,6 +438,70 @@ mod tests {
         );
     }
 
+    // -----------------------------------------------------------------------
+    // Parenthesized query expressions. A `(SELECT ...) UNION ALL (SELECT ...)`
+    // starts with `(`, so the first keyword would come back empty and fall
+    // through to "unknown" — needlessly tripping the read-only / approval
+    // gates for a pure read. The leading `(` (and whitespace) must be peeled
+    // before reading the first keyword.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn classify_parenthesized_union_all_is_select() {
+        assert_eq!(
+            classify_query_kind(
+                "(SELECT 'a' AS kw, content FROM t WHERE id IN (1, 2) ORDER BY id LIMIT 8) \
+                 UNION ALL \
+                 (SELECT 'b' AS kw, content FROM t WHERE id IN (3, 4) ORDER BY id LIMIT 8)"
+            ),
+            "select"
+        );
+    }
+
+    #[test]
+    fn classify_parenthesized_select_with_whitespace_is_select() {
+        assert_eq!(classify_query_kind("(  SELECT 1 )"), "select");
+        assert_eq!(classify_query_kind("( ( SELECT 1 ) )"), "select");
+    }
+
+    #[test]
+    fn classify_parenthesized_then_drop_is_unknown() {
+        // Peeling the leading `(` must not weaken multi-statement detection:
+        // an injected trailing statement still fails closed.
+        assert_eq!(
+            classify_query_kind("(SELECT 1); DROP TABLE users"),
+            "unknown"
+        );
+    }
+
+    #[test]
+    fn classify_empty_or_whitespace_parens_is_unknown() {
+        // Peeling all leading `(` and whitespace can leave no keyword at all;
+        // the classifier must fail closed rather than guess "select".
+        assert_eq!(classify_query_kind("()"), "unknown");
+        assert_eq!(classify_query_kind("(   )"), "unknown");
+        assert_eq!(classify_query_kind("((()))"), "unknown");
+    }
+
+    #[test]
+    fn classify_parenthesized_write_or_ddl_is_not_downgraded() {
+        // The peel is greedy, but the inner keyword still drives the result:
+        // a parenthesized write/DDL must never be downgraded to "select", or
+        // the read-only and approval gates would let it through.
+        assert_eq!(classify_query_kind("( DROP TABLE t )"), "ddl");
+        assert_eq!(classify_query_kind("( DELETE FROM users )"), "write");
+    }
+
+    #[test]
+    fn classify_parenthesized_cte_with_insert_is_write() {
+        // classify_cte scans the whole body, not just the start, so a CTE
+        // wrapped in parens whose tail writes is still classified "write".
+        assert_eq!(
+            classify_query_kind("(WITH x AS (SELECT 1) INSERT INTO t SELECT * FROM x)"),
+            "write"
+        );
+    }
+
     #[test]
     fn classify_handles_leading_comment_then_select() {
         assert_eq!(

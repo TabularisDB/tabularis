@@ -81,6 +81,30 @@ describe("JsonCell", () => {
     expect(cell.className).toMatch(/json-cell-truncated/);
   });
 
+  it("renders only a bounded preview for very large JSON values", () => {
+    // A multi-megabyte stringified value must not explode into the DOM.
+    const huge = `{"items":[${Array.from({ length: 5000 }, (_, i) => `{"id":${i},"name":"item-${i}"}`).join(",")}]}`;
+    const { container } = render(
+      <JsonCell {...baseProps} value={{ big: true }} displayText={huge} />,
+    );
+    const previewSpan = container.querySelector(".truncate") as HTMLElement;
+    // Rendered text stays bounded regardless of the source size.
+    expect(previewSpan.textContent!.length).toBeLessThan(huge.length);
+    expect(previewSpan.textContent!.length).toBeLessThan(400);
+    // The trailing ellipsis signals there is more behind the viewer.
+    expect(previewSpan.textContent).toContain("…");
+  });
+
+  it("keeps expand/viewer affordances visible when the preview is truncated", () => {
+    setScrollDims(100, 200); // not visually overflowing…
+    const huge = `"${"x".repeat(10000)}"`; // …but truncated by the length cap
+    const { container } = render(
+      <JsonCell {...baseProps} value={"x".repeat(10000)} displayText={huge} />,
+    );
+    const cell = container.firstChild as HTMLElement;
+    expect(cell.className).toMatch(/json-cell-truncated/);
+  });
+
   it("hides icons when isPendingDelete is true", () => {
     render(<JsonCell {...baseProps} isPendingDelete={true} />);
     expect(screen.queryByRole("button", { name: /expand/i })).toBeNull();

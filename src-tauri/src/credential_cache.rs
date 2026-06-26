@@ -130,18 +130,22 @@ pub fn get_ai_key_cached(cache: &CredentialCache, provider: &str) -> Result<Stri
             None => {}
         }
     }
-    let result = crate::keychain_utils::get_ai_key(provider);
-    {
-        let mut guard = cache.ai_keys.lock().unwrap();
-        guard.insert(
-            provider.to_string(),
-            match &result {
-                Ok(v) => CacheEntry::Present(v.clone()),
-                Err(_) => CacheEntry::Absent,
-            },
-        );
+    match crate::keychain_utils::get_ai_key(provider) {
+        // A value, or a definitive miss (NoEntry): both are safe to memoize so
+        // we never re-prompt for this provider again this session.
+        Ok(maybe) => {
+            let entry = match &maybe {
+                Some(v) => CacheEntry::Present(v.clone()),
+                None => CacheEntry::Absent,
+            };
+            cache.ai_keys.lock().unwrap().insert(provider.to_string(), entry);
+            maybe.ok_or_else(|| "No entry".to_string())
+        }
+        // Transient failure (denied prompt, timeout, securityd error): do NOT
+        // cache, so the next read retries the keychain instead of pinning the
+        // key as permanently absent.
+        Err(e) => Err(e),
     }
-    result
 }
 
 // ─── Write-through helpers ────────────────────────────────────────────────────

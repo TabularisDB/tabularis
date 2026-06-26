@@ -297,14 +297,24 @@ describe("filterBar utils", () => {
       expect(buildSingleFilterClause(filter)).toBe("price >= 9.99");
     });
 
-    it("should quote the column name with double quotes for postgres driver", () => {
+    it("should quote mixed-case column names for postgres driver", () => {
+      const filter: StructuredFilter = {
+        id: "1",
+        column: "UserStatus",
+        operator: "=",
+        value: "active",
+      };
+      expect(buildSingleFilterClause(filter, "postgres")).toBe('"UserStatus" = \'active\'');
+    });
+
+    it("should not quote plain lowercase column names for postgres driver", () => {
       const filter: StructuredFilter = {
         id: "1",
         column: "user_status",
         operator: "=",
         value: "active",
       };
-      expect(buildSingleFilterClause(filter, "postgres")).toBe('"user_status" = \'active\'');
+      expect(buildSingleFilterClause(filter, "postgres")).toBe("user_status = 'active'");
     });
 
     it("should not quote the column name for mysql driver", () => {
@@ -340,13 +350,13 @@ describe("filterBar utils", () => {
       );
     });
 
-    it("should quote columns for postgres in structured filters", () => {
+    it("should quote columns that require quoting for postgres in structured filters", () => {
       const filters: StructuredFilter[] = [
-        { id: "1", column: "status", operator: "=", value: "active" },
-        { id: "2", column: "age", operator: ">", value: "18" },
+        { id: "1", column: "UserStatus", operator: "=", value: "active" },
+        { id: "2", column: "order", operator: ">", value: "18" },
       ];
       expect(buildStructuredFilterClause(filters, "postgres")).toBe(
-        '"status" = \'active\' AND "age" > 18'
+        '"UserStatus" = \'active\' AND "order" > 18'
       );
     });
 

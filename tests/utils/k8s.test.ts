@@ -6,6 +6,7 @@ import {
   getK8sContexts,
   getK8sNamespaces,
   getK8sResources,
+  getK8sResourcePorts,
   loadK8sConnections,
   saveK8sConnection,
   updateK8sConnection,
@@ -38,19 +39,19 @@ describe("k8s", () => {
       it("should fail when name is missing", () => {
         const result = validateK8sConnection({ ...validInput, name: "" });
         expect(result.isValid).toBe(false);
-        expect(result.error).toBe("Connection name is required");
+        expect(result.errorKey).toBe("k8sConnections.errors.nameRequired");
       });
 
       it("should fail when name is whitespace", () => {
         const result = validateK8sConnection({ ...validInput, name: "   " });
         expect(result.isValid).toBe(false);
-        expect(result.error).toBe("Connection name is required");
+        expect(result.errorKey).toBe("k8sConnections.errors.nameRequired");
       });
 
       it("should fail when context is missing", () => {
         const result = validateK8sConnection({ ...validInput, context: "" });
         expect(result.isValid).toBe(false);
-        expect(result.error).toBe("Kubernetes context is required");
+        expect(result.errorKey).toBe("k8sConnections.errors.contextRequired");
       });
 
       it("should fail when namespace is missing", () => {
@@ -59,7 +60,7 @@ describe("k8s", () => {
           namespace: "",
         });
         expect(result.isValid).toBe(false);
-        expect(result.error).toBe("Namespace is required");
+        expect(result.errorKey).toBe("k8sConnections.errors.namespaceRequired");
       });
 
       it("should fail when resource_name is missing", () => {
@@ -68,7 +69,7 @@ describe("k8s", () => {
           resource_name: "",
         });
         expect(result.isValid).toBe(false);
-        expect(result.error).toBe("Resource name is required");
+        expect(result.errorKey).toBe("k8sConnections.errors.resourceNameRequired");
       });
     });
 
@@ -79,8 +80,8 @@ describe("k8s", () => {
           resource_type: "deployment",
         });
         expect(result.isValid).toBe(false);
-        expect(result.error).toBe(
-          "Resource type must be 'service' or 'pod'",
+        expect(result.errorKey).toBe(
+          "k8sConnections.errors.resourceTypeInvalid",
         );
       });
 
@@ -105,7 +106,7 @@ describe("k8s", () => {
       it("should fail when port is 0", () => {
         const result = validateK8sConnection({ ...validInput, port: 0 });
         expect(result.isValid).toBe(false);
-        expect(result.error).toBe("Port must be between 1 and 65535");
+        expect(result.errorKey).toBe("k8sConnections.errors.portInvalid");
       });
 
       it("should fail when port is > 65535", () => {
@@ -114,7 +115,7 @@ describe("k8s", () => {
           port: 70000,
         });
         expect(result.isValid).toBe(false);
-        expect(result.error).toBe("Port must be between 1 and 65535");
+        expect(result.errorKey).toBe("k8sConnections.errors.portInvalid");
       });
 
       it("should succeed with port 1", () => {
@@ -238,6 +239,28 @@ describe("k8s", () => {
         resourceType: "service",
       });
       expect(result).toEqual(["mysql-svc", "postgres-svc"]);
+    });
+  });
+
+  describe("getK8sResourcePorts", () => {
+    it("should call invoke with all parameters", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      vi.mocked(invoke).mockResolvedValue([5432]);
+
+      const result = await getK8sResourcePorts(
+        "minikube",
+        "database",
+        "service",
+        "postgres-svc",
+      );
+
+      expect(invoke).toHaveBeenCalledWith("get_k8s_resource_ports_cmd", {
+        context: "minikube",
+        namespace: "database",
+        resourceType: "service",
+        resourceName: "postgres-svc",
+      });
+      expect(result).toEqual([5432]);
     });
   });
 

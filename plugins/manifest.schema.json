@@ -152,6 +152,11 @@
           "type": "boolean",
           "default": false,
           "description": "When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table and column management is also hidden regardless of manage_tables. Defaults to false."
+        },
+        "supports_ssl": {
+          "type": "boolean",
+          "default": false,
+          "description": "true to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal for this network driver. Defaults to false."
         }
       }
     },

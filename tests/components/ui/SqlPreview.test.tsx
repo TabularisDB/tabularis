@@ -11,11 +11,9 @@ vi.mock('@monaco-editor/react', () => ({
   )),
 }));
 
-// Mock useTheme hook
-vi.mock('../../../src/hooks/useTheme', () => ({
-  useTheme: vi.fn(() => ({
-    currentTheme: { id: 'tabularis-dark' },
-  })),
+// Mock useEditorTheme hook
+vi.mock('../../../src/hooks/useEditorTheme', () => ({
+  useEditorTheme: vi.fn(() => ({ id: 'tabularis-dark' })),
 }));
 
 // Mock themeUtils

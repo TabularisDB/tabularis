@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { FileJson, X, Loader2, RotateCcw } from "lucide-react";
 import MonacoEditor, { type OnMount } from "@monaco-editor/react";
 import { invoke } from "@tauri-apps/api/core";
-import { useTheme } from "../../hooks/useTheme";
+import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 import { Modal } from "../ui/Modal";
 import { ConfirmModal } from "./ConfirmModal";
@@ -15,7 +15,7 @@ interface ConfigJsonModalProps {
 
 export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
   const { t } = useTranslation();
-  const { currentTheme } = useTheme();
+  const editorTheme = useEditorTheme();
   const [jsonValue, setJsonValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -35,7 +35,7 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
-    loadMonacoTheme(currentTheme, monaco);
+    loadMonacoTheme(editorTheme, monaco);
   };
 
   const handleSave = async () => {
@@ -99,7 +99,7 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
                 <MonacoEditor
                   height="500px"
                   defaultLanguage="json"
-                  theme={currentTheme.id}
+                  theme={editorTheme.id}
                   value={jsonValue}
                   onChange={(val) => {
                     setJsonValue(val ?? "");
