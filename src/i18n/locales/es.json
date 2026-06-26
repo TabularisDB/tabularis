@@ -808,6 +808,8 @@
     "newRow": "Nueva Fila",
     "editing": "Editando: {{table}}",
     "rowsRetrieved": "{{count}} filas obtenidas",
+    "queryExecuted": "Consulta ejecutada correctamente",
+    "rowsAffected": "{{count}} filas afectadas",
     "autoPaginated": "Paginación automática",
     "pageOf": "Página {{current}} de {{total}}",
     "page": "Página {{current}}",

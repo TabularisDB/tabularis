@@ -809,6 +809,8 @@
     "newRow": "Neue Zeile",
     "editing": "Bearbeitung: {{table}}",
     "rowsRetrieved": "{{count}} Zeilen abgerufen",
+    "queryExecuted": "Abfrage erfolgreich ausgeführt",
+    "rowsAffected": "{{count}} Zeilen betroffen",
     "autoPaginated": "Automatisch paginiert",
     "pageOf": "Seite {{current}} von {{total}}",
     "page": "Seite {{current}}",

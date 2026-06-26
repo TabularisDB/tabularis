@@ -777,6 +777,8 @@
     "newRow": "新建行",
     "editing": "编辑中：{{table}}",
     "rowsRetrieved": "已检索 {{count}} 行",
+    "queryExecuted": "查询执行成功",
+    "rowsAffected": "{{count}} 行受影响",
     "autoPaginated": "自动分页",
     "pageOf": "第 {{current}} 页，共 {{total}} 页",
     "page": "第 {{current}} 页",

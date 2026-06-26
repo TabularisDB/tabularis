@@ -804,6 +804,8 @@
     "newRow": "Новая строка",
     "editing": "Редактирование: {{table}}",
     "rowsRetrieved": "Строк: {{count}}",
+    "queryExecuted": "Запрос выполнен успешно",
+    "rowsAffected": "затронуто строк: {{count}}",
     "autoPaginated": "Автопостраничный вывод",
     "pageOf": "Страница {{current}} из {{total}}",
     "page": "Страница {{current}}",

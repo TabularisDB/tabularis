@@ -822,6 +822,8 @@
     "newRow": "新規行",
     "editing": "編集中: {{table}}",
     "rowsRetrieved": "{{count}} 行を取得しました",
+    "queryExecuted": "クエリが正常に実行されました",
+    "rowsAffected": "{{count}} 行に影響",
     "autoPaginated": "自動ページング",
     "pageOf": "{{current}} / {{total}} ページ",
     "page": "{{current}} ページ",

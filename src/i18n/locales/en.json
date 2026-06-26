@@ -810,6 +810,8 @@
     "newRow": "New Row",
     "editing": "Editing: {{table}}",
     "rowsRetrieved": "{{count}} rows retrieved",
+    "queryExecuted": "Query executed successfully",
+    "rowsAffected": "{{count}} rows affected",
     "autoPaginated": "Auto paginated",
     "pageOf": "Page {{current}} of {{total}}",
     "page": "Page {{current}}",

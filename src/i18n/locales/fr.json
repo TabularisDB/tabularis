@@ -809,6 +809,8 @@
     "newRow": "Nouvelle ligne",
     "editing": "Modification : {{table}}",
     "rowsRetrieved": "{{count}} lignes récupérées",
+    "queryExecuted": "Requête exécutée avec succès",
+    "rowsAffected": "{{count}} lignes affectées",
     "autoPaginated": "Pagination automatique",
     "pageOf": "Page {{current}} sur {{total}}",
     "page": "Page {{current}}",

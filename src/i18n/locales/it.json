@@ -792,6 +792,8 @@
     "newRow": "Nuova riga",
     "editing": "Modifica: {{table}}",
     "rowsRetrieved": "{{count}} righe recuperate",
+    "queryExecuted": "Query eseguita con successo",
+    "rowsAffected": "{{count}} righe interessate",
     "autoPaginated": "Impaginazione automatica",
     "pageOf": "Pagina {{current}} di {{total}}",
     "page": "Pagina {{current}}",
