@@ -211,7 +211,11 @@
       "approvalTimeout": "Tiempo de espera",
       "approvalTimeoutDesc": "Cuánto espera el subproceso MCP la decisión del usuario antes de fallar.",
       "preflightExplain": "EXPLAIN previo",
-      "preflightExplainDesc": "Ejecuta un EXPLAIN antes de mostrar el modal para que el usuario vea el plan."
+      "preflightExplainDesc": "Ejecuta un EXPLAIN antes de mostrar el modal para que el usuario vea el plan.",
+      "approvalAlwaysOnTop": "Traer el diálogo de aprobación al frente",
+      "approvalAlwaysOnTopDesc": "Cuando una acción MCP que no sea de lectura necesite aprobación, trae Tabularis al frente y lo mantiene temporalmente por encima de las demás ventanas.",
+      "approvalNotifySound": "Enviar notificación y reproducir sonido",
+      "approvalNotifySoundDesc": "Muestra una notificación nativa del sistema y reproduce un sonido corto cuando llega una nueva solicitud de aprobación MCP."
     }
   },
   "connections": {
@@ -288,6 +292,9 @@
     "delimiterSemicolon": "Punto y coma (;)",
     "delimiterTab": "Tab",
     "delimiterPipe": "Pipe (|)",
+    "csvIncludeHeaders": "Incluir encabezados CSV",
+    "csvIncludeHeadersDesc": "Incluir una fila de encabezado con los nombres de las columnas al copiar filas como CSV.",
+    "csvHeaders": "Exportar nombres de columnas",
     "detectJsonInTextColumns": "Detectar JSON en columnas de texto",
     "detectJsonInTextColumnsDesc": "Muestra el visor de JSON cuando una celda de texto sin tipar contiene un objeto o array JSON. Añade un pequeño coste de análisis por celda.",
     "appearance": "Apariencia",
@@ -342,6 +349,8 @@
     "roadmapDesc": "Este proyecto es un Work In Progress (WIP). Las funciones principales son estables, pero tenemos grandes planes.",
     "support": "Apoya el Desarrollo",
     "supportDesc": "Si te gusta tabularis y quieres ver más funcionalidades, considera apoyar el proyecto contribuyendo código, reportando errores o dando una estrella en GitHub.",
+    "followUs": "Síguenos",
+    "followUsDesc": "Mantente al día y conecta con la comunidad en tu plataforma favorita.",
     "version": "Versión",
     "starOnGithub": "Estrella en GitHub",
     "ai": {
@@ -461,6 +470,10 @@
     "startup": "Inicio",
     "showWelcome": "Mostrar pantalla de bienvenida",
     "showWelcomeDesc": "Mostrar la pantalla de bienvenida al iniciar la aplicación.",
+    "autoConnectLastConnection": "Reabrir últimas conexiones",
+    "autoConnectLastConnectionDesc": "Se reconecta a las conexiones que estaban abiertas al cerrar la aplicación.",
+    "startMaximized": "Iniciar maximizada",
+    "startMaximizedDesc": "Abre la ventana maximizada para llenar la pantalla al iniciar.",
     "erDiagram": "Diagrama ER",
     "erDiagramDefaultLayout": "Diseño Predeterminado",
     "erDiagramDefaultLayoutDesc": "Elige la dirección de diseño predeterminada para los diagramas ER",
@@ -657,6 +670,7 @@
     "sshKeyFilePlaceholder": "/ruta/a/id_rsa",
     "sshKeyPassphrase": "Frase de Paso de Clave SSH (Opcional)",
     "sshKeyPassphrasePlaceholder": "Ingresa la frase de paso si la clave está cifrada",
+    "allowSshPrompt": "Permitir solicitud de contraseña/PIN de SSH",
     "saveKeychain": "Guardar contraseñas en el Llavero",
     "testConnection": "Probar Conexión",
     "save": "Guardar",
@@ -720,6 +734,12 @@
     "quickTest": "Prueba rápida de conexión",
     "testFailed": "La prueba de conexión falló",
     "savedInKeychain": "Contraseña guardada en el llavero del sistema"
+  },
+  "sshAskpass": {
+    "title": "Autenticación SSH",
+    "subtitle": "La conexión SSH necesita tu intervención",
+    "placeholder": "PIN o frase de contraseña",
+    "waiting": "Esperando tu llave de seguridad — tócala para confirmar."
   },
   "dataGrid": {
     "newRow": "NUEVA",
@@ -1475,7 +1495,9 @@
     "reasonLabel": "Razón (opcional)",
     "reasonPlaceholder": "ej. Parece arriesgada en prod, confirma…",
     "approve": "Aprobar",
-    "deny": "Denegar"
+    "deny": "Denegar",
+    "notificationTitle": "Se necesita aprobación MCP",
+    "notificationBody": "Abrí Tabularis para revisar la aprobación MCP pendiente."
   },
   "discordCallout": {
     "title": "¡Nueva comunidad Discord!",

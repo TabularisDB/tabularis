@@ -80,6 +80,8 @@ pub struct SshConnection {
     pub key_file: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub key_passphrase: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_passphrase_prompt: Option<bool>,
     pub save_in_keychain: Option<bool>,
 }
 
@@ -95,6 +97,8 @@ pub struct SshConnectionInput {
     pub key_file: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub key_passphrase: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_passphrase_prompt: Option<bool>,
     pub save_in_keychain: Option<bool>,
 }
 
@@ -109,6 +113,8 @@ pub struct SshTestParams {
     pub key_file: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub key_passphrase: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_passphrase_prompt: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
 }
@@ -141,6 +147,8 @@ pub struct ConnectionParams {
     pub ssh_key_file: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ssh_key_passphrase: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ssh_allow_passphrase_prompt: Option<bool>,
     pub save_in_keychain: Option<bool>,
     // Kubernetes Tunnel (mutually exclusive with SSH)
     #[serde(default)]

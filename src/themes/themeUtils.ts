@@ -12,6 +12,8 @@ import SolarizedDarkTheme from "./monaco/Solarized-dark.json";
 import SolarizedLightTheme from "./monaco/Solarized-light.json";
 import OneDarkProTheme from "./monaco/One Dark Pro.json";
 import NightOwlTheme from "./monaco/Night Owl.json";
+import GruvboxMaterialDarkTheme from "./monaco/Gruvbox Material Dark.json";
+import GruvboxMaterialLightTheme from "./monaco/Gruvbox Material Light.json";
 
 // Map of theme names to imported theme data
 const MONACO_THEMES_MAP: Record<string, unknown> = {
@@ -24,6 +26,8 @@ const MONACO_THEMES_MAP: Record<string, unknown> = {
   "Solarized-light": SolarizedLightTheme,
   "One Dark Pro": OneDarkProTheme,
   "Night Owl": NightOwlTheme,
+  "Gruvbox Material Dark": GruvboxMaterialDarkTheme,
+  "Gruvbox Material Light": GruvboxMaterialLightTheme,
 };
 
 // Track which themes have been defined

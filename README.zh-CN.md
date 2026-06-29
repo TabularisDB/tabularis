@@ -5,8 +5,8 @@
 # tabularis
 
 <p align="center">
-  <strong>一款开源数据库客户端，支持 PostgreSQL、MySQL/MariaDB 和 SQLite。<br />
-  内置 SQL 笔记本、可视化 EXPLAIN、AI 和 MCP，其余功能可通过插件添加。</strong>
+  <strong>Tabularis 是一款开源的桌面 SQL 工作台，支持 PostgreSQL、MySQL/MariaDB、SQLite 以及 DuckDB、ClickHouse、Redis 和 Firestore 等 12+ 种数据库。<br />
+  其内置的 MCP 服务器可让 Claude、Cursor 和 Devin（原 Windsurf）在你日常使用的同一款应用中读取数据库结构并执行查询。</strong>
 </p>
 
 <p align="center">
@@ -71,9 +71,17 @@ sudo snap install tabularis                                      # Linux
 | 支持**任意语言**编写插件（基于 stdio 的 JSON-RPC） | ✅ | Java/Eclipse 插件 | JavaScript 插件 | ❌ |
 | 支持**本地模型**（Ollama）的 AI text-to-SQL | ✅ | 基于云端的 AI 助手 | ❌ | ❌ |
 | 带交互式计划图的可视化 EXPLAIN | ✅ | ✅ | ❌ | ❌ |
-| 开箱即用支持的数据库 | 3 种（+ 可通过插件扩展任意数据库） | 100+ | 20+ | 约 10 种 |
+| 开箱即用支持的数据库 | 3 种内置 + 12 个官方插件 | 100+ | 20+ | 约 10 种 |
 
 > 对比数据截至 2026 年 6 月，其他工具的功能此后可能已有变化。如果你需要几十种驱动，请使用 DBeaver——tabularis 专注于把少数几种数据库做好。
+
+### 数据库支持
+
+PostgreSQL、MySQL/MariaDB 和 SQLite 为内置支持。其余均为插件——下面列出每个集成当前的状态，与网站上的[驱动与插件覆盖](https://tabularis.dev/#driver-coverage)保持一致。
+
+ClickHouse（已发布）、Cloudflare D1（已发布）、DuckDB（已发布）、Firestore（已发布）、IBM Db2（已发布）、IBM Informix（已发布）、Redis（已发布）、CSV Folder（已发布）、Google Sheets（已发布）、HackerNews（已发布）、Google BigQuery（已认领）、LibSQL / Turso（已认领）、Meilisearch（已认领）、MongoDB（已认领）、Oracle（已认领）、SQL Server（已认领）、Amazon Redshift（已规划）、CockroachDB（已规划）、TiDB（已规划）、DynamoDB（即将推出）、Snowflake（即将推出）、Cassandra（开放中）、Elasticsearch（开放中）、Etcd（开放中）、Firebird（开放中）、ScyllaDB（开放中）、SQL Anywhere（开放中）、SurrealDB（开放中）、Trino / Presto（开放中）。
+
+> 标记为**已发布**的驱动可从[插件注册表](https://tabularis.dev/plugins)安装。其余均在[悬赏看板](https://tabularis.dev/plugins/bounties)上——你可以认领、赞助，或[申请新数据库](https://github.com/TabularisDB/tabularis/discussions)。
 
 ## 安装
 
@@ -92,11 +100,16 @@ brew tap TabularisDB/tabularis
 brew install --cask tabularis
 ```
 
-如果你从 release 直接安装，可能还需要执行：
+从 **v0.13.1** 起，构建版本已由 Apple 签名并公证，直接打开即可，无需任何额外步骤。
 
-```bash
-xattr -c /Applications/tabularis.app
-```
+以下说明仅适用于直接下载的旧版本（v0.13.1 之前）：
+
+- 你需要在“隐私与安全性”中授予 tabularis 应用辅助功能（Accessibility）访问权限。如果你是升级安装，并且 tabularis 已在允许列表中，请先手动将其移除，然后才能为新版本授予辅助功能访问权限。
+- 将应用复制到“应用程序”目录后，可能还需要执行：
+
+  ```bash
+  xattr -c /Applications/tabularis.app
+  ```
 
 ### Linux
 
