@@ -497,42 +497,65 @@ mod build_pk_predicate_tests {
 
     #[test]
     fn integer_pk_uses_bigint_cast() {
-        let (sql, _) = build_pk_predicate("id", serde_json::json!(1), 1).unwrap();
+        let (sql, _) = build_pk_predicate("id", serde_json::json!(1), 1, None).unwrap();
         assert_eq!(sql, "\"id\" = CAST($1 AS bigint)");
     }
 
     #[test]
     fn float_pk_uses_double_precision_cast() {
-        let (sql, _) = build_pk_predicate("id", serde_json::json!(1.5), 2).unwrap();
+        let (sql, _) = build_pk_predicate("id", serde_json::json!(1.5), 2, None).unwrap();
         assert_eq!(sql, "\"id\" = CAST($2 AS double precision)");
     }
 
     #[test]
     fn uuid_string_pk_binds_without_cast() {
         let uuid = "550e8400-e29b-41d4-a716-446655440000";
-        let (sql, _) = build_pk_predicate("uuid", serde_json::json!(uuid), 1).unwrap();
+        let (sql, _) = build_pk_predicate("uuid", serde_json::json!(uuid), 1, None).unwrap();
         assert_eq!(sql, "\"uuid\" = $1");
+    }
+
+    // issue #392: a uuid-shaped string in a varchar/text PK column must bind as
+    // text, not the native Uuid type — otherwise tokio-postgres rejects it with
+    // "error serializing parameter N" against the varchar column.
+    #[test]
+    fn uuid_string_pk_binds_as_text_for_varchar_column() {
+        let uuid = "550e8400-e29b-41d4-a716-446655440000";
+        let (sql, param) =
+            build_pk_predicate("guid", serde_json::json!(uuid), 1, Some("character varying"))
+                .unwrap();
+        assert_eq!(sql, "\"guid\" = $1");
+        assert_eq!(format!("{:?}", param), format!("{:?}", uuid.to_string()));
+    }
+
+    #[test]
+    fn uuid_string_pk_binds_as_uuid_for_uuid_column() {
+        let uuid = "550e8400-e29b-41d4-a716-446655440000";
+        let (sql, param) =
+            build_pk_predicate("id", serde_json::json!(uuid), 1, Some("uuid")).unwrap();
+        assert_eq!(sql, "\"id\" = $1");
+        let expected: uuid::Uuid = uuid.parse().unwrap();
+        assert_eq!(format!("{:?}", param), format!("{:?}", expected));
     }
 
     #[test]
     fn plain_string_pk_binds_without_cast() {
-        let (sql, _) = build_pk_predicate("name", serde_json::json!("alice"), 1).unwrap();
+        let (sql, _) = build_pk_predicate("name", serde_json::json!("alice"), 1, None).unwrap();
         assert_eq!(sql, "\"name\" = $1");
     }
 
     #[test]
     fn pk_col_with_quotes_is_escaped() {
-        let (sql, _) = build_pk_predicate("a\"b", serde_json::json!(1), 1).unwrap();
+        let (sql, _) = build_pk_predicate("a\"b", serde_json::json!(1), 1, None).unwrap();
         assert_eq!(sql, "\"a\"\"b\" = CAST($1 AS bigint)");
     }
 
     #[test]
     fn null_pk_is_rejected() {
-        assert!(build_pk_predicate("id", serde_json::Value::Null, 1).is_err());
+        assert!(build_pk_predicate("id", serde_json::Value::Null, 1, None).is_err());
     }
 
     #[test]
     fn bool_pk_is_rejected() {
-        assert!(build_pk_predicate("id", serde_json::json!(true), 1).is_err());
+        assert!(build_pk_predicate("id", serde_json::json!(true), 1, None).is_err());
     }
 }

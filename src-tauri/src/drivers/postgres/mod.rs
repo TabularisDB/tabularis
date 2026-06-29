@@ -422,7 +422,10 @@ pub async fn save_blob_column_to_file(
 ) -> Result<(), String> {
     let pool = get_postgres_pool(params).await?;
 
-    let (predicate, param) = build_pk_predicate(pk_col, pk_val, 1)?;
+    let pk_type = get_column_data_type(&pool, schema, table, pk_col)
+        .await
+        .unwrap_or(None);
+    let (predicate, param) = build_pk_predicate(pk_col, pk_val, 1, pk_type.as_deref())?;
     let query = format!(
         "SELECT \"{}\" FROM \"{}\".\"{}\" WHERE {}",
         escape_identifier(col_name),
@@ -447,7 +450,10 @@ pub async fn fetch_blob_column_as_data_url(
 ) -> Result<String, String> {
     let pool = get_postgres_pool(params).await?;
 
-    let (predicate, param) = build_pk_predicate(pk_col, pk_val, 1)?;
+    let pk_type = get_column_data_type(&pool, schema, table, pk_col)
+        .await
+        .unwrap_or(None);
+    let (predicate, param) = build_pk_predicate(pk_col, pk_val, 1, pk_type.as_deref())?;
     let query = format!(
         "SELECT \"{}\" FROM \"{}\".\"{}\" WHERE {}",
         escape_identifier(col_name),
@@ -547,7 +553,10 @@ pub async fn delete_record(
 ) -> Result<u64, String> {
     let pool = get_postgres_pool(params).await?;
 
-    let (predicate, param) = build_pk_predicate(pk_col, pk_val, 1)?;
+    let pk_type = get_column_data_type(&pool, schema, table, pk_col)
+        .await
+        .unwrap_or(None);
+    let (predicate, param) = build_pk_predicate(pk_col, pk_val, 1, pk_type.as_deref())?;
     let query = format!(
         "DELETE FROM \"{}\".\"{}\" WHERE {}",
         escape_identifier(schema),
@@ -608,7 +617,11 @@ pub async fn update_record(
         params.push(param);
     }
 
-    let (predicate, pk_param) = build_pk_predicate(pk_col, pk_val, params.len() + 1)?;
+    let pk_type = get_column_data_type(&pool, schema, table, pk_col)
+        .await
+        .unwrap_or(None);
+    let (predicate, pk_param) =
+        build_pk_predicate(pk_col, pk_val, params.len() + 1, pk_type.as_deref())?;
     query.push_str(" WHERE ");
     query.push_str(&predicate);
     params.push(pk_param);
