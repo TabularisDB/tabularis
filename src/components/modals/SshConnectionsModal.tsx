@@ -218,6 +218,7 @@ export function SshConnectionsModal({
         password: formData.password,
         key_file: formData.key_file,
         key_passphrase: formData.key_passphrase,
+        allow_passphrase_prompt: formData.allow_passphrase_prompt,
         save_in_keychain: formData.save_in_keychain,
       };
 
@@ -552,6 +553,24 @@ export function SshConnectionsModal({
                   className="text-sm font-medium text-secondary cursor-pointer select-none"
                 >
                   {t("newConnection.saveKeychain")}
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="ssh-prompt-toggle"
+                  checked={!!formData.allow_passphrase_prompt}
+                  onChange={(e) => {
+                    updateField("allow_passphrase_prompt", e.target.checked);
+                  }}
+                  className="accent-blue-500 w-4 h-4 rounded cursor-pointer"
+                />
+                <label
+                  htmlFor="ssh-prompt-toggle"
+                  className="text-sm font-medium text-secondary cursor-pointer select-none"
+                >
+                  {t("newConnection.allowSshPrompt")}
                 </label>
               </div>
 
