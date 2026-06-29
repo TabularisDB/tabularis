@@ -286,6 +286,9 @@
     "delimiterSemicolon": "分号 (;)",
     "delimiterTab": "制表符",
     "delimiterPipe": "管道符 (|)",
+    "csvIncludeHeaders": "包含 CSV 表头",
+    "csvIncludeHeadersDesc": "以 CSV 格式复制行时包含含有列名的表头行。",
+    "csvHeaders": "导出列名",
     "detectJsonInTextColumns": "在文本列中检测 JSON",
     "detectJsonInTextColumnsDesc": "当未带类型的文本单元格包含 JSON 对象或数组时显示 JSON 查看器入口。每单元格会增加少量解析开销。",
     "appearance": "外观",
@@ -630,6 +633,7 @@
     "sshKeyFilePlaceholder": "/path/to/id_rsa",
     "sshKeyPassphrase": "SSH 密钥密码（可选）",
     "sshKeyPassphrasePlaceholder": "如果加密请输入密钥密码",
+    "allowSshPrompt": "允许 SSH 密码/PIN 提示",
     "saveKeychain": "在密钥链中保存密码",
     "testConnection": "测试连接",
     "save": "保存",
@@ -699,6 +703,12 @@
     "quickTest": "快速连接测试",
     "testFailed": "连接测试失败",
     "savedInKeychain": "密码已保存到系统密钥链"
+  },
+  "sshAskpass": {
+    "title": "SSH 身份验证",
+    "subtitle": "SSH 连接需要您的输入",
+    "placeholder": "PIN 或密码短语",
+    "waiting": "正在等待您的安全密钥 — 触摸以确认。"
   },
   "dataGrid": {
     "newRow": "新建",

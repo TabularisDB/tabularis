@@ -282,6 +282,9 @@
     "delimiterSemicolon": "Точка с запятой (;)",
     "delimiterTab": "Табуляция",
     "delimiterPipe": "Вертикальная черта (|)",
+    "csvIncludeHeaders": "Включать заголовки CSV",
+    "csvIncludeHeadersDesc": "Добавлять строку заголовка с именами столбцов при копировании строк в формате CSV.",
+    "csvHeaders": "Экспортировать имена столбцов",
     "detectJsonInTextColumns": "Определять JSON в текстовых столбцах",
     "detectJsonInTextColumnsDesc": "Показывать просмотрщик JSON, когда нетипизированная текстовая ячейка содержит объект или массив JSON. Создаёт небольшие издержки на разбор каждой ячейки.",
     "appearance": "Внешний вид",
@@ -656,6 +659,7 @@
     "sshKeyFilePlaceholder": "/path/to/id_rsa",
     "sshKeyPassphrase": "Пароль SSH-ключа (необязательно)",
     "sshKeyPassphrasePlaceholder": "Введите пароль, если ключ зашифрован",
+    "allowSshPrompt": "Разрешить запрос пароля/PIN-кода SSH",
     "saveKeychain": "Сохранять пароли в Keychain",
     "testConnection": "Проверить подключение",
     "save": "Сохранить",
@@ -724,6 +728,12 @@
     "quickTest": "Быстрая проверка подключения",
     "testFailed": "Проверка подключения не удалась",
     "savedInKeychain": "Пароль сохранён в системном хранилище ключей"
+  },
+  "sshAskpass": {
+    "title": "Аутентификация SSH",
+    "subtitle": "SSH-подключению требуется ваш ввод",
+    "placeholder": "PIN-код или парольная фраза",
+    "waiting": "Ожидание ключа безопасности — коснитесь его для подтверждения."
   },
   "dataGrid": {
     "newRow": "НОВАЯ",

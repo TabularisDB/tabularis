@@ -832,6 +832,7 @@ mod tests {
             ssh_password: None,
             ssh_key_file: None,
             ssh_key_passphrase: None,
+            ssh_allow_passphrase_prompt: None,
             save_in_keychain: None,
             k8s_enabled: None,
             k8s_connection_id: None,

@@ -24,6 +24,10 @@ export interface Settings {
   displayTimezone?: string;
   fontFamily: string;
   fontSize: number;
+  /** Colorize query result cell values by their data type. Default: false. */
+  resultColorByType?: boolean;
+  /** Per-type hex color overrides for result cell values (keys: number, string, date, boolean). */
+  resultTypeColors?: Record<string, string>;
   aiEnabled: boolean;
   aiProvider: AiProvider | null;
   aiModel: string | null;
@@ -37,6 +41,8 @@ export interface Settings {
   erDiagramDefaultLayout?: ERDiagramLayout;
   copyFormat?: CopyFormat;
   csvDelimiter?: string;
+  /** Whether copied CSV output includes a header row. Default: true. */
+  csvIncludeHeaders?: boolean;
   activeExternalDrivers?: string[];
   plugins?: Record<string, PluginConfig>;
   editorTheme?: string;
@@ -88,6 +94,8 @@ export const DEFAULT_SETTINGS: Settings = {
   displayTimezone: "auto",
   fontFamily: "System",
   fontSize: 14,
+  resultColorByType: false,
+  resultTypeColors: {},
   aiEnabled: false,
   aiProvider: null,
   aiModel: null,
@@ -99,6 +107,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxLogEntries: 1000,
   copyFormat: "csv",
   csvDelimiter: ",",
+  csvIncludeHeaders: true,
   erDiagramDefaultLayout: "LR",
   editorFontFamily: "JetBrains Mono",
   editorFontSize: 14,

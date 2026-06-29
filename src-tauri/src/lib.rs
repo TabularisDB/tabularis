@@ -10,6 +10,7 @@ pub mod ai_commands;
 pub mod ai_notebook_export;
 #[cfg(test)]
 pub mod ai_notebook_export_tests;
+pub mod askpass;
 pub mod cli;
 pub mod clipboard_import;
 pub mod commands;
@@ -107,6 +108,10 @@ fn close_devtools(window: tauri::WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // When ssh re-executes this binary as its SSH_ASKPASS helper (see the
+    // `askpass` module), serve the prompt and exit without booting the app.
+    askpass::maybe_run_askpass_client();
+
     // On Linux + Wayland, disable the DMA-BUF renderer in WebKitGTK to prevent
     // "Protocol error dispatching to Wayland display" crashes.
     // This targets the specific protocol causing the error while keeping GPU
@@ -180,6 +185,10 @@ pub fn run() {
         .manage(json_viewer::JsonViewerStore::default())
         .manage(query_history::QueryHistoryState::default())
         .setup(move |app| {
+            // Allow the SSH tunnel code (which runs without a Tauri context)
+            // to bridge askpass prompts to the frontend.
+            askpass::set_app_handle(app.handle().clone());
+
             // Read persisted config to know which external plugins are enabled.
             // `None` means no preference has been saved yet → load all installed plugins.
             let active_ext_drivers =
@@ -282,6 +291,7 @@ pub fn run() {
             commands::update_ssh_connection,
             commands::delete_ssh_connection,
             commands::test_ssh_connection,
+            askpass::respond_ssh_askpass,
             // K8s Connections
             commands::get_k8s_connections,
             commands::save_k8s_connection,

@@ -292,6 +292,9 @@
     "delimiterSemicolon": "Punto y coma (;)",
     "delimiterTab": "Tab",
     "delimiterPipe": "Pipe (|)",
+    "csvIncludeHeaders": "Incluir encabezados CSV",
+    "csvIncludeHeadersDesc": "Incluir una fila de encabezado con los nombres de las columnas al copiar filas como CSV.",
+    "csvHeaders": "Exportar nombres de columnas",
     "detectJsonInTextColumns": "Detectar JSON en columnas de texto",
     "detectJsonInTextColumnsDesc": "Muestra el visor de JSON cuando una celda de texto sin tipar contiene un objeto o array JSON. Añade un pequeño coste de análisis por celda.",
     "appearance": "Apariencia",
@@ -667,6 +670,7 @@
     "sshKeyFilePlaceholder": "/ruta/a/id_rsa",
     "sshKeyPassphrase": "Frase de Paso de Clave SSH (Opcional)",
     "sshKeyPassphrasePlaceholder": "Ingresa la frase de paso si la clave está cifrada",
+    "allowSshPrompt": "Permitir solicitud de contraseña/PIN de SSH",
     "saveKeychain": "Guardar contraseñas en el Llavero",
     "testConnection": "Probar Conexión",
     "save": "Guardar",
@@ -736,6 +740,12 @@
     "quickTest": "Prueba rápida de conexión",
     "testFailed": "La prueba de conexión falló",
     "savedInKeychain": "Contraseña guardada en el llavero del sistema"
+  },
+  "sshAskpass": {
+    "title": "Autenticación SSH",
+    "subtitle": "La conexión SSH necesita tu intervención",
+    "placeholder": "PIN o frase de contraseña",
+    "waiting": "Esperando tu llave de seguridad — tócala para confirmar."
   },
   "dataGrid": {
     "newRow": "NUEVA",

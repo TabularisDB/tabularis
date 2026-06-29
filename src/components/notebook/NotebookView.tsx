@@ -58,6 +58,7 @@ import {
   createNotebookFromState,
 } from "../../utils/notebookStore";
 import { useDatabase } from "../../hooks/useDatabase";
+import { useSqlAutocompleteRegistration } from "../../hooks/useSqlAutocompleteRegistration";
 import { isMultiDatabaseCapable } from "../../utils/database";
 import { useSettings } from "../../hooks/useSettings";
 import { useAlert } from "../../hooks/useAlert";
@@ -90,6 +91,10 @@ export function NotebookView({
     isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1;
   const effectiveSchema =
     tab.schema || activeSchema || (isMultiDb ? selectedDatabases[0] : null);
+  useSqlAutocompleteRegistration(connectionId, {
+    schema: effectiveSchema,
+    enabled: isActive,
+  });
   const { settings } = useSettings();
   const { showAlert } = useAlert();
   const { matchesShortcut } = useKeybindings();

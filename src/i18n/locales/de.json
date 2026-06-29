@@ -287,6 +287,9 @@
     "delimiterSemicolon": "Semikolon (;)",
     "delimiterTab": "Tabulator",
     "delimiterPipe": "Pipe (|)",
+    "csvIncludeHeaders": "CSV-Kopfzeile einschließen",
+    "csvIncludeHeadersDesc": "Beim Kopieren von Zeilen als CSV eine Kopfzeile mit den Spaltennamen einfügen.",
+    "csvHeaders": "Spaltennamen exportieren",
     "detectJsonInTextColumns": "JSON in Text-Spalten erkennen",
     "detectJsonInTextColumnsDesc": "Zeigt JSON-Viewer-Bedienelemente, wenn eine nicht typisierte Text-Zelle ein JSON-Objekt oder -Array enthält. Verursacht kleine Parse-Kosten pro Zelle.",
     "appearance": "Darstellung",
@@ -662,6 +665,7 @@
     "sshKeyFilePlaceholder": "/pfad/zu/id_rsa",
     "sshKeyPassphrase": "Passphrase für SSH-Schlüssel (optional)",
     "sshKeyPassphrasePlaceholder": "Passphrase eingeben, falls der Schlüssel verschlüsselt ist",
+    "allowSshPrompt": "SSH-Passwort/PIN-Eingabeaufforderung erlauben",
     "saveKeychain": "Passwörter im Keychain speichern",
     "testConnection": "Verbindung testen",
     "save": "Speichern",
@@ -731,6 +735,12 @@
     "quickTest": "Schneller Verbindungstest",
     "testFailed": "Verbindungstest fehlgeschlagen",
     "savedInKeychain": "Passwort im System-Keychain gespeichert"
+  },
+  "sshAskpass": {
+    "title": "SSH-Authentifizierung",
+    "subtitle": "Die SSH-Verbindung benötigt Ihre Eingabe",
+    "placeholder": "PIN oder Passphrase",
+    "waiting": "Warten auf Ihren Sicherheitsschlüssel — zum Bestätigen berühren."
   },
   "dataGrid": {
     "newRow": "NEU",

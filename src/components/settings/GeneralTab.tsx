@@ -94,6 +94,20 @@ export function GeneralTab() {
           />
         </SettingRow>
 
+        <SettingRow
+          label={t("settings.csvIncludeHeaders")}
+          description={t("settings.csvIncludeHeadersDesc")}
+        >
+          <SettingToggle
+            checked={
+              settings.csvIncludeHeaders ??
+              DEFAULT_SETTINGS.csvIncludeHeaders ??
+              true
+            }
+            onChange={(v) => updateSetting("csvIncludeHeaders", v)}
+          />
+        </SettingRow>
+
       </SettingSection>
 
       <SettingSection title={t("settings.connectionHealthCheck")}>
