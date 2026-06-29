@@ -86,9 +86,9 @@ describe('themeRegistry', () => {
   });
 
   describe('getAllPresets', () => {
-    it('should return all 10 preset themes', () => {
+    it('should return all 12 preset themes', () => {
       const themes = themeRegistry.getAllPresets();
-      expect(themes).toHaveLength(10);
+      expect(themes).toHaveLength(12);
     });
 
     it('should return themes with correct structure', () => {

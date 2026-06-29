@@ -3,6 +3,7 @@ import { X, Github, Star } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GITHUB_URL, DISCORD_URL } from "../../config/links";
 import { DiscordIcon } from "../icons/DiscordIcon";
+import { SocialLinks } from "../SocialLinks";
 import { Modal } from "../ui/Modal";
 
 interface CommunityModalProps {
@@ -66,6 +67,13 @@ export const CommunityModal = ({ isOpen, onClose }: CommunityModalProps) => {
               <div className="text-xs text-muted mt-0.5">{t("community.discordDesc")}</div>
             </div>
           </button>
+
+          {/* Other socials */}
+          <SocialLinks
+            iconSize={18}
+            exclude={["GitHub", "Discord"]}
+            className="justify-center"
+          />
         </div>
 
         {/* Footer */}
