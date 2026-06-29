@@ -102,6 +102,23 @@ export async function getK8sResources(
 }
 
 /**
+ * List exposed ports for a Kubernetes resource.
+ */
+export async function getK8sResourcePorts(
+  context: string,
+  namespace: string,
+  resourceType: string,
+  resourceName: string,
+): Promise<number[]> {
+  return await invoke<number[]>("get_k8s_resource_ports_cmd", {
+    context,
+    namespace,
+    resourceType,
+    resourceName,
+  });
+}
+
+/**
  * Format a K8s connection for display
  */
 export function formatK8sConnectionString(k8s: K8sConnection): string {
@@ -111,10 +128,17 @@ export function formatK8sConnectionString(k8s: K8sConnection): string {
 /**
  * Validation result for K8s connection params
  */
-export interface K8sValidationResult {
-  isValid: boolean;
-  error?: string;
-}
+export type K8sValidationErrorKey =
+  | "k8sConnections.errors.nameRequired"
+  | "k8sConnections.errors.contextRequired"
+  | "k8sConnections.errors.namespaceRequired"
+  | "k8sConnections.errors.resourceTypeInvalid"
+  | "k8sConnections.errors.resourceNameRequired"
+  | "k8sConnections.errors.portInvalid";
+
+export type K8sValidationResult =
+  | { isValid: true; value: K8sConnectionInput; errorKey?: undefined }
+  | { isValid: false; errorKey: K8sValidationErrorKey; value?: undefined };
 
 /**
  * Validate K8s connection parameters
@@ -123,28 +147,38 @@ export function validateK8sConnection(
   k8s: Partial<K8sConnectionInput>
 ): K8sValidationResult {
   if (!k8s.name || k8s.name.trim() === "") {
-    return { isValid: false, error: "Connection name is required" };
+    return { isValid: false, errorKey: "k8sConnections.errors.nameRequired" };
   }
 
   if (!k8s.context || k8s.context.trim() === "") {
-    return { isValid: false, error: "Kubernetes context is required" };
+    return { isValid: false, errorKey: "k8sConnections.errors.contextRequired" };
   }
 
   if (!k8s.namespace || k8s.namespace.trim() === "") {
-    return { isValid: false, error: "Namespace is required" };
+    return { isValid: false, errorKey: "k8sConnections.errors.namespaceRequired" };
   }
 
   if (!k8s.resource_type || (k8s.resource_type !== "service" && k8s.resource_type !== "pod")) {
-    return { isValid: false, error: "Resource type must be 'service' or 'pod'" };
+    return { isValid: false, errorKey: "k8sConnections.errors.resourceTypeInvalid" };
   }
 
   if (!k8s.resource_name || k8s.resource_name.trim() === "") {
-    return { isValid: false, error: "Resource name is required" };
+    return { isValid: false, errorKey: "k8sConnections.errors.resourceNameRequired" };
   }
 
   if (!k8s.port || k8s.port < 1 || k8s.port > 65535) {
-    return { isValid: false, error: "Port must be between 1 and 65535" };
+    return { isValid: false, errorKey: "k8sConnections.errors.portInvalid" };
   }
 
-  return { isValid: true };
+  return {
+    isValid: true,
+    value: {
+      name: k8s.name,
+      context: k8s.context,
+      namespace: k8s.namespace,
+      resource_type: k8s.resource_type,
+      resource_name: k8s.resource_name,
+      port: k8s.port,
+    },
+  };
 }

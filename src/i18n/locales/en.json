@@ -70,6 +70,8 @@
     "confirmDeleteQuery": "Are you sure you want to delete query \"{{name}}\"?",
     "confirmDeleteTitle": "Delete Query",
     "noTables": "No tables found",
+    "expandTable": "Expand table {{name}}",
+    "collapseTable": "Collapse table {{name}}",
     "columns": "columns",
     "keys": "keys",
     "foreignKeys": "foreign keys",
@@ -224,7 +226,11 @@
       "approvalTimeout": "Timeout",
       "approvalTimeoutDesc": "How long the MCP subprocess will wait for the user's decision before failing the request.",
       "preflightExplain": "Pre-flight EXPLAIN",
-      "preflightExplainDesc": "Run an EXPLAIN against the query before showing the approval modal so the user sees the execution plan."
+      "preflightExplainDesc": "Run an EXPLAIN against the query before showing the approval modal so the user sees the execution plan.",
+      "approvalAlwaysOnTop": "Bring approval dialog to the front",
+      "approvalAlwaysOnTopDesc": "When a non-read MCP action needs approval, bring Tabularis to the front and keep it temporarily above other windows.",
+      "approvalNotifySound": "Send notification and play sound",
+      "approvalNotifySoundDesc": "Show a native system notification and play a short alert sound when a new MCP approval request arrives."
     }
   },
   "connections": {
@@ -301,6 +307,9 @@
     "delimiterSemicolon": "Semicolon (;)",
     "delimiterTab": "Tab",
     "delimiterPipe": "Pipe (|)",
+    "csvIncludeHeaders": "Include CSV headers",
+    "csvIncludeHeadersDesc": "Include a header row with column names when copying rows as CSV.",
+    "csvHeaders": "Export column names",
     "detectJsonInTextColumns": "Detect JSON in text columns",
     "detectJsonInTextColumnsDesc": "Show the JSON viewer affordance when a non-typed text cell contains a JSON object or array. Adds a small per-cell parse cost.",
     "appearance": "Appearance",
@@ -319,6 +328,18 @@
     "fontSizeDesc": "Adjust the base font size used throughout the application (10-20px).",
     "preview": "Preview",
     "fontPreviewText": "The quick brown fox jumps over the lazy dog",
+    "resultColors": {
+      "title": "Result Colors",
+      "enable": "Colorize values by type",
+      "enableDesc": "Color query result cells based on their data type.",
+      "number": "Number",
+      "string": "Text",
+      "date": "Date / Time",
+      "boolean": "Boolean",
+      "reset": "Reset to theme",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
     "appearance_general": "General",
     "appearance_sqlEditor": "SQL Editor",
     "appearance_editorTheme": "Editor Theme",
@@ -358,6 +379,8 @@
     "roadmapDesc": "This project is a Work In Progress (WIP). Core features are stable, but we have big plans.",
     "support": "Support the Development",
     "supportDesc": "If you like tabularis and want to see more features, consider supporting the project by contributing code, reporting bugs, or starring the repo.",
+    "followUs": "Follow Us",
+    "followUsDesc": "Stay up to date and connect with the community on your favorite platform.",
     "version": "Version",
     "starOnGithub": "Star on GitHub",
     "ai": {
@@ -477,6 +500,10 @@
     "startup": "Startup",
     "showWelcome": "Show Welcome Screen",
     "showWelcomeDesc": "Display the welcome screen when the application starts.",
+    "autoConnectLastConnection": "Reopen Last Connections",
+    "autoConnectLastConnectionDesc": "Reconnect to the connections that were open when the app was last closed.",
+    "startMaximized": "Start Maximized",
+    "startMaximizedDesc": "Open the window maximized to fill the screen on startup.",
     "erDiagram": "ER Diagram",
     "erDiagramDefaultLayout": "Default Layout",
     "erDiagramDefaultLayoutDesc": "Choose the default layout direction for ER diagrams",
@@ -581,6 +608,7 @@
       "closeTab": "Close tab",
       "nextPage": "Next page",
       "prevPage": "Previous page",
+      "saveGridChanges": "Save pending changes",
       "switchConnection": "Switch to connection 1–9",
       "resetToDefault": "Reset to default",
       "notOverridable": "Built-in, not customizable",
@@ -673,6 +701,7 @@
     "sshKeyFilePlaceholder": "/path/to/id_rsa",
     "sshKeyPassphrase": "SSH Key Passphrase (Optional)",
     "sshKeyPassphrasePlaceholder": "Enter key passphrase if encrypted",
+    "allowSshPrompt": "Allow SSH password/PIN prompt",
     "saveKeychain": "Save passwords in Keychain",
     "testConnection": "Test Connection",
     "save": "Save",
@@ -712,7 +741,13 @@
     "selectK8sConnection": "Select K8s Connection",
     "selectTypeFirst": "Select context/namespace/type first",
     "useK8s": "Use Kubernetes Port-Forward",
-    "useK8sConnection": "Saved Connection"
+    "useK8sConnection": "Saved Connection",
+    "advanced": "Advanced",
+    "startupScript": "Startup Script",
+    "startupScriptDescription": "SQL run on every new connection to this data source. Use it for session settings such as SET / set_config (e.g. bypassing RLS). Separate statements with semicolons.",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Scroll tabs left",
+    "scrollTabsRight": "Scroll tabs right"
   },
   "sshConnections": {
     "title": "SSH Connections",
@@ -737,6 +772,12 @@
     "testFailed": "Connection test failed",
     "savedInKeychain": "Password saved in system keychain"
   },
+  "sshAskpass": {
+    "title": "SSH Authentication",
+    "subtitle": "The SSH connection needs your input",
+    "placeholder": "PIN or passphrase",
+    "waiting": "Waiting for your security key — touch it to confirm."
+  },
   "dataGrid": {
     "newRow": "NEW",
     "noData": "No data to display",
@@ -747,6 +788,8 @@
     "deleteTitle": "Delete Row",
     "updateFailed": "Update failed: ",
     "deleteFailed": "Failed to delete row: ",
+    "columnNotEditable": "Column \"{{column}}\" can't be edited — it is not a direct column of table \"{{table}}\" (likely an alias or computed value).",
+    "pkRequiredToEdit": "To edit this result, include the primary key column \"{{pk}}\" in your SELECT.",
     "null": "null",
     "sortByAsc": "Sort by {{col}} ASC",
     "sortByDesc": "Sort by {{col}} DESC",
@@ -810,6 +853,8 @@
     "newRow": "New Row",
     "editing": "Editing: {{table}}",
     "rowsRetrieved": "{{count}} rows retrieved",
+    "queryExecuted": "Query executed successfully",
+    "rowsAffected": "{{count}} rows affected",
     "autoPaginated": "Auto paginated",
     "pageOf": "Page {{current}} of {{total}}",
     "page": "Page {{current}}",
@@ -1183,6 +1228,7 @@
     "viewNamePlaceholder": "e.g. active_users, order_summary",
     "viewDefinition": "View Definition (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Beautify",
     "preview": "Preview",
     "runPreview": "Run Preview",
     "previewEmpty": "Click 'Run Preview' to see results",
@@ -1577,7 +1623,9 @@
     "reasonLabel": "Reason (optional)",
     "reasonPlaceholder": "e.g. Looks risky on prod, please confirm…",
     "approve": "Approve",
-    "deny": "Deny"
+    "deny": "Deny",
+    "notificationTitle": "MCP approval needed",
+    "notificationBody": "Open Tabularis to review the pending MCP approval."
   },
   "discordCallout": {
     "title": "Brand-new Discord community!",
@@ -1603,6 +1651,14 @@
     "port": "Container Port",
     "test": "Test",
     "testing": "Testing...",
-    "validationFailed": "Validation failed"
+    "validationFailed": "Validation failed",
+    "errors": {
+      "nameRequired": "Connection name is required",
+      "contextRequired": "Kubernetes context is required",
+      "namespaceRequired": "Namespace is required",
+      "resourceTypeInvalid": "Resource type must be \"service\" or \"pod\"",
+      "resourceNameRequired": "Resource name is required",
+      "portInvalid": "Port must be between 1 and 65535"
+    }
   }
 }

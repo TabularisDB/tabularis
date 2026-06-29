@@ -95,13 +95,14 @@ impl SshTunnel {
         ssh_password: Option<&str>,
         ssh_key_file: Option<&str>,
         ssh_key_passphrase: Option<&str>,
+        ssh_allow_passphrase_prompt: bool,
         remote_host: &str,
         remote_port: u16,
     ) -> Result<Self, String> {
         let use_system_ssh = should_use_system_ssh(ssh_password);
         println!(
-            "[SSH Tunnel] New Request: Host={}, Port={}, User={}, UseSystemSSH={}",
-            ssh_host, ssh_port, ssh_user, use_system_ssh
+            "[SSH Tunnel] New Request: Host={}, Port={}, User={}, UseSystemSSH={}, AllowPrompt={}",
+            ssh_host, ssh_port, ssh_user, use_system_ssh, ssh_allow_passphrase_prompt
         );
 
         let local_port = {
@@ -120,6 +121,7 @@ impl SshTunnel {
                 ssh_port,
                 ssh_user,
                 ssh_key_file,
+                ssh_allow_passphrase_prompt,
                 remote_host,
                 remote_port,
                 local_port,
@@ -152,6 +154,7 @@ impl SshTunnel {
         ssh_port: u16,
         ssh_user: &str,
         ssh_key_file: Option<&str>,
+        ssh_allow_passphrase_prompt: bool,
         remote_host: &str,
         remote_port: u16,
         local_port: u16,
@@ -188,25 +191,32 @@ impl SshTunnel {
         args.push("-o".to_string());
         args.push("StrictHostKeyChecking=accept-new".to_string());
         args.push("-o".to_string());
-        args.push("BatchMode=yes".to_string());
+        if ssh_allow_passphrase_prompt {
+            args.push("BatchMode=no".to_string());
+        } else {
+            args.push("BatchMode=yes".to_string());
+        }
 
         args.push(destination);
 
         println!("[SSH Tunnel] Executing: ssh {:?}", args);
 
-        let mut child = Command::new("ssh")
+        let mut command = Command::new("ssh");
+        command
             .args(&args)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| {
-                let err = format!(
-                    "Failed to launch system ssh: {}. Ensure 'ssh' is in PATH.",
-                    e
-                );
-                eprintln!("[SSH Tunnel Error] {}", err);
-                err
-            })?;
+            .stderr(Stdio::piped());
+
+        let askpass_server = configure_askpass(&mut command, ssh_allow_passphrase_prompt)?;
+
+        let mut child = command.spawn().map_err(|e| {
+            let err = format!(
+                "Failed to launch system ssh: {}. Ensure 'ssh' is in PATH.",
+                e
+            );
+            eprintln!("[SSH Tunnel Error] {}", err);
+            err
+        })?;
 
         let stdout_log = Arc::new(Mutex::new(Vec::with_capacity(LOG_BUFFER_INITIAL_CAPACITY)));
         let stderr_log = Arc::new(Mutex::new(Vec::with_capacity(LOG_BUFFER_INITIAL_CAPACITY)));
@@ -249,11 +259,18 @@ impl SshTunnel {
         let child_arc = Arc::new(Mutex::new(child));
 
         // Wait for the tunnel to become ready (port listening)
-        let start = Instant::now();
+        let mut start = Instant::now();
         let timeout = Duration::from_secs(SSH_TUNNEL_TIMEOUT_SECS);
         let mut ready = false;
 
         while start.elapsed() < timeout {
+            // While the user is answering an askpass prompt (PIN entry,
+            // security-key touch) the clock must not run against them. The
+            // prompt itself is bounded by the askpass response timeout.
+            if askpass_server.as_ref().is_some_and(|s| s.has_pending()) {
+                start = Instant::now();
+            }
+
             // Check if process is still alive
             {
                 let mut c = child_arc.lock().unwrap();
@@ -526,15 +543,22 @@ pub fn test_ssh_connection(
     ssh_password: Option<&str>,
     ssh_key_file: Option<&str>,
     ssh_key_passphrase: Option<&str>,
+    ssh_allow_passphrase_prompt: bool,
 ) -> Result<String, String> {
     let use_system_ssh = should_use_system_ssh(ssh_password);
     println!(
-        "[SSH Test] Testing connection to {}:{} as {} (UseSystemSSH={})",
-        ssh_host, ssh_port, ssh_user, use_system_ssh
+        "[SSH Test] Testing connection to {}:{} as {} (UseSystemSSH={}, AllowPrompt={})",
+        ssh_host, ssh_port, ssh_user, use_system_ssh, ssh_allow_passphrase_prompt
     );
 
     if use_system_ssh {
-        test_ssh_connection_system(ssh_host, ssh_port, ssh_user, ssh_key_file)
+        test_ssh_connection_system(
+            ssh_host,
+            ssh_port,
+            ssh_user,
+            ssh_key_file,
+            ssh_allow_passphrase_prompt,
+        )
     } else {
         test_ssh_connection_russh(
             ssh_host,
@@ -553,6 +577,7 @@ fn test_ssh_connection_system(
     ssh_port: u16,
     ssh_user: &str,
     ssh_key_file: Option<&str>,
+    ssh_allow_passphrase_prompt: bool,
 ) -> Result<String, String> {
     println!("[SSH Test] Using system SSH (supports ~/.ssh/config)");
 
@@ -563,7 +588,11 @@ fn test_ssh_connection_system(
     let mut args = Vec::with_capacity(12);
     args.extend([
         "-o",
-        "BatchMode=yes",
+        if ssh_allow_passphrase_prompt {
+            "BatchMode=no"
+        } else {
+            "BatchMode=yes"
+        },
         "-o",
         "ConnectTimeout=10",
         "-o",
@@ -585,7 +614,14 @@ fn test_ssh_connection_system(
 
     println!("[SSH Test] Executing: ssh {:?}", args);
 
-    let output = Command::new("ssh").args(&args).output().map_err(|e| {
+    let mut command = Command::new("ssh");
+    command.args(&args);
+
+    // Keep the askpass server alive while ssh runs: prompts can arrive at any
+    // point until the process exits.
+    let _askpass_server = configure_askpass(&mut command, ssh_allow_passphrase_prompt)?;
+
+    let output = command.output().map_err(|e| {
         format!(
             "Failed to execute ssh command: {}. Ensure 'ssh' is in PATH.",
             e
@@ -701,6 +737,37 @@ fn test_ssh_connection_russh(
     })
     .join()
     .map_err(|e| format!("Thread panicked: {:?}", e))?
+}
+
+/// When passphrase/PIN prompts are allowed, wire ssh's askpass machinery to
+/// the in-app prompt bridge (see the `askpass` module). Falls back to the
+/// system askpass helper when the app is not fully initialised (e.g. tests),
+/// preserving the plain `SSH_ASKPASS_REQUIRE=force` behaviour.
+fn configure_askpass(
+    command: &mut Command,
+    ssh_allow_passphrase_prompt: bool,
+) -> Result<Option<crate::askpass::AskpassServer>, String> {
+    if !ssh_allow_passphrase_prompt {
+        return Ok(None);
+    }
+    match crate::askpass::start_frontend_server() {
+        Ok(server) => {
+            server.configure_command(command)?;
+            println!(
+                "[SSH Tunnel] In-app askpass bridge active at {}",
+                server.endpoint()
+            );
+            Ok(Some(server))
+        }
+        Err(e) => {
+            eprintln!(
+                "[SSH Tunnel] In-app askpass unavailable ({}); falling back to system askpass",
+                e
+            );
+            command.env("SSH_ASKPASS_REQUIRE", "force");
+            Ok(None)
+        }
+    }
 }
 
 /// Build tunnel map key from SSH parameters.

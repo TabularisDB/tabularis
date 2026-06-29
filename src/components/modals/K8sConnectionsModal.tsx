@@ -19,6 +19,7 @@ import {
   getK8sContexts,
   getK8sNamespaces,
   getK8sResources,
+  getK8sResourcePorts,
   validateK8sConnection,
   type K8sConnection,
   type K8sConnectionInput,
@@ -31,6 +32,7 @@ import clsx from "clsx";
 interface K8sConnectionsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  defaultPort?: number | null;
 }
 
 const InputClass =
@@ -40,6 +42,7 @@ const LabelClass = "block text-xs uppercase font-bold text-muted mb-1";
 export function K8sConnectionsModal({
   isOpen,
   onClose,
+  defaultPort,
 }: K8sConnectionsModalProps) {
   const { t } = useTranslation();
   const [connections, setConnections] = useState<K8sConnection[]>([]);
@@ -52,7 +55,10 @@ export function K8sConnectionsModal({
   const [namespace, setNamespace] = useState("");
   const [resourceType, setResourceType] = useState<string>("service");
   const [resourceName, setResourceName] = useState("");
-  const [port, setPort] = useState<number>(3306);
+  const effectiveDefaultPort = defaultPort ?? undefined;
+  const [port, setPort] = useState<number | undefined>(undefined);
+  const effectivePort = port ?? effectiveDefaultPort;
+  const [isPortOverridden, setIsPortOverridden] = useState(false);
 
   // Discovery state
   const [contexts, setContexts] = useState<string[]>([]);
@@ -119,13 +125,47 @@ export function K8sConnectionsModal({
     })();
   }, [context, namespace, resourceType]);
 
+  useEffect(() => {
+    if (
+      !context ||
+      !namespace ||
+      resourceType !== "service" ||
+      !resourceName ||
+      isPortOverridden
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const ports = await getK8sResourcePorts(
+          context,
+          namespace,
+          resourceType,
+          resourceName,
+        );
+        if (!cancelled && ports.length === 1) {
+          setPort((prev) => (prev === ports[0] ? prev : ports[0]));
+        }
+      } catch {
+        // Best-effort convenience only: keep the current/default port.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [context, namespace, resourceType, resourceName, isPortOverridden]);
+
   const resetForm = () => {
     setName("");
     setContext("");
     setNamespace("");
     setResourceType("service");
     setResourceName("");
-    setPort(3306);
+    setPort(undefined);
+    setIsPortOverridden(false);
     setTestStatus("idle");
     setTestMessage("");
     setValidationError(null);
@@ -144,6 +184,7 @@ export function K8sConnectionsModal({
     setResourceType(conn.resource_type);
     setResourceName(conn.resource_name);
     setPort(conn.port);
+    setIsPortOverridden(true);
     setEditingId(conn.id);
     setIsCreating(false);
     setTestStatus("idle");
@@ -158,22 +199,19 @@ export function K8sConnectionsModal({
   };
 
   const handleSave = async () => {
-    const input: K8sConnectionInput = {
+    const validation = validateK8sConnection({
       name,
       context,
       namespace,
       resource_type: resourceType,
       resource_name: resourceName,
-      port,
-    };
-
-    const validation = validateK8sConnection(input);
+      port: effectivePort,
+    });
     if (!validation.isValid) {
-      setValidationError(
-        validation.error ?? t("k8sConnections.validationFailed"),
-      );
+      setValidationError(t(validation.errorKey));
       return;
     }
+    const input: K8sConnectionInput = validation.value;
 
     try {
       if (isCreating) {
@@ -264,8 +302,12 @@ export function K8sConnectionsModal({
                   setResourceType={setResourceType}
                   resourceName={resourceName}
                   setResourceName={setResourceName}
-                  port={port}
-                  setPort={setPort}
+                  port={effectivePort}
+                  setPort={(value) => {
+                    setIsPortOverridden(value != null);
+                    setPort(value);
+                  }}
+                  defaultPort={effectiveDefaultPort}
                   contexts={contexts}
                   namespaces={namespaces}
                   resources={resources}
@@ -322,8 +364,12 @@ export function K8sConnectionsModal({
                 setResourceType={setResourceType}
                 resourceName={resourceName}
                 setResourceName={setResourceName}
-                port={port}
-                setPort={setPort}
+                port={effectivePort}
+                setPort={(value) => {
+                  setIsPortOverridden(value != null);
+                  setPort(value);
+                }}
+                defaultPort={effectiveDefaultPort}
                 contexts={contexts}
                 namespaces={namespaces}
                 resources={resources}
@@ -365,8 +411,9 @@ interface EditFormProps {
   setResourceType: (v: string) => void;
   resourceName: string;
   setResourceName: (v: string) => void;
-  port: number;
-  setPort: (v: number) => void;
+  port: number | undefined;
+  setPort: (v: number | undefined) => void;
+  defaultPort?: number;
   contexts: string[];
   namespaces: string[];
   resources: string[];
@@ -391,6 +438,7 @@ function EditForm({
   setResourceName,
   port,
   setPort,
+  defaultPort,
   contexts,
   namespaces,
   resources,
@@ -421,7 +469,8 @@ function EditForm({
           options={contexts}
           onChange={(val) => setContext(val)}
           placeholder={t("k8sConnections.chooseContext")}
-          searchable={false}
+          searchPlaceholder={t("common.search")}
+          noResultsLabel={t("common.noResults")}
         />
       </div>
 
@@ -432,7 +481,8 @@ function EditForm({
           options={namespaces}
           onChange={(val) => setNamespace(val)}
           placeholder={t("k8sConnections.chooseNamespace")}
-          searchable={false}
+          searchPlaceholder={t("common.search")}
+          noResultsLabel={t("common.noResults")}
         />
       </div>
 
@@ -462,7 +512,8 @@ function EditForm({
             options={resources}
             onChange={(val) => setResourceName(val)}
             placeholder={t("k8sConnections.chooseResource")}
-            searchable={false}
+            searchPlaceholder={t("common.search")}
+            noResultsLabel={t("common.noResults")}
           />
         </div>
       </div>
@@ -471,10 +522,12 @@ function EditForm({
         <label className={LabelClass}>{t("k8sConnections.port")}</label>
         <input
           type="number"
-          value={port}
-          onChange={(e) => setPort(Number(e.target.value))}
+          value={port ?? ""}
+          onChange={(e) =>
+            setPort(e.target.value === "" ? undefined : Number(e.target.value))
+          }
           className={InputClass}
-          placeholder="3306"
+          placeholder={defaultPort != null ? String(defaultPort) : undefined}
         />
       </div>
 

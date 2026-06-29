@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   X,
@@ -15,6 +15,8 @@ import {
   Info,
   Eye,
   EyeOff,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import type { ConnectionAppearance } from "../../contexts/DatabaseContext";
@@ -28,6 +30,7 @@ import { SlotAnchor } from "../ui/SlotAnchor";
 import { useDrivers } from "../../hooks/useDrivers";
 import { usePluginSlotRegistry } from "../../hooks/usePluginSlotRegistry";
 import { Modal } from "../ui/Modal";
+import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
 import type { PluginManifest } from "../../types/plugins";
 import { loadSshConnections, type SshConnection } from "../../utils/ssh";
 import {
@@ -35,6 +38,7 @@ import {
   getK8sContexts,
   getK8sNamespaces,
   getK8sResources,
+  getK8sResourcePorts,
   type K8sConnection,
 } from "../../utils/k8s";
 import { isMultiDatabaseCapable } from "../../utils/database";
@@ -66,6 +70,7 @@ interface ConnectionParams {
   ssh_password?: string;
   ssh_key_file?: string;
   ssh_key_passphrase?: string;
+  ssh_allow_passphrase_prompt?: boolean;
   save_in_keychain?: boolean;
   // K8s
   k8s_enabled?: boolean;
@@ -75,6 +80,8 @@ interface ConnectionParams {
   k8s_resource_type?: string;
   k8s_resource_name?: string;
   k8s_port?: number;
+  // SQL run on every new connection (e.g. SET / set_config)
+  startup_script?: string;
 }
 
 interface SavedConnection {
@@ -185,8 +192,51 @@ export const NewConnectionModal = ({
 
   // ── tab ──
   const [activeTab, setActiveTab] = useState<
-    "general" | "databases" | "ssh" | "ssl" | "k8s" | "appearance"
+    "general" | "databases" | "ssh" | "ssl" | "k8s" | "advanced" | "appearance"
   >("general");
+
+  // ── Tab bar horizontal scroll affordance ──
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const [tabFade, setTabFade] = useState<{ left: boolean; right: boolean }>({
+    left: false,
+    right: false,
+  });
+
+  const updateTabFade = useCallback(() => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setTabFade({
+      left: scrollLeft > 1,
+      right: scrollLeft + clientWidth < scrollWidth - 1,
+    });
+  }, []);
+
+  // Recompute fades when the visible tab set changes and keep the active tab
+  // scrolled into view; also follow window resizes.
+  useLayoutEffect(() => {
+    updateTabFade();
+    const el = tabBarRef.current;
+    const activeEl = el?.querySelector<HTMLElement>('[data-active="true"]');
+    if (el && activeEl) {
+      const left = activeEl.offsetLeft;
+      const right = left + activeEl.offsetWidth;
+      if (left < el.scrollLeft) {
+        el.scrollTo({ left: left - 20, behavior: "smooth" });
+      } else if (right > el.scrollLeft + el.clientWidth) {
+        el.scrollTo({ left: right - el.clientWidth + 20, behavior: "smooth" });
+      }
+    }
+    window.addEventListener("resize", updateTabFade);
+    return () => window.removeEventListener("resize", updateTabFade);
+  }, [updateTabFade, driver, activeTab, selectedDatabasesState.length]);
+
+  // Step the tab strip left/right (used by the edge arrows).
+  const scrollTabs = useCallback((dir: -1 | 1) => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.7, behavior: "smooth" });
+  }, []);
 
   // ── SSH ──
   const [sshConnections, setSshConnections] = useState<SshConnection[]>([]);
@@ -197,6 +247,14 @@ export const NewConnectionModal = ({
   const [k8sConnections, setK8sConnections] = useState<K8sConnection[]>([]);
   const [isK8sModalOpen, setIsK8sModalOpen] = useState(false);
   const [k8sMode, setK8sMode] = useState<"existing" | "inline">("existing");
+  const [isK8sPortOverridden, setIsK8sPortOverridden] = useState(false);
+  const [k8sAutoPort, setK8sAutoPort] = useState<{
+    context: string;
+    namespace: string;
+    resourceType: string;
+    resourceName: string;
+    port: number;
+  } | null>(null);
   const [k8sContexts, setK8sContexts] = useState<string[]>([]);
   const [k8sNamespaces, setK8sNamespaces] = useState<string[]>([]);
   const [k8sResources, setK8sResources] = useState<string[]>([]);
@@ -285,6 +343,21 @@ export const NewConnectionModal = ({
     !noConnectionRequired &&
     activeDriver?.capabilities?.file_based === false &&
     !activeDriver?.capabilities?.folder_based;
+  const k8sDefaultPort = activeDriver?.default_port ?? undefined;
+  // Derive K8s ports instead of seeding formData so edit flows with no saved port are covered.
+  const getK8sAutoPort = (params: Partial<ConnectionParams>) =>
+    k8sAutoPort &&
+    params.k8s_context === k8sAutoPort.context &&
+    params.k8s_namespace === k8sAutoPort.namespace &&
+    params.k8s_resource_type === k8sAutoPort.resourceType &&
+    params.k8s_resource_name === k8sAutoPort.resourceName
+      ? k8sAutoPort.port
+      : undefined;
+  const resolveK8sPort = (params: Partial<ConnectionParams>) =>
+    params.k8s_enabled && k8sMode === "inline"
+      ? params.k8s_port ?? getK8sAutoPort(params) ?? k8sDefaultPort
+      : params.k8s_port;
+  const effectiveK8sPort = resolveK8sPort(formData);
   const connectionStringEnabled =
     activeDriver?.capabilities?.connection_string ??
     activeDriver?.capabilities?.connectionString ??
@@ -377,6 +450,57 @@ export const NewConnectionModal = ({
     }
   }, [formData.k8s_context, formData.k8s_namespace, formData.k8s_resource_type]);
 
+  useEffect(() => {
+    const context = formData.k8s_context;
+    const namespace = formData.k8s_namespace;
+    const resourceType = formData.k8s_resource_type;
+    const resourceName = formData.k8s_resource_name;
+    if (
+      !formData.k8s_enabled ||
+      k8sMode !== "inline" ||
+      !context ||
+      !namespace ||
+      resourceType !== "service" ||
+      !resourceName ||
+      isK8sPortOverridden
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const ports = await getK8sResourcePorts(
+          context,
+          namespace,
+          resourceType,
+          resourceName,
+        );
+        if (!cancelled) {
+          setK8sAutoPort(
+            ports.length === 1
+              ? { context, namespace, resourceType, resourceName, port: ports[0] }
+              : null,
+          );
+        }
+      } catch {
+        // Best-effort convenience only: keep the current/default port.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    formData.k8s_enabled,
+    formData.k8s_context,
+    formData.k8s_namespace,
+    formData.k8s_resource_type,
+    formData.k8s_resource_name,
+    isK8sPortOverridden,
+    k8sMode,
+  ]);
+
   const updateField = (
     field: keyof ConnectionParams,
     value: string | number | boolean | undefined,
@@ -398,7 +522,7 @@ export const NewConnectionModal = ({
     setLoadingDatabases(true);
     setDatabaseLoadError(null);
     try {
-      const listParams: Partial<ConnectionParams> = {
+      const listParamsBase: Partial<ConnectionParams> = {
         ...formData,
         ...overrides,
         driver: effectiveDriver,
@@ -408,6 +532,10 @@ export const NewConnectionModal = ({
             : formData.port != null
               ? Number(formData.port)
               : undefined,
+      };
+      const listParams: Partial<ConnectionParams> = {
+        ...listParamsBase,
+        k8s_port: resolveK8sPort(listParamsBase),
       };
       const databases = await invoke<string[]>("list_databases", {
         request: {
@@ -460,6 +588,7 @@ export const NewConnectionModal = ({
       setConnectionStringError(null);
       setNameError(false);
       setDatabasesTabError(false);
+      setIsK8sPortOverridden(false);
 
       if (initialConnection) {
         setName(initialConnection.name);
@@ -486,6 +615,7 @@ export const NewConnectionModal = ({
           // fallback: use params without secrets (backend will retrieve from keychain)
         }
 
+        setIsK8sPortOverridden(params.k8s_port != null);
         if (Array.isArray(db)) {
           setSelectedDatabasesState(db);
           setFormData({ ...params, database: db[0] ?? "" });
@@ -515,6 +645,8 @@ export const NewConnectionModal = ({
         });
         setSelectedDatabasesState([]);
         setSshMode("existing");
+        setK8sMode("existing");
+        setIsK8sPortOverridden(false);
         setDetectJsonInTextColumns(false);
         setAppearance({});
       }
@@ -554,6 +686,7 @@ export const NewConnectionModal = ({
       k8s_resource_name: undefined,
       k8s_port: undefined,
     });
+    setIsK8sPortOverridden(false);
     setSelectedDatabasesState([]);
     setDbSearchQuery("");
     setAvailableDatabases([]);
@@ -576,6 +709,7 @@ export const NewConnectionModal = ({
         driver,
         ...formData,
         port: formData.port != null ? Number(formData.port) : undefined,
+        k8s_port: effectiveK8sPort,
         database: isMultiDb
           ? (selectedDatabasesState[0] ??
             (typeof formData.database === "string" ? formData.database : ""))
@@ -650,6 +784,7 @@ export const NewConnectionModal = ({
         driver,
         ...formData,
         port: formData.port != null ? Number(formData.port) : undefined,
+        k8s_port: effectiveK8sPort,
         database: isMultiDb
           ? selectedDatabasesState.length === 1
             ? selectedDatabasesState[0]
@@ -1040,6 +1175,35 @@ export const NewConnectionModal = ({
       connectionName={name || t("newConnection.unnamedConnection", { defaultValue: "Unnamed connection" })}
       onImageUploaded={handleImageUploaded}
     />
+  );
+
+  // ── rendered Advanced tab content (per-connection startup SQL) ──
+  const advancedTabContent = (
+    <div className="space-y-2">
+      <label className="text-[10px] uppercase font-semibold tracking-wider text-muted block">
+        {t("newConnection.startupScript", { defaultValue: "Startup Script" })}
+      </label>
+      <p className="text-xs text-muted leading-snug">
+        {t("newConnection.startupScriptDescription", {
+          defaultValue:
+            "SQL run on every new connection to this data source. Use it for session settings such as SET / set_config (e.g. bypassing RLS). Separate statements with semicolons.",
+        })}
+      </p>
+      <div className="border border-strong rounded-md overflow-hidden h-48">
+        <SqlEditorWrapper
+          editorKey={`startup-script-${initialConnection?.id ?? "new"}`}
+          initialValue={formData.startup_script ?? ""}
+          onChange={(value) => updateField("startup_script", value)}
+          onRun={() => {}}
+          height="100%"
+          options={{
+            placeholder: t("newConnection.startupScriptPlaceholder", {
+              defaultValue: "SELECT set_config('app.bypass_rls', 'on', false);",
+            }),
+          }}
+        />
+      </div>
+    </div>
   );
 
   // ── rendered Databases tab content (multi-db selection) ──
@@ -1536,6 +1700,23 @@ export const NewConnectionModal = ({
                 type="password"
                 placeholder={t("newConnection.sshKeyPassphrasePlaceholder")}
               />
+              <div className="flex items-center gap-2 mt-1">
+                <input
+                  type="checkbox"
+                  id="ssh-prompt-toggle"
+                  checked={!!formData.ssh_allow_passphrase_prompt}
+                  onChange={(e) =>
+                    updateField("ssh_allow_passphrase_prompt", e.target.checked)
+                  }
+                  className="accent-blue-500 w-3.5 h-3.5 rounded cursor-pointer"
+                />
+                <label
+                  htmlFor="ssh-prompt-toggle"
+                  className="text-xs font-medium text-secondary cursor-pointer select-none"
+                >
+                  {t("newConnection.allowSshPrompt")}
+                </label>
+              </div>
             </div>
           )}
         </div>
@@ -1591,6 +1772,7 @@ export const NewConnectionModal = ({
                     updateField("k8s_resource_type", undefined);
                     updateField("k8s_resource_name", undefined);
                     updateField("k8s_port", undefined);
+                    setIsK8sPortOverridden(false);
                   } else {
                     updateField("k8s_connection_id", undefined);
                   }
@@ -1634,6 +1816,8 @@ export const NewConnectionModal = ({
                       ]),
                     )}
                     onChange={(val) => updateField("k8s_connection_id", val)}
+                    searchPlaceholder={t("common.search")}
+                    noResultsLabel={t("common.noResults")}
                     placeholder={
                       k8sConnections.length === 0
                         ? t("newConnection.noK8sConnections", {
@@ -1643,7 +1827,6 @@ export const NewConnectionModal = ({
                             defaultValue: "Choose a connection...",
                           })
                     }
-                    searchable={false}
                   />
                   <button
                     type="button"
@@ -1674,6 +1857,8 @@ export const NewConnectionModal = ({
                   onChange={(val) => {
                     updateField("k8s_context", val);
                   }}
+                  searchPlaceholder={t("common.search")}
+                  noResultsLabel={t("common.noResults")}
                   placeholder={
                     k8sContexts.length === 0
                       ? t("newConnection.noK8sContexts", {
@@ -1683,7 +1868,6 @@ export const NewConnectionModal = ({
                           defaultValue: "Choose a context...",
                         })
                   }
-                  searchable={false}
                 />
               </div>
 
@@ -1699,6 +1883,8 @@ export const NewConnectionModal = ({
                   onChange={(val) => {
                     updateField("k8s_namespace", val);
                   }}
+                  searchPlaceholder={t("common.search")}
+                  noResultsLabel={t("common.noResults")}
                   placeholder={
                     k8sNamespaces.length === 0
                       ? t("newConnection.selectContextFirst", {
@@ -1708,7 +1894,6 @@ export const NewConnectionModal = ({
                           defaultValue: "Choose a namespace...",
                         })
                   }
-                  searchable={false}
                 />
               </div>
 
@@ -1752,6 +1937,8 @@ export const NewConnectionModal = ({
                     onChange={(val) =>
                       updateField("k8s_resource_name", val)
                     }
+                    searchPlaceholder={t("common.search")}
+                    noResultsLabel={t("common.noResults")}
                     placeholder={
                       k8sResources.length === 0
                         ? t("newConnection.selectTypeFirst", {
@@ -1761,7 +1948,6 @@ export const NewConnectionModal = ({
                             defaultValue: "Choose a resource...",
                           })
                     }
-                    searchable={false}
                   />
                 </div>
               </div>
@@ -1770,9 +1956,13 @@ export const NewConnectionModal = ({
                 label={t("newConnection.k8sPort", {
                   defaultValue: "Container Port",
                 })}
-                value={formData.k8s_port ?? ""}
-                onChange={(v) => updateField("k8s_port", Number(v))}
-                placeholder="3306"
+                value={effectiveK8sPort ?? ""}
+                type="number"
+                onChange={(v) => {
+                  setIsK8sPortOverridden(v !== "");
+                  updateField("k8s_port", v === "" ? undefined : Number(v));
+                }}
+                placeholder={k8sDefaultPort != null ? String(k8sDefaultPort) : undefined}
               />
             </div>
           )}
@@ -1885,7 +2075,22 @@ export const NewConnectionModal = ({
           {/* Right: form area */}
           <div className="flex-1 flex flex-col min-h-0 min-w-0">
             {/* Tab bar */}
-            <div className="flex items-center border-b border-default px-5 bg-base/50">
+            <div className="relative">
+            <div
+              ref={tabBarRef}
+              onScroll={updateTabFade}
+              style={{
+                maskImage:
+                  tabFade.left || tabFade.right
+                    ? `linear-gradient(to right, ${tabFade.left ? "transparent" : "black"}, black 28px, black calc(100% - 28px), ${tabFade.right ? "transparent" : "black"})`
+                    : undefined,
+                WebkitMaskImage:
+                  tabFade.left || tabFade.right
+                    ? `linear-gradient(to right, ${tabFade.left ? "transparent" : "black"}, black 28px, black calc(100% - 28px), ${tabFade.right ? "transparent" : "black"})`
+                    : undefined,
+              }}
+              className="flex items-center border-b border-default px-5 bg-base/50 overflow-x-auto no-scrollbar scroll-smooth"
+            >
               {(
                 [
                   {
@@ -1908,21 +2113,28 @@ export const NewConnectionModal = ({
                   ...(isNetworkDriver ? [{ id: "ssh", label: "SSH" }] : []),
                   ...(isNetworkDriver ? [{ id: "k8s", label: "Kubernetes" }] : []),
                   {
+                    id: "advanced",
+                    label: t("newConnection.advanced", {
+                      defaultValue: "Advanced",
+                    }),
+                  },
+                  {
                     id: "appearance",
                     label: t("newConnection.appearance", {
                       defaultValue: "Appearance",
                     }),
                   },
                 ] as {
-                  id: "general" | "databases" | "ssh" | "ssl" | "k8s" | "appearance";
+                  id: "general" | "databases" | "ssh" | "ssl" | "k8s" | "advanced" | "appearance";
                   label: string;
                 }[]
               ).map((tab) => (
                 <button
                   key={tab.id}
+                  data-active={activeTab === tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={clsx(
-                    "px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 -mb-px",
+                    "flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 -mb-px",
                     activeTab === tab.id
                       ? "border-blue-500 text-blue-400"
                       : "border-transparent text-muted hover:text-secondary",
@@ -1943,6 +2155,27 @@ export const NewConnectionModal = ({
                 </button>
               ))}
             </div>
+              {tabFade.left && (
+                <button
+                  type="button"
+                  aria-label={t("newConnection.scrollTabsLeft", { defaultValue: "Scroll tabs left" })}
+                  onClick={() => scrollTabs(-1)}
+                  className="absolute left-1 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-elevated text-muted shadow ring-1 ring-default hover:text-primary transition-colors"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+              )}
+              {tabFade.right && (
+                <button
+                  type="button"
+                  aria-label={t("newConnection.scrollTabsRight", { defaultValue: "Scroll tabs right" })}
+                  onClick={() => scrollTabs(1)}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-6 h-6 rounded-full bg-elevated text-muted shadow ring-1 ring-default hover:text-primary transition-colors"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              )}
+            </div>
 
             {/* Tab content */}
             <div className="flex-1 overflow-y-auto p-5">
@@ -1956,7 +2189,9 @@ export const NewConnectionModal = ({
                       ? k8sTabContent
                       : activeTab === "ssh"
                         ? sshTabContent
-                        : appearanceTabContent}
+                        : activeTab === "advanced"
+                          ? advancedTabContent
+                          : appearanceTabContent}
             </div>
           </div>
         </div>
@@ -1989,17 +2224,16 @@ export const NewConnectionModal = ({
           </button>
 
           {/* Status message */}
-          {message && (
-            <p
-              className={clsx(
-                "flex-1 text-xs truncate",
-                testResult === "success" ? "text-green-400" : "text-red-400",
-              )}
-            >
-              {message}
-            </p>
-          )}
-          {!message && <div className="flex-1" />}
+          <p
+            aria-live="polite"
+            aria-atomic="true"
+            className={clsx(
+              "flex-1 text-xs truncate",
+              testResult === "success" ? "text-green-400" : "text-red-400",
+            )}
+          >
+            {message ?? ""}
+          </p>
 
           {/* Cancel + Save */}
           <div className="flex items-center gap-2">
@@ -2037,6 +2271,7 @@ export const NewConnectionModal = ({
           setIsK8sModalOpen(false);
           await loadK8sConnectionsList();
         }}
+        defaultPort={k8sDefaultPort}
       />
     </Modal>
   );

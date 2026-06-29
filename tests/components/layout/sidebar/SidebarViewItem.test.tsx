@@ -112,14 +112,14 @@ describe("SidebarViewItem", () => {
     render(<SidebarViewItem {...defaultProps} activeView="active_users" />);
     
     const viewElement = screen.getByText("active_users").parentElement;
-    expect(viewElement?.className).toContain("bg-purple-900");
+    expect(viewElement?.className).toContain("text-accent-secondary");
   });
 
   it("does not apply active styling when view is not active", () => {
     render(<SidebarViewItem {...defaultProps} activeView="other_view" />);
-    
+
     const viewElement = screen.getByText("active_users").parentElement;
-    expect(viewElement?.className).not.toContain("bg-purple-900");
+    expect(viewElement?.className).not.toContain("text-accent-secondary");
   });
 
   it("collapses when expand button is clicked again", async () => {
