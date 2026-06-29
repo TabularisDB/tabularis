@@ -36,6 +36,14 @@ export function shouldQuoteIdentifiers(
   return driver === "postgres";
 }
 
+// PostgreSQL folds unquoted identifiers to lowercase and only needs quotes for
+// reserved words, mixed case, or special characters — mirroring quote_ident().
+const PG_SAFE_IDENTIFIER = /^[a-z_][a-z0-9_$]*$/;
+const PG_RESERVED = new Set([
+  "select", "from", "where", "table", "user", "order", "group", "join", "and", "or",
+  "as", "in", "on", "by", "null", "true", "false", "default", "check", "column", "limit", "offset",
+]);
+
 /**
  * Formats a SQL identifier for WHERE / ORDER BY fragments.
  * Quotes only when required (PostgreSQL); otherwise returns the name unchanged.
@@ -44,9 +52,11 @@ export function formatSqlIdentifier(
   identifier: string,
   driver: string | null | undefined,
 ): string {
-  return shouldQuoteIdentifiers(driver)
-    ? quoteIdentifier(identifier, driver)
-    : identifier;
+  if (!shouldQuoteIdentifiers(driver)) return identifier;
+  if (PG_SAFE_IDENTIFIER.test(identifier) && !PG_RESERVED.has(identifier)) {
+    return identifier;
+  }
+  return quoteIdentifier(identifier, driver);
 }
 
 export function quoteIdentifier(
@@ -76,3 +86,4 @@ export function quoteTableRef(
   }
   return quoteIdentifier(table, driver);
 }
+

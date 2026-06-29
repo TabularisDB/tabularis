@@ -1,3 +1,4 @@
+use super::build_mysql_pk_where;
 use super::explain::{parse_analyze_actual, parse_mysql_analyze_text, parse_mysql_query_block};
 use super::{is_text_protocol_stmt, MysqlDriver};
 use crate::drivers::driver_trait::DatabaseDriver;
@@ -699,5 +700,36 @@ fn spaced_definer_view_with_routine_words_in_body_is_not_text_protocol() {
             !is_text_protocol_stmt(sql),
             "spaced definer VIEW with routine words in body must not route through text protocol: {sql}"
         );
+    }
+}
+
+mod build_mysql_pk_where_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn single_column_returns_correct_pair() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("id".to_string(), serde_json::json!(42));
+        let pairs = build_mysql_pk_where(&pk_map).unwrap();
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].0, "id");
+        assert_eq!(pairs[0].1, serde_json::json!(42));
+    }
+
+    #[test]
+    fn composite_pk_columns_are_sorted_alphabetically() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("z_col".to_string(), serde_json::json!(1));
+        pk_map.insert("a_col".to_string(), serde_json::json!(2));
+        let pairs = build_mysql_pk_where(&pk_map).unwrap();
+        assert_eq!(pairs[0].0, "a_col");
+        assert_eq!(pairs[1].0, "z_col");
+    }
+
+    #[test]
+    fn empty_pk_map_is_rejected() {
+        let pk_map: HashMap<String, serde_json::Value> = HashMap::new();
+        assert!(build_mysql_pk_where(&pk_map).is_err());
     }
 }

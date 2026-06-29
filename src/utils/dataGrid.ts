@@ -10,6 +10,31 @@ import { isJsonColumn } from "./json";
 /** Sentinel value indicating that the database DEFAULT value should be used */
 export const USE_DEFAULT_SENTINEL = "__USE_DEFAULT__";
 
+/** Build an object mapping PK column names to their values from a data row. */
+export function buildPkMap(
+  pkColumns: string[],
+  row: unknown[],
+  pkIndices: number[],
+): Record<string, unknown> {
+  const map: Record<string, unknown> = {};
+  for (let i = 0; i < pkColumns.length; i++) {
+    map[pkColumns[i]] = row[pkIndices[i]];
+  }
+  return map;
+}
+
+/**
+ * Produce a stable string key for a pk map to use as a pendingChanges key.
+ * Keys are sorted alphabetically before serializing so the result is
+ * deterministic regardless of insertion order.
+ */
+export function serializePkKey(pkMap: Record<string, unknown>): string {
+  const entries = Object.entries(pkMap).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  return JSON.stringify(Object.fromEntries(entries));
+}
+
 function cellValuesEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (typeof a === "object" || typeof b === "object") {
@@ -81,6 +106,31 @@ export function formatCellValue(
   }
 
   return String(value);
+}
+
+export type ResultValueType = "number" | "string" | "date" | "boolean";
+
+/**
+ * Classifies a non-null cell value into a semantic type used for result
+ * colorization. Prefers the column's declared type, then falls back to the
+ * runtime JS type. NULL is handled separately by the cell renderer.
+ */
+export function getResultValueType(
+  value: unknown,
+  columnType?: string,
+): ResultValueType {
+  if (typeof value === "boolean") return "boolean";
+
+  if (columnType) {
+    const t = columnType.toLowerCase();
+    if (/bool|^bit/.test(t)) return "boolean";
+    if (/date|time|timestamp|year/.test(t)) return "date";
+    if (/\b(?:tiny|small|medium|big)?int(?:eger)?\d*\b|serial|float|double|decimal|numeric|real|money|number|fixed/.test(t))
+      return "number";
+  }
+
+  if (typeof value === "number" || typeof value === "bigint") return "number";
+  return "string";
 }
 
 /**
@@ -218,7 +268,7 @@ export function resolveInsertionCellDisplay(
 export function resolveExistingCellDisplay(
   cellValue: unknown,
   pkVal: string | null,
-  pkColumn: string | null | undefined,
+  pkColumns: string[] | null | undefined,
   pendingChanges:
     | Record<
         string,
@@ -227,9 +277,10 @@ export function resolveExistingCellDisplay(
     | undefined,
   columnInfo: ColumnDisplayInfo,
 ): ResolvedCellDisplay {
+  const hasPk = pkColumns && pkColumns.length > 0;
   const pendingVal =
-    pkColumn && pkVal && pendingChanges?.[pkVal]?.changes?.[columnInfo.colName];
-  const hasPendingChange = pkColumn && pkVal ? pendingVal !== undefined : false;
+    hasPk && pkVal && pendingChanges?.[pkVal]?.changes?.[columnInfo.colName];
+  const hasPendingChange = hasPk && pkVal ? pendingVal !== undefined : false;
   let displayValue = hasPendingChange ? pendingVal : cellValue;
   const isModified =
     hasPendingChange && !cellValuesEqual(pendingVal, cellValue);

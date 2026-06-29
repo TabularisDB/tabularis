@@ -79,7 +79,7 @@ export function SqlCellResult({
           columns={result.columns}
           data={result.rows}
           tableName={null}
-          pkColumn={null}
+          pkColumns={null}
           readonly
         />
       </div>

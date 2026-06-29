@@ -46,6 +46,7 @@ interface MultiResultPanelProps {
   connectionId: string | null;
   copyFormat: "csv" | "json" | "sql-insert";
   csvDelimiter: string;
+  csvIncludeHeaders: boolean;
   onSelectResult: (entryId: string) => void;
   onRerunEntry: (entryId: string) => void;
   onPageChange: (entryId: string, page: number) => void;
@@ -234,6 +235,7 @@ export function MultiResultPanel({
   connectionId,
   copyFormat,
   csvDelimiter,
+  csvIncludeHeaders,
   onSelectResult,
   onRerunEntry,
   onPageChange,
@@ -456,6 +458,7 @@ export function MultiResultPanel({
               connectionId={connectionId}
               copyFormat={copyFormat}
               csvDelimiter={csvDelimiter}
+              csvIncludeHeaders={csvIncludeHeaders}
               onPageChange={(page) => onPageChange(activeEntry.id, page)}
             />
           </div>
@@ -507,6 +510,7 @@ export function MultiResultPanel({
                 connectionId={connectionId}
                 copyFormat={copyFormat}
                 csvDelimiter={csvDelimiter}
+                csvIncludeHeaders={csvIncludeHeaders}
                 collapsed={collapsedIds.has(entry.id)}
                 aiEnabled={aiEnabled}
                 aiRenaming={aiRenamingEntryId === entry.id}

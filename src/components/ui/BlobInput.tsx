@@ -30,8 +30,7 @@ export interface BlobInputProps {
   className?: string;
   connectionId?: string | null;
   tableName?: string | null;
-  pkCol?: string | null;
-  pkVal?: unknown;
+  pkMap?: Record<string, unknown> | null;
   colName?: string | null;
   schema?: string | null;
 }
@@ -50,8 +49,7 @@ export const BlobInput = ({
   className = "",
   connectionId,
   tableName,
-  pkCol,
-  pkVal,
+  pkMap,
   colName,
   schema,
 }: BlobInputProps) => {
@@ -69,9 +67,8 @@ export const BlobInput = ({
     metadata?.isTruncated &&
     connectionId &&
     tableName &&
-    pkCol &&
-    pkVal !== null &&
-    pkVal !== undefined &&
+    pkMap &&
+    Object.keys(pkMap).length > 0 &&
     colName;
 
   // Build a data URL for image preview from the BLOB wire format (non-file-ref, non-truncated)
@@ -123,8 +120,7 @@ export const BlobInput = ({
       connectionId,
       table: tableName,
       colName,
-      pkCol,
-      pkVal,
+      pkMap,
       ...(schema ? { schema } : {}),
     })
       .then((dataUrl) => {
@@ -136,7 +132,7 @@ export const BlobInput = ({
     return () => {
       cancelled = true;
     };
-  }, [isImage, canFetchFull, connectionId, tableName, colName, pkCol, pkVal, schema]);
+  }, [isImage, canFetchFull, connectionId, tableName, colName, pkMap, schema]);
 
   const effectiveImageDataUrl =
     imageDataUrl ?? fileRefPreviewUrl ?? dbPreviewUrl;
@@ -192,8 +188,7 @@ export const BlobInput = ({
           connectionId,
           table: tableName,
           colName,
-          pkCol,
-          pkVal,
+          pkMap,
           filePath,
           ...(schema ? { schema } : {}),
         });
