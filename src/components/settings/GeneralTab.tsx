@@ -25,6 +25,26 @@ export function GeneralTab() {
             onChange={(v) => updateSetting("showWelcome", v)}
           />
         </SettingRow>
+
+        <SettingRow
+          label={t("settings.autoConnectLastConnection")}
+          description={t("settings.autoConnectLastConnectionDesc")}
+        >
+          <SettingToggle
+            checked={settings.autoConnectLastConnection !== false}
+            onChange={(v) => updateSetting("autoConnectLastConnection", v)}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t("settings.startMaximized")}
+          description={t("settings.startMaximizedDesc")}
+        >
+          <SettingToggle
+            checked={settings.startMaximized === true}
+            onChange={(v) => updateSetting("startMaximized", v)}
+          />
+        </SettingRow>
       </SettingSection>
 
       <SettingSection title={t("settings.dataEditor")}>
@@ -71,6 +91,20 @@ export function GeneralTab() {
               { value: "\t", label: t("settings.delimiterTab") },
               { value: "|", label: t("settings.delimiterPipe") },
             ]}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t("settings.csvIncludeHeaders")}
+          description={t("settings.csvIncludeHeadersDesc")}
+        >
+          <SettingToggle
+            checked={
+              settings.csvIncludeHeaders ??
+              DEFAULT_SETTINGS.csvIncludeHeaders ??
+              true
+            }
+            onChange={(v) => updateSetting("csvIncludeHeaders", v)}
           />
         </SettingRow>
 

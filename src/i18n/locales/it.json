@@ -211,7 +211,11 @@
       "approvalTimeout": "Timeout",
       "approvalTimeoutDesc": "Quanti secondi il processo MCP attende la decisione dell'utente prima di abortire.",
       "preflightExplain": "EXPLAIN preliminare",
-      "preflightExplainDesc": "Esegui un EXPLAIN della query prima di mostrare il modal di approvazione, così l'utente vede il piano di esecuzione."
+      "preflightExplainDesc": "Esegui un EXPLAIN della query prima di mostrare il modal di approvazione, così l'utente vede il piano di esecuzione.",
+      "approvalAlwaysOnTop": "Porta il dialogo di approvazione in primo piano",
+      "approvalAlwaysOnTopDesc": "Quando un’azione MCP diversa dalla sola lettura richiede approvazione, porta Tabularis in primo piano e tienilo temporaneamente sopra le altre finestre.",
+      "approvalNotifySound": "Invia notifica e riproduci un suono",
+      "approvalNotifySoundDesc": "Mostra una notifica nativa del sistema e riproduce un breve suono di avviso quando arriva una nuova richiesta di approvazione MCP."
     }
   },
   "connections": {
@@ -288,6 +292,9 @@
     "delimiterSemicolon": "Punto e virgola (;)",
     "delimiterTab": "Tab",
     "delimiterPipe": "Pipe (|)",
+    "csvIncludeHeaders": "Includi intestazioni CSV",
+    "csvIncludeHeadersDesc": "Includi una riga di intestazione con i nomi delle colonne quando copi le righe come CSV.",
+    "csvHeaders": "Esporta nomi colonne",
     "detectJsonInTextColumns": "Rileva JSON nelle colonne di testo",
     "detectJsonInTextColumnsDesc": "Mostra il visualizzatore JSON quando una cella di testo non tipizzata contiene un oggetto o un array JSON. Aggiunge un piccolo costo di analisi per cella.",
     "appearance": "Aspetto",
@@ -342,6 +349,8 @@
     "roadmapDesc": "Questo progetto è un Work In Progress (WIP). Le funzioni principali sono stabili, ma abbiamo grandi piani.",
     "support": "Supporta lo Sviluppo",
     "supportDesc": "Se ti piace tabularis e vuoi vedere nuove funzionalità, considera di supportare il progetto contribuendo al codice, segnalando bug o mettendo una stella su GitHub.",
+    "followUs": "Seguici",
+    "followUsDesc": "Resta aggiornato e connettiti con la community sulla tua piattaforma preferita.",
     "version": "Versione",
     "starOnGithub": "Star su GitHub",
     "ai": {
@@ -461,6 +470,10 @@
     "startup": "Avvio",
     "showWelcome": "Mostra schermata di benvenuto",
     "showWelcomeDesc": "Mostra la schermata di benvenuto all'avvio dell'applicazione.",
+    "autoConnectLastConnection": "Riapri ultime connessioni",
+    "autoConnectLastConnectionDesc": "Riconnette alle connessioni aperte alla chiusura dell'app.",
+    "startMaximized": "Avvia ingrandita",
+    "startMaximizedDesc": "Apre la finestra ingrandita per riempire lo schermo all'avvio.",
     "erDiagram": "Diagramma ER",
     "erDiagramDefaultLayout": "Layout Predefinito",
     "erDiagramDefaultLayoutDesc": "Scegli la direzione di default per i diagrammi ER",
@@ -657,6 +670,7 @@
     "sshKeyFilePlaceholder": "/percorso/id_rsa",
     "sshKeyPassphrase": "Passphrase Chiave SSH (Opzionale)",
     "sshKeyPassphrasePlaceholder": "Inserisci passphrase se la chiave è cifrata",
+    "allowSshPrompt": "Consenti prompt password/PIN SSH",
     "saveKeychain": "Salva password nel Portachiavi",
     "testConnection": "Testa Connessione",
     "save": "Salva",
@@ -696,7 +710,13 @@
     "selectK8sConnection": "Seleziona connessione K8s",
     "selectTypeFirst": "Seleziona prima contesto/namespace/tipo",
     "useK8s": "Usa Port-Forward Kubernetes",
-    "useK8sConnection": "Connessione salvata"
+    "useK8sConnection": "Connessione salvata",
+    "advanced": "Avanzate",
+    "startupScript": "Script di avvio",
+    "startupScriptDescription": "SQL eseguito a ogni nuova connessione a questa origine dati. Usalo per le impostazioni di sessione come SET / set_config (ad es. per bypassare la RLS). Separa le istruzioni con punto e virgola.",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Scorri schede a sinistra",
+    "scrollTabsRight": "Scorri schede a destra"
   },
   "sshConnections": {
     "title": "Connessioni SSH",
@@ -720,6 +740,12 @@
     "quickTest": "Test connessione rapido",
     "testFailed": "Test connessione fallito",
     "savedInKeychain": "Password salvata nel portachiavi di sistema"
+  },
+  "sshAskpass": {
+    "title": "Autenticazione SSH",
+    "subtitle": "La connessione SSH richiede un tuo intervento",
+    "placeholder": "PIN o passphrase",
+    "waiting": "In attesa della security key — toccala per confermare."
   },
   "dataGrid": {
     "newRow": "NUOVA",
@@ -1164,6 +1190,7 @@
     "viewNamePlaceholder": "es. utenti_attivi, riepilogo_ordini",
     "viewDefinition": "Definizione Vista (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Formatta",
     "preview": "Anteprima",
     "runPreview": "Esegui Anteprima",
     "previewEmpty": "Clicca 'Esegui Anteprima' per vedere i risultati",
@@ -1499,7 +1526,9 @@
     "reasonLabel": "Motivo (opzionale)",
     "reasonPlaceholder": "es. Sembra rischiosa in produzione, conferma…",
     "approve": "Approva",
-    "deny": "Nega"
+    "deny": "Nega",
+    "notificationTitle": "Approvazione MCP necessaria",
+    "notificationBody": "Apri Tabularis per esaminare l’approvazione MCP in sospeso."
   },
   "discordCallout": {
     "title": "Nuova community Discord!",

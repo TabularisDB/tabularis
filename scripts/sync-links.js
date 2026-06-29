@@ -19,10 +19,20 @@ if (!links) {
 }
 
 console.log('🔄 Syncing links...');
-console.log(`   Discord: ${links.discord}`);
-console.log(`   GitHub: ${links.github}`);
+const entries = Object.entries(links);
+for (const [key, value] of entries) {
+  console.log(`   ${key}: ${value}`);
+}
 
 // 2. Create/update src/config/links.ts
+const constKey = (key) => key.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+const linkLines = entries
+  .map(([key, value]) => `  ${constKey(key)}: "${value}",`)
+  .join('\n');
+const namedExports = entries
+  .map(([key]) => `export const ${constKey(key)}_URL = LINKS.${constKey(key)};`)
+  .join('\n');
+
 const linksConfig = `/**
  * External links used throughout the application.
  *
@@ -32,13 +42,11 @@ const linksConfig = `/**
  */
 
 export const LINKS = {
-  DISCORD: "${links.discord}",
-  GITHUB: "${links.github}",
+${linkLines}
 } as const;
 
 // Named exports for convenience
-export const DISCORD_URL = LINKS.DISCORD;
-export const GITHUB_URL = LINKS.GITHUB;
+${namedExports}
 `;
 
 writeFileSync(paths.configLinks, linksConfig);
@@ -61,9 +69,6 @@ contributing = contributing.replace(
 );
 writeFileSync(paths.contributing, contributing);
 console.log('✅ Updated CONTRIBUTING.md');
-  /https:\/\/discord\.gg\/[A-Za-z0-9]+/g,
-  links.discord
-
 
 console.log('\n✨ All links synced successfully!');
 console.log('\n💡 React components automatically use the updated links from src/config/links.ts');

@@ -32,3 +32,4 @@ coverage
 plugins/**/target
 .gitnexus
 .pi/
+.atl/

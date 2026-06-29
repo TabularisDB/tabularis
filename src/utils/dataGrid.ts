@@ -83,6 +83,31 @@ export function formatCellValue(
   return String(value);
 }
 
+export type ResultValueType = "number" | "string" | "date" | "boolean";
+
+/**
+ * Classifies a non-null cell value into a semantic type used for result
+ * colorization. Prefers the column's declared type, then falls back to the
+ * runtime JS type. NULL is handled separately by the cell renderer.
+ */
+export function getResultValueType(
+  value: unknown,
+  columnType?: string,
+): ResultValueType {
+  if (typeof value === "boolean") return "boolean";
+
+  if (columnType) {
+    const t = columnType.toLowerCase();
+    if (/bool|^bit/.test(t)) return "boolean";
+    if (/date|time|timestamp|year/.test(t)) return "date";
+    if (/\b(?:tiny|small|medium|big)?int(?:eger)?\d*\b|serial|float|double|decimal|numeric|real|money|number|fixed/.test(t))
+      return "number";
+  }
+
+  if (typeof value === "number" || typeof value === "bigint") return "number";
+  return "string";
+}
+
 /**
  * Determines the sort state for a column based on the current sort clause
  * @param columnName - The column to check

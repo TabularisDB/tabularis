@@ -232,6 +232,14 @@ code {
   .text-semantic-deleted { color: var(--semantic-deleted); }
   .text-semantic-new { color: var(--semantic-new); }
 
+  /* Result cell colorization by data type. The --rcell-* variables are only set
+     when "color results by type" is enabled (see useResultTypeColors); otherwise
+     they fall back to the primary text color, so values render as before. */
+  .rcell-number { color: var(--rcell-number, var(--text-primary)); }
+  .rcell-string { color: var(--rcell-string, var(--text-primary)); }
+  .rcell-date { color: var(--rcell-date, var(--text-primary)); }
+  .rcell-boolean { color: var(--rcell-boolean, var(--text-primary)); }
+
   /* Status state utilities */
   .text-error { color: var(--color-error); }
   .text-error-text { color: var(--color-error-text); }

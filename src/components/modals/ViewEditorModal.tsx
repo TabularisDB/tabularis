@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { X, Loader2, Eye, AlertCircle, Play } from "lucide-react";
+import { X, Loader2, Eye, AlertCircle, Play, Sparkles } from "lucide-react";
+import type { OnMount } from "@monaco-editor/react";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../../hooks/useAlert";
 import { extractEditableViewDefinition } from "../../utils/sql";
+import { formatSql } from "../../utils/sqlFormat";
 import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
 import { useDatabase } from "../../hooks/useDatabase";
 import { Modal } from "../ui/Modal";
@@ -27,7 +29,7 @@ export const ViewEditorModal = ({
   onSuccess,
 }: ViewEditorModalProps) => {
   const { t } = useTranslation();
-  const { activeSchema } = useDatabase();
+  const { activeSchema, activeCapabilities } = useDatabase();
   const { showAlert } = useAlert();
   const [name, setName] = useState("");
   const [definition, setDefinition] = useState("");
@@ -40,6 +42,7 @@ export const ViewEditorModal = ({
     rows: unknown[][];
   } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
 
   const loadViewDefinition = useCallback(async (vName: string) => {
     setLoading(true);
@@ -74,6 +77,15 @@ export const ViewEditorModal = ({
       }
     }
   }, [isOpen, viewName, isNewView, loadViewDefinition]);
+
+  const handleFormat = () => {
+    // Read the editor's live value rather than `definition`, which lags
+    // behind by the wrapper's 300ms onChange debounce — otherwise edits
+    // typed within that window would be discarded by the format.
+    const current = editorRef.current?.getValue() ?? definition;
+    if (!current.trim()) return;
+    setDefinition(formatSql(current, activeCapabilities?.sql_dialect));
+  };
 
   const handlePreview = async () => {
     if (!definition.trim()) return;
@@ -214,14 +226,29 @@ export const ViewEditorModal = ({
 
           {/* View Definition */}
           <div>
-            <label className="text-xs uppercase font-bold text-muted mb-1 block">
-              {t("views.viewDefinition")}
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs uppercase font-bold text-muted block">
+                {t("views.viewDefinition")}
+              </label>
+              <button
+                type="button"
+                onClick={handleFormat}
+                disabled={loading || !definition.trim()}
+                title={t("views.formatSql")}
+                className="flex items-center gap-1.5 px-2 py-1 text-xs text-secondary hover:text-primary disabled:opacity-50 transition-colors"
+              >
+                <Sparkles size={14} />
+                {t("views.formatSql")}
+              </button>
+            </div>
             <div className="border border-strong rounded-lg overflow-hidden h-48">
               <SqlEditorWrapper
                 initialValue={definition}
                 onChange={setDefinition}
                 onRun={handlePreview}
+                onMount={(editor) => {
+                  editorRef.current = editor;
+                }}
                 height="100%"
                 options={{
                   readOnly: loading,
