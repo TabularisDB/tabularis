@@ -78,6 +78,23 @@ describe('sqlAnalysis utils', () => {
       expect(r?.get('users')).toEqual({ name: 'users', schema: 'db1' });
       expect(r?.get('orders')).toEqual({ name: 'orders', schema: 'db2' });
     });
+
+    it('should extract PostgreSQL double-quoted table with alias', () => {
+      const result = parseTablesFromQuery('SELECT ael. FROM "AccountEventLog" ael');
+      expect(result?.get('ael')?.name).toBe('AccountEventLog');
+    });
+
+    it('should extract schema-qualified table with alias', () => {
+      const result = parseTablesFromQuery('SELECT u. FROM public.users u');
+      expect(result?.get('u')?.name).toBe('users');
+      expect(result?.get('u')?.schema).toBe('public');
+    });
+
+    it('should extract comma-separated FROM tables', () => {
+      const result = parseTablesFromQuery('SELECT * FROM users u, orders o');
+      expect(result?.get('u')?.name).toBe('users');
+      expect(result?.get('o')?.name).toBe('orders');
+    });
   });
 
   describe('getCurrentStatement', () => {

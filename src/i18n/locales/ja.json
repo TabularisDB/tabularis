@@ -224,7 +224,11 @@
       "approvalTimeout": "タイムアウト",
       "approvalTimeoutDesc": "MCP サブプロセスがリクエストをタイムアウトさせる前にユーザーの判断を待つ時間。",
       "preflightExplain": "プリフライト EXPLAIN",
-      "preflightExplainDesc": "承認モーダルを表示する前にクエリに対して EXPLAIN を実行し、ユーザーに実行計画を表示します。"
+      "preflightExplainDesc": "承認モーダルを表示する前にクエリに対して EXPLAIN を実行し、ユーザーに実行計画を表示します。",
+      "approvalAlwaysOnTop": "承認ダイアログを最前面に表示",
+      "approvalAlwaysOnTopDesc": "読み取り以外の MCP アクションに承認が必要なとき、Tabularis を前面に出して一時的に他のウィンドウより上に表示します。",
+      "approvalNotifySound": "通知を送信して音を鳴らす",
+      "approvalNotifySoundDesc": "新しい MCP 承認リクエストが届いたときに、ネイティブ通知を表示して短い通知音を再生します。"
     }
   },
   "connections": {
@@ -296,6 +300,9 @@
     "delimiterSemicolon": "セミコロン (;)",
     "delimiterTab": "タブ",
     "delimiterPipe": "パイプ (|)",
+    "csvIncludeHeaders": "CSVヘッダーを含める",
+    "csvIncludeHeadersDesc": "行をCSVとしてコピーするときに、列名のヘッダー行を含めます。",
+    "csvHeaders": "列名をエクスポート",
     "appearance": "外観",
     "localization": "ローカライズ",
     "themeSelection": "テーマ選択",
@@ -351,6 +358,8 @@
     "roadmapDesc": "このプロジェクトは現在開発中 (WIP) です。主要機能は安定していますが、より大きな構想も進めています。",
     "support": "開発をサポート",
     "supportDesc": "Tabularis を気に入っていただけたら、コードへの貢献、バグ報告、リポジトリへのスターなどでプロジェクトのサポートをご検討ください。",
+    "followUs": "フォローする",
+    "followUsDesc": "お気に入りのプラットフォームで最新情報を入手し、コミュニティとつながりましょう。",
     "version": "バージョン",
     "starOnGithub": "GitHub でスター",
     "ai": {
@@ -470,6 +479,10 @@
     "startup": "起動",
     "showWelcome": "ウェルカム画面を表示",
     "showWelcomeDesc": "アプリ起動時にウェルカム画面を表示します。",
+    "autoConnectLastConnection": "前回の接続を再度開く",
+    "autoConnectLastConnectionDesc": "アプリを最後に閉じたときに開いていた接続に再接続します。",
+    "startMaximized": "最大化して起動",
+    "startMaximizedDesc": "起動時にウィンドウを最大化して画面いっぱいに表示します。",
     "erDiagram": "ER 図",
     "erDiagramDefaultLayout": "デフォルトレイアウト",
     "erDiagramDefaultLayoutDesc": "ER 図のデフォルトのレイアウト方向を選択します",
@@ -666,6 +679,7 @@
     "sshKeyFilePlaceholder": "/path/to/id_rsa",
     "sshKeyPassphrase": "SSH 鍵のパスフレーズ (任意)",
     "sshKeyPassphrasePlaceholder": "鍵が暗号化されている場合はパスフレーズを入力",
+    "allowSshPrompt": "SSHパスワード/PINプロンプトを許可する",
     "saveKeychain": "パスワードをキーチェーンに保存",
     "testConnection": "接続テスト",
     "save": "保存",
@@ -705,7 +719,13 @@
     "selectK8sConnection": "K8s 接続を選択",
     "selectTypeFirst": "先にコンテキスト/ネームスペース/タイプを選択してください",
     "useK8s": "Kubernetes ポートフォワードを使用",
-    "useK8sConnection": "保存された接続"
+    "useK8sConnection": "保存された接続",
+    "advanced": "詳細設定",
+    "startupScript": "起動スクリプト",
+    "startupScriptDescription": "このデータソースへの新規接続ごとに実行される SQL です。SET / set_config（例: RLS のバイパス）などのセッション設定に使用します。複数のステートメントはセミコロンで区切ってください。",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "タブを左にスクロール",
+    "scrollTabsRight": "タブを右にスクロール"
   },
   "sshConnections": {
     "title": "SSH 接続",
@@ -729,6 +749,12 @@
     "quickTest": "簡易接続テスト",
     "testFailed": "接続テストに失敗しました",
     "savedInKeychain": "パスワードをシステムのキーチェーンに保存しました"
+  },
+  "sshAskpass": {
+    "title": "SSH認証",
+    "subtitle": "SSH接続には入力が必要です",
+    "placeholder": "PINまたはパスフレーズ",
+    "waiting": "セキュリティキーを待っています — タッチして確認してください。"
   },
   "dataGrid": {
     "noData": "表示するデータがありません",
@@ -1536,7 +1562,9 @@
     "reasonLabel": "理由 (任意)",
     "reasonPlaceholder": "例: 本番環境でリスクがありそう、確認お願いします…",
     "approve": "承認",
-    "deny": "拒否"
+    "deny": "拒否",
+    "notificationTitle": "MCP の承認が必要です",
+    "notificationBody": "保留中の MCP 承認を確認するには Tabularis を開いてください。"
   },
   "discordCallout": {
     "title": "Discord コミュニティが新登場！",

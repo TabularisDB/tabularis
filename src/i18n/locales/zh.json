@@ -210,7 +210,11 @@
       "approvalTimeout": "超时",
       "approvalTimeoutDesc": "MCP 子进程等待用户决定的时间。",
       "preflightExplain": "预先 EXPLAIN",
-      "preflightExplainDesc": "在显示审批模态之前运行 EXPLAIN,以便用户查看执行计划。"
+      "preflightExplainDesc": "在显示审批模态之前运行 EXPLAIN,以便用户查看执行计划。",
+      "approvalAlwaysOnTop": "将审批对话框置于最前",
+      "approvalAlwaysOnTopDesc": "当非只读的 MCP 操作需要审批时，将 Tabularis 拉到前台，并临时保持在其他窗口之上。",
+      "approvalNotifySound": "发送通知并播放提示音",
+      "approvalNotifySoundDesc": "当新的 MCP 审批请求到达时，显示原生系统通知并播放短促提示音。"
     }
   },
   "connections": {
@@ -282,6 +286,9 @@
     "delimiterSemicolon": "分号 (;)",
     "delimiterTab": "制表符",
     "delimiterPipe": "管道符 (|)",
+    "csvIncludeHeaders": "包含 CSV 表头",
+    "csvIncludeHeadersDesc": "以 CSV 格式复制行时包含含有列名的表头行。",
+    "csvHeaders": "导出列名",
     "detectJsonInTextColumns": "在文本列中检测 JSON",
     "detectJsonInTextColumnsDesc": "当未带类型的文本单元格包含 JSON 对象或数组时显示 JSON 查看器入口。每单元格会增加少量解析开销。",
     "appearance": "外观",
@@ -310,6 +317,8 @@
     "roadmapDesc": "此项目是正在进行的工作 (WIP)。核心功能已稳定，但我们有更大的计划。",
     "support": "支持开发",
     "supportDesc": "如果您喜欢 Tabularis 并希望看到更多功能，请考虑通过贡献代码、报告错误或 Star 项目来支持该项目。",
+    "followUs": "关注我们",
+    "followUsDesc": "在您喜爱的平台上获取最新动态并与社区交流。",
     "version": "版本",
     "starOnGithub": "在 GitHub 上 Star",
     "ai": {
@@ -425,6 +434,10 @@
     "startup": "启动",
     "showWelcome": "显示欢迎屏幕",
     "showWelcomeDesc": "应用程序启动时显示欢迎屏幕。",
+    "autoConnectLastConnection": "重新打开上次的连接",
+    "autoConnectLastConnectionDesc": "重新连接到上次关闭应用时打开的连接。",
+    "startMaximized": "最大化启动",
+    "startMaximizedDesc": "启动时以最大化窗口填满屏幕。",
     "erDiagram": "ER 图",
     "erDiagramDefaultLayout": "默认布局",
     "erDiagramDefaultLayoutDesc": "选择 ER 图的默认布局方向",
@@ -620,6 +633,7 @@
     "sshKeyFilePlaceholder": "/path/to/id_rsa",
     "sshKeyPassphrase": "SSH 密钥密码（可选）",
     "sshKeyPassphrasePlaceholder": "如果加密请输入密钥密码",
+    "allowSshPrompt": "允许 SSH 密码/PIN 提示",
     "saveKeychain": "在密钥链中保存密码",
     "testConnection": "测试连接",
     "save": "保存",
@@ -659,7 +673,13 @@
     "selectK8sConnection": "选择 K8s 连接",
     "selectTypeFirst": "请先选择上下文/命名空间/类型",
     "useK8s": "使用 Kubernetes 端口转发",
-    "useK8sConnection": "已保存的连接"
+    "useK8sConnection": "已保存的连接",
+    "advanced": "高级",
+    "startupScript": "启动脚本",
+    "startupScriptDescription": "每次新建到此数据源的连接时执行的 SQL。可用于会话设置，例如 SET / set_config（如绕过 RLS）。多条语句请用分号分隔。",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "向左滚动标签页",
+    "scrollTabsRight": "向右滚动标签页"
   },
   "sshConnections": {
     "title": "SSH 连接",
@@ -683,6 +703,12 @@
     "quickTest": "快速连接测试",
     "testFailed": "连接测试失败",
     "savedInKeychain": "密码已保存到系统密钥链"
+  },
+  "sshAskpass": {
+    "title": "SSH 身份验证",
+    "subtitle": "SSH 连接需要您的输入",
+    "placeholder": "PIN 或密码短语",
+    "waiting": "正在等待您的安全密钥 — 触摸以确认。"
   },
   "dataGrid": {
     "newRow": "新建",
@@ -1458,7 +1484,9 @@
     "reasonLabel": "理由 (可选)",
     "reasonPlaceholder": "例如:在生产环境中风险较大,请确认…",
     "approve": "批准",
-    "deny": "拒绝"
+    "deny": "拒绝",
+    "notificationTitle": "需要 MCP 审批",
+    "notificationBody": "请打开 Tabularis 以查看待处理的 MCP 审批。"
   },
   "discordCallout": {
     "title": "全新的 Discord 社区！",

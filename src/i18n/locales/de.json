@@ -211,7 +211,11 @@
       "approvalTimeout": "Zeitlimit",
       "approvalTimeoutDesc": "Wie lange gewartet wird, bevor abgebrochen wird.",
       "preflightExplain": "Vorab-EXPLAIN",
-      "preflightExplainDesc": "Führt vor dem Modal ein EXPLAIN aus, damit der Plan sichtbar ist."
+      "preflightExplainDesc": "Führt vor dem Modal ein EXPLAIN aus, damit der Plan sichtbar ist.",
+      "approvalAlwaysOnTop": "Freigabedialog in den Vordergrund holen",
+      "approvalAlwaysOnTopDesc": "Wenn eine nicht lesende MCP-Aktion eine Freigabe benötigt, bringt Tabularis sich in den Vordergrund und bleibt vorübergehend über anderen Fenstern.",
+      "approvalNotifySound": "Benachrichtigung senden und Ton abspielen",
+      "approvalNotifySoundDesc": "Zeigt eine native Systembenachrichtigung an und spielt einen kurzen Hinweiston ab, wenn eine neue MCP-Freigabeanfrage eingeht."
     }
   },
   "connections": {
@@ -283,6 +287,9 @@
     "delimiterSemicolon": "Semikolon (;)",
     "delimiterTab": "Tabulator",
     "delimiterPipe": "Pipe (|)",
+    "csvIncludeHeaders": "CSV-Kopfzeile einschließen",
+    "csvIncludeHeadersDesc": "Beim Kopieren von Zeilen als CSV eine Kopfzeile mit den Spaltennamen einfügen.",
+    "csvHeaders": "Spaltennamen exportieren",
     "detectJsonInTextColumns": "JSON in Text-Spalten erkennen",
     "detectJsonInTextColumnsDesc": "Zeigt JSON-Viewer-Bedienelemente, wenn eine nicht typisierte Text-Zelle ein JSON-Objekt oder -Array enthält. Verursacht kleine Parse-Kosten pro Zelle.",
     "appearance": "Darstellung",
@@ -337,6 +344,8 @@
     "roadmapDesc": "Dieses Projekt ist Work in Progress (WIP). Die Kernfunktionen sind stabil, aber wir haben große Pläne.",
     "support": "Entwicklung unterstützen",
     "supportDesc": "Wenn dir tabularis gefällt und du mehr Funktionen sehen möchtest, unterstütze das Projekt durch Code-Beiträge, Bug-Reports oder einen Stern auf GitHub.",
+    "followUs": "Folge uns",
+    "followUsDesc": "Bleib auf dem Laufenden und vernetze dich mit der Community auf deiner Lieblingsplattform.",
     "version": "Version",
     "starOnGithub": "Auf GitHub mit Stern markieren",
     "ai": {
@@ -456,6 +465,10 @@
     "startup": "Start",
     "showWelcome": "Willkommensbildschirm anzeigen",
     "showWelcomeDesc": "Willkommensbildschirm beim Start der Anwendung anzeigen.",
+    "autoConnectLastConnection": "Letzte Verbindungen wieder öffnen",
+    "autoConnectLastConnectionDesc": "Stellt die Verbindungen wieder her, die beim letzten Schließen der App geöffnet waren.",
+    "startMaximized": "Maximiert starten",
+    "startMaximizedDesc": "Öffnet das Fenster beim Start maximiert, um den Bildschirm auszufüllen.",
     "erDiagram": "ER-Diagramm",
     "erDiagramDefaultLayout": "Standard-Layout",
     "erDiagramDefaultLayoutDesc": "Wähle die Standard-Layout-Richtung für ER-Diagramme",
@@ -652,6 +665,7 @@
     "sshKeyFilePlaceholder": "/pfad/zu/id_rsa",
     "sshKeyPassphrase": "Passphrase für SSH-Schlüssel (optional)",
     "sshKeyPassphrasePlaceholder": "Passphrase eingeben, falls der Schlüssel verschlüsselt ist",
+    "allowSshPrompt": "SSH-Passwort/PIN-Eingabeaufforderung erlauben",
     "saveKeychain": "Passwörter im Keychain speichern",
     "testConnection": "Verbindung testen",
     "save": "Speichern",
@@ -691,7 +705,13 @@
     "selectK8sConnection": "K8s-Verbindung auswählen",
     "selectTypeFirst": "Zuerst Kontext/Namespace/Typ auswählen",
     "useK8s": "Kubernetes-Port-Forward verwenden",
-    "useK8sConnection": "Gespeicherte Verbindung"
+    "useK8sConnection": "Gespeicherte Verbindung",
+    "advanced": "Erweitert",
+    "startupScript": "Startskript",
+    "startupScriptDescription": "SQL, das bei jeder neuen Verbindung zu dieser Datenquelle ausgeführt wird. Verwenden Sie es für Sitzungseinstellungen wie SET / set_config (z. B. zum Umgehen von RLS). Trennen Sie Anweisungen mit Semikolons.",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Registerkarten nach links blättern",
+    "scrollTabsRight": "Registerkarten nach rechts blättern"
   },
   "sshConnections": {
     "title": "SSH-Verbindungen",
@@ -715,6 +735,12 @@
     "quickTest": "Schneller Verbindungstest",
     "testFailed": "Verbindungstest fehlgeschlagen",
     "savedInKeychain": "Passwort im System-Keychain gespeichert"
+  },
+  "sshAskpass": {
+    "title": "SSH-Authentifizierung",
+    "subtitle": "Die SSH-Verbindung benötigt Ihre Eingabe",
+    "placeholder": "PIN oder Passphrase",
+    "waiting": "Warten auf Ihren Sicherheitsschlüssel — zum Bestätigen berühren."
   },
   "dataGrid": {
     "newRow": "NEU",
@@ -1517,7 +1543,9 @@
     "reasonLabel": "Grund (optional)",
     "reasonPlaceholder": "z.B. In Prod riskant, bestätigen…",
     "approve": "Freigeben",
-    "deny": "Ablehnen"
+    "deny": "Ablehnen",
+    "notificationTitle": "MCP-Freigabe erforderlich",
+    "notificationBody": "Öffne Tabularis, um die ausstehende MCP-Freigabe zu prüfen."
   },
   "discordCallout": {
     "title": "Neue Discord-Community!",
