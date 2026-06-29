@@ -194,6 +194,7 @@ pub async fn expand_ssh_connection_params<R: Runtime>(
             expanded_params.ssh_password = ssh_conn.password.clone();
             expanded_params.ssh_key_file = ssh_conn.key_file.clone();
             expanded_params.ssh_key_passphrase = ssh_conn.key_passphrase.clone();
+            expanded_params.ssh_allow_passphrase_prompt = ssh_conn.allow_passphrase_prompt;
         }
     }
 
@@ -336,6 +337,7 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
         params.ssh_password.as_deref(),
         params.ssh_key_file.as_deref(),
         params.ssh_key_passphrase.as_deref(),
+        params.ssh_allow_passphrase_prompt.unwrap_or(false),
         remote_host,
         remote_port,
     )
@@ -1056,6 +1058,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
                             Some(key_file.clone())
                         },
                         key_passphrase: None,
+                        allow_passphrase_prompt: None,
                         save_in_keychain: conn.params.save_in_keychain,
                     };
 
@@ -1223,6 +1226,7 @@ pub async fn save_ssh_connection<R: Runtime>(
         } else {
             ssh.key_passphrase.clone()
         },
+        allow_passphrase_prompt: ssh.allow_passphrase_prompt,
         save_in_keychain: ssh.save_in_keychain,
     };
 
@@ -1290,6 +1294,7 @@ pub async fn update_ssh_connection<R: Runtime>(
         } else {
             ssh.key_passphrase.clone()
         },
+        allow_passphrase_prompt: ssh.allow_passphrase_prompt,
         save_in_keychain: ssh.save_in_keychain,
     };
 
@@ -1386,6 +1391,7 @@ pub async fn test_ssh_connection<R: Runtime>(
         resolved_password.as_deref(),
         ssh.key_file.as_deref(),
         resolved_passphrase.as_deref(),
+        ssh.allow_passphrase_prompt.unwrap_or(false),
     )
 }
 
@@ -2069,6 +2075,7 @@ mod tests {
                 password: password.map(|p| p.to_string()),
                 key_file: None,
                 key_passphrase: None,
+                allow_passphrase_prompt: None,
                 save_in_keychain: Some(save_in_keychain),
             }
         }

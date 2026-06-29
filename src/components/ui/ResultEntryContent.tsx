@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { CheckCircle2 } from "lucide-react";
 import { DataGrid } from "./DataGrid";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { PaginationControls } from "./PaginationControls";
@@ -57,6 +58,49 @@ export function ResultEntryContent({
     return (
       <div className="flex items-center justify-center h-full text-surface-tertiary text-sm">
         {t("editor.executePrompt")}
+      </div>
+    );
+  }
+
+  // A statement that returns no result set (INSERT/UPDATE/DELETE/DDL such as
+  // CREATE/ALTER/DROP VIEW) still succeeded — surface that explicitly instead
+  // of an empty grid with a misleading "0 rows retrieved" header.
+  if (entry.result.columns.length === 0) {
+    const affected = entry.result.affected_rows ?? 0;
+    const time =
+      entry.executionTime !== null ? (
+        <span className="text-muted font-mono">
+          ({formatDuration(entry.executionTime)})
+        </span>
+      ) : null;
+
+    if (compact) {
+      return (
+        <div className="flex items-center gap-2 px-3 py-3 text-xs">
+          <CheckCircle2 size={14} className="text-green-500 shrink-0" />
+          <span className="text-primary">{t("editor.queryExecuted")}</span>
+          {affected > 0 && (
+            <span className="text-secondary">
+              {t("editor.rowsAffected", { count: affected })}
+            </span>
+          )}
+          {time}
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2 text-center px-4">
+        <CheckCircle2 size={32} className="text-green-500" />
+        <p className="text-sm font-medium text-primary">
+          {t("editor.queryExecuted")}
+        </p>
+        <p className="text-xs text-secondary flex items-center gap-2">
+          {affected > 0 && (
+            <span>{t("editor.rowsAffected", { count: affected })}</span>
+          )}
+          {time}
+        </p>
       </div>
     );
   }

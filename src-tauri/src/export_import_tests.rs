@@ -41,6 +41,7 @@ mod tests {
                 password: Some("ssh_password".to_string()),
                 key_file: None,
                 key_passphrase: None,
+                allow_passphrase_prompt: None,
                 save_in_keychain: Some(true),
             }],
             k8s_connections: vec![],
