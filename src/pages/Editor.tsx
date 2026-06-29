@@ -45,6 +45,7 @@ import {
   Copy,
   FileText,
   FileJson,
+  CheckCircle2,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -3112,6 +3113,34 @@ export const Editor = () => {
               </div>
             ) : activeTab.error ? (
               <ErrorDisplay error={activeTab.error} t={t} />
+            ) : activeTab.result &&
+              activeTab.result.columns.length === 0 &&
+              !(
+                activeTab.pendingInsertions &&
+                Object.keys(activeTab.pendingInsertions).length > 0
+              ) ? (
+              // Non-SELECT statement (INSERT/UPDATE/DELETE/DDL): no result set,
+              // so surface an explicit success message instead of an empty grid.
+              <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2 text-center px-4">
+                <CheckCircle2 size={32} className="text-green-500" />
+                <p className="text-sm font-medium text-primary">
+                  {t("editor.queryExecuted")}
+                </p>
+                <p className="text-xs text-secondary flex items-center gap-2">
+                  {activeTab.result.affected_rows > 0 && (
+                    <span>
+                      {t("editor.rowsAffected", {
+                        count: activeTab.result.affected_rows,
+                      })}
+                    </span>
+                  )}
+                  {activeTab.executionTime !== null && (
+                    <span className="text-muted font-mono">
+                      ({formatDuration(activeTab.executionTime)})
+                    </span>
+                  )}
+                </p>
+              </div>
             ) : activeTab.result ||
               (activeTab.pendingInsertions &&
                 Object.keys(activeTab.pendingInsertions).length > 0) ? (
