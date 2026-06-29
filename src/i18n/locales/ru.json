@@ -661,6 +661,7 @@
     "sshKeyFilePlaceholder": "/path/to/id_rsa",
     "sshKeyPassphrase": "Пароль SSH-ключа (необязательно)",
     "sshKeyPassphrasePlaceholder": "Введите пароль, если ключ зашифрован",
+    "allowSshPrompt": "Разрешить запрос пароля/PIN-кода SSH",
     "saveKeychain": "Сохранять пароли в Keychain",
     "testConnection": "Проверить подключение",
     "save": "Сохранить",
@@ -699,7 +700,13 @@
     "selectTypeFirst": "Сначала выберите контекст/пространство имён/тип",
     "useK8s": "Использовать проброс портов Kubernetes",
     "useK8sConnection": "Сохранённое подключение",
-    "appearance": "Внешний вид"
+    "appearance": "Внешний вид",
+    "advanced": "Дополнительно",
+    "startupScript": "Сценарий запуска",
+    "startupScriptDescription": "SQL, выполняемый при каждом новом подключении к этому источнику данных. Используйте его для настроек сеанса, таких как SET / set_config (например, для обхода RLS). Разделяйте операторы точкой с запятой.",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Прокрутить вкладки влево",
+    "scrollTabsRight": "Прокрутить вкладки вправо"
   },
   "sshConnections": {
     "title": "SSH-подключения",
@@ -723,6 +730,12 @@
     "quickTest": "Быстрая проверка подключения",
     "testFailed": "Проверка подключения не удалась",
     "savedInKeychain": "Пароль сохранён в системном хранилище ключей"
+  },
+  "sshAskpass": {
+    "title": "Аутентификация SSH",
+    "subtitle": "SSH-подключению требуется ваш ввод",
+    "placeholder": "PIN-код или парольная фраза",
+    "waiting": "Ожидание ключа безопасности — коснитесь его для подтверждения."
   },
   "dataGrid": {
     "newRow": "НОВАЯ",
@@ -819,6 +832,8 @@
     "newRow": "Новая строка",
     "editing": "Редактирование: {{table}}",
     "rowsRetrieved": "Строк: {{count}}",
+    "queryExecuted": "Запрос выполнен успешно",
+    "rowsAffected": "затронуто строк: {{count}}",
     "autoPaginated": "Автопостраничный вывод",
     "pageOf": "Страница {{current}} из {{total}}",
     "page": "Страница {{current}}",
@@ -1183,6 +1198,7 @@
     "viewNamePlaceholder": "например, active_users, order_summary",
     "viewDefinition": "Определение представления (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Форматировать",
     "preview": "Предпросмотр",
     "runPreview": "Запустить предпросмотр",
     "previewEmpty": "Нажмите «Запустить предпросмотр», чтобы увидеть результаты",

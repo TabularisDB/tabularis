@@ -61,6 +61,7 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.2",
     "recharts": "^3.8.1",
+    "sql-formatter": "^15.8.2",
     "util": "^0.12.5",
     "wkx": "^0.5.0"
   },

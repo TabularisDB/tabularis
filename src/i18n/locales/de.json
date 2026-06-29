@@ -667,6 +667,7 @@
     "sshKeyFilePlaceholder": "/pfad/zu/id_rsa",
     "sshKeyPassphrase": "Passphrase für SSH-Schlüssel (optional)",
     "sshKeyPassphrasePlaceholder": "Passphrase eingeben, falls der Schlüssel verschlüsselt ist",
+    "allowSshPrompt": "SSH-Passwort/PIN-Eingabeaufforderung erlauben",
     "saveKeychain": "Passwörter im Keychain speichern",
     "testConnection": "Verbindung testen",
     "save": "Speichern",
@@ -706,7 +707,13 @@
     "selectK8sConnection": "K8s-Verbindung auswählen",
     "selectTypeFirst": "Zuerst Kontext/Namespace/Typ auswählen",
     "useK8s": "Kubernetes-Port-Forward verwenden",
-    "useK8sConnection": "Gespeicherte Verbindung"
+    "useK8sConnection": "Gespeicherte Verbindung",
+    "advanced": "Erweitert",
+    "startupScript": "Startskript",
+    "startupScriptDescription": "SQL, das bei jeder neuen Verbindung zu dieser Datenquelle ausgeführt wird. Verwenden Sie es für Sitzungseinstellungen wie SET / set_config (z. B. zum Umgehen von RLS). Trennen Sie Anweisungen mit Semikolons.",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Registerkarten nach links blättern",
+    "scrollTabsRight": "Registerkarten nach rechts blättern"
   },
   "sshConnections": {
     "title": "SSH-Verbindungen",
@@ -730,6 +737,12 @@
     "quickTest": "Schneller Verbindungstest",
     "testFailed": "Verbindungstest fehlgeschlagen",
     "savedInKeychain": "Passwort im System-Keychain gespeichert"
+  },
+  "sshAskpass": {
+    "title": "SSH-Authentifizierung",
+    "subtitle": "Die SSH-Verbindung benötigt Ihre Eingabe",
+    "placeholder": "PIN oder Passphrase",
+    "waiting": "Warten auf Ihren Sicherheitsschlüssel — zum Bestätigen berühren."
   },
   "dataGrid": {
     "newRow": "NEU",
@@ -824,6 +837,8 @@
     "newRow": "Neue Zeile",
     "editing": "Bearbeitung: {{table}}",
     "rowsRetrieved": "{{count}} Zeilen abgerufen",
+    "queryExecuted": "Abfrage erfolgreich ausgeführt",
+    "rowsAffected": "{{count}} Zeilen betroffen",
     "autoPaginated": "Automatisch paginiert",
     "pageOf": "Seite {{current}} von {{total}}",
     "page": "Seite {{current}}",
@@ -1177,6 +1192,7 @@
     "viewNamePlaceholder": "z. B. active_users, order_summary",
     "viewDefinition": "Ansichtsdefinition (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Formatieren",
     "preview": "Vorschau",
     "runPreview": "Vorschau ausführen",
     "previewEmpty": "Klicke auf 'Vorschau ausführen', um Ergebnisse zu sehen",

@@ -701,6 +701,7 @@
     "sshKeyFilePlaceholder": "/path/to/id_rsa",
     "sshKeyPassphrase": "SSH Key Passphrase (Optional)",
     "sshKeyPassphrasePlaceholder": "Enter key passphrase if encrypted",
+    "allowSshPrompt": "Allow SSH password/PIN prompt",
     "saveKeychain": "Save passwords in Keychain",
     "testConnection": "Test Connection",
     "save": "Save",
@@ -740,7 +741,13 @@
     "selectK8sConnection": "Select K8s Connection",
     "selectTypeFirst": "Select context/namespace/type first",
     "useK8s": "Use Kubernetes Port-Forward",
-    "useK8sConnection": "Saved Connection"
+    "useK8sConnection": "Saved Connection",
+    "advanced": "Advanced",
+    "startupScript": "Startup Script",
+    "startupScriptDescription": "SQL run on every new connection to this data source. Use it for session settings such as SET / set_config (e.g. bypassing RLS). Separate statements with semicolons.",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Scroll tabs left",
+    "scrollTabsRight": "Scroll tabs right"
   },
   "sshConnections": {
     "title": "SSH Connections",
@@ -764,6 +771,12 @@
     "quickTest": "Quick connection test",
     "testFailed": "Connection test failed",
     "savedInKeychain": "Password saved in system keychain"
+  },
+  "sshAskpass": {
+    "title": "SSH Authentication",
+    "subtitle": "The SSH connection needs your input",
+    "placeholder": "PIN or passphrase",
+    "waiting": "Waiting for your security key — touch it to confirm."
   },
   "dataGrid": {
     "newRow": "NEW",
@@ -840,6 +853,8 @@
     "newRow": "New Row",
     "editing": "Editing: {{table}}",
     "rowsRetrieved": "{{count}} rows retrieved",
+    "queryExecuted": "Query executed successfully",
+    "rowsAffected": "{{count}} rows affected",
     "autoPaginated": "Auto paginated",
     "pageOf": "Page {{current}} of {{total}}",
     "page": "Page {{current}}",
@@ -1213,6 +1228,7 @@
     "viewNamePlaceholder": "e.g. active_users, order_summary",
     "viewDefinition": "View Definition (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Beautify",
     "preview": "Preview",
     "runPreview": "Run Preview",
     "previewEmpty": "Click 'Run Preview' to see results",

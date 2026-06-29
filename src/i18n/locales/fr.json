@@ -667,6 +667,7 @@
     "sshKeyFilePlaceholder": "/chemin/vers/id_rsa",
     "sshKeyPassphrase": "Phrase secrète de clé SSH (optionnel)",
     "sshKeyPassphrasePlaceholder": "Saisissez la phrase secrète si la clé est chiffrée",
+    "allowSshPrompt": "Autoriser l'invite de mot de passe/PIN SSH",
     "saveKeychain": "Enregistrer les mots de passe dans le trousseau",
     "testConnection": "Tester la connexion",
     "save": "Enregistrer",
@@ -706,7 +707,13 @@
     "selectK8sConnection": "Sélectionner une connexion K8s",
     "selectTypeFirst": "Sélectionnez d'abord contexte/namespace/type",
     "useK8s": "Utiliser le Port-Forward Kubernetes",
-    "useK8sConnection": "Connexion enregistrée"
+    "useK8sConnection": "Connexion enregistrée",
+    "advanced": "Avancé",
+    "startupScript": "Script de démarrage",
+    "startupScriptDescription": "SQL exécuté à chaque nouvelle connexion à cette source de données. Utilisez-le pour des paramètres de session tels que SET / set_config (par exemple, pour contourner la RLS). Séparez les instructions par des points-virgules.",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Défiler les onglets vers la gauche",
+    "scrollTabsRight": "Défiler les onglets vers la droite"
   },
   "sshConnections": {
     "title": "Connexions SSH",
@@ -730,6 +737,12 @@
     "quickTest": "Test rapide de connexion",
     "testFailed": "Échec du test de connexion",
     "savedInKeychain": "Mot de passe enregistré dans le trousseau système"
+  },
+  "sshAskpass": {
+    "title": "Authentification SSH",
+    "subtitle": "La connexion SSH nécessite votre intervention",
+    "placeholder": "PIN ou phrase secrète",
+    "waiting": "En attente de votre clé de sécurité — touchez-la pour confirmer."
   },
   "dataGrid": {
     "newRow": "NOUVELLE",
@@ -824,6 +837,8 @@
     "newRow": "Nouvelle ligne",
     "editing": "Modification : {{table}}",
     "rowsRetrieved": "{{count}} lignes récupérées",
+    "queryExecuted": "Requête exécutée avec succès",
+    "rowsAffected": "{{count}} lignes affectées",
     "autoPaginated": "Pagination automatique",
     "pageOf": "Page {{current}} sur {{total}}",
     "page": "Page {{current}}",
@@ -1177,6 +1192,7 @@
     "viewNamePlaceholder": "ex. active_users, order_summary",
     "viewDefinition": "Définition de la vue (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Embellir",
     "preview": "Aperçu",
     "runPreview": "Exécuter l’aperçu",
     "previewEmpty": "Cliquez sur \"Exécuter l’aperçu\" pour voir les résultats",

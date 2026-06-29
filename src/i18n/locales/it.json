@@ -672,6 +672,7 @@
     "sshKeyFilePlaceholder": "/percorso/id_rsa",
     "sshKeyPassphrase": "Passphrase Chiave SSH (Opzionale)",
     "sshKeyPassphrasePlaceholder": "Inserisci passphrase se la chiave è cifrata",
+    "allowSshPrompt": "Consenti prompt password/PIN SSH",
     "saveKeychain": "Salva password nel Portachiavi",
     "testConnection": "Testa Connessione",
     "save": "Salva",
@@ -711,7 +712,13 @@
     "selectK8sConnection": "Seleziona connessione K8s",
     "selectTypeFirst": "Seleziona prima contesto/namespace/tipo",
     "useK8s": "Usa Port-Forward Kubernetes",
-    "useK8sConnection": "Connessione salvata"
+    "useK8sConnection": "Connessione salvata",
+    "advanced": "Avanzate",
+    "startupScript": "Script di avvio",
+    "startupScriptDescription": "SQL eseguito a ogni nuova connessione a questa origine dati. Usalo per le impostazioni di sessione come SET / set_config (ad es. per bypassare la RLS). Separa le istruzioni con punto e virgola.",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Scorri schede a sinistra",
+    "scrollTabsRight": "Scorri schede a destra"
   },
   "sshConnections": {
     "title": "Connessioni SSH",
@@ -735,6 +742,12 @@
     "quickTest": "Test connessione rapido",
     "testFailed": "Test connessione fallito",
     "savedInKeychain": "Password salvata nel portachiavi di sistema"
+  },
+  "sshAskpass": {
+    "title": "Autenticazione SSH",
+    "subtitle": "La connessione SSH richiede un tuo intervento",
+    "placeholder": "PIN o passphrase",
+    "waiting": "In attesa della security key — toccala per confermare."
   },
   "dataGrid": {
     "newRow": "NUOVA",
@@ -807,6 +820,8 @@
     "newRow": "Nuova riga",
     "editing": "Modifica: {{table}}",
     "rowsRetrieved": "{{count}} righe recuperate",
+    "queryExecuted": "Query eseguita con successo",
+    "rowsAffected": "{{count}} righe interessate",
     "autoPaginated": "Impaginazione automatica",
     "pageOf": "Pagina {{current}} di {{total}}",
     "page": "Pagina {{current}}",
@@ -1179,6 +1194,7 @@
     "viewNamePlaceholder": "es. utenti_attivi, riepilogo_ordini",
     "viewDefinition": "Definizione Vista (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Formatta",
     "preview": "Anteprima",
     "runPreview": "Esegui Anteprima",
     "previewEmpty": "Clicca 'Esegui Anteprima' per vedere i risultati",

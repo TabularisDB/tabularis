@@ -635,6 +635,7 @@
     "sshKeyFilePlaceholder": "/path/to/id_rsa",
     "sshKeyPassphrase": "SSH 密钥密码（可选）",
     "sshKeyPassphrasePlaceholder": "如果加密请输入密钥密码",
+    "allowSshPrompt": "允许 SSH 密码/PIN 提示",
     "saveKeychain": "在密钥链中保存密码",
     "testConnection": "测试连接",
     "save": "保存",
@@ -674,7 +675,13 @@
     "selectK8sConnection": "选择 K8s 连接",
     "selectTypeFirst": "请先选择上下文/命名空间/类型",
     "useK8s": "使用 Kubernetes 端口转发",
-    "useK8sConnection": "已保存的连接"
+    "useK8sConnection": "已保存的连接",
+    "advanced": "高级",
+    "startupScript": "启动脚本",
+    "startupScriptDescription": "每次新建到此数据源的连接时执行的 SQL。可用于会话设置，例如 SET / set_config（如绕过 RLS）。多条语句请用分号分隔。",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "向左滚动标签页",
+    "scrollTabsRight": "向右滚动标签页"
   },
   "sshConnections": {
     "title": "SSH 连接",
@@ -698,6 +705,12 @@
     "quickTest": "快速连接测试",
     "testFailed": "连接测试失败",
     "savedInKeychain": "密码已保存到系统密钥链"
+  },
+  "sshAskpass": {
+    "title": "SSH 身份验证",
+    "subtitle": "SSH 连接需要您的输入",
+    "placeholder": "PIN 或密码短语",
+    "waiting": "正在等待您的安全密钥 — 触摸以确认。"
   },
   "dataGrid": {
     "newRow": "新建",
@@ -792,6 +805,8 @@
     "newRow": "新建行",
     "editing": "编辑中：{{table}}",
     "rowsRetrieved": "已检索 {{count}} 行",
+    "queryExecuted": "查询执行成功",
+    "rowsAffected": "{{count}} 行受影响",
     "autoPaginated": "自动分页",
     "pageOf": "第 {{current}} 页，共 {{total}} 页",
     "page": "第 {{current}} 页",
@@ -1122,6 +1137,7 @@
     "viewNamePlaceholder": "例如：active_users, order_summary",
     "viewDefinition": "视图定义 (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "格式化",
     "preview": "预览",
     "runPreview": "运行预览",
     "previewEmpty": "点击\"运行预览\"查看结果",

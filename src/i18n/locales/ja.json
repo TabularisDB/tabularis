@@ -681,6 +681,7 @@
     "sshKeyFilePlaceholder": "/path/to/id_rsa",
     "sshKeyPassphrase": "SSH 鍵のパスフレーズ (任意)",
     "sshKeyPassphrasePlaceholder": "鍵が暗号化されている場合はパスフレーズを入力",
+    "allowSshPrompt": "SSHパスワード/PINプロンプトを許可する",
     "saveKeychain": "パスワードをキーチェーンに保存",
     "testConnection": "接続テスト",
     "save": "保存",
@@ -720,7 +721,13 @@
     "selectK8sConnection": "K8s 接続を選択",
     "selectTypeFirst": "先にコンテキスト/ネームスペース/タイプを選択してください",
     "useK8s": "Kubernetes ポートフォワードを使用",
-    "useK8sConnection": "保存された接続"
+    "useK8sConnection": "保存された接続",
+    "advanced": "詳細設定",
+    "startupScript": "起動スクリプト",
+    "startupScriptDescription": "このデータソースへの新規接続ごとに実行される SQL です。SET / set_config（例: RLS のバイパス）などのセッション設定に使用します。複数のステートメントはセミコロンで区切ってください。",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "タブを左にスクロール",
+    "scrollTabsRight": "タブを右にスクロール"
   },
   "sshConnections": {
     "title": "SSH 接続",
@@ -744,6 +751,12 @@
     "quickTest": "簡易接続テスト",
     "testFailed": "接続テストに失敗しました",
     "savedInKeychain": "パスワードをシステムのキーチェーンに保存しました"
+  },
+  "sshAskpass": {
+    "title": "SSH認証",
+    "subtitle": "SSH接続には入力が必要です",
+    "placeholder": "PINまたはパスフレーズ",
+    "waiting": "セキュリティキーを待っています — タッチして確認してください。"
   },
   "dataGrid": {
     "noData": "表示するデータがありません",
@@ -837,6 +850,8 @@
     "newRow": "新規行",
     "editing": "編集中: {{table}}",
     "rowsRetrieved": "{{count}} 行を取得しました",
+    "queryExecuted": "クエリが正常に実行されました",
+    "rowsAffected": "{{count}} 行に影響",
     "autoPaginated": "自動ページング",
     "pageOf": "{{current}} / {{total}} ページ",
     "page": "{{current}} ページ",
@@ -1189,6 +1204,7 @@
     "viewNamePlaceholder": "例: active_users, order_summary",
     "viewDefinition": "ビュー定義 (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "整形",
     "preview": "プレビュー",
     "runPreview": "プレビューを実行",
     "previewEmpty": "「プレビューを実行」をクリックすると結果が表示されます",

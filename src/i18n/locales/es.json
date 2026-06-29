@@ -672,6 +672,7 @@
     "sshKeyFilePlaceholder": "/ruta/a/id_rsa",
     "sshKeyPassphrase": "Frase de Paso de Clave SSH (Opcional)",
     "sshKeyPassphrasePlaceholder": "Ingresa la frase de paso si la clave está cifrada",
+    "allowSshPrompt": "Permitir solicitud de contraseña/PIN de SSH",
     "saveKeychain": "Guardar contraseñas en el Llavero",
     "testConnection": "Probar Conexión",
     "save": "Guardar",
@@ -711,7 +712,13 @@
     "selectK8sConnection": "Selecciona conexión de K8s",
     "selectTypeFirst": "Selecciona primero contexto/namespace/tipo",
     "useK8s": "Usar Port-Forward de Kubernetes",
-    "useK8sConnection": "Conexión guardada"
+    "useK8sConnection": "Conexión guardada",
+    "advanced": "Avanzado",
+    "startupScript": "Script de inicio",
+    "startupScriptDescription": "SQL que se ejecuta en cada nueva conexión a esta fuente de datos. Úsalo para ajustes de sesión como SET / set_config (p. ej., para omitir RLS). Separa las sentencias con punto y coma.",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Desplazar pestañas a la izquierda",
+    "scrollTabsRight": "Desplazar pestañas a la derecha"
   },
   "sshConnections": {
     "title": "Conexiones SSH",
@@ -735,6 +742,12 @@
     "quickTest": "Prueba rápida de conexión",
     "testFailed": "La prueba de conexión falló",
     "savedInKeychain": "Contraseña guardada en el llavero del sistema"
+  },
+  "sshAskpass": {
+    "title": "Autenticación SSH",
+    "subtitle": "La conexión SSH necesita tu intervención",
+    "placeholder": "PIN o frase de contraseña",
+    "waiting": "Esperando tu llave de seguridad — tócala para confirmar."
   },
   "dataGrid": {
     "newRow": "NUEVA",
@@ -823,6 +836,8 @@
     "newRow": "Nueva Fila",
     "editing": "Editando: {{table}}",
     "rowsRetrieved": "{{count}} filas obtenidas",
+    "queryExecuted": "Consulta ejecutada correctamente",
+    "rowsAffected": "{{count}} filas afectadas",
     "autoPaginated": "Paginación automática",
     "pageOf": "Página {{current}} de {{total}}",
     "page": "Página {{current}}",
@@ -1172,6 +1187,7 @@
     "viewNamePlaceholder": "ej. usuarios_activos, resumen_pedidos",
     "viewDefinition": "Definición de Vista (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Embellecer",
     "preview": "Vista Previa",
     "runPreview": "Ejecutar Vista Previa",
     "previewEmpty": "Haz clic en 'Ejecutar Vista Previa' para ver resultados",
