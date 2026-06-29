@@ -670,6 +670,7 @@
     "sshKeyFilePlaceholder": "/percorso/id_rsa",
     "sshKeyPassphrase": "Passphrase Chiave SSH (Opzionale)",
     "sshKeyPassphrasePlaceholder": "Inserisci passphrase se la chiave è cifrata",
+    "allowSshPrompt": "Consenti prompt password/PIN SSH",
     "saveKeychain": "Salva password nel Portachiavi",
     "testConnection": "Testa Connessione",
     "save": "Salva",
@@ -733,6 +734,12 @@
     "quickTest": "Test connessione rapido",
     "testFailed": "Test connessione fallito",
     "savedInKeychain": "Password salvata nel portachiavi di sistema"
+  },
+  "sshAskpass": {
+    "title": "Autenticazione SSH",
+    "subtitle": "La connessione SSH richiede un tuo intervento",
+    "placeholder": "PIN o passphrase",
+    "waiting": "In attesa della security key — toccala per confermare."
   },
   "dataGrid": {
     "newRow": "NUOVA",
