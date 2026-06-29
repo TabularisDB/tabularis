@@ -108,6 +108,11 @@ pub struct DriverCapabilities {
     /// Supports listing and managing database triggers.
     #[serde(default)]
     pub triggers: bool,
+    /// Supports the SSL/TLS configuration tab (mode + CA/client cert/key) in the
+    /// connection modal. Built-in network drivers set this; plugins opt in via
+    /// their manifest. Defaults to `false`.
+    #[serde(default, alias = "supportsSsl")]
+    pub supports_ssl: bool,
     /// When `true`, the driver is read-only: all data modification operations
     /// (INSERT, UPDATE, DELETE) are disabled in the UI.
     /// Table/column management is also hidden regardless of `manage_tables`.
@@ -430,8 +435,7 @@ pub trait DatabaseDriver: Send + Sync {
         &self,
         params: &ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         col_name: &str,
         new_val: serde_json::Value,
         schema: Option<&str>,
@@ -442,8 +446,7 @@ pub trait DatabaseDriver: Send + Sync {
         &self,
         params: &ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         schema: Option<&str>,
     ) -> Result<u64, String>;
 
@@ -454,8 +457,7 @@ pub trait DatabaseDriver: Send + Sync {
         _params: &ConnectionParams,
         _table: &str,
         _col_name: &str,
-        _pk_col: &str,
-        _pk_val: serde_json::Value,
+        _pk_map: &std::collections::HashMap<String, serde_json::Value>,
         _schema: Option<&str>,
         _file_path: &str,
     ) -> Result<(), String> {
@@ -467,8 +469,7 @@ pub trait DatabaseDriver: Send + Sync {
         _params: &ConnectionParams,
         _table: &str,
         _col_name: &str,
-        _pk_col: &str,
-        _pk_val: serde_json::Value,
+        _pk_map: &std::collections::HashMap<String, serde_json::Value>,
         _schema: Option<&str>,
     ) -> Result<String, String> {
         Err("BLOB preview not supported by this driver".into())

@@ -15,6 +15,7 @@ export interface SshConnection {
   password?: string;
   key_file?: string;
   key_passphrase?: string;
+  allow_passphrase_prompt?: boolean;
   save_in_keychain?: boolean;
 }
 

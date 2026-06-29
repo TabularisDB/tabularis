@@ -6,6 +6,12 @@ export interface EditorContextType {
   activeTabId: string | null;
   activeTab: Tab | null;
   addTab: (tab?: Partial<Tab>) => string;
+  /**
+   * Open (or focus) a saved notebook tab, possibly on another connection.
+   * Switch the active connection first (the resolution is deferred until that
+   * connection's tabs have loaded).
+   */
+  openNotebook: (connectionId: string, notebookId: string, title: string) => void;
   closeTab: (id: string) => void;
   closeAllTabs: () => void;
   closeOtherTabs: (id: string) => void;

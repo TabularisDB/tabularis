@@ -62,6 +62,25 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ---
 
+## Vercel
+
+<a href="https://vercel.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/vercel.svg" height="40" alt="Vercel" /></a>
+
+**The platform for the modern web — ship, preview, and scale frontend apps with zero config.**
+
+🔗 [https://vercel.com](https://vercel.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)
+
+- ▲ Git-based deploys — a live preview URL for every push
+- ⚡ Global edge network — fast everywhere, by default
+- 🧩 First-class Next.js — framework and platform, one team
+- 🔍 Preview deployments — review changes before they go live
+- ❤️ Open Source Program — a year of support for maintainers
+
+> **Start building for free**
+> Vercel's Hobby tier is free for personal projects and open source — deploy a Next.js app in minutes, no credit card required.
+
+---
+
 ## Usero
 
 <a href="https://usero.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/usero.png" height="40" alt="Usero" /></a>
@@ -83,11 +102,11 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 ## DevGlobe
 
-<a href="https://devglobe.xyz/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/devglobe.png" height="40" alt="DevGlobe" /></a>
+<a href="https://devglobe.app/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/devglobe.png" height="40" alt="DevGlobe" /></a>
 
 **Connect your IDE, show up on the globe, and showcase your projects to a community of builders.**
 
-🔗 [https://devglobe.xyz](https://devglobe.xyz/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)
+🔗 [https://devglobe.app](https://devglobe.app/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)
 
 - 🌍 Connect your IDE and appear live on the globe
 - 🚀 Ship your project — get discovered by the community
@@ -97,6 +116,25 @@ Interested in sponsoring? [Get in touch →](https://tabularis.dev/sponsors)
 
 > **Start tracking for free**
 > Pick your editor, install the plugin, and join hundreds of developers already on the globe.
+
+---
+
+## Tolgee
+
+<a href="https://tolgee.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/tolgee.svg" height="40" alt="Tolgee" /></a>
+
+**Open-source localization platform — translate your app in context, without the spreadsheet chaos.**
+
+🔗 [https://tolgee.io](https://tolgee.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)
+
+- 🌍 In-context editing — translate directly inside your running app
+- 🤖 AI-powered translations, machine translation & translation memory
+- 🔓 Open source — self-host it or use the managed cloud
+- 🧩 SDKs & integrations for React, Vue, Angular, Next.js and more
+- ⚡ One-click translation updates without redeploying
+
+> **Free tier for open source & small teams**
+> Get started with Tolgee for free — self-host the platform or use the cloud free tier to localize your project from day one.
 
 ---
 

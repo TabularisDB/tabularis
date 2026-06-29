@@ -83,6 +83,16 @@ describe('notebookFile utils', () => {
       const result = serializeNotebook('Test', cells);
       expect(result.cells[0].name).toBe('User Query');
     });
+
+    it('should include connectionId when provided', () => {
+      const result = serializeNotebook('Test', makeCells(), undefined, undefined, 'conn_42');
+      expect(result.connectionId).toBe('conn_42');
+    });
+
+    it('should omit connectionId when not provided', () => {
+      const result = serializeNotebook('Test', makeCells());
+      expect(result.connectionId).toBeUndefined();
+    });
   });
 
   describe('validateNotebookFile', () => {

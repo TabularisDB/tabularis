@@ -194,6 +194,7 @@ pub async fn expand_ssh_connection_params<R: Runtime>(
             expanded_params.ssh_password = ssh_conn.password.clone();
             expanded_params.ssh_key_file = ssh_conn.key_file.clone();
             expanded_params.ssh_key_passphrase = ssh_conn.key_passphrase.clone();
+            expanded_params.ssh_allow_passphrase_prompt = ssh_conn.allow_passphrase_prompt;
         }
     }
 
@@ -336,6 +337,7 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
         params.ssh_password.as_deref(),
         params.ssh_key_file.as_deref(),
         params.ssh_key_passphrase.as_deref(),
+        params.ssh_allow_passphrase_prompt.unwrap_or(false),
         remote_host,
         remote_port,
     )
@@ -1056,6 +1058,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
                             Some(key_file.clone())
                         },
                         key_passphrase: None,
+                        allow_passphrase_prompt: None,
                         save_in_keychain: conn.params.save_in_keychain,
                     };
 
@@ -1223,6 +1226,7 @@ pub async fn save_ssh_connection<R: Runtime>(
         } else {
             ssh.key_passphrase.clone()
         },
+        allow_passphrase_prompt: ssh.allow_passphrase_prompt,
         save_in_keychain: ssh.save_in_keychain,
     };
 
@@ -1290,6 +1294,7 @@ pub async fn update_ssh_connection<R: Runtime>(
         } else {
             ssh.key_passphrase.clone()
         },
+        allow_passphrase_prompt: ssh.allow_passphrase_prompt,
         save_in_keychain: ssh.save_in_keychain,
     };
 
@@ -1386,6 +1391,7 @@ pub async fn test_ssh_connection<R: Runtime>(
         resolved_password.as_deref(),
         ssh.key_file.as_deref(),
         resolved_passphrase.as_deref(),
+        ssh.allow_passphrase_prompt.unwrap_or(false),
     )
 }
 
@@ -1553,6 +1559,22 @@ pub async fn get_k8s_resources_cmd<R: Runtime>(
     resource_type: String,
 ) -> Result<Vec<String>, String> {
     crate::k8s_tunnel::get_k8s_resources(&context, &namespace, &resource_type)
+}
+
+#[tauri::command]
+pub async fn get_k8s_resource_ports_cmd<R: Runtime>(
+    _app: AppHandle<R>,
+    context: String,
+    namespace: String,
+    resource_type: String,
+    resource_name: String,
+) -> Result<Vec<u16>, String> {
+    crate::k8s_tunnel::get_k8s_resource_ports(
+        &context,
+        &namespace,
+        &resource_type,
+        &resource_name,
+    )
 }
 
 /// Expand K8s connection params by loading saved config and creating/reusing a tunnel.
@@ -2053,6 +2075,7 @@ mod tests {
                 password: password.map(|p| p.to_string()),
                 key_file: None,
                 key_passphrase: None,
+                allow_passphrase_prompt: None,
                 save_in_keychain: Some(save_in_keychain),
             }
         }
@@ -2683,17 +2706,15 @@ pub async fn delete_record<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
     table: String,
-    pk_col: String,
-    pk_val: serde_json::Value,
+    pk_map: std::collections::HashMap<String, serde_json::Value>,
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
     log::info!(
-        "Executing query on connection: {} | Query: DELETE FROM {} WHERE {} = {}",
+        "Executing query on connection: {} | Query: DELETE FROM {} WHERE pk_map={:?}",
         connection_id,
         table,
-        pk_col,
-        pk_val
+        pk_map
     );
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
@@ -2703,7 +2724,7 @@ pub async fn delete_record<R: Runtime>(
         params.database = crate::models::DatabaseSelection::Single(db);
     }
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.delete_record(&params, &table, &pk_col, pk_val, schema.as_deref())
+    drv.delete_record(&params, &table, &pk_map, schema.as_deref())
         .await
 }
 
@@ -2712,21 +2733,19 @@ pub async fn update_record<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
     table: String,
-    pk_col: String,
-    pk_val: serde_json::Value,
+    pk_map: std::collections::HashMap<String, serde_json::Value>,
     col_name: String,
     new_val: serde_json::Value,
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
     log::info!(
-        "Executing query on connection: {} | Query: UPDATE {} SET {} = {} WHERE {} = {}",
+        "Executing query on connection: {} | Query: UPDATE {} SET {} = {:?} WHERE pk_map={:?}",
         connection_id,
         table,
         col_name,
         new_val,
-        pk_col,
-        pk_val
+        pk_map
     );
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
@@ -2740,8 +2759,7 @@ pub async fn update_record<R: Runtime>(
     drv.update_record(
         &params,
         &table,
-        &pk_col,
-        pk_val,
+        &pk_map,
         &col_name,
         new_val,
         schema.as_deref(),
@@ -2756,8 +2774,7 @@ pub async fn save_blob_to_file<R: Runtime>(
     connection_id: String,
     table: String,
     col_name: String,
-    pk_col: String,
-    pk_val: serde_json::Value,
+    pk_map: std::collections::HashMap<String, serde_json::Value>,
     file_path: String,
     schema: Option<String>,
 ) -> Result<(), String> {
@@ -2770,8 +2787,7 @@ pub async fn save_blob_to_file<R: Runtime>(
         &params,
         &table,
         &col_name,
-        &pk_col,
-        pk_val,
+        &pk_map,
         schema.as_deref(),
         &file_path,
     )
@@ -2786,8 +2802,7 @@ pub async fn fetch_blob_as_data_url<R: Runtime>(
     connection_id: String,
     table: String,
     col_name: String,
-    pk_col: String,
-    pk_val: serde_json::Value,
+    pk_map: std::collections::HashMap<String, serde_json::Value>,
     schema: Option<String>,
 ) -> Result<String, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
@@ -2800,8 +2815,7 @@ pub async fn fetch_blob_as_data_url<R: Runtime>(
             &params,
             &table,
             &col_name,
-            &pk_col,
-            pk_val,
+            &pk_map,
             schema.as_deref(),
         )
         .await?;
@@ -3378,7 +3392,36 @@ pub async fn open_er_diagram_window(
         url.push_str(&format!("&schema={}", encode(s)));
     }
 
-    let _webview = WebviewWindowBuilder::new(&app, "er-diagram", WebviewUrl::App(url.into()))
+    // Derive a unique window label per (connection, database, schema) so that
+    // diagrams for different databases on the same connection do not collide on a
+    // shared label (which previously kept showing the first database's diagram).
+    // Tauri window labels only allow a limited character set, so sanitize anything
+    // else to '_'.
+    let raw_label = format!(
+        "er-diagram:{}:{}:{}",
+        connection_id,
+        database_name,
+        schema.as_deref().unwrap_or("")
+    );
+    let label: String = raw_label
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+
+    // If a diagram window for this exact database already exists, just focus it
+    // instead of failing to build a second window with the same label.
+    if let Some(existing) = app.get_webview_window(&label) {
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+
+    let _webview = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
         .title(&title)
         .inner_size(1200.0, 800.0)
         .center()

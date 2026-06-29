@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { reconstructTableQuery } from "../utils/editor";
+import { serializePkKey, buildPkMap } from "../utils/dataGrid";
 import { isMultiDatabaseCapable } from "../utils/database";
 import { isReadonly } from "../utils/driverCapabilities";
 import {
@@ -39,11 +40,13 @@ import {
   Check,
   Undo2,
   BookOpen,
+  Pencil,
   Hash,
   Loader2,
   Copy,
   FileText,
   FileJson,
+  CheckCircle2,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -80,13 +83,14 @@ import {
 import { formatDuration } from "../utils/formatTime";
 import { SqlEditorWrapper } from "../components/ui/SqlEditorWrapper";
 import { NotebookView } from "../components/notebook/NotebookView";
-import { extractSqlFromCells } from "../utils/notebook";
-import { createNotebook } from "../utils/notebookStore";
-import { registerSqlAutocomplete } from "../utils/autocomplete";
+import { useSqlAutocompleteRegistration } from "../hooks/useSqlAutocompleteRegistration";
+import { createNotebook, renameNotebook } from "../utils/notebookStore";
 import { type OnMount, type Monaco } from "@monaco-editor/react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../hooks/useAlert";
 import { useDatabase } from "../hooks/useDatabase";
+import { useDrivers } from "../hooks/useDrivers";
+import { getConnectionAccent } from "../utils/driverUI";
 import { useSavedQueries } from "../hooks/useSavedQueries";
 import { useQueryHistory } from "../hooks/useQueryHistory";
 import { useSettings } from "../hooks/useSettings";
@@ -137,7 +141,7 @@ export const Editor = () => {
   const { t } = useTranslation();
   const {
     activeConnectionId,
-    tables,
+    connections,
     views,
     activeDriver,
     activeSchema,
@@ -145,9 +149,8 @@ export const Editor = () => {
     selectedDatabases,
     activeConnectionName,
     activeDatabaseName,
-    schemaDataMap,
-    databaseDataMap,
   } = useDatabase();
+  const { allDrivers } = useDrivers();
   const { explorerConnectionId } = useConnectionLayoutContext();
   const { settings } = useSettings();
   const { saveQuery } = useSavedQueries();
@@ -167,7 +170,7 @@ export const Editor = () => {
     closeTabsToRight,
   } = useEditor();
   const location = useLocation();
-  const { matchesShortcut } = useKeybindings();
+  const { matchesShortcut, isMac } = useKeybindings();
   const { showAlert } = useAlert();
   const navigate = useNavigate();
 
@@ -179,6 +182,8 @@ export const Editor = () => {
     y: number;
     tabId: string;
   } | null>(null);
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editingTabTitle, setEditingTabTitle] = useState("");
 
   const [errorModal, setErrorModal] = useState<{
     isOpen: boolean;
@@ -226,22 +231,34 @@ export const Editor = () => {
     setTabContextMenu({ x: e.clientX, y: e.clientY, tabId });
   };
 
+  const startTabRename = useCallback((tabId: string) => {
+    const tab = tabsRef.current.find((t) => t.id === tabId);
+    if (!tab) return;
+    setEditingTabId(tabId);
+    setEditingTabTitle(tab.title);
+  }, []);
+
+  const commitTabRename = useCallback(() => {
+    const tabId = editingTabId;
+    if (!tabId) return;
+    setEditingTabId(null);
+    const title = editingTabTitle.trim();
+    const tab = tabsRef.current.find((t) => t.id === tabId);
+    if (!tab || !title || title === tab.title) return;
+    updateTab(tabId, { title });
+    // Persist the rename to the notebook file too (covers background tabs whose
+    // NotebookView isn't mounted to sync the title automatically).
+    if (tab.type === "notebook" && tab.notebookId && tab.connectionId) {
+      renameNotebook(tab.notebookId, tab.connectionId, title).catch((e) =>
+        console.error("Failed to rename notebook:", e),
+      );
+    }
+  }, [editingTabId, editingTabTitle, updateTab]);
+
   const handleConvertToConsole = useCallback(
     (tabId: string) => {
       const tab = tabsRef.current.find((t) => t.id === tabId);
       if (!tab) return;
-
-      // Notebook: extract all SQL cells
-      if (tab.type === "notebook" && tab.notebookState) {
-        const allSql = extractSqlFromCells(tab.notebookState.cells);
-        addTab({
-          type: "console",
-          title: `Console - ${tab.title}`,
-          query: allSql,
-          connectionId: tab.connectionId,
-        });
-        return;
-      }
 
       const effectiveSchema =
         activeCapabilities?.schemas === true ? tab.schema : undefined;
@@ -313,6 +330,9 @@ export const Editor = () => {
   );
   const [csvDelimiter, setCsvDelimiter] = useState(
     settings.csvDelimiter ?? ",",
+  );
+  const [csvIncludeHeaders, setCsvIncludeHeaders] = useState(
+    settings.csvIncludeHeaders ?? true,
   );
 
   const activeTabType = activeTab?.type;
@@ -456,7 +476,7 @@ export const Editor = () => {
       pendingInsertions,
       selectedRows,
       result,
-      pkColumn,
+      pkColumns,
     } = activeTab;
     const hasGlobalPending =
       (pendingChanges && Object.keys(pendingChanges).length > 0) ||
@@ -475,16 +495,16 @@ export const Editor = () => {
       }
 
       // This is an existing row - check for changes/deletions
-      if (!result || !pkColumn) return false;
-      const pkIndex = result.columns.indexOf(pkColumn);
-      if (pkIndex === -1) return false;
+      if (!result || !pkColumns || pkColumns.length === 0) return false;
+      const pkIndices = pkColumns.map((c) => result.columns.indexOf(c));
+      if (pkIndices.some((i) => i === -1)) return false;
 
       const row = result.rows[rowIndex];
       if (!row) return false;
-      const pkVal = String(row[pkIndex]);
+      const pkKey = serializePkKey(buildPkMap(pkColumns, row, pkIndices));
       return (
-        (pendingChanges && pendingChanges[pkVal]) ||
-        (pendingDeletions && pendingDeletions[pkVal])
+        (pendingChanges && pendingChanges[pkKey]) ||
+        (pendingDeletions && pendingDeletions[pkKey])
       );
     });
   }, [activeTab]);
@@ -533,7 +553,7 @@ export const Editor = () => {
             return [] as ForeignKey[];
           }),
         ]);
-        const pk = cols.find((c) => c.is_pk);
+        const pks = cols.filter((c) => c.is_pk).map((c) => c.name);
         const autoInc = cols
           .filter((c) => c.is_auto_increment)
           .map((c) => c.name);
@@ -546,7 +566,7 @@ export const Editor = () => {
         const targetId = tabId || activeTabId;
         if (targetId)
           updateTab(targetId, {
-            pkColumn: pk ? pk.name : null,
+            pkColumns: pks.length > 0 ? pks : null,
             autoIncrementColumns: autoInc,
             defaultValueColumns: defaultVal,
             nullableColumns: nullable,
@@ -555,11 +575,11 @@ export const Editor = () => {
           });
       } catch (e) {
         console.error("Failed to fetch PK:", e);
-        // Even if PK fetch fails, set pkColumn to null to unblock the UI
+        // Even if PK fetch fails, set pkColumns to null to unblock the UI
         const targetId = tabId || activeTabId;
         if (targetId)
           updateTab(targetId, {
-            pkColumn: null,
+            pkColumns: null,
             autoIncrementColumns: [],
             defaultValueColumns: [],
             nullableColumns: [],
@@ -739,7 +759,7 @@ export const Editor = () => {
           // Fetch column metadata in the background; tab updates when ready
           fetchPkColumn(tableName, targetTabId, targetTab?.schema ?? undefined);
         } else {
-          updateTab(targetTabId, { pkColumn: null });
+          updateTab(targetTabId, { pkColumns: null });
         }
 
         if (shouldRecordHistory) {
@@ -1396,7 +1416,7 @@ export const Editor = () => {
       const currentTab = tabsRef.current.find((t) => t.id === tabId);
       if (!currentTab) return;
 
-      const pkKey = String(pkVal);
+      const pkKey = serializePkKey(pkVal as Record<string, unknown>);
       const currentPending = currentTab.pendingChanges || {};
       const rowEntry = currentPending[pkKey] || {
         pkOriginalValue: pkVal,
@@ -1460,13 +1480,15 @@ export const Editor = () => {
     activeTab.selectedRows.forEach((rowIndex) => {
       if (rowIndex < existingRowCount) {
         // Existing row - add to pending deletions
-        if (activeTab.result && activeTab.pkColumn) {
-          const pkIndex = activeTab.result.columns.indexOf(activeTab.pkColumn);
-          if (pkIndex !== -1) {
+        if (activeTab.result && activeTab.pkColumns && activeTab.pkColumns.length > 0) {
+          const pkCols = activeTab.pkColumns;
+          const pkIndices = pkCols.map((c) => activeTab.result!.columns.indexOf(c));
+          if (pkIndices.every((i) => i !== -1)) {
             const row = activeTab.result.rows[rowIndex];
             if (row) {
-              const pkVal = row[pkIndex];
-              newPendingDeletions[String(pkVal)] = pkVal;
+              const pkMapVal = buildPkMap(pkCols, row, pkIndices);
+              const pkKey = serializePkKey(pkMapVal);
+              newPendingDeletions[pkKey] = pkMapVal;
             }
           }
         }
@@ -1544,7 +1566,7 @@ export const Editor = () => {
       const currentTab = tabsRef.current.find((t) => t.id === tabId);
       if (!currentTab?.pendingDeletions) return;
 
-      const pkKey = String(pkVal);
+      const pkKey = serializePkKey(pkVal as Record<string, unknown>);
       const newPendingDeletions = { ...currentTab.pendingDeletions };
       delete newPendingDeletions[pkKey];
 
@@ -1565,7 +1587,7 @@ export const Editor = () => {
       const currentTab = tabsRef.current.find((t) => t.id === tabId);
       if (!currentTab) return;
 
-      const pkKey = String(pkVal);
+      const pkKey = serializePkKey(pkVal as Record<string, unknown>);
       const currentPendingDeletions = currentTab.pendingDeletions || {};
       const newPendingDeletions = {
         ...currentPendingDeletions,
@@ -1586,7 +1608,7 @@ export const Editor = () => {
 
       const newPendingDeletions = { ...(currentTab.pendingDeletions || {}) };
       for (const pkVal of pkVals) {
-        newPendingDeletions[String(pkVal)] = pkVal;
+        newPendingDeletions[serializePkKey(pkVal as Record<string, unknown>)] = pkVal;
       }
 
       updateTab(tabId, { pendingDeletions: newPendingDeletions });
@@ -1698,11 +1720,11 @@ export const Editor = () => {
         };
       }
 
-      // Ensure pkColumn and autoIncrementColumns are set
-      if (!activeTab.pkColumn) {
-        const pk = columns.find((c) => c.is_pk);
-        if (pk) {
-          updates.pkColumn = pk.name;
+      // Ensure pkColumns and autoIncrementColumns are set
+      if (!activeTab.pkColumns || activeTab.pkColumns.length === 0) {
+        const pks = columns.filter((c) => c.is_pk).map((c) => c.name);
+        if (pks.length > 0) {
+          updates.pkColumns = pks;
         }
       }
 
@@ -1754,52 +1776,52 @@ export const Editor = () => {
   const handleSubmitChanges = useCallback(async () => {
     if (!activeTab || !activeTab.activeTable || !activeConnectionId) return;
 
-    // pkColumn is required for updates/deletions but not for insertions-only
-    const hasPkColumn = !!activeTab.pkColumn;
+    // pkColumns is required for updates/deletions but not for insertions-only
+    const hasPkColumns = !!(activeTab.pkColumns && activeTab.pkColumns.length > 0);
 
     const {
       pendingChanges,
       pendingDeletions,
       pendingInsertions,
       activeTable,
-      pkColumn,
+      pkColumns,
       selectedRows,
     } = activeTab;
-    const updates: { pkVal: unknown; colName: string; newVal: unknown }[] = [];
-    const deletions: unknown[] = [];
+    const updates: { pkVal: Record<string, unknown>; colName: string; newVal: unknown }[] = [];
+    const deletions: Record<string, unknown>[] = [];
     const insertions: { tempId: string; data: Record<string, unknown> }[] = [];
 
     // Filter pending changes by selected rows IF there is a selection AND applyToAll is false
     const hasSelection = !applyToAll && selectedRows && selectedRows.length > 0;
     const selectedPkSet = new Set<string>();
 
-    if (hasSelection && activeTab.result && hasPkColumn && pkColumn) {
-      const pkIndex = activeTab.result.columns.indexOf(pkColumn);
-      if (pkIndex !== -1) {
+    if (hasSelection && activeTab.result && hasPkColumns && pkColumns) {
+      const pkIndices = pkColumns.map((c) => activeTab.result!.columns.indexOf(c));
+      if (pkIndices.every((i) => i !== -1)) {
         selectedRows.forEach((rowIndex) => {
           const row = activeTab.result!.rows[rowIndex];
-          if (row) selectedPkSet.add(String(row[pkIndex]));
+          if (row) selectedPkSet.add(serializePkKey(buildPkMap(pkColumns, row, pkIndices)));
         });
       }
     }
 
-    if (hasPkColumn && pkColumn && pendingChanges) {
+    if (hasPkColumns && pkColumns && pendingChanges) {
       for (const [pkKey, rowData] of Object.entries(pendingChanges)) {
         // Apply filter if selection exists (and applyToAll is false)
         if (hasSelection && !selectedPkSet.has(pkKey)) continue;
 
         const { pkOriginalValue, changes } = rowData;
         for (const [colName, newVal] of Object.entries(changes)) {
-          updates.push({ pkVal: pkOriginalValue, colName, newVal });
+          updates.push({ pkVal: pkOriginalValue as Record<string, unknown>, colName, newVal });
         }
       }
     }
 
-    if (hasPkColumn && pkColumn && pendingDeletions) {
+    if (hasPkColumns && pkColumns && pendingDeletions) {
       for (const [pkKey, pkVal] of Object.entries(pendingDeletions)) {
         // Apply filter if selection exists (and applyToAll is false)
         if (hasSelection && !selectedPkSet.has(pkKey)) continue;
-        deletions.push(pkVal);
+        deletions.push(pkVal as Record<string, unknown>);
       }
     }
 
@@ -1883,12 +1905,11 @@ export const Editor = () => {
       // Deletions
       if (deletions.length > 0) {
         promises.push(
-          ...deletions.map((pkVal) =>
+          ...deletions.map((pkMap) =>
             invoke("delete_record", {
               connectionId: activeConnectionId,
               table: activeTable,
-              pkCol: pkColumn,
-              pkVal,
+              pkMap,
               ...(activeSchema ? { schema: activeSchema } : {}),
               ...databaseParam,
             }),
@@ -1903,8 +1924,7 @@ export const Editor = () => {
             invoke("update_record", {
               connectionId: activeConnectionId,
               table: activeTable,
-              pkCol: pkColumn,
-              pkVal: u.pkVal,
+              pkMap: u.pkVal,
               colName: u.colName,
               newVal: u.newVal,
               ...(activeSchema ? { schema: activeSchema } : {}),
@@ -1937,8 +1957,8 @@ export const Editor = () => {
       const newPendingInsertions = { ...(pendingInsertions || {}) };
 
       // Partial cleanup - remove only processed changes
-      updates.forEach((u) => delete newPendingChanges[String(u.pkVal)]);
-      deletions.forEach((d) => delete newPendingDeletions[String(d)]);
+      updates.forEach((u) => delete newPendingChanges[serializePkKey(u.pkVal)]);
+      deletions.forEach((d) => delete newPendingDeletions[serializePkKey(d as Record<string, unknown>)]);
       insertions.forEach((i) => delete newPendingInsertions[i.tempId]);
 
       // Cleanup empty change objects
@@ -1995,6 +2015,26 @@ export const Editor = () => {
     showAlert,
   ]);
 
+  // Cmd/Ctrl+S: commit the active tab's pending grid changes (like TablePlus).
+  useEffect(() => {
+    const focused = isFocusedPane(explorerConnectionId, activeConnectionId);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!focused) return;
+      if (matchesShortcut(e, "save_grid_changes")) {
+        e.preventDefault();
+        if (hasPendingChanges) handleSubmitChanges();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    explorerConnectionId,
+    activeConnectionId,
+    matchesShortcut,
+    hasPendingChanges,
+    handleSubmitChanges,
+  ]);
+
   const handleParamsSubmit = useCallback(
     (values: Record<string, string>) => {
       const { pendingTabId, mode, sql, pendingPageNum, pendingMultiQueries } =
@@ -2043,7 +2083,7 @@ export const Editor = () => {
     const {
       selectedRows,
       result,
-      pkColumn,
+      pkColumns,
       pendingChanges,
       pendingDeletions,
       pendingInsertions,
@@ -2069,12 +2109,12 @@ export const Editor = () => {
     });
 
     // For existing rows, also collect their PK values
-    if (result && pkColumn) {
-      const pkIndex = result.columns.indexOf(pkColumn);
-      if (pkIndex !== -1) {
+    if (result && pkColumns && pkColumns.length > 0) {
+      const pkIndices = pkColumns.map((c) => result.columns.indexOf(c));
+      if (pkIndices.every((i) => i !== -1)) {
         selectedRows.forEach((rowIndex) => {
           const row = result.rows[rowIndex];
-          if (row) selectedPkSet.add(String(row[pkIndex]));
+          if (row) selectedPkSet.add(serializePkKey(buildPkMap(pkColumns, row, pkIndices)));
         });
       }
     }
@@ -2172,23 +2212,11 @@ export const Editor = () => {
     });
   };
 
-  useEffect(() => {
-    if (monacoInstance && activeConnectionId) {
-      let effectiveTables = tables;
-      if (activeCapabilities?.schemas && activeSchema) {
-        effectiveTables = schemaDataMap[activeSchema]?.tables ?? tables;
-      } else if (isMultiDb) {
-        effectiveTables = selectedDatabases.flatMap(db => databaseDataMap[db]?.tables ?? []);
-      }
-      const disposable = registerSqlAutocomplete(
-        monacoInstance,
-        activeConnectionId,
-        effectiveTables,
-        activeSchema,
-      );
-      return () => disposable.dispose();
-    }
-  }, [monacoInstance, activeConnectionId, tables, activeSchema, activeCapabilities, schemaDataMap, databaseDataMap, isMultiDb, selectedDatabases]);
+  useSqlAutocompleteRegistration(activeConnectionId, {
+    monaco: monacoInstance,
+    schema: activeSchema,
+    enabled: !isNotebookTab,
+  });
 
   useEffect(() => {
     const state = location.state as EditorState;
@@ -2359,12 +2387,24 @@ export const Editor = () => {
       });
       setExportMenuOpen(false);
 
+      // On multi-database connections (e.g. MySQL) scope the export to the
+      // selected database so the query runs against the database the user is
+      // viewing rather than the connection's primary database. The tab may not
+      // carry its own schema (e.g. a console query), so fall back to the active
+      // database — mirroring how execute_query resolves the schema.
+      const targetDatabase = activeTab?.schema ?? activeSchema ?? undefined;
+      const databaseParam =
+        isMultiDatabaseCapable(activeCapabilities) && targetDatabase
+          ? { database: targetDatabase }
+          : {};
+
       await invoke("export_query_to_file", {
         connectionId: activeConnectionId,
         query,
         filePath,
         format,
         csvDelimiter: format === "csv" ? csvDelimiter : undefined,
+        ...databaseParam,
       });
 
       // Success: update modal state instead of showing toast
@@ -2435,21 +2475,44 @@ export const Editor = () => {
     );
   }
 
+  const activeConnection = connections.find((c) => c.id === activeConnectionId);
+  const tabBarAccent = activeConnectionId
+    ? getConnectionAccent(
+        activeConnection,
+        allDrivers.find((d) => d.id === activeDriver),
+      )
+    : null;
+  // Active-tab accents (indicator line, loading bar, rename border) follow the
+  // connection color when present, falling back to the default blue otherwise.
+  const tabAccentColor = tabBarAccent ?? "#3b82f6";
+
   return (
     <div className="flex flex-col h-full bg-base">
-      {/* Tab Bar */}
-      <div className="flex items-center bg-elevated border-b border-default h-9 shrink-0">
+      {/* Tab Bar — tinted with the active connection's accent color */}
+      <div
+        className="flex items-center bg-elevated border-b border-default h-9 shrink-0"
+        style={
+          tabBarAccent
+            ? {
+                // Vertical accent wash (stronger at top) + accent-tinted bottom
+                // border so the bar reads as part of the active connection.
+                backgroundImage: `linear-gradient(${tabBarAccent}30, ${tabBarAccent}20)`,
+                borderBottomColor: `${tabBarAccent}50`,
+              }
+            : undefined
+        }
+      >
         <button
           onClick={() => scrollTabs("left")}
           disabled={!canScrollLeft}
-          className="flex items-center justify-center w-7 h-full text-muted border-r border-default shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:enabled:text-white hover:enabled:bg-surface-secondary"
+          className="flex items-center justify-center w-7 h-full text-muted border-r border-default shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:enabled:text-primary hover:enabled:bg-surface-secondary"
         >
           <ChevronLeft size={14} />
         </button>
         <button
           onClick={() => scrollTabs("right")}
           disabled={!canScrollRight}
-          className="flex items-center justify-center w-7 h-full text-muted border-r border-default shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:enabled:text-white hover:enabled:bg-surface-secondary"
+          className="flex items-center justify-center w-7 h-full text-muted border-r border-default shrink-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:enabled:text-primary hover:enabled:bg-surface-secondary"
         >
           <ChevronRight size={14} />
         </button>
@@ -2470,39 +2533,85 @@ export const Editor = () => {
                 }
               }}
               className={clsx(
-                "flex items-center gap-2 px-3 h-full border-r border-default cursor-pointer min-w-[140px] max-w-[220px] text-xs transition-all group relative select-none",
+                "flex items-center gap-2 px-3 h-full border-r border-default cursor-pointer min-w-[140px] max-w-[220px] text-xs transition-all duration-150 group relative select-none",
                 activeTabId === tab.id
                   ? "bg-base text-primary font-medium"
-                  : "text-muted hover:bg-surface-secondary hover:text-secondary",
+                  : "text-muted hover:bg-[var(--tab-hover)] hover:text-secondary",
               )}
+              style={
+                activeTabId === tab.id
+                  ? {
+                      // Active tab keeps the content background (so it reads as
+                      // connected to the pane below) but carries a soft accent
+                      // body, stronger at the top, tinted by the connection.
+                      backgroundImage: `linear-gradient(${tabAccentColor}30, ${tabAccentColor}20)`,
+                    }
+                  : // Inactive tabs pick up a soft accent wash on hover instead of
+                    // a flat neutral grey, keeping the strip tied to the connection.
+                    ({ "--tab-hover": `${tabAccentColor}33` } as React.CSSProperties)
+              }
             >
               {activeTabId === tab.id && (
-                <div className="absolute top-0 left-0 right-0 h-[2px] bg-blue-500" />
+                <div
+                  className="absolute top-0 left-0 right-0 h-[2px] rounded-b-sm"
+                  style={{
+                    backgroundColor: `${tabAccentColor}cc`,
+                    boxShadow: `0 0 5px ${tabAccentColor}59`,
+                  }}
+                />
               )}
               {tab.type === "table" ? (
-                <TableIcon size={12} className="text-blue-400 shrink-0" />
+                <TableIcon size={12} className="text-accent shrink-0" />
               ) : tab.type === "query_builder" ? (
-                <Network size={12} className="text-purple-400 shrink-0" />
+                <Network size={12} className="text-accent-secondary shrink-0" />
               ) : tab.type === "notebook" ? (
                 <BookOpen size={12} className="text-orange-400 shrink-0" />
               ) : (
-                <FileCode size={12} className="text-green-500 shrink-0" />
+                <FileCode size={12} className="text-accent-secondary shrink-0" />
               )}
-              <span className="truncate flex-1 flex items-center gap-1">
-                <span className="truncate">{tab.title}</span>
-                {tab.type === "console" && isMultiDb && (
-                  <span className="text-muted shrink-0">
-                    ({tab.schema || selectedDatabases[0]})
-                  </span>
-                )}
-              </span>
+              {editingTabId === tab.id ? (
+                <input
+                  type="text"
+                  value={editingTabTitle}
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => setEditingTabTitle(e.target.value)}
+                  onBlur={commitTabRename}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === "Enter") commitTabRename();
+                    if (e.key === "Escape") setEditingTabId(null);
+                  }}
+                  className="flex-1 min-w-0 bg-surface-secondary border rounded px-1 py-0.5 text-xs text-primary focus:outline-none"
+                  style={{ borderColor: `${tabAccentColor}80` }}
+                />
+              ) : (
+                <span
+                  className="truncate flex-1 flex items-center gap-1"
+                  onDoubleClick={
+                    tab.type === "notebook"
+                      ? (e) => {
+                          e.stopPropagation();
+                          startTabRename(tab.id);
+                        }
+                      : undefined
+                  }
+                >
+                  <span className="truncate">{tab.title}</span>
+                  {tab.type === "console" && isMultiDb && (
+                    <span className="text-muted shrink-0">
+                      ({tab.schema || selectedDatabases[0]})
+                    </span>
+                  )}
+                </span>
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleCloseTab(tab.id);
                 }}
                 className={clsx(
-                  "p-0.5 rounded-sm hover:bg-surface-secondary transition-opacity shrink-0",
+                  "p-0.5 rounded hover:bg-surface-secondary hover:text-primary hover:scale-110 transition-all duration-150 shrink-0",
                   activeTabId === tab.id
                     ? "opacity-100"
                     : "opacity-0 group-hover:opacity-100",
@@ -2511,7 +2620,12 @@ export const Editor = () => {
                 <X size={12} />
               </button>
               {tab.isLoading && (
-                <div className="absolute bottom-0 left-0 h-0.5 bg-blue-500 animate-pulse w-full" />
+                <div
+                  className="absolute bottom-0 left-0 h-0.5 w-full animate-pulse"
+                  style={{
+                    backgroundImage: `linear-gradient(90deg, transparent, ${tabAccentColor}, transparent)`,
+                  }}
+                />
               )}
             </div>
           ))}
@@ -2523,29 +2637,30 @@ export const Editor = () => {
               ...(isMultiDb ? { schema: selectedDatabases[0] } : {}),
             })
           }
-          className="flex items-center justify-center w-9 h-full text-muted hover:text-white hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+          className="flex items-center justify-center w-9 h-full text-muted hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
           title={t("editor.newConsole")}
         >
           <Plus size={16} />
         </button>
         <button
           onClick={() => addTab({ type: "query_builder" })}
-          className="flex items-center justify-center w-9 h-full text-purple-500 hover:text-white hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+          className="flex items-center justify-center w-9 h-full text-purple-500 hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
           title={t("editor.newVisualQuery")}
         >
           <Network size={16} />
         </button>
         <button
           onClick={async () => {
+            if (!activeConnectionId) return;
             const title = "Notebook";
-            const { notebookId } = await createNotebook(title);
+            const { notebookId } = await createNotebook(title, activeConnectionId);
             addTab({
               type: "notebook",
               notebookId,
               ...(isMultiDb ? { schema: selectedDatabases[0] } : {}),
             });
           }}
-          className="flex items-center justify-center w-9 h-full text-orange-400 hover:text-white hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
+          className="flex items-center justify-center w-9 h-full text-orange-400 hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
           title={t("editor.newNotebook")}
         >
           <BookOpen size={16} />
@@ -2566,6 +2681,9 @@ export const Editor = () => {
             <button
               onClick={handleRunButton}
               disabled={!activeConnectionId}
+              aria-label={`${t("editor.run")} (${isMac ? "Cmd+Enter" : "Ctrl+Enter"})`}
+              aria-keyshortcuts={isMac ? "Meta+Enter" : "Control+Enter"}
+              title={`${t("editor.run")} (${isMac ? "Cmd+Enter" : "Ctrl+Enter"})`}
               className={clsx(
                 "flex items-center gap-2 px-3 py-1.5 text-white text-sm font-medium disabled:opacity-50 hover:bg-green-600",
                 isTableTab ? "rounded" : "rounded-l",
@@ -2778,6 +2896,7 @@ export const Editor = () => {
                 tab={tab}
                 updateTab={updateTab}
                 connectionId={activeConnectionId || ""}
+                isActive={isActive}
               />
             </div>
           );
@@ -2918,6 +3037,7 @@ export const Editor = () => {
                 connectionId={activeConnectionId}
                 copyFormat={copyFormat}
                 csvDelimiter={csvDelimiter}
+                csvIncludeHeaders={csvIncludeHeaders}
                 onSelectResult={(entryId) =>
                   updateTab(activeTab.id, { activeResultId: entryId })
                 }
@@ -2997,6 +3117,34 @@ export const Editor = () => {
               </div>
             ) : activeTab.error ? (
               <ErrorDisplay error={activeTab.error} t={t} />
+            ) : activeTab.result &&
+              activeTab.result.columns.length === 0 &&
+              !(
+                activeTab.pendingInsertions &&
+                Object.keys(activeTab.pendingInsertions).length > 0
+              ) ? (
+              // Non-SELECT statement (INSERT/UPDATE/DELETE/DDL): no result set,
+              // so surface an explicit success message instead of an empty grid.
+              <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2 text-center px-4">
+                <CheckCircle2 size={32} className="text-green-500" />
+                <p className="text-sm font-medium text-primary">
+                  {t("editor.queryExecuted")}
+                </p>
+                <p className="text-xs text-secondary flex items-center gap-2">
+                  {activeTab.result.affected_rows > 0 && (
+                    <span>
+                      {t("editor.rowsAffected", {
+                        count: activeTab.result.affected_rows,
+                      })}
+                    </span>
+                  )}
+                  {activeTab.executionTime !== null && (
+                    <span className="text-muted font-mono">
+                      ({formatDuration(activeTab.executionTime)})
+                    </span>
+                  )}
+                </p>
+              </div>
             ) : activeTab.result ||
               (activeTab.pendingInsertions &&
                 Object.keys(activeTab.pendingInsertions).length > 0) ? (
@@ -3235,6 +3383,24 @@ export const Editor = () => {
                           </option>
                         </select>
                       )}
+                      {copyFormat === "csv" && (
+                        <label
+                          className="flex items-center gap-1 cursor-pointer select-none text-[11px] text-secondary hover:text-primary"
+                          title={t("settings.csvIncludeHeaders")}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={csvIncludeHeaders}
+                            onChange={(e) =>
+                              setCsvIncludeHeaders(e.target.checked)
+                            }
+                            className="w-3 h-3 cursor-pointer accent-blue-500"
+                          />
+                          <span className="font-medium tracking-wide">
+                            {t("settings.csvHeaders")}
+                          </span>
+                        </label>
+                      )}
                     </div>
 
                     {/* Separator */}
@@ -3294,7 +3460,7 @@ export const Editor = () => {
                       columns={activeTab.result?.columns || []}
                       data={activeTab.result?.rows || []}
                       tableName={activeTab.activeTable}
-                      pkColumn={activeTab.pkColumn}
+                      pkColumns={activeTab.pkColumns}
                       autoIncrementColumns={activeTab.autoIncrementColumns}
                       defaultValueColumns={activeTab.defaultValueColumns}
                       nullableColumns={activeTab.nullableColumns}
@@ -3319,6 +3485,7 @@ export const Editor = () => {
                       onSelectionChange={handleSelectionChange}
                       copyFormat={copyFormat}
                       csvDelimiter={csvDelimiter}
+                      csvIncludeHeaders={csvIncludeHeaders}
                       sortClause={activeTab.sortClause}
                       onSort={
                         activeTab.type === "table" &&
@@ -3450,8 +3617,19 @@ export const Editor = () => {
           y={tabContextMenu.y}
           onClose={() => setTabContextMenu(null)}
           items={[
-            ...(tabs.find((t) => t.id === tabContextMenu.tabId)?.type !==
-            "console"
+            ...(tabs.find((t) => t.id === tabContextMenu.tabId)?.type ===
+            "notebook"
+              ? [
+                  {
+                    label: t("sidebar.notebooks.rename"),
+                    icon: Pencil,
+                    action: () => startTabRename(tabContextMenu.tabId),
+                  },
+                ]
+              : []),
+            ...(!["console", "notebook", "query_builder"].includes(
+              tabs.find((t) => t.id === tabContextMenu.tabId)?.type ?? "",
+            )
               ? [
                   {
                     label: t("editor.convertToConsole"),

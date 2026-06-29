@@ -61,11 +61,19 @@ pub async fn dump_database<R: Runtime>(
     file_path: String,
     options: DumpOptions,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<(), String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    // Scope the dump to the selected database on connections that expose multiple
+    // databases (e.g. MySQL/MariaDB). Without this the connection pool stays bound
+    // to the primary database, so unqualified statements such as `SHOW CREATE TABLE`
+    // and `SELECT * FROM table` run against the wrong database.
+    if let Some(db) = database {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
     let driver = saved_conn.params.driver.clone();
     let schema = schema.unwrap_or_else(|| "public".to_string());
 

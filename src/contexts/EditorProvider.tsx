@@ -36,6 +36,14 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
 
   const schemaCacheRef = useRef<Record<string, SchemaCache>>({});
   const tabsRef = useRef<Tab[]>([]);
+  // A notebook the user asked to open from a different connection. Resolved
+  // once that connection's tabs have finished loading (see effect below), so
+  // the freshly-added tab isn't wiped by the in-flight preference load.
+  const pendingNotebookRef = useRef<{
+    connectionId: string;
+    notebookId: string;
+    title: string;
+  } | null>(null);
 
   useEffect(() => {
     tabsRef.current = tabs;
@@ -61,6 +69,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
               const { notebookId } = await createNotebookFromState(
                 tab.title,
                 tab.notebookState,
+                activeConnectionId,
               );
               tab.notebookId = notebookId;
               tab.notebookState = undefined;
@@ -184,6 +193,39 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     },
     [createInitialTab, activeConnectionId, setActiveTabId],
   );
+
+  // Open (or focus) a notebook tab, possibly belonging to another connection.
+  // For the active connection it resolves immediately; otherwise it records the
+  // intent and lets the effect below complete it after the target connection's
+  // tabs have loaded (the caller is expected to call switchConnection too).
+  const resolvePendingNotebook = useCallback(() => {
+    const pending = pendingNotebookRef.current;
+    if (!pending) return;
+    if (isLoading || pending.connectionId !== activeConnectionId) return;
+    pendingNotebookRef.current = null;
+    const existing = tabsRef.current.find(
+      (t) => t.notebookId === pending.notebookId,
+    );
+    if (existing) {
+      setActiveTabId(existing.id);
+    } else {
+      addTab({ type: "notebook", notebookId: pending.notebookId, title: pending.title });
+    }
+  }, [isLoading, activeConnectionId, addTab, setActiveTabId]);
+
+  const openNotebook = useCallback(
+    (connectionId: string, notebookId: string, title: string) => {
+      pendingNotebookRef.current = { connectionId, notebookId, title };
+      resolvePendingNotebook();
+    },
+    [resolvePendingNotebook],
+  );
+
+  // Complete a deferred cross-connection notebook open once the connection's
+  // tabs have settled (isLoading false + activeConnectionId matches).
+  useEffect(() => {
+    resolvePendingNotebook();
+  }, [resolvePendingNotebook]);
 
   const closeTab = useCallback(
     (id: string) => {
@@ -360,6 +402,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       activeTabId,
       activeTab,
       addTab,
+      openNotebook,
       closeTab,
       updateTab,
       updateResultEntry,
@@ -375,6 +418,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       activeTabId,
       activeTab,
       addTab,
+      openNotebook,
       closeTab,
       updateTab,
       updateResultEntry,

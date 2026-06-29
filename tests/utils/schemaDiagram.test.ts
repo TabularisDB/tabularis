@@ -5,10 +5,37 @@ import {
   isFullscreenActive,
   shouldShowMinimap,
   shouldAnimateEdges,
+  resolveDiagramSchema,
   type ConnectionParams,
 } from '../../src/utils/schemaDiagram';
 
 describe('schemaDiagram', () => {
+  describe('resolveDiagramSchema', () => {
+    it('should prefer an explicit schema (PostgreSQL)', () => {
+      expect(resolveDiagramSchema('public', 'my_db')).toBe('public');
+    });
+
+    it('should fall back to the selected database when no schema is given (MySQL multi-db)', () => {
+      expect(resolveDiagramSchema(undefined, 'web_opd_backend')).toBe(
+        'web_opd_backend',
+      );
+    });
+
+    it('should return undefined when the database is the "Unknown" sentinel', () => {
+      expect(resolveDiagramSchema(undefined, 'Unknown')).toBeUndefined();
+    });
+
+    it('should return undefined when neither schema nor database is given', () => {
+      expect(resolveDiagramSchema(undefined, undefined)).toBeUndefined();
+    });
+
+    it('should prefer the schema even when a database is also present', () => {
+      expect(resolveDiagramSchema('analytics', 'web_opd_backend')).toBe(
+        'analytics',
+      );
+    });
+  });
+
   describe('parseConnectionParams', () => {
     it('should parse all connection parameters', () => {
       const params = new URLSearchParams({

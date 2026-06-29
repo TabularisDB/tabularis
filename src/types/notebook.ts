@@ -61,6 +61,7 @@ export interface NotebookFile {
   version: number;
   title: string;
   createdAt: string;
+  connectionId?: string;
   cells: Array<{
     type: NotebookCellType;
     content: string;
@@ -72,4 +73,13 @@ export interface NotebookFile {
   }>;
   params?: NotebookParam[];
   stopOnError?: boolean;
+}
+
+// Lightweight metadata for the "saved notebooks" list, returned by the
+// `list_notebooks` Tauri command (sourced from disk, not the cell contents).
+export interface NotebookMetadata {
+  id: string;
+  title: string;
+  createdAt?: string;
+  updatedAt?: string;
 }

@@ -10,11 +10,13 @@ export function serializeNotebook(
   cells: NotebookCell[],
   params?: NotebookParam[],
   stopOnError?: boolean,
+  connectionId?: string,
 ): NotebookFile {
   return {
     version: 2,
     title,
     createdAt: new Date().toISOString(),
+    ...(connectionId ? { connectionId } : {}),
     cells: cells.map((c) => ({
       type: c.type,
       content: c.content,

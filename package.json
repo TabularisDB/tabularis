@@ -1,11 +1,14 @@
 {
   "name": "tabularis",
   "private": true,
-  "version": "0.13.1",
+  "version": "0.13.3",
   "type": "module",
   "links": {
     "discord": "https://discord.com/invite/K2hmhfHRSt",
-    "github": "https://github.com/TabularisDB/tabularis"
+    "github": "https://github.com/TabularisDB/tabularis",
+    "x": "https://x.com/tabularisdb",
+    "bluesky": "https://bsky.app/profile/tabularis.bsky.social",
+    "mastodon": "https://mastodon.social/@tabularis"
   },
   "scripts": {
     "dev": "vite",
@@ -36,6 +39,7 @@
     "@tauri-apps/plugin-clipboard-manager": "~2.3.2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-fs": "^2.4.5",
+    "@tauri-apps/plugin-notification": "^2.3.1",
     "@tauri-apps/plugin-opener": "^2.5.3",
     "@tauri-apps/plugin-updater": "~2.10.0",
     "@types/dagre": "^0.7.54",
@@ -57,6 +61,7 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.2",
     "recharts": "^3.8.1",
+    "sql-formatter": "^15.8.2",
     "util": "^0.12.5",
     "wkx": "^0.5.0"
   },

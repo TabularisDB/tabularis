@@ -34,16 +34,19 @@ import {
   Layers,
   Clock,
   Clipboard,
+  BookOpen,
 } from "lucide-react";
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { toErrorMessage } from "../../utils/errors";
 import { useAlert } from "../../hooks/useAlert";
 import { useSettings } from "../../hooks/useSettings";
 import { useDatabase } from "../../hooks/useDatabase";
+import { useEditor } from "../../hooks/useEditor";
 import { useSavedQueries } from "../../hooks/useSavedQueries";
 import { useQueryHistory } from "../../hooks/useQueryHistory";
 import type { SavedQuery } from "../../contexts/SavedQueriesContext";
 import type { QueryHistoryEntry } from "../../types/queryHistory";
+import type { NotebookMetadata } from "../../types/notebook";
 import { ContextMenu, type ContextMenuItem } from "../ui/ContextMenu";
 import { SchemaModal } from "../modals/SchemaModal";
 import { CreateTableModal } from "../modals/CreateTableModal";
@@ -67,7 +70,11 @@ import { SidebarSchemaItem } from "./sidebar/SidebarSchemaItem";
 import { SidebarDatabaseItem } from "./sidebar/SidebarDatabaseItem";
 import { SidebarTriggerItem } from "./sidebar/SidebarTriggerItem";
 import { QueryHistorySection } from "./sidebar/QueryHistorySection";
+import { NotebooksSection } from "./sidebar/NotebooksSection";
+import { renameNotebook, deleteNotebook, listNotebooks, NOTEBOOKS_CHANGED_EVENT } from "../../utils/notebookStore";
 import { useConnectionLayoutContext } from "../../hooks/useConnectionLayoutContext";
+import { useDrivers } from "../../hooks/useDrivers";
+import { getConnectionAccent } from "../../utils/driverUI";
 import type { TableColumn } from "../../types/schema";
 import type { ContextMenuData } from "../../types/sidebar";
 import type { RoutineInfo, TriggerInfo } from "../../contexts/DatabaseContext";
@@ -84,7 +91,7 @@ import {
   type CreateTableTarget,
 } from "../../utils/createTable";
 
-export type SidebarTab = "structure" | "favorites" | "history";
+export type SidebarTab = "structure" | "favorites" | "history" | "notebooks";
 
 interface ExplorerSidebarProps {
   sidebarWidth: number;
@@ -129,8 +136,19 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     loadDatabaseData,
     refreshDatabaseData,
     connectionDataMap,
+    connections,
     connect,
   } = useDatabase();
+  const { allDrivers } = useDrivers();
+  const { tabs, openNotebook, updateTab, closeTab } = useEditor();
+
+  // Accent color for a connection, matching the tinted editor tab bar / split
+  // panel headers. Falls back to the driver manifest color.
+  const accentForConnection = (connId: string) => {
+    const conn = connections.find((c) => c.id === connId);
+    const driverId = conn?.params.driver ?? connectionDataMap[connId]?.driver;
+    return getConnectionAccent(conn, allDrivers.find((d) => d.id === driverId));
+  };
 
   const schemaLoadError =
     activeCapabilities?.schemas === true && schemas.length === 0 && activeConnectionId
@@ -252,6 +270,55 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     navigate("/editor", {
       state: { initialQuery: sql, queryName, tableName, preventAutoRun, schema, readOnly, targetConnectionId: activeConnectionId },
     });
+  };
+
+  // Notebook count for the tab badge — kept in sync with the active connection
+  // and refreshed whenever notebooks change (save/rename/delete/import).
+  const [notebookCount, setNotebookCount] = useState(0);
+  useEffect(() => {
+    if (!activeConnectionId) {
+      setNotebookCount(0);
+      return;
+    }
+    let cancelled = false;
+    const refresh = () => {
+      listNotebooks(activeConnectionId)
+        .then((nbs) => {
+          if (!cancelled) setNotebookCount(nbs.length);
+        })
+        .catch(() => {
+          if (!cancelled) setNotebookCount(0);
+        });
+    };
+    refresh();
+    window.addEventListener(NOTEBOOKS_CHANGED_EVENT, refresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(NOTEBOOKS_CHANGED_EVENT, refresh);
+    };
+  }, [activeConnectionId]);
+
+  // The Notebooks section only lists the active connection's notebooks, so all
+  // actions stay within activeConnectionId.
+  const handleOpenNotebook = (nb: NotebookMetadata) => {
+    if (!activeConnectionId) return;
+    openNotebook(activeConnectionId, nb.id, nb.title);
+    navigate("/editor");
+  };
+
+  const handleRenameNotebook = async (notebookId: string, title: string) => {
+    if (!activeConnectionId) return;
+    await renameNotebook(notebookId, activeConnectionId, title);
+    const open = tabs.find((tb) => tb.notebookId === notebookId);
+    if (open) updateTab(open.id, { title });
+  };
+
+  const handleDeleteNotebook = async (notebookId: string) => {
+    if (!activeConnectionId) return;
+    // Clears cache + timers first, so closing the tab below won't re-save it.
+    await deleteNotebook(notebookId, activeConnectionId);
+    const open = tabs.find((tb) => tb.notebookId === notebookId);
+    if (open) closeTab(open.id);
   };
 
   useEffect(() => {
@@ -432,13 +499,23 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
             {splitView.connectionIds.map(connId => {
               const name = connectionDataMap[connId]?.connectionName ?? connId;
               const isActive = explorerConnectionId === connId;
+              const accent = accentForConnection(connId);
               return (
                 <button
                   key={connId}
                   onClick={() => setExplorerConnectionId(connId)}
-                  className={isActive
-                    ? 'text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                    : 'text-xs px-2 py-0.5 rounded text-muted hover:text-primary hover:bg-surface-secondary'}
+                  className="text-xs px-2 py-0.5 rounded border transition-colors"
+                  style={isActive
+                    ? {
+                        backgroundColor: `${accent}33`,
+                        borderColor: `${accent}66`,
+                        color: accent,
+                      }
+                    : {
+                        backgroundColor: `${accent}14`,
+                        borderColor: 'transparent',
+                        color: `${accent}80`,
+                      }}
                 >
                   {name}
                 </button>
@@ -570,31 +647,32 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
             { id: "structure" as const, icon: Layers, label: t("sidebar.structure") },
             { id: "favorites" as const, icon: Star, label: t("sidebar.favorites"), count: queries.length },
             { id: "history" as const, icon: Clock, label: t("sidebar.queryHistory"), count: historyEntries.length },
-          ]).map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setSidebarTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-1 px-2 py-2 text-xs font-medium transition-colors relative min-w-0 ${
-                sidebarTab === tab.id
-                  ? "text-primary"
-                  : "text-muted hover:text-secondary"
-              }`}
-              title={`${tab.label}${tab.count !== undefined && tab.count > 0 ? ` (${tab.count})` : ""}`}
-            >
-              <tab.icon size={14} className="shrink-0" />
-              {sidebarWidth >= 200 && (
-                <span className="truncate">{tab.label}</span>
-              )}
-              {tab.count !== undefined && tab.count > 0 && (
-                <span className="text-[10px] text-muted shrink-0">
-                  {sidebarWidth >= 200 ? `(${tab.count})` : tab.count}
-                </span>
-              )}
-              {sidebarTab === tab.id && (
-                <div className="absolute bottom-0 left-1 right-1 h-0.5 bg-blue-500 rounded-full" />
-              )}
-            </button>
-          ))}
+            { id: "notebooks" as const, icon: BookOpen, label: t("sidebar.notebooks.tab"), count: notebookCount },
+          ]).map((tab) => {
+            const isActive = sidebarTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setSidebarTab(tab.id)}
+                className={`flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium transition-colors relative min-w-0 ${
+                  isActive ? "flex-1 text-primary" : "shrink-0 text-muted hover:text-secondary"
+                }`}
+                title={`${tab.label}${tab.count !== undefined && tab.count > 0 ? ` (${tab.count})` : ""}`}
+                aria-label={tab.label}
+              >
+                <tab.icon size={14} className="shrink-0" />
+                {isActive && <span className="truncate">{tab.label}</span>}
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span className="shrink-0 rounded-full bg-overlay px-1.5 text-[10px] leading-[1.4] text-muted">
+                    {tab.count}
+                  </span>
+                )}
+                {isActive && (
+                  <div className="absolute bottom-0 left-1 right-1 h-0.5 bg-blue-500 rounded-full" />
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <div ref={sidebarBodyRef} className="flex-1 overflow-y-auto py-2">
@@ -701,6 +779,23 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
               }}
               onClearAll={() => setHistoryClearConfirm(true)}
             /></div>
+          )}
+
+          {/* Notebooks tab — saved notebooks for the active connection */}
+          {sidebarTab === "notebooks" && (
+            <NotebooksSection
+              connectionId={activeConnectionId}
+              openNotebookIds={
+                new Set(
+                  tabs
+                    .filter((tb) => tb.notebookId)
+                    .map((tb) => tb.notebookId as string),
+                )
+              }
+              onOpen={handleOpenNotebook}
+              onRename={handleRenameNotebook}
+              onDelete={handleDeleteNotebook}
+            />
           )}
 
           {/* Structure tab */}
@@ -852,7 +947,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               setPendingSchemaSelection(new Set(selectedSchemas));
                               setIsSchemaFilterOpen(!isSchemaFilterOpen);
                             }}
-                            className={`p-1 rounded transition-colors ${
+                            className={`p-1 rounded transition-colors mr-1.5 ${
                               selectedSchemas.length < schemas.length
                                 ? "text-blue-400 hover:text-blue-300 bg-blue-500/10"
                                 : "text-muted hover:text-secondary hover:bg-surface-secondary"
@@ -1302,7 +1397,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     isOpen={tablesOpen}
                     onToggle={() => setTablesOpen(!tablesOpen)}
                     actions={
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 mr-2.5">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1436,7 +1531,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     isOpen={viewsOpen}
                     onToggle={() => setViewsOpen(!viewsOpen)}
                     actions={
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 mr-2.5">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1490,7 +1585,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       isOpen={triggersOpenFlat}
                       onToggle={() => setTriggersOpenFlat(!triggersOpenFlat)}
                       actions={
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 mr-2.5">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

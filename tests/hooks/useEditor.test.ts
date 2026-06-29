@@ -27,7 +27,7 @@ describe('useEditor', () => {
       executionTime: null,
       page: 1,
       activeTable: null,
-      pkColumn: null,
+      pkColumns: null,
       connectionId: 'conn-123',
     };
 
@@ -36,6 +36,7 @@ describe('useEditor', () => {
       activeTabId: 'tab-1',
       activeTab: mockTab,
       addTab: vi.fn(),
+      openNotebook: vi.fn(),
       closeTab: vi.fn(),
       closeAllTabs: vi.fn(),
       closeOtherTabs: vi.fn(),

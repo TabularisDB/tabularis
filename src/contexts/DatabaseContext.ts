@@ -3,6 +3,7 @@ import type { DriverCapabilities } from '../types/plugins';
 
 export interface TableInfo {
   name: string;
+  schema?: string; // database/schema the table belongs to (populated in multiDb mode)
 }
 
 export interface ViewInfo {
@@ -48,6 +49,7 @@ export interface SavedConnection {
     ssh_connection_id?: string;
     k8s_enabled?: boolean;
     k8s_connection_id?: string;
+    startup_script?: string;
   };
   group_id?: string;
   sort_order?: number;
