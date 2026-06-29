@@ -114,7 +114,7 @@ export function ResultEntryContent({
           columns={entry.result.columns}
           data={entry.result.rows}
           tableName={null}
-          pkColumn={null}
+          pkColumns={null}
           connectionId={connectionId}
           selectedRows={new Set()}
           onSelectionChange={() => {}}
@@ -162,7 +162,7 @@ export function ResultEntryContent({
           columns={entry.result.columns}
           data={entry.result.rows}
           tableName={null}
-          pkColumn={null}
+          pkColumns={null}
           connectionId={connectionId}
           selectedRows={new Set()}
           onSelectionChange={() => {}}
