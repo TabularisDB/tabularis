@@ -267,34 +267,70 @@ pub async fn get_indexes(
     Ok(result)
 }
 
+fn sqlite_push_pk_val(
+    qb: &mut sqlx::QueryBuilder<sqlx::Sqlite>,
+    val: &serde_json::Value,
+) -> Result<(), String> {
+    match val {
+        serde_json::Value::Number(n) => {
+            if n.is_i64() {
+                qb.push_bind(n.as_i64());
+            } else {
+                qb.push_bind(n.as_f64());
+            }
+        }
+        serde_json::Value::String(s) => {
+            if let Some(n) = parse_unsafe_bigint_string(s) {
+                qb.push_bind(n);
+            } else {
+                qb.push_bind(s.clone());
+            }
+        }
+        _ => return Err("Unsupported PK type".into()),
+    }
+    Ok(())
+}
+
+fn sqlite_push_pk_where(
+    qb: &mut sqlx::QueryBuilder<sqlx::Sqlite>,
+    pk_map: &HashMap<String, serde_json::Value>,
+) -> Result<(), String> {
+    if pk_map.is_empty() {
+        return Err("pk_map must not be empty".into());
+    }
+    let mut pairs: Vec<(&String, &serde_json::Value)> = pk_map.iter().collect();
+    pairs.sort_by_key(|(k, _)| k.as_str());
+    let mut first = true;
+    for (col, val) in &pairs {
+        if !first {
+            qb.push(" AND ");
+        }
+        qb.push(format!("\"{}\" = ", escape_identifier(col)));
+        sqlite_push_pk_val(qb, val)?;
+        first = false;
+    }
+    Ok(())
+}
+
 pub async fn save_blob_column_to_file(
     params: &ConnectionParams,
     table: &str,
     col_name: &str,
-    pk_col: &str,
-    pk_val: serde_json::Value,
+    pk_map: &HashMap<String, serde_json::Value>,
     file_path: &str,
 ) -> Result<(), String> {
     let pool = get_sqlite_pool(params).await?;
-
-    let query = format!(
-        "SELECT \"{}\" FROM \"{}\" WHERE \"{}\" = ?",
-        col_name, table, pk_col
-    );
-
-    let row = match pk_val {
-        serde_json::Value::Number(n) => {
-            if n.is_i64() {
-                sqlx::query(&query).bind(n.as_i64()).fetch_one(&pool).await
-            } else {
-                sqlx::query(&query).bind(n.as_f64()).fetch_one(&pool).await
-            }
-        }
-        serde_json::Value::String(s) => sqlx::query(&query).bind(s).fetch_one(&pool).await,
-        _ => return Err("Unsupported PK type".into()),
-    }
-    .map_err(|e| e.to_string())?;
-
+    let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new(format!(
+        "SELECT \"{}\" FROM \"{}\" WHERE ",
+        escape_identifier(col_name),
+        escape_identifier(table)
+    ));
+    sqlite_push_pk_where(&mut qb, pk_map)?;
+    let row = qb
+        .build()
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
     let bytes: Vec<u8> = row.try_get(0).map_err(|e| e.to_string())?;
     std::fs::write(file_path, bytes).map_err(|e| e.to_string())
 }
@@ -303,29 +339,20 @@ pub async fn fetch_blob_column_as_data_url(
     params: &ConnectionParams,
     table: &str,
     col_name: &str,
-    pk_col: &str,
-    pk_val: serde_json::Value,
+    pk_map: &HashMap<String, serde_json::Value>,
 ) -> Result<String, String> {
     let pool = get_sqlite_pool(params).await?;
-
-    let query = format!(
-        "SELECT \"{}\" FROM \"{}\" WHERE \"{}\" = ?",
-        col_name, table, pk_col
-    );
-
-    let row = match pk_val {
-        serde_json::Value::Number(n) => {
-            if n.is_i64() {
-                sqlx::query(&query).bind(n.as_i64()).fetch_one(&pool).await
-            } else {
-                sqlx::query(&query).bind(n.as_f64()).fetch_one(&pool).await
-            }
-        }
-        serde_json::Value::String(s) => sqlx::query(&query).bind(s).fetch_one(&pool).await,
-        _ => return Err("Unsupported PK type".into()),
-    }
-    .map_err(|e| e.to_string())?;
-
+    let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new(format!(
+        "SELECT \"{}\" FROM \"{}\" WHERE ",
+        escape_identifier(col_name),
+        escape_identifier(table)
+    ));
+    sqlite_push_pk_where(&mut qb, pk_map)?;
+    let row = qb
+        .build()
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
     let bytes: Vec<u8> = row.try_get(0).map_err(|e| e.to_string())?;
     Ok(crate::drivers::common::encode_blob_full(&bytes))
 }
@@ -333,40 +360,37 @@ pub async fn fetch_blob_column_as_data_url(
 pub async fn delete_record(
     params: &ConnectionParams,
     table: &str,
-    pk_col: &str,
-    pk_val: serde_json::Value,
+    pk_map: &HashMap<String, serde_json::Value>,
 ) -> Result<u64, String> {
     let pool = get_sqlite_pool(params).await?;
-
-    let query = format!("DELETE FROM \"{}\" WHERE \"{}\" = ?", table, pk_col);
-
-    let result = match pk_val {
-        serde_json::Value::Number(n) => {
-            if n.is_i64() {
-                sqlx::query(&query).bind(n.as_i64()).execute(&pool).await
-            } else {
-                sqlx::query(&query).bind(n.as_f64()).execute(&pool).await
-            }
-        }
-        serde_json::Value::String(s) => sqlx::query(&query).bind(s).execute(&pool).await,
-        _ => return Err("Unsupported PK type".into()),
-    };
-
-    result.map(|r| r.rows_affected()).map_err(|e| e.to_string())
+    let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new(format!(
+        "DELETE FROM \"{}\" WHERE ",
+        escape_identifier(table)
+    ));
+    sqlite_push_pk_where(&mut qb, pk_map)?;
+    let result = qb
+        .build()
+        .execute(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(result.rows_affected())
 }
 
 pub async fn update_record(
     params: &ConnectionParams,
     table: &str,
-    pk_col: &str,
-    pk_val: serde_json::Value,
+    pk_map: &HashMap<String, serde_json::Value>,
     col_name: &str,
     new_val: serde_json::Value,
     max_blob_size: u64,
 ) -> Result<u64, String> {
     let pool = get_sqlite_pool(params).await?;
 
-    let mut qb = sqlx::QueryBuilder::new(format!("UPDATE \"{}\" SET \"{}\" = ", table, col_name));
+    let mut qb = sqlx::QueryBuilder::new(format!(
+        "UPDATE \"{}\" SET \"{}\" = ",
+        escape_identifier(table),
+        escape_identifier(col_name)
+    ));
 
     match new_val {
         serde_json::Value::Number(n) => {
@@ -377,18 +401,13 @@ pub async fn update_record(
             }
         }
         serde_json::Value::String(s) => {
-            // Check for special sentinel value to use DEFAULT
             if s == "__USE_DEFAULT__" {
                 qb.push("DEFAULT");
             } else if let Some(bytes) =
                 crate::drivers::common::decode_blob_wire_format(&s, max_blob_size)
             {
-                // Blob wire format: decode to raw bytes so the DB stores binary data,
-                // not the internal wire format string.
                 qb.push_bind(bytes);
             } else if let Some(n) = parse_unsafe_bigint_string(&s) {
-                // Bigints outside JS safe range come back from the UI as strings
-                // (see drivers::common::i64_to_json). Bind them as native i64.
                 qb.push_bind(n);
             } else {
                 qb.push_bind(s);
@@ -403,28 +422,10 @@ pub async fn update_record(
         _ => return Err("Unsupported Value type".into()),
     }
 
-    qb.push(format!(" WHERE \"{}\" = ", pk_col));
+    qb.push(" WHERE ");
+    sqlite_push_pk_where(&mut qb, pk_map)?;
 
-    match pk_val {
-        serde_json::Value::Number(n) => {
-            if n.is_i64() {
-                qb.push_bind(n.as_i64());
-            } else {
-                qb.push_bind(n.as_f64());
-            }
-        }
-        serde_json::Value::String(s) => {
-            if let Some(n) = parse_unsafe_bigint_string(&s) {
-                qb.push_bind(n);
-            } else {
-                qb.push_bind(s);
-            }
-        }
-        _ => return Err("Unsupported PK type".into()),
-    }
-
-    let query = qb.build();
-    let result = query.execute(&pool).await.map_err(|e| e.to_string())?;
+    let result = qb.build().execute(&pool).await.map_err(|e| e.to_string())?;
     Ok(result.rows_affected())
 }
 
@@ -1177,34 +1178,23 @@ impl DatabaseDriver for SqliteDriver {
         &self,
         params: &crate::models::ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         col_name: &str,
         new_val: serde_json::Value,
         _schema: Option<&str>,
         max_blob_size: u64,
     ) -> Result<u64, String> {
-        update_record(
-            params,
-            table,
-            pk_col,
-            pk_val,
-            col_name,
-            new_val,
-            max_blob_size,
-        )
-        .await
+        update_record(params, table, pk_map, col_name, new_val, max_blob_size).await
     }
 
     async fn delete_record(
         &self,
         params: &crate::models::ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         _schema: Option<&str>,
     ) -> Result<u64, String> {
-        delete_record(params, table, pk_col, pk_val).await
+        delete_record(params, table, pk_map).await
     }
 
     async fn save_blob_to_file(
@@ -1212,12 +1202,11 @@ impl DatabaseDriver for SqliteDriver {
         params: &crate::models::ConnectionParams,
         table: &str,
         col_name: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         _schema: Option<&str>,
         file_path: &str,
     ) -> Result<(), String> {
-        save_blob_column_to_file(params, table, col_name, pk_col, pk_val, file_path).await
+        save_blob_column_to_file(params, table, col_name, pk_map, file_path).await
     }
 
     async fn fetch_blob_as_data_url(
@@ -1225,11 +1214,10 @@ impl DatabaseDriver for SqliteDriver {
         params: &crate::models::ConnectionParams,
         table: &str,
         col_name: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         _schema: Option<&str>,
     ) -> Result<String, String> {
-        fetch_blob_column_as_data_url(params, table, col_name, pk_col, pk_val).await
+        fetch_blob_column_as_data_url(params, table, col_name, pk_map).await
     }
 
     async fn get_create_table_sql(

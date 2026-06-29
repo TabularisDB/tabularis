@@ -29,8 +29,7 @@ export interface FieldEditorProps {
   detectJsonInTextColumns?: boolean;
   connectionId?: string | null;
   tableName?: string | null;
-  pkCol?: string | null;
-  pkVal?: unknown;
+  pkMap?: Record<string, unknown> | null;
   schema?: string | null;
 }
 
@@ -54,8 +53,7 @@ export const FieldEditor = ({
   detectJsonInTextColumns = false,
   connectionId,
   tableName,
-  pkCol,
-  pkVal,
+  pkMap,
   schema,
 }: FieldEditorProps) => {
   const { t } = useTranslation();
@@ -102,8 +100,7 @@ export const FieldEditor = ({
         placeholder={defaultPlaceholder}
         connectionId={connectionId}
         tableName={tableName}
-        pkCol={pkCol}
-        pkVal={pkVal}
+        pkMap={pkMap}
         colName={name}
         schema={schema}
       />

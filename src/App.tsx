@@ -21,6 +21,7 @@ import { UpdateNotificationModal } from "./components/modals/UpdateNotificationM
 import { CommunityModal } from "./components/modals/CommunityModal";
 import { WhatsNewModal } from "./components/modals/WhatsNewModal";
 import { AiApprovalGate } from "./components/modals/AiApprovalGate";
+import { SshAskpassGate } from "./components/modals/SshAskpassGate";
 import { useUpdate } from "./hooks/useUpdate";
 import { useChangelog } from "./hooks/useChangelog";
 import { useSettings } from "./hooks/useSettings";
@@ -169,6 +170,7 @@ export function App() {
       />
 
       <AiApprovalGate />
+      <SshAskpassGate />
     </>
   );
 }

@@ -10,7 +10,7 @@ export interface CleanedTab {
   query: string;
   page: number;
   activeTable: string | null;
-  pkColumn: string | null;
+  pkColumns: string[] | null;
   connectionId: string;
   flowState?: Tab['flowState'];
   isEditorOpen?: boolean;
@@ -39,7 +39,7 @@ export function cleanTabForStorage(tab: Tab): CleanedTab {
     query: tab.query,
     page: tab.page,
     activeTable: tab.activeTable,
-    pkColumn: tab.pkColumn,
+    pkColumns: tab.pkColumns,
     connectionId: tab.connectionId,
     flowState: tab.flowState,
     isEditorOpen: tab.isEditorOpen,
@@ -68,7 +68,7 @@ export function restoreTabFromStorage(cleanedTab: Partial<Tab>): Tab {
     query: cleanedTab.query || '',
     page: cleanedTab.page || 1,
     activeTable: cleanedTab.activeTable || null,
-    pkColumn: cleanedTab.pkColumn || null,
+    pkColumns: cleanedTab.pkColumns || null,
     connectionId: cleanedTab.connectionId || '',
     result: null,
     error: '',
