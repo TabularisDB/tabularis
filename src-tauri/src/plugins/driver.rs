@@ -841,6 +841,7 @@ mod tests {
             k8s_resource_type: None,
             k8s_resource_name: None,
             k8s_port: None,
+            startup_script: None,
             connection_id: Some("conn-1".to_string()),
         }
     }

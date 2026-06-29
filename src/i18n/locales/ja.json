@@ -719,7 +719,13 @@
     "selectK8sConnection": "K8s 接続を選択",
     "selectTypeFirst": "先にコンテキスト/ネームスペース/タイプを選択してください",
     "useK8s": "Kubernetes ポートフォワードを使用",
-    "useK8sConnection": "保存された接続"
+    "useK8sConnection": "保存された接続",
+    "advanced": "詳細設定",
+    "startupScript": "起動スクリプト",
+    "startupScriptDescription": "このデータソースへの新規接続ごとに実行される SQL です。SET / set_config（例: RLS のバイパス）などのセッション設定に使用します。複数のステートメントはセミコロンで区切ってください。",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "タブを左にスクロール",
+    "scrollTabsRight": "タブを右にスクロール"
   },
   "sshConnections": {
     "title": "SSH 接続",
@@ -1196,6 +1202,7 @@
     "viewNamePlaceholder": "例: active_users, order_summary",
     "viewDefinition": "ビュー定義 (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "整形",
     "preview": "プレビュー",
     "runPreview": "プレビューを実行",
     "previewEmpty": "「プレビューを実行」をクリックすると結果が表示されます",

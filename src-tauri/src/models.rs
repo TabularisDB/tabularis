@@ -165,6 +165,13 @@ pub struct ConnectionParams {
     pub k8s_resource_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub k8s_port: Option<u16>,
+    /// SQL run on every new physical connection in the pool (e.g. `SET` /
+    /// `set_config` for session-scoped settings such as bypassing RLS).
+    /// Statements are separated by `;`. Runs per pooled connection so the
+    /// setting applies to every query regardless of which connection the
+    /// pool hands out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub startup_script: Option<String>,
     // Connection ID for stable pooling (not persisted, set at runtime)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
