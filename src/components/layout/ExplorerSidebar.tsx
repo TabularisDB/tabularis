@@ -1432,12 +1432,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             value={tableFilter}
                             onChange={(e) => setTableFilter(e.target.value)}
                             placeholder={t("sidebar.filterTables")}
-                            className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-blue-500/50"
+                            className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-10 py-1 border border-default focus:outline-none focus:border-blue-500/50"
                           />
                           {tableFilter && (
                             <button
                               onClick={() => setTableFilter("")}
-                              className="absolute right-1.5 text-muted hover:text-primary"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary p-0.5 rounded hover:bg-surface-secondary"
                             >
                               <X size={11} />
                             </button>
