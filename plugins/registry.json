@@ -296,6 +296,28 @@
       ]
     },
     {
+      "id": "dameng",
+      "name": "DM",
+      "description": "DM (Dameng) database driver plugin for Tabularis. Requires a user-provided Dameng JDBC driver jar.",
+      "author": "haos666 <https://github.com/haos666>",
+      "homepage": "https://github.com/haos666/tabularis-dameng-plugin",
+      "latest_version": "1.0.1",
+      "releases": [
+        {
+          "version": "1.0.1",
+          "min_tabularis_version": "0.13.1",
+          "assets": {
+            "linux-x64": "https://github.com/haos666/tabularis-dameng-plugin/releases/download/v1.0.1/tabularis-dameng-plugin-1.0.1-linux-x64.zip",
+            "linux-arm64": "https://github.com/haos666/tabularis-dameng-plugin/releases/download/v1.0.1/tabularis-dameng-plugin-1.0.1-linux-arm64.zip",
+            "darwin-x64": "https://github.com/haos666/tabularis-dameng-plugin/releases/download/v1.0.1/tabularis-dameng-plugin-1.0.1-darwin-x64.zip",
+            "darwin-arm64": "https://github.com/haos666/tabularis-dameng-plugin/releases/download/v1.0.1/tabularis-dameng-plugin-1.0.1-darwin-arm64.zip",
+            "win-x64": "https://github.com/haos666/tabularis-dameng-plugin/releases/download/v1.0.1/tabularis-dameng-plugin-1.0.1-win-x64.zip",
+            "universal": "https://github.com/haos666/tabularis-dameng-plugin/releases/download/v1.0.1/tabularis-dameng-plugin-1.0.1-universal.zip"
+          }
+        }
+      ]
+    },
+    {
       "id": "cloudflare-d1",
       "name": "Cloudflare D1",
       "description": "Browse and manage Cloudflare D1 serverless SQLite databases from Tabularis.",

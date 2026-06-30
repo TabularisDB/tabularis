@@ -131,6 +131,11 @@ pub struct ConnectionParams {
     pub ssl_ca: Option<String>,
     pub ssl_cert: Option<String>,
     pub ssl_key: Option<String>,
+    // MySQL: whether sqlx should force the PIPES_AS_CONCAT / NO_ENGINE_SUBSTITUTION
+    // sql_mode on connect. Defaults to `true` (sqlx's behavior) when unset.
+    // Set to `false` for servers that reject altering sql_mode, e.g. Vitess/PlanetScale.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pipes_as_concat: Option<bool>,
     // SSH Tunnel
     pub ssh_enabled: Option<bool>,
     pub ssh_connection_id: Option<String>,

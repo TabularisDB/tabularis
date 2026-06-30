@@ -1,6 +1,6 @@
 use super::binding::{
     PgValueOptions, bind_pg_boolean_string, bind_pg_number, bind_pg_numeric_string, bind_pg_value,
-    build_pk_predicate,
+    build_pk_map_predicate, build_pk_predicate,
 };
 use super::helpers::{extract_base_type, is_implicit_cast_compatible};
 
@@ -557,5 +557,79 @@ mod build_pk_predicate_tests {
     #[test]
     fn bool_pk_is_rejected() {
         assert!(build_pk_predicate("id", serde_json::json!(true), 1, None).is_err());
+    }
+}
+
+mod build_pk_map_predicate_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn single_integer_column() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("id".to_string(), serde_json::json!(1));
+        let pk_types = HashMap::new();
+        let (sql, params) = build_pk_map_predicate(&pk_map, &pk_types, 1).unwrap();
+        assert_eq!(sql, "\"id\" = CAST($1 AS bigint)");
+        assert_eq!(params.len(), 1);
+    }
+
+    #[test]
+    fn composite_pk_sorted_alphabetically_with_consecutive_placeholders() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("z_col".to_string(), serde_json::json!("alice"));
+        pk_map.insert("a_col".to_string(), serde_json::json!("bob"));
+        let pk_types = HashMap::new();
+        let (sql, params) = build_pk_map_predicate(&pk_map, &pk_types, 1).unwrap();
+        assert_eq!(sql, "\"a_col\" = $1 AND \"z_col\" = $2");
+        assert_eq!(params.len(), 2);
+    }
+
+    #[test]
+    fn non_one_starting_placeholder_idx() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("id".to_string(), serde_json::json!(5));
+        let pk_types = HashMap::new();
+        let (sql, _) = build_pk_map_predicate(&pk_map, &pk_types, 3).unwrap();
+        assert_eq!(sql, "\"id\" = CAST($3 AS bigint)");
+    }
+
+    #[test]
+    fn composite_pk_with_mixed_types() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("b_col".to_string(), serde_json::json!("alice"));
+        pk_map.insert("a_col".to_string(), serde_json::json!(99));
+        let pk_types = HashMap::new();
+        let (sql, params) = build_pk_map_predicate(&pk_map, &pk_types, 1).unwrap();
+        assert_eq!(sql, "\"a_col\" = CAST($1 AS bigint) AND \"b_col\" = $2");
+        assert_eq!(params.len(), 2);
+    }
+
+    // Combines #324 (composite PK) and #392 (uuid-shaped value in a varchar PK
+    // column): the uuid column binds as the native Uuid while the varchar member
+    // holding a uuid-shaped string binds as text, all within one compound predicate.
+    #[test]
+    fn composite_pk_threads_per_column_type_for_uuid_varchar() {
+        let uuid = "550e8400-e29b-41d4-a716-446655440000";
+        let mut pk_map = HashMap::new();
+        pk_map.insert("id".to_string(), serde_json::json!(uuid));
+        pk_map.insert("guid".to_string(), serde_json::json!(uuid));
+        let mut pk_types = HashMap::new();
+        pk_types.insert("id".to_string(), "uuid".to_string());
+        pk_types.insert("guid".to_string(), "character varying".to_string());
+        let (sql, params) = build_pk_map_predicate(&pk_map, &pk_types, 1).unwrap();
+        assert_eq!(sql, "\"guid\" = $1 AND \"id\" = $2");
+        assert_eq!(params.len(), 2);
+        // guid (sorted first) binds as text, id binds as the native Uuid type.
+        let expected_uuid: uuid::Uuid = uuid.parse().unwrap();
+        assert_eq!(format!("{:?}", params[0]), format!("{:?}", uuid.to_string()));
+        assert_eq!(format!("{:?}", params[1]), format!("{:?}", expected_uuid));
+    }
+
+    #[test]
+    fn empty_pk_map_is_rejected() {
+        let pk_map: HashMap<String, serde_json::Value> = HashMap::new();
+        let pk_types = HashMap::new();
+        assert!(build_pk_map_predicate(&pk_map, &pk_types, 1).is_err());
     }
 }

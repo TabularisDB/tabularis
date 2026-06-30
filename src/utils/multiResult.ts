@@ -18,7 +18,7 @@ export function createResultEntries(
     isLoading: true,
     page: 1,
     activeTable: null,
-    pkColumn: null,
+    pkColumns: null,
   }));
 }
 

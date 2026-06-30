@@ -12,7 +12,7 @@ describe('tabCleaner', () => {
         query: 'SELECT * FROM users',
         page: 2,
         activeTable: 'users',
-        pkColumn: 'id',
+        pkColumns: ['id'],
         connectionId: 'conn-456',
         isEditorOpen: true,
         filterClause: 'age > 18',
@@ -38,7 +38,7 @@ describe('tabCleaner', () => {
       expect(cleaned.query).toBe('SELECT * FROM users');
       expect(cleaned.page).toBe(2);
       expect(cleaned.activeTable).toBe('users');
-      expect(cleaned.pkColumn).toBe('id');
+      expect(cleaned.pkColumns).toEqual(['id']);
       expect(cleaned.connectionId).toBe('conn-456');
       expect(cleaned.isEditorOpen).toBe(true);
       expect(cleaned.filterClause).toBe('age > 18');
@@ -64,7 +64,7 @@ describe('tabCleaner', () => {
         query: '',
         page: 1,
         activeTable: null,
-        pkColumn: null,
+        pkColumns: null,
         connectionId: 'conn-456',
         result: null,
         error: '',
@@ -74,7 +74,7 @@ describe('tabCleaner', () => {
       const cleaned = cleanTabForStorage(tab);
 
       expect(cleaned.activeTable).toBeNull();
-      expect(cleaned.pkColumn).toBeNull();
+      expect(cleaned.pkColumns).toBeNull();
       expect(cleaned.query).toBe('');
     });
 
@@ -91,7 +91,7 @@ describe('tabCleaner', () => {
         query: '',
         page: 1,
         activeTable: null,
-        pkColumn: null,
+        pkColumns: null,
         connectionId: 'conn-456',
         flowState,
         result: null,
@@ -112,7 +112,7 @@ describe('tabCleaner', () => {
         query: '',
         page: 1,
         activeTable: null,
-        pkColumn: null,
+        pkColumns: null,
         connectionId: 'conn-456',
         result: null,
         error: '',
@@ -149,7 +149,7 @@ describe('tabCleaner', () => {
         query: 'SELECT * FROM users',
         page: 3,
         activeTable: 'users',
-        pkColumn: 'id',
+        pkColumns: ['id'],
         connectionId: 'conn-456',
         isEditorOpen: false,
         filterClause: 'status = "active"',
@@ -180,7 +180,7 @@ describe('tabCleaner', () => {
         query: 'SELECT * FROM users',
         page: 2,
         activeTable: 'users',
-        pkColumn: 'id',
+        pkColumns: ['id'],
         connectionId: 'conn-456',
         isEditorOpen: true,
         filterClause: 'age > 18',
@@ -195,7 +195,7 @@ describe('tabCleaner', () => {
       expect(restored.query).toBe('SELECT * FROM users');
       expect(restored.page).toBe(2);
       expect(restored.activeTable).toBe('users');
-      expect(restored.pkColumn).toBe('id');
+      expect(restored.pkColumns).toEqual(['id']);
       expect(restored.connectionId).toBe('conn-456');
       expect(restored.isEditorOpen).toBe(true);
       expect(restored.filterClause).toBe('age > 18');
@@ -223,7 +223,7 @@ describe('tabCleaner', () => {
       expect(restored.query).toBe('');
       expect(restored.page).toBe(1);
       expect(restored.activeTable).toBeNull();
-      expect(restored.pkColumn).toBeNull();
+      expect(restored.pkColumns).toBeNull();
       expect(restored.connectionId).toBe('');
     });
 
@@ -236,7 +236,7 @@ describe('tabCleaner', () => {
       expect(restored.query).toBe('');
       expect(restored.page).toBe(1);
       expect(restored.activeTable).toBeNull();
-      expect(restored.pkColumn).toBeNull();
+      expect(restored.pkColumns).toBeNull();
       expect(restored.connectionId).toBe('');
       expect(restored.result).toBeNull();
       expect(restored.error).toBe('');
@@ -252,7 +252,7 @@ describe('tabCleaner', () => {
         query: 'SELECT * FROM orders',
         page: 1,
         activeTable: null,
-        pkColumn: null,
+        pkColumns: null,
         connectionId: 'conn-789',
         flowState: {
           nodes: [{ id: '1', type: 'table', position: { x: 0, y: 0 }, data: {} }],
@@ -280,7 +280,7 @@ describe('tabCleaner', () => {
         query: '',
         page: 1,
         activeTable: null,
-        pkColumn: null,
+        pkColumns: null,
         connectionId: 'conn-456',
         notebookId: 'nb_abc123',
       };
@@ -300,7 +300,7 @@ describe('tabCleaner', () => {
         query: '',
         page: 1,
         activeTable: null,
-        pkColumn: null,
+        pkColumns: null,
         connectionId: 'conn-rt',
         result: null,
         error: '',
@@ -323,7 +323,7 @@ describe('tabCleaner', () => {
         query: 'SELECT * FROM products WHERE price > 100',
         page: 5,
         activeTable: 'products',
-        pkColumn: 'product_id',
+        pkColumns: ['product_id'],
         connectionId: 'conn-999',
         isEditorOpen: true,
         filterClause: 'price > 100',
@@ -347,7 +347,7 @@ describe('tabCleaner', () => {
       expect(restored.query).toBe(originalTab.query);
       expect(restored.page).toBe(originalTab.page);
       expect(restored.activeTable).toBe(originalTab.activeTable);
-      expect(restored.pkColumn).toBe(originalTab.pkColumn);
+      expect(restored.pkColumns).toEqual(originalTab.pkColumns);
       expect(restored.connectionId).toBe(originalTab.connectionId);
       expect(restored.isEditorOpen).toBe(originalTab.isEditorOpen);
       expect(restored.filterClause).toBe(originalTab.filterClause);

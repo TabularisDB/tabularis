@@ -42,6 +42,8 @@ import {
   calculateSelectionRange,
   toggleSetValue,
   getResultValueType,
+  buildPkMap,
+  serializePkKey,
   type MergedRow,
 } from "../../utils/dataGrid";
 import { useSettings } from "../../hooks/useSettings";
@@ -78,7 +80,7 @@ interface DataGridProps {
   columns: string[];
   data: unknown[][];
   tableName?: string | null;
-  pkColumn?: string | null;
+  pkColumns?: string[] | null;
   autoIncrementColumns?: string[];
   defaultValueColumns?: string[];
   nullableColumns?: string[];
@@ -121,7 +123,7 @@ export const DataGrid = React.memo(
     columns,
     data,
     tableName,
-    pkColumn,
+    pkColumns,
     autoIncrementColumns,
     defaultValueColumns,
     nullableColumns,
@@ -241,12 +243,15 @@ export const DataGrid = React.memo(
       [onSelectionChange],
     );
 
-    // Pre-calculate pkIndex once for O(1) lookup instead of O(n) in render loop
-    const pkIndexMap = useMemo(() => {
-      if (!pkColumn) return null;
-      const pkIndex = columns.indexOf(pkColumn);
-      return pkIndex >= 0 ? pkIndex : null;
-    }, [columns, pkColumn]);
+    // Pre-calculate pkIndex array once for O(1) lookup instead of O(n) in render loop
+    const pkIndexMaps = useMemo((): number[] => {
+      if (!pkColumns || pkColumns.length === 0) return [];
+      const indices = pkColumns.map((col) => columns.indexOf(col));
+      // If any PK column is absent from the result set, disable editing entirely
+      // to avoid partial WHERE clauses that could match multiple rows.
+      if (indices.some((idx) => idx < 0)) return [];
+      return indices;
+    }, [columns, pkColumns]);
 
     // Create column type map for O(1) lookup during cell rendering
     const columnTypeMap = useMemo(() => {
@@ -289,15 +294,15 @@ export const DataGrid = React.memo(
     const buildRowLabel = useCallback(
       (rowData: unknown[], rowIndex: number, isInsertion: boolean): string => {
         if (isInsertion) return t("dataGrid.newRow", { defaultValue: "NEW" });
-        if (pkColumn && pkIndexMap !== null) {
-          const pkVal = rowData[pkIndexMap];
+        if (pkColumns && pkColumns.length > 0 && pkIndexMaps.length > 0) {
+          const pkVal = rowData[pkIndexMaps[0]];
           if (pkVal !== null && pkVal !== undefined && pkVal !== "") {
-            return `${pkColumn}=${String(pkVal)}`;
+            return `${pkColumns[0]}=${String(pkVal)}`;
           }
         }
         return `Row ${rowIndex + 1}`;
       },
-      [pkColumn, pkIndexMap, t],
+      [pkColumns, pkIndexMaps, t],
     );
 
     const openJsonViewerWindow = useCallback(
@@ -316,13 +321,14 @@ export const DataGrid = React.memo(
           let cellKey: string | null = null;
           const canSaveBack =
             (isInsertion && !!tempId) ||
-            (!isInsertion && pkIndexMap !== null);
+            (!isInsertion && pkIndexMaps.length > 0);
           if (isInsertion && tempId) {
             cellKey = `ins:${tempId}:${colName}`;
-          } else if (!isInsertion && pkIndexMap !== null) {
-            const pkVal = rowData[pkIndexMap];
-            if (pkVal !== null && pkVal !== undefined && pkVal !== "") {
-              cellKey = `pk:${String(pkVal)}:${colName}`;
+          } else if (!isInsertion && pkIndexMaps.length > 0) {
+            const pkMapVal = buildPkMap(pkColumns!, rowData, pkIndexMaps);
+            const serialized = serializePkKey(pkMapVal);
+            if (serialized !== "" && serialized !== "null" && serialized !== "undefined") {
+              cellKey = `pk:${serialized}:${colName}`;
             }
           }
           const sessionId = await invoke<string>("open_json_viewer_window", {
@@ -343,7 +349,7 @@ export const DataGrid = React.memo(
           console.error("Failed to open JSON viewer window:", e);
         }
       },
-      [buildRowLabel, pkIndexMap],
+      [buildRowLabel, pkIndexMaps, pkColumns],
     );
 
     useEffect(() => {
@@ -358,16 +364,16 @@ export const DataGrid = React.memo(
           const { colName, rowData, isInsertion, tempId } = session;
           if (isInsertion && onPendingInsertionChange && tempId) {
             onPendingInsertionChange(tempId, colName, value);
-          } else if (!isInsertion && onPendingChange && pkIndexMap !== null) {
-            const pkVal = rowData[pkIndexMap];
-            onPendingChange(pkVal, colName, value);
+          } else if (!isInsertion && onPendingChange && pkIndexMaps.length > 0) {
+            const pkMapVal = buildPkMap(pkColumns!, rowData, pkIndexMaps);
+            onPendingChange(pkMapVal, colName, value);
           }
         },
       );
       return () => {
         unlistenPromise.then((fn) => fn());
       };
-    }, [onPendingChange, onPendingInsertionChange, pkIndexMap]);
+    }, [onPendingChange, onPendingInsertionChange, pkIndexMaps, pkColumns]);
 
     const fksByColumn = useMemo(
       () => pickPrimaryForeignKeyByColumn(foreignKeys),
@@ -483,14 +489,14 @@ export const DataGrid = React.memo(
         columns.forEach((col, idx) => {
           rowData[col] = rowArray[idx];
         });
-        if (!isInsertion && pkIndexMap !== null) {
-          const pkVal = rowArray[pkIndexMap];
-          const pending = pendingChanges?.[String(pkVal)]?.changes;
+        if (!isInsertion && pkIndexMaps.length > 0) {
+          const pkMapVal = buildPkMap(pkColumns!, rowArray, pkIndexMaps);
+          const pending = pendingChanges?.[serializePkKey(pkMapVal)]?.changes;
           if (pending) Object.assign(rowData, pending);
         }
         return rowData;
       },
-      [columns, pkIndexMap, pendingChanges],
+      [columns, pkIndexMaps, pkColumns, pendingChanges],
     );
 
     const handleCellDoubleClick = useCallback(
@@ -499,7 +505,12 @@ export const DataGrid = React.memo(
 
       const mergedRow = mergedRows[rowIndex];
       if (!mergedRow) return;
-      if (mergedRow.type !== "insertion" && !pkColumn) return;
+      // No primary key defined for the table at all → editing impossible.
+      if (
+        mergedRow.type !== "insertion" &&
+        (!pkColumns || pkColumns.length === 0)
+      )
+        return;
 
       const colName = columns[colIndex];
 
@@ -507,19 +518,19 @@ export const DataGrid = React.memo(
       // each running whenever the data it depends on is available, so they
       // don't silently no-op when a driver omits result metadata:
       //
-      // 1. The primary key must be present in the result set (needed for the
-      //    WHERE clause). Depends only on pkColumn + columns.
+      // 1. Every primary key column must be present in the result set (needed
+      //    for the WHERE clause). Depends only on pkColumns + columns.
       // 2. The edited column must map to a real physical column of the table
       //    (prevents malformed UPDATEs on aliased/computed columns). Requires
       //    columnMetadata; skipped when it's unavailable.
       if (mergedRow.type !== "insertion") {
-        if (
-          pkColumn &&
-          !columns.some((c) => c.toLowerCase() === pkColumn.toLowerCase())
-        ) {
+        const missingPk = (pkColumns ?? []).filter(
+          (pk) => !columns.some((c) => c.toLowerCase() === pk.toLowerCase()),
+        );
+        if (missingPk.length > 0) {
           showAlert(
             t("dataGrid.pkRequiredToEdit", {
-              pk: pkColumn,
+              pk: missingPk.join(", "),
               defaultValue:
                 'To edit this result, include the primary key column "{{pk}}" in your SELECT.',
             }),
@@ -597,7 +608,7 @@ export const DataGrid = React.memo(
         tableName,
         readonlyProp,
         mergedRows,
-        pkColumn,
+        pkColumns,
         columns,
         columnTypeMap,
         columnLengthMap,
@@ -665,17 +676,17 @@ export const DataGrid = React.memo(
           return;
         }
 
-        // PK Value - check pkIndexMap is valid
-        if (pkIndexMap === null) {
+        // PK Value - check pkIndexMaps is valid
+        if (pkIndexMaps.length === 0 || !pkColumns) {
           setEditingCell(null);
           return;
         }
-        const pkVal = row[pkIndexMap];
+        const pkMapVal = buildPkMap(pkColumns, row, pkIndexMaps);
         const colName = columns[colIndex];
 
         if (onPendingChange) {
           // If value matches original, pass undefined to remove the pending change
-          onPendingChange(pkVal, colName, isUnchanged ? undefined : value);
+          onPendingChange(pkMapVal, colName, isUnchanged ? undefined : value);
           setEditingCell(null);
           return;
         }
@@ -687,8 +698,7 @@ export const DataGrid = React.memo(
           await invoke("update_record", {
             connectionId,
             table: tableName,
-            pkCol: pkColumn,
-            pkVal,
+            pkMap: pkMapVal,
             colName,
             newVal: value,
             ...(activeSchema ? { schema: activeSchema } : {}),
@@ -711,8 +721,8 @@ export const DataGrid = React.memo(
       columns,
       onPendingInsertionChange,
       onPendingChange,
-      pkIndexMap,
-      pkColumn,
+      pkIndexMaps,
+      pkColumns,
       connectionId,
       activeSchema,
       onRefresh,
@@ -789,8 +799,18 @@ export const DataGrid = React.memo(
 
               return (
                 <div
+                  role={onSort ? "button" : undefined}
+                  tabIndex={onSort ? 0 : undefined}
+                  aria-label={onSort ? (
+                    displaySortState === "none"
+                      ? t("dataGrid.sortByAsc", { col: colName })
+                      : displaySortState === "asc"
+                        ? t("dataGrid.sortByDesc", { col: colName })
+                        : t("dataGrid.clearSort")
+                  ) : undefined}
                   className={`flex items-center gap-2 select-none group/header ${onSort ? "cursor-pointer" : ""}`}
                   onClick={() => onSort && onSort(colName)}
+                  onKeyDown={(e) => { if (onSort && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSort(colName); } }}
                   title={
                     onSort
                       ? displaySortState === "none"
@@ -920,16 +940,16 @@ export const DataGrid = React.memo(
         return;
       }
 
-      // For existing rows, need pkColumn
-      if (!pkColumn || pkIndexMap === null) return;
+      // For existing rows, need pkColumns
+      if (!pkColumns || pkIndexMaps.length === 0) return;
 
-      const pkVal = contextMenu.row[pkIndexMap];
-      const pkValStr = String(pkVal);
+      const pkMapVal = buildPkMap(pkColumns, contextMenu.row, pkIndexMaps);
+      const pkValStr = serializePkKey(pkMapVal);
 
       // Handle pending deletion revert
       const isPendingDelete = pendingDeletions?.[pkValStr] !== undefined;
       if (isPendingDelete && onRevertDeletion) {
-        onRevertDeletion(pkVal);
+        onRevertDeletion(pkMapVal);
         setContextMenu(null);
         return;
       }
@@ -939,7 +959,7 @@ export const DataGrid = React.memo(
       if (rowPendingChanges && onPendingChange) {
         // Revert all pending changes for this row by setting them to undefined
         Object.keys(rowPendingChanges.changes).forEach((colName) => {
-          onPendingChange(pkVal, colName, undefined);
+          onPendingChange(pkMapVal, colName, undefined);
         });
         setContextMenu(null);
         return;
@@ -951,8 +971,8 @@ export const DataGrid = React.memo(
       onPendingChange,
       onRevertDeletion,
       onDiscardInsertion,
-      pkColumn,
-      pkIndexMap,
+      pkColumns,
+      pkIndexMaps,
       pendingChanges,
       pendingDeletions,
     ]);
@@ -965,8 +985,8 @@ export const DataGrid = React.memo(
 
         if (mergedRow.type === "insertion" && mergedRow.tempId && onDiscardInsertion) {
           onDiscardInsertion(mergedRow.tempId);
-        } else if (mergedRow.type === "existing" && pkColumn && pkIndexMap !== null) {
-          pkVals.push(mergedRow.rowData[pkIndexMap]);
+        } else if (mergedRow.type === "existing" && pkColumns && pkIndexMaps.length > 0) {
+          pkVals.push(buildPkMap(pkColumns, mergedRow.rowData, pkIndexMaps));
         }
       }
 
@@ -978,7 +998,7 @@ export const DataGrid = React.memo(
           pkVals.forEach((v) => onMarkForDeletion(v));
         }
       }
-    }, [mergedRows, onDiscardInsertion, onMarkForDeletion, onMarkMultipleForDeletion, pkColumn, pkIndexMap]);
+    }, [mergedRows, onDiscardInsertion, onMarkForDeletion, onMarkMultipleForDeletion, pkColumns, pkIndexMaps]);
 
     const deleteSelectedRow = useCallback(() => {
       if (!contextMenu) return;
@@ -1053,13 +1073,13 @@ export const DataGrid = React.memo(
 
         if (isInsertion && onPendingInsertionChange && mergedRow.tempId) {
           onPendingInsertionChange(mergedRow.tempId, colName, value);
-        } else if (onPendingChange && pkIndexMap !== null) {
-          const pkVal = contextMenu.row[pkIndexMap];
-          onPendingChange(pkVal, colName, value);
+        } else if (onPendingChange && pkIndexMaps.length > 0) {
+          const pkMapVal = buildPkMap(pkColumns!, contextMenu.row, pkIndexMaps);
+          onPendingChange(pkMapVal, colName, value);
         }
         setContextMenu(null);
       },
-      [contextMenu, onPendingInsertionChange, onPendingChange, pkIndexMap],
+      [contextMenu, onPendingInsertionChange, onPendingChange, pkIndexMaps, pkColumns],
     );
 
     const setCellGenerate = useCallback(
@@ -1089,8 +1109,9 @@ export const DataGrid = React.memo(
           const formatted = formatDateTime(parseDateTime(raw), dateMode);
           if (isInsertion && onPendingInsertionChange && mergedRow?.tempId) {
             onPendingInsertionChange(mergedRow.tempId, colName, formatted);
-          } else if (onPendingChange && pkIndexMap !== null) {
-            onPendingChange(row[pkIndexMap], colName, formatted);
+          } else if (onPendingChange && pkIndexMaps.length > 0) {
+            const pkMapVal = buildPkMap(pkColumns!, row, pkIndexMaps);
+            onPendingChange(pkMapVal, colName, formatted);
           }
         })
         .catch((err) => {
@@ -1102,7 +1123,8 @@ export const DataGrid = React.memo(
       columnTypeMap,
       onPendingInsertionChange,
       onPendingChange,
-      pkIndexMap,
+      pkIndexMaps,
+      pkColumns,
       t,
       showAlert,
     ]);
@@ -1229,7 +1251,7 @@ export const DataGrid = React.memo(
         autoIncrementColumns,
         defaultValueColumns,
         nullableColumns,
-        pkColumn,
+        pkColumns,
         pendingChanges,
         columnTypeMap,
         columnLengthMap,
@@ -1238,7 +1260,7 @@ export const DataGrid = React.memo(
         fksByColumn,
         t,
         mergedRows,
-        pkIndexMap,
+        pkIndexMaps,
         parentViewportWidth,
         readonly: readonlyProp,
         updateSelection,
@@ -1266,7 +1288,7 @@ export const DataGrid = React.memo(
         autoIncrementColumns,
         defaultValueColumns,
         nullableColumns,
-        pkColumn,
+        pkColumns,
         pendingChanges,
         columnTypeMap,
         columnLengthMap,
@@ -1275,7 +1297,7 @@ export const DataGrid = React.memo(
         fksByColumn,
         t,
         mergedRows,
-        pkIndexMap,
+        pkIndexMaps,
         parentViewportWidth,
         readonlyProp,
         updateSelection,
@@ -1373,8 +1395,8 @@ export const DataGrid = React.memo(
                   const mergedRow = mergedRows[rowIndex];
                   const isInsertion = mergedRow?.type === "insertion";
                   const pkVal =
-                    pkIndexMap !== null
-                      ? String(rowOriginal[pkIndexMap])
+                    pkIndexMaps.length > 0 && pkColumns
+                      ? serializePkKey(buildPkMap(pkColumns, rowOriginal as unknown[], pkIndexMaps))
                       : null;
                   const isPendingDelete =
                     !isInsertion && pkVal
@@ -1410,8 +1432,8 @@ export const DataGrid = React.memo(
               // Check if this row has any pending changes, deletions, or is an insertion
               const isInsertion = contextMenu.mergedRow?.type === "insertion";
               const pkVal =
-                pkIndexMap !== null
-                  ? String(contextMenu.row[pkIndexMap])
+                pkIndexMaps.length > 0 && pkColumns
+                  ? serializePkKey(buildPkMap(pkColumns, contextMenu.row, pkIndexMaps))
                   : null;
               const hasPendingChanges =
                 !isInsertion && pkVal && pendingChanges?.[pkVal] !== undefined;
@@ -1668,7 +1690,7 @@ export const DataGrid = React.memo(
                   focusField={sidebarRowData.focusField}
                   connectionId={connectionId}
                   tableName={tableName}
-                  pkColumn={pkColumn}
+                  pkColumns={pkColumns}
                   schema={activeSchema}
                   onChange={(colName, value) => {
                     // Get the merged row to determine if it's an insertion or existing row
@@ -1692,14 +1714,14 @@ export const DataGrid = React.memo(
                     } else if (
                       !isInsertion &&
                       onPendingChange &&
-                      pkColumn &&
-                      pkIndexMap !== null
+                      pkColumns &&
+                      pkIndexMaps.length > 0
                     ) {
                       // Handle existing row updates
                       const rowData = mergedRow.rowData;
                       if (rowData) {
-                        const pkVal = rowData[pkIndexMap];
-                        onPendingChange(pkVal, colName, value);
+                        const pkMapVal = buildPkMap(pkColumns, rowData, pkIndexMaps);
+                        onPendingChange(pkMapVal, colName, value);
                       }
                     }
                   }}

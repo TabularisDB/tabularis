@@ -47,6 +47,7 @@ export type TokenKind =
   | 'delimiter'
   | 'setDelimiter'
   | 'goDelimiter'
+  | 'slashDelimiter'
   | 'data';
 
 export interface Token {
@@ -68,6 +69,9 @@ export interface DialectOptions {
   readonly dollarQuoting: boolean;
   readonly customDelimiter: boolean;
   readonly goDelimiter: boolean;
+  readonly slashDelimiter: boolean;
+  readonly plsqlBlocks: boolean;
+  readonly qQuoting: boolean;
   readonly lineComments: boolean;
   readonly blockComments: boolean;
   /**
@@ -106,6 +110,9 @@ const POSTGRES: DialectOptions = {
   dollarQuoting: true,
   customDelimiter: false,
   goDelimiter: false,
+  slashDelimiter: false,
+  plsqlBlocks: false,
+  qQuoting: false,
   lineComments: true,
   blockComments: true,
   executableComments: false,
@@ -123,6 +130,9 @@ const MYSQL: DialectOptions = {
   dollarQuoting: false,
   customDelimiter: true,
   goDelimiter: false,
+  slashDelimiter: false,
+  plsqlBlocks: false,
+  qQuoting: false,
   lineComments: true,
   blockComments: true,
   executableComments: true,
@@ -140,6 +150,9 @@ const MSSQL: DialectOptions = {
   dollarQuoting: false,
   customDelimiter: false,
   goDelimiter: true,
+  slashDelimiter: false,
+  plsqlBlocks: false,
+  qQuoting: false,
   lineComments: true,
   blockComments: true,
   executableComments: false,
@@ -158,6 +171,9 @@ const SQLITE: DialectOptions = {
   dollarQuoting: false,
   customDelimiter: false,
   goDelimiter: false,
+  slashDelimiter: false,
+  plsqlBlocks: false,
+  qQuoting: false,
   lineComments: true,
   blockComments: true,
   executableComments: false,
@@ -165,19 +181,15 @@ const SQLITE: DialectOptions = {
   lineCommentRequiresSpace: false,
 };
 
-// Oracle's option shape currently matches GENERIC. They are kept as
-// separate constants on purpose: once an Oracle-only feature lands
-// (e.g. `/` block terminator, nested block comments via SQLPlus, the
-// `Q'…'` quoted literal syntax), the divergence stays a one-line edit
-// rather than a search across call sites. If you find yourself
-// modifying both, prefer adding the flag to GENERIC only when it is
-// truly dialect-agnostic.
 const ORACLE: DialectOptions = {
   quotes: STANDARD_QUOTES,
   eString: false,
   dollarQuoting: false,
   customDelimiter: false,
   goDelimiter: false,
+  slashDelimiter: true,
+  plsqlBlocks: true,
+  qQuoting: true,
   lineComments: true,
   blockComments: true,
   executableComments: false,
@@ -191,6 +203,9 @@ const GENERIC: DialectOptions = {
   dollarQuoting: false,
   customDelimiter: false,
   goDelimiter: false,
+  slashDelimiter: false,
+  plsqlBlocks: false,
+  qQuoting: false,
   lineComments: true,
   blockComments: true,
   executableComments: false,

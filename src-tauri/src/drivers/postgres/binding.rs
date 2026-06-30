@@ -3,6 +3,7 @@ use super::helpers::{
     json_array_to_pg_literal, try_parse_pg_array,
 };
 use crate::drivers::common::parse_unsafe_bigint_string;
+use std::collections::HashMap;
 use tokio_postgres::types::ToSql;
 
 pub(super) type PgParam = Box<dyn ToSql + Send + Sync>;
@@ -75,6 +76,40 @@ pub(super) fn build_pk_predicate(
         }
         _ => Err("Unsupported PK type".into()),
     }
+}
+
+/// Build a compound WHERE predicate from all entries of a pk_map.
+/// Keys are sorted for determinism. Returns the predicate string and all boxed params.
+/// E.g. `"col1" = $2 AND "col2" = $3` with params starting at placeholder_idx.
+///
+/// `pk_types` maps each PK column to its declared type (e.g. `"uuid"`, `"character
+/// varying"`); a column missing from the map binds via the shape heuristic. The type
+/// is threaded per column into [`build_pk_predicate`] so each member of a composite PK
+/// binds correctly — including a uuid-shaped value in a `varchar`/`text` column (#392).
+pub(super) fn build_pk_map_predicate(
+    pk_map: &HashMap<String, serde_json::Value>,
+    pk_types: &HashMap<String, String>,
+    placeholder_idx: usize,
+) -> Result<(String, Vec<PgParam>), String> {
+    if pk_map.is_empty() {
+        return Err("pk_map must not be empty".into());
+    }
+    let mut keys: Vec<&String> = pk_map.keys().collect();
+    keys.sort();
+    let mut predicates = Vec::new();
+    let mut params: Vec<PgParam> = Vec::new();
+    for key in keys {
+        let val = pk_map[key].clone();
+        let (pred, param) = build_pk_predicate(
+            key,
+            val,
+            placeholder_idx + params.len(),
+            pk_types.get(key).map(|s| s.as_str()),
+        )?;
+        predicates.push(pred);
+        params.push(param);
+    }
+    Ok((predicates.join(" AND "), params))
 }
 
 pub(super) fn bind_pg_value(

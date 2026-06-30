@@ -194,6 +194,301 @@ describe('splitStatements', () => {
     });
   });
 
+  describe('oracle slash terminator and PL/SQL blocks', () => {
+    it('splits plain SQL on a line-leading slash', () => {
+      const sql = ['SELECT 1 FROM dual', '/', 'SELECT 2 FROM dual', '/'].join(
+        '\n',
+      );
+      expect(splitQueries(sql, 'oracle')).toEqual([
+        'SELECT 1 FROM dual',
+        'SELECT 2 FROM dual',
+      ]);
+    });
+
+    it('treats a CRLF slash line as a separator', () => {
+      expect(
+        splitQueries('SELECT 1 FROM dual\r\n/\r\nSELECT 2 FROM dual', 'oracle'),
+      ).toEqual(['SELECT 1 FROM dual', 'SELECT 2 FROM dual']);
+    });
+
+    it('keeps generic splitting unchanged for line-leading slash input', () => {
+      const sql = ['SELECT 1', '/', 'SELECT 2'].join('\n');
+      expect(splitQueries(sql, 'generic')).toEqual([sql]);
+    });
+
+    it('keeps a DM trigger body together until the slash terminator', () => {
+      const sql = [
+        'CREATE OR REPLACE TRIGGER TRG_SPLITTER_VFY',
+        'AFTER UPDATE OF STATUS, TOTAL_AMOUNT ON ORDERS',
+        'FOR EACH ROW',
+        'BEGIN',
+        '  INSERT INTO ORDER_AUDIT (',
+        '    ID,',
+        '    ORDER_ID,',
+        '    OLD_STATUS,',
+        '    NEW_STATUS',
+        '  ) VALUES (',
+        '    ORDER_AUDIT_SEQ.NEXTVAL,',
+        '    :OLD.ID,',
+        '    :OLD.STATUS,',
+        '    :NEW.STATUS',
+        '  );',
+        'END;',
+        '/',
+        'SELECT 1 FROM dual;',
+      ].join('\n');
+
+      const result = splitQueries(sql, 'oracle');
+      expect(result).toHaveLength(2);
+      expect(result[0]).toContain('CREATE OR REPLACE TRIGGER');
+      expect(result[0]).toContain('ORDER_AUDIT_SEQ.NEXTVAL');
+      expect(result[0]).toContain('END;');
+      expect(result[0]).not.toContain('\n/');
+      expect(result[1]).toBe('SELECT 1 FROM dual');
+    });
+
+    it('does not split nested BEGIN...END bodies on internal semicolons', () => {
+      const sql = [
+        'BEGIN',
+        '  IF TRUE THEN',
+        '    NULL;',
+        '  END IF;',
+        '  LOOP',
+        '    EXIT;',
+        '  END LOOP;',
+        'END;',
+        '/',
+      ].join('\n');
+
+      const result = splitQueries(sql, 'oracle');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain('END IF;');
+      expect(result[0]).toContain('END LOOP;');
+    });
+
+    it('keeps package bodies with multiple procedures together', () => {
+      const sql = [
+        'CREATE OR REPLACE PACKAGE BODY pkg_demo AS',
+        '  PROCEDURE p1 IS',
+        '  BEGIN',
+        '    NULL;',
+        '  END;',
+        '',
+        '  PROCEDURE p2 IS',
+        '  BEGIN',
+        '    NULL;',
+        '  END;',
+        'END pkg_demo;',
+        '/',
+      ].join('\n');
+
+      const result = splitQueries(sql, 'oracle');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain('PROCEDURE p1');
+      expect(result[0]).toContain('PROCEDURE p2');
+    });
+
+    it('keeps DM CREATE CLASS and CLASS BODY blocks together', () => {
+      const sql = [
+        'CREATE OR REPLACE CLASS CLS_SPLITTER_VFY AS',
+        '  STATIC FUNCTION NAME RETURN VARCHAR;',
+        'END;',
+        '/',
+        'CREATE OR REPLACE CLASS BODY CLS_SPLITTER_VFY AS',
+        '  STATIC FUNCTION NAME RETURN VARCHAR AS',
+        '  BEGIN',
+        "    RETURN 'ok';",
+        '  END;',
+        'END;',
+        '/',
+      ].join('\n');
+
+      const result = splitQueries(sql, 'oracle');
+      expect(result).toHaveLength(2);
+      expect(result[0]).toContain('CREATE OR REPLACE CLASS');
+      expect(result[1]).toContain('CREATE OR REPLACE CLASS BODY');
+    });
+
+    it('keeps DM CREATE JAVA CLASS blocks together', () => {
+      const sql = [
+        'CREATE OR REPLACE JAVA CLASS JCLS_SPLITTER_VFY {',
+        '  public static String name() {',
+        '    return "a;b";',
+        '  }',
+        '}',
+        '/',
+      ].join('\n');
+
+      const result = splitQueries(sql, 'oracle');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain('return "a;b";');
+    });
+
+    it('keeps CREATE AND RESOLVE NOFORCE JAVA SOURCE blocks together', () => {
+      const sql = [
+        'CREATE OR REPLACE AND RESOLVE NOFORCE JAVA SOURCE NAMED "Demo" AS',
+        'public class Demo {',
+        '  public static String name() {',
+        '    return "a;b";',
+        '  }',
+        '}',
+        '/',
+      ].join('\n');
+
+      const result = splitQueries(sql, 'oracle');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain('return "a;b";');
+    });
+
+    it('does not treat CREATE TYPE specs or CREATE LIBRARY as block openers', () => {
+      expect(
+        splitQueries(
+          'CREATE TYPE t_demo AS OBJECT (id NUMBER); SELECT 1 FROM dual',
+          'oracle',
+        ),
+      ).toEqual([
+        'CREATE TYPE t_demo AS OBJECT (id NUMBER)',
+        'SELECT 1 FROM dual',
+      ]);
+
+      expect(
+        splitQueries(
+          "CREATE LIBRARY lib_demo AS '/tmp/libdemo.so'; SELECT 1 FROM dual",
+          'oracle',
+        ),
+      ).toEqual([
+        "CREATE LIBRARY lib_demo AS '/tmp/libdemo.so'",
+        'SELECT 1 FROM dual',
+      ]);
+    });
+
+    it('keeps CREATE TYPE BODY blocks together', () => {
+      const sql = [
+        'CREATE TYPE BODY t_demo AS',
+        '  MEMBER FUNCTION name RETURN VARCHAR IS',
+        '  BEGIN',
+        "    RETURN 'a;b';",
+        '  END;',
+        'END;',
+        '/',
+      ].join('\n');
+
+      const result = splitQueries(sql, 'oracle');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain("RETURN 'a;b';");
+    });
+
+    it('shields semicolons and slash lines inside q-quoted strings', () => {
+      const sql = [
+        "SELECT q'[first;",
+        '/',
+        "second]' FROM dual",
+        '/',
+        'SELECT 2 FROM dual',
+      ].join('\n');
+
+      const result = splitQueries(sql, 'oracle');
+      expect(result).toHaveLength(2);
+      expect(result[0]).toContain("q'[first;");
+      expect(result[0]).toContain("second]'");
+    });
+
+    it('shields semicolons inside nq-quoted strings', () => {
+      const sql = "SELECT nq'{a;b}' FROM dual; SELECT 2 FROM dual";
+      expect(splitQueries(sql, 'oracle')).toEqual([
+        "SELECT nq'{a;b}' FROM dual",
+        'SELECT 2 FROM dual',
+      ]);
+    });
+
+    it('handles comment-tolerant CREATE openers', () => {
+      const sql = [
+        'CREATE /* comment */ OR REPLACE PROCEDURE p_demo AS',
+        'BEGIN',
+        '  NULL;',
+        'END;',
+        '/',
+      ].join('\n');
+
+      expect(splitQueries(sql, 'oracle')).toHaveLength(1);
+    });
+
+    it('handles labeled blocks', () => {
+      const sql = ['<<outer_block>>', 'BEGIN', '  NULL;', 'END;', '/'].join(
+        '\n',
+      );
+      const result = splitQueries(sql, 'oracle');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain('<<outer_block>>');
+    });
+
+    it('treats WITH FUNCTION as a PL/SQL block but CTEs named function as normal SQL', () => {
+      const inlineFunction = [
+        'WITH FUNCTION f RETURN NUMBER IS',
+        'BEGIN',
+        '  RETURN 1;',
+        'END;',
+        'SELECT f FROM dual',
+        '/',
+      ].join('\n');
+      expect(splitQueries(inlineFunction, 'oracle')).toHaveLength(1);
+
+      expect(
+        splitQueries('WITH function AS (SELECT 1 x FROM dual) SELECT x FROM function;', 'oracle'),
+      ).toHaveLength(1);
+      expect(
+        splitQueries(
+          'WITH function (x) AS (SELECT 1 FROM dual) SELECT x FROM function;',
+          'oracle',
+        ),
+      ).toHaveLength(1);
+    });
+
+    it('treats WITH PROCEDURE as a PL/SQL block', () => {
+      const inlineProcedure = [
+        'WITH PROCEDURE p IS',
+        'BEGIN',
+        '  NULL;',
+        'END;',
+        'SELECT 1 FROM dual',
+        '/',
+      ].join('\n');
+
+      const result = splitQueries(inlineProcedure, 'oracle');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain('NULL;');
+    });
+
+    it('keeps a PL/SQL block together at EOF without a trailing slash', () => {
+      const sql = ['CREATE OR REPLACE PROCEDURE p_demo AS', 'BEGIN', '  NULL;', 'END;'].join(
+        '\n',
+      );
+      const result = splitQueries(sql, 'oracle');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain('NULL;');
+      expect(result[0]).toContain('END;');
+    });
+
+    it('keeps END semicolon ownership when the slash terminates the following whitespace segment', () => {
+      const sql = ['CREATE OR REPLACE PROCEDURE p_demo AS', 'BEGIN', '  NULL;', 'END;', '/'].join(
+        '\n',
+      );
+      const [stmt] = splitStatements(sql, 'oracle');
+      expect(stmt.text).toContain('END;');
+      expect(sql.slice(stmt.range.start, stmt.range.end)).toContain('END;');
+    });
+
+    it('documents the SQL*Plus-compatible division continuation tradeoff', () => {
+      const sql = ['SELECT 10', '/', '2 FROM dual'].join('\n');
+      expect(splitQueries(sql, 'oracle')).toEqual(['SELECT 10', '2 FROM dual']);
+    });
+
+    it('does not split on a slash followed by more tokens on the same line', () => {
+      const sql = 'SELECT 10\n/2 FROM dual';
+      expect(splitQueries(sql, 'oracle')).toEqual([sql]);
+    });
+  });
+
   describe('mysql `--` requires trailing whitespace', () => {
     it('treats `1--1` as the subtraction operator, not a comment', () => {
       // MySQL parses `--` as subtraction unless followed by whitespace,

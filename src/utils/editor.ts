@@ -90,7 +90,7 @@ export function createInitialTabState(
     executionTime: null,
     page: 1,
     activeTable: null,
-    pkColumn: null,
+    pkColumns: null,
     isLoading: false,
     connectionId: connectionId || "",
     isEditorOpen: partial?.isEditorOpen ?? partial?.type !== "table",
