@@ -1392,6 +1392,44 @@ impl DatabaseDriver for MysqlDriver {
         ))
     }
 
+    async fn test_connection(
+        &self,
+        params: &crate::models::ConnectionParams,
+    ) -> Result<(), String> {
+        use sqlx::{ConnectOptions, Connection};
+        // Route through `build_mysql_options` rather than the connection URL so
+        // MySQL-specific flags such as `pipes_as_concat` are honored: the sqlx
+        // URL parser silently ignores unknown query parameters, which would let
+        // a Vitess/PlanetScale connection pass the test but fail at pool time.
+        let options = crate::pool_manager::build_mysql_options(params, None)?;
+        match options.connect().await {
+            Ok(mut conn) => {
+                let result = conn.ping().await.map_err(|e| e.to_string());
+                let _ = conn.close().await;
+                result
+            }
+            // Mirror the pool's auto-fallback: in auto mode (`pipes_as_concat`
+            // unset), retry without the forced sql_mode so a PlanetScale/Vitess
+            // connection that the pool will accept also passes the test.
+            Err(e) => {
+                let e = e.to_string();
+                if params.pipes_as_concat.is_none()
+                    && crate::pool_manager::is_pipes_as_concat_unsupported(&e)
+                {
+                    let mut fallback = params.clone();
+                    fallback.pipes_as_concat = Some(false);
+                    let options = crate::pool_manager::build_mysql_options(&fallback, None)?;
+                    let mut conn = options.connect().await.map_err(|e| e.to_string())?;
+                    let result = conn.ping().await.map_err(|e| e.to_string());
+                    let _ = conn.close().await;
+                    result
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
     async fn ping(&self, params: &crate::models::ConnectionParams) -> Result<(), String> {
         let conn_id = params.connection_id.as_deref();
         if !crate::pool_manager::has_pool(params, conn_id).await {

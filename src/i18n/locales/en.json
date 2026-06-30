@@ -720,6 +720,9 @@
       "verify-ca": "Verify CA",
       "verify-full": "Verify Full"
     },
+    "advanced": "Advanced",
+    "pipesAsConcat": "Set PIPES_AS_CONCAT sql_mode on connect",
+    "pipesAsConcatHint": "Leave enabled — Tabularis automatically skips it on servers that reject it (Vitess/PlanetScale).",
     "chooseContext": "Choose a context...",
     "chooseK8s": "Choose a connection...",
     "chooseNamespace": "Choose a namespace...",
@@ -862,6 +865,15 @@
     "loadRowCount": "Load row count",
     "executePrompt": "Execute a query to see results",
     "tableRunPrompt": "Press Run (Ctrl/Command+F5) to load table data",
+    "results": {
+      "minimize": "Minimize",
+      "maximize": "Maximize (hide editor)",
+      "restore": "Restore editor",
+      "close": "Close",
+      "detach": "Detach to a separate window",
+      "detached": "Results detached to a separate window",
+      "reattach": "Re-attach"
+    },
     "closeTab": "Close Tab",
     "closeOthers": "Close Other Tabs",
     "closeRight": "Close Tabs to Right",

@@ -691,6 +691,9 @@
       "verify-ca": "Verificar CA",
       "verify-full": "Verificación completa"
     },
+    "advanced": "Avanzado",
+    "pipesAsConcat": "Establecer sql_mode PIPES_AS_CONCAT al conectar",
+    "pipesAsConcatHint": "Déjalo activado: Tabularis lo omite automáticamente en servidores que lo rechazan (Vitess/PlanetScale).",
     "chooseContext": "Elige un contexto...",
     "chooseK8s": "Elige una conexión...",
     "chooseNamespace": "Elige un namespace...",
@@ -844,6 +847,15 @@
     "jumpToPage": "Clic para ir a la página",
     "loadRowCount": "Cargar conteo de filas",
     "executePrompt": "Ejecuta una consulta para ver resultados",
+    "results": {
+      "minimize": "Minimizar",
+      "maximize": "Maximizar (ocultar editor)",
+      "restore": "Restaurar editor",
+      "close": "Cerrar",
+      "detach": "Separar en una ventana aparte",
+      "detached": "Resultados separados en una ventana aparte",
+      "reattach": "Volver a acoplar"
+    },
     "closeTab": "Cerrar Pestaña",
     "closeOthers": "Cerrar Otras Pestañas",
     "closeRight": "Cerrar Pestañas a la Derecha",

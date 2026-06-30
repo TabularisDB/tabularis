@@ -1136,15 +1136,43 @@ pub async fn get_routines(
     schema: &str,
 ) -> Result<Vec<RoutineInfo>, String> {
     let pool = get_postgres_pool(params).await?;
-    let query = r#"
+
+    // `pg_proc.prokind` was introduced in PostgreSQL 11, replacing the boolean
+    // columns `proisagg` / `proiswindow`. On 9.x and 10 the column does not
+    // exist, so referencing it fails at parse time (SQLSTATE 42703). Pick the
+    // query based on the server version.
+    let server_version_num: i32 = query_one(
+        &pool,
+        "SELECT current_setting('server_version_num')::int4 AS v",
+        &[],
+    )
+    .await?
+    .try_get("v")
+    .unwrap_or(0);
+
+    let query = if server_version_num >= 110000 {
+        r#"
             SELECT proname, prokind
             FROM pg_proc
             WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1)
             AND prokind IN ('f', 'p')
             ORDER BY proname
-        "#;
+        "#
+    } else {
+        // Pre-11: procedures don't exist; exclude aggregates and window
+        // functions and report everything else as a plain function ('f').
+        // Cast to the internal "char" type so it maps to i8 like prokind.
+        r#"
+            SELECT proname, 'f'::"char" AS prokind
+            FROM pg_proc
+            WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1)
+            AND NOT proisagg
+            AND NOT proiswindow
+            ORDER BY proname
+        "#
+    };
 
-    let rows = query_all(&pool, &query, &[&schema]).await?;
+    let rows = query_all(&pool, query, &[&schema]).await?;
 
     Ok(rows
         .iter()

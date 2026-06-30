@@ -691,6 +691,9 @@
       "verify-ca": "Verifica CA",
       "verify-full": "Verifica completa"
     },
+    "advanced": "Avanzate",
+    "pipesAsConcat": "Imposta sql_mode PIPES_AS_CONCAT alla connessione",
+    "pipesAsConcatHint": "Lascia attivo — Tabularis lo salta automaticamente sui server che lo rifiutano (Vitess/PlanetScale).",
     "chooseContext": "Scegli un contesto...",
     "chooseK8s": "Scegli una connessione...",
     "chooseNamespace": "Scegli un namespace...",
@@ -829,6 +832,15 @@
     "loadRowCount": "Carica conteggio righe",
     "executePrompt": "Esegui una query per vedere i risultati",
     "tableRunPrompt": "Premi Esegui (Ctrl/Command+F5) per caricare i dati della tabella",
+    "results": {
+      "minimize": "Riduci a icona",
+      "maximize": "Massimizza (nascondi editor)",
+      "restore": "Ripristina editor",
+      "close": "Chiudi",
+      "detach": "Sgancia in una finestra separata",
+      "detached": "Risultati sganciati in una finestra separata",
+      "reattach": "Riaggancia"
+    },
     "closeTab": "Chiudi scheda",
     "closeOthers": "Chiudi altre schede",
     "closeRight": "Chiudi schede a destra",

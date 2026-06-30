@@ -700,6 +700,9 @@
       "verify-ca": "CAを検証",
       "verify-full": "完全検証"
     },
+    "advanced": "詳細設定",
+    "pipesAsConcat": "接続時に sql_mode PIPES_AS_CONCAT を設定",
+    "pipesAsConcatHint": "有効のままにしてください。Tabularis は受け付けないサーバー（Vitess/PlanetScale）では自動的にスキップします。",
     "chooseContext": "コンテキストを選択...",
     "chooseK8s": "接続を選択...",
     "chooseNamespace": "ネームスペースを選択...",
@@ -858,6 +861,15 @@
     "jumpToPage": "クリックでページ移動",
     "loadRowCount": "行数を読み込む",
     "executePrompt": "クエリを実行すると結果が表示されます",
+    "results": {
+      "minimize": "最小化",
+      "maximize": "最大化（エディターを隠す）",
+      "restore": "エディターを復元",
+      "close": "閉じる",
+      "detach": "別ウィンドウに切り離す",
+      "detached": "結果を別ウィンドウに切り離しました",
+      "reattach": "元に戻す"
+    },
     "tableRunPrompt": "Run (Ctrl/Command+F5) を押してテーブルデータを読み込んでください",
     "closeTab": "タブを閉じる",
     "closeOthers": "他のタブを閉じる",

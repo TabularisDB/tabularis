@@ -38,6 +38,7 @@ pub mod heartbeat;
 pub mod heartbeat_tests;
 pub mod json_viewer;
 pub mod keychain_utils;
+pub mod results_window;
 pub mod k8s_tunnel;
 pub mod log_commands;
 pub mod logger;
@@ -183,6 +184,7 @@ pub fn run() {
         ))
         .manage(explain_import::PendingExplainFile::default())
         .manage(json_viewer::JsonViewerStore::default())
+        .manage(results_window::ResultsWindowStore::default())
         .manage(query_history::QueryHistoryState::default())
         .setup(move |app| {
             // Allow the SSH tunnel code (which runs without a Tauri context)
@@ -482,6 +484,8 @@ pub fn run() {
             json_viewer::open_json_viewer_window,
             json_viewer::get_json_viewer_session,
             json_viewer::complete_json_viewer_session,
+            results_window::open_results_window,
+            results_window::close_results_window,
             // Task Manager
             task_manager::get_process_list,
             task_manager::get_system_stats,
