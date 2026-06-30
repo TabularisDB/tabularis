@@ -321,39 +321,39 @@ pub async fn get_indexes(
         .collect())
 }
 
+/// Sort the pk_map into a deterministic (col, val) vec for use with QueryBuilder.
+fn build_mysql_pk_where(
+    pk_map: &HashMap<String, serde_json::Value>,
+) -> Result<Vec<(String, serde_json::Value)>, String> {
+    if pk_map.is_empty() {
+        return Err("pk_map must not be empty".into());
+    }
+    let mut pairs: Vec<(String, serde_json::Value)> = pk_map
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    pairs.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(pairs)
+}
+
+
 pub async fn save_blob_column_to_file(
     params: &ConnectionParams,
     table: &str,
     col_name: &str,
-    pk_col: &str,
-    pk_val: serde_json::Value,
+    pk_map: &HashMap<String, serde_json::Value>,
     file_path: &str,
 ) -> Result<(), String> {
-    let pool = get_mysql_pool(params).await?;
-
-    let query = format!(
-        "SELECT `{}` FROM `{}` WHERE `{}` = ?",
-        col_name, table, pk_col
-    );
-
-    let row = match pk_val {
-        serde_json::Value::Number(n) => {
-            if n.is_i64() {
-                sqlx::query(&query).bind(n.as_i64()).fetch_one(&pool).await
-            } else if n.is_f64() {
-                sqlx::query(&query).bind(n.as_f64()).fetch_one(&pool).await
-            } else {
-                sqlx::query(&query)
-                    .bind(n.to_string())
-                    .fetch_one(&pool)
-                    .await
-            }
-        }
-        serde_json::Value::String(s) => sqlx::query(&query).bind(s).fetch_one(&pool).await,
-        _ => return Err("Unsupported PK type".into()),
-    }
-    .map_err(|e| e.to_string())?;
-
+    let row = mysql_fetch_one_with_pk(
+        params,
+        &format!(
+            "SELECT `{}` FROM `{}`",
+            escape_identifier(col_name),
+            escape_identifier(table)
+        ),
+        pk_map,
+    )
+    .await?;
     let bytes: Vec<u8> = row.try_get(0).map_err(|e| e.to_string())?;
     std::fs::write(file_path, bytes).map_err(|e| e.to_string())
 }
@@ -362,77 +362,131 @@ pub async fn fetch_blob_column_as_data_url(
     params: &ConnectionParams,
     table: &str,
     col_name: &str,
-    pk_col: &str,
-    pk_val: serde_json::Value,
+    pk_map: &HashMap<String, serde_json::Value>,
 ) -> Result<String, String> {
-    let pool = get_mysql_pool(params).await?;
-
-    let query = format!(
-        "SELECT `{}` FROM `{}` WHERE `{}` = ?",
-        col_name, table, pk_col
-    );
-
-    let row = match pk_val {
-        serde_json::Value::Number(n) => {
-            if n.is_i64() {
-                sqlx::query(&query).bind(n.as_i64()).fetch_one(&pool).await
-            } else if n.is_f64() {
-                sqlx::query(&query).bind(n.as_f64()).fetch_one(&pool).await
-            } else {
-                sqlx::query(&query)
-                    .bind(n.to_string())
-                    .fetch_one(&pool)
-                    .await
-            }
-        }
-        serde_json::Value::String(s) => sqlx::query(&query).bind(s).fetch_one(&pool).await,
-        _ => return Err("Unsupported PK type".into()),
-    }
-    .map_err(|e| e.to_string())?;
-
+    let row = mysql_fetch_one_with_pk(
+        params,
+        &format!(
+            "SELECT `{}` FROM `{}`",
+            escape_identifier(col_name),
+            escape_identifier(table)
+        ),
+        pk_map,
+    )
+    .await?;
     let bytes: Vec<u8> = row.try_get(0).map_err(|e| e.to_string())?;
     Ok(crate::drivers::common::encode_blob_full(&bytes))
+}
+
+/// Execute a SELECT query appending a WHERE clause built from pk_map and return the first row.
+async fn mysql_fetch_one_with_pk(
+    params: &ConnectionParams,
+    select_from: &str,
+    pk_map: &HashMap<String, serde_json::Value>,
+) -> Result<sqlx::mysql::MySqlRow, String> {
+    let pool = get_mysql_pool(params).await?;
+    let pairs = build_mysql_pk_where(pk_map)?;
+    let mut first = true;
+    let mut qb3 = sqlx::QueryBuilder::<sqlx::MySql>::new(format!("{} WHERE ", select_from));
+    for (col, val) in &pairs {
+        if !first {
+            qb3.push(" AND ");
+        }
+        qb3.push(format!("`{}` = ", escape_identifier(col)));
+        match val {
+            serde_json::Value::Number(n) => {
+                if n.is_i64() {
+                    qb3.push_bind(n.as_i64());
+                } else if n.is_f64() {
+                    qb3.push_bind(n.as_f64());
+                } else {
+                    qb3.push_bind(n.to_string());
+                }
+            }
+            serde_json::Value::String(s) => {
+                if let Some(n) = parse_unsafe_bigint_string(s) {
+                    qb3.push_bind(n);
+                } else {
+                    qb3.push_bind(s.clone());
+                }
+            }
+            _ => return Err("Unsupported PK type".into()),
+        }
+        first = false;
+    }
+    qb3.build().fetch_one(&pool).await.map_err(|e| e.to_string())
+}
+
+/// Execute a DELETE/UPDATE query appending a WHERE clause from pk_map.
+/// Returns the number of affected rows.
+async fn mysql_execute_with_pk(
+    params: &ConnectionParams,
+    prefix: &str,
+    pk_map: &HashMap<String, serde_json::Value>,
+) -> Result<u64, String> {
+    let pool = get_mysql_pool(params).await?;
+    let pairs = build_mysql_pk_where(pk_map)?;
+    let mut qb = sqlx::QueryBuilder::<sqlx::MySql>::new(format!("{} WHERE ", prefix));
+    let mut first = true;
+    for (col, val) in &pairs {
+        if !first {
+            qb.push(" AND ");
+        }
+        qb.push(format!("`{}` = ", escape_identifier(col)));
+        match val {
+            serde_json::Value::Number(n) => {
+                if n.is_i64() {
+                    qb.push_bind(n.as_i64());
+                } else if n.is_f64() {
+                    qb.push_bind(n.as_f64());
+                } else {
+                    qb.push_bind(n.to_string());
+                }
+            }
+            serde_json::Value::String(s) => {
+                if let Some(n) = parse_unsafe_bigint_string(s) {
+                    qb.push_bind(n);
+                } else {
+                    qb.push_bind(s.clone());
+                }
+            }
+            _ => return Err("Unsupported PK type".into()),
+        }
+        first = false;
+    }
+    let result = qb.build().execute(&pool).await.map_err(|e| e.to_string())?;
+    Ok(result.rows_affected())
 }
 
 pub async fn delete_record(
     params: &ConnectionParams,
     table: &str,
-    pk_col: &str,
-    pk_val: serde_json::Value,
+    pk_map: &HashMap<String, serde_json::Value>,
 ) -> Result<u64, String> {
-    let pool = get_mysql_pool(params).await?;
-
-    let query = format!("DELETE FROM `{}` WHERE `{}` = ?", table, pk_col);
-
-    let result = match pk_val {
-        serde_json::Value::Number(n) => {
-            if n.is_i64() {
-                sqlx::query(&query).bind(n.as_i64()).execute(&pool).await
-            } else if n.is_f64() {
-                sqlx::query(&query).bind(n.as_f64()).execute(&pool).await
-            } else {
-                sqlx::query(&query).bind(n.to_string()).execute(&pool).await
-            }
-        }
-        serde_json::Value::String(s) => sqlx::query(&query).bind(s).execute(&pool).await,
-        _ => return Err("Unsupported PK type".into()),
-    };
-
-    result.map(|r| r.rows_affected()).map_err(|e| e.to_string())
+    mysql_execute_with_pk(
+        params,
+        &format!("DELETE FROM `{}`", escape_identifier(table)),
+        pk_map,
+    )
+    .await
 }
 
 pub async fn update_record(
     params: &ConnectionParams,
     table: &str,
-    pk_col: &str,
-    pk_val: serde_json::Value,
+    pk_map: &HashMap<String, serde_json::Value>,
     col_name: &str,
     new_val: serde_json::Value,
     max_blob_size: u64,
 ) -> Result<u64, String> {
     let pool = get_mysql_pool(params).await?;
+    let pk_pairs = build_mysql_pk_where(pk_map)?;
 
-    let mut qb = sqlx::QueryBuilder::new(format!("UPDATE `{}` SET `{}` = ", table, col_name));
+    let mut qb = sqlx::QueryBuilder::new(format!(
+        "UPDATE `{}` SET `{}` = ",
+        escape_identifier(table),
+        escape_identifier(col_name)
+    ));
 
     match new_val {
         serde_json::Value::Number(n) => {
@@ -443,28 +497,19 @@ pub async fn update_record(
             }
         }
         serde_json::Value::String(s) => {
-            // Check for special sentinel value to use DEFAULT
             if s == "__USE_DEFAULT__" {
                 qb.push("DEFAULT");
             } else if let Some(bytes) =
                 crate::drivers::common::decode_blob_wire_format(&s, max_blob_size)
             {
-                // Blob wire format: decode to raw bytes so the DB stores binary data,
-                // not the internal wire format string.
                 qb.push_bind(bytes);
             } else if is_raw_sql_function(&s) {
-                // If it's a raw SQL function (e.g., ST_GeomFromText('POINT(1 2)', 4326))
-                // insert it directly without parameter binding
                 qb.push(s);
             } else if is_wkt_geometry(&s) {
-                // If it's WKT geometry format, wrap with ST_GeomFromText
                 qb.push("ST_GeomFromText(");
                 qb.push_bind(s);
                 qb.push(")");
             } else if let Some(n) = parse_unsafe_bigint_string(&s) {
-                // Bigints outside JS safe range come back from the UI as strings
-                // (see drivers::common::i64_to_json). Bind them as native i64 so
-                // BIGINT columns receive the exact value.
                 qb.push_bind(n);
             } else {
                 qb.push_bind(s);
@@ -484,28 +529,36 @@ pub async fn update_record(
         }
     }
 
-    qb.push(format!(" WHERE `{}` = ", pk_col));
-
-    match pk_val {
-        serde_json::Value::Number(n) => {
-            if n.is_i64() {
-                qb.push_bind(n.as_i64());
-            } else {
-                qb.push_bind(n.as_f64());
-            }
+    qb.push(" WHERE ");
+    let mut first = true;
+    for (col, val) in &pk_pairs {
+        if !first {
+            qb.push(" AND ");
         }
-        serde_json::Value::String(s) => {
-            if let Some(n) = parse_unsafe_bigint_string(&s) {
-                qb.push_bind(n);
-            } else {
-                qb.push_bind(s);
+        qb.push(format!("`{}` = ", escape_identifier(col)));
+        match val {
+            serde_json::Value::Number(n) => {
+                if n.is_i64() {
+                    qb.push_bind(n.as_i64());
+                } else if n.is_f64() {
+                    qb.push_bind(n.as_f64());
+                } else {
+                    qb.push_bind(n.to_string());
+                }
             }
+            serde_json::Value::String(s) => {
+                if let Some(n) = parse_unsafe_bigint_string(s) {
+                    qb.push_bind(n);
+                } else {
+                    qb.push_bind(s.clone());
+                }
+            }
+            _ => return Err("Unsupported PK type".into()),
         }
-        _ => return Err("Unsupported PK type".into()),
+        first = false;
     }
 
-    let query = qb.build();
-    let result = query.execute(&pool).await.map_err(|e| e.to_string())?;
+    let result = qb.build().execute(&pool).await.map_err(|e| e.to_string())?;
     Ok(result.rows_affected())
 }
 
@@ -1339,6 +1392,44 @@ impl DatabaseDriver for MysqlDriver {
         ))
     }
 
+    async fn test_connection(
+        &self,
+        params: &crate::models::ConnectionParams,
+    ) -> Result<(), String> {
+        use sqlx::{ConnectOptions, Connection};
+        // Route through `build_mysql_options` rather than the connection URL so
+        // MySQL-specific flags such as `pipes_as_concat` are honored: the sqlx
+        // URL parser silently ignores unknown query parameters, which would let
+        // a Vitess/PlanetScale connection pass the test but fail at pool time.
+        let options = crate::pool_manager::build_mysql_options(params, None)?;
+        match options.connect().await {
+            Ok(mut conn) => {
+                let result = conn.ping().await.map_err(|e| e.to_string());
+                let _ = conn.close().await;
+                result
+            }
+            // Mirror the pool's auto-fallback: in auto mode (`pipes_as_concat`
+            // unset), retry without the forced sql_mode so a PlanetScale/Vitess
+            // connection that the pool will accept also passes the test.
+            Err(e) => {
+                let e = e.to_string();
+                if params.pipes_as_concat.is_none()
+                    && crate::pool_manager::is_pipes_as_concat_unsupported(&e)
+                {
+                    let mut fallback = params.clone();
+                    fallback.pipes_as_concat = Some(false);
+                    let options = crate::pool_manager::build_mysql_options(&fallback, None)?;
+                    let mut conn = options.connect().await.map_err(|e| e.to_string())?;
+                    let result = conn.ping().await.map_err(|e| e.to_string());
+                    let _ = conn.close().await;
+                    result
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
     async fn ping(&self, params: &crate::models::ConnectionParams) -> Result<(), String> {
         let conn_id = params.connection_id.as_deref();
         if !crate::pool_manager::has_pool(params, conn_id).await {
@@ -1571,34 +1662,23 @@ impl DatabaseDriver for MysqlDriver {
         &self,
         params: &crate::models::ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         col_name: &str,
         new_val: serde_json::Value,
         _schema: Option<&str>,
         max_blob_size: u64,
     ) -> Result<u64, String> {
-        update_record(
-            params,
-            table,
-            pk_col,
-            pk_val,
-            col_name,
-            new_val,
-            max_blob_size,
-        )
-        .await
+        update_record(params, table, pk_map, col_name, new_val, max_blob_size).await
     }
 
     async fn delete_record(
         &self,
         params: &crate::models::ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         _schema: Option<&str>,
     ) -> Result<u64, String> {
-        delete_record(params, table, pk_col, pk_val).await
+        delete_record(params, table, pk_map).await
     }
 
     async fn save_blob_to_file(
@@ -1606,12 +1686,11 @@ impl DatabaseDriver for MysqlDriver {
         params: &crate::models::ConnectionParams,
         table: &str,
         col_name: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         _schema: Option<&str>,
         file_path: &str,
     ) -> Result<(), String> {
-        save_blob_column_to_file(params, table, col_name, pk_col, pk_val, file_path).await
+        save_blob_column_to_file(params, table, col_name, pk_map, file_path).await
     }
 
     async fn fetch_blob_as_data_url(
@@ -1619,11 +1698,10 @@ impl DatabaseDriver for MysqlDriver {
         params: &crate::models::ConnectionParams,
         table: &str,
         col_name: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         _schema: Option<&str>,
     ) -> Result<String, String> {
-        fetch_blob_column_as_data_url(params, table, col_name, pk_col, pk_val).await
+        fetch_blob_column_as_data_url(params, table, col_name, pk_map).await
     }
 
     async fn get_create_table_sql(

@@ -184,6 +184,8 @@ const SidebarTableItemImpl = ({
       >
         <button
           onClick={handleExpand}
+          aria-label={isExpanded ? t("sidebar.collapseTable", { name: table.name }) : t("sidebar.expandTable", { name: table.name })}
+          aria-expanded={isExpanded}
           className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
         >
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -209,8 +211,9 @@ const SidebarTableItemImpl = ({
             <>
               {/* Columns Folder */}
               <div className="flex flex-col">
-                <div
-                  className="flex items-center gap-2 px-2 py-1 text-xs text-muted hover:text-secondary cursor-pointer select-none"
+                <button
+                  className="flex items-center gap-2 px-2 py-1 text-xs text-muted hover:text-secondary w-full text-left select-none"
+                  aria-expanded={expandColumns}
                   onClick={(e) => {
                     e.stopPropagation();
                     setExpandColumns(!expandColumns);
@@ -225,7 +228,7 @@ const SidebarTableItemImpl = ({
                   <span className="ml-auto text-[10px] opacity-50">
                     {columns.length}
                   </span>
-                </div>
+                </button>
                 {expandColumns && (
                   <div className="ml-4 border-l border-default/50">
                     {columns.map((col) => (
@@ -248,8 +251,9 @@ const SidebarTableItemImpl = ({
               {/* Keys Folder (PK/Unique) */}
               {keys.length > 0 && (
                 <div className="flex flex-col">
-                  <div
-                    className="flex items-center gap-2 px-2 py-1 text-xs text-muted hover:text-secondary cursor-pointer select-none"
+                  <button
+                    className="flex items-center gap-2 px-2 py-1 text-xs text-muted hover:text-secondary w-full text-left select-none"
+                    aria-expanded={expandKeys}
                     onClick={(e) => {
                       e.stopPropagation();
                       setExpandKeys(!expandKeys);
@@ -260,7 +264,7 @@ const SidebarTableItemImpl = ({
                     <span className="ml-auto text-[10px] opacity-50">
                       {keys.length}
                     </span>
-                  </div>
+                  </button>
                   {expandKeys && (
                     <div className="ml-4 border-l border-default/50">
                       {keys.map((k) => (
@@ -322,8 +326,9 @@ const SidebarTableItemImpl = ({
 
               {/* Indexes Folder */}
               <div className="flex flex-col">
-                <div
-                  className="flex items-center gap-2 px-2 py-1 text-xs text-muted hover:text-secondary cursor-pointer select-none"
+                <button
+                  className="flex items-center gap-2 px-2 py-1 text-xs text-muted hover:text-secondary w-full text-left select-none"
+                  aria-expanded={expandIndexes}
                   onClick={(e) => {
                     e.stopPropagation();
                     setExpandIndexes(!expandIndexes);
@@ -337,7 +342,7 @@ const SidebarTableItemImpl = ({
                   <span className="ml-auto text-[10px] opacity-50">
                     {indexesList.length}
                   </span>
-                </div>
+                </button>
                 {expandIndexes && (
                   <div className="ml-4 border-l border-default/50">
                     {indexesList.map((idx) => (

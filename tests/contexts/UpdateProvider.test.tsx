@@ -140,6 +140,50 @@ describe("UpdateProvider", () => {
     });
   });
 
+  it("should surface a dismissed version on a manual (forced) check", async () => {
+    const mockUpdateResult: UpdateCheckResult = {
+      hasUpdate: true,
+      currentVersion: "1.0.0",
+      latestVersion: "1.1.0",
+      releaseNotes: "New features",
+      releaseUrl: "https://github.com/user/repo/releases/tag/v1.1.0",
+      publishedAt: "2024-01-01T00:00:00Z",
+      downloadUrls: [],
+    };
+
+    const getConfig = vi.fn(() =>
+      Promise.resolve({
+        lastDismissedVersion: "1.1.0",
+        autoCheckUpdatesOnStartup: false,
+      }),
+    );
+
+    vi.mocked(invoke).mockImplementation((cmd: string) => {
+      if (cmd === "get_installation_source") return Promise.resolve(null);
+      if (cmd === "check_for_updates") return Promise.resolve(mockUpdateResult);
+      if (cmd === "get_config") return getConfig();
+      return Promise.reject(new Error(`Unexpected command: ${cmd}`));
+    });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(UpdateProvider, null, children);
+
+    const { result } = renderHook(() => useUpdate(), { wrapper });
+
+    await act(async () => {
+      await result.current.checkForUpdates(true);
+    });
+
+    await waitFor(() => {
+      expect(result.current.updateInfo).not.toBeNull();
+      expect(result.current.updateInfo?.latestVersion).toBe("1.1.0");
+      expect(result.current.isUpToDate).toBe(false);
+    });
+
+    // A forced check must not consult the dismissed-version config at all.
+    expect(getConfig).not.toHaveBeenCalled();
+  });
+
   it("should show up to date when no update available", async () => {
     const mockUpdateResult: UpdateCheckResult = {
       hasUpdate: false,

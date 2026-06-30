@@ -38,17 +38,24 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
         force,
       });
       if (result.hasUpdate) {
-        // Check if user dismissed this version
-        const config = await invoke<{ lastDismissedVersion: string }>(
-          "get_config",
-        );
-        if (config.lastDismissedVersion !== result.latestVersion) {
-          setUpdateInfo(result);
-          setIsUpToDate(false);
-        } else {
-          // Version was dismissed, show up to date
+        // A manual check (force) always surfaces an available update. Only a
+        // background check honours a previous "remind me later" dismissal,
+        // otherwise the button would keep reporting "up to date" forever once
+        // a version has been dismissed.
+        let dismissed = false;
+        if (!force) {
+          const config = await invoke<{ lastDismissedVersion: string }>(
+            "get_config",
+          );
+          dismissed = config.lastDismissedVersion === result.latestVersion;
+        }
+
+        if (dismissed) {
           setUpdateInfo(null);
           setIsUpToDate(true);
+        } else {
+          setUpdateInfo(result);
+          setIsUpToDate(false);
         }
       } else {
         // No update available

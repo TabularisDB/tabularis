@@ -131,6 +131,11 @@ pub struct ConnectionParams {
     pub ssl_ca: Option<String>,
     pub ssl_cert: Option<String>,
     pub ssl_key: Option<String>,
+    // MySQL: whether sqlx should force the PIPES_AS_CONCAT / NO_ENGINE_SUBSTITUTION
+    // sql_mode on connect. Defaults to `true` (sqlx's behavior) when unset.
+    // Set to `false` for servers that reject altering sql_mode, e.g. Vitess/PlanetScale.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pipes_as_concat: Option<bool>,
     // SSH Tunnel
     pub ssh_enabled: Option<bool>,
     pub ssh_connection_id: Option<String>,
@@ -165,6 +170,13 @@ pub struct ConnectionParams {
     pub k8s_resource_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub k8s_port: Option<u16>,
+    /// SQL run on every new physical connection in the pool (e.g. `SET` /
+    /// `set_config` for session-scoped settings such as bypassing RLS).
+    /// Statements are separated by `;`. Runs per pooled connection so the
+    /// setting applies to every query regardless of which connection the
+    /// pool hands out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub startup_script: Option<String>,
     // Connection ID for stable pooling (not persisted, set at runtime)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,

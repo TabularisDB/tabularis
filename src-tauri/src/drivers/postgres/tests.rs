@@ -1,6 +1,6 @@
 use super::binding::{
     PgValueOptions, bind_pg_boolean_string, bind_pg_number, bind_pg_numeric_string, bind_pg_value,
-    build_pk_predicate,
+    build_pk_map_predicate, build_pk_predicate,
 };
 use super::helpers::{extract_base_type, is_implicit_cast_compatible};
 
@@ -534,5 +534,53 @@ mod build_pk_predicate_tests {
     #[test]
     fn bool_pk_is_rejected() {
         assert!(build_pk_predicate("id", serde_json::json!(true), 1).is_err());
+    }
+}
+
+mod build_pk_map_predicate_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn single_integer_column() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("id".to_string(), serde_json::json!(1));
+        let (sql, params) = build_pk_map_predicate(&pk_map, 1).unwrap();
+        assert_eq!(sql, "\"id\" = CAST($1 AS bigint)");
+        assert_eq!(params.len(), 1);
+    }
+
+    #[test]
+    fn composite_pk_sorted_alphabetically_with_consecutive_placeholders() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("z_col".to_string(), serde_json::json!("alice"));
+        pk_map.insert("a_col".to_string(), serde_json::json!("bob"));
+        let (sql, params) = build_pk_map_predicate(&pk_map, 1).unwrap();
+        assert_eq!(sql, "\"a_col\" = $1 AND \"z_col\" = $2");
+        assert_eq!(params.len(), 2);
+    }
+
+    #[test]
+    fn non_one_starting_placeholder_idx() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("id".to_string(), serde_json::json!(5));
+        let (sql, _) = build_pk_map_predicate(&pk_map, 3).unwrap();
+        assert_eq!(sql, "\"id\" = CAST($3 AS bigint)");
+    }
+
+    #[test]
+    fn composite_pk_with_mixed_types() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("b_col".to_string(), serde_json::json!("alice"));
+        pk_map.insert("a_col".to_string(), serde_json::json!(99));
+        let (sql, params) = build_pk_map_predicate(&pk_map, 1).unwrap();
+        assert_eq!(sql, "\"a_col\" = CAST($1 AS bigint) AND \"b_col\" = $2");
+        assert_eq!(params.len(), 2);
+    }
+
+    #[test]
+    fn empty_pk_map_is_rejected() {
+        let pk_map: HashMap<String, serde_json::Value> = HashMap::new();
+        assert!(build_pk_map_predicate(&pk_map, 1).is_err());
     }
 }

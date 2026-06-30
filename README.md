@@ -5,7 +5,7 @@
 # tabularis
 
 <p align="center">
-  <strong>Tabularis is an open-source desktop SQL workspace for PostgreSQL, MySQL/MariaDB, SQLite and 12+ more databases like DuckDB, ClickHouse, Redis and Firestore.<br />
+  <strong>Tabularis is an open-source desktop SQL workspace for PostgreSQL, MySQL/MariaDB, SQLite and 13+ more databases like DuckDB, ClickHouse, Redis and Firestore.<br />
   Its built-in MCP server lets Claude, Cursor and Devin (formerly Windsurf) read your schema and run queries in the same app you already use.</strong>
 </p>
 
@@ -110,7 +110,7 @@ The app UI is available in English, Italian, Spanish, Chinese (Simplified), Fren
 | Plugins in **any language** (JSON-RPC over stdio) | ✅ | Java/Eclipse plugins | JavaScript plugins | ❌ |
 | AI text-to-SQL with **local models** (Ollama) | ✅ | Cloud-based AI assistant | ❌ | ❌ |
 | Visual EXPLAIN with interactive plan graphs | ✅ | ✅ | ❌ | ❌ |
-| Databases out of the box | 3 built-in + 12 official plugins | 100+ | 20+ | ~10 |
+| Databases out of the box | 3 built-in + 13 official plugins | 100+ | 20+ | ~10 |
 
 > Comparison as of June 2026; features in other tools may have changed since. If you need dozens of drivers, use DBeaver — tabularis focuses on doing a few databases well.
 
@@ -118,7 +118,7 @@ The app UI is available in English, Italian, Spanish, Chinese (Simplified), Fren
 
 PostgreSQL, MySQL/MariaDB and SQLite ship built in. Everything else is a plugin — current coverage (mirroring the [driver & plugin coverage](https://tabularis.dev/#driver-coverage) on the website):
 
-ClickHouse (shipped), Cloudflare D1 (shipped), DuckDB (shipped), Firestore (shipped), IBM Db2 (shipped), IBM Informix (shipped), Redis (shipped), CSV Folder (shipped), Google Sheets (shipped), HackerNews (shipped), Google BigQuery (claimed), LibSQL / Turso (claimed), Meilisearch (claimed), MongoDB (claimed), Oracle (claimed), SQL Server (claimed), Amazon Redshift (scoped), CockroachDB (scoped), TiDB (scoped), DynamoDB (coming soon), Snowflake (coming soon), Cassandra (open), Elasticsearch (open), Etcd (open), Firebird (open), ScyllaDB (open), SQL Anywhere (open), SurrealDB (open), Trino / Presto (open).
+ClickHouse (shipped), Cloudflare D1 (shipped), DM / Dameng (shipped), DuckDB (shipped), Firestore (shipped), IBM Db2 (shipped), IBM Informix (shipped), Redis (shipped), CSV Folder (shipped), Google Sheets (shipped), HackerNews (shipped), Google BigQuery (claimed), LibSQL / Turso (claimed), Meilisearch (claimed), MongoDB (claimed), Oracle (claimed), SQL Server (claimed), Amazon Redshift (scoped), CockroachDB (scoped), TiDB (scoped), DynamoDB (coming soon), Snowflake (coming soon), Cassandra (open), Elasticsearch (open), Etcd (open), Firebird (open), ScyllaDB (open), SQL Anywhere (open), SurrealDB (open), Trino / Presto (open).
 
 > **Shipped** drivers are installable from the [plugin registry](https://tabularis.dev/plugins). Everything else is on the [bounty board](https://tabularis.dev/plugins/bounties) — claim one, sponsor one, or [request a database](https://github.com/TabularisDB/tabularis/discussions).
 

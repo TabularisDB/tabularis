@@ -435,8 +435,7 @@ pub trait DatabaseDriver: Send + Sync {
         &self,
         params: &ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         col_name: &str,
         new_val: serde_json::Value,
         schema: Option<&str>,
@@ -447,8 +446,7 @@ pub trait DatabaseDriver: Send + Sync {
         &self,
         params: &ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         schema: Option<&str>,
     ) -> Result<u64, String>;
 
@@ -459,8 +457,7 @@ pub trait DatabaseDriver: Send + Sync {
         _params: &ConnectionParams,
         _table: &str,
         _col_name: &str,
-        _pk_col: &str,
-        _pk_val: serde_json::Value,
+        _pk_map: &std::collections::HashMap<String, serde_json::Value>,
         _schema: Option<&str>,
         _file_path: &str,
     ) -> Result<(), String> {
@@ -472,8 +469,7 @@ pub trait DatabaseDriver: Send + Sync {
         _params: &ConnectionParams,
         _table: &str,
         _col_name: &str,
-        _pk_col: &str,
-        _pk_val: serde_json::Value,
+        _pk_map: &std::collections::HashMap<String, serde_json::Value>,
         _schema: Option<&str>,
     ) -> Result<String, String> {
         Err("BLOB preview not supported by this driver".into())
