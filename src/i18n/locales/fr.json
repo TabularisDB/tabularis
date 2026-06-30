@@ -70,6 +70,8 @@
     "confirmDeleteQuery": "Voulez-vous vraiment supprimer la requête \"{{name}}\" ?",
     "confirmDeleteTitle": "Supprimer la requête",
     "noTables": "Aucune table trouvée",
+    "expandTable": "Développer la table {{name}}",
+    "collapseTable": "Réduire la table {{name}}",
     "columns": "colonnes",
     "keys": "clés",
     "foreignKeys": "clés étrangères",

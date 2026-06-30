@@ -8,6 +8,8 @@ import {
   resolveInsertionCellDisplay,
   resolveExistingCellDisplay,
   getCellStateClass,
+  buildPkMap,
+  serializePkKey,
   type ColumnDisplayInfo,
   type CellClassParams,
 } from '../../src/utils/dataGrid';
@@ -638,6 +640,50 @@ describe('dataGrid utils', () => {
       expect(result).toContain('bg-blue');
       expect(result).toContain('italic');
       expect(result).toContain('font-medium');
+    });
+  });
+
+  describe('buildPkMap', () => {
+    it('maps a single PK column to its value', () => {
+      expect(buildPkMap(['id'], [10, 'Alice'], [0])).toEqual({ id: 10 });
+    });
+
+    it('maps composite PK columns to their values', () => {
+      expect(buildPkMap(['org_id', 'user_id'], [1, 2, 'extra'], [0, 1])).toEqual({
+        org_id: 1,
+        user_id: 2,
+      });
+    });
+
+    it('uses pkIndices to pick non-zero positions from the row', () => {
+      expect(buildPkMap(['id'], ['name', 'email', 99], [2])).toEqual({ id: 99 });
+    });
+
+    it('handles null and string values', () => {
+      expect(buildPkMap(['a', 'b'], [null, 'hello'], [0, 1])).toEqual({ a: null, b: 'hello' });
+    });
+  });
+
+  describe('serializePkKey', () => {
+    it('serializes a single-key map as JSON', () => {
+      expect(serializePkKey({ id: 42 })).toBe('{"id":42}');
+    });
+
+    it('sorts composite keys alphabetically regardless of insertion order', () => {
+      const pkMap: Record<string, unknown> = { z_col: 1, a_col: 2 };
+      expect(serializePkKey(pkMap)).toBe('{"a_col":2,"z_col":1}');
+    });
+
+    it('produces the same key regardless of insertion order', () => {
+      expect(serializePkKey({ a: 1, b: 2 })).toBe(serializePkKey({ b: 2, a: 1 }));
+    });
+
+    it('handles null pk values', () => {
+      expect(serializePkKey({ id: null })).toBe('{"id":null}');
+    });
+
+    it('handles string pk values', () => {
+      expect(serializePkKey({ slug: 'hello-world' })).toBe('{"slug":"hello-world"}');
     });
   });
 });

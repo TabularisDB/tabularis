@@ -26,7 +26,7 @@ function makeEntry(overrides: Partial<QueryResultEntry> = {}): QueryResultEntry 
     isLoading: true,
     page: 1,
     activeTable: null,
-    pkColumn: null,
+    pkColumns: null,
     ...overrides,
   };
 }
@@ -65,7 +65,7 @@ describe("multiResult", () => {
         expect(entry.executionTime).toBeNull();
         expect(entry.page).toBe(1);
         expect(entry.activeTable).toBeNull();
-        expect(entry.pkColumn).toBeNull();
+        expect(entry.pkColumns).toBeNull();
       }
     });
 

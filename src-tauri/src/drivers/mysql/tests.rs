@@ -1,3 +1,4 @@
+use super::build_mysql_pk_where;
 use super::explain::{parse_analyze_actual, parse_mysql_analyze_text, parse_mysql_query_block};
 use super::MysqlDriver;
 use crate::drivers::driver_trait::DatabaseDriver;
@@ -600,4 +601,35 @@ fn parse_mysql_analyze_text_reports_total_time_for_looped_node() {
         (total - 2646.19).abs() < 1.0,
         "expected ~2646ms total for index lookup, got {total}"
     );
+}
+
+mod build_mysql_pk_where_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn single_column_returns_correct_pair() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("id".to_string(), serde_json::json!(42));
+        let pairs = build_mysql_pk_where(&pk_map).unwrap();
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].0, "id");
+        assert_eq!(pairs[0].1, serde_json::json!(42));
+    }
+
+    #[test]
+    fn composite_pk_columns_are_sorted_alphabetically() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("z_col".to_string(), serde_json::json!(1));
+        pk_map.insert("a_col".to_string(), serde_json::json!(2));
+        let pairs = build_mysql_pk_where(&pk_map).unwrap();
+        assert_eq!(pairs[0].0, "a_col");
+        assert_eq!(pairs[1].0, "z_col");
+    }
+
+    #[test]
+    fn empty_pk_map_is_rejected() {
+        let pk_map: HashMap<String, serde_json::Value> = HashMap::new();
+        assert!(build_mysql_pk_where(&pk_map).is_err());
+    }
 }

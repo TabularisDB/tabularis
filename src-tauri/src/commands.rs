@@ -2706,17 +2706,15 @@ pub async fn delete_record<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
     table: String,
-    pk_col: String,
-    pk_val: serde_json::Value,
+    pk_map: std::collections::HashMap<String, serde_json::Value>,
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
     log::info!(
-        "Executing query on connection: {} | Query: DELETE FROM {} WHERE {} = {}",
+        "Executing query on connection: {} | Query: DELETE FROM {} WHERE pk_map={:?}",
         connection_id,
         table,
-        pk_col,
-        pk_val
+        pk_map
     );
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
@@ -2726,7 +2724,7 @@ pub async fn delete_record<R: Runtime>(
         params.database = crate::models::DatabaseSelection::Single(db);
     }
     let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.delete_record(&params, &table, &pk_col, pk_val, schema.as_deref())
+    drv.delete_record(&params, &table, &pk_map, schema.as_deref())
         .await
 }
 
@@ -2735,21 +2733,19 @@ pub async fn update_record<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
     table: String,
-    pk_col: String,
-    pk_val: serde_json::Value,
+    pk_map: std::collections::HashMap<String, serde_json::Value>,
     col_name: String,
     new_val: serde_json::Value,
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
     log::info!(
-        "Executing query on connection: {} | Query: UPDATE {} SET {} = {} WHERE {} = {}",
+        "Executing query on connection: {} | Query: UPDATE {} SET {} = {:?} WHERE pk_map={:?}",
         connection_id,
         table,
         col_name,
         new_val,
-        pk_col,
-        pk_val
+        pk_map
     );
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
@@ -2763,8 +2759,7 @@ pub async fn update_record<R: Runtime>(
     drv.update_record(
         &params,
         &table,
-        &pk_col,
-        pk_val,
+        &pk_map,
         &col_name,
         new_val,
         schema.as_deref(),
@@ -2779,8 +2774,7 @@ pub async fn save_blob_to_file<R: Runtime>(
     connection_id: String,
     table: String,
     col_name: String,
-    pk_col: String,
-    pk_val: serde_json::Value,
+    pk_map: std::collections::HashMap<String, serde_json::Value>,
     file_path: String,
     schema: Option<String>,
 ) -> Result<(), String> {
@@ -2793,8 +2787,7 @@ pub async fn save_blob_to_file<R: Runtime>(
         &params,
         &table,
         &col_name,
-        &pk_col,
-        pk_val,
+        &pk_map,
         schema.as_deref(),
         &file_path,
     )
@@ -2809,8 +2802,7 @@ pub async fn fetch_blob_as_data_url<R: Runtime>(
     connection_id: String,
     table: String,
     col_name: String,
-    pk_col: String,
-    pk_val: serde_json::Value,
+    pk_map: std::collections::HashMap<String, serde_json::Value>,
     schema: Option<String>,
 ) -> Result<String, String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
@@ -2823,8 +2815,7 @@ pub async fn fetch_blob_as_data_url<R: Runtime>(
             &params,
             &table,
             &col_name,
-            &pk_col,
-            pk_val,
+            &pk_map,
             schema.as_deref(),
         )
         .await?;

@@ -5,6 +5,7 @@ import { dialectOptions } from '../../../src/utils/sqlSplitter';
 const PG = dialectOptions('postgres');
 const MY = dialectOptions('mysql');
 const MS = dialectOptions('mssql');
+const OR = dialectOptions('oracle');
 
 const freshState = (): TokenizerState => ({ delimiter: ';', lineLeading: true });
 
@@ -143,6 +144,54 @@ describe('scanToken', () => {
       const state: TokenizerState = { delimiter: ';', lineLeading: false };
       const t = scanToken('DELIMITER //', 0, MY, state);
       expect(t?.kind).toBe('data');
+    });
+
+    it('recognises a line-leading slash terminator (oracle)', () => {
+      const src = '/\nSELECT 1';
+      const t = scanToken(src, 0, OR, freshState());
+      expect(t).toEqual({ kind: 'slashDelimiter', length: 1 });
+    });
+
+    it('does not recognise a slash terminator mid-line', () => {
+      const state: TokenizerState = { delimiter: ';', lineLeading: false };
+      const t = scanToken('/', 0, OR, state);
+      expect(t).toEqual({ kind: 'data', length: 1 });
+    });
+
+    it('does not confuse a line-leading block comment with a slash terminator', () => {
+      const t = scanToken('/* comment */', 0, OR, freshState());
+      expect(t?.kind).toBe('blockComment');
+    });
+  });
+
+  describe('oracle q-quoting', () => {
+    it('consumes q-quoted strings with paired delimiters', () => {
+      const src = "q'[it; has / inside]'";
+      const t = scanToken(src, 0, OR, freshState());
+      expect(t).toEqual({ kind: 'string', length: src.length });
+    });
+
+    it('consumes nq-quoted strings', () => {
+      const src = "nq'{it; has / inside}'";
+      const t = scanToken(src, 0, OR, freshState());
+      expect(t).toEqual({ kind: 'string', length: src.length });
+    });
+
+    it('does not consume q-quoted strings with whitespace delimiters', () => {
+      const t = scanToken("q' bad; delimiter '", 0, OR, freshState());
+      expect(t).toEqual({ kind: 'data', length: 1 });
+    });
+
+    it('allows a single quote q-quote delimiter', () => {
+      const src = "q'''it; works''";
+      const t = scanToken(src, 0, OR, freshState());
+      expect(t).toEqual({ kind: 'string', length: src.length });
+    });
+
+    it('does not start q-quoting after an identifier character', () => {
+      const src = "colq'[x]'";
+      const t = scanToken(src, 3, OR, freshState());
+      expect(t).toEqual({ kind: 'data', length: 1 });
     });
   });
 });

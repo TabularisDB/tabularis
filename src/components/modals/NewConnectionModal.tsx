@@ -2224,17 +2224,16 @@ export const NewConnectionModal = ({
           </button>
 
           {/* Status message */}
-          {message && (
-            <p
-              className={clsx(
-                "flex-1 text-xs truncate",
-                testResult === "success" ? "text-green-400" : "text-red-400",
-              )}
-            >
-              {message}
-            </p>
-          )}
-          {!message && <div className="flex-1" />}
+          <p
+            aria-live="polite"
+            aria-atomic="true"
+            className={clsx(
+              "flex-1 text-xs truncate",
+              testResult === "success" ? "text-green-400" : "text-red-400",
+            )}
+          >
+            {message ?? ""}
+          </p>
 
           {/* Cancel + Save */}
           <div className="flex items-center gap-2">

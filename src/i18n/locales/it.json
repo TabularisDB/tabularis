@@ -70,6 +70,8 @@
     "confirmDeleteQuery": "Sei sicuro di voler eliminare la query \"{{name}}\"?",
     "confirmDeleteTitle": "Elimina Query",
     "noTables": "Nessuna tabella trovata",
+    "expandTable": "Espandi tabella {{name}}",
+    "collapseTable": "Comprimi tabella {{name}}",
     "columns": "colonne",
     "keys": "chiavi",
     "foreignKeys": "chiavi esterne",
