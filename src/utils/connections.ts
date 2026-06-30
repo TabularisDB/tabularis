@@ -37,6 +37,8 @@ export interface ConnectionParams {
   k8s_resource_type?: string;
   k8s_resource_name?: string;
   k8s_port?: number;
+  /** SQL run on every new connection to this data source (e.g. SET / set_config). */
+  startup_script?: string;
 }
 
 /**

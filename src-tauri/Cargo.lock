@@ -6223,11 +6223,7 @@ dependencies = [
 
 [[package]]
 name = "tabularis"
-<<<<<<< feat/mysql-cleartext-plugin-warpgate
-version = "0.13.2"
-=======
 version = "0.13.3"
->>>>>>> main
 dependencies = [
  "async-trait",
  "base64 0.22.1",

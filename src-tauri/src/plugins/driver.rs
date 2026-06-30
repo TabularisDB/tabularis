@@ -545,14 +545,13 @@ impl DatabaseDriver for RpcDriver {
         &self,
         params: &ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         col_name: &str,
         new_val: serde_json::Value,
         schema: Option<&str>,
         max_blob_size: u64,
     ) -> Result<u64, String> {
-        let res = self.process.call("update_record", json!({ "params": params, "table": table, "pk_col": pk_col, "pk_val": pk_val, "col_name": col_name, "new_val": new_val, "schema": schema, "max_blob_size": max_blob_size })).await?;
+        let res = self.process.call("update_record", json!({ "params": params, "table": table, "pk_map": pk_map, "col_name": col_name, "new_val": new_val, "schema": schema, "max_blob_size": max_blob_size })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -560,11 +559,10 @@ impl DatabaseDriver for RpcDriver {
         &self,
         params: &ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         schema: Option<&str>,
     ) -> Result<u64, String> {
-        let res = self.process.call("delete_record", json!({ "params": params, "table": table, "pk_col": pk_col, "pk_val": pk_val, "schema": schema })).await?;
+        let res = self.process.call("delete_record", json!({ "params": params, "table": table, "pk_map": pk_map, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -824,6 +822,8 @@ mod tests {
             ssl_ca: None,
             ssl_cert: None,
             ssl_key: None,
+            enable_cleartext_plugin: None,
+            pipes_as_concat: None,
             ssh_enabled: None,
             ssh_connection_id: None,
             ssh_host: None,
@@ -841,6 +841,7 @@ mod tests {
             k8s_resource_type: None,
             k8s_resource_name: None,
             k8s_port: None,
+            startup_script: None,
             connection_id: Some("conn-1".to_string()),
         }
     }
