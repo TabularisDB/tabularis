@@ -6,6 +6,8 @@ import {
   resolveExistingCellDisplay,
   getCellStateClass,
   getResultValueType,
+  buildPkMap,
+  serializePkKey,
   type ColumnDisplayInfo,
   type MergedRow,
 } from "../../utils/dataGrid";
@@ -33,7 +35,7 @@ export interface RowCtx {
   autoIncrementColumns?: string[];
   defaultValueColumns?: string[];
   nullableColumns?: string[];
-  pkColumn?: string | null;
+  pkColumns?: string[] | null;
   pendingChanges?: Record<
     string,
     { pkOriginalValue: unknown; changes: Record<string, unknown> }
@@ -50,7 +52,7 @@ export interface RowCtx {
   fksByColumn: Map<string, ForeignKey>;
   t: (key: string, opts?: Record<string, unknown>) => string;
   mergedRows: MergedRow[];
-  pkIndexMap: number | null;
+  pkIndexMaps: number[];
   parentViewportWidth: number;
   readonly: boolean | undefined;
   updateSelection: (s: Set<number>) => void;
@@ -157,7 +159,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
     autoIncrementColumns,
     defaultValueColumns,
     nullableColumns,
-    pkColumn,
+    pkColumns,
     pendingChanges,
     columnTypeMap,
     columnLengthMap,
@@ -166,7 +168,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
     fksByColumn,
     t,
     mergedRows,
-    pkIndexMap,
+    pkIndexMaps,
     parentViewportWidth,
     readonly: readonlyProp,
     updateSelection,
@@ -262,7 +264,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
             : resolveExistingCellDisplay(
                 cellValue,
                 pkVal,
-                pkColumn,
+                pkColumns,
                 pendingChanges,
                 columnInfo,
               );
@@ -645,12 +647,11 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
           const mergedRow = mergedRows[rowIndex];
           const pendingExpansionValue = (() => {
             if (!mergedRow) return undefined;
-            if (mergedRow.type === "existing" && pkIndexMap !== null) {
-              const pkVal = mergedRow.rowData[pkIndexMap];
+            if (mergedRow.type === "existing" && pkIndexMaps.length > 0 && pkColumns) {
+              const pkMapVal = buildPkMap(pkColumns, mergedRow.rowData, pkIndexMaps);
+              const pkKeyStr = serializePkKey(pkMapVal);
               const pendingVal =
-                pkVal !== null && pkVal !== undefined && pkVal !== ""
-                  ? pendingChanges?.[String(pkVal)]?.changes?.[expColName]
-                  : undefined;
+                pendingChanges?.[pkKeyStr]?.changes?.[expColName];
               if (pendingVal !== undefined) return pendingVal;
             }
             return mergedRow.rowData?.[expandedCell.colIndex];
@@ -670,10 +671,11 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
             } else if (
               mergedRow.type === "existing" &&
               onPendingChange &&
-              pkIndexMap !== null
+              pkIndexMaps.length > 0 &&
+              pkColumns
             ) {
-              const pkVal = mergedRow.rowData[pkIndexMap];
-              onPendingChange(pkVal, expColName, next);
+              const pkMapVal = buildPkMap(pkColumns, mergedRow.rowData, pkIndexMaps);
+              onPendingChange(pkMapVal, expColName, next);
             }
             setExpandedCell(null);
           };

@@ -1,4 +1,5 @@
 use super::explain::{build_sqlite_tree, parse_sqlite_detail};
+use super::sqlite_push_pk_where;
 use super::{alter_view, create_view, drop_view, get_view_columns, get_view_definition, get_views};
 use crate::models::{ConnectionParams, DatabaseSelection};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
@@ -149,4 +150,44 @@ async fn test_view_lifecycle() {
 
     // Cleanup: Close the pool created by the functions (via pool_manager)
     crate::pool_manager::close_pool(&params).await;
+}
+
+mod sqlite_push_pk_where_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn single_column_generates_correct_predicate() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("id".to_string(), serde_json::json!(42));
+        let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new("");
+        sqlite_push_pk_where(&mut qb, &pk_map).unwrap();
+        assert_eq!(qb.sql(), "\"id\" = ?");
+    }
+
+    #[test]
+    fn composite_pk_columns_are_sorted_alphabetically() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("z_col".to_string(), serde_json::json!(1));
+        pk_map.insert("a_col".to_string(), serde_json::json!(2));
+        let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new("");
+        sqlite_push_pk_where(&mut qb, &pk_map).unwrap();
+        assert_eq!(qb.sql(), "\"a_col\" = ? AND \"z_col\" = ?");
+    }
+
+    #[test]
+    fn empty_pk_map_is_rejected() {
+        let pk_map: HashMap<String, serde_json::Value> = HashMap::new();
+        let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new("");
+        assert!(sqlite_push_pk_where(&mut qb, &pk_map).is_err());
+    }
+
+    #[test]
+    fn double_quote_in_column_name_is_escaped() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("a\"b".to_string(), serde_json::json!(1));
+        let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new("");
+        sqlite_push_pk_where(&mut qb, &pk_map).unwrap();
+        assert_eq!(qb.sql(), "\"a\"\"b\" = ?");
+    }
 }

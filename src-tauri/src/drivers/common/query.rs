@@ -108,7 +108,10 @@ fn read_quoted(chars: &[(usize, char)], i: &mut usize, quote: char) -> String {
     while *i < len {
         let ch = chars[*i].1;
         token.push(ch);
-        if ch == quote {
+        if quote != '`' && ch == '\\' && *i + 1 < len {
+            *i += 1;
+            token.push(chars[*i].1);
+        } else if ch == quote {
             if *i + 1 < len && chars[*i + 1].1 == quote {
                 *i += 1;
                 token.push(chars[*i].1);
@@ -294,9 +297,19 @@ pub fn extract_user_offset(query: &str) -> Option<u32> {
 /// silently collapsed `LIMIT 1 OFFSET 1` to `LIMIT 1 OFFSET 0` on page 1.
 pub fn build_paginated_query(query: &str, page_size: u32, page: u32) -> String {
     let page_offset = calculate_offset(page, page_size);
-    let user_limit = extract_user_limit(query);
-    let user_offset = extract_user_offset(query).unwrap_or(0);
-    let base = strip_limit_offset(query);
+    let normalized = trim_trailing_statement_terminator(query);
+    let clause_source = match trailing_comment_start(normalized) {
+        Some(comment_start) => normalized[..comment_start].trim_end(),
+        None => normalized,
+    };
+    let user_limit = extract_user_limit(clause_source);
+    let user_offset = extract_user_offset(clause_source).unwrap_or(0);
+    let base_source = if user_limit.is_some() || user_offset > 0 {
+        clause_source
+    } else {
+        normalized
+    };
+    let base = strip_limit_offset(base_source);
 
     let fetch_count = match user_limit {
         Some(ul) => {
@@ -309,5 +322,141 @@ pub fn build_paginated_query(query: &str, page_size: u32, page: u32) -> String {
 
     let offset = user_offset.saturating_add(page_offset);
 
-    format!("{} LIMIT {} OFFSET {}", base, fetch_count, offset)
+    let separator = if trailing_comment_start(&base).is_some() {
+        "\n"
+    } else {
+        " "
+    };
+
+    format!("{}{}LIMIT {} OFFSET {}", base, separator, fetch_count, offset)
+}
+
+fn trim_trailing_statement_terminator(query: &str) -> &str {
+    let original_end = query.trim_end().len();
+    let mut end = query.len();
+
+    loop {
+        let trimmed = query[..end].trim_end();
+        end = trimmed.len();
+
+        if let Some(comment_start) = trailing_comment_start(trimmed) {
+            end = comment_start;
+            continue;
+        }
+
+        break;
+    }
+
+    let without_trailing_space = query[..end].trim_end();
+    match without_trailing_space.strip_suffix(';') {
+        Some(without_semicolon) => without_semicolon.trim_end_matches([' ', '\t', '\r']),
+        None => &query[..original_end],
+    }
+}
+
+fn trailing_comment_start(sql: &str) -> Option<usize> {
+    #[derive(Clone, Copy)]
+    enum State {
+        Normal,
+        SingleQuote,
+        DoubleQuote,
+        Backtick,
+        LineComment,
+        HashComment,
+        BlockComment,
+    }
+
+    let chars: Vec<(usize, char)> = sql.char_indices().collect();
+    let mut state = State::Normal;
+    let mut candidate = None;
+    let mut i = 0;
+
+    while i < chars.len() {
+        let (byte, ch) = chars[i];
+        match state {
+            State::Normal => {
+                if ch.is_whitespace() {
+                    i += 1;
+                    continue;
+                }
+
+                if ch == '-'
+                    && i + 1 < chars.len()
+                    && chars[i + 1].1 == '-'
+                    && (i + 2 >= chars.len() || chars[i + 2].1.is_whitespace())
+                {
+                    candidate.get_or_insert(byte);
+                    state = State::LineComment;
+                    i += 2;
+                    continue;
+                }
+
+                if ch == '#' {
+                    candidate.get_or_insert(byte);
+                    state = State::HashComment;
+                    i += 1;
+                    continue;
+                }
+
+                if ch == '/' && i + 1 < chars.len() && chars[i + 1].1 == '*' {
+                    candidate.get_or_insert(byte);
+                    state = State::BlockComment;
+                    i += 2;
+                    continue;
+                }
+
+                candidate = None;
+                state = match ch {
+                    '\'' => State::SingleQuote,
+                    '"' => State::DoubleQuote,
+                    '`' => State::Backtick,
+                    _ => State::Normal,
+                };
+                i += 1;
+            }
+            State::SingleQuote | State::DoubleQuote | State::Backtick => {
+                let quote = match state {
+                    State::SingleQuote => '\'',
+                    State::DoubleQuote => '"',
+                    State::Backtick => '`',
+                    _ => unreachable!(),
+                };
+                if !matches!(state, State::Backtick)
+                    && ch == '\\'
+                    && i + 1 < chars.len()
+                {
+                    i += 2;
+                } else if ch == quote {
+                    if i + 1 < chars.len() && chars[i + 1].1 == quote {
+                        i += 2;
+                    } else {
+                        state = State::Normal;
+                        i += 1;
+                    }
+                } else {
+                    i += 1;
+                }
+            }
+            State::LineComment | State::HashComment => {
+                if ch == '\n' {
+                    state = State::Normal;
+                }
+                i += 1;
+            }
+            State::BlockComment => {
+                if ch == '*' && i + 1 < chars.len() && chars[i + 1].1 == '/' {
+                    state = State::Normal;
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+    }
+
+    match state {
+        State::Normal | State::LineComment | State::HashComment => candidate,
+        State::BlockComment => None,
+        State::SingleQuote | State::DoubleQuote | State::Backtick => None,
+    }
 }

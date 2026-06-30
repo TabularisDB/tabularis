@@ -27,7 +27,7 @@ describe('useEditor', () => {
       executionTime: null,
       page: 1,
       activeTable: null,
-      pkColumn: null,
+      pkColumns: null,
       connectionId: 'conn-123',
     };
 
