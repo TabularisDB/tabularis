@@ -9,6 +9,9 @@ interface SidebarTriggerItemProps {
   trigger: TriggerInfo;
   connectionId: string;
   schema?: string;
+  /** Schema-based multi-database (PostgreSQL): routes context-menu actions
+   * (view definition, edit, drop) to this database's connection pool. */
+  database?: string;
   onContextMenu: (
     e: React.MouseEvent,
     type: string,
@@ -22,6 +25,7 @@ interface SidebarTriggerItemProps {
 export const SidebarTriggerItem = ({
   trigger,
   schema,
+  database,
   onContextMenu,
   onDoubleClick,
 }: SidebarTriggerItemProps) => {
@@ -30,7 +34,7 @@ export const SidebarTriggerItem = ({
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onContextMenu(e, "trigger", trigger.name, trigger.name, { ...trigger, schema } as unknown as ContextMenuData);
+    onContextMenu(e, "trigger", trigger.name, trigger.name, { ...trigger, schema, database } as unknown as ContextMenuData);
   };
 
   const badge = [trigger.timing, trigger.event].filter(Boolean).join(" ");

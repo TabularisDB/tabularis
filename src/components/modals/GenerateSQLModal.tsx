@@ -20,17 +20,24 @@ interface GenerateSQLModalProps {
   isOpen: boolean;
   onClose: () => void;
   tableName: string;
+  schema?: string;
+  /** Schema-based multi-database (PostgreSQL): routes the metadata fetch to
+   * this database's connection pool. Absent for single-database connections. */
+  database?: string;
 }
 
 export const GenerateSQLModal = ({
   isOpen,
   onClose,
   tableName,
+  schema,
+  database,
 }: GenerateSQLModalProps) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { activeConnectionId, activeDriver, activeSchema, activeCapabilities } =
+  const { activeConnectionId, activeDriver, activeSchema: globalActiveSchema, activeCapabilities } =
     useDatabase();
+  const activeSchema = schema ?? globalActiveSchema;
   const { showAlert } = useAlert();
   type SqlTab = "create" | "select-all" | "select-fields" | "update" | "delete";
   const [tab, setTab] = useState<SqlTab>("create");
@@ -46,21 +53,25 @@ export const GenerateSQLModal = ({
       setLoading(true);
       try {
         const schemaParam = activeSchema ? { schema: activeSchema } : {};
+        const databaseParam = database ? { database } : {};
         const [fetchedColumns, foreignKeys, indexes] = await Promise.all([
           invoke<TableColumn[]>("get_columns", {
             connectionId: activeConnectionId,
             tableName,
             ...schemaParam,
+            ...databaseParam,
           }),
           invoke<ForeignKey[]>("get_foreign_keys", {
             connectionId: activeConnectionId,
             tableName,
             ...schemaParam,
+            ...databaseParam,
           }),
           invoke<Index[]>("get_indexes", {
             connectionId: activeConnectionId,
             tableName,
             ...schemaParam,
+            ...databaseParam,
           }),
         ]);
 
@@ -90,6 +101,7 @@ export const GenerateSQLModal = ({
     activeCapabilities,
     t,
     activeSchema,
+    database,
     showAlert,
   ]);
 
@@ -127,7 +139,8 @@ export const GenerateSQLModal = ({
         queryName: `${tableName} – ${tab}`,
         undefined,
         preventAutoRun: true,
-        schema: activeSchema ?? undefined
+        schema: activeSchema ?? undefined,
+        database: database ?? undefined,
       },
     });
     onClose();

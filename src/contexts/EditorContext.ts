@@ -30,7 +30,7 @@ export interface EditorContextType {
     partial: Partial<QueryResultEntry>,
   ) => void;
   setActiveTabId: (id: string) => void;
-  getSchema: (connectionId: string, schemaVersion?: number, schema?: string) => Promise<TableSchema[]>;
+  getSchema: (connectionId: string, schemaVersion?: number, schema?: string, database?: string) => Promise<TableSchema[]>;
 }
 
 export const EditorContext = createContext<EditorContextType | undefined>(undefined);

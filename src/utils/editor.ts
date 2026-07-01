@@ -139,6 +139,7 @@ export function findExistingTableTab(
   connectionId: string,
   tableName: string | undefined,
   schema?: string,
+  database?: string,
 ): Tab | undefined {
   if (!tableName) return undefined;
   return tabs.find(
@@ -146,7 +147,14 @@ export function findExistingTableTab(
       t.connectionId === connectionId &&
       t.type === "table" &&
       t.activeTable === tableName &&
-      (t.schema || undefined) === (schema || undefined),
+      (t.schema || undefined) === (schema || undefined) &&
+      // Must match the database too: on schema-based multi-database
+      // connections (PostgreSQL) the same schema.table name exists in
+      // different databases, and each tab routes its query to its own
+      // database pool. Ignoring this reused a stale tab whose `database`
+      // pointed elsewhere, so the query ran against the wrong pool and
+      // PostgreSQL reported the relation as missing.
+      (t.database || undefined) === (database || undefined),
   );
 }
 

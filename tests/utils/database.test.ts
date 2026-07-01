@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   isMultiDatabaseCapable,
+  isSchemaBasedMultiDb,
   isMultiDatabaseSelection,
   getDatabaseList,
   getEffectiveDatabase,
+  buildTableRoutingParams,
 } from '../../src/utils/database';
 import type { DriverCapabilities } from '../../src/types/plugins';
 
@@ -22,8 +24,8 @@ describe('isMultiDatabaseCapable', () => {
     expect(isMultiDatabaseCapable(baseCapabilities)).toBe(true);
   });
 
-  it('returns false when schemas is true (Postgres)', () => {
-    expect(isMultiDatabaseCapable({ ...baseCapabilities, schemas: true })).toBe(false);
+  it('returns true when schemas is true (Postgres is multi-database capable)', () => {
+    expect(isMultiDatabaseCapable({ ...baseCapabilities, schemas: true })).toBe(true);
   });
 
   it('returns false when file_based is true (SQLite)', () => {
@@ -34,8 +36,12 @@ describe('isMultiDatabaseCapable', () => {
     expect(isMultiDatabaseCapable({ ...baseCapabilities, folder_based: true })).toBe(false);
   });
 
-  it('returns false when both schemas and file_based are true', () => {
+  it('returns false when file_based is true even if schemas is true', () => {
     expect(isMultiDatabaseCapable({ ...baseCapabilities, schemas: true, file_based: true })).toBe(false);
+  });
+
+  it('returns false when no_connection_required is true', () => {
+    expect(isMultiDatabaseCapable({ ...baseCapabilities, no_connection_required: true })).toBe(false);
   });
 
   it('returns false for null capabilities', () => {
@@ -44,6 +50,32 @@ describe('isMultiDatabaseCapable', () => {
 
   it('returns false for undefined capabilities', () => {
     expect(isMultiDatabaseCapable(undefined)).toBe(false);
+  });
+});
+
+describe('isSchemaBasedMultiDb', () => {
+  it('returns true for a schema-based server driver (Postgres)', () => {
+    expect(isSchemaBasedMultiDb({ ...baseCapabilities, schemas: true })).toBe(true);
+  });
+
+  it('returns false for a flat server driver (MySQL)', () => {
+    expect(isSchemaBasedMultiDb(baseCapabilities)).toBe(false);
+  });
+
+  it('returns false for a file-based driver even with schemas', () => {
+    expect(isSchemaBasedMultiDb({ ...baseCapabilities, schemas: true, file_based: true })).toBe(false);
+  });
+
+  it('returns false when no_connection_required is true', () => {
+    expect(isSchemaBasedMultiDb({ ...baseCapabilities, schemas: true, no_connection_required: true })).toBe(false);
+  });
+
+  it('returns false for null capabilities', () => {
+    expect(isSchemaBasedMultiDb(null)).toBe(false);
+  });
+
+  it('returns false for undefined capabilities', () => {
+    expect(isSchemaBasedMultiDb(undefined)).toBe(false);
   });
 });
 
@@ -110,5 +142,62 @@ describe('getEffectiveDatabase', () => {
 
   it('returns the only element of a single-element array', () => {
     expect(getEffectiveDatabase(['only'])).toBe('only');
+  });
+});
+
+describe('buildTableRoutingParams', () => {
+  // Regression guard: on schema-based multi-database (PostgreSQL) connections
+  // the metadata pool is keyed by database. Dropping `database` from
+  // get_columns/get_foreign_keys made the call hit the connection's primary
+  // database, return no columns/PK, and silently turn the grid read-only.
+
+  it('routes a PostgreSQL multi-db tab to its schema AND database', () => {
+    expect(buildTableRoutingParams('inventory', 'erp_demo', 'public')).toEqual({
+      schema: 'inventory',
+      database: 'erp_demo',
+    });
+  });
+
+  it("prefers the tab's schema over the connection's active schema", () => {
+    // The active schema is a single global; each tab may view a different one.
+    expect(buildTableRoutingParams('inventory', 'erp_demo', 'sales')).toEqual({
+      schema: 'inventory',
+      database: 'erp_demo',
+    });
+  });
+
+  it('falls back to the active schema when the tab has none', () => {
+    expect(buildTableRoutingParams(undefined, 'erp_demo', 'public')).toEqual({
+      schema: 'public',
+      database: 'erp_demo',
+    });
+  });
+
+  it('omits database for flat multi-db (MySQL) tabs that carry no database', () => {
+    // MySQL connects server-wide; no per-database pool switch is needed, so the
+    // database key must NOT be emitted (it would otherwise regress that path).
+    expect(buildTableRoutingParams('myschema', undefined, null)).toEqual({
+      schema: 'myschema',
+    });
+  });
+
+  it('omits database when the tab database is null', () => {
+    expect(buildTableRoutingParams('public', null, null)).toEqual({
+      schema: 'public',
+    });
+  });
+
+  it('omits schema when neither tab nor active schema is set', () => {
+    expect(buildTableRoutingParams(null, 'erp_demo', null)).toEqual({
+      database: 'erp_demo',
+    });
+  });
+
+  it('returns an empty object when nothing is set (single-db connection)', () => {
+    expect(buildTableRoutingParams(undefined, undefined, null)).toEqual({});
+  });
+
+  it('treats an empty-string schema as absent', () => {
+    expect(buildTableRoutingParams('', undefined, '')).toEqual({});
   });
 });

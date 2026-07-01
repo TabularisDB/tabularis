@@ -6,6 +6,7 @@ import { useAlert } from "../../hooks/useAlert";
 import { Loader2, Database, X, CheckCircle2, XCircle } from "lucide-react";
 import { formatElapsedTime } from "../../utils/formatTime";
 import { useDatabase } from "../../hooks/useDatabase";
+import { isMultiDatabaseCapable } from "../../utils/database";
 import { Modal } from "../ui/Modal";
 
 interface ImportProgress {
@@ -33,7 +34,7 @@ export const ImportDatabaseModal = ({
   onSuccess,
 }: ImportDatabaseModalProps) => {
   const { t } = useTranslation();
-  const { activeSchema } = useDatabase();
+  const { activeSchema, activeCapabilities } = useDatabase();
   const { showAlert } = useAlert();
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
@@ -50,10 +51,18 @@ export const ImportDatabaseModal = ({
     setElapsedTime(0);
 
     try {
+      // On multi-database connections scope the import to the database node the
+      // user picked (databaseName) so statements run against that database's
+      // pool rather than the connection's primary database.
+      const databaseParam =
+        isMultiDatabaseCapable(activeCapabilities) && databaseName
+          ? { database: databaseName }
+          : {};
       await invoke("import_database", {
         connectionId,
         filePath,
         ...(activeSchema ? { schema: activeSchema } : {}),
+        ...databaseParam,
       });
 
       setSuccess(true);
@@ -78,7 +87,7 @@ export const ImportDatabaseModal = ({
         });
       }
     }
-  }, [connectionId, filePath, activeSchema, onSuccess, onClose, t, showAlert]);
+  }, [connectionId, filePath, activeSchema, activeCapabilities, databaseName, onSuccess, onClose, t, showAlert]);
 
   useEffect(() => {
     if (!isOpen) {

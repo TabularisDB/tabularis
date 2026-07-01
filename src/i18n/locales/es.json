@@ -111,6 +111,7 @@
     "databases": "Bases de Datos",
     "failGetRoutineDefinition": "Error al obtener la definición de la rutina: ",
     "schemas": "Esquemas",
+    "schema": "Esquema",
     "noSchemas": "No se encontraron esquemas",
     "loadingSchemas": "Cargando esquemas...",
     "schemaLoadError": "No se pudieron cargar los esquemas",

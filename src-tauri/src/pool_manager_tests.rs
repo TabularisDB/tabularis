@@ -3,7 +3,7 @@ mod tests {
     use crate::models::{ConnectionParams, DatabaseSelection};
     use crate::pool_manager::{
         build_connection_key, build_mysql_options, format_error_chain,
-        is_pipes_as_concat_unsupported,
+        is_pipes_as_concat_unsupported, postgres_dbname,
     };
     use sqlx::mysql::MySqlSslMode;
 
@@ -286,6 +286,35 @@ mod tests {
         assert!(!is_pipes_as_concat_unsupported(
             "Access denied for user 'root'@'localhost'"
         ));
+    }
+
+    #[test]
+    fn postgres_dbname_uses_selected_single_database() {
+        let mut params = connection_params("postgres", None);
+        params.database = DatabaseSelection::Single("analytics".to_string());
+        assert_eq!(postgres_dbname(&params), "analytics");
+    }
+
+    #[test]
+    fn postgres_dbname_falls_back_to_maintenance_db_when_empty() {
+        let mut params = connection_params("postgres", None);
+        params.database = DatabaseSelection::Single(String::new());
+        assert_eq!(postgres_dbname(&params), "postgres");
+    }
+
+    #[test]
+    fn postgres_dbname_falls_back_when_multiple_selection_is_empty() {
+        let mut params = connection_params("postgres", None);
+        params.database = DatabaseSelection::Multiple(vec![]);
+        assert_eq!(postgres_dbname(&params), "postgres");
+    }
+
+    #[test]
+    fn postgres_dbname_uses_first_of_multiple_selection() {
+        let mut params = connection_params("postgres", None);
+        params.database =
+            DatabaseSelection::Multiple(vec!["app".to_string(), "reporting".to_string()]);
+        assert_eq!(postgres_dbname(&params), "app");
     }
 }
 
@@ -613,5 +642,74 @@ mod startup_script_tests {
         );
 
         close_pool_with_id(&params, Some(&conn_id)).await;
+    }
+
+}
+
+// --- keys_to_close: disconnect must sweep every per-database pool ---
+#[cfg(test)]
+mod keys_to_close_tests {
+    use crate::models::{ConnectionParams, DatabaseSelection};
+    use crate::pool_manager::{build_connection_key, keys_to_close};
+    use std::collections::HashMap;
+
+    fn connection_params(driver: &str) -> ConnectionParams {
+        ConnectionParams {
+            driver: driver.to_string(),
+            host: Some("127.0.0.1".to_string()),
+            port: Some(5432),
+            username: Some("dec".to_string()),
+            password: Some("secret".to_string()),
+            database: DatabaseSelection::Single("dec".to_string()),
+            connection_id: Some("conn-1".to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn keys_to_close_sweeps_all_databases_of_the_connection() {
+        let params = connection_params("postgres");
+        // Simulate one pool per selected database (multi-database PostgreSQL)
+        // plus a pool belonging to a different connection and driver-alike keys
+        // that must NOT be closed.
+        let mut pools: HashMap<String, ()> = HashMap::new();
+        pools.insert(build_connection_key(&params, Some("conn-1")), ());
+        let mut other_db = params.clone();
+        other_db.database = DatabaseSelection::Single("erp_demo".to_string());
+        pools.insert(build_connection_key(&other_db, Some("conn-1")), ());
+        let other_conn_key = build_connection_key(&params, Some("conn-2"));
+        pools.insert(other_conn_key.clone(), ());
+
+        let keys = keys_to_close(&pools, &params, Some("conn-1"));
+
+        assert_eq!(keys.len(), 2, "both conn-1 pools must be swept: {keys:?}");
+        assert!(keys.iter().all(|k| k.contains(":conn:conn-1:")));
+        assert!(
+            !keys.contains(&other_conn_key),
+            "pools of other connections must survive a disconnect"
+        );
+    }
+
+    #[test]
+    fn keys_to_close_without_connection_id_uses_exact_key_only() {
+        let mut params = connection_params("postgres");
+        params.connection_id = None;
+        let mut pools: HashMap<String, ()> = HashMap::new();
+        let exact = build_connection_key(&params, None);
+        pools.insert(exact.clone(), ());
+
+        let keys = keys_to_close(&pools, &params, None);
+        assert_eq!(keys, vec![exact]);
+    }
+
+    #[test]
+    fn keys_to_close_includes_exact_key_even_when_no_pool_matches() {
+        let params = connection_params("postgres");
+        let pools: HashMap<String, ()> = HashMap::new();
+
+        // With no cached pools the exact key is still returned so the caller's
+        // `remove` is a no-op rather than a panic or a missed close.
+        let keys = keys_to_close(&pools, &params, Some("conn-1"));
+        assert_eq!(keys, vec![build_connection_key(&params, Some("conn-1"))]);
     }
 }

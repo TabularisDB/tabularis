@@ -238,6 +238,55 @@ describe("editor", () => {
 
       expect(result).toBeUndefined();
     });
+
+    it("does not reuse a same-schema tab from a different database", () => {
+      // Schema-based multi-database (PostgreSQL): the same schema.table name
+      // exists in multiple databases; each tab routes to its own pool. Reusing
+      // across databases sent the query to the wrong database (relation-not-found).
+      const tabs: Tab[] = [
+        createMockTab({
+          id: "tab-other-db",
+          type: "table",
+          connectionId: "conn-1",
+          activeTable: "stock_levels",
+          schema: "inventory",
+          database: "other_db",
+        }),
+      ];
+
+      const result = findExistingTableTab(
+        tabs,
+        "conn-1",
+        "stock_levels",
+        "inventory",
+        "erp_demo",
+      );
+
+      expect(result).toBeUndefined();
+    });
+
+    it("reuses a tab when table, schema AND database all match", () => {
+      const tabs: Tab[] = [
+        createMockTab({
+          id: "tab-erp",
+          type: "table",
+          connectionId: "conn-1",
+          activeTable: "stock_levels",
+          schema: "inventory",
+          database: "erp_demo",
+        }),
+      ];
+
+      const result = findExistingTableTab(
+        tabs,
+        "conn-1",
+        "stock_levels",
+        "inventory",
+        "erp_demo",
+      );
+
+      expect(result?.id).toBe("tab-erp");
+    });
   });
 
   describe("getConnectionTabs", () => {

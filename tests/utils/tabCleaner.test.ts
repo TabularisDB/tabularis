@@ -169,6 +169,32 @@ describe('tabCleaner', () => {
       expect(cleaned.sortClause).toBe('created_at DESC');
       expect(cleaned.limitClause).toBe(50);
     });
+
+    it('persists the schema and database for multi-database tabs', () => {
+      // Regression: `database` was dropped on save, so a restored PostgreSQL
+      // multi-database table tab lost its pool and queried the primary
+      // database (relation-not-found).
+      const tab: Tab = {
+        id: 'tab-pg',
+        title: 'stock_levels (erp_demo)',
+        type: 'table',
+        query: 'SELECT * FROM "inventory"."stock_levels"',
+        page: 1,
+        activeTable: 'stock_levels',
+        pkColumns: ['id'],
+        connectionId: 'conn-1',
+        schema: 'inventory',
+        database: 'erp_demo',
+        result: null,
+        error: '',
+        executionTime: null,
+      };
+
+      const cleaned = cleanTabForStorage(tab);
+
+      expect(cleaned.schema).toBe('inventory');
+      expect(cleaned.database).toBe('erp_demo');
+    });
   });
 
   describe('restoreTabFromStorage', () => {
@@ -360,6 +386,29 @@ describe('tabCleaner', () => {
       expect(restored.executionTime).toBeNull();
       expect(restored.isLoading).toBe(false);
       expect(restored.selectedRows).toBeUndefined();
+    });
+
+    it('round-trips schema and database for multi-database table tabs', () => {
+      const originalTab: Tab = {
+        id: 'tab-pg-rt',
+        title: 'stock_levels (erp_demo)',
+        type: 'table',
+        query: 'SELECT * FROM "inventory"."stock_levels"',
+        page: 1,
+        activeTable: 'stock_levels',
+        pkColumns: ['id'],
+        connectionId: 'conn-1',
+        schema: 'inventory',
+        database: 'erp_demo',
+        result: null,
+        error: '',
+        executionTime: null,
+      };
+
+      const restored = restoreTabFromStorage(cleanTabForStorage(originalTab));
+
+      expect(restored.schema).toBe('inventory');
+      expect(restored.database).toBe('erp_demo');
     });
   });
 });

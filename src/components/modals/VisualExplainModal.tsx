@@ -23,6 +23,9 @@ interface VisualExplainModalProps {
   query: string;
   connectionId: string;
   schema?: string;
+  /** Schema-based multi-database (PostgreSQL): routes the EXPLAIN to this
+   * database's connection pool instead of the connection's primary database. */
+  database?: string;
   /// Display label to use when the connection isn't loaded in the active
   /// database context (e.g. opened from the AI Activity panel). Falls back
   /// to the live connection name if available, then to `connectionId`.
@@ -35,6 +38,7 @@ export const VisualExplainModal = ({
   query,
   connectionId,
   schema,
+  database,
   connectionLabel,
 }: VisualExplainModalProps) => {
   const { t } = useTranslation();
@@ -83,6 +87,7 @@ export const VisualExplainModal = ({
         query,
         analyze,
         schema: schema || null,
+        ...(database ? { database } : {}),
       });
       setPlan(result);
       setSelectedNodeId(result.root.id);
@@ -91,7 +96,7 @@ export const VisualExplainModal = ({
     } finally {
       setIsLoading(false);
     }
-  }, [query, connectionId, analyze, schema, t]);
+  }, [query, connectionId, analyze, schema, database, t]);
 
   useEffect(() => {
     if (isOpen && query?.trim() && connectionId) {

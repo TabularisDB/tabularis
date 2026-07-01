@@ -124,6 +124,7 @@
     "databases": "Базы данных",
     "failGetRoutineDefinition": "Не удалось получить определение подпрограммы: ",
     "schemas": "Схемы",
+    "schema": "Схема",
     "noSchemas": "Схемы не найдены",
     "loadingSchemas": "Загрузка схем...",
     "schemaLoadError": "Не удалось загрузить схемы",

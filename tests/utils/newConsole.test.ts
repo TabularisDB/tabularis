@@ -21,6 +21,26 @@ describe("newConsole", () => {
         schema: "my db",
       });
     });
+
+    it("routes to the database pool (not schema) for schema-based drivers (Postgres)", () => {
+      // Regression: on a schema-based multi-database connection the node is a
+      // real database. Overloading `schema` with the database name made the
+      // backend run `SET search_path TO "<db>"` on the primary pool, so console
+      // queries failed with relation-not-found. It must route via `database`.
+      expect(newConsoleForDatabase("erp_demo", true)).toEqual({
+        sql: "",
+        title: "erp_demo",
+        database: "erp_demo",
+      });
+    });
+
+    it("keeps the flat schema convention when not schema-based (MySQL)", () => {
+      expect(newConsoleForDatabase("analytics", false)).toEqual({
+        sql: "",
+        title: "analytics",
+        schema: "analytics",
+      });
+    });
   });
 
   describe("newConsoleForTable", () => {

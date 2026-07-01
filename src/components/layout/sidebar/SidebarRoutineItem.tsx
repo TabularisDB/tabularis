@@ -31,6 +31,9 @@ interface SidebarRoutineItemProps {
   onDoubleClick: (routine: RoutineInfo) => void;
   connectionId: string;
   schema?: string;
+  /** Schema-based multi-database (PostgreSQL): routes metadata fetches and
+   * context-menu actions to this database's connection pool. */
+  database?: string;
 }
 
 export const SidebarRoutineItem = ({
@@ -39,6 +42,7 @@ export const SidebarRoutineItem = ({
   onDoubleClick,
   connectionId,
   schema,
+  database,
 }: SidebarRoutineItemProps) => {
   const { t } = useTranslation();
 
@@ -56,6 +60,7 @@ export const SidebarRoutineItem = ({
           connectionId,
           routineName: routine.name,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         },
       );
       setParameters(params);
@@ -64,7 +69,7 @@ export const SidebarRoutineItem = ({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, routine.name, schema]);
+  }, [connectionId, routine.name, schema, database]);
 
   useEffect(() => {
     if (isExpanded) {
@@ -80,7 +85,9 @@ export const SidebarRoutineItem = ({
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onContextMenu(e, "routine", routine.name, routine.name, routine);
+    // Attach the node's schema/database so context-menu actions (View
+    // Definition) can route to the right schema and connection pool.
+    onContextMenu(e, "routine", routine.name, routine.name, { ...routine, schema, database });
   };
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { supportsManageTables } from "../../../utils/driverCapabilities";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,8 +13,11 @@ import {
   Network,
   Search,
   X,
+  Layers,
 } from "lucide-react";
 import { Accordion } from "./Accordion";
+import { Select } from "../../ui/Select";
+import { SidebarSchemaItem } from "./SidebarSchemaItem";
 import { SidebarTableItem } from "./SidebarTableItem";
 import { SidebarViewItem } from "./SidebarViewItem";
 import { SidebarRoutineItem } from "./SidebarRoutineItem";
@@ -24,7 +27,7 @@ import type { TableColumn } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
 import type { DriverCapabilities } from "../../../types/plugins";
 import { groupRoutinesByType } from "../../../utils/routines";
-import { formatObjectCount } from "../../../utils/schema";
+import { formatObjectCount, resolveActiveSchema } from "../../../utils/schema";
 
 interface SidebarDatabaseItemProps {
   databaseName: string;
@@ -50,7 +53,14 @@ interface SidebarDatabaseItemProps {
     data?: ContextMenuData,
   ) => void;
   onAddColumn: (tableName: string) => void;
-  onEditColumn: (tableName: string, col: TableColumn) => void;
+  /** The node's schema/database are forwarded so the edit-column modal can
+   * route its DDL to the right schema and connection pool. */
+  onEditColumn: (
+    tableName: string,
+    col: TableColumn,
+    schema?: string,
+    database?: string,
+  ) => void;
   onAddIndex: (tableName: string) => void;
   onDropIndex: (tableName: string, indexName: string) => void;
   onAddForeignKey: (tableName: string) => void;
@@ -62,6 +72,16 @@ interface SidebarDatabaseItemProps {
   onImport?: (database: string) => void;
   onViewDiagram?: (database: string) => void;
   capabilities?: DriverCapabilities | null;
+  // Schema-based multi-database (PostgreSQL) only. When the database holds
+  // schemas (databaseData.schemas is defined), the node renders one
+  // SidebarSchemaItem per schema and these callbacks carry both the database and
+  // the schema so queries route to the correct pool and qualify correctly.
+  onLoadDatabaseSchema?: (database: string, schema: string) => void;
+  onSchemaTableClick?: (database: string, schema: string, name: string) => void;
+  onSchemaTableDoubleClick?: (database: string, schema: string, name: string) => void;
+  onSchemaViewDoubleClick?: (database: string, schema: string, name: string) => void;
+  onSchemaRoutineDoubleClick?: (database: string, schema: string, routine: RoutineInfo) => void;
+  onSchemaTriggerDoubleClick?: (database: string, schema: string, trigger: TriggerInfo) => void;
 }
 
 export const SidebarDatabaseItem = ({
@@ -94,6 +114,12 @@ export const SidebarDatabaseItem = ({
   onImport,
   onViewDiagram,
   capabilities,
+  onLoadDatabaseSchema,
+  onSchemaTableClick,
+  onSchemaTableDoubleClick,
+  onSchemaViewDoubleClick,
+  onSchemaRoutineDoubleClick,
+  onSchemaTriggerDoubleClick,
 }: SidebarDatabaseItemProps) => {
   const { t } = useTranslation();
 
@@ -120,6 +146,36 @@ export const SidebarDatabaseItem = ({
     : triggers;
   const isLoading = databaseData?.isLoading ?? false;
   const isLoaded = databaseData?.isLoaded ?? false;
+
+  // Schema-based multi-database (PostgreSQL): when the database carries a schema
+  // list, this node renders schemas instead of flat tables/views/routines.
+  const schemaList = databaseData?.schemas;
+  const isSchemaBased = schemaList !== undefined;
+  const schemaDataMap = useMemo(() => databaseData?.schemaDataMap ?? {}, [databaseData?.schemaDataMap]);
+
+  // TablePro-style active-schema picker: one schema is active per database and
+  // its objects render directly under a dropdown (no per-schema sub-nodes). The
+  // selection is local to this node; it defaults to the connection's active
+  // schema when that schema belongs to this database, otherwise the first one.
+  const [pickedSchema, setPickedSchema] = useState<string | null>(null);
+  const effectiveSchema = resolveActiveSchema(pickedSchema, activeSchema, schemaList);
+
+  // Lazily load the active schema's objects (the schema dropdown replaces the
+  // per-schema header whose toggle would otherwise trigger the load).
+  useEffect(() => {
+    if (!isSchemaBased || !isExpanded || !effectiveSchema) return;
+    const data = schemaDataMap[effectiveSchema];
+    if (!data?.isLoaded && !data?.isLoading) {
+      onLoadDatabaseSchema?.(databaseName, effectiveSchema);
+    }
+  }, [
+    isSchemaBased,
+    isExpanded,
+    effectiveSchema,
+    schemaDataMap,
+    databaseName,
+    onLoadDatabaseSchema,
+  ]);
 
   // Auto-expand this database when it becomes the active one, e.g. after
   // picking a table from the Quick Navigator. Mirrors SidebarSchemaItem; done
@@ -152,7 +208,9 @@ export const SidebarDatabaseItem = ({
   };
 
   const itemCount = isLoaded
-    ? formatObjectCount(tables.length, views.length, routines.length, triggers.length)
+    ? isSchemaBased
+      ? `${schemaList?.length ?? 0}`
+      : formatObjectCount(tables.length, views.length, routines.length, triggers.length)
     : "";
 
   return (
@@ -235,6 +293,68 @@ export const SidebarDatabaseItem = ({
               <Loader2 size={12} className="animate-spin" />
               {t("sidebar.loadingSchema")}
             </div>
+          ) : isSchemaBased ? (
+            (schemaList?.length ?? 0) === 0 ? (
+              <div className="text-center p-2 text-xs text-muted italic">
+                {t("sidebar.noSchemas")}
+              </div>
+            ) : (
+              <div>
+                {/* TablePro-style active-schema dropdown: pick one schema; its
+                    objects render directly below (no per-schema sub-nodes). */}
+                <div className="px-2 py-1.5">
+                  <Select
+                    value={effectiveSchema}
+                    options={schemaList ?? []}
+                    onChange={(s) => {
+                      setPickedSchema(s);
+                      const data = schemaDataMap[s];
+                      if (!data?.isLoaded && !data?.isLoading) {
+                        onLoadDatabaseSchema?.(databaseName, s);
+                      }
+                    }}
+                    searchable={(schemaList?.length ?? 0) > 8}
+                    searchPlaceholder={t("sidebar.searchSchemas", { defaultValue: "Search schemas..." })}
+                    leadingIcon={<Layers size={13} className="text-accent shrink-0" />}
+                    triggerClassName="px-2 py-1 text-xs font-medium"
+                    className="w-full"
+                  />
+                </div>
+                {effectiveSchema && (
+                  <SidebarSchemaItem
+                    key={effectiveSchema}
+                    hideHeader
+                    schemaName={effectiveSchema}
+                    schemaData={schemaDataMap[effectiveSchema]}
+                    activeTable={activeTable}
+                    activeSchema={effectiveSchema}
+                    connectionId={connectionId}
+                    driver={driver}
+                    schemaVersion={schemaVersion}
+                    database={databaseName}
+                    onLoadSchema={(s) => onLoadDatabaseSchema?.(databaseName, s)}
+                    onRefreshSchema={() => onRefreshDatabase(databaseName)}
+                    onTableClick={(name, s) => onSchemaTableClick?.(databaseName, s, name)}
+                    onTableDoubleClick={(name, s) => onSchemaTableDoubleClick?.(databaseName, s, name)}
+                    onViewClick={onViewClick}
+                    onViewDoubleClick={(name, s) => onSchemaViewDoubleClick?.(databaseName, s, name)}
+                    onRoutineDoubleClick={(routine, s) => onSchemaRoutineDoubleClick?.(databaseName, s, routine)}
+                    onTriggerDoubleClick={(trigger, s) => onSchemaTriggerDoubleClick?.(databaseName, s, trigger)}
+                    onContextMenu={onContextMenu}
+                    onAddColumn={onAddColumn}
+                    onEditColumn={onEditColumn}
+                    onAddIndex={onAddIndex}
+                    onDropIndex={onDropIndex}
+                    onAddForeignKey={onAddForeignKey}
+                    onDropForeignKey={onDropForeignKey}
+                    onCreateTable={onCreateTable}
+                    onCreateView={onCreateView}
+                    onCreateTrigger={onCreateTrigger}
+                    showTriggers={capabilities?.triggers === true}
+                  />
+                )}
+              </div>
+            )
           ) : (
             <>
               {/* Tables */}

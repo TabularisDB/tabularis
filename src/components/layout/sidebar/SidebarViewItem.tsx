@@ -28,6 +28,9 @@ interface SidebarViewItemProps {
   connectionId: string;
   driver: string;
   schema?: string;
+  /** Schema-based multi-database (PostgreSQL): routes metadata fetches and
+   * context-menu actions to this database's connection pool. */
+  database?: string;
 }
 
 export const SidebarViewItem = ({
@@ -39,6 +42,7 @@ export const SidebarViewItem = ({
   connectionId,
   driver,
   schema,
+  database,
 }: SidebarViewItemProps) => {
   const { t } = useTranslation();
 
@@ -54,6 +58,7 @@ export const SidebarViewItem = ({
         connectionId,
         viewName: view.name,
         ...(schema ? { schema } : {}),
+        ...(database ? { database } : {}),
       });
       setColumns(cols);
     } catch (err) {
@@ -61,7 +66,7 @@ export const SidebarViewItem = ({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, view.name, schema]);
+  }, [connectionId, view.name, schema, database]);
 
   useEffect(() => {
     if (isExpanded) {
@@ -77,7 +82,7 @@ export const SidebarViewItem = ({
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onContextMenu(e, "view", view.name, view.name, { tableName: view.name, schema });
+    onContextMenu(e, "view", view.name, view.name, { tableName: view.name, schema, database });
   };
 
   return (

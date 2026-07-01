@@ -4,9 +4,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../../hooks/useAlert";
 import { useDatabase } from "../../hooks/useDatabase";
-import { isMultiDatabaseCapable } from "../../utils/database";
+import type { TableInfo } from "../../contexts/DatabaseContext";
+import { isMultiDatabaseCapable, isSchemaBasedMultiDb } from "../../utils/database";
+import { resolveActiveSchema } from "../../utils/schema";
 import { Modal } from "../ui/Modal";
-import { Loader2, Download, Database, Square, CheckSquare } from "lucide-react";
+import { Select } from "../ui/Select";
+import { Loader2, Download, Database, Layers, Square, CheckSquare } from "lucide-react";
 import {
   validateDumpOptions,
   toggleTableSelection,
@@ -43,8 +46,48 @@ export const DumpDatabaseModal = ({
   const [startTime, setStartTime] = useState<number | null>(null);
 
   const isMultiDb = isMultiDatabaseCapable(activeCapabilities);
+  // Schema-based multi-database (PostgreSQL): databases contain schemas, so
+  // `databaseDataMap[db].tables` is always empty — table lists live per schema
+  // and load lazily. The backend dump is scoped to a single schema too
+  // (`schema.unwrap_or("public")`), so a schema picker lets the user choose
+  // which schema of the target database to dump; the table list mirrors it.
+  const isSchemaBased = isSchemaBasedMultiDb(activeCapabilities);
+  const [availableSchemas, setAvailableSchemas] = useState<string[]>([]);
+  const [pickedSchema, setPickedSchema] = useState<string | null>(null);
+  const dumpSchema = isSchemaBased
+    ? (pickedSchema ?? activeSchema ?? "public")
+    : (activeSchema ?? "public");
 
-  // On a multi-database connection (e.g. MySQL) the dump targets a specific
+  // Load the target database's schema list whenever the dialog opens so the
+  // picker reflects that database (not the connection's primary one).
+  useEffect(() => {
+    if (!isOpen || !isSchemaBased) {
+      setAvailableSchemas([]);
+      setPickedSchema(null);
+      return;
+    }
+    let cancelled = false;
+    invoke<string[]>("get_schemas", {
+      connectionId,
+      ...(databaseName ? { database: databaseName } : {}),
+    })
+      .then((schemas) => {
+        if (cancelled) return;
+        setAvailableSchemas(schemas);
+        // Keep a still-valid pick, otherwise the connection's active schema,
+        // otherwise a sensible default ("public" or the first schema).
+        setPickedSchema((prev) => resolveActiveSchema(prev, activeSchema, schemas));
+      })
+      .catch((e) => console.error("Failed to load schemas for dump:", e));
+    return () => {
+      cancelled = true;
+    };
+    // activeSchema only seeds the default pick; reacting to it would reset the
+    // user's choice while the dialog is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isSchemaBased, connectionId, databaseName]);
+
+  // On a flat multi-database connection (e.g. MySQL) the dump targets a specific
   // database whose cached table list may be missing or belong to a different
   // database. Reload it whenever the dialog opens so the dump reflects the
   // target database's current schema. A ref keeps refreshDatabaseData out of the
@@ -53,19 +96,60 @@ export const DumpDatabaseModal = ({
   const refreshRef = useRef(refreshDatabaseData);
   refreshRef.current = refreshDatabaseData;
   useEffect(() => {
-    if (isOpen && isMultiDb && databaseName) {
+    if (isOpen && isMultiDb && !isSchemaBased && databaseName) {
       refreshRef.current(databaseName);
     }
-  }, [isOpen, isMultiDb, databaseName]);
+  }, [isOpen, isMultiDb, isSchemaBased, databaseName]);
+
+  // Schema-based drivers: fetch the table list of the schema the dump will
+  // actually export, routed to the target database's pool — the sidebar cache
+  // can't be used because per-schema data loads lazily and may be absent.
+  const [schemaTables, setSchemaTables] = useState<string[] | null>(null);
+  const [schemaTablesLoading, setSchemaTablesLoading] = useState(false);
+  useEffect(() => {
+    if (!isOpen || !isSchemaBased) {
+      setSchemaTables(null);
+      return;
+    }
+    let cancelled = false;
+    setSchemaTablesLoading(true);
+    invoke<TableInfo[]>("get_tables", {
+      connectionId,
+      schema: dumpSchema,
+      ...(databaseName ? { database: databaseName } : {}),
+    })
+      .then((res) => {
+        if (!cancelled) setSchemaTables(res.map((tbl) => tbl.name));
+      })
+      .catch((e) => {
+        console.error("Failed to load tables for dump:", e);
+        if (!cancelled) setSchemaTables([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSchemaTablesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, isSchemaBased, connectionId, dumpSchema, databaseName]);
 
   // For multi-database connections read the table list straight from the target
   // database's freshly-loaded data (never the active-database fallback); other
   // drivers keep using the list resolved by the parent.
-  const targetDbData = isMultiDb ? databaseDataMap[databaseName] : undefined;
-  const tablesLoading = isMultiDb ? (targetDbData?.isLoading ?? false) : false;
+  const targetDbData = isMultiDb && !isSchemaBased ? databaseDataMap[databaseName] : undefined;
+  const tablesLoading = isSchemaBased
+    ? schemaTablesLoading
+    : isMultiDb
+      ? (targetDbData?.isLoading ?? false)
+      : false;
   const effectiveTables = useMemo(
-    () => (isMultiDb ? (targetDbData?.tables ?? []).map((tbl) => tbl.name) : tables),
-    [isMultiDb, targetDbData, tables],
+    () =>
+      isSchemaBased
+        ? (schemaTables ?? [])
+        : isMultiDb
+          ? (targetDbData?.tables ?? []).map((tbl) => tbl.name)
+          : tables,
+    [isSchemaBased, schemaTables, isMultiDb, targetDbData, tables],
   );
 
   // Detect content changes without reacting to array-reference churn; the actual
@@ -136,6 +220,10 @@ export const DumpDatabaseModal = ({
       const databaseParam =
         isMultiDb && databaseName ? { database: databaseName } : {};
 
+      // Schema-based drivers (PostgreSQL) dump the schema picked in the dialog;
+      // other drivers keep the connection's active schema.
+      const schemaForDump = isSchemaBased ? dumpSchema : activeSchema;
+
       // Rust command expects `options` struct
       await invoke("dump_database", {
         connectionId,
@@ -145,7 +233,7 @@ export const DumpDatabaseModal = ({
           data: includeData,
           tables: Array.from(selectedTables),
         },
-        ...(activeSchema ? { schema: activeSchema } : {}),
+        ...(schemaForDump ? { schema: schemaForDump } : {}),
         ...databaseParam,
       });
 
@@ -180,6 +268,26 @@ export const DumpDatabaseModal = ({
           </div>
 
           <div className="p-4 flex-1 overflow-y-auto flex flex-col gap-4">
+            {/* Schema picker (schema-based drivers, i.e. PostgreSQL): the dump
+                covers one schema of the target database — let the user pick it. */}
+            {isSchemaBased && availableSchemas.length > 0 && (
+              <div className="flex items-center gap-3 p-3 bg-surface-secondary rounded border border-default">
+                <span className="flex items-center gap-2 text-sm text-secondary shrink-0">
+                  <Layers size={14} className="text-accent shrink-0" />
+                  {t("sidebar.schema")}
+                </span>
+                <Select
+                  value={dumpSchema}
+                  options={availableSchemas}
+                  onChange={(s) => setPickedSchema(s)}
+                  placeholder={t("sidebar.schema")}
+                  className="flex-1"
+                  triggerClassName="px-3 py-1.5 text-sm"
+                  disabled={isExporting}
+                />
+              </div>
+            )}
+
             {/* Options */}
             <div className="flex gap-6 p-3 bg-surface-secondary rounded border border-default">
                 <label className="flex items-center gap-2 cursor-pointer select-none">

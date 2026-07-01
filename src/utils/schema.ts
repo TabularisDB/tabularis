@@ -41,3 +41,25 @@ export function getDefaultSchema(
   if (schemas.includes("public")) return "public";
   return schemas[0];
 }
+
+/**
+ * Resolves which schema the TablePro-style active-schema dropdown should show,
+ * given the locally picked schema, the connection's active schema, and the
+ * schemas available in the database. Precedence:
+ *   1. the locally picked schema, if still available;
+ *   2. the connection's active schema, if it belongs to this database;
+ *   3. otherwise a sensible default ("public" or the first schema).
+ * Returns null when no schema is available.
+ */
+export function resolveActiveSchema(
+  picked: string | null | undefined,
+  connectionActive: string | null | undefined,
+  available: string[] | undefined,
+): string | null {
+  if (!available || available.length === 0) return null;
+  if (picked && available.includes(picked)) return picked;
+  if (connectionActive && available.includes(connectionActive)) {
+    return connectionActive;
+  }
+  return getDefaultSchema(available) ?? null;
+}

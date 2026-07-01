@@ -111,6 +111,7 @@
     "databases": "Datenbanken",
     "failGetRoutineDefinition": "Abrufen der Routinen-Definition fehlgeschlagen: ",
     "schemas": "Schemata",
+    "schema": "Schema",
     "noSchemas": "Keine Schemata gefunden",
     "loadingSchemas": "Schemata werden geladen...",
     "schemaLoadError": "Schemata konnten nicht geladen werden",

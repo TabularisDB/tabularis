@@ -3,6 +3,7 @@ import {
   formatObjectCount,
   filterValidSchemas,
   getDefaultSchema,
+  resolveActiveSchema,
 } from '../../src/utils/schema';
 
 describe('formatObjectCount', () => {
@@ -68,5 +69,39 @@ describe('getDefaultSchema', () => {
 
   it('should return first schema for single non-public schema', () => {
     expect(getDefaultSchema(['custom'])).toBe('custom');
+  });
+});
+
+describe('resolveActiveSchema', () => {
+  const available = ['public', 'hr', 'inventory', 'sales'];
+
+  it('prefers the locally picked schema when it is available', () => {
+    expect(resolveActiveSchema('inventory', 'sales', available)).toBe('inventory');
+  });
+
+  it('falls back to the connection active schema when nothing is picked', () => {
+    expect(resolveActiveSchema(null, 'sales', available)).toBe('sales');
+  });
+
+  it('ignores a picked schema that is not in the database', () => {
+    expect(resolveActiveSchema('gone', 'hr', available)).toBe('hr');
+  });
+
+  it('ignores a connection active schema from another database', () => {
+    // activeSchema "other" belongs to a different database -> default to public.
+    expect(resolveActiveSchema(null, 'other', available)).toBe('public');
+  });
+
+  it('defaults to "public" when neither picked nor active applies', () => {
+    expect(resolveActiveSchema(null, null, available)).toBe('public');
+  });
+
+  it('defaults to the first schema when public is absent', () => {
+    expect(resolveActiveSchema(null, null, ['hr', 'sales'])).toBe('hr');
+  });
+
+  it('returns null when no schemas are available', () => {
+    expect(resolveActiveSchema('x', 'y', [])).toBeNull();
+    expect(resolveActiveSchema(null, null, undefined)).toBeNull();
   });
 });

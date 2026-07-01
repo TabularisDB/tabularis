@@ -171,6 +171,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         activeConnectionId,
         partial?.activeTable || undefined,
         partial?.schema,
+        partial?.database,
       );
       if (existing) {
         setActiveTabId(existing.id);
@@ -364,8 +365,11 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       connectionId: string,
       schemaVersion?: number,
       schema?: string,
+      database?: string,
     ): Promise<TableSchema[]> => {
-      const cacheKey = schema ? `${connectionId}:${schema}` : connectionId;
+      const cacheKey = schema
+        ? `${connectionId}:${schema}:${database ?? ""}`
+        : connectionId;
       const cached = schemaCacheRef.current[cacheKey];
 
       if (shouldUseCachedSchema(cached, schemaVersion)) {
@@ -375,6 +379,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       const data = await invoke<TableSchema[]>("get_schema_snapshot", {
         connectionId,
         ...(schema ? { schema } : {}),
+        ...(database ? { database } : {}),
       });
 
       // Update cache in ref (no state update = no re-render)

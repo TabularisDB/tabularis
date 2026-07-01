@@ -110,6 +110,7 @@
     "databases": "数据库",
     "failGetRoutineDefinition": "获取存储过程定义失败：",
     "schemas": "模式",
+    "schema": "模式",
     "noSchemas": "未找到模式",
     "loadingSchemas": "加载模式中...",
     "schemaLoadError": "加载模式失败",

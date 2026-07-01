@@ -116,6 +116,13 @@ interface DataGridProps {
   sortClause?: string;
   onSort?: (colName: string) => void;
   readonly?: boolean;
+  /** The tab's own schema; falls back to the connection's active schema when
+   * absent — each tab can view a different schema than the global one. */
+  schema?: string | null;
+  /** Schema-based multi-database (PostgreSQL): routes row-scoped backend calls
+   * (blob fetch/download, legacy immediate updates) to this database's
+   * connection pool. Absent for single-database / flat multi-db connections. */
+  database?: string | null;
 }
 
 export const DataGrid = React.memo(
@@ -152,9 +159,14 @@ export const DataGrid = React.memo(
     sortClause,
     onSort,
     readonly: readonlyProp,
+    schema: schemaProp,
+    database,
   }: DataGridProps) => {
     const { t } = useTranslation();
-    const { activeSchema, connections } = useDatabase();
+    const { activeSchema: contextActiveSchema, connections } = useDatabase();
+    // Prefer the tab's own schema over the connection-wide active schema so
+    // row-scoped calls (blob fetch, legacy updates) hit the table's schema.
+    const activeSchema = schemaProp ?? contextActiveSchema;
     const { showAlert } = useAlert();
     const { settings } = useSettings();
     const colorByType = settings.resultColorByType ?? false;
@@ -702,6 +714,7 @@ export const DataGrid = React.memo(
             colName,
             newVal: value,
             ...(activeSchema ? { schema: activeSchema } : {}),
+            ...(database ? { database } : {}),
           });
           if (onRefresh) onRefresh();
         } catch (e) {
@@ -725,6 +738,7 @@ export const DataGrid = React.memo(
       pkColumns,
       connectionId,
       activeSchema,
+      database,
       onRefresh,
       showAlert,
       t,
@@ -1692,6 +1706,7 @@ export const DataGrid = React.memo(
                   tableName={tableName}
                   pkColumns={pkColumns}
                   schema={activeSchema}
+                  database={database}
                   onChange={(colName, value) => {
                     // Get the merged row to determine if it's an insertion or existing row
                     const mergedRow = mergedRows[sidebarRowData.rowIndex];

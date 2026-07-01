@@ -140,6 +140,7 @@ pub async fn get_foreign_keys(
                 column_name: r.try_get("from").unwrap_or_default(),
                 ref_table: r.try_get("table").unwrap_or_default(),
                 ref_column: r.try_get("to").unwrap_or_default(),
+                ref_schema: None,
                 on_update: r.try_get("on_update").ok(),
                 on_delete: r.try_get("on_delete").ok(),
             }
@@ -216,6 +217,7 @@ pub async fn get_all_foreign_keys_batch(
                     column_name: r.try_get("from").unwrap_or_default(),
                     ref_table: r.try_get("table").unwrap_or_default(),
                     ref_column: r.try_get("to").unwrap_or_default(),
+                    ref_schema: None,
                     on_update: r.try_get("on_update").ok(),
                     on_delete: r.try_get("on_delete").ok(),
                 }

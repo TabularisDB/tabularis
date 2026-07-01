@@ -111,6 +111,7 @@
     "databases": "Database",
     "failGetRoutineDefinition": "Impossibile recuperare la definizione della routine: ",
     "schemas": "Schemi",
+    "schema": "Schema",
     "noSchemas": "Nessuno schema trovato",
     "loadingSchemas": "Caricamento schemi...",
     "schemaLoadError": "Caricamento degli schemi fallito",

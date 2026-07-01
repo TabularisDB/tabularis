@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Search, ChevronDown, X } from "lucide-react";
 import clsx from "clsx";
@@ -15,6 +15,11 @@ interface SelectProps {
   hasError?: boolean;
   searchable?: boolean;
   labels?: Record<string, string>;
+  /** Overrides the trigger's size/spacing classes (default: `px-3 py-2 text-sm`).
+   * Used to render a compact trigger, e.g. in the sidebar. */
+  triggerClassName?: string;
+  /** Optional icon rendered before the selected value inside the trigger. */
+  leadingIcon?: ReactNode;
 }
 
 export const Select = ({
@@ -29,6 +34,8 @@ export const Select = ({
   hasError = false,
   searchable = true,
   labels,
+  triggerClassName,
+  leadingIcon,
 }: SelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -165,7 +172,8 @@ export const Select = ({
         onClick={handleToggle}
         disabled={disabled}
         className={clsx(
-          "w-full bg-base border rounded px-3 py-2 text-sm text-primary flex items-center justify-between transition-colors",
+          "w-full bg-base border rounded text-primary flex items-center justify-between transition-colors",
+          triggerClassName ?? "px-3 py-2 text-sm",
           disabled
             ? "opacity-50 cursor-not-allowed border-default"
             : hasError
@@ -174,11 +182,12 @@ export const Select = ({
           isOpen && !disabled && !hasError ? "border-blue-500 ring-1 ring-blue-500" : ""
         )}
       >
-        <span className={clsx("truncate", !value && "text-muted", hasError && "text-red-400")}>
-          {value ? getLabel(value) : placeholder}
+        <span className={clsx("flex items-center gap-1.5 min-w-0", !value && "text-muted", hasError && "text-red-400")}>
+          {leadingIcon}
+          <span className="truncate">{value ? getLabel(value) : placeholder}</span>
         </span>
         <ChevronDown
-          size={16}
+          size={14}
           className={clsx("shrink-0 ml-2", hasError ? "text-red-400" : "text-secondary")}
         />
       </button>

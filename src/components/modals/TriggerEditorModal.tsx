@@ -15,6 +15,9 @@ interface TriggerEditorModalProps {
   triggerName?: string;
   tableName?: string;
   schema?: string;
+  /** Schema-based multi-database (PostgreSQL): routes every trigger operation
+   * (load definition, drop, create) to this database's connection pool. */
+  database?: string;
   driver?: string;
   isNewTrigger?: boolean;
   onSuccess?: () => void;
@@ -48,6 +51,7 @@ export const TriggerEditorModal = ({
   triggerName,
   tableName: initialTableName,
   schema: schemaProp,
+  database,
   driver,
   isNewTrigger = false,
   onSuccess,
@@ -77,6 +81,7 @@ export const TriggerEditorModal = ({
         triggerName: tName,
         tableName: tTable,
         ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+        ...(database ? { database } : {}),
       });
       setRawSql(def);
 
@@ -96,7 +101,7 @@ export const TriggerEditorModal = ({
     } finally {
       setLoading(false);
     }
-  }, [connectionId, t, resolvedSchema]);
+  }, [connectionId, t, resolvedSchema, database]);
 
   useEffect(() => {
     if (isOpen) {
@@ -159,6 +164,7 @@ export const TriggerEditorModal = ({
           triggerName: name,
           tableName,
           ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+          ...(database ? { database } : {}),
         });
       } catch (e) {
         setError(t("triggers.dropError") + String(e));
@@ -173,6 +179,7 @@ export const TriggerEditorModal = ({
         connectionId,
         triggerSql: sql,
         ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+        ...(database ? { database } : {}),
       });
       showAlert(
         isNewTrigger ? t("triggers.createSuccess") : t("triggers.updateSuccess"),

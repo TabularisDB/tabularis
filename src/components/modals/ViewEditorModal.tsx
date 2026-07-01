@@ -17,6 +17,11 @@ interface ViewEditorModalProps {
   connectionId: string;
   viewName?: string;
   isNewView?: boolean;
+  /** The view's own schema; falls back to the connection's active schema. */
+  schema?: string;
+  /** Schema-based multi-database (PostgreSQL): routes every view operation
+   * (load, preview, create, alter) to this database's connection pool. */
+  database?: string;
   onSuccess?: () => void;
 }
 
@@ -26,10 +31,13 @@ export const ViewEditorModal = ({
   connectionId,
   viewName,
   isNewView = false,
+  schema: schemaProp,
+  database,
   onSuccess,
 }: ViewEditorModalProps) => {
   const { t } = useTranslation();
-  const { activeSchema, activeCapabilities } = useDatabase();
+  const { activeSchema: contextActiveSchema, activeCapabilities } = useDatabase();
+  const activeSchema = schemaProp ?? contextActiveSchema;
   const { showAlert } = useAlert();
   const [name, setName] = useState("");
   const [definition, setDefinition] = useState("");
@@ -52,6 +60,7 @@ export const ViewEditorModal = ({
         connectionId,
         viewName: vName,
         ...(activeSchema ? { schema: activeSchema } : {}),
+        ...(database ? { database } : {}),
       });
       const selectPart = extractEditableViewDefinition(def);
       setDefinition(selectPart);
@@ -61,7 +70,7 @@ export const ViewEditorModal = ({
     } finally {
       setLoading(false);
     }
-  }, [connectionId, t, activeSchema]);
+  }, [connectionId, t, activeSchema, database]);
 
   useEffect(() => {
     if (isOpen) {
@@ -103,6 +112,7 @@ export const ViewEditorModal = ({
         limit: 10,
         page: 1,
         ...(activeSchema ? { schema: activeSchema } : {}),
+        ...(database ? { database } : {}),
       });
       setPreviewResult({
         columns: result.columns,
@@ -137,6 +147,7 @@ export const ViewEditorModal = ({
           viewName: name,
           definition,
           ...(activeSchema ? { schema: activeSchema } : {}),
+          ...(database ? { database } : {}),
         });
         showAlert(t("views.createSuccess"), { kind: "info" });
       } else {
@@ -157,6 +168,7 @@ export const ViewEditorModal = ({
           viewName: name,
           definition,
           ...(activeSchema ? { schema: activeSchema } : {}),
+          ...(database ? { database } : {}),
         });
         showAlert(t("views.alterSuccess"), { kind: "info" });
       }

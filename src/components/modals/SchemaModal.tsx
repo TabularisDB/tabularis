@@ -17,9 +17,12 @@ interface SchemaModalProps {
   onClose: () => void;
   tableName: string;
   schema?: string | null;
+  /** Schema-based multi-database (PostgreSQL): routes the metadata fetch to
+   * this database's connection pool. Absent for single-database connections. */
+  database?: string | null;
 }
 
-export const SchemaModal = ({ isOpen, onClose, tableName, schema }: SchemaModalProps) => {
+export const SchemaModal = ({ isOpen, onClose, tableName, schema, database }: SchemaModalProps) => {
   const { t } = useTranslation();
   const { activeConnectionId, activeSchema } = useDatabase();
   const [columns, setColumns] = useState<TableColumn[]>([]);
@@ -38,6 +41,7 @@ export const SchemaModal = ({ isOpen, onClose, tableName, schema }: SchemaModalP
           connectionId: activeConnectionId,
           tableName,
           ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+          ...(database ? { database } : {}),
         });
         setColumns(cols);
       } catch (err) {
@@ -49,7 +53,7 @@ export const SchemaModal = ({ isOpen, onClose, tableName, schema }: SchemaModalP
     };
 
     void loadSchema();
-  }, [isOpen, activeConnectionId, tableName, resolvedSchema]);
+  }, [isOpen, activeConnectionId, tableName, resolvedSchema, database]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} overlayClassName="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100]">

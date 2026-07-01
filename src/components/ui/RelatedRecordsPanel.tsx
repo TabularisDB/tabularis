@@ -19,6 +19,7 @@ interface RelatedRecordsPanelProps {
   connectionId: string;
   driver?: string | null;
   schema?: string | null;
+  database?: string | null;
   onClose: () => void;
   onNavigateToTab: (fk: ForeignKey, value: unknown) => void;
 }
@@ -28,6 +29,7 @@ export function RelatedRecordsPanel({
   connectionId,
   driver,
   schema,
+  database,
   onClose,
   onNavigateToTab,
 }: RelatedRecordsPanelProps) {
@@ -39,6 +41,7 @@ export function RelatedRecordsPanel({
     value,
     driver,
     schema,
+    database,
     sourceColumnType,
   });
 

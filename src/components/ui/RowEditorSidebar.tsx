@@ -24,6 +24,9 @@ interface RowEditorSidebarProps {
   tableName?: string | null;
   pkColumns?: string[] | null;
   schema?: string | null;
+  /** Schema-based multi-database (PostgreSQL): routes row-scoped backend calls
+   * (blob fetch/download) to this database's connection pool. */
+  database?: string | null;
 }
 
 export const RowEditorSidebar = ({
@@ -44,6 +47,7 @@ export const RowEditorSidebar = ({
   tableName,
   pkColumns,
   schema,
+  database,
 }: RowEditorSidebarProps) => {
   const { t } = useTranslation();
   const { width, startResize } = useRowEditorResize();
@@ -179,6 +183,7 @@ export const RowEditorSidebar = ({
                   tableName={tableName}
                   pkMap={pkMap}
                   schema={schema}
+                  database={database}
                 />
                 <SlotAnchor
                   name="row-editor-sidebar.field.after"

@@ -20,6 +20,13 @@ export interface CleanedTab {
   queryParams?: Record<string, string>;
   notebookId?: string;
   schema?: string;
+  /**
+   * Database the tab's query is routed to (schema-based multi-database
+   * connections, e.g. PostgreSQL). Must be persisted: without it a restored
+   * table tab loses its database pool and the query runs against the
+   * connection's primary database (relation-not-found errors).
+   */
+  database?: string;
   readOnly?: boolean;
 }
 
@@ -49,6 +56,7 @@ export function cleanTabForStorage(tab: Tab): CleanedTab {
     queryParams: tab.queryParams,
     notebookId: tab.notebookId,
     schema: tab.schema,
+    database: tab.database,
     readOnly: tab.readOnly,
   };
 }

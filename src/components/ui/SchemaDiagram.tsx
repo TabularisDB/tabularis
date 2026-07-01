@@ -80,12 +80,16 @@ interface SchemaDiagramContentProps {
   connectionId: string;
   refreshTrigger: number;
   schema?: string;
+  /** Schema-based multi-database (PostgreSQL): routes the metadata fetch to
+   * this database's connection pool. Absent for single-database connections. */
+  database?: string;
 }
 
 const SchemaDiagramContent = ({
   connectionId,
   refreshTrigger,
   schema,
+  database,
 }: SchemaDiagramContentProps) => {
   const { t } = useTranslation();
   const { getSchema } = useEditor();
@@ -148,7 +152,7 @@ const SchemaDiagramContent = ({
     setSelectedTable(null);
   }, []);
 
-  // Effetto per impostare il focus iniziale dalla URL
+  // Effect to set the initial focus from the URL
   useEffect(() => {
     const focusTable = searchParams.get("focusTable");
     if (focusTable && allNodes.length > 0) {
@@ -184,7 +188,7 @@ const SchemaDiagramContent = ({
       setLoading(true);
 
       try {
-        const fetchedSchema = await getSchema(connectionId, undefined, schema);
+        const fetchedSchema = await getSchema(connectionId, undefined, schema, database);
         if (!isMounted) return;
 
         // Build nodes and edges with optimizations
@@ -269,9 +273,10 @@ const SchemaDiagramContent = ({
     setEdges,
     layoutDirection,
     schema,
+    database,
   ]);
 
-  // Effetto per filtrare i nodi quando una tabella è selezionata
+  // Effect to filter the nodes when a table is selected
   useEffect(() => {
     if (!selectedTable || allNodes.length === 0) {
       // Mostra tutti i nodi
@@ -294,12 +299,12 @@ const SchemaDiagramContent = ({
       }
     });
 
-    // Filtra i nodi per mostrare solo la tabella selezionata e le sue relazioni
+    // Filter the nodes to show only the selected table and its relationships
     const filteredNodes = allNodes.filter((node) =>
       relatedTables.has(node.id),
     );
 
-    // Filtra gli edge per mostrare solo quelli tra le tabelle filtrate
+    // Filter the edges to show only those between the filtered tables
     const filteredEdges = allEdges.filter(
       (edge) =>
         relatedTables.has(edge.source) && relatedTables.has(edge.target),
@@ -446,18 +451,21 @@ interface SchemaDiagramProps {
   connectionId: string;
   refreshTrigger: number;
   schema?: string;
+  database?: string;
 }
 
 export const SchemaDiagram = ({
   connectionId,
   refreshTrigger,
   schema,
+  database,
 }: SchemaDiagramProps) => (
   <ReactFlowProvider>
     <SchemaDiagramContent
       connectionId={connectionId}
       refreshTrigger={refreshTrigger}
       schema={schema}
+      database={database}
     />
   </ReactFlowProvider>
 );

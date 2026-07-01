@@ -211,6 +211,7 @@ pub async fn get_foreign_keys(
             column_name: r.try_get("column_name").unwrap_or_default(),
             ref_table: r.try_get("foreign_table_name").unwrap_or_default(),
             ref_column: r.try_get("foreign_column_name").unwrap_or_default(),
+            ref_schema: r.try_get("foreign_schema_name").ok(),
             on_update: r.try_get("update_rule").ok(),
             on_delete: r.try_get("delete_rule").ok(),
         })
@@ -357,6 +358,7 @@ pub async fn get_all_foreign_keys_batch(
             column_name: row.try_get("column_name").unwrap_or_default(),
             ref_table: row.try_get("foreign_table_name").unwrap_or_default(),
             ref_column: row.try_get("foreign_column_name").unwrap_or_default(),
+            ref_schema: row.try_get("foreign_schema_name").ok(),
             on_update: row.try_get("update_rule").ok(),
             on_delete: row.try_get("delete_rule").ok(),
         };
@@ -1483,13 +1485,17 @@ impl DatabaseDriver for PostgresDriver {
         use urlencoding::encode;
         let user = encode(params.username.as_deref().unwrap_or_default());
         let pass = encode(params.password.as_deref().unwrap_or_default());
+        // Fall back to the `postgres` maintenance DB when no database is selected
+        // (PostgreSQL cannot connect server-wide); mirrors postgres_dbname().
+        let dbname_owned = crate::pool_manager::postgres_dbname(params);
+        let dbname = encode(&dbname_owned);
         Ok(format!(
             "postgres://{}:{}@{}:{}/{}",
             user,
             pass,
             params.host.as_deref().unwrap_or("localhost"),
             params.port.unwrap_or(5432),
-            params.database
+            dbname
         ))
     }
 

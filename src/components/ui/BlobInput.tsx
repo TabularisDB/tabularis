@@ -33,6 +33,9 @@ export interface BlobInputProps {
   pkMap?: Record<string, unknown> | null;
   colName?: string | null;
   schema?: string | null;
+  /** Schema-based multi-database (PostgreSQL): routes the blob fetch/download
+   * to this database's connection pool. */
+  database?: string | null;
 }
 
 /**
@@ -52,6 +55,7 @@ export const BlobInput = ({
   pkMap,
   colName,
   schema,
+  database,
 }: BlobInputProps) => {
   const { t } = useTranslation();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -122,6 +126,7 @@ export const BlobInput = ({
       colName,
       pkMap,
       ...(schema ? { schema } : {}),
+      ...(database ? { database } : {}),
     })
       .then((dataUrl) => {
         if (!cancelled) setDbPreviewUrl(dataUrl);
@@ -132,7 +137,7 @@ export const BlobInput = ({
     return () => {
       cancelled = true;
     };
-  }, [isImage, canFetchFull, connectionId, tableName, colName, pkMap, schema]);
+  }, [isImage, canFetchFull, connectionId, tableName, colName, pkMap, schema, database]);
 
   const effectiveImageDataUrl =
     imageDataUrl ?? fileRefPreviewUrl ?? dbPreviewUrl;
@@ -191,6 +196,7 @@ export const BlobInput = ({
           pkMap,
           filePath,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         });
       } catch (error) {
         console.error("Failed to save BLOB:", error);

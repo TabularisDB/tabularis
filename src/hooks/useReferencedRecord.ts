@@ -13,6 +13,7 @@ export interface FetchReferencedRecordParams {
   value: unknown;
   driver?: string | null;
   schema?: string | null;
+  database?: string | null;
   sourceColumnType?: string;
 }
 
@@ -25,12 +26,18 @@ export async function fetchReferencedRecord({
   value,
   driver,
   schema,
+  database,
   sourceColumnType,
 }: FetchReferencedRecordParams): Promise<QueryResult> {
   if (!isForeignKeyValueNavigable(value)) {
     return { columns: [], rows: [], affected_rows: 0 };
   }
-  const quotedTable = quoteTableRef(fk.ref_table, driver, schema);
+  // Qualify with the REFERENCED table's schema, not the source table's: a
+  // foreign key may point into a different schema (e.g. sales.orders ->
+  // inventory.products). Fall back to the current schema for drivers that
+  // don't report a referenced schema.
+  const targetSchema = fk.ref_schema ?? schema;
+  const quotedTable = quoteTableRef(fk.ref_table, driver, targetSchema);
   const filterClause = buildForeignKeyFilterClause(
     fk,
     value,
@@ -45,7 +52,12 @@ export async function fetchReferencedRecord({
     query,
     limit: 100,
     page: 1,
-    ...(schema ? { schema } : {}),
+    ...(targetSchema ? { schema: targetSchema } : {}),
+    // On schema-based multi-database connections (PostgreSQL) the pool is
+    // keyed by database, so the related-records query must run against the
+    // tab's database — otherwise it hits the connection's primary database
+    // and the referenced relation appears not to exist.
+    ...(database ? { database } : {}),
   });
 }
 
@@ -55,6 +67,7 @@ export interface UseReferencedRecordParams {
   value: unknown;
   driver?: string | null;
   schema?: string | null;
+  database?: string | null;
   sourceColumnType?: string;
 }
 
@@ -64,6 +77,7 @@ export function useReferencedRecord({
   value,
   driver,
   schema,
+  database,
   sourceColumnType,
 }: UseReferencedRecordParams) {
   const [result, setResult] = useState<QueryResult | null>(null);
@@ -87,6 +101,7 @@ export function useReferencedRecord({
         value,
         driver,
         schema,
+        database,
         sourceColumnType,
       });
       setResult(res);
@@ -97,7 +112,7 @@ export function useReferencedRecord({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, fk, value, driver, schema, sourceColumnType]);
+  }, [connectionId, fk, value, driver, schema, database, sourceColumnType]);
 
   useEffect(() => {
     loadRecord();

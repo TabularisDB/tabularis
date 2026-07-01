@@ -293,13 +293,26 @@ pub(crate) fn is_pipes_as_concat_unsupported(err: &str) -> bool {
     err.contains("pipes_as_concat") || err.contains("no_engine_substitution")
 }
 
+/// PostgreSQL requires a target database in every connection — unlike MySQL it
+/// cannot connect "server-wide". When no database is selected (e.g. while
+/// listing databases for a multi-database connection), fall back to the standard
+/// `postgres` maintenance database so the connection still succeeds.
+pub(crate) fn postgres_dbname(params: &ConnectionParams) -> String {
+    let primary = params.database.primary();
+    if primary.is_empty() {
+        "postgres".to_string()
+    } else {
+        primary.to_string()
+    }
+}
+
 pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> PgConfig {
     let mut cfg = PgConfig::new();
     cfg.user(params.username.as_deref().unwrap_or_default())
         .password(params.password.as_deref().unwrap_or_default())
         .port(params.port.unwrap_or(5432))
         .host(params.host.as_deref().unwrap_or_default())
-        .dbname(&format!("{}", params.database));
+        .dbname(&postgres_dbname(params));
 
     if let Some(ssl_mode) = params.ssl_mode.as_deref() {
         match ssl_mode {
@@ -968,57 +981,70 @@ pub async fn close_pool(params: &ConnectionParams) {
     close_pool_with_id(params, connection_id).await;
 }
 
-/// Close a specific connection pool by connection_id
-pub async fn close_pool_with_id(params: &ConnectionParams, connection_id: Option<&str>) {
-    let key = build_connection_key(params, connection_id);
+/// Returns the keys under which pools for this connection may live: the exact
+/// key for these params plus — for saved connections — every key sharing the
+/// `{driver}:conn:{id}:` prefix. On multi-database connections (PostgreSQL,
+/// MySQL) each selected database gets its own pool whose key embeds that
+/// database name, so removing only the primary database's key would leak the
+/// per-database pools of every other selected database.
+pub(crate) fn keys_to_close<P>(
+    pools: &HashMap<String, P>,
+    params: &ConnectionParams,
+    connection_id: Option<&str>,
+) -> Vec<String> {
+    let exact = build_connection_key(params, connection_id);
+    let mut keys: Vec<String> = match connection_id {
+        Some(conn_id) => {
+            let prefix = format!("{}:conn:{}:", params.driver, conn_id);
+            pools
+                .keys()
+                .filter(|k| k.starts_with(&prefix))
+                .cloned()
+                .collect()
+        }
+        None => Vec::new(),
+    };
+    if !keys.contains(&exact) {
+        keys.push(exact);
+    }
+    keys
+}
 
+/// Close a specific connection pool by connection_id.
+///
+/// For saved connections this closes EVERY pool belonging to the connection id
+/// (one per selected database on multi-database connections), not just the
+/// primary database's pool.
+pub async fn close_pool_with_id(params: &ConnectionParams, connection_id: Option<&str>) {
     match params.driver.as_str() {
         "mysql" => {
             let mut pools = MYSQL_POOLS.write().await;
-            if let Some(pool) = pools.remove(&key) {
-                log::info!(
-                    "Closing MySQL connection pool for: {} (key: {})",
-                    params.database,
-                    key
-                );
-                pool.close().await;
-                log::info!(
-                    "MySQL connection pool closed for: {} (key: {})",
-                    params.database,
-                    key
-                );
+            for key in keys_to_close(&pools, params, connection_id) {
+                if let Some(pool) = pools.remove(&key) {
+                    log::info!("Closing MySQL connection pool (key: {})", key);
+                    pool.close().await;
+                    log::info!("MySQL connection pool closed (key: {})", key);
+                }
             }
         }
         "postgres" => {
             let mut pools = POSTGRES_POOLS.write().await;
-            if let Some(pool) = pools.remove(&key) {
-                log::info!(
-                    "Closing PostgreSQL connection pool for: {} (key: {})",
-                    params.database,
-                    key
-                );
-                pool.close();
-                log::info!(
-                    "PostgreSQL connection pool closed for: {} (key: {})",
-                    params.database,
-                    key
-                );
+            for key in keys_to_close(&pools, params, connection_id) {
+                if let Some(pool) = pools.remove(&key) {
+                    log::info!("Closing PostgreSQL connection pool (key: {})", key);
+                    pool.close();
+                    log::info!("PostgreSQL connection pool closed (key: {})", key);
+                }
             }
         }
         "sqlite" => {
             let mut pools = SQLITE_POOLS.write().await;
-            if let Some(pool) = pools.remove(&key) {
-                log::info!(
-                    "Closing SQLite connection pool for: {} (key: {})",
-                    params.database,
-                    key
-                );
-                pool.close().await;
-                log::info!(
-                    "SQLite connection pool closed for: {} (key: {})",
-                    params.database,
-                    key
-                );
+            for key in keys_to_close(&pools, params, connection_id) {
+                if let Some(pool) = pools.remove(&key) {
+                    log::info!("Closing SQLite connection pool (key: {})", key);
+                    pool.close().await;
+                    log::info!("SQLite connection pool closed (key: {})", key);
+                }
             }
         }
         _ => {}

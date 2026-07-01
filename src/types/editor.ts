@@ -110,6 +110,8 @@ export interface Tab {
   limitClause?: number; // SQL LIMIT value
   queryParams?: Record<string, string>; // Saved values for query parameters
   schema?: string; // Schema name (PostgreSQL) for query reconstruction
+  database?: string; // Schema-based multi-database (PostgreSQL): routes queries to this database's pool
+
   readOnly?: boolean; // Hides the Run button (e.g. for definition views)
   results?: QueryResultEntry[];
   activeResultId?: string;

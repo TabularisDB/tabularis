@@ -31,6 +31,9 @@ export interface FieldEditorProps {
   tableName?: string | null;
   pkMap?: Record<string, unknown> | null;
   schema?: string | null;
+  /** Schema-based multi-database (PostgreSQL): routes row-scoped backend calls
+   * (blob fetch/download) to this database's connection pool. */
+  database?: string | null;
 }
 
 /**
@@ -55,6 +58,7 @@ export const FieldEditor = ({
   tableName,
   pkMap,
   schema,
+  database,
 }: FieldEditorProps) => {
   const { t } = useTranslation();
   const isGeometric = type && isGeometricType(type);
@@ -103,6 +107,7 @@ export const FieldEditor = ({
         pkMap={pkMap}
         colName={name}
         schema={schema}
+        database={database}
       />
     </div>
   ) : isGeometric ? (

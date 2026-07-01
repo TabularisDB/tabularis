@@ -77,6 +77,13 @@ export interface SchemaData {
   triggers: TriggerInfo[];
   isLoading: boolean;
   isLoaded: boolean;
+  // Schema-based multi-database (PostgreSQL) only: when a `databaseDataMap`
+  // entry represents a whole database that contains schemas, `schemas` holds the
+  // schema names and `schemaDataMap` the per-schema objects. Both are absent for
+  // flat multi-database drivers (MySQL/MariaDB), where the database's tables live
+  // directly on the fields above.
+  schemas?: string[];
+  schemaDataMap?: Record<string, SchemaData>;
 }
 
 export interface ConnectionData {
@@ -146,6 +153,7 @@ export interface DatabaseContextType {
   refreshSchemaData: (schema: string, connectionId?: string) => Promise<void>;
   setSelectedSchemas: (schemas: string[], connectionId?: string) => Promise<void>;
   loadDatabaseData: (database: string, connectionId?: string) => Promise<void>;
+  loadDatabaseSchemaData: (database: string, schema: string, connectionId?: string) => Promise<void>;
   refreshDatabaseData: (database: string, connectionId?: string) => Promise<void>;
   setSelectedDatabases: (databases: string[], connectionId?: string) => void;
   getConnectionData: (connectionId: string) => ConnectionData | undefined;

@@ -124,6 +124,7 @@
     "databases": "データベース",
     "failGetRoutineDefinition": "ルーチン定義の取得に失敗しました: ",
     "schemas": "スキーマ",
+    "schema": "スキーマ",
     "noSchemas": "スキーマが見つかりません",
     "loadingSchemas": "スキーマを読み込み中...",
     "schemaLoadError": "スキーマの読み込みに失敗しました",

@@ -310,6 +310,12 @@ pub struct ForeignKey {
     pub column_name: String,
     pub ref_table: String,
     pub ref_column: String,
+    /// Schema of the referenced table. Needed to qualify cross-schema
+    /// references (e.g. PostgreSQL `sales.orders -> inventory.products`);
+    /// `None` for drivers without schemas (the consumer falls back to the
+    /// current schema).
+    #[serde(default)]
+    pub ref_schema: Option<String>,
     pub on_delete: Option<String>,
     pub on_update: Option<String>,
 }

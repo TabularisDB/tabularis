@@ -45,7 +45,12 @@ interface SidebarSchemaItemProps {
     data?: ContextMenuData,
   ) => void;
   onAddColumn: (tableName: string) => void;
-  onEditColumn: (tableName: string, col: TableColumn) => void;
+  onEditColumn: (
+    tableName: string,
+    col: TableColumn,
+    schema?: string,
+    database?: string,
+  ) => void;
   onAddIndex: (tableName: string) => void;
   onDropIndex: (tableName: string, indexName: string) => void;
   onAddForeignKey: (tableName: string) => void;
@@ -54,6 +59,14 @@ interface SidebarSchemaItemProps {
   onCreateView: () => void;
   onCreateTrigger: (schema: string) => void;
   showTriggers?: boolean;
+  /** Schema-based multi-database (PostgreSQL): the database this schema belongs
+   * to, so nested table metadata fetches route to the right connection pool.
+   * Absent for single-database connections. */
+  database?: string;
+  /** When true, render the schema's contents (tables/views/routines) directly
+   * without the collapsible schema header — used by the TablePro-style active
+   * schema dropdown, where the schema is chosen by the dropdown above. */
+  hideHeader?: boolean;
 }
 
 export const SidebarSchemaItem = ({
@@ -83,11 +96,13 @@ export const SidebarSchemaItem = ({
   onCreateView,
   onCreateTrigger,
   showTriggers = false,
+  database,
+  hideHeader = false,
 }: SidebarSchemaItemProps) => {
   const { t } = useTranslation();
 
   const [isExpanded, setIsExpanded] = useState(
-    activeSchema === schemaName,
+    hideHeader || activeSchema === schemaName,
   );
   const [prevActiveSchema, setPrevActiveSchema] = useState(activeSchema);
   const [tablesOpen, setTablesOpen] = useState(true);
@@ -137,6 +152,7 @@ export const SidebarSchemaItem = ({
   return (
     <div className="flex flex-col">
       {/* Schema header */}
+      {!hideHeader && (
       <div
         className="flex items-center justify-between px-2 py-1.5 group/schema cursor-pointer hover:bg-surface-secondary transition-colors"
         onClick={handleToggle}
@@ -179,9 +195,11 @@ export const SidebarSchemaItem = ({
         )}
       </div>
 
+      )}
+
       {/* Schema contents */}
-      {isExpanded && (
-        <div className="ml-3 border-l border-default">
+      {(hideHeader || isExpanded) && (
+        <div className={hideHeader ? "" : "ml-3 border-l border-default"}>
           {isLoading && !isLoaded ? (
             <div className="flex items-center gap-2 p-2 text-xs text-muted">
               <Loader2 size={12} className="animate-spin" />
@@ -256,6 +274,7 @@ export const SidebarSchemaItem = ({
                         onDropForeignKey={onDropForeignKey}
                         schemaVersion={schemaVersion}
                         schema={schemaName}
+                        database={database}
                       />
                     ))}
                   </div>
@@ -299,6 +318,7 @@ export const SidebarSchemaItem = ({
                         connectionId={connectionId}
                         driver={driver}
                         schema={schemaName}
+                        database={database}
                       />
                     ))}
                   </div>
@@ -363,6 +383,7 @@ export const SidebarSchemaItem = ({
                           onContextMenu={onContextMenu}
                           onDoubleClick={(tr) => onTriggerDoubleClick(tr, schemaName)}
                           schema={schemaName}
+                          database={database}
                         />
                       ))}
                     </div>
@@ -401,6 +422,7 @@ export const SidebarSchemaItem = ({
                             onContextMenu={onContextMenu}
                             onDoubleClick={(r) => onRoutineDoubleClick(r, schemaName)}
                             schema={schemaName}
+                            database={database}
                           />
                         ))}
                       </div>
@@ -425,6 +447,7 @@ export const SidebarSchemaItem = ({
                             onContextMenu={onContextMenu}
                             onDoubleClick={(r) => onRoutineDoubleClick(r, schemaName)}
                             schema={schemaName}
+                            database={database}
                           />
                         ))}
                       </div>

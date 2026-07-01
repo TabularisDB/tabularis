@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { reconstructTableQuery } from "../utils/editor";
 import { serializePkKey, buildPkMap } from "../utils/dataGrid";
-import { isMultiDatabaseCapable } from "../utils/database";
+import { isMultiDatabaseCapable, isSchemaBasedMultiDb, buildTableRoutingParams } from "../utils/database";
 import { isReadonly } from "../utils/driverCapabilities";
 import {
   generateTempId,
@@ -138,6 +138,7 @@ interface EditorState {
   preventAutoRun?: boolean;
   readOnly?: boolean;
   schema?: string;
+  database?: string;
   targetConnectionId?: string;
   title?: string;
 }
@@ -288,6 +289,13 @@ export const Editor = () => {
         title: `Console - ${tab.title}`,
         query: query,
         connectionId: tab.connectionId,
+        // Preserve the source tab's routing so the console runs against the same
+        // pool: schema-based multi-database (PostgreSQL) needs `database` (the
+        // pool key) plus the real `schema`; flat multi-database (MySQL) carries
+        // the database name in `schema`. Dropping these ran the console against
+        // the connection's primary database (relation-not-found).
+        schema: tab.schema,
+        database: tab.database,
       });
     },
     [addTab, activeDriver, activeCapabilities?.schemas],
@@ -365,6 +373,24 @@ export const Editor = () => {
   const isNotebookTab = activeTab?.type === "notebook";
   const isMultiDb =
     isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1;
+  // Schema-based multi-database (PostgreSQL): a non-table tab targets a database
+  // via its `database` field (the pool key), NOT by overloading `schema` with
+  // the database name the way flat drivers (MySQL) do. execute_query routes to
+  // the selected database's pool by `database`; a `schema` equal to a database
+  // name would instead run `SET search_path TO "<db>"` on the primary pool and
+  // fail with relation-not-found.
+  const isSchemaBasedConn = isSchemaBasedMultiDb(activeCapabilities);
+  // The database the active non-table tab currently targets.
+  const activeTabDatabase =
+    (isSchemaBasedConn ? activeTab?.database : activeTab?.schema) ||
+    selectedDatabases[0];
+  // Initial routing params for a newly created non-table tab on a multi-database
+  // connection (see isSchemaBasedConn above for the schema-vs-database split).
+  const initialTabDatabaseParams = (): { schema?: string; database?: string } => {
+    if (!isMultiDb) return {};
+    const db = selectedDatabases[0];
+    return isSchemaBasedConn ? { database: db } : { schema: db };
+  };
   const isEditorOpen =
     !isTableTab && (activeTab?.isEditorOpen ?? activeTab?.type !== "table");
 
@@ -389,7 +415,9 @@ export const Editor = () => {
           let dbDisplay: string;
           if (isMultiDb) {
             dbDisplay =
-              activeTab?.schema ?? selectedDatabases[0] ?? activeDatabaseName;
+              (isSchemaBasedConn ? activeTab?.database : activeTab?.schema) ??
+              selectedDatabases[0] ??
+              activeDatabaseName;
           } else {
             dbDisplay = activeDatabaseName;
           }
@@ -404,11 +432,13 @@ export const Editor = () => {
   }, [
     activeTabId,
     activeTab?.schema,
+    activeTab?.database,
     activeConnectionName,
     activeDatabaseName,
     activeSchema,
     activeCapabilities,
     isMultiDb,
+    isSchemaBasedConn,
     selectedDatabases,
   ]);
 
@@ -559,20 +589,30 @@ export const Editor = () => {
   }, [tabs, updateScrollArrows]);
 
   const fetchPkColumn = useCallback(
-    async (table: string, tabId?: string, tabSchema?: string) => {
+    async (
+      table: string,
+      tabId?: string,
+      tabSchema?: string,
+      tabDatabase?: string,
+    ) => {
       if (!activeConnectionId) return;
-      const effectiveSchema = tabSchema ?? activeSchema;
+      // On schema-based multi-database connections (PostgreSQL) the metadata
+      // pool is keyed by database, so column/PK detection MUST target the
+      // tab's database — otherwise get_columns hits the connection's primary
+      // database, finds no matching table, returns no PK, and the grid silently
+      // becomes read-only. Mirror the database routing the data query uses.
+      const routing = buildTableRoutingParams(tabSchema, tabDatabase, activeSchema);
       try {
         const [cols, fks] = await Promise.all([
           invoke<TableColumn[]>("get_columns", {
             connectionId: activeConnectionId,
             tableName: table,
-            ...(effectiveSchema ? { schema: effectiveSchema } : {}),
+            ...routing,
           }),
           invoke<ForeignKey[]>("get_foreign_keys", {
             connectionId: activeConnectionId,
             tableName: table,
-            ...(effectiveSchema ? { schema: effectiveSchema } : {}),
+            ...routing,
           }).catch((e) => {
             console.warn("Failed to fetch foreign keys:", e);
             return [] as ForeignKey[];
@@ -736,9 +776,13 @@ export const Editor = () => {
         targetTab?.type === "console" || targetTab?.type === "query_builder";
 
       const schema = targetTab?.schema ?? activeSchema;
+      // Schema-based multi-database (PostgreSQL): route the query to the tab's
+      // database pool. Undefined for single-database / flat multi-db connections.
+      const database = targetTab?.database;
       // For history: fall back to activeDatabaseName for multi-db connections
       // where schema may not be set on the tab
-      const historyDb = schema
+      const historyDb = database
+        || schema
         || (isMultiDb ? activeDatabaseName : undefined)
         || undefined;
 
@@ -756,6 +800,7 @@ export const Editor = () => {
           limit: pageSize,
           page: pageNum,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         });
         const end = performance.now();
 
@@ -794,7 +839,12 @@ export const Editor = () => {
 
         if (tableName) {
           // Fetch column metadata in the background; tab updates when ready
-          fetchPkColumn(tableName, targetTabId, targetTab?.schema ?? undefined);
+          fetchPkColumn(
+            tableName,
+            targetTabId,
+            targetTab?.schema ?? undefined,
+            targetTab?.database ?? undefined,
+          );
         } else {
           updateTab(targetTabId, { pkColumns: null });
         }
@@ -883,7 +933,9 @@ export const Editor = () => {
           ? settings.resultPageSize
           : 100;
       const schema = targetTab?.schema ?? activeSchema;
-      const historyDb = schema
+      const database = targetTab?.database;
+      const historyDb = database
+        || schema
         || (isMultiDb ? activeDatabaseName : undefined)
         || undefined;
 
@@ -979,6 +1031,7 @@ export const Editor = () => {
             page: 1,
             batchId,
             ...(schema ? { schema } : {}),
+            ...(database ? { database } : {}),
           },
         );
       } catch (err) {
@@ -1038,6 +1091,7 @@ export const Editor = () => {
           ? settings.resultPageSize
           : 100;
       const schema = currentTab?.schema ?? activeSchema;
+      const database = currentTab?.database;
 
       // Mark this entry as loading
       if (currentTab?.results) {
@@ -1056,6 +1110,7 @@ export const Editor = () => {
           limit: pageSize,
           page: pageNum,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         });
         const end = performance.now();
 
@@ -1116,6 +1171,9 @@ export const Editor = () => {
           connectionId: activeConnectionId,
           query: tab.query,
           schema: tab.schema ?? activeSchema,
+          // Schema-based multi-database (PostgreSQL): count on the tab's
+          // database pool, mirroring how execute_query routes the data query.
+          ...(tab.database ? { database: tab.database } : {}),
         });
         const latest = tabsRef.current.find((t) => t.id === tab.id) ?? tab;
         if (!latest.result?.pagination) return;
@@ -1591,14 +1649,19 @@ export const Editor = () => {
         sourceType,
       );
 
+      // Qualify with the referenced table's own schema when the driver
+      // reports one (cross-schema FKs); fall back to the source tab's schema.
       const targetSchema = activeCapabilities?.schemas
-        ? currentTab.schema
+        ? (fk.ref_schema ?? currentTab.schema)
         : undefined;
 
       const newTabId = addTab({
         type: "table",
         activeTable: fk.ref_table,
         schema: targetSchema,
+        // Keep the new tab on the same database pool as the source tab so
+        // multi-database (PostgreSQL) connections query the right database.
+        database: currentTab.database,
         filterClause,
         // Reset clauses that may linger on an existing dedup'd tab
         sortClause: "",
@@ -1920,11 +1983,16 @@ export const Editor = () => {
     }
 
     try {
-      // Fetch table columns
+      // Fetch table columns — route to the tab's schema/database so
+      // multi-database (PostgreSQL) connections resolve the right table.
       const columns = await invoke<TableColumn[]>("get_columns", {
         connectionId: activeConnectionId,
         tableName: activeTab.activeTable,
-        ...(activeSchema ? { schema: activeSchema } : {}),
+        ...buildTableRoutingParams(
+          activeTab?.schema,
+          activeTab?.database,
+          activeSchema,
+        ),
       });
 
       if (!columns || columns.length === 0) {
@@ -2088,11 +2156,16 @@ export const Editor = () => {
     // Process insertions
     if (pendingInsertions && Object.keys(pendingInsertions).length > 0) {
       try {
-        // Fetch columns for validation
+        // Fetch columns for validation — route to the tab's schema/database
+        // so multi-database (PostgreSQL) connections resolve the right table.
         const columns = await invoke<TableColumn[]>("get_columns", {
           connectionId: activeConnectionId,
           tableName: activeTable,
-          ...(activeSchema ? { schema: activeSchema } : {}),
+          ...buildTableRoutingParams(
+            activeTab?.schema,
+            activeTab?.database,
+            activeSchema,
+          ),
         });
 
         const selectedDisplayIndices = new Set<number>();
@@ -2157,8 +2230,20 @@ export const Editor = () => {
     try {
       const promises = [];
 
-      const databaseParam =
-        isMultiDatabaseCapable(activeCapabilities) && activeTab?.schema
+      // Schema-based multi-database (PostgreSQL): the tab carries its database
+      // separately from its (PostgreSQL) schema, so route writes to that
+      // database's pool and qualify with the tab schema. Flat multi-database
+      // (MySQL) keeps overloading schema as the database name — but that
+      // fallback must never fire on schema-based drivers, where `tab.schema`
+      // is a PostgreSQL schema (e.g. "public"), not a database: sending it as
+      // `database` would route the write to a pool for a database named after
+      // the schema (connection failure, or worse the wrong database).
+      const editSchema = activeTab?.database ? (activeTab?.schema ?? activeSchema) : activeSchema;
+      const databaseParam = activeTab?.database
+        ? { database: activeTab.database }
+        : !isSchemaBasedConn &&
+            isMultiDatabaseCapable(activeCapabilities) &&
+            activeTab?.schema
           ? { database: activeTab.schema }
           : {};
 
@@ -2170,7 +2255,7 @@ export const Editor = () => {
               connectionId: activeConnectionId,
               table: activeTable,
               pkMap,
-              ...(activeSchema ? { schema: activeSchema } : {}),
+              ...(editSchema ? { schema: editSchema } : {}),
               ...databaseParam,
             }),
           ),
@@ -2187,7 +2272,7 @@ export const Editor = () => {
               pkMap: u.pkVal,
               colName: u.colName,
               newVal: u.newVal,
-              ...(activeSchema ? { schema: activeSchema } : {}),
+              ...(editSchema ? { schema: editSchema } : {}),
               ...databaseParam,
             }),
           ),
@@ -2202,7 +2287,7 @@ export const Editor = () => {
               connectionId: activeConnectionId,
               table: activeTable,
               data: insertion.data,
-              ...(activeSchema ? { schema: activeSchema } : {}),
+              ...(editSchema ? { schema: editSchema } : {}),
               ...databaseParam,
             }),
           ),
@@ -2272,6 +2357,7 @@ export const Editor = () => {
     applyToAll,
     activeSchema,
     activeCapabilities,
+    isSchemaBasedConn,
     showAlert,
   ]);
 
@@ -2488,7 +2574,7 @@ export const Editor = () => {
         )
           return;
 
-        const queryKey = `${state.initialQuery}-${state.tableName}-${state.queryName}-${state.schema}-${state.title}`;
+        const queryKey = `${state.initialQuery}-${state.tableName}-${state.queryName}-${state.schema}-${state.database}-${state.title}`;
 
         if (processingRef.current === queryKey) {
           // If re-navigating to the same definition with readOnly, patch any
@@ -2511,6 +2597,7 @@ export const Editor = () => {
           preventAutoRun,
           readOnly: navReadOnly,
           schema: navSchema,
+          database: navDatabase,
           title: navTitle,
         } = state;
         const tabId = addTab({
@@ -2519,6 +2606,7 @@ export const Editor = () => {
           query: sql,
           activeTable: table,
           schema: navSchema,
+          database: navDatabase,
           readOnly: navReadOnly,
         });
 
@@ -2647,12 +2735,16 @@ export const Editor = () => {
       });
       setExportMenuOpen(false);
 
-      // On multi-database connections (e.g. MySQL) scope the export to the
-      // selected database so the query runs against the database the user is
-      // viewing rather than the connection's primary database. The tab may not
-      // carry its own schema (e.g. a console query), so fall back to the active
-      // database — mirroring how execute_query resolves the schema.
-      const targetDatabase = activeTab?.schema ?? activeSchema ?? undefined;
+      // On multi-database connections scope the export to the database the
+      // user is viewing rather than the connection's primary database,
+      // mirroring how execute_query routes. Schema-based drivers (PostgreSQL)
+      // carry the database separately on the tab — `tab.schema` there is a
+      // PostgreSQL schema, never a database name — while flat drivers (MySQL)
+      // overload `schema` with the database name, falling back to the active
+      // database for tabs that don't carry one (e.g. a console query).
+      const targetDatabase = isSchemaBasedConn
+        ? activeTab?.database
+        : (activeTab?.schema ?? activeSchema ?? undefined);
       const databaseParam =
         isMultiDatabaseCapable(activeCapabilities) && targetDatabase
           ? { database: targetDatabase }
@@ -2860,7 +2952,7 @@ export const Editor = () => {
                   <span className="truncate">{tab.title}</span>
                   {tab.type === "console" && isMultiDb && (
                     <span className="text-muted shrink-0">
-                      ({tab.schema || selectedDatabases[0]})
+                      ({(isSchemaBasedConn ? tab.database : tab.schema) || selectedDatabases[0]})
                     </span>
                   )}
                 </span>
@@ -2894,7 +2986,7 @@ export const Editor = () => {
           onClick={() =>
             addTab({
               type: "console",
-              ...(isMultiDb ? { schema: selectedDatabases[0] } : {}),
+              ...initialTabDatabaseParams(),
             })
           }
           className="flex items-center justify-center w-9 h-full text-muted hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
@@ -2917,7 +3009,7 @@ export const Editor = () => {
             addTab({
               type: "notebook",
               notebookId,
-              ...(isMultiDb ? { schema: selectedDatabases[0] } : {}),
+              ...initialTabDatabaseParams(),
             });
           }}
           className="flex items-center justify-center w-9 h-full text-orange-400 hover:text-primary hover:bg-surface-secondary border-l border-default transition-colors shrink-0"
@@ -3096,7 +3188,7 @@ export const Editor = () => {
             >
               <Database size={12} className="text-muted shrink-0" />
               <span className="max-w-[120px] truncate">
-                {activeTab.schema || selectedDatabases[0]}
+                {activeTabDatabase}
               </span>
               <ChevronDown size={12} className="text-muted shrink-0" />
             </button>
@@ -3111,12 +3203,16 @@ export const Editor = () => {
                     <button
                       key={db}
                       onClick={() => {
-                        updateActiveTab({ schema: db });
+                        updateActiveTab(
+                          isSchemaBasedConn
+                            ? { database: db, schema: undefined }
+                            : { schema: db },
+                        );
                         setIsDbDropdownOpen(false);
                       }}
                       className={clsx(
                         "text-left px-3 py-1.5 text-xs hover:bg-surface transition-colors flex items-center gap-2",
-                        (activeTab.schema || selectedDatabases[0]) === db
+                        activeTabDatabase === db
                           ? "text-white font-medium"
                           : "text-secondary",
                       )}
@@ -3789,6 +3885,8 @@ export const Editor = () => {
                           : undefined
                       }
                       readonly={driverReadonly}
+                      schema={activeTab?.schema ?? activeSchema}
+                      database={activeTab?.database}
                     />
                   </div>
                   {activeFkQuery && activeConnectionId && (
@@ -3796,7 +3894,8 @@ export const Editor = () => {
                       activeFkQuery={activeFkQuery}
                       connectionId={activeConnectionId}
                       driver={activeDriver}
-                      schema={activeSchema}
+                      schema={activeTab?.schema ?? activeSchema}
+                      database={activeTab?.database}
                       onClose={() => setActiveFkQuery(null)}
                       onNavigateToTab={handleForeignKeyNavigate}
                     />
@@ -3868,9 +3967,25 @@ export const Editor = () => {
             setSaveQueryModal({ ...saveQueryModal, isOpen: false })
           }
           initialSql={saveQueryModal.sql}
-          initialDatabase={activeTab?.schema ?? activeSchema ?? activeDatabaseName}
+          // Schema-based multi-database (PostgreSQL): the saved query's database
+          // is the tab's `database` (the pool key), never its PostgreSQL schema.
+          // Flat drivers (MySQL) keep overloading `schema` with the database name.
+          initialDatabase={
+            isSchemaBasedConn
+              ? (activeTab?.database ?? activeDatabaseName)
+              : (activeTab?.schema ?? activeSchema ?? activeDatabaseName)
+          }
           databases={isMultiDb ? selectedDatabases : undefined}
-          onSave={async (name, sql, database) => await saveQuery(name, sql, database ?? activeTab?.schema ?? activeSchema ?? activeDatabaseName)}
+          onSave={async (name, sql, database) =>
+            await saveQuery(
+              name,
+              sql,
+              database ??
+                (isSchemaBasedConn
+                  ? (activeTab?.database ?? activeDatabaseName)
+                  : (activeTab?.schema ?? activeSchema ?? activeDatabaseName)),
+            )
+          }
           title={t("editor.saveQuery")}
         />
       )}
@@ -3896,6 +4011,7 @@ export const Editor = () => {
         query={visualExplainQuery ?? activeTab?.query ?? ""}
         connectionId={activeConnectionId ?? ""}
         schema={activeTab?.schema ?? activeSchema ?? undefined}
+        database={activeTab?.database}
       />
       <ExplainSelectionModal
         isOpen={isExplainSelectionOpen}

@@ -29,6 +29,10 @@ interface ModifyColumnModalProps {
     is_pk: boolean;
     is_auto_increment: boolean;
   } | null;
+  schema?: string;
+  /** Schema-based multi-database (PostgreSQL): routes the DDL to this
+   * database's connection pool. Absent for single-database connections. */
+  database?: string;
 }
 
 export const ModifyColumnModal = ({
@@ -39,9 +43,12 @@ export const ModifyColumnModal = ({
   tableName,
   driver,
   column,
+  schema,
+  database,
 }: ModifyColumnModalProps) => {
   const { t } = useTranslation();
-  const { activeSchema } = useDatabase();
+  const { activeSchema: globalActiveSchema } = useDatabase();
+  const activeSchema = schema ?? globalActiveSchema;
   const { dataTypes } = useDataTypes(driver);
   const { allDrivers } = useDrivers();
   const driverManifest = allDrivers.find((d) => d.id === driver);
@@ -182,6 +189,7 @@ export const ModifyColumnModal = ({
           connectionId,
           query: sql,
           ...(activeSchema ? { schema: activeSchema } : {}),
+          ...(database ? { database } : {}),
         });
       }
 

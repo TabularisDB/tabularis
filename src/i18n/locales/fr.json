@@ -111,6 +111,7 @@
     "databases": "Bases de données",
     "failGetRoutineDefinition": "Échec de récupération de la définition de la routine : ",
     "schemas": "Schémas",
+    "schema": "Schéma",
     "noSchemas": "Aucun schéma trouvé",
     "loadingSchemas": "Chargement des schémas...",
     "schemaLoadError": "Échec du chargement des schémas",

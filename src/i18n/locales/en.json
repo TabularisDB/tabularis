@@ -124,6 +124,7 @@
     "databases": "Databases",
     "failGetRoutineDefinition": "Failed to get routine definition: ",
     "schemas": "Schemas",
+    "schema": "Schema",
     "noSchemas": "No schemas found",
     "loadingSchemas": "Loading schemas...",
     "schemaLoadError": "Failed to load schemas",

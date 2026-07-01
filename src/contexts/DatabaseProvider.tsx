@@ -11,6 +11,7 @@ import {
   type ConnectionData,
   type ConnectionGroup,
   type ConnectionsFile,
+  type SchemaData,
 } from './DatabaseContext';
 import type { ReactNode } from 'react';
 import type { PluginManifest } from '../types/plugins';
@@ -18,7 +19,7 @@ import { clearAutocompleteCache } from '../utils/autocomplete';
 import { toErrorMessage } from '../utils/errors';
 import { useSettings } from '../hooks/useSettings';
 import { findConnectionsForDrivers } from '../utils/connectionManager';
-import { isMultiDatabaseCapable, getEffectiveDatabase, getDatabaseList } from '../utils/database';
+import { isMultiDatabaseCapable, isSchemaBasedMultiDb, getEffectiveDatabase, getDatabaseList } from '../utils/database';
 
 const createEmptyConnectionData = (driver: string = '', name: string = '', dbName: string = ''): ConnectionData => ({
   driver,
@@ -295,6 +296,42 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const existing = currentData.databaseDataMap[database];
     if (existing?.isLoaded || existing?.isLoading) return;
 
+    // Schema-based multi-database drivers (PostgreSQL): a database node holds
+    // schemas, not tables. Load the schema list here; per-schema objects are
+    // loaded lazily via loadDatabaseSchemaData when a schema is expanded.
+    if (isSchemaBasedMultiDb(currentData.capabilities)) {
+      updateConnectionData(connId, {
+        databaseDataMap: {
+          ...currentData.databaseDataMap,
+          [database]: { tables: [], views: [], routines: [], triggers: [], isLoading: true, isLoaded: false, schemas: [], schemaDataMap: {} },
+        },
+      });
+      try {
+        const schemasResult = await invoke<string[]>('get_schemas', { connectionId: connId, database });
+        const freshData = connectionDataMap[connId];
+        if (freshData) {
+          updateConnectionData(connId, {
+            databaseDataMap: {
+              ...freshData.databaseDataMap,
+              [database]: { tables: [], views: [], routines: [], triggers: [], isLoading: false, isLoaded: true, schemas: schemasResult, schemaDataMap: freshData.databaseDataMap[database]?.schemaDataMap ?? {} },
+            },
+          });
+        }
+      } catch (e) {
+        console.error(`Failed to load schemas for database ${database}:`, e);
+        const freshData = connectionDataMap[connId];
+        if (freshData) {
+          updateConnectionData(connId, {
+            databaseDataMap: {
+              ...freshData.databaseDataMap,
+              [database]: { tables: [], views: [], routines: [], triggers: [], isLoading: false, isLoaded: false, schemas: [], schemaDataMap: {} },
+            },
+          });
+        }
+      }
+      return;
+    }
+
     updateConnectionData(connId, {
       databaseDataMap: {
         ...currentData.databaseDataMap,
@@ -340,12 +377,98 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [activeConnectionId, connectionDataMap, updateConnectionData]);
 
+  // Schema-based multi-database (PostgreSQL): load the tables/views/routines of a
+  // single schema inside a selected database, routing each query to that
+  // database's connection pool via the `database` argument.
+  const loadDatabaseSchemaData = useCallback(async (database: string, schema: string, targetConnectionId?: string) => {
+    const connId = targetConnectionId ?? activeConnectionId;
+    if (!connId) return;
+
+    const currentData = connectionDataMap[connId];
+    if (!currentData) return;
+
+    const dbEntry = currentData.databaseDataMap[database];
+    const existing = dbEntry?.schemaDataMap?.[schema];
+    if (existing?.isLoaded || existing?.isLoading) return;
+
+    const setSchemaEntry = (entry: SchemaData) => {
+      const fresh = connectionDataMap[connId];
+      const freshDb = fresh?.databaseDataMap[database];
+      if (!fresh || !freshDb) return;
+      updateConnectionData(connId, {
+        databaseDataMap: {
+          ...fresh.databaseDataMap,
+          [database]: {
+            ...freshDb,
+            schemaDataMap: { ...(freshDb.schemaDataMap ?? {}), [schema]: entry },
+          },
+        },
+      });
+    };
+
+    setSchemaEntry({ tables: [], views: [], routines: [], triggers: [], isLoading: true, isLoaded: false });
+
+    try {
+      const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
+        invoke<TableInfo[]>('get_tables', { connectionId: connId, schema, database }),
+        invoke<ViewInfo[]>('get_views', { connectionId: connId, schema, database }),
+        invoke<RoutineInfo[]>('get_routines', { connectionId: connId, schema, database }),
+        invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema, database }).catch(() => [] as TriggerInfo[]),
+      ]);
+      setSchemaEntry({ tables: tablesResult, views: viewsResult, routines: routinesResult, triggers: triggersResult, isLoading: false, isLoaded: true });
+    } catch (e) {
+      console.error(`Failed to load schema ${schema} of database ${database}:`, e);
+      setSchemaEntry({ tables: [], views: [], routines: [], triggers: [], isLoading: false, isLoaded: false });
+    }
+  }, [activeConnectionId, connectionDataMap, updateConnectionData]);
+
   const refreshDatabaseData = useCallback(async (database: string, targetConnectionId?: string) => {
     const connId = targetConnectionId ?? activeConnectionId;
     if (!connId) return;
 
     const currentData = connectionDataMap[connId];
     if (!currentData) return;
+
+    // Schema-based multi-database (PostgreSQL): refresh re-reads the schema list
+    // and drops cached per-schema objects so they reload lazily on next expand.
+    if (isSchemaBasedMultiDb(currentData.capabilities)) {
+      updateConnectionData(connId, {
+        databaseDataMap: {
+          ...currentData.databaseDataMap,
+          [database]: {
+            ...(currentData.databaseDataMap[database] || { tables: [], views: [], routines: [], triggers: [], isLoaded: false, schemas: [], schemaDataMap: {} }),
+            isLoading: true,
+          },
+        },
+      });
+      try {
+        const schemasResult = await invoke<string[]>('get_schemas', { connectionId: connId, database });
+        const freshData = connectionDataMap[connId];
+        if (freshData) {
+          updateConnectionData(connId, {
+            databaseDataMap: {
+              ...freshData.databaseDataMap,
+              [database]: { tables: [], views: [], routines: [], triggers: [], isLoading: false, isLoaded: true, schemas: schemasResult, schemaDataMap: {} },
+            },
+          });
+        }
+      } catch (e) {
+        console.error(`Failed to refresh schemas for database ${database}:`, e);
+        const freshData = connectionDataMap[connId];
+        if (freshData) {
+          updateConnectionData(connId, {
+            databaseDataMap: {
+              ...freshData.databaseDataMap,
+              [database]: {
+                ...(freshData.databaseDataMap[database] || { tables: [], views: [], routines: [], triggers: [], isLoaded: false, schemas: [], schemaDataMap: {} }),
+                isLoading: false,
+              },
+            },
+          });
+        }
+      }
+      return;
+    }
 
     updateConnectionData(connId, {
       databaseDataMap: {
@@ -537,22 +660,35 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         let initialDbMap: Record<string, import('./DatabaseContext').SchemaData> = {};
         if (firstDb) {
           try {
-            const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
-              invoke<TableInfo[]>('get_tables', { connectionId, schema: firstDb }),
-              invoke<ViewInfo[]>('get_views', { connectionId, schema: firstDb }),
-              invoke<RoutineInfo[]>('get_routines', { connectionId, schema: firstDb }),
-              invoke<TriggerInfo[]>('get_triggers', { connectionId, schema: firstDb }).catch(() => [] as TriggerInfo[]),
-            ]);
-            initialDbMap = {
-              [firstDb]: {
-                tables: tablesResult,
-                views: viewsResult,
-                routines: routinesResult,
-                triggers: triggersResult,
-                isLoading: false,
-                isLoaded: true,
-              },
-            };
+            if (isSchemaBasedMultiDb(capabilities)) {
+              // Schema-based (PostgreSQL): pre-load the database's schema list.
+              // Per-schema objects load lazily when a schema is expanded.
+              const schemasResult = await invoke<string[]>('get_schemas', { connectionId, database: firstDb });
+              initialDbMap = {
+                [firstDb]: {
+                  tables: [], views: [], routines: [], triggers: [],
+                  isLoading: false, isLoaded: true,
+                  schemas: schemasResult, schemaDataMap: {},
+                },
+              };
+            } else {
+              const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
+                invoke<TableInfo[]>('get_tables', { connectionId, schema: firstDb }),
+                invoke<ViewInfo[]>('get_views', { connectionId, schema: firstDb }),
+                invoke<RoutineInfo[]>('get_routines', { connectionId, schema: firstDb }),
+                invoke<TriggerInfo[]>('get_triggers', { connectionId, schema: firstDb }).catch(() => [] as TriggerInfo[]),
+              ]);
+              initialDbMap = {
+                [firstDb]: {
+                  tables: tablesResult,
+                  views: viewsResult,
+                  routines: routinesResult,
+                  triggers: triggersResult,
+                  isLoading: false,
+                  isLoaded: true,
+                },
+              };
+            }
           } catch (e) {
             console.error(`Failed to pre-load database ${firstDb}:`, e);
           }
@@ -929,6 +1065,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       refreshSchemaData,
       setSelectedSchemas,
       loadDatabaseData,
+      loadDatabaseSchemaData,
       refreshDatabaseData,
       setSelectedDatabases,
       getConnectionData,

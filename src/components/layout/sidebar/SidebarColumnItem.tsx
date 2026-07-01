@@ -18,6 +18,9 @@ interface SidebarColumnItemProps {
   onEdit: (column: TableColumn) => void;
   isView?: boolean;
   schema?: string;
+  /** Schema-based multi-database (PostgreSQL): routes column DDL (drop column)
+   * to this database's connection pool. */
+  database?: string;
   canManage?: boolean;
 }
 
@@ -30,6 +33,7 @@ export const SidebarColumnItem = ({
   onEdit,
   isView = false,
   schema,
+  database,
   canManage,
 }: SidebarColumnItemProps) => {
   const { t } = useTranslation();
@@ -64,6 +68,7 @@ export const SidebarColumnItem = ({
           connectionId,
           query,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         });
 
         onRefresh();

@@ -33,13 +33,23 @@ interface SidebarTableItemProps {
   connectionId: string;
   driver: string;
   onAddColumn: (tableName: string) => void;
-  onEditColumn: (tableName: string, col: TableColumn) => void;
+  /** The node's schema/database are forwarded so the edit-column modal can
+   * route its DDL to the right schema and connection pool. */
+  onEditColumn: (
+    tableName: string,
+    col: TableColumn,
+    schema?: string,
+    database?: string,
+  ) => void;
   onAddIndex: (tableName: string) => void;
   onDropIndex: (tableName: string, indexName: string) => void;
   onAddForeignKey: (tableName: string) => void;
   onDropForeignKey: (tableName: string, fkName: string) => void;
   schemaVersion: number;
   schema?: string;
+  /** Schema-based multi-database (PostgreSQL): routes metadata fetches to this
+   * database's connection pool. Absent for single-database connections. */
+  database?: string;
   canManage?: boolean;
 }
 
@@ -60,6 +70,7 @@ const SidebarTableItemImpl = ({
   onDropForeignKey,
   schemaVersion,
   schema,
+  database,
 }: SidebarTableItemProps) => {
   const { t } = useTranslation();
   // Prevent unused variable warning
@@ -85,16 +96,19 @@ const SidebarTableItemImpl = ({
           connectionId,
           tableName: table.name,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         }),
         invoke<ForeignKey[]>("get_foreign_keys", {
           connectionId,
           tableName: table.name,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         }),
         invoke<Index[]>("get_indexes", {
           connectionId,
           tableName: table.name,
           ...(schema ? { schema } : {}),
+          ...(database ? { database } : {}),
         }),
       ]);
 
@@ -106,7 +120,7 @@ const SidebarTableItemImpl = ({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, table.name, schema]);
+  }, [connectionId, table.name, schema, database]);
 
   useEffect(() => {
     if (isExpanded) {
@@ -127,7 +141,7 @@ const SidebarTableItemImpl = ({
   const handleContextMenu = (e: React.MouseEvent, type: string, name: string) => {
     e.preventDefault();
     e.stopPropagation();
-    onContextMenu(e, type, name, name, { tableName: table.name, schema });
+    onContextMenu(e, type, name, name, { tableName: table.name, schema, database });
   };
 
   // Group indexes by name since API returns one row per column
@@ -240,8 +254,9 @@ const SidebarTableItemImpl = ({
                         driver={driver}
                         canManage={canManage}
                         onRefresh={refreshMetadata}
-                        onEdit={(c) => onEditColumn(table.name, c)}
+                        onEdit={(c) => onEditColumn(table.name, c, schema, database)}
                         schema={schema}
+                        database={database}
                       />
                     ))}
                   </div>
