@@ -34,7 +34,11 @@ interface SidebarSchemaItemProps {
   onTableClick: (name: string, schema: string) => void;
   onTableDoubleClick: (name: string, schema: string) => void;
   onViewClick: (name: string) => void;
-  onViewDoubleClick: (name: string, schema: string) => void;
+  onViewDoubleClick: (
+    name: string,
+    schema: string,
+    materialized?: boolean,
+  ) => void;
   onRoutineDoubleClick: (routine: RoutineInfo, schema: string) => void;
   onTriggerDoubleClick: (trigger: TriggerInfo, schema: string) => void;
   onContextMenu: (
@@ -322,7 +326,9 @@ export const SidebarSchemaItem = ({
                         view={view}
                         activeView={null}
                         onViewClick={onViewClick}
-                        onViewDoubleClick={(name) => onViewDoubleClick(name, schemaName)}
+                        onViewDoubleClick={(name) =>
+                          onViewDoubleClick(name, schemaName, true)
+                        }
                         onContextMenu={onContextMenu}
                         connectionId={connectionId}
                         driver={driver}

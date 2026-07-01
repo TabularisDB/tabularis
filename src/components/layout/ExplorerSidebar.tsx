@@ -343,13 +343,18 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     setActiveView(viewName);
   };
 
-  const handleOpenView = (viewName: string, schema?: string) => {
+  const handleOpenView = (
+    viewName: string,
+    schema?: string,
+    materialized = false,
+  ) => {
     const quotedView = quoteTableRef(viewName, activeDriver, schema);
     navigate("/editor", {
       state: {
         initialQuery: `SELECT * FROM ${quotedView}`,
         tableName: viewName,
         schema,
+        materialized,
         targetConnectionId: activeConnectionId,
       },
     });
@@ -1039,7 +1044,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           onTableClick={(name, schema) => handleTableClick(name, schema)}
                           onTableDoubleClick={(name, schema) => handleOpenTable(name, schema)}
                           onViewClick={handleViewClick}
-                          onViewDoubleClick={(name, schema) => handleOpenView(name, schema)}
+                          onViewDoubleClick={(name, schema, materialized) =>
+                            handleOpenView(name, schema, materialized)
+                          }
                           onRoutineDoubleClick={(routine, schema) => handleRoutineDoubleClick(routine, schema)}
                           onTriggerDoubleClick={(trigger, schema) => handleTriggerDoubleClick(trigger, schema)}
                           onContextMenu={handleContextMenu}

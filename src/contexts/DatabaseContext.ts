@@ -116,6 +116,7 @@ export interface DatabaseContextType {
   activeDatabaseName: string | null;
   tables: TableInfo[];
   views: ViewInfo[];
+  materializedViews: ViewInfo[];
   routines: RoutineInfo[];
   triggers: TriggerInfo[];
   isLoadingTables: boolean;

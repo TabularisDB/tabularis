@@ -118,6 +118,7 @@ interface EditorState {
   queryName?: string;
   preventAutoRun?: boolean;
   readOnly?: boolean;
+  materialized?: boolean;
   schema?: string;
   targetConnectionId?: string;
   title?: string;
@@ -139,6 +140,7 @@ export const Editor = () => {
     activeConnectionId,
     tables,
     views,
+    materializedViews,
     activeDriver,
     activeSchema,
     activeCapabilities,
@@ -723,8 +725,13 @@ export const Editor = () => {
         // If not a table tab, try to extract table name from the query
         if (!tableName && textToRun) {
           const extracted = extractTableName(textToRun);
-          // Reject views — they may not be updatable
-          if (extracted && !views.some((v) => v.name === extracted)) {
+          // Reject views and materialized views — they are not row-editable
+          // (materialized views only accept REFRESH, not INSERT/UPDATE/DELETE).
+          if (
+            extracted &&
+            !views.some((v) => v.name === extracted) &&
+            !materializedViews.some((v) => v.name === extracted)
+          ) {
             tableName = extracted;
           }
         }
@@ -794,6 +801,7 @@ export const Editor = () => {
       activeSchema,
       activeCapabilities?.schemas,
       views,
+      materializedViews,
       isMultiDb,
       activeDatabaseName,
       addHistoryEntry,
@@ -2238,6 +2246,7 @@ export const Editor = () => {
           queryName,
           preventAutoRun,
           readOnly: navReadOnly,
+          materialized: navMaterialized,
           schema: navSchema,
           title: navTitle,
         } = state;
@@ -2248,6 +2257,7 @@ export const Editor = () => {
           activeTable: table,
           schema: navSchema,
           readOnly: navReadOnly,
+          materialized: navMaterialized,
         });
 
         if (tabId && !preventAutoRun) {
@@ -3222,7 +3232,8 @@ export const Editor = () => {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={handleNewRow}
-                          className="flex items-center justify-center w-7 h-7 text-secondary hover:text-green-400 hover:bg-surface-secondary rounded transition-colors"
+                          disabled={!!activeTab.materialized}
+                          className="flex items-center justify-center w-7 h-7 text-secondary hover:text-green-400 hover:bg-surface-secondary rounded transition-colors disabled:opacity-30"
                           title={t("editor.newRow")}
                         >
                           <Plus size={16} />
@@ -3230,6 +3241,7 @@ export const Editor = () => {
                         <button
                           onClick={handleDeleteRows}
                           disabled={
+                            !!activeTab.materialized ||
                             !activeTab.selectedRows ||
                             activeTab.selectedRows.length === 0
                           }
@@ -3371,7 +3383,7 @@ export const Editor = () => {
                           ? handleSort
                           : undefined
                       }
-                      readonly={driverReadonly}
+                      readonly={driverReadonly || !!activeTab.materialized}
                     />
                   </div>
                   {activeFkQuery && activeConnectionId && (

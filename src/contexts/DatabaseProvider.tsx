@@ -75,6 +75,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const activeDatabaseName = activeData?.databaseName ?? null;
   const tables = activeData?.tables ?? [];
   const views = activeData?.views ?? [];
+  const materializedViews = activeData?.materializedViews ?? [];
   const routines = activeData?.routines ?? [];
   const triggers = activeData?.triggers ?? [];
   const isLoadingTables = activeData?.isLoadingTables ?? false;
@@ -895,6 +896,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       activeDatabaseName,
       tables,
       views,
+      materializedViews,
       routines,
       triggers,
       isLoadingTables,
