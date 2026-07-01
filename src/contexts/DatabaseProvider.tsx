@@ -75,7 +75,6 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const activeDatabaseName = activeData?.databaseName ?? null;
   const tables = activeData?.tables ?? [];
   const views = activeData?.views ?? [];
-  const materializedViews = activeData?.materializedViews ?? [];
   const routines = activeData?.routines ?? [];
   const triggers = activeData?.triggers ?? [];
   const isLoadingTables = activeData?.isLoadingTables ?? false;
@@ -86,6 +85,11 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const isLoadingSchemas = activeData?.isLoadingSchemas ?? false;
   const schemaDataMap = activeData?.schemaDataMap ?? {};
   const activeSchema = activeData?.activeSchema ?? null;
+  // Materialized views are schema-scoped (Postgres only), so resolve them from
+  // the active schema rather than the connection level (where they never load).
+  const materializedViews = activeSchema
+    ? (schemaDataMap[activeSchema]?.materializedViews ?? [])
+    : [];
   const selectedSchemas = activeData?.selectedSchemas ?? [];
   const needsSchemaSelection = activeData?.needsSchemaSelection ?? false;
   const selectedDatabases = useMemo(() => activeData?.selectedDatabases ?? [], [activeData?.selectedDatabases]);
