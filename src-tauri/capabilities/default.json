@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "enables the default permissions",
-  "windows": ["main", "visual-explain", "er-diagram", "task-manager", "json-viewer-*"],
+  "windows": ["main", "visual-explain", "er-diagram", "task-manager", "json-viewer-*", "results-window-*"],
   "permissions": [
     "core:default",
     "core:window:allow-set-title",

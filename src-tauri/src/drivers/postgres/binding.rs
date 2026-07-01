@@ -23,10 +23,19 @@ pub(super) struct PgValueOptions<'a> {
 /// given JSON pk_val. Numeric values are cast through bigint/double precision so the
 /// bind succeeds against int2/int4/int8/real columns; UUID strings are bound as the
 /// `Uuid` type so PostgreSQL receives the matching OID.
+///
+/// `pk_type` is the PK column's declared type (e.g. `"uuid"`, `"character
+/// varying"`); `None` when column metadata could not be loaded. It decides how a
+/// uuid-/integer-shaped string binds: a uuid-shaped value goes out as the native
+/// `Uuid` type only for an actual `uuid` column — a `varchar`/`text` PK that merely
+/// holds a uuid-shaped string (e.g. `guid varchar(36)`) must bind as text, or
+/// tokio-postgres rejects the param with "error serializing parameter N" (#392).
+/// When the type is unknown we fall back to the shape heuristic.
 pub(super) fn build_pk_predicate(
     pk_col: &str,
     pk_val: serde_json::Value,
     placeholder_idx: usize,
+    pk_type: Option<&str>,
 ) -> Result<(String, PgParam), String> {
     let col = format!("\"{}\"", escape_identifier(pk_col));
     match pk_val {
@@ -38,19 +47,32 @@ pub(super) fn build_pk_predicate(
             Ok((format!("{} = {}", col, bound.sql), param))
         }
         serde_json::Value::String(s) => {
-            if let Ok(uuid) = s.parse::<uuid::Uuid>() {
-                Ok((format!("{} = ${}", col, placeholder_idx), Box::new(uuid)))
-            } else if let Some(n) = parse_unsafe_bigint_string(&s) {
-                // Bigint PK values outside JS safe range arrive from the UI as
-                // strings. Cast through bigint so the equality test against an
-                // int8 column does not trip a PostgreSQL type mismatch.
-                Ok((
-                    format!("{} = CAST(${} AS bigint)", col, placeholder_idx),
-                    Box::new(n),
-                ))
-            } else {
-                Ok((format!("{} = ${}", col, placeholder_idx), Box::new(s)))
+            let base = pk_type.map(|t| extract_base_type(t).to_lowercase());
+
+            if matches!(base.as_deref(), Some("uuid") | None) {
+                if let Ok(uuid) = s.parse::<uuid::Uuid>() {
+                    return Ok((format!("{} = ${}", col, placeholder_idx), Box::new(uuid)));
+                }
             }
+
+            // Bigint PK values outside JS safe range arrive from the UI as
+            // strings. Cast through bigint so the equality test against an int8
+            // column does not trip a type mismatch — but skip for known text
+            // columns, which would reject `varchar = bigint`.
+            let integerish = matches!(
+                base.as_deref(),
+                Some("smallint" | "integer" | "bigint" | "int2" | "int4" | "int8") | None
+            );
+            if integerish {
+                if let Some(n) = parse_unsafe_bigint_string(&s) {
+                    return Ok((
+                        format!("{} = CAST(${} AS bigint)", col, placeholder_idx),
+                        Box::new(n),
+                    ));
+                }
+            }
+
+            Ok((format!("{} = ${}", col, placeholder_idx), Box::new(s)))
         }
         _ => Err("Unsupported PK type".into()),
     }
@@ -59,8 +81,14 @@ pub(super) fn build_pk_predicate(
 /// Build a compound WHERE predicate from all entries of a pk_map.
 /// Keys are sorted for determinism. Returns the predicate string and all boxed params.
 /// E.g. `"col1" = $2 AND "col2" = $3` with params starting at placeholder_idx.
+///
+/// `pk_types` maps each PK column to its declared type (e.g. `"uuid"`, `"character
+/// varying"`); a column missing from the map binds via the shape heuristic. The type
+/// is threaded per column into [`build_pk_predicate`] so each member of a composite PK
+/// binds correctly — including a uuid-shaped value in a `varchar`/`text` column (#392).
 pub(super) fn build_pk_map_predicate(
     pk_map: &HashMap<String, serde_json::Value>,
+    pk_types: &HashMap<String, String>,
     placeholder_idx: usize,
 ) -> Result<(String, Vec<PgParam>), String> {
     if pk_map.is_empty() {
@@ -72,7 +100,12 @@ pub(super) fn build_pk_map_predicate(
     let mut params: Vec<PgParam> = Vec::new();
     for key in keys {
         let val = pk_map[key].clone();
-        let (pred, param) = build_pk_predicate(key, val, placeholder_idx + params.len())?;
+        let (pred, param) = build_pk_predicate(
+            key,
+            val,
+            placeholder_idx + params.len(),
+            pk_types.get(key).map(|s| s.as_str()),
+        )?;
         predicates.push(pred);
         params.push(param);
     }

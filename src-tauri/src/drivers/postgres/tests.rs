@@ -497,43 +497,66 @@ mod build_pk_predicate_tests {
 
     #[test]
     fn integer_pk_uses_bigint_cast() {
-        let (sql, _) = build_pk_predicate("id", serde_json::json!(1), 1).unwrap();
+        let (sql, _) = build_pk_predicate("id", serde_json::json!(1), 1, None).unwrap();
         assert_eq!(sql, "\"id\" = CAST($1 AS bigint)");
     }
 
     #[test]
     fn float_pk_uses_double_precision_cast() {
-        let (sql, _) = build_pk_predicate("id", serde_json::json!(1.5), 2).unwrap();
+        let (sql, _) = build_pk_predicate("id", serde_json::json!(1.5), 2, None).unwrap();
         assert_eq!(sql, "\"id\" = CAST($2 AS double precision)");
     }
 
     #[test]
     fn uuid_string_pk_binds_without_cast() {
         let uuid = "550e8400-e29b-41d4-a716-446655440000";
-        let (sql, _) = build_pk_predicate("uuid", serde_json::json!(uuid), 1).unwrap();
+        let (sql, _) = build_pk_predicate("uuid", serde_json::json!(uuid), 1, None).unwrap();
         assert_eq!(sql, "\"uuid\" = $1");
+    }
+
+    // issue #392: a uuid-shaped string in a varchar/text PK column must bind as
+    // text, not the native Uuid type — otherwise tokio-postgres rejects it with
+    // "error serializing parameter N" against the varchar column.
+    #[test]
+    fn uuid_string_pk_binds_as_text_for_varchar_column() {
+        let uuid = "550e8400-e29b-41d4-a716-446655440000";
+        let (sql, param) =
+            build_pk_predicate("guid", serde_json::json!(uuid), 1, Some("character varying"))
+                .unwrap();
+        assert_eq!(sql, "\"guid\" = $1");
+        assert_eq!(format!("{:?}", param), format!("{:?}", uuid.to_string()));
+    }
+
+    #[test]
+    fn uuid_string_pk_binds_as_uuid_for_uuid_column() {
+        let uuid = "550e8400-e29b-41d4-a716-446655440000";
+        let (sql, param) =
+            build_pk_predicate("id", serde_json::json!(uuid), 1, Some("uuid")).unwrap();
+        assert_eq!(sql, "\"id\" = $1");
+        let expected: uuid::Uuid = uuid.parse().unwrap();
+        assert_eq!(format!("{:?}", param), format!("{:?}", expected));
     }
 
     #[test]
     fn plain_string_pk_binds_without_cast() {
-        let (sql, _) = build_pk_predicate("name", serde_json::json!("alice"), 1).unwrap();
+        let (sql, _) = build_pk_predicate("name", serde_json::json!("alice"), 1, None).unwrap();
         assert_eq!(sql, "\"name\" = $1");
     }
 
     #[test]
     fn pk_col_with_quotes_is_escaped() {
-        let (sql, _) = build_pk_predicate("a\"b", serde_json::json!(1), 1).unwrap();
+        let (sql, _) = build_pk_predicate("a\"b", serde_json::json!(1), 1, None).unwrap();
         assert_eq!(sql, "\"a\"\"b\" = CAST($1 AS bigint)");
     }
 
     #[test]
     fn null_pk_is_rejected() {
-        assert!(build_pk_predicate("id", serde_json::Value::Null, 1).is_err());
+        assert!(build_pk_predicate("id", serde_json::Value::Null, 1, None).is_err());
     }
 
     #[test]
     fn bool_pk_is_rejected() {
-        assert!(build_pk_predicate("id", serde_json::json!(true), 1).is_err());
+        assert!(build_pk_predicate("id", serde_json::json!(true), 1, None).is_err());
     }
 }
 
@@ -545,7 +568,8 @@ mod build_pk_map_predicate_tests {
     fn single_integer_column() {
         let mut pk_map = HashMap::new();
         pk_map.insert("id".to_string(), serde_json::json!(1));
-        let (sql, params) = build_pk_map_predicate(&pk_map, 1).unwrap();
+        let pk_types = HashMap::new();
+        let (sql, params) = build_pk_map_predicate(&pk_map, &pk_types, 1).unwrap();
         assert_eq!(sql, "\"id\" = CAST($1 AS bigint)");
         assert_eq!(params.len(), 1);
     }
@@ -555,7 +579,8 @@ mod build_pk_map_predicate_tests {
         let mut pk_map = HashMap::new();
         pk_map.insert("z_col".to_string(), serde_json::json!("alice"));
         pk_map.insert("a_col".to_string(), serde_json::json!("bob"));
-        let (sql, params) = build_pk_map_predicate(&pk_map, 1).unwrap();
+        let pk_types = HashMap::new();
+        let (sql, params) = build_pk_map_predicate(&pk_map, &pk_types, 1).unwrap();
         assert_eq!(sql, "\"a_col\" = $1 AND \"z_col\" = $2");
         assert_eq!(params.len(), 2);
     }
@@ -564,7 +589,8 @@ mod build_pk_map_predicate_tests {
     fn non_one_starting_placeholder_idx() {
         let mut pk_map = HashMap::new();
         pk_map.insert("id".to_string(), serde_json::json!(5));
-        let (sql, _) = build_pk_map_predicate(&pk_map, 3).unwrap();
+        let pk_types = HashMap::new();
+        let (sql, _) = build_pk_map_predicate(&pk_map, &pk_types, 3).unwrap();
         assert_eq!(sql, "\"id\" = CAST($3 AS bigint)");
     }
 
@@ -573,14 +599,37 @@ mod build_pk_map_predicate_tests {
         let mut pk_map = HashMap::new();
         pk_map.insert("b_col".to_string(), serde_json::json!("alice"));
         pk_map.insert("a_col".to_string(), serde_json::json!(99));
-        let (sql, params) = build_pk_map_predicate(&pk_map, 1).unwrap();
+        let pk_types = HashMap::new();
+        let (sql, params) = build_pk_map_predicate(&pk_map, &pk_types, 1).unwrap();
         assert_eq!(sql, "\"a_col\" = CAST($1 AS bigint) AND \"b_col\" = $2");
         assert_eq!(params.len(), 2);
+    }
+
+    // Combines #324 (composite PK) and #392 (uuid-shaped value in a varchar PK
+    // column): the uuid column binds as the native Uuid while the varchar member
+    // holding a uuid-shaped string binds as text, all within one compound predicate.
+    #[test]
+    fn composite_pk_threads_per_column_type_for_uuid_varchar() {
+        let uuid = "550e8400-e29b-41d4-a716-446655440000";
+        let mut pk_map = HashMap::new();
+        pk_map.insert("id".to_string(), serde_json::json!(uuid));
+        pk_map.insert("guid".to_string(), serde_json::json!(uuid));
+        let mut pk_types = HashMap::new();
+        pk_types.insert("id".to_string(), "uuid".to_string());
+        pk_types.insert("guid".to_string(), "character varying".to_string());
+        let (sql, params) = build_pk_map_predicate(&pk_map, &pk_types, 1).unwrap();
+        assert_eq!(sql, "\"guid\" = $1 AND \"id\" = $2");
+        assert_eq!(params.len(), 2);
+        // guid (sorted first) binds as text, id binds as the native Uuid type.
+        let expected_uuid: uuid::Uuid = uuid.parse().unwrap();
+        assert_eq!(format!("{:?}", params[0]), format!("{:?}", uuid.to_string()));
+        assert_eq!(format!("{:?}", params[1]), format!("{:?}", expected_uuid));
     }
 
     #[test]
     fn empty_pk_map_is_rejected() {
         let pk_map: HashMap<String, serde_json::Value> = HashMap::new();
-        assert!(build_pk_map_predicate(&pk_map, 1).is_err());
+        let pk_types = HashMap::new();
+        assert!(build_pk_map_predicate(&pk_map, &pk_types, 1).is_err());
     }
 }

@@ -46,10 +46,13 @@ import {
   Copy,
   FileText,
   FileJson,
+  Maximize2,
+  Minimize2,
+  ExternalLink,
   CheckCircle2,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { listen, emit } from "@tauri-apps/api/event";
 import { TableToolbar } from "../components/ui/TableToolbar";
 import { DataGrid } from "../components/ui/DataGrid";
 import { MultiResultPanel } from "../components/ui/MultiResultPanel";
@@ -81,6 +84,18 @@ import {
   interpolateQueryParams,
 } from "../utils/queryParameters";
 import { formatDuration } from "../utils/formatTime";
+import {
+  buildSyncPayload,
+  applyAction,
+  RESULTS_SYNC_EVENT,
+  RESULTS_ACTION_EVENT,
+  RESULTS_READY_EVENT,
+  RESULTS_CLOSED_EVENT,
+  type ResultsWindowActionHandlers,
+  type ResultsReadyPayload,
+  type ResultsActionEnvelope,
+  type ResultsClosedPayload,
+} from "../utils/resultsWindowSync";
 import { SqlEditorWrapper } from "../components/ui/SqlEditorWrapper";
 import { NotebookView } from "../components/notebook/NotebookView";
 import { useSqlAutocompleteRegistration } from "../hooks/useSqlAutocompleteRegistration";
@@ -304,6 +319,15 @@ export const Editor = () => {
   const [editorHeight, setEditorHeight] = useState(300);
   const editorHeightRef = useRef(300);
   const [isResultsCollapsed, setIsResultsCollapsed] = useState(false);
+  // Ids of tabs whose results are detached into their own separate windows (one
+  // window per tab). Each window keeps showing its tab even when the user
+  // switches tabs in the main window.
+  const [detachedTabIds, setDetachedTabIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  // Mirror of detachedTabIds for use inside callbacks/refs without re-creating
+  // them or reading stale closures. Kept in sync alongside tabsRef below.
+  const detachedTabIdsRef = useRef(detachedTabIds);
   const isDragging = useRef(false);
   const rafRef = useRef<number | null>(null);
   const editorsRef = useRef<Record<string, Parameters<OnMount>[0]>>({});
@@ -527,7 +551,8 @@ export const Editor = () => {
   useEffect(() => {
     tabsRef.current = tabs;
     activeTabIdRef.current = activeTabId;
-  }, [tabs, activeTabId]);
+    detachedTabIdsRef.current = detachedTabIds;
+  }, [tabs, activeTabId, detachedTabIds]);
 
   useEffect(() => {
     updateScrollArrows();
@@ -625,6 +650,11 @@ export const Editor = () => {
       const targetTab = tabsRef.current.find((t) => t.id === targetTabId);
       if (!targetTab) return;
 
+      // When the target tab's results live in a detached window, this run was
+      // triggered from that window: don't touch main-window-only UI state
+      // (results panel, params modal) — it belongs to whatever tab is active here.
+      const isDetached = detachedTabIdsRef.current.has(targetTabId);
+
       let textToRun = sql?.trim() || targetTab?.query;
       // For Table Tabs, reconstruct query if filter/sort are present
       if (targetTab?.type === "table" && targetTab.activeTable) {
@@ -657,14 +687,18 @@ export const Editor = () => {
 
         // If we have missing params
         if (missingParams.length > 0) {
-          setQueryParamsModal({
-            isOpen: true,
-            sql: textToRun,
-            parameters: params,
-            pendingPageNum: pageNum,
-            pendingTabId: targetTabId,
-            mode: "run",
-          });
+          // The params modal lives in the main window; don't pop it for a run
+          // triggered from a detached window (it would hijack the active tab).
+          if (!isDetached) {
+            setQueryParamsModal({
+              isOpen: true,
+              sql: textToRun,
+              parameters: params,
+              pendingPageNum: pageNum,
+              pendingTabId: targetTabId,
+              mode: "run",
+            });
+          }
           return;
         }
 
@@ -672,8 +706,11 @@ export const Editor = () => {
         textToRun = interpolateQueryParams(textToRun, storedParams);
       }
 
-      // Automatically open results panel when running a query
-      setIsResultsCollapsed(false);
+      // Automatically open the results panel when running a query — but only
+      // for the main window; a detached run must not re-expand the main panel.
+      if (!isDetached) {
+        setIsResultsCollapsed(false);
+      }
 
       // Preserve total_rows across page changes so the count doesn't disappear
       const previousTotalRows =
@@ -988,8 +1025,8 @@ export const Editor = () => {
   );
 
   const runResultEntryPage = useCallback(
-    async (entryId: string, pageNum: number) => {
-      const targetTabId = activeTabIdRef.current;
+    async (entryId: string, pageNum: number, tabIdArg?: string) => {
+      const targetTabId = tabIdArg ?? activeTabIdRef.current;
       if (!activeConnectionId || !targetTabId) return;
 
       const currentTab = tabsRef.current.find((t) => t.id === targetTabId);
@@ -1064,25 +1101,248 @@ export const Editor = () => {
     [activeConnectionId, updateTab, settings.resultPageSize, activeSchema, t],
   );
 
-  const loadCount = useCallback(async () => {
-    if (!activeTab?.result?.pagination || !activeConnectionId) return;
-    setIsCountLoading(true);
+  const loadCount = useCallback(
+    async (tabIdArg?: string) => {
+      const tab = tabIdArg
+        ? tabsRef.current.find((t) => t.id === tabIdArg)
+        : activeTab;
+      if (!tab?.result?.pagination || !activeConnectionId) return;
+      // setIsCountLoading drives the spinner in the main window only; skip it for
+      // a count triggered from a detached window (its own window owns its spinner).
+      const isDetached = detachedTabIdsRef.current.has(tab.id);
+      if (!isDetached) setIsCountLoading(true);
+      try {
+        const total = await invoke<number>("count_query", {
+          connectionId: activeConnectionId,
+          query: tab.query,
+          schema: tab.schema ?? activeSchema,
+        });
+        const latest = tabsRef.current.find((t) => t.id === tab.id) ?? tab;
+        if (!latest.result?.pagination) return;
+        updateTab(tab.id, {
+          result: {
+            ...latest.result,
+            pagination: { ...latest.result.pagination, total_rows: total },
+          },
+        });
+      } finally {
+        if (!isDetached) setIsCountLoading(false);
+      }
+    },
+    [activeTab, activeConnectionId, activeSchema, updateTab],
+  );
+
+  // --- Detached results windows (one per detached tab) ---
+  const handleDetachResults = useCallback(async () => {
+    if (!activeTab) return;
+    const tabId = activeTab.id;
     try {
-      const total = await invoke<number>("count_query", {
-        connectionId: activeConnectionId,
-        query: activeTab.query,
-        schema: activeTab.schema ?? activeSchema,
+      await invoke("open_results_window", {
+        tabId,
+        title: `${activeTab.title} — Query Results`,
       });
-      updateTab(activeTab.id, {
-        result: {
-          ...activeTab.result,
-          pagination: { ...activeTab.result.pagination, total_rows: total },
-        },
-      });
-    } finally {
-      setIsCountLoading(false);
+      setDetachedTabIds((prev) => new Set(prev).add(tabId));
+    } catch (e) {
+      console.error("Failed to detach results", e);
     }
-  }, [activeTab, activeConnectionId, activeSchema, updateTab]);
+  }, [activeTab]);
+
+  const handleReattachResults = useCallback(async (tabId: string) => {
+    try {
+      await invoke("close_results_window", { tabId });
+    } catch (e) {
+      console.error("Failed to close results window", e);
+    }
+    setDetachedTabIds((prev) => {
+      const next = new Set(prev);
+      next.delete(tabId);
+      return next;
+    });
+  }, []);
+
+  // Push each detached tab's result state to its window whenever the tabs
+  // change (every detached tab is re-synced; its window filters by tabId).
+  useEffect(() => {
+    if (detachedTabIds.size === 0) return;
+    for (const id of detachedTabIds) {
+      const tab = tabs.find((t) => t.id === id);
+      if (tab) {
+        emit(
+          RESULTS_SYNC_EVENT,
+          buildSyncPayload(tab, {
+            connectionId: activeConnectionId,
+            copyFormat,
+            csvDelimiter,
+            csvIncludeHeaders,
+          }),
+        );
+      }
+    }
+  }, [
+    tabs,
+    detachedTabIds,
+    activeConnectionId,
+    copyFormat,
+    csvDelimiter,
+    csvIncludeHeaders,
+  ]);
+
+  // If a detached tab is closed in the main window, close its orphaned window.
+  // Closing the window emits RESULTS_CLOSED_EVENT, whose listener owns pruning
+  // detachedTabIds — so this effect stays side-effect-only (no setState here).
+  useEffect(() => {
+    for (const id of detachedTabIds) {
+      if (!tabs.some((t) => t.id === id)) {
+        invoke("close_results_window", { tabId: id }).catch(() => {});
+      }
+    }
+  }, [tabs, detachedTabIds]);
+
+  // Respond to the detached windows' handshakes and forwarded actions. The main
+  // window owns all query/DB logic, so actions map onto the existing handlers
+  // targeting the tab named in each event (not necessarily the active one).
+  //
+  // Registered unconditionally (no detachedTabIds.size gate): a freshly opened
+  // window emits its ready handshake as soon as it boots, and listen() registers
+  // asynchronously — gating behind the first detach races that emit and can leave
+  // the window stuck on "Loading…". Each handler self-guards (action via
+  // detachedTabIdsRef, ready via the tabsRef lookup, closed via prev.has).
+  useEffect(() => {
+    const emitSyncFor = (tabId: string) => {
+      const tab = tabsRef.current.find((t) => t.id === tabId);
+      if (tab) {
+        emit(
+          RESULTS_SYNC_EVENT,
+          buildSyncPayload(tab, {
+            connectionId: activeConnectionId,
+            copyFormat,
+            csvDelimiter,
+            csvIncludeHeaders,
+          }),
+        );
+      }
+    };
+
+    const makeHandlers = (tabId: string): ResultsWindowActionHandlers => {
+      const tabResults = () => {
+        const tab = tabsRef.current.find((t) => t.id === tabId);
+        return tab && tab.results ? tab : null;
+      };
+      return {
+        onRunQueryPage: (query, page) => runQuery(query, page, tabId),
+        onPageChange: (entryId, page) => runResultEntryPage(entryId, page, tabId),
+        onRerunEntry: (entryId) => runResultEntryPage(entryId, 1, tabId),
+        onLoadCount: () => loadCount(tabId),
+        onSelectResult: (entryId) =>
+          updateTab(tabId, { activeResultId: entryId }),
+        onCloseEntry: (entryId) => {
+          const tab = tabResults();
+          if (!tab) return;
+          const { results: newResults, nextActiveId } = removeResultEntry(
+            tab.results!,
+            entryId,
+            tab.activeResultId,
+          );
+          if (newResults.length === 0) {
+            updateTab(tab.id, { results: undefined, activeResultId: undefined });
+          } else {
+            updateTab(tab.id, {
+              results: newResults,
+              activeResultId: nextActiveId,
+            });
+          }
+        },
+        onCloseOtherEntries: (entryId) => {
+          const tab = tabResults();
+          if (!tab) return;
+          const { results: newResults, nextActiveId } = removeOtherEntries(
+            tab.results!,
+            entryId,
+          );
+          updateTab(tab.id, {
+            results: newResults,
+            activeResultId: nextActiveId,
+          });
+        },
+        onCloseEntriesToRight: (entryId) => {
+          const tab = tabResults();
+          if (!tab) return;
+          const { results: newResults, nextActiveId } = removeEntriesToRight(
+            tab.results!,
+            entryId,
+            tab.activeResultId,
+          );
+          updateTab(tab.id, {
+            results: newResults,
+            activeResultId: nextActiveId,
+          });
+        },
+        onCloseEntriesToLeft: (entryId) => {
+          const tab = tabResults();
+          if (!tab) return;
+          const { results: newResults, nextActiveId } = removeEntriesToLeft(
+            tab.results!,
+            entryId,
+            tab.activeResultId,
+          );
+          updateTab(tab.id, {
+            results: newResults,
+            activeResultId: nextActiveId,
+          });
+        },
+        onCloseAllEntries: () =>
+          updateTab(tabId, { results: undefined, activeResultId: undefined }),
+        onRenameEntry: (entryId, label) => {
+          const tab = tabResults();
+          if (!tab) return;
+          updateTab(tab.id, {
+            results: updateResultEntry(tab.results!, entryId, { label }),
+          });
+        },
+      };
+    };
+
+    const readyP = listen<ResultsReadyPayload>(RESULTS_READY_EVENT, (event) =>
+      emitSyncFor(event.payload.tabId),
+    );
+    const actionP = listen<ResultsActionEnvelope>(
+      RESULTS_ACTION_EVENT,
+      (event) => {
+        // Only honor actions for tabs we actually have detached — defense in
+        // depth against events arriving for a reattached/unknown tab.
+        const { tabId, action } = event.payload;
+        if (!detachedTabIdsRef.current.has(tabId)) return;
+        applyAction(action, makeHandlers(tabId));
+      },
+    );
+    const closedP = listen<ResultsClosedPayload>(
+      RESULTS_CLOSED_EVENT,
+      (event) => {
+        const closedId = event.payload.tabId;
+        setDetachedTabIds((prev) => {
+          if (!prev.has(closedId)) return prev;
+          const next = new Set(prev);
+          next.delete(closedId);
+          return next;
+        });
+      },
+    );
+
+    return () => {
+      readyP.then((u) => u());
+      actionP.then((u) => u());
+      closedP.then((u) => u());
+    };
+  }, [
+    activeConnectionId,
+    copyFormat,
+    csvDelimiter,
+    csvIncludeHeaders,
+    runQuery,
+    runResultEntryPage,
+    loadCount,
+    updateTab,
+  ]);
 
   const handleRunButton = useCallback(() => {
     if (!activeTab) return;
@@ -2985,51 +3245,86 @@ export const Editor = () => {
             <div
               onMouseDown={isEditorOpen ? startResize : undefined}
               className={clsx(
-                "h-6 bg-elevated border-y border-default flex items-center px-2 relative",
-                isEditorOpen
-                  ? "cursor-row-resize justify-between"
-                  : "justify-between",
+                "h-6 bg-elevated border-y border-default flex items-center justify-end px-2 relative",
+                isEditorOpen ? "cursor-row-resize" : "",
               )}
             >
-              <div className="flex items-center">
+              <div
+                className="flex items-center gap-0.5"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                {/* Detach results into a separate window */}
                 <button
-                  onClick={() =>
-                    updateActiveTab({ isEditorOpen: !isEditorOpen })
-                  }
-                  className="text-muted hover:text-secondary transition-colors p-1 hover:bg-surface-secondary rounded flex items-center gap-1 text-xs"
-                  title={
-                    isEditorOpen
-                      ? "Maximize Results (Hide Editor)"
-                      : "Show Editor"
-                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDetachResults();
+                  }}
+                  disabled={detachedTabIds.has(activeTab.id)}
+                  className="text-muted hover:text-secondary transition-colors p-1 hover:bg-surface-secondary rounded disabled:opacity-30 disabled:pointer-events-none"
+                  title={t("editor.results.detach")}
                 >
-                  {isEditorOpen ? (
-                    <ChevronUp size={16} />
-                  ) : (
-                    <ChevronDown size={16} />
-                  )}
-                  {!isEditorOpen && <span>Show Editor</span>}
+                  <ExternalLink size={14} />
                 </button>
-              </div>
-
-              {isEditorOpen && (
+                {/* Minimize (collapse the results panel) */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setIsResultsCollapsed(true);
                   }}
                   className="text-muted hover:text-secondary transition-colors p-1 hover:bg-surface-secondary rounded"
-                  title="Hide Results Panel (Maximize Editor)"
+                  title={t("editor.results.minimize")}
                 >
-                  <ChevronDown size={16} />
+                  <Minus size={14} />
                 </button>
-              )}
+                {/* Maximize results (hide editor) / restore */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateActiveTab({ isEditorOpen: !isEditorOpen });
+                  }}
+                  className="text-muted hover:text-secondary transition-colors p-1 hover:bg-surface-secondary rounded"
+                  title={
+                    isEditorOpen
+                      ? t("editor.results.maximize")
+                      : t("editor.results.restore")
+                  }
+                >
+                  {isEditorOpen ? (
+                    <Maximize2 size={14} />
+                  ) : (
+                    <Minimize2 size={14} />
+                  )}
+                </button>
+                {/* Close (collapse the results panel, keeps the data) */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsResultsCollapsed(true);
+                  }}
+                  className="text-muted hover:text-red-400 transition-colors p-1 hover:bg-surface-secondary rounded"
+                  title={t("editor.results.close")}
+                >
+                  <X size={14} />
+                </button>
+              </div>
             </div>
           )}
 
           {/* Results Panel */}
           <div className="flex-1 overflow-hidden bg-elevated flex flex-col min-h-0">
-            {activeTab.results && activeTab.results.length > 0 ? (
+            {detachedTabIds.has(activeTab.id) ? (
+              <div className="flex flex-col items-center justify-center h-full text-muted gap-3">
+                <ExternalLink size={28} className="opacity-60" />
+                <p className="text-sm">{t("editor.results.detached")}</p>
+                <button
+                  onClick={() => handleReattachResults(activeTab.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-secondary hover:text-primary bg-surface-secondary hover:bg-surface-tertiary border border-default rounded transition-colors"
+                >
+                  <Minimize2 size={14} />
+                  {t("editor.results.reattach")}
+                </button>
+              </div>
+            ) : activeTab.results && activeTab.results.length > 0 ? (
               <MultiResultPanel
                 results={activeTab.results}
                 activeResultId={activeTab.activeResultId}
@@ -3266,7 +3561,7 @@ export const Editor = () => {
                         {activeTab.result.pagination.total_rows === null && (
                           <button
                             disabled={isCountLoading || activeTab.isLoading}
-                            onClick={loadCount}
+                            onClick={() => loadCount()}
                             className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
                             title={t("editor.loadRowCount")}
                           >

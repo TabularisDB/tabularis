@@ -9,6 +9,9 @@ interface SqlCellProps {
   onRun: () => void;
   onChartConfigChange?: (config: CellChartConfig | null) => void;
   onResultHeightChange?: (height: number) => void;
+  onToggleQueryCollapse: () => void;
+  onToggleResultCollapse: () => void;
+  onToggleChartVisible: (visible: boolean) => void;
   connectionId: string;
   schema?: string;
 }
@@ -19,6 +22,9 @@ export function SqlCell({
   onRun,
   onChartConfigChange,
   onResultHeightChange,
+  onToggleQueryCollapse,
+  onToggleResultCollapse,
+  onToggleChartVisible,
   connectionId,
   schema,
 }: SqlCellProps) {
@@ -31,6 +37,8 @@ export function SqlCell({
         onRun={onRun}
         connectionId={connectionId}
         schema={schema}
+        collapsed={cell.isQueryCollapsed}
+        onToggleCollapse={onToggleQueryCollapse}
       />
       <SqlCellResult
         result={cell.result ?? null}
@@ -41,6 +49,10 @@ export function SqlCell({
         onChartConfigChange={onChartConfigChange}
         resultHeight={cell.resultHeight}
         onResultHeightChange={onResultHeightChange}
+        isResultCollapsed={cell.isResultCollapsed}
+        onToggleResultCollapse={onToggleResultCollapse}
+        isChartVisible={cell.isChartVisible}
+        onToggleChartVisible={onToggleChartVisible}
       />
     </div>
   );

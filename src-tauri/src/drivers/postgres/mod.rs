@@ -421,7 +421,8 @@ pub async fn save_blob_column_to_file(
 ) -> Result<(), String> {
     let pool = get_postgres_pool(params).await?;
 
-    let (predicate, pk_params) = build_pk_map_predicate(pk_map, 1)?;
+    let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
+    let (predicate, pk_params) = build_pk_map_predicate(pk_map, &pk_types, 1)?;
     let query = format!(
         "SELECT \"{}\" FROM \"{}\".\"{}\" WHERE {}",
         escape_identifier(col_name),
@@ -449,7 +450,8 @@ pub async fn fetch_blob_column_as_data_url(
 ) -> Result<String, String> {
     let pool = get_postgres_pool(params).await?;
 
-    let (predicate, pk_params) = build_pk_map_predicate(pk_map, 1)?;
+    let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
+    let (predicate, pk_params) = build_pk_map_predicate(pk_map, &pk_types, 1)?;
     let query = format!(
         "SELECT \"{}\" FROM \"{}\".\"{}\" WHERE {}",
         escape_identifier(col_name),
@@ -489,6 +491,25 @@ LIMIT 1",
             .or_else(|_| row.try_get::<_, String>("udt_name"))
             .unwrap_or_else(|_| "unknown".to_string())
     }))
+}
+
+/// Resolve the declared type of every column in `pk_map`, so each PK member binds
+/// against its real column type (uuid vs varchar etc. — #392). Columns whose type
+/// cannot be loaded are simply omitted, leaving `build_pk_map_predicate` to fall back
+/// to the shape heuristic for them.
+async fn get_pk_column_types(
+    pool: &deadpool_postgres::Pool,
+    schema: &str,
+    table: &str,
+    pk_map: &HashMap<String, serde_json::Value>,
+) -> HashMap<String, String> {
+    let mut types = HashMap::new();
+    for col in pk_map.keys() {
+        if let Ok(Some(t)) = get_column_data_type(pool, schema, table, col).await {
+            types.insert(col.clone(), t);
+        }
+    }
+    types
 }
 
 fn json_value_kind(value: &serde_json::Value) -> &'static str {
@@ -552,7 +573,8 @@ pub async fn delete_record(
 ) -> Result<u64, String> {
     let pool = get_postgres_pool(params).await?;
 
-    let (predicate, pk_params) = build_pk_map_predicate(pk_map, 1)?;
+    let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
+    let (predicate, pk_params) = build_pk_map_predicate(pk_map, &pk_types, 1)?;
     let query = format!(
         "DELETE FROM \"{}\".\"{}\" WHERE {}",
         escape_identifier(schema),
@@ -616,7 +638,9 @@ pub async fn update_record(
         bound_params.push(param);
     }
 
-    let (predicate, pk_params) = build_pk_map_predicate(pk_map, bound_params.len() + 1)?;
+    let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
+    let (predicate, pk_params) =
+        build_pk_map_predicate(pk_map, &pk_types, bound_params.len() + 1)?;
     query.push_str(" WHERE ");
     query.push_str(&predicate);
     bound_params.extend(pk_params);
@@ -982,7 +1006,7 @@ pub async fn get_view_definition(
 
     let row = client
         .query_one(
-            "SELECT pg_get_viewdef($1::regclass, true) as definition",
+            "SELECT pg_get_viewdef(($1::text)::regclass, true) as definition",
             &[&qualified],
         )
         .await
