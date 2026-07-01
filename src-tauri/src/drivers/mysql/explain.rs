@@ -61,13 +61,22 @@ pub async fn explain_query(
         get_mysql_pool(params).await?
     };
 
+    // Behind a bastion that rejects prepared statements, EXPLAIN variants must
+    // run over the text protocol (COM_QUERY) — see `super::force_text_protocol`.
+    let text = super::force_text_protocol(params);
+
     // Detect server version to skip unsupported EXPLAIN variants
     let caps = {
         let mut vc = pool.acquire().await.map_err(|e| e.to_string())?;
-        let ver_row = sqlx::query("SELECT VERSION()")
-            .fetch_one(&mut *vc)
-            .await
-            .ok();
+        let ver_row = if text {
+            use sqlx::Executor;
+            (&mut *vc)
+                .fetch_one(sqlx::raw_sql("SELECT VERSION()"))
+                .await
+        } else {
+            sqlx::query("SELECT VERSION()").fetch_one(&mut *vc).await
+        }
+        .ok();
         let ver_str: String = ver_row.and_then(|r| r.try_get(0).ok()).unwrap_or_default();
         log::debug!("MySQL/MariaDB version: {}", ver_str);
         parse_mysql_version(&ver_str)
@@ -77,7 +86,13 @@ pub async fn explain_query(
     if analyze && caps.supports_explain_analyze {
         let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
         let analyze_sql = format!("EXPLAIN ANALYZE {}", query);
-        if let Ok(rows) = sqlx::query(&analyze_sql).fetch_all(&mut *conn).await {
+        let analyze_res = if text {
+            use sqlx::Executor;
+            (&mut *conn).fetch_all(sqlx::raw_sql(&analyze_sql)).await
+        } else {
+            sqlx::query(&analyze_sql).fetch_all(&mut *conn).await
+        };
+        if let Ok(rows) = analyze_res {
             let mut lines = Vec::new();
             for row in &rows {
                 if let Ok(line) = row.try_get::<String, _>(0) {
@@ -108,7 +123,13 @@ pub async fn explain_query(
     if analyze && caps.supports_analyze_format {
         let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
         let maria_sql = format!("ANALYZE FORMAT=JSON {}", query);
-        if let Ok(row) = sqlx::query(&maria_sql).fetch_one(&mut *conn).await {
+        let maria_res = if text {
+            use sqlx::Executor;
+            (&mut *conn).fetch_one(sqlx::raw_sql(&maria_sql)).await
+        } else {
+            sqlx::query(&maria_sql).fetch_one(&mut *conn).await
+        };
+        if let Ok(row) = maria_res {
             if let Ok(raw_json) = row.try_get::<String, _>(0) {
                 if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&raw_json) {
                     if let Some(query_block) = json_val.get("query_block") {
@@ -142,10 +163,13 @@ pub async fn explain_query(
         let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
         let json_sql = format!("EXPLAIN FORMAT=JSON {}", query);
         let json_result: Result<String, String> = async {
-            let row = sqlx::query(&json_sql)
-                .fetch_one(&mut *conn)
-                .await
-                .map_err(|e| e.to_string())?;
+            let row = if text {
+                use sqlx::Executor;
+                (&mut *conn).fetch_one(sqlx::raw_sql(&json_sql)).await
+            } else {
+                sqlx::query(&json_sql).fetch_one(&mut *conn).await
+            }
+            .map_err(|e| e.to_string())?;
             row.try_get::<String, _>(0).map_err(|e| e.to_string())
         }
         .await;
@@ -174,10 +198,13 @@ pub async fn explain_query(
     // Tabular fallback — works on all MySQL/MariaDB versions
     let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
     let explain_sql = format!("EXPLAIN {}", query);
-    let rows = sqlx::query(&explain_sql)
-        .fetch_all(&mut *conn)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = if text {
+        use sqlx::Executor;
+        (&mut *conn).fetch_all(sqlx::raw_sql(&explain_sql)).await
+    } else {
+        sqlx::query(&explain_sql).fetch_all(&mut *conn).await
+    }
+    .map_err(|e| e.to_string())?;
 
     let (root, raw) = parse_mysql_tabular_explain(&rows);
     Ok(ExplainPlan {

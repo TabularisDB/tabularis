@@ -1,5 +1,5 @@
 use crate::models::ConnectionParams;
-use deadpool_postgres::{Manager as PgPoolManager, Pool as PgPool};
+use deadpool_postgres::{Hook as PgHook, HookError as PgHookError, Manager as PgPoolManager, Pool as PgPool};
 use once_cell::sync::Lazy;
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::client::{verify_server_cert_signed_by_trust_anchor, WebPkiServerVerifier};
@@ -8,10 +8,11 @@ use rustls::crypto::verify_tls13_signature;
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::server::ParsedCertificate;
-use rustls::{DigitallySignedStruct};
+use rustls::DigitallySignedStruct;
 use rustls::{ClientConfig, Error as TlsError, RootCertStore};
 use rustls_platform_verifier::BuilderVerifierExt;
-use sqlx::{sqlite::SqliteConnectOptions, MySql, Pool, Sqlite};
+use sha2::{Digest, Sha256};
+use sqlx::{sqlite::SqliteConnectOptions, ConnectOptions, Connection, Executor, MySql, Pool, Sqlite};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -51,6 +52,16 @@ static SQLITE_POOLS: Lazy<PoolMap<Sqlite>> = Lazy::new(|| Arc::new(RwLock::new(H
 const DEFAULT_MYSQL_CONNECT_TIMEOUT_MS: u64 = 60_000;
 const DEFAULT_MYSQL_TIMEZONE: &str = "SYSTEM";
 
+/// SQLite is file-based so the preflight is effectively local, but a custom
+/// VFS or a path on a stalled network mount could still hang it; bound it so a
+/// broken script can never wedge pool creation indefinitely.
+const SQLITE_STARTUP_SCRIPT_TIMEOUT_MS: u64 = 30_000;
+
+/// The PostgreSQL startup-script preflight opens a real network connection, so
+/// bound it the same way as SQLite: a broken script or a stalled host must
+/// never wedge pool creation indefinitely.
+const POSTGRES_STARTUP_SCRIPT_TIMEOUT_MS: u64 = 30_000;
+
 fn mysql_setting_value(key: &str) -> Option<serde_json::Value> {
     crate::config::get_cached_config()
         .plugins
@@ -85,11 +96,16 @@ pub(crate) fn build_connection_key(
 ) -> String {
     let tls_key = match params.driver.as_str() {
         "mysql" => Some(format!(
-            "ssl:{}:{}:{}:{}",
+            // `clear` keeps cleartext and non-cleartext connections to the same
+            // host in separate pools — they authenticate differently. `pipes`
+            // likewise separates pools that force sql_mode from those that don't.
+            "ssl:{}:{}:{}:{}:clear:{}:pipes:{}",
             params.ssl_mode.as_deref().unwrap_or("default"),
             params.ssl_ca.as_deref().unwrap_or(""),
             params.ssl_cert.as_deref().unwrap_or(""),
-            params.ssl_key.as_deref().unwrap_or("")
+            params.ssl_key.as_deref().unwrap_or(""),
+            params.enable_cleartext_plugin.unwrap_or(false),
+            params.pipes_as_concat.unwrap_or(true)
         )),
         "postgres" => {
             let ssl_mode = params.ssl_mode.as_deref().unwrap_or("prefer");
@@ -106,20 +122,38 @@ pub(crate) fn build_connection_key(
         // Include database in key so different databases on the same connection use separate pools
         format!("{}:conn:{}:{}", params.driver, conn_id, params.database)
     } else {
-        // Fall back to host:port:database for ad-hoc connections
+        // Fall back to host:port:user:database for ad-hoc connections (no saved
+        // id). The username is essential: bastions like Warpgate multiplex many
+        // targets behind a single host:port and pick the backend from the
+        // username, so without it two different targets would share one pool and
+        // serve each other's databases.
         format!(
-            "{}:{}:{}:{}",
+            "{}:{}:{}:{}:{}",
             params.driver,
             params.host.as_deref().unwrap_or("localhost"),
             params.port.unwrap_or(0),
+            params.username.as_deref().unwrap_or(""),
             params.database
         )
     };
 
-    if let Some(tls_key) = tls_key {
+    let key = if let Some(tls_key) = tls_key {
         format!("{base_key}:{tls_key}")
     } else {
         base_key
+    };
+
+    // Fold the startup script into the key so editing it forces a fresh pool
+    // (whose new connections run the new script) instead of silently reusing
+    // the cached pool keyed only by connection_id. Hashed to keep the key
+    // bounded; only present when a script is set, so script-free connections
+    // keep their existing keys.
+    match startup_script(params) {
+        Some(script) => {
+            let digest = Sha256::digest(script.as_bytes());
+            format!("{key}:startup:{digest:x}")
+        }
+        None => key,
     }
 }
 
@@ -169,7 +203,94 @@ pub(crate) fn build_mysql_options(
         options = options.ssl_client_key(key);
     }
 
+    // Optionally enable the mysql_clear_password (cleartext) auth plugin, used by
+    // bastions like Warpgate. Cleartext credentials must never be sent over an
+    // unencrypted link, so require a TLS mode that actually guarantees
+    // encryption. `Preferred` only attempts TLS and silently falls back to
+    // plaintext, so it is rejected alongside `Disabled`.
+    if params.enable_cleartext_plugin.unwrap_or(false) {
+        if !matches!(
+            ssl_mode,
+            MySqlSslMode::Required | MySqlSslMode::VerifyCa | MySqlSslMode::VerifyIdentity
+        ) {
+            return Err(
+                "Cleartext password plugin requires an enforced TLS/SSL mode \
+                (Required, Verify CA, or Verify Identity). Preferred is not enough \
+                because it can silently fall back to an unencrypted connection. \
+                Refusing to send the password in cleartext."
+                    .to_string(),
+            );
+        }
+        options = options.enable_cleartext_plugin(true);
+    }
+
+    // By default sqlx forces `SET sql_mode=(... ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')`
+    // on every connection. Vitess/PlanetScale reject altering these modes, so allow
+    // opting out per connection. When disabled, no `SET sql_mode` is issued at all.
+    let force_sql_mode = params.pipes_as_concat.unwrap_or(true);
+    options = options
+        .pipes_as_concat(force_sql_mode)
+        .no_engine_substitution(force_sql_mode);
+
     Ok(options)
+}
+
+/// Build MySQL options, run the optional startup-script preflight, and open the
+/// pool with the connect timeout applied. Factored out so the auto-fallback path
+/// can retry with a different sql_mode by simply calling it again with adjusted
+/// params. Returns the error message on failure so callers can inspect it for an
+/// auto-fallback retry.
+async fn build_and_connect_mysql_pool(
+    params: &ConnectionParams,
+    override_db: Option<&str>,
+    connect_timeout: Duration,
+    script: Option<&str>,
+) -> Result<Pool<MySql>, String> {
+    let options = build_mysql_options(params, override_db)?;
+
+    // Validate the startup script up front so a broken script fails fast with a
+    // clearly attributed error (see `run_mysql_startup_script`). This uses the
+    // same `options`, so a server that rejects the forced sql_mode surfaces the
+    // error here too and the caller's auto-fallback path can catch it.
+    if let Some(script) = script {
+        tokio::time::timeout(connect_timeout, run_mysql_startup_script(&options, script))
+            .await
+            .map_err(|_| {
+                format!(
+                    "Timed out running MySQL startup script after {} ms",
+                    connect_timeout.as_millis()
+                )
+            })??;
+    }
+
+    let mut pool_options = sqlx::mysql::MySqlPoolOptions::new().max_connections(10);
+    if let Some(script) = script {
+        let script = script.to_owned();
+        pool_options = pool_options.after_connect(move |conn, _meta| {
+            let script = script.clone();
+            Box::pin(async move {
+                conn.execute(script.as_str()).await?;
+                Ok(())
+            })
+        });
+    }
+
+    tokio::time::timeout(connect_timeout, pool_options.connect_with(options))
+        .await
+        .map_err(|_| {
+            format!(
+                "Timed out creating MySQL connection pool after {} ms",
+                connect_timeout.as_millis()
+            )
+        })?
+        .map_err(|e| e.to_string())
+}
+
+/// Whether a connection error means the server refuses sqlx's forced sql_mode
+/// (`PIPES_AS_CONCAT` / `NO_ENGINE_SUBSTITUTION`), as Vitess/PlanetScale do.
+pub(crate) fn is_pipes_as_concat_unsupported(err: &str) -> bool {
+    let err = err.to_ascii_lowercase();
+    err.contains("pipes_as_concat") || err.contains("no_engine_substitution")
 }
 
 pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> PgConfig {
@@ -343,8 +464,7 @@ struct NoCertVerifier {
 
 impl NoCertVerifier {
     fn new() -> Self {
-        let provider = CryptoProvider::get_default()
-            .expect("rustls CryptoProvider not installed");
+        let provider = CryptoProvider::get_default().expect("rustls CryptoProvider not installed");
         Self {
             supported: provider.signature_verification_algorithms,
         }
@@ -403,16 +523,13 @@ struct VerifyCaCertVerifier {
 impl VerifyCaCertVerifier {
     fn new(roots: RootCertStore) -> Result<Self, String> {
         if roots.is_empty() {
-            return Err(
-                "No root certificates available. For verify-ca mode, \
+            return Err("No root certificates available. For verify-ca mode, \
                 you must specify an explicit CA file via the connection's \
                 CA Certificate field. On macOS, the system keychain does \
                 not provide root anchors compatible with strict EKU checks."
-                    .to_string(),
-            );
+                .to_string());
         }
-        let provider = CryptoProvider::get_default()
-            .ok_or("No rustls CryptoProvider installed")?;
+        let provider = CryptoProvider::get_default().ok_or("No rustls CryptoProvider installed")?;
         Ok(Self {
             roots: Arc::new(roots),
             supported: provider.signature_verification_algorithms,
@@ -469,6 +586,96 @@ fn build_sqlite_connectoptions(params: &ConnectionParams) -> SqliteConnectOption
     SqliteConnectOptions::new().filename(params.database.to_string())
 }
 
+/// Return the connection's startup script if it is set and not blank.
+/// Whitespace-only scripts are treated as absent so the per-connection
+/// hook is skipped entirely rather than issuing an empty query.
+fn startup_script(params: &ConnectionParams) -> Option<String> {
+    params
+        .startup_script
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+}
+
+/// Format a startup-script execution failure so the surfaced error clearly
+/// names the startup script as the cause, instead of reading like a bad host
+/// or wrong credentials.
+fn startup_script_error(err: impl std::fmt::Display) -> String {
+    format!("Startup script failed: {err}")
+}
+
+/// Validate the startup script on a throwaway connection so a broken script
+/// fails fast with a clearly attributed error, **without** applying its side
+/// effects. The statements run inside a transaction that is rolled back, so a
+/// side-effecting script (`INSERT`, counters, …) is not executed twice on the
+/// first pooled connection — the per-connection hooks (`after_connect`/
+/// `post_create`) remain the single place the script actually takes effect.
+///
+/// This preflight exists only for early, well-labelled failures: sqlx swallows
+/// `after_connect` errors and retries until the acquire timeout, which would
+/// otherwise report a misleading "pool timed out". A failure to open the
+/// connection is returned verbatim so genuine connectivity problems are not
+/// mislabelled as startup-script errors.
+async fn run_mysql_startup_script(
+    options: &sqlx::mysql::MySqlConnectOptions,
+    script: &str,
+) -> Result<(), String> {
+    let mut conn = options.connect().await.map_err(|e| e.to_string())?;
+    let outcome: Result<(), sqlx::Error> = async {
+        let mut tx = conn.begin().await?;
+        tx.execute(script).await?;
+        tx.rollback().await
+    }
+    .await;
+    let _ = conn.close().await;
+    outcome.map_err(startup_script_error)
+}
+
+/// SQLite counterpart to [`run_mysql_startup_script`].
+async fn run_sqlite_startup_script(
+    options: &SqliteConnectOptions,
+    script: &str,
+) -> Result<(), String> {
+    let mut conn = options.connect().await.map_err(|e| e.to_string())?;
+    let outcome: Result<(), sqlx::Error> = async {
+        let mut tx = conn.begin().await?;
+        tx.execute(script).await?;
+        tx.rollback().await
+    }
+    .await;
+    let _ = conn.close().await;
+    outcome.map_err(startup_script_error)
+}
+
+/// PostgreSQL counterpart to [`run_mysql_startup_script`]. deadpool surfaces a
+/// failing `post_create` hook as a raw `PoolError::PostCreateHook(..)` debug
+/// struct on first use; this preflight instead fails fast at pool-creation time
+/// with the same clean `Startup script failed: …` attribution as the other
+/// drivers. The script is validated inside a transaction that is rolled back,
+/// so side effects are applied only by the per-connection `post_create` hook.
+async fn run_postgres_startup_script(
+    cfg: &PgConfig,
+    tls: MakeRustlsConnect,
+    script: &str,
+) -> Result<(), String> {
+    let (mut client, connection) =
+        cfg.connect(tls).await.map_err(|e| format_error_chain(&e))?;
+    // tokio_postgres needs the connection future polled on its own task.
+    let driver = tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    let outcome: Result<(), tokio_postgres::Error> = async {
+        let tx = client.transaction().await?;
+        tx.batch_execute(script).await?;
+        tx.rollback().await
+    }
+    .await;
+    drop(client);
+    driver.abort();
+    outcome.map_err(|e| startup_script_error(format_error_chain(&e)))
+}
+
 pub async fn get_mysql_pool(params: &ConnectionParams) -> Result<Pool<MySql>, String> {
     let connection_id = params.connection_id.as_deref();
     get_mysql_pool_with_id(params, connection_id).await
@@ -520,28 +727,43 @@ async fn get_mysql_pool_for_database_with_id(
         params.host,
         key
     );
-    let options = build_mysql_options(params, override_db)?;
     let connect_timeout = Duration::from_millis(mysql_numeric_setting(
         "connectTimeout",
         DEFAULT_MYSQL_CONNECT_TIMEOUT_MS,
     ));
-    let pool = tokio::time::timeout(
+    let script = startup_script(params);
+
+    let pool = match build_and_connect_mysql_pool(
+        params,
+        override_db,
         connect_timeout,
-        sqlx::mysql::MySqlPoolOptions::new()
-            .max_connections(10)
-            .connect_with(options),
+        script.as_deref(),
     )
     .await
-    .map_err(|_| {
-        format!(
-            "Timed out creating MySQL connection pool after {} ms",
-            connect_timeout.as_millis()
-        )
-    })?
-    .map_err(|e| {
-        log::error!("Failed to create MySQL connection pool: {}", e);
-        e.to_string()
-    })?;
+    {
+        Ok(pool) => pool,
+        // Auto mode (`pipes_as_concat` unset): the first attempt forces the
+        // sql_mode like sqlx does by default. Vitess/PlanetScale reject that, so
+        // transparently retry without it — matching how native MySQL clients
+        // (TablePlus, DataGrip) "just work" against PlanetScale.
+        Err(e) if params.pipes_as_concat.is_none() && is_pipes_as_concat_unsupported(&e) => {
+            log::warn!(
+                "Server rejected the PIPES_AS_CONCAT sql_mode; retrying without it (Vitess/PlanetScale): {e}"
+            );
+            let mut fallback = params.clone();
+            fallback.pipes_as_concat = Some(false);
+            build_and_connect_mysql_pool(&fallback, override_db, connect_timeout, script.as_deref())
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to create MySQL connection pool: {}", e);
+                    e
+                })?
+        }
+        Err(e) => {
+            log::error!("Failed to create MySQL connection pool: {}", e);
+            return Err(e);
+        }
+    };
 
     log::info!(
         "MySQL connection pool created successfully for: {} (key: {})",
@@ -597,14 +819,39 @@ pub async fn get_postgres_pool_with_id(
         e
     })?;
 
-    let pool = PgPool::builder(PgPoolManager::new(cfg, tls_connector))
-        .max_size(10)
-        .build()
-        .map_err(|e| {
-            let detail = format_error_chain(&e);
-            log::error!("Failed to create PostgreSQL connection pool: {}", detail);
-            detail
-        })?;
+    if let Some(script) = startup_script(params) {
+        let timeout = Duration::from_millis(POSTGRES_STARTUP_SCRIPT_TIMEOUT_MS);
+        tokio::time::timeout(
+            timeout,
+            run_postgres_startup_script(&cfg, tls_connector.clone(), &script),
+        )
+        .await
+        .map_err(|_| {
+            format!(
+                "Timed out running PostgreSQL startup script after {} ms",
+                timeout.as_millis()
+            )
+        })??;
+    }
+
+    let mut builder = PgPool::builder(PgPoolManager::new(cfg, tls_connector)).max_size(10);
+    if let Some(script) = startup_script(params) {
+        builder = builder.post_create(PgHook::async_fn(move |client, _metrics| {
+            let script = script.clone();
+            Box::pin(async move {
+                client
+                    .batch_execute(&script)
+                    .await
+                    .map_err(|e| PgHookError::message(startup_script_error(format_error_chain(&e))))?;
+                Ok(())
+            })
+        }));
+    }
+    let pool = builder.build().map_err(|e| {
+        let detail = format_error_chain(&e);
+        log::error!("Failed to create PostgreSQL connection pool: {}", detail);
+        detail
+    })?;
 
     log::info!(
         "PostgreSQL connection pool created successfully for: {} (key: {})",
@@ -652,14 +899,29 @@ pub async fn get_sqlite_pool_with_id(
         key
     );
     let options = build_sqlite_connectoptions(params);
-    let pool = sqlx::sqlite::SqlitePoolOptions::new()
-        .max_connections(5) // SQLite has lower concurrency needs
-        .connect_with(options)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to create SQLite connection pool: {}", e);
-            e.to_string()
-        })?;
+    let mut pool_options = sqlx::sqlite::SqlitePoolOptions::new().max_connections(5); // SQLite has lower concurrency needs
+    if let Some(script) = startup_script(params) {
+        let timeout = Duration::from_millis(SQLITE_STARTUP_SCRIPT_TIMEOUT_MS);
+        tokio::time::timeout(timeout, run_sqlite_startup_script(&options, &script))
+            .await
+            .map_err(|_| {
+                format!(
+                    "Timed out running SQLite startup script after {} ms",
+                    timeout.as_millis()
+                )
+            })??;
+        pool_options = pool_options.after_connect(move |conn, _meta| {
+            let script = script.clone();
+            Box::pin(async move {
+                conn.execute(script.as_str()).await?;
+                Ok(())
+            })
+        });
+    }
+    let pool = pool_options.connect_with(options).await.map_err(|e| {
+        log::error!("Failed to create SQLite connection pool: {}", e);
+        e.to_string()
+    })?;
 
     log::info!(
         "SQLite connection pool created successfully for: {} (key: {})",

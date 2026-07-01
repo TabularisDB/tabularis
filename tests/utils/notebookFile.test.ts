@@ -77,6 +77,24 @@ describe('notebookFile utils', () => {
       expect(result.cells[1].isCollapsed).toBeUndefined();
     });
 
+    it('should include per-section collapse state when set', () => {
+      const cells = makeCells();
+      cells[0].isQueryCollapsed = true;
+      cells[0].isResultCollapsed = true;
+      cells[0].isChartVisible = false;
+      const result = serializeNotebook('Test', cells);
+      expect(result.cells[0].isQueryCollapsed).toBe(true);
+      expect(result.cells[0].isResultCollapsed).toBe(true);
+      expect(result.cells[0].isChartVisible).toBe(false);
+    });
+
+    it('should omit per-section collapse state when unset', () => {
+      const result = serializeNotebook('Test', makeCells());
+      expect(result.cells[0]).not.toHaveProperty('isQueryCollapsed');
+      expect(result.cells[0]).not.toHaveProperty('isResultCollapsed');
+      expect(result.cells[0]).not.toHaveProperty('isChartVisible');
+    });
+
     it('should include cell name when set', () => {
       const cells = makeCells();
       cells[0].name = 'User Query';
@@ -248,6 +266,31 @@ describe('notebookFile utils', () => {
       expect(result.cells[1].isCollapsed).toBeUndefined();
     });
 
+    it('should deserialize per-section collapse state', () => {
+      const json = JSON.stringify({
+        version: 2,
+        title: 'T',
+        createdAt: '',
+        cells: [
+          {
+            type: 'sql',
+            content: 'SELECT 1',
+            isQueryCollapsed: true,
+            isResultCollapsed: true,
+            isChartVisible: false,
+          },
+          { type: 'sql', content: 'SELECT 2' },
+        ],
+      });
+      const result = deserializeNotebook(json);
+      expect(result.cells[0].isQueryCollapsed).toBe(true);
+      expect(result.cells[0].isResultCollapsed).toBe(true);
+      expect(result.cells[0].isChartVisible).toBe(false);
+      expect(result.cells[1].isQueryCollapsed).toBeUndefined();
+      expect(result.cells[1].isResultCollapsed).toBeUndefined();
+      expect(result.cells[1].isChartVisible).toBeUndefined();
+    });
+
     it('should handle version 1 without new fields (backward compat)', () => {
       const json = JSON.stringify({
         version: 1,
@@ -326,6 +369,23 @@ describe('notebookFile utils', () => {
       expect(result.stopOnError).toBe(true);
       expect(result.cells[0].isCollapsed).toBe(true);
       expect(result.cells[1].isCollapsed).toBeUndefined();
+    });
+
+    it('should preserve per-section collapse state through round-trip', () => {
+      const cells = makeCells();
+      cells[0].isQueryCollapsed = true;
+      cells[0].isResultCollapsed = true;
+      cells[0].isChartVisible = false;
+      const serialized = serializeNotebook('Full', cells);
+      const json = JSON.stringify(serialized);
+      const result = deserializeNotebook(json);
+
+      expect(result.cells[0].isQueryCollapsed).toBe(true);
+      expect(result.cells[0].isResultCollapsed).toBe(true);
+      expect(result.cells[0].isChartVisible).toBe(false);
+      expect(result.cells[1].isQueryCollapsed).toBeUndefined();
+      expect(result.cells[1].isResultCollapsed).toBeUndefined();
+      expect(result.cells[1].isChartVisible).toBeUndefined();
     });
   });
 });

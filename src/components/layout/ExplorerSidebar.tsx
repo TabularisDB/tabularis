@@ -73,6 +73,8 @@ import { QueryHistorySection } from "./sidebar/QueryHistorySection";
 import { NotebooksSection } from "./sidebar/NotebooksSection";
 import { renameNotebook, deleteNotebook, listNotebooks, NOTEBOOKS_CHANGED_EVENT } from "../../utils/notebookStore";
 import { useConnectionLayoutContext } from "../../hooks/useConnectionLayoutContext";
+import { useDrivers } from "../../hooks/useDrivers";
+import { getConnectionAccent } from "../../utils/driverUI";
 import type { TableColumn } from "../../types/schema";
 import type { ContextMenuData } from "../../types/sidebar";
 import type { RoutineInfo, TriggerInfo } from "../../contexts/DatabaseContext";
@@ -134,9 +136,19 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     loadDatabaseData,
     refreshDatabaseData,
     connectionDataMap,
+    connections,
     connect,
   } = useDatabase();
+  const { allDrivers } = useDrivers();
   const { tabs, openNotebook, updateTab, closeTab } = useEditor();
+
+  // Accent color for a connection, matching the tinted editor tab bar / split
+  // panel headers. Falls back to the driver manifest color.
+  const accentForConnection = (connId: string) => {
+    const conn = connections.find((c) => c.id === connId);
+    const driverId = conn?.params.driver ?? connectionDataMap[connId]?.driver;
+    return getConnectionAccent(conn, allDrivers.find((d) => d.id === driverId));
+  };
 
   const schemaLoadError =
     activeCapabilities?.schemas === true && schemas.length === 0 && activeConnectionId
@@ -493,13 +505,23 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
             {splitView.connectionIds.map(connId => {
               const name = connectionDataMap[connId]?.connectionName ?? connId;
               const isActive = explorerConnectionId === connId;
+              const accent = accentForConnection(connId);
               return (
                 <button
                   key={connId}
                   onClick={() => setExplorerConnectionId(connId)}
-                  className={isActive
-                    ? 'text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                    : 'text-xs px-2 py-0.5 rounded text-muted hover:text-primary hover:bg-surface-secondary'}
+                  className="text-xs px-2 py-0.5 rounded border transition-colors"
+                  style={isActive
+                    ? {
+                        backgroundColor: `${accent}33`,
+                        borderColor: `${accent}66`,
+                        color: accent,
+                      }
+                    : {
+                        backgroundColor: `${accent}14`,
+                        borderColor: 'transparent',
+                        color: `${accent}80`,
+                      }}
                 >
                   {name}
                 </button>
@@ -1419,12 +1441,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             value={tableFilter}
                             onChange={(e) => setTableFilter(e.target.value)}
                             placeholder={t("sidebar.filterTables")}
-                            className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-blue-500/50"
+                            className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-10 py-1 border border-default focus:outline-none focus:border-blue-500/50"
                           />
                           {tableFilter && (
                             <button
                               onClick={() => setTableFilter("")}
-                              className="absolute right-1.5 text-muted hover:text-primary"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary p-0.5 rounded hover:bg-surface-secondary"
                             >
                               <X size={11} />
                             </button>

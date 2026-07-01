@@ -48,4 +48,8 @@ export const versionLinks: Record<string, string> = {
     "https://tabularis.dev/blog/v0131-signed-macos-postgres-explain-offset-pagination",
   "0.13.2":
     "https://tabularis.dev/blog/v0132-managed-notebooks-live-query-progress-faster-grid",
+  "0.13.3":
+    "https://tabularis.dev/blog/v0133-result-colors-gruvbox-themed-tabs-session-restore",
+  "0.13.4":
+    "https://tabularis.dev/blog/v0134-ssh-security-keys-detachable-results-smarter-editor",
 };

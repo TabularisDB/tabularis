@@ -22,8 +22,10 @@ export const SidebarIndexList = ({
 
   return (
     <div className="flex flex-col">
-      <div
-        className="flex items-center gap-2 px-2 py-1 text-xs text-muted hover:text-secondary cursor-pointer select-none"
+      <button
+        type="button"
+        className="flex items-center gap-2 px-2 py-1 text-xs text-muted hover:text-secondary w-full text-left select-none"
+        aria-expanded={isOpen}
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
@@ -33,7 +35,7 @@ export const SidebarIndexList = ({
         <Folder size={12} className="text-green-400/70" />
         <span>{t("sidebar.indexes")}</span>
         <span className="ml-auto text-[10px] opacity-50">{indexes.length}</span>
-      </div>
+      </button>
       {isOpen && (
         <div className="ml-4 border-l border-default/50">
           {indexes.map((idx) => (

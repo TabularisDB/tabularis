@@ -115,7 +115,7 @@ export const SidebarViewItem = ({
         className={clsx(
           "flex items-center gap-1 pl-1 pr-3 py-1.5 text-sm cursor-pointer group select-none transition-colors border-l-2",
           activeView === view.name
-            ? "bg-purple-900/40 text-purple-200 border-purple-500"
+            ? "bg-[color-mix(in_srgb,var(--accent-secondary)_20%,transparent)] text-accent-secondary border-(--accent-secondary)"
             : "text-secondary hover:bg-surface-secondary border-transparent hover:text-primary",
         )}
       >
@@ -126,14 +126,17 @@ export const SidebarViewItem = ({
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
         {isRefreshing ? (
-          <Loader2 size={14} className="animate-spin text-purple-400 shrink-0" />
+          <Loader2
+            size={14}
+            className="animate-spin text-accent-secondary shrink-0"
+          />
         ) : (
           <ViewIcon
             size={14}
             className={
               activeView === view.name
-                ? "text-purple-400"
-                : "text-muted group-hover:text-purple-400"
+                ? "text-accent-secondary"
+                : "text-muted group-hover:text-accent-secondary"
             }
           />
         )}

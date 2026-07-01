@@ -1,4 +1,6 @@
+use super::build_mysql_pk_where;
 use super::explain::{parse_analyze_actual, parse_mysql_analyze_text, parse_mysql_query_block};
+use super::helpers::{inline_str_placeholders, mysql_bytes_literal, mysql_string_literal};
 use super::MysqlDriver;
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::ExplainNode;
@@ -34,6 +36,78 @@ fn build_connection_url_includes_disabled_ssl_mode() {
     let url = driver.build_connection_url(&params).unwrap();
 
     assert!(url.contains("ssl-mode=disabled"), "url was: {url}");
+}
+
+// -- Text-protocol literal helpers (Warpgate / cleartext bastion path) -----
+
+#[test]
+fn mysql_string_literal_quotes_and_escapes() {
+    // Default sql_mode: backslash escapes enabled.
+    assert_eq!(mysql_string_literal("public", false), "'public'");
+    assert_eq!(mysql_string_literal("o'brien", false), "'o\\'brien'");
+    assert_eq!(mysql_string_literal("a\\b", false), "'a\\\\b'");
+    assert_eq!(mysql_string_literal("line\nbreak", false), "'line\\nbreak'");
+    assert_eq!(mysql_string_literal("", false), "''");
+}
+
+#[test]
+fn mysql_string_literal_no_backslash_escapes_mode() {
+    // Under NO_BACKSLASH_ESCAPES the backslash is literal, so quotes are
+    // doubled and backslashes are left untouched. Escaping a single quote as
+    // `\'` (the default-mode form) would be mis-parsed here and is an
+    // injection vector — verify we use `''` instead.
+    assert_eq!(mysql_string_literal("public", true), "'public'");
+    assert_eq!(mysql_string_literal("o'brien", true), "'o''brien'");
+    assert_eq!(mysql_string_literal("a\\b", true), "'a\\b'");
+    // A trailing backslash must not escape the closing quote.
+    assert_eq!(mysql_string_literal("ends\\", true), "'ends\\'");
+    assert_eq!(
+        mysql_string_literal("' OR '1'='1", true),
+        "''' OR ''1''=''1'"
+    );
+}
+
+#[test]
+fn mysql_bytes_literal_hex_encodes() {
+    assert_eq!(mysql_bytes_literal(&[]), "x''");
+    assert_eq!(mysql_bytes_literal(&[0x00, 0x0f, 0xff]), "x'000fff'");
+    assert_eq!(mysql_bytes_literal(b"AB"), "x'4142'");
+}
+
+#[test]
+fn inline_str_placeholders_substitutes_in_order() {
+    let sql = "WHERE table_schema = ? AND table_name = ?";
+    assert_eq!(
+        inline_str_placeholders(sql, &["mydb", "users"], false),
+        "WHERE table_schema = 'mydb' AND table_name = 'users'"
+    );
+}
+
+#[test]
+fn inline_str_placeholders_escapes_injection_attempt() {
+    let sql = "WHERE table_schema = ?";
+    assert_eq!(
+        inline_str_placeholders(sql, &["x' OR '1'='1"], false),
+        "WHERE table_schema = 'x\\' OR \\'1\\'=\\'1'"
+    );
+    // Same payload under NO_BACKSLASH_ESCAPES: quotes are doubled.
+    assert_eq!(
+        inline_str_placeholders(sql, &["x' OR '1'='1"], true),
+        "WHERE table_schema = 'x'' OR ''1''=''1'"
+    );
+}
+
+#[test]
+fn inline_str_placeholders_leaves_extra_placeholders() {
+    // Fewer binds than placeholders: the surplus `?` stays untouched.
+    assert_eq!(
+        inline_str_placeholders("a = ? AND b = ?", &["1"], false),
+        "a = '1' AND b = ?"
+    );
+    assert_eq!(
+        inline_str_placeholders("no params here", &[], false),
+        "no params here"
+    );
 }
 
 /// Helper: parse a MariaDB ANALYZE FORMAT=JSON string and return the root node.
@@ -572,8 +646,7 @@ fn parse_analyze_actual_multiplies_per_loop_time_by_loops() {
 
 #[test]
 fn parse_analyze_actual_single_loop_is_unchanged() {
-    let (time_ms, _, loops) =
-        parse_analyze_actual("  (actual time=0.10..0.42 rows=5 loops=1)");
+    let (time_ms, _, loops) = parse_analyze_actual("  (actual time=0.10..0.42 rows=5 loops=1)");
     assert_eq!(loops, Some(1));
     assert!((time_ms.unwrap() - 0.42).abs() < 1e-9);
 }
@@ -600,4 +673,35 @@ fn parse_mysql_analyze_text_reports_total_time_for_looped_node() {
         (total - 2646.19).abs() < 1.0,
         "expected ~2646ms total for index lookup, got {total}"
     );
+}
+
+mod build_mysql_pk_where_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn single_column_returns_correct_pair() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("id".to_string(), serde_json::json!(42));
+        let pairs = build_mysql_pk_where(&pk_map).unwrap();
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].0, "id");
+        assert_eq!(pairs[0].1, serde_json::json!(42));
+    }
+
+    #[test]
+    fn composite_pk_columns_are_sorted_alphabetically() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("z_col".to_string(), serde_json::json!(1));
+        pk_map.insert("a_col".to_string(), serde_json::json!(2));
+        let pairs = build_mysql_pk_where(&pk_map).unwrap();
+        assert_eq!(pairs[0].0, "a_col");
+        assert_eq!(pairs[1].0, "z_col");
+    }
+
+    #[test]
+    fn empty_pk_map_is_rejected() {
+        let pk_map: HashMap<String, serde_json::Value> = HashMap::new();
+        assert!(build_mysql_pk_where(&pk_map).is_err());
+    }
 }

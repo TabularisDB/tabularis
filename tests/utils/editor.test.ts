@@ -54,7 +54,7 @@ describe("editor", () => {
         executionTime: null,
         page: 1,
         activeTable: null,
-        pkColumn: null,
+        pkColumns: null,
         isLoading: false,
         connectionId: "conn-1",
         isEditorOpen: true,
@@ -106,7 +106,7 @@ describe("editor", () => {
       executionTime: null,
       page: 1,
       activeTable: null,
-      pkColumn: null,
+      pkColumns: null,
       connectionId: "conn-1",
       ...overrides,
     });
@@ -176,7 +176,7 @@ describe("editor", () => {
       executionTime: null,
       page: 1,
       activeTable: null,
-      pkColumn: null,
+      pkColumns: null,
       connectionId: "conn-1",
       ...overrides,
     });
@@ -251,7 +251,7 @@ describe("editor", () => {
       executionTime: null,
       page: 1,
       activeTable: null,
-      pkColumn: null,
+      pkColumns: null,
       connectionId: "conn-1",
       ...overrides,
     });
@@ -297,7 +297,7 @@ describe("editor", () => {
       executionTime: null,
       page: 1,
       activeTable: null,
-      pkColumn: null,
+      pkColumns: null,
       connectionId: "conn-1",
       ...overrides,
     });
@@ -359,7 +359,7 @@ describe("editor", () => {
       executionTime: null,
       page: 1,
       activeTable: null,
-      pkColumn: null,
+      pkColumns: null,
       connectionId: "conn-1",
       ...overrides,
     });
@@ -463,7 +463,7 @@ describe("editor", () => {
       executionTime: null,
       page: 1,
       activeTable: null,
-      pkColumn: null,
+      pkColumns: null,
       connectionId: "conn-1",
       ...overrides,
     });
@@ -503,7 +503,7 @@ describe("editor", () => {
       executionTime: null,
       page: 1,
       activeTable: null,
-      pkColumn: null,
+      pkColumns: null,
       connectionId: "conn-1",
       ...overrides,
     });
@@ -534,7 +534,7 @@ describe("editor", () => {
       executionTime: null,
       page: 1,
       activeTable: null,
-      pkColumn: null,
+      pkColumns: null,
       connectionId: "conn-1",
       ...overrides,
     });
@@ -601,7 +601,7 @@ describe("editor", () => {
       executionTime: null,
       page: 1,
       activeTable: null,
-      pkColumn: null,
+      pkColumns: null,
       connectionId: "conn-1",
       ...overrides,
     });
@@ -655,7 +655,7 @@ describe("editor", () => {
       executionTime: null,
       page: 1,
       activeTable: null,
-      pkColumn: null,
+      pkColumns: null,
       connectionId: "conn-1",
       ...overrides,
     });
@@ -774,7 +774,7 @@ describe("editor", () => {
       executionTime: null,
       page: 1,
       activeTable: "users",
-      pkColumn: null,
+      pkColumns: null,
       connectionId: "conn-1",
       ...overrides,
     });

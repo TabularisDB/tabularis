@@ -1,7 +1,10 @@
 #[cfg(test)]
 mod tests {
     use crate::models::{ConnectionParams, DatabaseSelection};
-    use crate::pool_manager::{build_connection_key, build_mysql_options, format_error_chain};
+    use crate::pool_manager::{
+        build_connection_key, build_mysql_options, format_error_chain,
+        is_pipes_as_concat_unsupported,
+    };
     use sqlx::mysql::MySqlSslMode;
 
     fn connection_params(driver: &str, ssl_mode: Option<&str>) -> ConnectionParams {
@@ -118,6 +121,38 @@ mod tests {
     }
 
     #[test]
+    fn pool_key_changes_when_startup_script_changes() {
+        let none = connection_params("postgres", Some("require"));
+        let mut script_a = none.clone();
+        script_a.startup_script = Some("SET app.bypass_rls = 'on';".to_string());
+        let mut script_b = none.clone();
+        script_b.startup_script = Some("SET app.bypass_rls = 'off';".to_string());
+
+        let key_none = build_connection_key(&none, Some("conn-1"));
+        let key_a = build_connection_key(&script_a, Some("conn-1"));
+        let key_b = build_connection_key(&script_b, Some("conn-1"));
+
+        // A script changes the key, and different scripts differ — otherwise an
+        // edited startup script would silently reuse the old cached pool.
+        assert_ne!(key_none, key_a);
+        assert_ne!(key_a, key_b);
+    }
+
+    #[test]
+    fn pool_key_ignores_blank_startup_script() {
+        let none = connection_params("postgres", Some("require"));
+        let mut blank = none.clone();
+        blank.startup_script = Some("   \n\t".to_string());
+
+        // Whitespace-only scripts are treated as absent (no hook runs), so they
+        // must not fragment the pool away from the no-script connection.
+        assert_eq!(
+            build_connection_key(&none, Some("conn-1")),
+            build_connection_key(&blank, Some("conn-1"))
+        );
+    }
+
+    #[test]
     fn mysql_options_accept_snake_case_verify_ssl_modes() {
         let verify_ca = mysql_params("verify_ca");
         let verify_identity = mysql_params("verify_identity");
@@ -133,6 +168,123 @@ mod tests {
                 .unwrap()
                 .get_ssl_mode(),
             MySqlSslMode::VerifyIdentity
+        ));
+    }
+
+    #[test]
+    fn adhoc_mysql_pool_key_changes_when_username_changes() {
+        // No connection_id → ad-hoc key. Bastions like Warpgate share one
+        // host:port across targets and select the backend by username, so two
+        // usernames must never resolve to the same pool.
+        let mut alice = mysql_params("required");
+        alice.username = Some("alice".to_string());
+        let mut bob = mysql_params("required");
+        bob.username = Some("bob".to_string());
+
+        assert_ne!(
+            build_connection_key(&alice, None),
+            build_connection_key(&bob, None)
+        );
+    }
+
+    #[test]
+    fn mysql_options_default_force_pipes_as_concat() {
+        // Unset => keep sqlx's default behavior (force the sql_mode).
+        let params = mysql_params("required");
+        let options = build_mysql_options(&params, None).unwrap();
+        let dbg = format!("{options:?}");
+        assert!(
+            dbg.contains("pipes_as_concat: true")
+                && dbg.contains("no_engine_substitution: true"),
+            "expected forced sql_mode by default, got: {dbg}"
+        );
+    }
+
+    #[test]
+    fn mysql_pool_key_changes_when_cleartext_plugin_changes() {
+        let mut plain = mysql_params("required");
+        plain.enable_cleartext_plugin = Some(false);
+        let mut cleartext = mysql_params("required");
+        cleartext.enable_cleartext_plugin = Some(true);
+
+        assert_ne!(
+            build_connection_key(&plain, Some("conn-1")),
+            build_connection_key(&cleartext, Some("conn-1"))
+        );
+    }
+
+    #[test]
+    fn mysql_options_disable_pipes_as_concat_for_vitess() {
+        // Some(false) => do not force the sql_mode (Vitess/PlanetScale).
+        let mut params = mysql_params("required");
+        params.pipes_as_concat = Some(false);
+        let options = build_mysql_options(&params, None).unwrap();
+        let dbg = format!("{options:?}");
+        assert!(
+            dbg.contains("pipes_as_concat: false")
+                && dbg.contains("no_engine_substitution: false"),
+            "expected sql_mode forcing disabled, got: {dbg}"
+        );
+    }
+
+    #[test]
+    fn cleartext_plugin_rejected_without_tls() {
+        let mut params = mysql_params("disabled");
+        params.enable_cleartext_plugin = Some(true);
+
+        assert!(build_mysql_options(&params, None).is_err());
+    }
+
+    #[test]
+    fn cleartext_plugin_rejected_with_preferred_tls() {
+        // `Preferred` only attempts TLS and silently falls back to plaintext,
+        // so cleartext credentials could still cross an unencrypted link.
+        let mut params = mysql_params("preferred");
+        params.enable_cleartext_plugin = Some(true);
+
+        assert!(build_mysql_options(&params, None).is_err());
+    }
+
+    #[test]
+    fn cleartext_plugin_allowed_with_enforced_tls() {
+        for mode in ["required", "verify_ca", "verify_identity"] {
+            let mut params = mysql_params(mode);
+            params.enable_cleartext_plugin = Some(true);
+
+            assert!(
+                build_mysql_options(&params, None).is_ok(),
+                "cleartext should be allowed with enforced TLS mode {mode}"
+            );
+        }
+    }
+
+    #[test]
+    fn mysql_pool_key_differs_on_pipes_as_concat() {
+        let forced = mysql_params("required");
+        let mut disabled = mysql_params("required");
+        disabled.pipes_as_concat = Some(false);
+
+        assert_ne!(
+            build_connection_key(&forced, Some("conn-1")),
+            build_connection_key(&disabled, Some("conn-1"))
+        );
+    }
+
+    #[test]
+    fn detects_pipes_as_concat_unsupported_error() {
+        // Vitess/PlanetScale reject sqlx's forced sql_mode; the message that
+        // triggers the auto-fallback retry.
+        assert!(is_pipes_as_concat_unsupported(
+            "setting the PIPES_AS_CONCAT sql_mode is unsupported"
+        ));
+        assert!(is_pipes_as_concat_unsupported(
+            "VT05006: unsupported NO_ENGINE_SUBSTITUTION"
+        ));
+        // Matching is case-insensitive.
+        assert!(is_pipes_as_concat_unsupported("pipes_as_concat rejected"));
+        // Unrelated failures must not trigger a fallback.
+        assert!(!is_pipes_as_concat_unsupported(
+            "Access denied for user 'root'@'localhost'"
         ));
     }
 }
@@ -370,5 +522,96 @@ mod postgres_tls_connector_tests {
 
         // Cleanup
         let _ = std::fs::remove_file(&file_path);
+    }
+}
+
+#[cfg(test)]
+mod startup_script_tests {
+    use crate::models::{ConnectionParams, DatabaseSelection};
+    use crate::pool_manager::{close_pool_with_id, get_sqlite_pool_with_id};
+    use tempfile::NamedTempFile;
+
+    fn sqlite_params(path: &str, startup_script: Option<&str>) -> ConnectionParams {
+        ConnectionParams {
+            driver: "sqlite".to_string(),
+            database: DatabaseSelection::Single(path.to_string()),
+            startup_script: startup_script.map(ToOwned::to_owned),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn startup_script_runs_on_each_new_connection() {
+        let file = NamedTempFile::new().expect("temp file");
+        let path = file.path().to_str().expect("utf8 path").to_string();
+        // Unique connection id keeps this pool out of other tests' cached pools.
+        let conn_id = format!("startup-runs-{}", ulid::Ulid::new());
+
+        let params = sqlite_params(
+            &path,
+            Some(
+                "CREATE TABLE IF NOT EXISTS startup_marker (id INTEGER); \
+                 INSERT INTO startup_marker (id) VALUES (1);",
+            ),
+        );
+
+        let pool = get_sqlite_pool_with_id(&params, Some(&conn_id))
+            .await
+            .expect("pool should be created");
+
+        // The marker table only exists if the startup script ran on the
+        // physical connection the pool just handed out.
+        let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM startup_marker")
+            .fetch_one(&pool)
+            .await
+            .expect("startup_marker table should exist");
+        assert!(count >= 1, "expected at least one startup INSERT, got {count}");
+
+        close_pool_with_id(&params, Some(&conn_id)).await;
+    }
+
+    #[tokio::test]
+    async fn blank_startup_script_is_skipped() {
+        let file = NamedTempFile::new().expect("temp file");
+        let path = file.path().to_str().expect("utf8 path").to_string();
+        let conn_id = format!("startup-blank-{}", ulid::Ulid::new());
+
+        // A whitespace-only script must be treated as absent: if it were run
+        // as SQL the connection would fail and `SELECT 1` below would error.
+        let params = sqlite_params(&path, Some("   \n  "));
+
+        let pool = get_sqlite_pool_with_id(&params, Some(&conn_id))
+            .await
+            .expect("pool should be created");
+
+        let (one,): (i64,) = sqlx::query_as("SELECT 1")
+            .fetch_one(&pool)
+            .await
+            .expect("query on pool with blank startup script should work");
+        assert_eq!(one, 1);
+
+        close_pool_with_id(&params, Some(&conn_id)).await;
+    }
+
+    #[tokio::test]
+    async fn invalid_startup_script_surfaces_attributed_error() {
+        let file = NamedTempFile::new().expect("temp file");
+        let path = file.path().to_str().expect("utf8 path").to_string();
+        let conn_id = format!("startup-invalid-{}", ulid::Ulid::new());
+
+        let params = sqlite_params(&path, Some("THIS IS NOT VALID SQL;"));
+
+        // A broken startup script must fail the connection with an error that
+        // clearly names the startup script as the cause, rather than sqlx's
+        // misleading "pool timed out" or a generic connection error.
+        let err = get_sqlite_pool_with_id(&params, Some(&conn_id))
+            .await
+            .expect_err("invalid startup script should fail the connection");
+        assert!(
+            err.contains("Startup script failed"),
+            "error should be attributed to the startup script, got: {err}"
+        );
+
+        close_pool_with_id(&params, Some(&conn_id)).await;
     }
 }

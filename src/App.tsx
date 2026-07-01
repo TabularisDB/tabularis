@@ -15,15 +15,18 @@ import { SchemaDiagramPage } from "./pages/SchemaDiagramPage";
 import { TaskManagerPage } from "./pages/TaskManagerPage";
 import { VisualExplainPage } from "./pages/VisualExplainPage";
 import { JsonViewerPage } from "./pages/JsonViewerPage";
+import { ResultsWindowPage } from "./pages/ResultsWindowPage";
 import { ConnectionHealthMonitor } from "./components/ConnectionHealthMonitor";
 import { EditorErrorBoundary } from "./components/ui/EditorErrorBoundary";
 import { UpdateNotificationModal } from "./components/modals/UpdateNotificationModal";
 import { CommunityModal } from "./components/modals/CommunityModal";
 import { WhatsNewModal } from "./components/modals/WhatsNewModal";
 import { AiApprovalGate } from "./components/modals/AiApprovalGate";
+import { SshAskpassGate } from "./components/modals/SshAskpassGate";
 import { useUpdate } from "./hooks/useUpdate";
 import { useChangelog } from "./hooks/useChangelog";
 import { useSettings } from "./hooks/useSettings";
+import { useResultTypeColors } from "./hooks/useResultTypeColors";
 import { APP_VERSION } from "./version";
 import { isVersionAtMost, isVersionNewer } from "./utils/versionCompare";
 
@@ -39,6 +42,7 @@ export function App() {
     error: updateError,
   } = useUpdate();
   const { settings, updateSetting, isLoading: isSettingsLoading } = useSettings();
+  useResultTypeColors();
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [isCommunityModalDismissed, setIsCommunityModalDismissed] = useState(false);
 
@@ -136,6 +140,10 @@ export function App() {
                     <Route path="/task-manager" element={<TaskManagerPage />} />
                     <Route path="/visual-explain" element={<VisualExplainPage />} />
                     <Route path="/json-viewer" element={<JsonViewerPage />} />
+                    <Route
+                      path="/results-window"
+                      element={<ResultsWindowPage />}
+                    />
                   </Routes>
                 </ConnectionLayoutProvider>
               </PluginModalProvider>
@@ -167,6 +175,7 @@ export function App() {
       />
 
       <AiApprovalGate />
+      <SshAskpassGate />
     </>
   );
 }

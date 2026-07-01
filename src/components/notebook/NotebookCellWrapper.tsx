@@ -119,6 +119,15 @@ export function NotebookCellWrapper({
           onRun={onRun}
           onChartConfigChange={handleChartConfigChange}
           onResultHeightChange={handleResultHeightChange}
+          onToggleQueryCollapse={() =>
+            onUpdate({ isQueryCollapsed: !cell.isQueryCollapsed })
+          }
+          onToggleResultCollapse={() =>
+            onUpdate({ isResultCollapsed: !cell.isResultCollapsed })
+          }
+          onToggleChartVisible={(visible) =>
+            onUpdate({ isChartVisible: visible })
+          }
           connectionId={connectionId}
           schema={activeSchema}
         />

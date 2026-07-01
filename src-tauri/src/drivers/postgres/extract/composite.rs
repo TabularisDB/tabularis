@@ -186,7 +186,7 @@ mod tests {
         let full_buf =
             build_composite_buf(&[(Type::INT4.oid(), Some(1)), (Type::INT4.oid(), Some(2))]);
         let truncated = &full_buf[..16];
-        let mut slice = &truncated[..];
+        let mut slice = truncated;
         let result = extract_or_null(&fields, &mut slice);
         let obj = result.as_object().unwrap();
         assert_eq!(obj.get("first").unwrap(), &JsonValue::Number(1.into()));

@@ -73,12 +73,19 @@ pub async fn export_query_to_file<R: Runtime>(
     file_path: String,
     format: String,
     csv_delimiter: Option<String>,
+    database: Option<String>,
 ) -> Result<(), String> {
     let sanitized_query = sanitize_query(&query);
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    // Scope the export to the selected database on connections that expose multiple
+    // databases (e.g. MySQL/MariaDB), so the query runs against the database the
+    // user is viewing rather than the connection's primary database.
+    if let Some(db) = database {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
     let driver = saved_conn.params.driver.clone();
 
     let export_format = ExportFormat::parse(&format)?;
@@ -179,6 +186,53 @@ where
         "mysql" => mysql::export::stream_query(params, query, &mut on_row).await,
         "postgres" => postgres::export::stream_query(params, query, &mut on_row).await,
         "sqlite" => sqlite::export::stream_query(params, query, &mut on_row).await,
-        other => Err(format!("Unsupported driver for export: {}", other)),
+        // External plugin drivers: page through the driver's own paginated
+        // `execute_query` and forward every row to the sink.
+        other => stream_query_via_plugin(other, params, query, &mut on_row).await,
     }
+}
+
+/// Streams a query for an external plugin driver by repeatedly calling its
+/// `execute_query` with the driver's pagination, forwarding each row to
+/// `on_row`. Built-in drivers stream directly from the database; plugins only
+/// expose paged query execution over JSON-RPC, so we drive that here.
+async fn stream_query_via_plugin<F>(
+    driver_id: &str,
+    params: &ConnectionParams,
+    query: &str,
+    mut on_row: F,
+) -> Result<(), String>
+where
+    F: FnMut(&[String], &[Value]) -> Result<(), String> + Send,
+{
+    const PAGE_SIZE: u32 = 1000;
+
+    let driver = crate::drivers::registry::get_driver(driver_id)
+        .await
+        .ok_or_else(|| format!("Unsupported driver for export: {driver_id}"))?;
+
+    let mut page: u32 = 1;
+    loop {
+        let result = driver
+            .execute_query(params, query, Some(PAGE_SIZE), page, None)
+            .await?;
+
+        for row in &result.rows {
+            on_row(&result.columns, row)?;
+        }
+
+        let fetched = result.rows.len() as u32;
+        let has_more = result
+            .pagination
+            .as_ref()
+            .map(|p| p.has_more)
+            .unwrap_or(fetched >= PAGE_SIZE);
+
+        if fetched == 0 || !has_more {
+            break;
+        }
+        page += 1;
+    }
+
+    Ok(())
 }

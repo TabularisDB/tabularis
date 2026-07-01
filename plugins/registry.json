@@ -236,6 +236,104 @@
           }
         }
       ]
+    },
+    {
+      "id": "informix",
+      "name": "IBM Informix",
+      "description": "IBM Informix 11.70+ driver plugin for Tabularis (ODBC; requires the Informix Client SDK)",
+      "author": "Daniel Núñez <https://github.com/danielnuld>",
+      "homepage": "https://github.com/danielnuld/tabularis-informix-plugin",
+      "latest_version": "0.1.4",
+      "releases": [
+        {
+          "version": "0.1.4",
+          "min_tabularis_version": "0.9.17",
+          "assets": {
+            "win-x64": "https://github.com/danielnuld/tabularis-informix-plugin/releases/download/v0.1.4/tabularis-informix-plugin-win-x86-v0.1.4.zip",
+            "linux-x64": "https://github.com/danielnuld/tabularis-informix-plugin/releases/download/v0.1.4/tabularis-informix-plugin-linux-x64-v0.1.4.zip",
+            "linux-arm64": "https://github.com/danielnuld/tabularis-informix-plugin/releases/download/v0.1.4/tabularis-informix-plugin-linux-arm64-v0.1.4.zip",
+            "darwin-arm64": "https://github.com/danielnuld/tabularis-informix-plugin/releases/download/v0.1.4/tabularis-informix-plugin-darwin-arm64-v0.1.4.zip"
+          }
+        },
+        {
+          "version": "0.1.3",
+          "min_tabularis_version": "0.9.17",
+          "assets": {
+            "win-x64": "https://github.com/danielnuld/tabularis-informix-plugin/releases/download/v0.1.3/tabularis-informix-plugin-win-x86-v0.1.3.zip",
+            "linux-x64": "https://github.com/danielnuld/tabularis-informix-plugin/releases/download/v0.1.3/tabularis-informix-plugin-linux-x64-v0.1.3.zip",
+            "linux-arm64": "https://github.com/danielnuld/tabularis-informix-plugin/releases/download/v0.1.3/tabularis-informix-plugin-linux-arm64-v0.1.3.zip",
+            "darwin-arm64": "https://github.com/danielnuld/tabularis-informix-plugin/releases/download/v0.1.3/tabularis-informix-plugin-darwin-arm64-v0.1.3.zip"
+          }
+        },
+        {
+          "version": "0.1.2",
+          "min_tabularis_version": "0.9.17",
+          "assets": {
+            "win-x64": "https://github.com/danielnuld/tabularis-informix-plugin/releases/download/v0.1.2/tabularis-informix-plugin-win-x86-v0.1.2.zip",
+            "linux-x64": "https://github.com/danielnuld/tabularis-informix-plugin/releases/download/v0.1.2/tabularis-informix-plugin-linux-x64-v0.1.2.zip"
+          }
+        }
+      ]
+    },
+    {
+      "id": "mongodb",
+      "name": "MongoDB",
+      "description": "MongoDB (6.0+) driver plugin for Tabularis: multi-database browsing, schema inference, native queries (find/aggregate/CRUD) and indexes.",
+      "author": "Daniel Núñez <https://github.com/danielnuld>",
+      "homepage": "https://github.com/danielnuld/tabularis-mongodb-plugin",
+      "latest_version": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "min_tabularis_version": "0.9.17",
+          "assets": {
+            "win-x64": "https://github.com/danielnuld/tabularis-mongodb-plugin/releases/download/v0.1.0/tabularis-mongodb-plugin-win-x64-v0.1.0.zip",
+            "linux-x64": "https://github.com/danielnuld/tabularis-mongodb-plugin/releases/download/v0.1.0/tabularis-mongodb-plugin-linux-x64-v0.1.0.zip",
+            "linux-arm64": "https://github.com/danielnuld/tabularis-mongodb-plugin/releases/download/v0.1.0/tabularis-mongodb-plugin-linux-arm64-v0.1.0.zip",
+            "darwin-arm64": "https://github.com/danielnuld/tabularis-mongodb-plugin/releases/download/v0.1.0/tabularis-mongodb-plugin-darwin-arm64-v0.1.0.zip"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dameng",
+      "name": "DM",
+      "description": "DM (Dameng) database driver plugin for Tabularis. Requires a user-provided Dameng JDBC driver jar.",
+      "author": "haos666 <https://github.com/haos666>",
+      "homepage": "https://github.com/haos666/tabularis-dameng-plugin",
+      "latest_version": "1.0.1",
+      "releases": [
+        {
+          "version": "1.0.1",
+          "min_tabularis_version": "0.13.1",
+          "assets": {
+            "linux-x64": "https://github.com/haos666/tabularis-dameng-plugin/releases/download/v1.0.1/tabularis-dameng-plugin-1.0.1-linux-x64.zip",
+            "linux-arm64": "https://github.com/haos666/tabularis-dameng-plugin/releases/download/v1.0.1/tabularis-dameng-plugin-1.0.1-linux-arm64.zip",
+            "darwin-x64": "https://github.com/haos666/tabularis-dameng-plugin/releases/download/v1.0.1/tabularis-dameng-plugin-1.0.1-darwin-x64.zip",
+            "darwin-arm64": "https://github.com/haos666/tabularis-dameng-plugin/releases/download/v1.0.1/tabularis-dameng-plugin-1.0.1-darwin-arm64.zip",
+            "win-x64": "https://github.com/haos666/tabularis-dameng-plugin/releases/download/v1.0.1/tabularis-dameng-plugin-1.0.1-win-x64.zip",
+            "universal": "https://github.com/haos666/tabularis-dameng-plugin/releases/download/v1.0.1/tabularis-dameng-plugin-1.0.1-universal.zip"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cloudflare-d1",
+      "name": "Cloudflare D1",
+      "description": "Browse and manage Cloudflare D1 serverless SQLite databases from Tabularis.",
+      "author": "josejorge <https://github.com/josejorge>",
+      "homepage": "https://github.com/josejorge/tabularis_cloudflare_d1_plugin",
+      "latest_version": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "min_tabularis_version": "0.8.15",
+          "assets": {
+            "linux-x64": "https://github.com/josejorge/tabularis_cloudflare_d1_plugin/releases/download/v0.1.0/cloudflare-d1-linux-x64-0.1.0.zip",
+            "win-x64": "https://github.com/josejorge/tabularis_cloudflare_d1_plugin/releases/download/v0.1.0/cloudflare-d1-win-x64-0.1.0.zip"
+          }
+        }
+      ]
     }
   ]
 }

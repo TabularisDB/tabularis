@@ -73,6 +73,8 @@
     "confirmDeleteQuery": "Удалить запрос \"{{name}}\"?",
     "confirmDeleteTitle": "Удалить запрос",
     "noTables": "Таблицы не найдены",
+    "expandTable": "Развернуть таблицу {{name}}",
+    "collapseTable": "Свернуть таблицу {{name}}",
     "columns": "столбцы",
     "keys": "ключи",
     "foreignKeys": "внешние ключи",
@@ -227,7 +229,11 @@
       "approvalTimeout": "Таймаут",
       "approvalTimeoutDesc": "Сколько времени MCP-процесс ожидает решения пользователя перед отменой запроса.",
       "preflightExplain": "Предварительный EXPLAIN",
-      "preflightExplainDesc": "Выполнить EXPLAIN перед показом окна подтверждения, чтобы пользователь видел план выполнения."
+      "preflightExplainDesc": "Выполнить EXPLAIN перед показом окна подтверждения, чтобы пользователь видел план выполнения.",
+      "approvalAlwaysOnTop": "Выводить диалог подтверждения поверх всех окон",
+      "approvalAlwaysOnTopDesc": "Когда действие MCP не только на чтение требует подтверждения, Tabularis выводится на передний план и временно остаётся поверх других окон.",
+      "approvalNotifySound": "Отправлять уведомление и проигрывать звук",
+      "approvalNotifySoundDesc": "Показывает системное уведомление и воспроизводит короткий сигнал, когда приходит новый запрос на подтверждение MCP."
     }
   },
   "connections": {
@@ -281,6 +287,9 @@
     "delimiterSemicolon": "Точка с запятой (;)",
     "delimiterTab": "Табуляция",
     "delimiterPipe": "Вертикальная черта (|)",
+    "csvIncludeHeaders": "Включать заголовки CSV",
+    "csvIncludeHeadersDesc": "Добавлять строку заголовка с именами столбцов при копировании строк в формате CSV.",
+    "csvHeaders": "Экспортировать имена столбцов",
     "detectJsonInTextColumns": "Определять JSON в текстовых столбцах",
     "detectJsonInTextColumnsDesc": "Показывать просмотрщик JSON, когда нетипизированная текстовая ячейка содержит объект или массив JSON. Создаёт небольшие издержки на разбор каждой ячейки.",
     "appearance": "Внешний вид",
@@ -335,6 +344,8 @@
     "roadmapDesc": "Проект находится в активной разработке (WIP). Основные функции стабильны, впереди много интересного.",
     "support": "Поддержать разработку",
     "supportDesc": "Если Tabularis вам полезен и вы хотите видеть больше возможностей — поддержите проект: вносите вклад в код, сообщайте об ошибках или поставьте звезду репозиторию.",
+    "followUs": "Подпишитесь",
+    "followUsDesc": "Будьте в курсе новостей и общайтесь с сообществом на удобной для вас платформе.",
     "version": "Версия",
     "starOnGithub": "Поставить звезду на GitHub",
     "ai": {
@@ -454,6 +465,10 @@
     "startup": "Запуск",
     "showWelcome": "Показывать экран приветствия",
     "showWelcomeDesc": "Показывать экран приветствия при запуске приложения.",
+    "autoConnectLastConnection": "Открывать последние подключения",
+    "autoConnectLastConnectionDesc": "Повторно подключается к соединениям, открытым при последнем закрытии приложения.",
+    "startMaximized": "Запускать развёрнутым",
+    "startMaximizedDesc": "Открывает окно развёрнутым на весь экран при запуске.",
     "erDiagram": "ER-диаграмма",
     "erDiagramDefaultLayout": "Расположение по умолчанию",
     "erDiagramDefaultLayoutDesc": "Направление по умолчанию для ER-диаграмм",
@@ -649,6 +664,7 @@
     "sshKeyFilePlaceholder": "/path/to/id_rsa",
     "sshKeyPassphrase": "Пароль SSH-ключа (необязательно)",
     "sshKeyPassphrasePlaceholder": "Введите пароль, если ключ зашифрован",
+    "allowSshPrompt": "Разрешить запрос пароля/PIN-кода SSH",
     "saveKeychain": "Сохранять пароли в Keychain",
     "testConnection": "Проверить подключение",
     "save": "Сохранить",
@@ -659,12 +675,18 @@
     "manageSshConnections": "Управление SSH-подключениями",
     "noSshConnections": "Нет доступных SSH-подключений",
     "sslMode": "Режим SSL",
+    "enableCleartextPlugin": "Включить плагин пароля в открытом виде",
+    "enableCleartextPluginHint": "Отправляет пароль через mysql_clear_password. Требуется для бастионов, таких как Warpgate. Используется только при TLS-соединении.",
+    "enableCleartextPluginTlsRequired": "Выберите выше строгий режим TLS (Required, Verify CA или Verify Identity), чтобы использовать плагин пароля в открытом виде.",
     "sslModes": {
       "disable": "Отключён",
       "allow": "Разрешён",
       "prefer": "Предпочтительный",
       "require": "Обязательный"
     },
+    "advanced": "Дополнительно",
+    "pipesAsConcat": "Устанавливать sql_mode PIPES_AS_CONCAT при подключении",
+    "pipesAsConcatHint": "Оставьте включённым — Tabularis автоматически пропускает это на серверах, которые его отклоняют (Vitess/PlanetScale).",
     "chooseContext": "Выберите контекст...",
     "chooseK8s": "Выберите подключение...",
     "chooseNamespace": "Выберите пространство имён...",
@@ -687,7 +709,13 @@
     "selectTypeFirst": "Сначала выберите контекст/пространство имён/тип",
     "useK8s": "Использовать проброс портов Kubernetes",
     "useK8sConnection": "Сохранённое подключение",
-    "appearance": "Внешний вид"
+    "appearance": "Внешний вид",
+    "advanced": "Дополнительно",
+    "startupScript": "Сценарий запуска",
+    "startupScriptDescription": "SQL, выполняемый при каждом новом подключении к этому источнику данных. Используйте его для настроек сеанса, таких как SET / set_config (например, для обхода RLS). Разделяйте операторы точкой с запятой.",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Прокрутить вкладки влево",
+    "scrollTabsRight": "Прокрутить вкладки вправо"
   },
   "sshConnections": {
     "title": "SSH-подключения",
@@ -711,6 +739,12 @@
     "quickTest": "Быстрая проверка подключения",
     "testFailed": "Проверка подключения не удалась",
     "savedInKeychain": "Пароль сохранён в системном хранилище ключей"
+  },
+  "sshAskpass": {
+    "title": "Аутентификация SSH",
+    "subtitle": "SSH-подключению требуется ваш ввод",
+    "placeholder": "PIN-код или парольная фраза",
+    "waiting": "Ожидание ключа безопасности — коснитесь его для подтверждения."
   },
   "dataGrid": {
     "newRow": "НОВАЯ",
@@ -807,12 +841,23 @@
     "newRow": "Новая строка",
     "editing": "Редактирование: {{table}}",
     "rowsRetrieved": "Строк: {{count}}",
+    "queryExecuted": "Запрос выполнен успешно",
+    "rowsAffected": "затронуто строк: {{count}}",
     "autoPaginated": "Автопостраничный вывод",
     "pageOf": "Страница {{current}} из {{total}}",
     "page": "Страница {{current}}",
     "jumpToPage": "Нажмите для перехода на страницу",
     "loadRowCount": "Загрузить количество строк",
     "executePrompt": "Выполните запрос, чтобы увидеть результаты",
+    "results": {
+      "minimize": "Свернуть",
+      "maximize": "Развернуть (скрыть редактор)",
+      "restore": "Восстановить редактор",
+      "close": "Закрыть",
+      "detach": "Открепить в отдельное окно",
+      "detached": "Результаты откреплены в отдельное окно",
+      "reattach": "Прикрепить обратно"
+    },
     "tableRunPrompt": "Нажмите «Запустить» (Ctrl/Command+F5) для загрузки данных таблицы",
     "closeTab": "Закрыть вкладку",
     "closeOthers": "Закрыть остальные вкладки",
@@ -978,6 +1023,11 @@
       "noHistory": "История выполнения пуста",
       "collapseCell": "Свернуть ячейку",
       "expandCell": "Развернуть ячейку",
+      "sectionQuery": "Запрос",
+      "sectionResults": "Результаты",
+      "sectionChart": "Диаграмма",
+      "collapseSection": "Свернуть раздел",
+      "expandSection": "Развернуть раздел",
       "collapseAll": "Свернуть все",
       "expandAll": "Развернуть все",
       "outline": "Структура",
@@ -1171,6 +1221,7 @@
     "viewNamePlaceholder": "например, active_users, order_summary",
     "viewDefinition": "Определение представления (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Форматировать",
     "preview": "Предпросмотр",
     "runPreview": "Запустить предпросмотр",
     "previewEmpty": "Нажмите «Запустить предпросмотр», чтобы увидеть результаты",
@@ -1594,7 +1645,9 @@
     "reasonLabel": "Причина (необязательно)",
     "reasonPlaceholder": "например: Выглядит рискованно на проде, нужно подтверждение…",
     "approve": "Подтвердить",
-    "deny": "Отклонить"
+    "deny": "Отклонить",
+    "notificationTitle": "Требуется подтверждение MCP",
+    "notificationBody": "Откройте Tabularis, чтобы проверить ожидающее подтверждение MCP."
   },
   "discordCallout": {
     "title": "Новое сообщество в Discord!",

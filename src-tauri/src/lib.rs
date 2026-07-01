@@ -10,6 +10,7 @@ pub mod ai_commands;
 pub mod ai_notebook_export;
 #[cfg(test)]
 pub mod ai_notebook_export_tests;
+pub mod askpass;
 pub mod cli;
 pub mod clipboard_import;
 pub mod commands;
@@ -37,6 +38,7 @@ pub mod heartbeat;
 pub mod heartbeat_tests;
 pub mod json_viewer;
 pub mod keychain_utils;
+pub mod results_window;
 pub mod k8s_tunnel;
 pub mod log_commands;
 pub mod logger;
@@ -107,6 +109,10 @@ fn close_devtools(window: tauri::WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // When ssh re-executes this binary as its SSH_ASKPASS helper (see the
+    // `askpass` module), serve the prompt and exit without booting the app.
+    askpass::maybe_run_askpass_client();
+
     // On Linux + Wayland, disable the DMA-BUF renderer in WebKitGTK to prevent
     // "Protocol error dispatching to Wayland display" crashes.
     // This targets the specific protocol causing the error while keeping GPU
@@ -164,6 +170,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(commands::QueryCancellationState::default())
         .manage(export::ExportCancellationState::default())
@@ -177,8 +184,13 @@ pub fn run() {
         ))
         .manage(explain_import::PendingExplainFile::default())
         .manage(json_viewer::JsonViewerStore::default())
+        .manage(results_window::ResultsWindowStore::default())
         .manage(query_history::QueryHistoryState::default())
         .setup(move |app| {
+            // Allow the SSH tunnel code (which runs without a Tauri context)
+            // to bridge askpass prompts to the frontend.
+            askpass::set_app_handle(app.handle().clone());
+
             // Read persisted config to know which external plugins are enabled.
             // `None` means no preference has been saved yet → load all installed plugins.
             let active_ext_drivers =
@@ -214,6 +226,18 @@ pub fn run() {
             // when Tabularis is closed and fail fast on approval-gated
             // queries instead of waiting for the full approval timeout.
             heartbeat::spawn();
+
+            // Maximize the window on startup if the user enabled it.
+            if crate::config::load_config_internal(&app.handle())
+                .start_maximized
+                .unwrap_or(false)
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    if let Err(e) = window.maximize() {
+                        log::warn!("Failed to maximize window on startup: {e}");
+                    }
+                }
+            }
 
             // Open devtools automatically in debug mode
             if args.debug {
@@ -269,6 +293,7 @@ pub fn run() {
             commands::update_ssh_connection,
             commands::delete_ssh_connection,
             commands::test_ssh_connection,
+            askpass::respond_ssh_askpass,
             // K8s Connections
             commands::get_k8s_connections,
             commands::save_k8s_connection,
@@ -340,6 +365,10 @@ pub fn run() {
             // Config
             config::get_schema_preference,
             config::set_schema_preference,
+            config::get_last_active_connection,
+            config::set_last_active_connection,
+            config::get_last_open_connections,
+            config::set_last_open_connections,
             config::get_selected_schemas,
             config::set_selected_schemas,
             config::get_config,
@@ -459,6 +488,8 @@ pub fn run() {
             json_viewer::open_json_viewer_window,
             json_viewer::get_json_viewer_session,
             json_viewer::complete_json_viewer_session,
+            results_window::open_results_window,
+            results_window::close_results_window,
             // Task Manager
             task_manager::get_process_list,
             task_manager::get_system_stats,

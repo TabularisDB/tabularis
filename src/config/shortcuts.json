@@ -60,6 +60,16 @@
     "overridable": true
   },
   {
+    "id": "save_grid_changes",
+    "category": "data_grid",
+    "defaultMac": "⌘+S",
+    "defaultWin": "Ctrl+S",
+    "macMatch": { "metaKey": true, "key": "s" },
+    "winMatch": { "ctrlKey": true, "key": "s" },
+    "i18nKey": "settings.shortcuts.saveGridChanges",
+    "overridable": true
+  },
+  {
     "id": "tab_switcher",
     "category": "editor",
     "defaultMac": "Ctrl+Tab",

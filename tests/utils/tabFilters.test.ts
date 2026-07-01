@@ -15,7 +15,7 @@ const createMockTab = (id: string, connectionId: string, title: string = 'Tab'):
   query: '',
   page: 1,
   activeTable: null,
-  pkColumn: null,
+  pkColumns: null,
   connectionId,
   result: null,
   error: '',

@@ -34,6 +34,8 @@ export function McpSafetySection() {
   const approvalMode = (settings.mcpApprovalMode ?? "writes_only") as McpApprovalMode;
   const approvalTimeout = settings.mcpApprovalTimeoutSeconds ?? 120;
   const preflightExplain = settings.mcpPreflightExplain ?? true;
+  const approvalAlwaysOnTop = settings.mcpApprovalAlwaysOnTop ?? true;
+  const approvalNotifySound = settings.mcpApprovalNotifySound ?? true;
 
   const toggleConnection = (id: string) => {
     const next = overrideList.includes(id)
@@ -135,6 +137,26 @@ export function McpSafetySection() {
           <SettingToggle
             checked={preflightExplain}
             onChange={(v) => updateSetting("mcpPreflightExplain", v)}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t("mcp.safety.approvalAlwaysOnTop")}
+          description={t("mcp.safety.approvalAlwaysOnTopDesc")}
+        >
+          <SettingToggle
+            checked={approvalAlwaysOnTop}
+            onChange={(v) => updateSetting("mcpApprovalAlwaysOnTop", v)}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t("mcp.safety.approvalNotifySound")}
+          description={t("mcp.safety.approvalNotifySoundDesc")}
+        >
+          <SettingToggle
+            checked={approvalNotifySound}
+            onChange={(v) => updateSetting("mcpApprovalNotifySound", v)}
           />
         </SettingRow>
       </SettingSection>
