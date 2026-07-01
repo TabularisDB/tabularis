@@ -850,6 +850,7 @@
     "page": "Seite {{current}}",
     "jumpToPage": "Klicken, um zur Seite zu springen",
     "loadRowCount": "Zeilenanzahl laden",
+    "rowCount": "{{total}} Zeilen",
     "executePrompt": "Führe eine Abfrage aus, um Ergebnisse zu sehen",
     "results": {
       "minimize": "Minimieren",

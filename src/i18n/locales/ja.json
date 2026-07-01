@@ -863,6 +863,7 @@
     "page": "{{current}} ページ",
     "jumpToPage": "クリックでページ移動",
     "loadRowCount": "行数を読み込む",
+    "rowCount": "{{total}} 行",
     "executePrompt": "クエリを実行すると結果が表示されます",
     "results": {
       "minimize": "最小化",

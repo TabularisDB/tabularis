@@ -850,6 +850,7 @@
     "page": "Page {{current}}",
     "jumpToPage": "Cliquer pour aller à la page",
     "loadRowCount": "Charger le nombre de lignes",
+    "rowCount": "{{total}} lignes",
     "executePrompt": "Exécutez une requête pour voir les résultats",
     "results": {
       "minimize": "Réduire",
