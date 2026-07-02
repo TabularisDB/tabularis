@@ -567,6 +567,7 @@
       "tabSwitcher": "Переключить вкладку",
       "copySelection": "Копировать выделение",
       "toggleSidebar": "Показать/скрыть боковую панель",
+      "focusTableFilter": "Фокус на фильтре таблиц",
       "openConnections": "Открыть подключения",
       "newConnection": "Новое подключение",
       "newTab": "Новая вкладка",

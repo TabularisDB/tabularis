@@ -577,6 +577,7 @@
       "tabSwitcher": "Cambiar pestaña",
       "copySelection": "Copiar selección",
       "toggleSidebar": "Mostrar/ocultar barra lateral",
+      "focusTableFilter": "Enfocar el filtro de tablas",
       "openConnections": "Abrir conexiones",
       "newConnection": "Nueva conexión",
       "newTab": "Nueva pestaña",

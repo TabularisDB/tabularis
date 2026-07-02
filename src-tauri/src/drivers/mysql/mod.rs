@@ -4,6 +4,10 @@ pub mod types;
 
 mod explain;
 mod helpers;
+mod stmt_classify;
+
+#[cfg(test)]
+mod stmt_classify_tests;
 
 #[cfg(test)]
 mod tests;
@@ -21,6 +25,7 @@ use helpers::{
     mysql_bytes_literal, mysql_row_str, mysql_row_str_opt, mysql_string_literal,
 };
 use sqlx::{Column, Row};
+use stmt_classify::is_text_protocol_stmt;
 
 /// Whether this connection must avoid the prepared-statement protocol.
 ///
@@ -927,10 +932,10 @@ pub async fn create_view(
     definition: &str,
 ) -> Result<(), String> {
     let pool = get_mysql_pool(params).await?;
-    let text = resolve_text_proto(&pool, params).await?;
     let escaped_name = escape_identifier(view_name);
     let query = format!("CREATE VIEW `{}` AS {}", escaped_name, definition);
-    exec_stmt(&pool, text, &query)
+    sqlx::raw_sql(&query)
+        .execute(&pool)
         .await
         .map_err(|e| format!("Failed to create view: {}", e))?;
     Ok(())
@@ -942,10 +947,13 @@ pub async fn alter_view(
     definition: &str,
 ) -> Result<(), String> {
     let pool = get_mysql_pool(params).await?;
-    let text = resolve_text_proto(&pool, params).await?;
     let escaped_name = escape_identifier(view_name);
     let query = format!("ALTER VIEW `{}` AS {}", escaped_name, definition);
-    exec_stmt(&pool, text, &query)
+    // `ALTER VIEW` is not supported by MySQL's prepared-statement protocol
+    // (server error 1295), so it must go through `raw_sql()` (text protocol)
+    // rather than `sqlx::query()`. See `is_text_protocol_stmt` for context.
+    sqlx::raw_sql(&query)
+        .execute(&pool)
         .await
         .map_err(|e| format!("Failed to alter view: {}", e))?;
     Ok(())
@@ -953,10 +961,13 @@ pub async fn alter_view(
 
 pub async fn drop_view(params: &ConnectionParams, view_name: &str) -> Result<(), String> {
     let pool = get_mysql_pool(params).await?;
-    let text = resolve_text_proto(&pool, params).await?;
     let escaped_name = escape_identifier(view_name);
     let query = format!("DROP VIEW IF EXISTS `{}`", escaped_name);
-    exec_stmt(&pool, text, &query)
+    // Routed through `raw_sql()` (text protocol) for consistency with
+    // create/alter view, which the prepared-statement protocol rejects
+    // with server error 1295.
+    sqlx::raw_sql(&query)
+        .execute(&pool)
         .await
         .map_err(|e| format!("Failed to drop view: {}", e))?;
     Ok(())
@@ -1133,26 +1144,6 @@ async fn acquire_mysql_conn(
         get_mysql_pool(params).await?
     };
     pool.acquire().await.map_err(|e| e.to_string())
-}
-
-/// Statements that MySQL refuses on the prepared-statement protocol
-/// (server error 1295: "This command is not supported in the prepared
-/// statement protocol yet"). `sqlx::query()` always goes through
-/// `COM_STMT_PREPARE` + `COM_STMT_EXECUTE`, so these have to be routed
-/// through `sqlx::raw_sql()` which uses `COM_QUERY` (text protocol)
-/// instead. Without this, explicit transactions inside a multi-statement
-/// script (`BEGIN; … COMMIT;`) silently fail — which would defeat the
-/// point of `execute_batch` even after sharing a single connection.
-fn is_text_protocol_stmt(query: &str) -> bool {
-    let head = crate::drivers::common::strip_leading_sql_comments(query).to_uppercase();
-    head.starts_with("BEGIN")
-        || head.starts_with("START TRANSACTION")
-        || head.starts_with("COMMIT")
-        || head.starts_with("ROLLBACK")
-        || head.starts_with("SAVEPOINT")
-        || head.starts_with("RELEASE SAVEPOINT")
-        || head.starts_with("LOCK TABLES")
-        || head.starts_with("UNLOCK TABLES")
 }
 
 /// Executes one statement on an already-acquired connection. Used by both

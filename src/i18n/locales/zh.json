@@ -541,6 +541,7 @@
       "tabSwitcher": "切换标签",
       "copySelection": "复制选区",
       "toggleSidebar": "切换侧边栏",
+      "focusTableFilter": "聚焦表格筛选",
       "openConnections": "打开连接",
       "newConnection": "新建连接",
       "newTab": "新建标签",

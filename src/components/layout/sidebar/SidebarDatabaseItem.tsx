@@ -262,6 +262,7 @@ export const SidebarDatabaseItem = ({
                       <Search size={11} className="absolute left-2 text-muted pointer-events-none" />
                       <input
                         type="text"
+                        data-table-filter
                         value={tableFilter}
                         onChange={(e) => setTableFilter(e.target.value)}
                         placeholder={t("sidebar.filterTables")}

@@ -1,7 +1,7 @@
 use super::build_mysql_pk_where;
 use super::explain::{parse_analyze_actual, parse_mysql_analyze_text, parse_mysql_query_block};
+use super::{is_text_protocol_stmt, MysqlDriver};
 use super::helpers::{inline_str_placeholders, mysql_bytes_literal, mysql_string_literal};
-use super::MysqlDriver;
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::ExplainNode;
 use crate::models::{ConnectionParams, DatabaseSelection};
@@ -673,6 +673,114 @@ fn parse_mysql_analyze_text_reports_total_time_for_looped_node() {
         (total - 2646.19).abs() < 1.0,
         "expected ~2646ms total for index lookup, got {total}"
     );
+}
+
+#[test]
+fn routes_mysql_routine_ddl_through_text_protocol() {
+    for sql in [
+        "DROP PROCEDURE IF EXISTS sociedades_close;",
+        "CREATE PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE DEFINER=`root`@`localhost` PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE  DEFINER=`root`@`localhost` PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE DEFINER=`root`@`localhost`   PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR REPLACE PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR  REPLACE PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR  REPLACE DEFINER=`root`@`localhost` PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR REPLACE  DEFINER=`root`@`localhost` PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR REPLACE DEFINER=`root`@`localhost` PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR REPLACE DEFINER=`root`@`localhost`   PROCEDURE sociedades_close() SELECT 1;",
+        "ALTER PROCEDURE sociedades_close COMMENT 'patched';",
+        "DROP FUNCTION IF EXISTS sociedades_total;",
+        "CREATE FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE DEFINER=`root`@`localhost` FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE  DEFINER=`root`@`localhost` FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE DEFINER=`root`@`localhost`   FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR REPLACE FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR  REPLACE FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR  REPLACE DEFINER=`root`@`localhost` FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR REPLACE  DEFINER=`root`@`localhost` FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR REPLACE DEFINER=`root`@`localhost` FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR REPLACE DEFINER=`root`@`localhost`   FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "ALTER FUNCTION sociedades_total COMMENT 'patched';",
+    ] {
+        assert!(
+            is_text_protocol_stmt(sql),
+            "expected text protocol routing for {sql}"
+        );
+    }
+}
+
+#[test]
+fn keeps_regular_dml_out_of_text_protocol_classifier() {
+    for sql in [
+        "SELECT * FROM routines",
+        "INSERT INTO routines(name) VALUES ('sociedades_close')",
+        "DROP TABLE IF EXISTS routines_backup",
+        // `CREATE OR REPLACE` is also valid for non-routine objects such as
+        // VIEW that are not part of this routing rule — must not match.
+        "CREATE OR REPLACE VIEW routines_view AS SELECT 1",
+    ] {
+        assert!(
+            !is_text_protocol_stmt(sql),
+            "did not expect text protocol routing for {sql}"
+        );
+    }
+}
+
+#[test]
+fn definer_view_with_routine_words_in_body_is_not_text_protocol() {
+    // `CREATE [OR REPLACE] DEFINER … VIEW … AS SELECT …` must not be
+    // classified as a routine even when the SELECT body mentions
+    // `PROCEDURE`/`FUNCTION`. Regression for the loose `contains`-based
+    // matching that searched the full statement.
+    for sql in [
+        "CREATE DEFINER=`root`@`localhost` VIEW v AS SELECT 'call PROCEDURE foo' AS col",
+        "CREATE OR REPLACE DEFINER=`root`@`localhost` VIEW v AS SELECT name FROM routines WHERE note LIKE '%FUNCTION%'",
+        "CREATE OR REPLACE DEFINER=CURRENT_USER() VIEW v AS SELECT 'PROCEDURE' AS word UNION SELECT 'FUNCTION' AS word",
+    ] {
+        assert!(
+            !is_text_protocol_stmt(sql),
+            "DEFINER … VIEW with routine words in body must not route through text protocol: {sql}"
+        );
+    }
+}
+
+#[test]
+fn spaced_definer_routes_routines_through_text_protocol() {
+    // MySQL accepts spaced definer forms such as `'root' @ 'localhost'`
+    // where the value contains internal whitespace. The classifier must
+    // skip past the whole definer value and find the real object keyword
+    // instead of stopping at the first space inside the definer.
+    for sql in [
+        "CREATE DEFINER = 'root' @ 'localhost' PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE DEFINER = 'root' @ 'localhost'   PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR REPLACE DEFINER = 'root' @ 'localhost' FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR REPLACE DEFINER = 'root' @ 'localhost'   FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+    ] {
+        assert!(
+            is_text_protocol_stmt(sql),
+            "expected text protocol routing for spaced definer routine: {sql}"
+        );
+    }
+}
+
+#[test]
+fn spaced_definer_view_with_routine_words_in_body_is_not_text_protocol() {
+    // A spaced definer must not let `PROCEDURE`/`FUNCTION` words that
+    // appear inside a VIEW body route the statement through text
+    // protocol — only the actual object-type keyword after the definer
+    // clause counts, and the scan must stop at `VIEW` before reaching
+    // the body.
+    for sql in [
+        "CREATE DEFINER = 'root' @ 'localhost' VIEW v AS SELECT 'call PROCEDURE foo' AS col",
+        "CREATE OR REPLACE DEFINER = 'root' @ 'localhost' VIEW v AS SELECT name FROM routines WHERE note LIKE '%FUNCTION%'",
+        "CREATE DEFINER = 'root' @ 'localhost' VIEW v AS SELECT 'PROCEDURE' AS word UNION SELECT 'FUNCTION' AS word",
+    ] {
+        assert!(
+            !is_text_protocol_stmt(sql),
+            "spaced definer VIEW with routine words in body must not route through text protocol: {sql}"
+        );
+    }
 }
 
 mod build_mysql_pk_where_tests {
