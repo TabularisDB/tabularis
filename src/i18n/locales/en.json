@@ -605,6 +605,7 @@
       "tabSwitcher": "Switch tab",
       "copySelection": "Copy selection",
       "toggleSidebar": "Toggle sidebar",
+      "focusTableFilter": "Focus table filter",
       "openConnections": "Open connections",
       "newConnection": "New connection",
       "newTab": "New tab",

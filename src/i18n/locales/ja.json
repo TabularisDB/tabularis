@@ -586,6 +586,7 @@
       "tabSwitcher": "タブを切り替え",
       "copySelection": "選択範囲をコピー",
       "toggleSidebar": "サイドバーを切り替え",
+      "focusTableFilter": "テーブルフィルターにフォーカス",
       "openConnections": "接続を開く",
       "newConnection": "新規接続",
       "newTab": "新規タブ",

@@ -572,6 +572,7 @@
       "tabSwitcher": "Changer d’onglet",
       "copySelection": "Copier la sélection",
       "toggleSidebar": "Afficher/masquer la barre latérale",
+      "focusTableFilter": "Focaliser le filtre de tables",
       "openConnections": "Ouvrir les connexions",
       "newConnection": "Nouvelle connexion",
       "newTab": "Nouvel onglet",

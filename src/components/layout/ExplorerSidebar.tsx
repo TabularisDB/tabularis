@@ -332,6 +332,21 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     return () => window.removeEventListener("tabularis:paste-import", handler);
   }, [activeConnectionId, activeCapabilities]);
 
+  // Focus the first visible "Filter tables…" input (flat / per-schema / per-db
+  // layouts) when the focus_table_filter shortcut fires.
+  useEffect(() => {
+    const handler = () => {
+      const input = sidebarBodyRef.current?.querySelector<HTMLInputElement>(
+        "[data-table-filter]",
+      );
+      input?.focus();
+      input?.select();
+    };
+    window.addEventListener("tabularis:focus-table-filter", handler);
+    return () =>
+      window.removeEventListener("tabularis:focus-table-filter", handler);
+  }, []);
+
   const handleTableClick = (tableName: string, schema?: string) => {
     setActiveTable(tableName, schema);
   };
@@ -1438,6 +1453,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           <Search size={11} className="absolute left-2 text-muted pointer-events-none" />
                           <input
                             type="text"
+                            data-table-filter
                             value={tableFilter}
                             onChange={(e) => setTableFilter(e.target.value)}
                             placeholder={t("sidebar.filterTables")}
