@@ -8,7 +8,7 @@ use rustls::crypto::verify_tls13_signature;
 use rustls::crypto::CryptoProvider;
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::server::ParsedCertificate;
-use rustls::{DigitallySignedStruct};
+use rustls::DigitallySignedStruct;
 use rustls::{ClientConfig, Error as TlsError, RootCertStore};
 use rustls_platform_verifier::BuilderVerifierExt;
 use sha2::{Digest, Sha256};
@@ -96,11 +96,15 @@ pub(crate) fn build_connection_key(
 ) -> String {
     let tls_key = match params.driver.as_str() {
         "mysql" => Some(format!(
-            "ssl:{}:{}:{}:{}:pipes:{}",
+            // `clear` keeps cleartext and non-cleartext connections to the same
+            // host in separate pools — they authenticate differently. `pipes`
+            // likewise separates pools that force sql_mode from those that don't.
+            "ssl:{}:{}:{}:{}:clear:{}:pipes:{}",
             params.ssl_mode.as_deref().unwrap_or("default"),
             params.ssl_ca.as_deref().unwrap_or(""),
             params.ssl_cert.as_deref().unwrap_or(""),
             params.ssl_key.as_deref().unwrap_or(""),
+            params.enable_cleartext_plugin.unwrap_or(false),
             params.pipes_as_concat.unwrap_or(true)
         )),
         "postgres" => {
@@ -118,12 +122,17 @@ pub(crate) fn build_connection_key(
         // Include database in key so different databases on the same connection use separate pools
         format!("{}:conn:{}:{}", params.driver, conn_id, params.database)
     } else {
-        // Fall back to host:port:database for ad-hoc connections
+        // Fall back to host:port:user:database for ad-hoc connections (no saved
+        // id). The username is essential: bastions like Warpgate multiplex many
+        // targets behind a single host:port and pick the backend from the
+        // username, so without it two different targets would share one pool and
+        // serve each other's databases.
         format!(
-            "{}:{}:{}:{}",
+            "{}:{}:{}:{}:{}",
             params.driver,
             params.host.as_deref().unwrap_or("localhost"),
             params.port.unwrap_or(0),
+            params.username.as_deref().unwrap_or(""),
             params.database
         )
     };
@@ -192,6 +201,27 @@ pub(crate) fn build_mysql_options(
     }
     if let Some(key) = &params.ssl_key {
         options = options.ssl_client_key(key);
+    }
+
+    // Optionally enable the mysql_clear_password (cleartext) auth plugin, used by
+    // bastions like Warpgate. Cleartext credentials must never be sent over an
+    // unencrypted link, so require a TLS mode that actually guarantees
+    // encryption. `Preferred` only attempts TLS and silently falls back to
+    // plaintext, so it is rejected alongside `Disabled`.
+    if params.enable_cleartext_plugin.unwrap_or(false) {
+        if !matches!(
+            ssl_mode,
+            MySqlSslMode::Required | MySqlSslMode::VerifyCa | MySqlSslMode::VerifyIdentity
+        ) {
+            return Err(
+                "Cleartext password plugin requires an enforced TLS/SSL mode \
+                (Required, Verify CA, or Verify Identity). Preferred is not enough \
+                because it can silently fall back to an unencrypted connection. \
+                Refusing to send the password in cleartext."
+                    .to_string(),
+            );
+        }
+        options = options.enable_cleartext_plugin(true);
     }
 
     // By default sqlx forces `SET sql_mode=(... ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')`
@@ -434,8 +464,7 @@ struct NoCertVerifier {
 
 impl NoCertVerifier {
     fn new() -> Self {
-        let provider = CryptoProvider::get_default()
-            .expect("rustls CryptoProvider not installed");
+        let provider = CryptoProvider::get_default().expect("rustls CryptoProvider not installed");
         Self {
             supported: provider.signature_verification_algorithms,
         }
@@ -494,16 +523,13 @@ struct VerifyCaCertVerifier {
 impl VerifyCaCertVerifier {
     fn new(roots: RootCertStore) -> Result<Self, String> {
         if roots.is_empty() {
-            return Err(
-                "No root certificates available. For verify-ca mode, \
+            return Err("No root certificates available. For verify-ca mode, \
                 you must specify an explicit CA file via the connection's \
                 CA Certificate field. On macOS, the system keychain does \
                 not provide root anchors compatible with strict EKU checks."
-                    .to_string(),
-            );
+                .to_string());
         }
-        let provider = CryptoProvider::get_default()
-            .ok_or("No rustls CryptoProvider installed")?;
+        let provider = CryptoProvider::get_default().ok_or("No rustls CryptoProvider installed")?;
         Ok(Self {
             roots: Arc::new(roots),
             supported: provider.signature_verification_algorithms,

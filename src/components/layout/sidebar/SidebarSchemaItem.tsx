@@ -34,7 +34,11 @@ interface SidebarSchemaItemProps {
   onTableClick: (name: string, schema: string) => void;
   onTableDoubleClick: (name: string, schema: string) => void;
   onViewClick: (name: string) => void;
-  onViewDoubleClick: (name: string, schema: string) => void;
+  onViewDoubleClick: (
+    name: string,
+    schema: string,
+    materialized?: boolean,
+  ) => void;
   onRoutineDoubleClick: (routine: RoutineInfo, schema: string) => void;
   onTriggerDoubleClick: (trigger: TriggerInfo, schema: string) => void;
   onContextMenu: (
@@ -54,6 +58,7 @@ interface SidebarSchemaItemProps {
   onCreateView: () => void;
   onCreateTrigger: (schema: string) => void;
   showTriggers?: boolean;
+  refreshingMatView?: string | null;
 }
 
 export const SidebarSchemaItem = ({
@@ -83,6 +88,7 @@ export const SidebarSchemaItem = ({
   onCreateView,
   onCreateTrigger,
   showTriggers = false,
+  refreshingMatView = null,
 }: SidebarSchemaItemProps) => {
   const { t } = useTranslation();
 
@@ -92,6 +98,7 @@ export const SidebarSchemaItem = ({
   const [prevActiveSchema, setPrevActiveSchema] = useState(activeSchema);
   const [tablesOpen, setTablesOpen] = useState(true);
   const [viewsOpen, setViewsOpen] = useState(true);
+  const [materializedViewsOpen, setMaterializedViewsOpen] = useState(false);
   const [routinesOpen, setRoutinesOpen] = useState(false);
   const [triggersOpen, setTriggersOpen] = useState(false);
   const [functionsOpen, setFunctionsOpen] = useState(true);
@@ -112,6 +119,7 @@ export const SidebarSchemaItem = ({
     ? tables.filter((t) => t.name.toLowerCase().includes(tableFilter.toLowerCase()))
     : tables;
   const views = schemaData?.views ?? [];
+  const materializedViews = schemaData?.materializedViews ?? [];
   const routines = schemaData?.routines ?? [];
   const triggers = schemaData?.triggers ?? [];
   const filteredTriggers = triggerFilter
@@ -215,16 +223,17 @@ export const SidebarSchemaItem = ({
                       <Search size={11} className="absolute left-2 text-muted pointer-events-none" />
                       <input
                         type="text"
+                        data-table-filter
                         value={tableFilter}
                         onChange={(e) => setTableFilter(e.target.value)}
                         placeholder={t("sidebar.filterTables")}
-                        className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-blue-500/50"
+                        className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-10 py-1 border border-default focus:outline-none focus:border-blue-500/50"
                         onClick={(e) => e.stopPropagation()}
                       />
                       {tableFilter && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setTableFilter(""); }}
-                          className="absolute right-1.5 text-muted hover:text-primary"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary p-0.5 rounded hover:bg-surface-secondary"
                         >
                           <X size={11} />
                         </button>
@@ -304,6 +313,34 @@ export const SidebarSchemaItem = ({
                   </div>
                 )}
               </Accordion>
+
+              {materializedViews.length > 0 && (
+                <Accordion
+                  title={`${t("sidebar.materializedViews")} (${materializedViews.length})`}
+                  isOpen={materializedViewsOpen}
+                  onToggle={() => setMaterializedViewsOpen(!materializedViewsOpen)}
+                >
+                  <div>
+                    {materializedViews.map((view) => (
+                      <SidebarViewItem
+                        key={view.name}
+                        view={view}
+                        activeView={null}
+                        onViewClick={onViewClick}
+                        onViewDoubleClick={(name) =>
+                          onViewDoubleClick(name, schemaName, true)
+                        }
+                        onContextMenu={onContextMenu}
+                        connectionId={connectionId}
+                        driver={driver}
+                        schema={schemaName}
+                        materialized
+                        isRefreshing={refreshingMatView === view.name}
+                      />
+                    ))}
+                  </div>
+                </Accordion>
+              )}
 
               {/* Triggers */}
               {showTriggers && (

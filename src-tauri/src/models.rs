@@ -131,6 +131,10 @@ pub struct ConnectionParams {
     pub ssl_ca: Option<String>,
     pub ssl_cert: Option<String>,
     pub ssl_key: Option<String>,
+    // MySQL/MariaDB: enable the mysql_clear_password (cleartext) auth plugin.
+    // Required by bastions like Warpgate. Only honoured over a TLS connection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_cleartext_plugin: Option<bool>,
     // MySQL: whether sqlx should force the PIPES_AS_CONCAT / NO_ENGINE_SUBSTITUTION
     // sql_mode on connect. Defaults to `true` (sqlx's behavior) when unset.
     // Set to `false` for servers that reject altering sql_mode, e.g. Vitess/PlanetScale.

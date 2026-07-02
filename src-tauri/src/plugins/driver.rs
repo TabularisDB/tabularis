@@ -822,6 +822,7 @@ mod tests {
             ssl_ca: None,
             ssl_cert: None,
             ssl_key: None,
+            enable_cleartext_plugin: None,
             pipes_as_concat: None,
             ssh_enabled: None,
             ssh_connection_id: None,

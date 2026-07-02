@@ -206,6 +206,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const [favoriteDeleteConfirm, setFavoriteDeleteConfirm] = useState<string | null>(null);
   const [tableFilter, setTableFilter] = useState("");
   const [favoritesFilter, setFavoritesFilter] = useState("");
+  const [refreshingMatView, setRefreshingMatView] = useState<string | null>(null);
   const [selectedFavoriteId, setSelectedFavoriteId] = useState<string | null>(null);
   const [tablesOpen, setTablesOpen] = useState(true);
   const [viewsOpen, setViewsOpen] = useState(true);
@@ -331,6 +332,21 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     return () => window.removeEventListener("tabularis:paste-import", handler);
   }, [activeConnectionId, activeCapabilities]);
 
+  // Focus the first visible "Filter tables…" input (flat / per-schema / per-db
+  // layouts) when the focus_table_filter shortcut fires.
+  useEffect(() => {
+    const handler = () => {
+      const input = sidebarBodyRef.current?.querySelector<HTMLInputElement>(
+        "[data-table-filter]",
+      );
+      input?.focus();
+      input?.select();
+    };
+    window.addEventListener("tabularis:focus-table-filter", handler);
+    return () =>
+      window.removeEventListener("tabularis:focus-table-filter", handler);
+  }, []);
+
   const handleTableClick = (tableName: string, schema?: string) => {
     setActiveTable(tableName, schema);
   };
@@ -354,13 +370,18 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     setActiveView(viewName);
   };
 
-  const handleOpenView = (viewName: string, schema?: string) => {
+  const handleOpenView = (
+    viewName: string,
+    schema?: string,
+    materialized = false,
+  ) => {
     const quotedView = quoteTableRef(viewName, activeDriver, schema);
     navigate("/editor", {
       state: {
         initialQuery: `SELECT * FROM ${quotedView}`,
         tableName: viewName,
         schema,
+        materialized,
         targetConnectionId: activeConnectionId,
       },
     });
@@ -1060,7 +1081,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           onTableClick={(name, schema) => handleTableClick(name, schema)}
                           onTableDoubleClick={(name, schema) => handleOpenTable(name, schema)}
                           onViewClick={handleViewClick}
-                          onViewDoubleClick={(name, schema) => handleOpenView(name, schema)}
+                          onViewDoubleClick={(name, schema, materialized) =>
+                            handleOpenView(name, schema, materialized)
+                          }
                           onRoutineDoubleClick={(routine, schema) => handleRoutineDoubleClick(routine, schema)}
                           onTriggerDoubleClick={(trigger, schema) => handleTriggerDoubleClick(trigger, schema)}
                           onContextMenu={handleContextMenu}
@@ -1124,6 +1147,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             setTriggerEditorModal({ isOpen: true, isNewTrigger: true, schema })
                           }
                           showTriggers={activeCapabilities?.triggers === true}
+                          refreshingMatView={refreshingMatView}
                         />
                       ))}
                     </>
@@ -1429,15 +1453,16 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           <Search size={11} className="absolute left-2 text-muted pointer-events-none" />
                           <input
                             type="text"
+                            data-table-filter
                             value={tableFilter}
                             onChange={(e) => setTableFilter(e.target.value)}
                             placeholder={t("sidebar.filterTables")}
-                            className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-6 py-1 border border-default focus:outline-none focus:border-blue-500/50"
+                            className="w-full bg-surface-secondary text-xs text-secondary placeholder:text-muted rounded pl-6 pr-10 py-1 border border-default focus:outline-none focus:border-blue-500/50"
                           />
                           {tableFilter && (
                             <button
                               onClick={() => setTableFilter("")}
-                              className="absolute right-1.5 text-muted hover:text-primary"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-primary p-0.5 rounded hover:bg-surface-secondary"
                             >
                               <X size={11} />
                             </button>
@@ -2009,6 +2034,71 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     }
                                   }
                                 },
+                              },
+                            ];
+                          })()
+                        : contextMenu.type === "materialized_view"
+                        ? (() => {
+                            const mvCtxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                            return [
+                              {
+                                label: t("sidebar.showData"),
+                                icon: PlaySquare,
+                                action: () => {
+                                  const quotedView = quoteTableRef(contextMenu.id, activeDriver, mvCtxSchema);
+                                  runQuery(`SELECT * FROM ${quotedView}`, undefined, contextMenu.id);
+                                },
+                              },
+                              {
+                                label: t("sidebar.countRows"),
+                                icon: Hash,
+                                action: () => {
+                                  const quotedView = quoteTableRef(contextMenu.id, activeDriver, mvCtxSchema);
+                                  runQuery(`SELECT COUNT(*) as count FROM ${quotedView}`);
+                                },
+                              },
+                              {
+                                label: t("sidebar.refreshMaterializedView"),
+                                icon: RefreshCw,
+                                action: async () => {
+                                  const mvName = contextMenu.id;
+                                  setRefreshingMatView(mvName);
+                                  try {
+                                    await invoke("refresh_materialized_view", {
+                                      connectionId: activeConnectionId,
+                                      viewName: mvName,
+                                      ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
+                                    });
+                                    showAlert(t("views.refreshSuccess", { view: mvName }), { kind: "info" });
+                                  } catch (e) {
+                                    console.error(e);
+                                    showAlert(t("views.refreshError") + String(e), { kind: "error" });
+                                  } finally {
+                                    setRefreshingMatView(null);
+                                  }
+                                },
+                              },
+                              {
+                                label: t("sidebar.showDefinition"),
+                                icon: FileText,
+                                action: async () => {
+                                  try {
+                                    const definition = await invoke<string>("get_materialized_view_definition", {
+                                      connectionId: activeConnectionId,
+                                      viewName: contextMenu.id,
+                                      ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
+                                    });
+                                    runQuery(definition, `${contextMenu.id} Definition`, undefined, true, mvCtxSchema, true);
+                                  } catch (e) {
+                                    console.error(e);
+                                    showAlert(t("views.failGetDefinition") + String(e), { kind: "error" });
+                                  }
+                                },
+                              },
+                              {
+                                label: t("sidebar.copyName"),
+                                icon: Copy,
+                                action: () => navigator.clipboard.writeText(contextMenu.id),
                               },
                             ];
                           })()

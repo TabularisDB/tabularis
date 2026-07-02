@@ -879,6 +879,7 @@ impl SqliteDriver {
                 capabilities: DriverCapabilities {
                     schemas: false,
                     views: true,
+                    materialized_views: false,
                     routines: false,
                     file_based: true,
                     folder_based: false,

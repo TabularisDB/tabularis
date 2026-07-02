@@ -1,6 +1,7 @@
 use super::build_mysql_pk_where;
 use super::explain::{parse_analyze_actual, parse_mysql_analyze_text, parse_mysql_query_block};
-use super::MysqlDriver;
+use super::{is_text_protocol_stmt, MysqlDriver};
+use super::helpers::{inline_str_placeholders, mysql_bytes_literal, mysql_string_literal};
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::ExplainNode;
 use crate::models::{ConnectionParams, DatabaseSelection};
@@ -35,6 +36,78 @@ fn build_connection_url_includes_disabled_ssl_mode() {
     let url = driver.build_connection_url(&params).unwrap();
 
     assert!(url.contains("ssl-mode=disabled"), "url was: {url}");
+}
+
+// -- Text-protocol literal helpers (Warpgate / cleartext bastion path) -----
+
+#[test]
+fn mysql_string_literal_quotes_and_escapes() {
+    // Default sql_mode: backslash escapes enabled.
+    assert_eq!(mysql_string_literal("public", false), "'public'");
+    assert_eq!(mysql_string_literal("o'brien", false), "'o\\'brien'");
+    assert_eq!(mysql_string_literal("a\\b", false), "'a\\\\b'");
+    assert_eq!(mysql_string_literal("line\nbreak", false), "'line\\nbreak'");
+    assert_eq!(mysql_string_literal("", false), "''");
+}
+
+#[test]
+fn mysql_string_literal_no_backslash_escapes_mode() {
+    // Under NO_BACKSLASH_ESCAPES the backslash is literal, so quotes are
+    // doubled and backslashes are left untouched. Escaping a single quote as
+    // `\'` (the default-mode form) would be mis-parsed here and is an
+    // injection vector — verify we use `''` instead.
+    assert_eq!(mysql_string_literal("public", true), "'public'");
+    assert_eq!(mysql_string_literal("o'brien", true), "'o''brien'");
+    assert_eq!(mysql_string_literal("a\\b", true), "'a\\b'");
+    // A trailing backslash must not escape the closing quote.
+    assert_eq!(mysql_string_literal("ends\\", true), "'ends\\'");
+    assert_eq!(
+        mysql_string_literal("' OR '1'='1", true),
+        "''' OR ''1''=''1'"
+    );
+}
+
+#[test]
+fn mysql_bytes_literal_hex_encodes() {
+    assert_eq!(mysql_bytes_literal(&[]), "x''");
+    assert_eq!(mysql_bytes_literal(&[0x00, 0x0f, 0xff]), "x'000fff'");
+    assert_eq!(mysql_bytes_literal(b"AB"), "x'4142'");
+}
+
+#[test]
+fn inline_str_placeholders_substitutes_in_order() {
+    let sql = "WHERE table_schema = ? AND table_name = ?";
+    assert_eq!(
+        inline_str_placeholders(sql, &["mydb", "users"], false),
+        "WHERE table_schema = 'mydb' AND table_name = 'users'"
+    );
+}
+
+#[test]
+fn inline_str_placeholders_escapes_injection_attempt() {
+    let sql = "WHERE table_schema = ?";
+    assert_eq!(
+        inline_str_placeholders(sql, &["x' OR '1'='1"], false),
+        "WHERE table_schema = 'x\\' OR \\'1\\'=\\'1'"
+    );
+    // Same payload under NO_BACKSLASH_ESCAPES: quotes are doubled.
+    assert_eq!(
+        inline_str_placeholders(sql, &["x' OR '1'='1"], true),
+        "WHERE table_schema = 'x'' OR ''1''=''1'"
+    );
+}
+
+#[test]
+fn inline_str_placeholders_leaves_extra_placeholders() {
+    // Fewer binds than placeholders: the surplus `?` stays untouched.
+    assert_eq!(
+        inline_str_placeholders("a = ? AND b = ?", &["1"], false),
+        "a = '1' AND b = ?"
+    );
+    assert_eq!(
+        inline_str_placeholders("no params here", &[], false),
+        "no params here"
+    );
 }
 
 /// Helper: parse a MariaDB ANALYZE FORMAT=JSON string and return the root node.
@@ -573,8 +646,7 @@ fn parse_analyze_actual_multiplies_per_loop_time_by_loops() {
 
 #[test]
 fn parse_analyze_actual_single_loop_is_unchanged() {
-    let (time_ms, _, loops) =
-        parse_analyze_actual("  (actual time=0.10..0.42 rows=5 loops=1)");
+    let (time_ms, _, loops) = parse_analyze_actual("  (actual time=0.10..0.42 rows=5 loops=1)");
     assert_eq!(loops, Some(1));
     assert!((time_ms.unwrap() - 0.42).abs() < 1e-9);
 }
@@ -601,6 +673,114 @@ fn parse_mysql_analyze_text_reports_total_time_for_looped_node() {
         (total - 2646.19).abs() < 1.0,
         "expected ~2646ms total for index lookup, got {total}"
     );
+}
+
+#[test]
+fn routes_mysql_routine_ddl_through_text_protocol() {
+    for sql in [
+        "DROP PROCEDURE IF EXISTS sociedades_close;",
+        "CREATE PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE DEFINER=`root`@`localhost` PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE  DEFINER=`root`@`localhost` PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE DEFINER=`root`@`localhost`   PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR REPLACE PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR  REPLACE PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR  REPLACE DEFINER=`root`@`localhost` PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR REPLACE  DEFINER=`root`@`localhost` PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR REPLACE DEFINER=`root`@`localhost` PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR REPLACE DEFINER=`root`@`localhost`   PROCEDURE sociedades_close() SELECT 1;",
+        "ALTER PROCEDURE sociedades_close COMMENT 'patched';",
+        "DROP FUNCTION IF EXISTS sociedades_total;",
+        "CREATE FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE DEFINER=`root`@`localhost` FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE  DEFINER=`root`@`localhost` FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE DEFINER=`root`@`localhost`   FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR REPLACE FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR  REPLACE FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR  REPLACE DEFINER=`root`@`localhost` FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR REPLACE  DEFINER=`root`@`localhost` FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR REPLACE DEFINER=`root`@`localhost` FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR REPLACE DEFINER=`root`@`localhost`   FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "ALTER FUNCTION sociedades_total COMMENT 'patched';",
+    ] {
+        assert!(
+            is_text_protocol_stmt(sql),
+            "expected text protocol routing for {sql}"
+        );
+    }
+}
+
+#[test]
+fn keeps_regular_dml_out_of_text_protocol_classifier() {
+    for sql in [
+        "SELECT * FROM routines",
+        "INSERT INTO routines(name) VALUES ('sociedades_close')",
+        "DROP TABLE IF EXISTS routines_backup",
+        // `CREATE OR REPLACE` is also valid for non-routine objects such as
+        // VIEW that are not part of this routing rule — must not match.
+        "CREATE OR REPLACE VIEW routines_view AS SELECT 1",
+    ] {
+        assert!(
+            !is_text_protocol_stmt(sql),
+            "did not expect text protocol routing for {sql}"
+        );
+    }
+}
+
+#[test]
+fn definer_view_with_routine_words_in_body_is_not_text_protocol() {
+    // `CREATE [OR REPLACE] DEFINER … VIEW … AS SELECT …` must not be
+    // classified as a routine even when the SELECT body mentions
+    // `PROCEDURE`/`FUNCTION`. Regression for the loose `contains`-based
+    // matching that searched the full statement.
+    for sql in [
+        "CREATE DEFINER=`root`@`localhost` VIEW v AS SELECT 'call PROCEDURE foo' AS col",
+        "CREATE OR REPLACE DEFINER=`root`@`localhost` VIEW v AS SELECT name FROM routines WHERE note LIKE '%FUNCTION%'",
+        "CREATE OR REPLACE DEFINER=CURRENT_USER() VIEW v AS SELECT 'PROCEDURE' AS word UNION SELECT 'FUNCTION' AS word",
+    ] {
+        assert!(
+            !is_text_protocol_stmt(sql),
+            "DEFINER … VIEW with routine words in body must not route through text protocol: {sql}"
+        );
+    }
+}
+
+#[test]
+fn spaced_definer_routes_routines_through_text_protocol() {
+    // MySQL accepts spaced definer forms such as `'root' @ 'localhost'`
+    // where the value contains internal whitespace. The classifier must
+    // skip past the whole definer value and find the real object keyword
+    // instead of stopping at the first space inside the definer.
+    for sql in [
+        "CREATE DEFINER = 'root' @ 'localhost' PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE DEFINER = 'root' @ 'localhost'   PROCEDURE sociedades_close() SELECT 1;",
+        "CREATE OR REPLACE DEFINER = 'root' @ 'localhost' FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+        "CREATE OR REPLACE DEFINER = 'root' @ 'localhost'   FUNCTION sociedades_total() RETURNS INT RETURN 1;",
+    ] {
+        assert!(
+            is_text_protocol_stmt(sql),
+            "expected text protocol routing for spaced definer routine: {sql}"
+        );
+    }
+}
+
+#[test]
+fn spaced_definer_view_with_routine_words_in_body_is_not_text_protocol() {
+    // A spaced definer must not let `PROCEDURE`/`FUNCTION` words that
+    // appear inside a VIEW body route the statement through text
+    // protocol — only the actual object-type keyword after the definer
+    // clause counts, and the scan must stop at `VIEW` before reaching
+    // the body.
+    for sql in [
+        "CREATE DEFINER = 'root' @ 'localhost' VIEW v AS SELECT 'call PROCEDURE foo' AS col",
+        "CREATE OR REPLACE DEFINER = 'root' @ 'localhost' VIEW v AS SELECT name FROM routines WHERE note LIKE '%FUNCTION%'",
+        "CREATE DEFINER = 'root' @ 'localhost' VIEW v AS SELECT 'PROCEDURE' AS word UNION SELECT 'FUNCTION' AS word",
+    ] {
+        assert!(
+            !is_text_protocol_stmt(sql),
+            "spaced definer VIEW with routine words in body must not route through text protocol: {sql}"
+        );
+    }
 }
 
 mod build_mysql_pk_where_tests {

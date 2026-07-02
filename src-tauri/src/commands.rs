@@ -3731,6 +3731,146 @@ pub async fn get_view_columns<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn get_materialized_views<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    schema: Option<String>,
+) -> Result<Vec<crate::models::ViewInfo>, String> {
+    log::info!("Fetching materialized views for connection: {}", connection_id);
+
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    let result = drv.get_materialized_views(&params, schema.as_deref()).await;
+
+    match &result {
+        Ok(views) => log::info!(
+            "Retrieved {} materialized views from {}",
+            views.len(),
+            params.database
+        ),
+        Err(e) => log::error!(
+            "Failed to get materialized views from {}: {}",
+            params.database,
+            e
+        ),
+    }
+
+    result
+}
+
+#[tauri::command]
+pub async fn get_materialized_view_columns<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    view_name: String,
+    schema: Option<String>,
+) -> Result<Vec<TableColumn>, String> {
+    log::info!(
+        "Fetching materialized view columns for: {} on connection: {}",
+        view_name,
+        connection_id
+    );
+
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    let result = drv
+        .get_materialized_view_columns(&params, &view_name, schema.as_deref())
+        .await;
+
+    match &result {
+        Ok(columns) => log::info!(
+            "Retrieved {} columns for materialized view {}",
+            columns.len(),
+            view_name
+        ),
+        Err(e) => log::error!(
+            "Failed to get materialized view columns for {}: {}",
+            view_name,
+            e
+        ),
+    }
+
+    result
+}
+
+#[tauri::command]
+pub async fn get_materialized_view_definition<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    view_name: String,
+    schema: Option<String>,
+) -> Result<String, String> {
+    log::info!(
+        "Fetching materialized view definition for: {} on connection: {}",
+        view_name,
+        connection_id
+    );
+
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    let result = drv
+        .get_materialized_view_definition(&params, &view_name, schema.as_deref())
+        .await;
+
+    match &result {
+        Ok(_) => log::info!(
+            "Successfully retrieved materialized view definition for {}",
+            view_name
+        ),
+        Err(e) => log::error!(
+            "Failed to get materialized view definition for {}: {}",
+            view_name,
+            e
+        ),
+    }
+
+    result
+}
+
+#[tauri::command]
+pub async fn refresh_materialized_view<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    view_name: String,
+    schema: Option<String>,
+) -> Result<(), String> {
+    log::info!(
+        "Refreshing materialized view: {} on connection: {}",
+        view_name,
+        connection_id
+    );
+
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    let result = drv
+        .refresh_materialized_view(&params, &view_name, schema.as_deref())
+        .await;
+
+    match &result {
+        Ok(_) => log::info!("Successfully refreshed materialized view: {}", view_name),
+        Err(e) => log::error!("Failed to refresh materialized view {}: {}", view_name, e),
+    }
+
+    result
+}
+
+#[tauri::command]
 pub async fn get_triggers<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,

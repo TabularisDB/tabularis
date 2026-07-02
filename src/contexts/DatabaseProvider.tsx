@@ -85,6 +85,11 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const isLoadingSchemas = activeData?.isLoadingSchemas ?? false;
   const schemaDataMap = activeData?.schemaDataMap ?? {};
   const activeSchema = activeData?.activeSchema ?? null;
+  // Materialized views are schema-scoped (Postgres only), so resolve them from
+  // the active schema rather than the connection level (where they never load).
+  const materializedViews = activeSchema
+    ? (schemaDataMap[activeSchema]?.materializedViews ?? [])
+    : [];
   const selectedSchemas = activeData?.selectedSchemas ?? [];
   const needsSchemaSelection = activeData?.needsSchemaSelection ?? false;
   const selectedDatabases = useMemo(() => activeData?.selectedDatabases ?? [], [activeData?.selectedDatabases]);
@@ -190,9 +195,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     });
 
     try {
-      const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
+      const [tablesResult, viewsResult, materializedViewsResult, routinesResult, triggersResult] = await Promise.all([
         invoke<TableInfo[]>('get_tables', { connectionId: connId, schema }),
         invoke<ViewInfo[]>('get_views', { connectionId: connId, schema }),
+        (currentData.capabilities?.materialized_views
+          ? invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[])
+          : Promise.resolve([] as ViewInfo[])),
         invoke<RoutineInfo[]>('get_routines', { connectionId: connId, schema }),
         invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
       ]);
@@ -205,6 +213,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
             [schema]: {
               tables: tablesResult,
               views: viewsResult,
+              materializedViews: materializedViewsResult,
               routines: routinesResult,
               triggers: triggersResult,
               isLoading: false,
@@ -245,9 +254,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     });
 
     try {
-      const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
+      const [tablesResult, viewsResult, materializedViewsResult, routinesResult, triggersResult] = await Promise.all([
         invoke<TableInfo[]>('get_tables', { connectionId: connId, schema }),
         invoke<ViewInfo[]>('get_views', { connectionId: connId, schema }),
+        (currentData.capabilities?.materialized_views
+          ? invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[])
+          : Promise.resolve([] as ViewInfo[])),
         invoke<RoutineInfo[]>('get_routines', { connectionId: connId, schema }),
         invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
       ]);
@@ -260,6 +272,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
             [schema]: {
               tables: tablesResult,
               views: viewsResult,
+              materializedViews: materializedViewsResult,
               routines: routinesResult,
               triggers: triggersResult,
               isLoading: false,
@@ -595,9 +608,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
               // Ignore - no saved preference exists yet
             }
 
-            const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
+            const [tablesResult, viewsResult, materializedViewsResult, routinesResult, triggersResult] = await Promise.all([
               invoke<TableInfo[]>('get_tables', { connectionId, schema: preferredSchema }),
               invoke<ViewInfo[]>('get_views', { connectionId, schema: preferredSchema }),
+              (capabilities?.materialized_views
+                ? invoke<ViewInfo[]>('get_materialized_views', { connectionId, schema: preferredSchema }).catch(() => [] as ViewInfo[])
+                : Promise.resolve([] as ViewInfo[])),
               invoke<RoutineInfo[]>('get_routines', { connectionId, schema: preferredSchema }),
               invoke<TriggerInfo[]>('get_triggers', { connectionId, schema: preferredSchema }).catch(() => [] as TriggerInfo[]),
             ]);
@@ -610,6 +626,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
                 [preferredSchema]: {
                   tables: tablesResult,
                   views: viewsResult,
+                  materializedViews: materializedViewsResult,
                   routines: routinesResult,
                   triggers: triggersResult,
                   isLoading: false,
@@ -899,6 +916,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       activeDatabaseName,
       tables,
       views,
+      materializedViews,
       routines,
       triggers,
       isLoadingTables,

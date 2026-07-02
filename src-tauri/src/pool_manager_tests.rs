@@ -172,6 +172,22 @@ mod tests {
     }
 
     #[test]
+    fn adhoc_mysql_pool_key_changes_when_username_changes() {
+        // No connection_id → ad-hoc key. Bastions like Warpgate share one
+        // host:port across targets and select the backend by username, so two
+        // usernames must never resolve to the same pool.
+        let mut alice = mysql_params("required");
+        alice.username = Some("alice".to_string());
+        let mut bob = mysql_params("required");
+        bob.username = Some("bob".to_string());
+
+        assert_ne!(
+            build_connection_key(&alice, None),
+            build_connection_key(&bob, None)
+        );
+    }
+
+    #[test]
     fn mysql_options_default_force_pipes_as_concat() {
         // Unset => keep sqlx's default behavior (force the sql_mode).
         let params = mysql_params("required");
@@ -181,6 +197,19 @@ mod tests {
             dbg.contains("pipes_as_concat: true")
                 && dbg.contains("no_engine_substitution: true"),
             "expected forced sql_mode by default, got: {dbg}"
+        );
+    }
+
+    #[test]
+    fn mysql_pool_key_changes_when_cleartext_plugin_changes() {
+        let mut plain = mysql_params("required");
+        plain.enable_cleartext_plugin = Some(false);
+        let mut cleartext = mysql_params("required");
+        cleartext.enable_cleartext_plugin = Some(true);
+
+        assert_ne!(
+            build_connection_key(&plain, Some("conn-1")),
+            build_connection_key(&cleartext, Some("conn-1"))
         );
     }
 
@@ -196,6 +225,37 @@ mod tests {
                 && dbg.contains("no_engine_substitution: false"),
             "expected sql_mode forcing disabled, got: {dbg}"
         );
+    }
+
+    #[test]
+    fn cleartext_plugin_rejected_without_tls() {
+        let mut params = mysql_params("disabled");
+        params.enable_cleartext_plugin = Some(true);
+
+        assert!(build_mysql_options(&params, None).is_err());
+    }
+
+    #[test]
+    fn cleartext_plugin_rejected_with_preferred_tls() {
+        // `Preferred` only attempts TLS and silently falls back to plaintext,
+        // so cleartext credentials could still cross an unencrypted link.
+        let mut params = mysql_params("preferred");
+        params.enable_cleartext_plugin = Some(true);
+
+        assert!(build_mysql_options(&params, None).is_err());
+    }
+
+    #[test]
+    fn cleartext_plugin_allowed_with_enforced_tls() {
+        for mode in ["required", "verify_ca", "verify_identity"] {
+            let mut params = mysql_params(mode);
+            params.enable_cleartext_plugin = Some(true);
+
+            assert!(
+                build_mysql_options(&params, None).is_ok(),
+                "cleartext should be allowed with enforced TLS mode {mode}"
+            );
+        }
     }
 
     #[test]

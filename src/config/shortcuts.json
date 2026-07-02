@@ -100,6 +100,16 @@
     "overridable": true
   },
   {
+    "id": "focus_table_filter",
+    "category": "navigation",
+    "defaultMac": "⌘+Shift+F",
+    "defaultWin": "Ctrl+Shift+F",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "f" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "f" },
+    "i18nKey": "settings.shortcuts.focusTableFilter",
+    "overridable": true
+  },
+  {
     "id": "open_connections",
     "category": "navigation",
     "defaultMac": "⌘+Shift+C",
