@@ -64,6 +64,7 @@ import { ConfirmModal } from "../modals/ConfirmModal";
 import { Accordion } from "./sidebar/Accordion";
 import { SidebarTableItem } from "./sidebar/SidebarTableItem";
 import { buildTableItemSelector } from "../../utils/sidebarTableItem";
+import { fuzzyFilter } from "../../utils/fuzzy";
 import { SidebarViewItem } from "./sidebar/SidebarViewItem";
 import { SidebarRoutineItem } from "./sidebar/SidebarRoutineItem";
 import { SidebarSchemaItem } from "./sidebar/SidebarSchemaItem";
@@ -1455,9 +1456,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       </div>
                     )}
                     {(() => {
-                      const filtered = tableFilter
-                        ? tables.filter((tbl) => tbl.name.toLowerCase().includes(tableFilter.toLowerCase()))
-                        : tables;
+                      const filtered = fuzzyFilter(tables, tableFilter, (tbl) => tbl.name);
                       return filtered.length === 0 ? (
                         <div className="text-center p-2 text-xs text-muted italic">
                           {tableFilter ? t("sidebar.noTablesMatch") : t("sidebar.noTables")}
@@ -1642,9 +1641,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         </div>
                       )}
                       {(() => {
-                        const filtered = triggerFilterFlat
-                          ? triggers.filter((tr) => tr.name.toLowerCase().includes(triggerFilterFlat.toLowerCase()))
-                          : triggers;
+                        const filtered = fuzzyFilter(triggers, triggerFilterFlat, (tr) => tr.name);
                         return filtered.length === 0 ? (
                           <div className="text-center p-2 text-xs text-muted italic">
                             {triggerFilterFlat ? t("sidebar.noTriggersMatch") : t("sidebar.noTriggers")}

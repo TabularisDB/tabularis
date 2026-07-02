@@ -25,6 +25,7 @@ import type { ContextMenuData } from "../../../types/sidebar";
 import type { DriverCapabilities } from "../../../types/plugins";
 import { groupRoutinesByType } from "../../../utils/routines";
 import { formatObjectCount } from "../../../utils/schema";
+import { fuzzyFilter } from "../../../utils/fuzzy";
 
 interface SidebarDatabaseItemProps {
   databaseName: string;
@@ -109,15 +110,11 @@ export const SidebarDatabaseItem = ({
   const [triggerFilter, setTriggerFilter] = useState("");
 
   const tables = databaseData?.tables ?? [];
-  const filteredTables = tableFilter
-    ? tables.filter((t) => t.name.toLowerCase().includes(tableFilter.toLowerCase()))
-    : tables;
+  const filteredTables = fuzzyFilter(tables, tableFilter, (t) => t.name);
   const views = databaseData?.views ?? [];
   const routines = databaseData?.routines ?? [];
   const triggers = databaseData?.triggers ?? [];
-  const filteredTriggers = triggerFilter
-    ? triggers.filter((tr) => tr.name.toLowerCase().includes(triggerFilter.toLowerCase()))
-    : triggers;
+  const filteredTriggers = fuzzyFilter(triggers, triggerFilter, (tr) => tr.name);
   const isLoading = databaseData?.isLoading ?? false;
   const isLoaded = databaseData?.isLoaded ?? false;
 
