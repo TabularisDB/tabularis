@@ -1,7 +1,10 @@
 #[cfg(test)]
 mod tests {
     use crate::models::{ConnectionParams, DatabaseSelection};
-    use crate::pool_manager::{build_connection_key, build_mysql_options, format_error_chain};
+    use crate::pool_manager::{
+        build_connection_key, build_mysql_options, format_error_chain,
+        is_pipes_as_concat_unsupported,
+    };
     use sqlx::mysql::MySqlSslMode;
 
     fn connection_params(driver: &str, ssl_mode: Option<&str>) -> ConnectionParams {
@@ -165,6 +168,123 @@ mod tests {
                 .unwrap()
                 .get_ssl_mode(),
             MySqlSslMode::VerifyIdentity
+        ));
+    }
+
+    #[test]
+    fn adhoc_mysql_pool_key_changes_when_username_changes() {
+        // No connection_id → ad-hoc key. Bastions like Warpgate share one
+        // host:port across targets and select the backend by username, so two
+        // usernames must never resolve to the same pool.
+        let mut alice = mysql_params("required");
+        alice.username = Some("alice".to_string());
+        let mut bob = mysql_params("required");
+        bob.username = Some("bob".to_string());
+
+        assert_ne!(
+            build_connection_key(&alice, None),
+            build_connection_key(&bob, None)
+        );
+    }
+
+    #[test]
+    fn mysql_options_default_force_pipes_as_concat() {
+        // Unset => keep sqlx's default behavior (force the sql_mode).
+        let params = mysql_params("required");
+        let options = build_mysql_options(&params, None).unwrap();
+        let dbg = format!("{options:?}");
+        assert!(
+            dbg.contains("pipes_as_concat: true")
+                && dbg.contains("no_engine_substitution: true"),
+            "expected forced sql_mode by default, got: {dbg}"
+        );
+    }
+
+    #[test]
+    fn mysql_pool_key_changes_when_cleartext_plugin_changes() {
+        let mut plain = mysql_params("required");
+        plain.enable_cleartext_plugin = Some(false);
+        let mut cleartext = mysql_params("required");
+        cleartext.enable_cleartext_plugin = Some(true);
+
+        assert_ne!(
+            build_connection_key(&plain, Some("conn-1")),
+            build_connection_key(&cleartext, Some("conn-1"))
+        );
+    }
+
+    #[test]
+    fn mysql_options_disable_pipes_as_concat_for_vitess() {
+        // Some(false) => do not force the sql_mode (Vitess/PlanetScale).
+        let mut params = mysql_params("required");
+        params.pipes_as_concat = Some(false);
+        let options = build_mysql_options(&params, None).unwrap();
+        let dbg = format!("{options:?}");
+        assert!(
+            dbg.contains("pipes_as_concat: false")
+                && dbg.contains("no_engine_substitution: false"),
+            "expected sql_mode forcing disabled, got: {dbg}"
+        );
+    }
+
+    #[test]
+    fn cleartext_plugin_rejected_without_tls() {
+        let mut params = mysql_params("disabled");
+        params.enable_cleartext_plugin = Some(true);
+
+        assert!(build_mysql_options(&params, None).is_err());
+    }
+
+    #[test]
+    fn cleartext_plugin_rejected_with_preferred_tls() {
+        // `Preferred` only attempts TLS and silently falls back to plaintext,
+        // so cleartext credentials could still cross an unencrypted link.
+        let mut params = mysql_params("preferred");
+        params.enable_cleartext_plugin = Some(true);
+
+        assert!(build_mysql_options(&params, None).is_err());
+    }
+
+    #[test]
+    fn cleartext_plugin_allowed_with_enforced_tls() {
+        for mode in ["required", "verify_ca", "verify_identity"] {
+            let mut params = mysql_params(mode);
+            params.enable_cleartext_plugin = Some(true);
+
+            assert!(
+                build_mysql_options(&params, None).is_ok(),
+                "cleartext should be allowed with enforced TLS mode {mode}"
+            );
+        }
+    }
+
+    #[test]
+    fn mysql_pool_key_differs_on_pipes_as_concat() {
+        let forced = mysql_params("required");
+        let mut disabled = mysql_params("required");
+        disabled.pipes_as_concat = Some(false);
+
+        assert_ne!(
+            build_connection_key(&forced, Some("conn-1")),
+            build_connection_key(&disabled, Some("conn-1"))
+        );
+    }
+
+    #[test]
+    fn detects_pipes_as_concat_unsupported_error() {
+        // Vitess/PlanetScale reject sqlx's forced sql_mode; the message that
+        // triggers the auto-fallback retry.
+        assert!(is_pipes_as_concat_unsupported(
+            "setting the PIPES_AS_CONCAT sql_mode is unsupported"
+        ));
+        assert!(is_pipes_as_concat_unsupported(
+            "VT05006: unsupported NO_ENGINE_SUBSTITUTION"
+        ));
+        // Matching is case-insensitive.
+        assert!(is_pipes_as_concat_unsupported("pipes_as_concat rejected"));
+        // Unrelated failures must not trigger a fallback.
+        assert!(!is_pipes_as_concat_unsupported(
+            "Access denied for user 'root'@'localhost'"
         ));
     }
 }

@@ -108,10 +108,6 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Override tauri-cli with custom AppImage format (Linux)
-        if: matrix.platform == 'ubuntu-24.04'
-        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --branch feat/truly-portable-appimage --force
-
       # Notarization needs the App Store Connect API key on disk. The .p8 is stored
       # base64-encoded in APPLE_API_KEY_CONTENT and decoded into a temp file (macOS only).
       - name: Prepare Apple API key (macOS only)
@@ -124,7 +120,6 @@ jobs:
       - uses: tauri-apps/tauri-action@v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: "true"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           # macOS code signing (Developer ID Application certificate)
@@ -145,7 +140,7 @@ jobs:
             **Stay in touch:** [Website](https://tabularis.dev) · [Discord](https://discord.com/invite/K2hmhfHRSt) · [X](https://x.com/tabularisdb) · [Bluesky](https://bsky.app/profile/tabularis.bsky.social) · [Mastodon](https://mastodon.social/@tabularis) · [GitHub](https://github.com/TabularisDB/tabularis)
           releaseDraft: true
           prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
-          tauriScript: ${{ matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'pnpm tauri' }}
+          tauriScript: pnpm tauri
           args: ${{ matrix.args }}
 
       - name: Upload portable executable (Windows only)

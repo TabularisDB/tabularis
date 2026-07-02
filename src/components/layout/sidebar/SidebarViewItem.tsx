@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Eye,
+  Layers,
   Loader2,
   Folder,
   ChevronDown,
@@ -10,7 +11,9 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { SidebarColumnItem } from "./SidebarColumnItem";
-import type { TableColumn } from "../../../types/schema";
+import { SidebarIndexList } from "./SidebarIndexList";
+import { groupIndexes } from "../../../utils/indexes";
+import type { TableColumn, Index } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
 
 interface SidebarViewItemProps {
@@ -28,6 +31,8 @@ interface SidebarViewItemProps {
   connectionId: string;
   driver: string;
   schema?: string;
+  materialized?: boolean;
+  isRefreshing?: boolean;
 }
 
 export const SidebarViewItem = ({
@@ -39,29 +44,48 @@ export const SidebarViewItem = ({
   connectionId,
   driver,
   schema,
+  materialized = false,
+  isRefreshing = false,
 }: SidebarViewItemProps) => {
   const { t } = useTranslation();
+  const ViewIcon = materialized ? Layers : Eye;
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [columns, setColumns] = useState<TableColumn[]>([]);
+  const [indexes, setIndexes] = useState<Index[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [expandIndexes, setExpandIndexes] = useState(false);
 
   const refreshColumns = React.useCallback(async () => {
     if (!connectionId) return;
     setIsLoading(true);
     try {
-      const cols = await invoke<TableColumn[]>("get_view_columns", {
-        connectionId,
-        viewName: view.name,
-        ...(schema ? { schema } : {}),
-      });
+      const [cols, idxs] = await Promise.all([
+        invoke<TableColumn[]>(
+          materialized ? "get_materialized_view_columns" : "get_view_columns",
+          {
+            connectionId,
+            viewName: view.name,
+            ...(schema ? { schema } : {}),
+          },
+        ),
+        // Materialized views can carry indexes (regular views cannot).
+        materialized
+          ? invoke<Index[]>("get_indexes", {
+            connectionId,
+            tableName: view.name,
+            ...(schema ? { schema } : {}),
+          })
+          : Promise.resolve([] as Index[]),
+      ]);
       setColumns(cols);
+      setIndexes(idxs);
     } catch (err) {
       console.error("Failed to load view columns:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, view.name, schema]);
+  }, [connectionId, view.name, schema, materialized]);
 
   useEffect(() => {
     if (isExpanded) {
@@ -77,8 +101,10 @@ export const SidebarViewItem = ({
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onContextMenu(e, "view", view.name, view.name, { tableName: view.name, schema });
+    onContextMenu(e, materialized ? "materialized_view" : "view", view.name, view.name, { tableName: view.name, schema });
   };
+
+  const groupedIndexes = React.useMemo(() => groupIndexes(indexes), [indexes]);
 
   return (
     <div className="flex flex-col">
@@ -99,14 +125,21 @@ export const SidebarViewItem = ({
         >
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
-        <Eye
-          size={14}
-          className={
-            activeView === view.name
-              ? "text-accent-secondary"
-              : "text-muted group-hover:text-accent-secondary"
-          }
-        />
+        {isRefreshing ? (
+          <Loader2
+            size={14}
+            className="animate-spin text-accent-secondary shrink-0"
+          />
+        ) : (
+          <ViewIcon
+            size={14}
+            className={
+              activeView === view.name
+                ? "text-accent-secondary"
+                : "text-muted group-hover:text-accent-secondary"
+            }
+          />
+        )}
         <span className="truncate flex-1">{view.name}</span>
       </div>
       {isExpanded && (
@@ -141,6 +174,13 @@ export const SidebarViewItem = ({
                   />
                 ))}
               </div>
+              {materialized && (
+                <SidebarIndexList
+                  indexes={groupedIndexes}
+                  isOpen={expandIndexes}
+                  onToggle={() => setExpandIndexes(!expandIndexes)}
+                />
+              )}
             </div>
           )}
         </div>

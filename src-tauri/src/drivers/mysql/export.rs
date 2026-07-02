@@ -22,7 +22,13 @@ where
     F: FnMut(&[String], &[Value]) -> Result<(), String> + Send,
 {
     let pool = get_mysql_pool(params).await?;
-    let mut rows = sqlx::query(query).fetch(&pool);
+    // Behind a bastion that rejects prepared statements, stream over the text
+    // protocol (COM_QUERY) instead — see `super::force_text_protocol`.
+    let mut rows = if super::force_text_protocol(params) {
+        sqlx::raw_sql(query).fetch(&pool)
+    } else {
+        sqlx::query(query).fetch(&pool)
+    };
     let mut headers: Option<Vec<String>> = None;
 
     while let Some(row_res) = rows.next().await {
