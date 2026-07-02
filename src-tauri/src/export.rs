@@ -23,7 +23,6 @@ use crate::commands::{
     register_abort_handle, resolve_connection_params_with_id, unregister_abort_handle,
     AbortHandleMap,
 };
-use crate::drivers::driver_trait::DatabaseDriver;
 use crate::drivers::{mysql, postgres, sqlite};
 use crate::models::ConnectionParams;
 

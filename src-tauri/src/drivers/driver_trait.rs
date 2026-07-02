@@ -56,6 +56,11 @@ pub struct DriverCapabilities {
     pub schemas: bool,
     /// Supports views.
     pub views: bool,
+    /// Supports materialized views (e.g. PostgreSQL). When `false`, the
+    /// frontend skips the materialized-view metadata fetch entirely (so
+    /// other drivers don't pay for an empty round-trip). Defaults to `false`.
+    #[serde(default)]
+    pub materialized_views: bool,
     /// Supports stored procedures and functions.
     pub routines: bool,
     /// File-based database (e.g. SQLite); no host/port required.
@@ -335,6 +340,46 @@ pub trait DatabaseDriver: Send + Sync {
         view_name: &str,
         schema: Option<&str>,
     ) -> Result<(), String>;
+
+    // --- Materialized views -------------------------------------------------
+    // Default impls return empty / unsupported so drivers without materialized
+    // views (MySQL, SQLite, plugins) need no changes; the UI hides the group
+    // unless `DriverCapabilities::materialized_views` is set.
+
+    async fn get_materialized_views(
+        &self,
+        _params: &ConnectionParams,
+        _schema: Option<&str>,
+    ) -> Result<Vec<ViewInfo>, String> {
+        Ok(Vec::new())
+    }
+
+    async fn get_materialized_view_columns(
+        &self,
+        _params: &ConnectionParams,
+        _view_name: &str,
+        _schema: Option<&str>,
+    ) -> Result<Vec<TableColumn>, String> {
+        Ok(Vec::new())
+    }
+
+    async fn get_materialized_view_definition(
+        &self,
+        _params: &ConnectionParams,
+        _view_name: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        Err("Materialized views are not supported by this driver".to_string())
+    }
+
+    async fn refresh_materialized_view(
+        &self,
+        _params: &ConnectionParams,
+        _view_name: &str,
+        _schema: Option<&str>,
+    ) -> Result<(), String> {
+        Err("Materialized views are not supported by this driver".to_string())
+    }
 
     // --- Routines -----------------------------------------------------------
 

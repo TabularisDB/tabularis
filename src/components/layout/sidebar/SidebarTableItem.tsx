@@ -7,14 +7,15 @@ import {
   Folder,
   Link as LinkIcon,
   Key,
-  List,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
 import clsx from "clsx";
 import { SidebarColumnItem } from "./SidebarColumnItem";
+import { SidebarIndexList } from "./SidebarIndexList";
 import { dragState } from "../../../utils/dragState";
 import { areTableItemPropsEqual } from "../../../utils/sidebarTableItem";
+import { groupIndexes } from "../../../utils/indexes";
 import type { TableColumn, ForeignKey, Index } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
 
@@ -130,17 +131,7 @@ const SidebarTableItemImpl = ({
     onContextMenu(e, type, name, name, { tableName: table.name, schema });
   };
 
-  // Group indexes by name since API returns one row per column
-  const groupedIndexes = React.useMemo(() => {
-    const groups: Record<string, Index & { columns: string[] }> = {};
-    indexes.forEach((idx) => {
-      if (!groups[idx.name]) {
-        groups[idx.name] = { ...idx, columns: [] };
-      }
-      groups[idx.name].columns.push(idx.column_name);
-    });
-    return Object.values(groups);
-  }, [indexes]);
+  const groupedIndexes = React.useMemo(() => groupIndexes(indexes), [indexes]);
 
   const keys = groupedIndexes.filter((i) => i.is_primary || i.is_unique);
   const indexesList = groupedIndexes;
@@ -325,57 +316,21 @@ const SidebarTableItemImpl = ({
               </div>
 
               {/* Indexes Folder */}
-              <div className="flex flex-col">
-                <button
-                  className="flex items-center gap-2 px-2 py-1 text-xs text-muted hover:text-secondary w-full text-left select-none"
-                  aria-expanded={expandIndexes}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setExpandIndexes(!expandIndexes);
-                  }}
-                  onContextMenu={canManage !== false ? (e) =>
-                    handleContextMenu(e, "folder_indexes", "indexes")
-                  : undefined}
-                >
-                  <Folder size={12} className="text-green-400/70" />
-                  <span>{t("sidebar.indexes")}</span>
-                  <span className="ml-auto text-[10px] opacity-50">
-                    {indexesList.length}
-                  </span>
-                </button>
-                {expandIndexes && (
-                  <div className="ml-4 border-l border-default/50">
-                    {indexesList.map((idx) => (
-                      <div
-                        key={idx.name}
-                        className="flex items-center gap-2 px-3 py-1 text-xs text-secondary hover:bg-surface-secondary hover:text-primary cursor-pointer group font-mono"
-                        title={idx.columns.join(", ")}
-                        onContextMenu={canManage !== false ? (e) =>
-                          handleContextMenu(e, "index", idx.name)
-                        : undefined}
-                      >
-                        <List
-                          size={12}
-                          className={
-                            idx.is_unique ? "text-blue-400" : "text-green-400"
-                          }
-                        />
-                        <span className="truncate flex-1">
-                          {idx.name}{" "}
-                          <span className="text-muted">
-                            ({idx.columns.join(", ")})
-                          </span>
-                        </span>
-                        {idx.is_unique && (
-                          <span className="text-[9px] text-muted border border-strong px-1 rounded bg-elevated/50">
-                            UNIQUE
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <SidebarIndexList
+                indexes={indexesList}
+                isOpen={expandIndexes}
+                onToggle={() => setExpandIndexes(!expandIndexes)}
+                onFolderContextMenu={
+                  canManage !== false
+                    ? (e) => handleContextMenu(e, "folder_indexes", "indexes")
+                    : undefined
+                }
+                onIndexContextMenu={
+                  canManage !== false
+                    ? (e, name) => handleContextMenu(e, "index", name)
+                    : undefined
+                }
+              />
             </>
           )}
         </div>
