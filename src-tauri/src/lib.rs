@@ -502,6 +502,12 @@ pub fn run() {
             connection_appearance::delete_connection_icon,
             commands::set_connection_appearance,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                log::info!("Application exiting, stopping all active SSH tunnels...");
+                crate::ssh_tunnel::stop_all_tunnels();
+            }
+        });
 }
