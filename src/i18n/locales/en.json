@@ -52,6 +52,9 @@
     "createView": "Create New View",
     "views": "Views",
     "noViews": "No views found",
+    "materializedViews": "Materialized Views",
+    "refreshMaterializedView": "Refresh",
+    "showDefinition": "Show Definition",
     "editView": "Edit View",
     "viewDefinition": "View Definition",
     "dropView": "Drop View",
@@ -1264,7 +1267,10 @@
     "createSuccess": "View created successfully",
     "alterSuccess": "View updated successfully",
     "saveError": "Failed to save view: ",
-    "confirmAlter": "Are you sure you want to modify view \"{{view}}\"?"
+    "confirmAlter": "Are you sure you want to modify view \"{{view}}\"?",
+    "refreshSuccess": "Materialized view \"{{view}}\" refreshed",
+    "refreshError": "Failed to refresh materialized view: ",
+    "failGetDefinition": "Failed to get definition: "
   },
   "triggers": {
     "createTrigger": "Create Trigger",

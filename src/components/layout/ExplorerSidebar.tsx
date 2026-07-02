@@ -206,6 +206,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const [favoriteDeleteConfirm, setFavoriteDeleteConfirm] = useState<string | null>(null);
   const [tableFilter, setTableFilter] = useState("");
   const [favoritesFilter, setFavoritesFilter] = useState("");
+  const [refreshingMatView, setRefreshingMatView] = useState<string | null>(null);
   const [selectedFavoriteId, setSelectedFavoriteId] = useState<string | null>(null);
   const [tablesOpen, setTablesOpen] = useState(true);
   const [viewsOpen, setViewsOpen] = useState(true);
@@ -354,13 +355,18 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     setActiveView(viewName);
   };
 
-  const handleOpenView = (viewName: string, schema?: string) => {
+  const handleOpenView = (
+    viewName: string,
+    schema?: string,
+    materialized = false,
+  ) => {
     const quotedView = quoteTableRef(viewName, activeDriver, schema);
     navigate("/editor", {
       state: {
         initialQuery: `SELECT * FROM ${quotedView}`,
         tableName: viewName,
         schema,
+        materialized,
         targetConnectionId: activeConnectionId,
       },
     });
@@ -1060,7 +1066,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           onTableClick={(name, schema) => handleTableClick(name, schema)}
                           onTableDoubleClick={(name, schema) => handleOpenTable(name, schema)}
                           onViewClick={handleViewClick}
-                          onViewDoubleClick={(name, schema) => handleOpenView(name, schema)}
+                          onViewDoubleClick={(name, schema, materialized) =>
+                            handleOpenView(name, schema, materialized)
+                          }
                           onRoutineDoubleClick={(routine, schema) => handleRoutineDoubleClick(routine, schema)}
                           onTriggerDoubleClick={(trigger, schema) => handleTriggerDoubleClick(trigger, schema)}
                           onContextMenu={handleContextMenu}
@@ -1124,6 +1132,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             setTriggerEditorModal({ isOpen: true, isNewTrigger: true, schema })
                           }
                           showTriggers={activeCapabilities?.triggers === true}
+                          refreshingMatView={refreshingMatView}
                         />
                       ))}
                     </>
@@ -2009,6 +2018,71 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     }
                                   }
                                 },
+                              },
+                            ];
+                          })()
+                        : contextMenu.type === "materialized_view"
+                        ? (() => {
+                            const mvCtxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                            return [
+                              {
+                                label: t("sidebar.showData"),
+                                icon: PlaySquare,
+                                action: () => {
+                                  const quotedView = quoteTableRef(contextMenu.id, activeDriver, mvCtxSchema);
+                                  runQuery(`SELECT * FROM ${quotedView}`, undefined, contextMenu.id);
+                                },
+                              },
+                              {
+                                label: t("sidebar.countRows"),
+                                icon: Hash,
+                                action: () => {
+                                  const quotedView = quoteTableRef(contextMenu.id, activeDriver, mvCtxSchema);
+                                  runQuery(`SELECT COUNT(*) as count FROM ${quotedView}`);
+                                },
+                              },
+                              {
+                                label: t("sidebar.refreshMaterializedView"),
+                                icon: RefreshCw,
+                                action: async () => {
+                                  const mvName = contextMenu.id;
+                                  setRefreshingMatView(mvName);
+                                  try {
+                                    await invoke("refresh_materialized_view", {
+                                      connectionId: activeConnectionId,
+                                      viewName: mvName,
+                                      ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
+                                    });
+                                    showAlert(t("views.refreshSuccess", { view: mvName }), { kind: "info" });
+                                  } catch (e) {
+                                    console.error(e);
+                                    showAlert(t("views.refreshError") + String(e), { kind: "error" });
+                                  } finally {
+                                    setRefreshingMatView(null);
+                                  }
+                                },
+                              },
+                              {
+                                label: t("sidebar.showDefinition"),
+                                icon: FileText,
+                                action: async () => {
+                                  try {
+                                    const definition = await invoke<string>("get_materialized_view_definition", {
+                                      connectionId: activeConnectionId,
+                                      viewName: contextMenu.id,
+                                      ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
+                                    });
+                                    runQuery(definition, `${contextMenu.id} Definition`, undefined, true, mvCtxSchema, true);
+                                  } catch (e) {
+                                    console.error(e);
+                                    showAlert(t("views.failGetDefinition") + String(e), { kind: "error" });
+                                  }
+                                },
+                              },
+                              {
+                                label: t("sidebar.copyName"),
+                                icon: Copy,
+                                action: () => navigator.clipboard.writeText(contextMenu.id),
                               },
                             ];
                           })()

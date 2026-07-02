@@ -52,6 +52,9 @@
     "createView": "Crea Nuova Vista",
     "views": "Viste",
     "noViews": "Nessuna vista trovata",
+    "materializedViews": "Viste Materializzate",
+    "refreshMaterializedView": "Aggiorna",
+    "showDefinition": "Mostra Definizione",
     "editView": "Modifica Vista",
     "viewDefinition": "Definizione Vista",
     "dropView": "Elimina Vista",
@@ -1230,6 +1233,9 @@
     "createSuccess": "Vista creata con successo",
     "alterSuccess": "Vista aggiornata con successo",
     "saveError": "Salvataggio vista fallito: ",
+    "refreshSuccess": "Vista materializzata \"{{view}}\" aggiornata",
+    "refreshError": "Aggiornamento vista materializzata fallito: ",
+    "failGetDefinition": "Recupero della definizione fallito: ",
     "confirmAlter": "Sei sicuro di voler modificare la vista \"{{view}}\"?"
   },
   "community": {

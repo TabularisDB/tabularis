@@ -388,7 +388,7 @@ pub async fn get_indexes(
             JOIN pg_class i ON i.oid = ix.indexrelid
             JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
         WHERE
-            t.relkind = 'r'
+            t.relkind IN ('r', 'm')
             AND n.nspname = $1
             AND t.relname = $2
         ORDER BY
@@ -1156,6 +1156,120 @@ pub async fn get_view_columns(
         .collect())
 }
 
+pub async fn get_materialized_views(
+    params: &ConnectionParams,
+    schema: &str,
+) -> Result<Vec<ViewInfo>, String> {
+    log::debug!(
+        "PostgreSQL: Fetching materialized views for database: {} schema: {}",
+        params.database,
+        schema
+    );
+    let pool = get_postgres_pool(params).await?;
+    let rows = query_all(
+        &pool,
+        "SELECT matviewname as name FROM pg_matviews WHERE schemaname = $1 ORDER BY matviewname ASC",
+        &[&schema],
+    )
+    .await?;
+
+    let views: Vec<ViewInfo> = rows
+        .iter()
+        .map(|r| ViewInfo {
+            name: r.try_get("name").unwrap_or_default(),
+            definition: None,
+        })
+        .collect();
+    Ok(views)
+}
+
+/// Materialized views are not exposed via `information_schema.columns`, so their
+/// columns must be read from the system catalog (`pg_attribute`/`pg_class`).
+pub async fn get_materialized_view_columns(
+    params: &ConnectionParams,
+    view_name: &str,
+    schema: &str,
+) -> Result<Vec<TableColumn>, String> {
+    let pool = get_postgres_pool(params).await?;
+    let query = r#"
+        SELECT
+            a.attname AS column_name,
+            format_type(a.atttypid, a.atttypmod) AS data_type,
+            a.attnotnull AS not_null
+        FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = $1 AND c.relname = $2 AND c.relkind = 'm'
+          AND a.attnum > 0 AND NOT a.attisdropped
+        ORDER BY a.attnum
+    "#;
+
+    let rows = query_all(&pool, query, &[&schema, &view_name]).await?;
+
+    Ok(rows
+        .iter()
+        .map(|r| TableColumn {
+            name: r.try_get("column_name").unwrap_or_default(),
+            data_type: r.try_get("data_type").unwrap_or_default(),
+            is_pk: false,
+            is_nullable: !r.try_get::<_, bool>("not_null").unwrap_or(false),
+            is_auto_increment: false,
+            default_value: None,
+            character_maximum_length: None,
+        })
+        .collect())
+}
+
+pub async fn get_materialized_view_definition(
+    params: &ConnectionParams,
+    view_name: &str,
+    schema: &str,
+) -> Result<String, String> {
+    let pool = get_postgres_pool(params).await?;
+    let qualified = format!(
+        "\"{}\".\"{}\"",
+        escape_identifier(schema),
+        escape_identifier(view_name)
+    );
+
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+
+    let row = client
+        .query_one(
+            "SELECT pg_get_viewdef($1::regclass, true) as definition",
+            &[&qualified],
+        )
+        .await
+        .map_err(|e| format!("Failed to get materialized view definition: {}", e))?;
+
+    let definition: String = row.try_get("definition").unwrap_or_default();
+    Ok(format!(
+        "CREATE MATERIALIZED VIEW {} AS\n{}",
+        qualified, definition
+    ))
+}
+
+pub async fn refresh_materialized_view(
+    params: &ConnectionParams,
+    view_name: &str,
+    schema: &str,
+) -> Result<(), String> {
+    let pool = get_postgres_pool(params).await?;
+    let query = format!(
+        "REFRESH MATERIALIZED VIEW \"{}\".\"{}\"",
+        escape_identifier(schema),
+        escape_identifier(view_name)
+    );
+
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+    client
+        .execute(&query, &[])
+        .await
+        .map_err(|e| format!("Failed to refresh materialized view: {}", e))?;
+
+    Ok(())
+}
+
 pub async fn get_routines(
     params: &ConnectionParams,
     schema: &str,
@@ -1424,6 +1538,7 @@ impl PostgresDriver {
                 capabilities: DriverCapabilities {
                     schemas: true,
                     views: true,
+                    materialized_views: true,
                     routines: true,
                     file_based: false,
                     folder_based: false,
@@ -1614,6 +1729,41 @@ impl DatabaseDriver for PostgresDriver {
         schema: Option<&str>,
     ) -> Result<(), String> {
         drop_view(params, view_name, self.resolve_schema(schema)).await
+    }
+
+    async fn get_materialized_views(
+        &self,
+        params: &crate::models::ConnectionParams,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::ViewInfo>, String> {
+        get_materialized_views(params, self.resolve_schema(schema)).await
+    }
+
+    async fn get_materialized_view_columns(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TableColumn>, String> {
+        get_materialized_view_columns(params, view_name, self.resolve_schema(schema)).await
+    }
+
+    async fn get_materialized_view_definition(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_materialized_view_definition(params, view_name, self.resolve_schema(schema)).await
+    }
+
+    async fn refresh_materialized_view(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        refresh_materialized_view(params, view_name, self.resolve_schema(schema)).await
     }
 
     async fn get_routines(

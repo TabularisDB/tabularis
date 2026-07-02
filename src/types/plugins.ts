@@ -31,6 +31,8 @@ export interface DriverCapabilities {
   readonly?: boolean;
   /** Supports listing and managing database triggers. Defaults to false. */
   triggers?: boolean;
+  /** Supports materialized views (e.g. PostgreSQL). When false, the frontend skips fetching materialized views entirely. Defaults to false. */
+  materialized_views?: boolean;
   /** Shows the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal.
    * Built-in network drivers (postgres, mysql) set this; plugins opt in via their manifest. Defaults to false. */
   supports_ssl?: boolean;

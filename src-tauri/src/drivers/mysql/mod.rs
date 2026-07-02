@@ -1489,6 +1489,7 @@ impl MysqlDriver {
                 capabilities: DriverCapabilities {
                     schemas: false,
                     views: true,
+                    materialized_views: false,
                     routines: true,
                     file_based: false,
                     folder_based: false,

@@ -51,6 +51,9 @@
     "createView": "创建新视图",
     "views": "视图",
     "noViews": "未找到视图",
+    "materializedViews": "物化视图",
+    "refreshMaterializedView": "刷新",
+    "showDefinition": "显示定义",
     "editView": "编辑视图",
     "viewDefinition": "视图定义",
     "dropView": "删除视图",
@@ -1173,6 +1176,9 @@
     "createSuccess": "视图创建成功",
     "alterSuccess": "视图更新成功",
     "saveError": "保存视图失败：",
+    "refreshSuccess": "物化视图 \"{{view}}\" 已刷新",
+    "refreshError": "刷新物化视图失败：",
+    "failGetDefinition": "获取定义失败：",
     "confirmAlter": "确定要修改视图 \"{{view}}\" 吗？"
   },
   "community": {

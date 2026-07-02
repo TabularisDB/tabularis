@@ -76,6 +76,7 @@ export interface ConnectionsFile {
 export interface SchemaData {
   tables: TableInfo[];
   views: ViewInfo[];
+  materializedViews?: ViewInfo[];
   routines: RoutineInfo[];
   triggers: TriggerInfo[];
   isLoading: boolean;
@@ -119,6 +120,7 @@ export interface DatabaseContextType {
   activeDatabaseName: string | null;
   tables: TableInfo[];
   views: ViewInfo[];
+  materializedViews: ViewInfo[];
   routines: RoutineInfo[];
   triggers: TriggerInfo[];
   isLoadingTables: boolean;
