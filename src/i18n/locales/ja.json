@@ -52,6 +52,9 @@
     "createView": "ビューを新規作成",
     "views": "ビュー",
     "noViews": "ビューが見つかりません",
+    "materializedViews": "マテリアライズドビュー",
+    "refreshMaterializedView": "更新",
+    "showDefinition": "定義を表示",
     "editView": "ビューを編集",
     "viewDefinition": "ビュー定義",
     "dropView": "ビューを削除",
@@ -1241,6 +1244,9 @@
     "createSuccess": "ビューを正常に作成しました",
     "alterSuccess": "ビューを正常に更新しました",
     "saveError": "ビューの保存に失敗しました: ",
+    "refreshSuccess": "マテリアライズドビュー「{{view}}」を更新しました",
+    "refreshError": "マテリアライズドビューの更新に失敗しました: ",
+    "failGetDefinition": "定義の取得に失敗しました: ",
     "confirmAlter": "ビュー「{{view}}」を変更してもよろしいですか？"
   },
   "triggers": {

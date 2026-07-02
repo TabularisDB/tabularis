@@ -52,6 +52,9 @@
     "createView": "Crear Nueva Vista",
     "views": "Vistas",
     "noViews": "No se encontraron vistas",
+    "materializedViews": "Vistas Materializadas",
+    "refreshMaterializedView": "Actualizar",
+    "showDefinition": "Mostrar Definición",
     "editView": "Editar Vista",
     "viewDefinition": "Definición de Vista",
     "dropView": "Eliminar Vista",
@@ -1224,6 +1227,9 @@
     "createSuccess": "Vista creada correctamente",
     "alterSuccess": "Vista actualizada correctamente",
     "saveError": "Error al guardar la vista: ",
+    "refreshSuccess": "Vista materializada \"{{view}}\" actualizada",
+    "refreshError": "Error al actualizar la vista materializada: ",
+    "failGetDefinition": "Error al obtener la definición: ",
     "confirmAlter": "¿Estás seguro de que deseas modificar la vista \"{{view}}\"?"
   },
   "dump": {

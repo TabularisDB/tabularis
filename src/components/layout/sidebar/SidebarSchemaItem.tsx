@@ -34,7 +34,11 @@ interface SidebarSchemaItemProps {
   onTableClick: (name: string, schema: string) => void;
   onTableDoubleClick: (name: string, schema: string) => void;
   onViewClick: (name: string) => void;
-  onViewDoubleClick: (name: string, schema: string) => void;
+  onViewDoubleClick: (
+    name: string,
+    schema: string,
+    materialized?: boolean,
+  ) => void;
   onRoutineDoubleClick: (routine: RoutineInfo, schema: string) => void;
   onTriggerDoubleClick: (trigger: TriggerInfo, schema: string) => void;
   onContextMenu: (
@@ -54,6 +58,7 @@ interface SidebarSchemaItemProps {
   onCreateView: () => void;
   onCreateTrigger: (schema: string) => void;
   showTriggers?: boolean;
+  refreshingMatView?: string | null;
 }
 
 export const SidebarSchemaItem = ({
@@ -83,6 +88,7 @@ export const SidebarSchemaItem = ({
   onCreateView,
   onCreateTrigger,
   showTriggers = false,
+  refreshingMatView = null,
 }: SidebarSchemaItemProps) => {
   const { t } = useTranslation();
 
@@ -92,6 +98,7 @@ export const SidebarSchemaItem = ({
   const [prevActiveSchema, setPrevActiveSchema] = useState(activeSchema);
   const [tablesOpen, setTablesOpen] = useState(true);
   const [viewsOpen, setViewsOpen] = useState(true);
+  const [materializedViewsOpen, setMaterializedViewsOpen] = useState(false);
   const [routinesOpen, setRoutinesOpen] = useState(false);
   const [triggersOpen, setTriggersOpen] = useState(false);
   const [functionsOpen, setFunctionsOpen] = useState(true);
@@ -112,6 +119,7 @@ export const SidebarSchemaItem = ({
     ? tables.filter((t) => t.name.toLowerCase().includes(tableFilter.toLowerCase()))
     : tables;
   const views = schemaData?.views ?? [];
+  const materializedViews = schemaData?.materializedViews ?? [];
   const routines = schemaData?.routines ?? [];
   const triggers = schemaData?.triggers ?? [];
   const filteredTriggers = triggerFilter
@@ -304,6 +312,34 @@ export const SidebarSchemaItem = ({
                   </div>
                 )}
               </Accordion>
+
+              {materializedViews.length > 0 && (
+                <Accordion
+                  title={`${t("sidebar.materializedViews")} (${materializedViews.length})`}
+                  isOpen={materializedViewsOpen}
+                  onToggle={() => setMaterializedViewsOpen(!materializedViewsOpen)}
+                >
+                  <div>
+                    {materializedViews.map((view) => (
+                      <SidebarViewItem
+                        key={view.name}
+                        view={view}
+                        activeView={null}
+                        onViewClick={onViewClick}
+                        onViewDoubleClick={(name) =>
+                          onViewDoubleClick(name, schemaName, true)
+                        }
+                        onContextMenu={onContextMenu}
+                        connectionId={connectionId}
+                        driver={driver}
+                        schema={schemaName}
+                        materialized
+                        isRefreshing={refreshingMatView === view.name}
+                      />
+                    ))}
+                  </div>
+                </Accordion>
+              )}
 
               {/* Triggers */}
               {showTriggers && (
