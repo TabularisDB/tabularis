@@ -149,6 +149,10 @@ pub struct UIExtensionEntry {
     /// Ordering weight (lower = earlier).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub order: Option<u32>,
+    /// If set, the contribution is only rendered when the active driver
+    /// matches this identifier (e.g. `"wordpress"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub driver: Option<String>,
 }
 
 /// A single user-configurable setting declared in a plugin's manifest.
