@@ -136,14 +136,27 @@ async fn ping_all_connections(app: &tauri::AppHandle, failure_counts: &mut HashM
     }
 }
 
+/// Look up a saved connection and expand its SSH/K8s params (no tunnel resolution).
+async fn expand_params(
+    app: &tauri::AppHandle,
+    connection_id: &str,
+) -> Result<crate::models::ConnectionParams, String> {
+    let saved_conn = crate::commands::find_connection_by_id(app, connection_id)?;
+    let expanded = crate::commands::expand_ssh_connection_params(app, &saved_conn.params).await?;
+    crate::commands::expand_k8s_connection_params(app, &expanded).await
+}
+
 /// Ping a single connection by resolving its params and calling driver.ping().
 async fn ping_single_connection(app: &tauri::AppHandle, connection_id: &str) -> Result<(), String> {
-    let saved_conn = crate::commands::find_connection_by_id(app, connection_id)?;
+    let expanded_params = expand_params(app, connection_id).await?;
 
-    let expanded_params =
-        crate::commands::expand_ssh_connection_params(app, &saved_conn.params).await?;
-    let expanded_params =
-        crate::commands::expand_k8s_connection_params(app, &expanded_params).await?;
+    // If the SSH tunnel died (e.g. the server rebooted), evict it and fail the
+    // ping immediately instead of letting param resolution block on rebuilding
+    // a tunnel toward a server that may still be down.
+    if crate::commands::evict_dead_ssh_tunnel(&expanded_params) {
+        return Err("SSH tunnel is no longer alive".into());
+    }
+
     let params =
         crate::commands::resolve_connection_params_with_id(&expanded_params, connection_id)?;
 
@@ -167,19 +180,17 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
     // Unregister first to prevent further pings.
     unregister_connection(connection_id).await;
 
-    // Close the pool (best-effort — if params can't be resolved the pool stays orphaned
-    // but will be reclaimed on next connect or app shutdown).
-    if let Ok(saved_conn) = crate::commands::find_connection_by_id(app, connection_id) {
-        if let Ok(expanded) =
-            crate::commands::expand_ssh_connection_params(app, &saved_conn.params).await
-        {
-            let expanded = crate::commands::expand_k8s_connection_params(app, &expanded).await;
-            if let Ok(params) = expanded.and_then(|params| {
-                crate::commands::resolve_connection_params_with_id(&params, connection_id)
-            }) {
-                crate::pool_manager::close_pool_with_id(&params, Some(connection_id)).await;
-            }
-        }
+    // Close the pool (best-effort — if params can't be expanded the pool stays orphaned
+    // but will be reclaimed on next connect or app shutdown). Tunnel resolution is
+    // skipped deliberately: with a connection_id the pool key only depends on
+    // driver/connection_id/database, and resolving would try to rebuild a tunnel
+    // toward a server that may still be down.
+    if let Ok(expanded) = expand_params(app, connection_id).await {
+        // Tear down the SSH tunnel before it is reused: after the remote host
+        // dies the tunnel is dead but still holds its local port, which breaks
+        // the next reconnect ("port already in use").
+        crate::commands::teardown_ssh_tunnel(&expanded);
+        crate::pool_manager::close_pool_with_id(&expanded, Some(connection_id)).await;
     }
 
     // Notify frontend.

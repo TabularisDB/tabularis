@@ -190,6 +190,14 @@ impl SshTunnel {
 
         args.push("-o".to_string());
         args.push("StrictHostKeyChecking=accept-new".to_string());
+        // Keepalives make ssh exit when the server goes away (e.g. a reboot);
+        // without them the process can hold the local port forever.
+        args.push("-o".to_string());
+        args.push("ServerAliveInterval=15".to_string());
+        args.push("-o".to_string());
+        args.push("ServerAliveCountMax=3".to_string());
+        args.push("-o".to_string());
+        args.push("ExitOnForwardFailure=yes".to_string());
         args.push("-o".to_string());
         if ssh_allow_passphrase_prompt {
             args.push("BatchMode=no".to_string());
@@ -453,6 +461,15 @@ impl SshTunnel {
 
                 println!("[SSH Tunnel] Starting tunnel forwarding loop");
                 while running_clone.load(Ordering::Relaxed) {
+                    // If the SSH session died (e.g. the server rebooted), mark
+                    // the tunnel as dead and release the local port so a
+                    // reconnect can create a fresh tunnel.
+                    if handle.lock().await.is_closed() {
+                        eprintln!("[SSH Tunnel Error] SSH session closed unexpectedly; shutting down tunnel");
+                        running_clone.store(false, Ordering::Relaxed);
+                        break;
+                    }
+
                     let accept = tokio::time::timeout(
                         Duration::from_millis(SSH_ACCEPT_POLL_MS),
                         listener.accept(),
@@ -529,9 +546,49 @@ impl SshTunnel {
             TunnelBackend::SystemSsh(child) => {
                 if let Ok(mut c) = child.lock() {
                     let _ = c.kill();
+                    // Reap the process so it does not linger as a zombie
+                    // holding the forwarded local port.
+                    let _ = c.wait();
                 }
             }
         }
+    }
+
+    /// Report whether the tunnel is still usable.
+    ///
+    /// For a system-ssh backend this detects a process that has already
+    /// exited (e.g. the ssh client tore down after the remote host rebooted),
+    /// which would otherwise leave a stale entry in the tunnel map pointing at
+    /// a dead local port. For the russh backend the `running` flag is cleared
+    /// either by `stop()` or by the forwarding loop itself when it detects the
+    /// SSH session has closed.
+    pub fn is_alive(&self) -> bool {
+        match &self.backend {
+            TunnelBackend::Russh(running) => running.load(Ordering::Relaxed),
+            TunnelBackend::SystemSsh(child) => match child.lock() {
+                // `Ok(None)` means the child is still running.
+                Ok(mut c) => matches!(c.try_wait(), Ok(None)),
+                Err(_) => false,
+            },
+        }
+    }
+}
+
+/// Stop and remove a tunnel from the global map, if present.
+///
+/// Tears down the underlying ssh process / forwarding thread and frees the
+/// local port. Safe to call when no tunnel exists for the key.
+pub fn remove_tunnel(map_key: &str) {
+    let tunnel = {
+        let mut tunnels = get_tunnels().lock().unwrap();
+        tunnels.remove(map_key)
+    };
+    if let Some(tunnel) = tunnel {
+        println!(
+            "[SSH Tunnel] Removing tunnel '{}' (local port {})",
+            map_key, tunnel.local_port
+        );
+        tunnel.stop();
     }
 }
 
@@ -851,6 +908,68 @@ mod tests {
         #[test]
         fn test_password_with_spaces_uses_russh() {
             assert!(!should_use_system_ssh(Some("my password")));
+        }
+    }
+
+    mod liveness_tests {
+        use super::*;
+
+        #[test]
+        fn russh_is_alive_tracks_running_flag() {
+            let running = Arc::new(AtomicBool::new(true));
+            let tunnel = SshTunnel {
+                local_port: 0,
+                backend: TunnelBackend::Russh(running.clone()),
+            };
+            assert!(tunnel.is_alive());
+
+            // stop() flips the flag; the tunnel is then considered dead.
+            tunnel.stop();
+            assert!(!tunnel.is_alive());
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn system_ssh_is_alive_detects_exited_child() {
+            // A long-running child is alive...
+            let child = Command::new("sleep")
+                .arg("30")
+                .spawn()
+                .expect("spawn sleep");
+            let tunnel = SshTunnel {
+                local_port: 0,
+                backend: TunnelBackend::SystemSsh(Arc::new(Mutex::new(child))),
+            };
+            assert!(tunnel.is_alive());
+
+            // ...and dead once stopped (killed + reaped).
+            tunnel.stop();
+            assert!(!tunnel.is_alive());
+        }
+
+        #[test]
+        fn remove_tunnel_is_noop_for_unknown_key() {
+            // Must not panic when the key is absent from the map.
+            remove_tunnel("nonexistent@host:22:remote->3306");
+        }
+
+        #[cfg(unix)]
+        #[test]
+        fn remove_tunnel_stops_and_removes_entry() {
+            let key = "removal-test@host:22:remote->3306".to_string();
+            let child = Command::new("sleep")
+                .arg("30")
+                .spawn()
+                .expect("spawn sleep");
+            let tunnel = SshTunnel {
+                local_port: 0,
+                backend: TunnelBackend::SystemSsh(Arc::new(Mutex::new(child))),
+            };
+            get_tunnels().lock().unwrap().insert(key.clone(), tunnel);
+
+            remove_tunnel(&key);
+
+            assert!(!get_tunnels().lock().unwrap().contains_key(&key));
         }
     }
 

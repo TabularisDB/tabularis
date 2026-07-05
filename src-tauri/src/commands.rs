@@ -220,6 +220,53 @@ fn build_tunnel_map_key(
     crate::ssh_tunnel::build_tunnel_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port)
 }
 
+/// Build the tunnel map key from unresolved params, if they describe an SSH
+/// tunnel. Expects params that still carry the original SSH/remote fields
+/// (i.e. before [`resolve_connection_params`] rewrites host/port to the local
+/// forward).
+fn ssh_tunnel_key_for(params: &ConnectionParams) -> Option<String> {
+    if !params.ssh_enabled.unwrap_or(false) {
+        return None;
+    }
+    let ssh_host = params.ssh_host.as_deref()?;
+    let ssh_user = params.ssh_user.as_deref()?;
+    Some(build_tunnel_map_key(
+        ssh_user,
+        ssh_host,
+        params.ssh_port.unwrap_or(22),
+        params.host.as_deref().unwrap_or("localhost"),
+        params.port.unwrap_or(DEFAULT_MYSQL_PORT),
+    ))
+}
+
+/// Stop and remove the SSH tunnel associated with these params, if any.
+///
+/// Called when a connection is closed (manually or by the health check) so a
+/// tunnel does not outlive the connection that owns it.
+pub(crate) fn teardown_ssh_tunnel(params: &ConnectionParams) {
+    if let Some(map_key) = ssh_tunnel_key_for(params) {
+        crate::ssh_tunnel::remove_tunnel(&map_key);
+    }
+}
+
+/// Remove the cached SSH tunnel for these params if it is no longer alive
+/// (e.g. the remote server rebooted), so the next resolve creates a fresh one.
+/// Returns true if a dead tunnel was evicted.
+pub(crate) fn evict_dead_ssh_tunnel(params: &ConnectionParams) -> bool {
+    let Some(map_key) = ssh_tunnel_key_for(params) else {
+        return false;
+    };
+    let is_dead = {
+        let tunnels = get_tunnels().lock().unwrap();
+        matches!(tunnels.get(&map_key), Some(tunnel) if !tunnel.is_alive())
+    };
+    if is_dead {
+        log::warn!("SSH tunnel {} is no longer alive, removing it", map_key);
+        crate::ssh_tunnel::remove_tunnel(&map_key);
+    }
+    is_dead
+}
+
 /// Resolve K8s tunnel params synchronously (no saved-connection lookup; uses inline fields only).
 fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
     let context = params
@@ -310,6 +357,13 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
     let remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
 
     let map_key = build_tunnel_map_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port);
+
+    // A tunnel that is no longer alive (e.g. the ssh client exited after the
+    // remote host rebooted) must not be reused: its local port is dead or
+    // still held by the defunct process, which is what produced the "port
+    // already in use" failures on reconnect. Evict it so a fresh tunnel gets
+    // created below.
+    evict_dead_ssh_tunnel(params);
 
     // Check for existing tunnel
     {
@@ -2342,6 +2396,26 @@ mod tests {
             assert!(result.is_err());
             assert!(result.unwrap_err().contains("SSH User"));
         }
+
+        #[test]
+        fn test_evict_dead_ssh_tunnel_noop_when_ssh_disabled() {
+            let params = base_params();
+            assert!(!evict_dead_ssh_tunnel(&params));
+        }
+
+        #[test]
+        fn test_evict_dead_ssh_tunnel_noop_without_ssh_fields() {
+            let mut params = create_ssh_params("jump.server", 22, "admin", "db.internal", 3306);
+            params.ssh_user = None;
+            assert!(!evict_dead_ssh_tunnel(&params));
+        }
+
+        #[test]
+        fn test_evict_dead_ssh_tunnel_noop_without_cached_tunnel() {
+            let params =
+                create_ssh_params("no-such-tunnel.host", 22, "admin", "db.internal", 3306);
+            assert!(!evict_dead_ssh_tunnel(&params));
+        }
     }
 
     mod resolve_k8s_params_tests {
@@ -4082,6 +4156,11 @@ pub async fn disconnect_connection<R: Runtime>(
 
     // Close the connection pool
     crate::pool_manager::close_pool_with_id(&params, Some(&connection_id)).await;
+
+    // Tear down the SSH tunnel (if any) so it does not linger holding its
+    // local port after the connection is gone. `expanded_params` still carries
+    // the original SSH/remote fields (before resolve rewrites host/port).
+    teardown_ssh_tunnel(&expanded_params);
 
     log::info!(
         "Successfully disconnected from connection: {}",
