@@ -565,6 +565,87 @@ pub async fn get_routine_definition<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn build_routine_call_sql<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    routine_name: String,
+    routine_type: String,
+    args: Vec<crate::models::RoutineCallArg>,
+    schema: Option<String>,
+) -> Result<String, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    drv.build_routine_call_sql(
+        &params,
+        &routine_name,
+        &routine_type,
+        &args,
+        schema.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn get_routine_create_template<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    routine_type: String,
+    schema: Option<String>,
+) -> Result<String, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    drv.routine_create_template(&routine_type, schema.as_deref())
+        .await
+}
+
+#[tauri::command]
+pub async fn get_routine_edit_script<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    routine_name: String,
+    routine_type: String,
+    schema: Option<String>,
+) -> Result<String, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    drv.get_routine_edit_script(&params, &routine_name, &routine_type, schema.as_deref())
+        .await
+}
+
+#[tauri::command]
+pub async fn drop_routine<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    routine_name: String,
+    routine_type: String,
+    schema: Option<String>,
+) -> Result<(), String> {
+    log::info!(
+        "Dropping routine: {} ({}) on connection: {}",
+        routine_name,
+        routine_type,
+        connection_id
+    );
+
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    drv.drop_routine(&params, &routine_name, &routine_type, schema.as_deref())
+        .await
+}
+
+#[tauri::command]
 pub async fn get_schema_snapshot<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,

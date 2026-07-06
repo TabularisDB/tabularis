@@ -14,6 +14,7 @@ import { Accordion } from "./Accordion";
 import { SidebarTableItem } from "./SidebarTableItem";
 import { SidebarViewItem } from "./SidebarViewItem";
 import { SidebarRoutineItem } from "./SidebarRoutineItem";
+import { SidebarRoutineGroupHeader } from "./SidebarRoutineGroupHeader";
 import { SidebarTriggerItem } from "./SidebarTriggerItem";
 import type { SchemaData, RoutineInfo, TriggerInfo } from "../../../contexts/DatabaseContext";
 import type { TableColumn } from "../../../types/schema";
@@ -419,14 +420,12 @@ export const SidebarSchemaItem = ({
                     {/* Functions */}
                     {groupedRoutines.functions.length > 0 && (
                       <div className="mb-2">
-                        <button
-                          onClick={() => setFunctionsOpen(!functionsOpen)}
-                          className="flex items-center gap-1 px-2 py-1 w-full text-left text-xs font-semibold text-muted uppercase tracking-wider hover:text-secondary transition-colors"
-                        >
-                          {functionsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                          <span>{t("sidebar.functions")}</span>
-                          <span className="ml-auto text-[10px] opacity-50">{groupedRoutines.functions.length}</span>
-                        </button>
+                        <SidebarRoutineGroupHeader
+                          label={t("sidebar.functions")}
+                          count={groupedRoutines.functions.length}
+                          isOpen={functionsOpen}
+                          onToggle={() => setFunctionsOpen(!functionsOpen)}
+                        />
                         {functionsOpen && groupedRoutines.functions.map((routine) => (
                           <SidebarRoutineItem
                             key={routine.name}
@@ -443,14 +442,12 @@ export const SidebarSchemaItem = ({
                     {/* Procedures */}
                     {groupedRoutines.procedures.length > 0 && (
                       <div>
-                        <button
-                          onClick={() => setProceduresOpen(!proceduresOpen)}
-                          className="flex items-center gap-1 px-2 py-1 w-full text-left text-xs font-semibold text-muted uppercase tracking-wider hover:text-secondary transition-colors"
-                        >
-                          {proceduresOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                          <span>{t("sidebar.procedures")}</span>
-                          <span className="ml-auto text-[10px] opacity-50">{groupedRoutines.procedures.length}</span>
-                        </button>
+                        <SidebarRoutineGroupHeader
+                          label={t("sidebar.procedures")}
+                          count={groupedRoutines.procedures.length}
+                          isOpen={proceduresOpen}
+                          onToggle={() => setProceduresOpen(!proceduresOpen)}
+                        />
                         {proceduresOpen && groupedRoutines.procedures.map((routine) => (
                           <SidebarRoutineItem
                             key={routine.name}

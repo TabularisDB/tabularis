@@ -76,6 +76,8 @@
     "expandTable": "テーブル {{name}} を展開",
     "collapseTable": "テーブル {{name}} を折りたたむ",
     "columns": "カラム",
+    "parameters": "パラメータ",
+    "noParameters": "パラメータなし",
     "keys": "キー",
     "foreignKeys": "外部キー",
     "indexes": "インデックス",
@@ -732,7 +734,6 @@
     "selectTypeFirst": "先にコンテキスト/ネームスペース/タイプを選択してください",
     "useK8s": "Kubernetes ポートフォワードを使用",
     "useK8sConnection": "保存された接続",
-    "advanced": "詳細設定",
     "startupScript": "起動スクリプト",
     "startupScriptDescription": "このデータソースへの新規接続ごとに実行される SQL です。SET / set_config（例: RLS のバイパス）などのセッション設定に使用します。複数のステートメントはセミコロンで区切ってください。",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
@@ -1630,5 +1631,28 @@
       "resourceNameRequired": "リソース名は必須です",
       "portInvalid": "ポートは 1 から 65535 の範囲で指定してください"
     }
+  },
+  "routines": {
+    "menuRun": "実行…",
+    "menuEdit": "編集",
+    "menuDrop": "削除",
+    "newRoutine": "新しいルーチン",
+    "newProcedure": "新しいプロシージャ",
+    "newFunction": "新しい関数",
+    "templateError": "ルーチンテンプレートの読み込みに失敗しました: ",
+    "dropConfirmTitle": "ルーチンを削除",
+    "dropConfirmMessage": "ルーチン「{{name}}」を削除しますか？この操作は元に戻せません。",
+    "dropSuccess": "ルーチン {{name}} を削除しました",
+    "dropError": "ルーチンの削除に失敗しました: ",
+    "runTitle": "{{name}} を実行",
+    "runSubtitle": "パラメータ値を入力し、生成されたSQLをエディタで確認してください",
+    "loadingParameters": "パラメータを読み込み中…",
+    "noParameters": "このルーチンにはパラメータがありません。呼び出しスクリプトがエディタで開きます。",
+    "outputParameter": "出力パラメータ — 結果として返されます",
+    "rawLabel": "Raw",
+    "rawHint": "文字列クォートなしでそのまま挿入します（数値・式）",
+    "runButton": "実行",
+    "runTabPrefix": "実行",
+    "returnValue": "戻り値"
   }
 }

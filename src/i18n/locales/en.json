@@ -76,6 +76,8 @@
     "expandTable": "Expand table {{name}}",
     "collapseTable": "Collapse table {{name}}",
     "columns": "columns",
+    "parameters": "parameters",
+    "noParameters": "No parameters",
     "keys": "keys",
     "foreignKeys": "foreign keys",
     "indexes": "indexes",
@@ -752,7 +754,6 @@
     "selectTypeFirst": "Select context/namespace/type first",
     "useK8s": "Use Kubernetes Port-Forward",
     "useK8sConnection": "Saved Connection",
-    "advanced": "Advanced",
     "startupScript": "Startup Script",
     "startupScriptDescription": "SQL run on every new connection to this data source. Use it for session settings such as SET / set_config (e.g. bypassing RLS). Separate statements with semicolons.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
@@ -1687,5 +1688,28 @@
       "resourceNameRequired": "Resource name is required",
       "portInvalid": "Port must be between 1 and 65535"
     }
+  },
+  "routines": {
+    "menuRun": "Run…",
+    "menuEdit": "Edit",
+    "menuDrop": "Drop",
+    "newRoutine": "New routine",
+    "newProcedure": "New procedure",
+    "newFunction": "New function",
+    "templateError": "Failed to load routine template: ",
+    "dropConfirmTitle": "Drop routine",
+    "dropConfirmMessage": "Drop routine \"{{name}}\"? This action cannot be undone.",
+    "dropSuccess": "Routine {{name}} dropped",
+    "dropError": "Failed to drop routine: ",
+    "runTitle": "Run {{name}}",
+    "runSubtitle": "Provide the parameter values, then review the generated SQL in the editor",
+    "loadingParameters": "Loading parameters…",
+    "noParameters": "This routine takes no parameters. The invocation script will open in the editor.",
+    "outputParameter": "Output parameter — returned as a result",
+    "rawLabel": "Raw",
+    "rawHint": "Insert the value verbatim, without string quoting (numbers, expressions)",
+    "runButton": "Run",
+    "runTabPrefix": "Run",
+    "returnValue": "returns"
   }
 }

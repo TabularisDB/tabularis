@@ -75,6 +75,8 @@
     "expandTable": "展开表 {{name}}",
     "collapseTable": "折叠表 {{name}}",
     "columns": "列",
+    "parameters": "参数",
+    "noParameters": "无参数",
     "keys": "键",
     "foreignKeys": "外键",
     "indexes": "索引",
@@ -686,7 +688,6 @@
     "selectTypeFirst": "请先选择上下文/命名空间/类型",
     "useK8s": "使用 Kubernetes 端口转发",
     "useK8sConnection": "已保存的连接",
-    "advanced": "高级",
     "startupScript": "启动脚本",
     "startupScriptDescription": "每次新建到此数据源的连接时执行的 SQL。可用于会话设置，例如 SET / set_config（如绕过 RLS）。多条语句请用分号分隔。",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
@@ -1552,5 +1553,28 @@
       "resourceNameRequired": "资源名称为必填项",
       "portInvalid": "端口必须介于 1 和 65535 之间"
     }
+  },
+  "routines": {
+    "menuRun": "运行…",
+    "menuEdit": "编辑",
+    "menuDrop": "删除",
+    "newRoutine": "新建例程",
+    "newProcedure": "新建存储过程",
+    "newFunction": "新建函数",
+    "templateError": "无法加载例程模板：",
+    "dropConfirmTitle": "删除例程",
+    "dropConfirmMessage": "确定删除例程 \"{{name}}\" 吗？此操作无法撤销。",
+    "dropSuccess": "例程 {{name}} 已删除",
+    "dropError": "删除例程失败：",
+    "runTitle": "运行 {{name}}",
+    "runSubtitle": "输入参数值，然后在编辑器中检查生成的 SQL",
+    "loadingParameters": "正在加载参数…",
+    "noParameters": "此例程没有参数。调用脚本将在编辑器中打开。",
+    "outputParameter": "输出参数 — 作为结果返回",
+    "rawLabel": "原始值",
+    "rawHint": "按原样插入值，不加字符串引号（数字、表达式）",
+    "runButton": "运行",
+    "runTabPrefix": "运行",
+    "returnValue": "返回值"
   }
 }

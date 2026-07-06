@@ -76,6 +76,8 @@
     "expandTable": "Expandir tabla {{name}}",
     "collapseTable": "Contraer tabla {{name}}",
     "columns": "columnas",
+    "parameters": "parámetros",
+    "noParameters": "Sin parámetros",
     "keys": "claves",
     "foreignKeys": "claves foráneas",
     "indexes": "índices",
@@ -723,7 +725,6 @@
     "selectTypeFirst": "Selecciona primero contexto/namespace/tipo",
     "useK8s": "Usar Port-Forward de Kubernetes",
     "useK8sConnection": "Conexión guardada",
-    "advanced": "Avanzado",
     "startupScript": "Script de inicio",
     "startupScriptDescription": "SQL que se ejecuta en cada nueva conexión a esta fuente de datos. Úsalo para ajustes de sesión como SET / set_config (p. ej., para omitir RLS). Separa las sentencias con punto y coma.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
@@ -1568,5 +1569,28 @@
       "resourceNameRequired": "El nombre del recurso es obligatorio",
       "portInvalid": "El puerto debe estar entre 1 y 65535"
     }
+  },
+  "routines": {
+    "menuRun": "Ejecutar…",
+    "menuEdit": "Editar",
+    "menuDrop": "Eliminar",
+    "newRoutine": "Nueva rutina",
+    "newProcedure": "Nuevo procedimiento",
+    "newFunction": "Nueva función",
+    "templateError": "No se pudo cargar la plantilla de la rutina: ",
+    "dropConfirmTitle": "Eliminar rutina",
+    "dropConfirmMessage": "¿Eliminar la rutina \"{{name}}\"? Esta acción no se puede deshacer.",
+    "dropSuccess": "Rutina {{name}} eliminada",
+    "dropError": "No se pudo eliminar la rutina: ",
+    "runTitle": "Ejecutar {{name}}",
+    "runSubtitle": "Introduce los valores de los parámetros y revisa el SQL generado en el editor",
+    "loadingParameters": "Cargando parámetros…",
+    "noParameters": "Esta rutina no tiene parámetros. El script de invocación se abrirá en el editor.",
+    "outputParameter": "Parámetro de salida — devuelto como resultado",
+    "rawLabel": "Raw",
+    "rawHint": "Inserta el valor tal cual, sin comillas de cadena (números, expresiones)",
+    "runButton": "Ejecutar",
+    "runTabPrefix": "Ejecutar",
+    "returnValue": "devuelve"
   }
 }

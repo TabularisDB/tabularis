@@ -813,3 +813,117 @@ mod build_mysql_pk_where_tests {
         assert!(build_mysql_pk_where(&pk_map).is_err());
     }
 }
+
+mod routine_management {
+    use super::super::routines::{
+        drop_routine_sql, routine_call_sql, routine_create_template, routine_edit_script,
+    };
+    use crate::models::RoutineCallArg;
+
+    fn arg(name: &str, mode: &str, value: Option<&str>, is_raw: bool) -> RoutineCallArg {
+        RoutineCallArg {
+            name: name.to_string(),
+            mode: mode.to_string(),
+            value: value.map(|v| v.to_string()),
+            is_raw,
+        }
+    }
+
+    #[test]
+    fn call_procedure_with_in_params_quotes_strings() {
+        let sql = routine_call_sql(
+            "sp_test",
+            "PROCEDURE",
+            &[arg("p_name", "IN", Some("O'Brien"), false)],
+        );
+        assert_eq!(sql, "CALL `sp_test`('O\\'Brien');");
+    }
+
+    #[test]
+    fn call_procedure_raw_and_null_values() {
+        let sql = routine_call_sql(
+            "sp_test",
+            "PROCEDURE",
+            &[
+                arg("p_id", "IN", Some("42"), true),
+                arg("p_note", "IN", None, false),
+            ],
+        );
+        assert_eq!(sql, "CALL `sp_test`(42, NULL);");
+    }
+
+    #[test]
+    fn call_procedure_with_out_params_uses_session_vars() {
+        let sql = routine_call_sql(
+            "sp_out",
+            "PROCEDURE",
+            &[
+                arg("p_in", "IN", Some("1"), true),
+                arg("p_out", "OUT", None, false),
+            ],
+        );
+        assert_eq!(
+            sql,
+            "CALL `sp_out`(1, @p_out);\nSELECT @p_out AS `p_out`;"
+        );
+    }
+
+    #[test]
+    fn call_procedure_inout_sets_variable_first() {
+        let sql = routine_call_sql(
+            "sp_inout",
+            "PROCEDURE",
+            &[arg("p_counter", "INOUT", Some("5"), true)],
+        );
+        assert_eq!(
+            sql,
+            "SET @p_counter = 5;\nCALL `sp_inout`(@p_counter);\nSELECT @p_counter AS `p_counter`;"
+        );
+    }
+
+    #[test]
+    fn call_function_uses_select() {
+        let sql = routine_call_sql("fn_add", "FUNCTION", &[arg("a", "IN", Some("2"), true)]);
+        assert_eq!(sql, "SELECT `fn_add`(2) AS result;");
+    }
+
+    #[test]
+    fn out_param_with_hostile_name_is_sanitized() {
+        let sql = routine_call_sql(
+            "sp",
+            "PROCEDURE",
+            &[arg("evil; DROP--", "OUT", None, false)],
+        );
+        assert!(sql.contains("@evilDROP"), "got: {sql}");
+    }
+
+    #[test]
+    fn create_templates_wrap_in_delimiter() {
+        for kind in ["PROCEDURE", "FUNCTION"] {
+            let tpl = routine_create_template(kind);
+            assert!(tpl.starts_with("DELIMITER //"), "{kind}: {tpl}");
+            assert!(tpl.contains(&format!("CREATE {kind}")), "{kind}");
+            assert!(tpl.trim_end().ends_with("DELIMITER ;"), "{kind}");
+        }
+    }
+
+    #[test]
+    fn edit_script_drops_then_recreates_in_delimiter_block() {
+        let script = routine_edit_script(
+            "sp_test",
+            "PROCEDURE",
+            "CREATE PROCEDURE `sp_test`()\nBEGIN\n    SELECT 1;\nEND",
+        );
+        assert!(script.starts_with("DROP PROCEDURE IF EXISTS `sp_test`;"));
+        assert!(script.contains("DELIMITER //\nCREATE PROCEDURE"));
+        assert!(script.contains("END//\nDELIMITER ;"));
+    }
+
+    #[test]
+    fn drop_sql_escapes_identifier() {
+        assert_eq!(
+            drop_routine_sql("weird`name", "FUNCTION"),
+            "DROP FUNCTION `weird``name`"
+        );
+    }
+}

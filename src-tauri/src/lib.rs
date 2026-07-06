@@ -418,6 +418,10 @@ pub fn run() {
             commands::get_routines,
             commands::get_routine_parameters,
             commands::get_routine_definition,
+            commands::build_routine_call_sql,
+            commands::get_routine_create_template,
+            commands::get_routine_edit_script,
+            commands::drop_routine,
             // Triggers
             commands::get_triggers,
             commands::get_trigger_definition,
