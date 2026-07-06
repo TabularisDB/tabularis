@@ -73,6 +73,7 @@ export interface ConnectionsFile {
 export interface SchemaData {
   tables: TableInfo[];
   views: ViewInfo[];
+  materializedViews?: ViewInfo[];
   routines: RoutineInfo[];
   triggers: TriggerInfo[];
   isLoading: boolean;
@@ -116,6 +117,7 @@ export interface DatabaseContextType {
   activeDatabaseName: string | null;
   tables: TableInfo[];
   views: ViewInfo[];
+  materializedViews: ViewInfo[];
   routines: RoutineInfo[];
   triggers: TriggerInfo[];
   isLoadingTables: boolean;
@@ -136,6 +138,12 @@ export interface DatabaseContextType {
   isLoadingConnections: boolean;
   connect: (connectionId: string) => Promise<void>;
   disconnect: (connectionId?: string) => Promise<void>;
+  /**
+   * Remove a connection from THIS window's UI without closing its backend pool.
+   * Used when handing a connection off to a dedicated window (the pool is
+   * process-global and reused by the new window, which owns it from then on).
+   */
+  detachConnection: (connectionId: string) => void;
   switchConnection: (connectionId: string) => void;
   setActiveTable: (table: string | null, schema?: string | null) => void;
   refreshTables: (connectionId?: string) => Promise<void>;
@@ -150,6 +158,10 @@ export interface DatabaseContextType {
   setSelectedDatabases: (databases: string[], connectionId?: string) => void;
   getConnectionData: (connectionId: string) => ConnectionData | undefined;
   isConnectionOpen: (connectionId: string) => boolean;
+  /** Connection ids open in ANY window (shared backend registry). */
+  globallyOpenConnectionIds: string[];
+  /** True when the connection is open in this window OR another window. */
+  isConnectionOpenAnywhere: (connectionId: string) => boolean;
   // Connection Group methods
   createGroup: (name: string) => Promise<ConnectionGroup>;
   updateGroup: (id: string, updates: { name?: string; collapsed?: boolean; sort_order?: number }) => Promise<void>;

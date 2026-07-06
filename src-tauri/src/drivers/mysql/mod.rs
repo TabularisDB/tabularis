@@ -4,6 +4,11 @@ pub mod types;
 
 mod explain;
 mod helpers;
+mod routines;
+mod stmt_classify;
+
+#[cfg(test)]
+mod stmt_classify_tests;
 
 #[cfg(test)]
 mod tests;
@@ -21,6 +26,7 @@ use helpers::{
     mysql_bytes_literal, mysql_row_str, mysql_row_str_opt, mysql_string_literal,
 };
 use sqlx::{Column, Row};
+use stmt_classify::is_text_protocol_stmt;
 
 /// Whether this connection must avoid the prepared-statement protocol.
 ///
@@ -927,10 +933,10 @@ pub async fn create_view(
     definition: &str,
 ) -> Result<(), String> {
     let pool = get_mysql_pool(params).await?;
-    let text = resolve_text_proto(&pool, params).await?;
     let escaped_name = escape_identifier(view_name);
     let query = format!("CREATE VIEW `{}` AS {}", escaped_name, definition);
-    exec_stmt(&pool, text, &query)
+    sqlx::raw_sql(&query)
+        .execute(&pool)
         .await
         .map_err(|e| format!("Failed to create view: {}", e))?;
     Ok(())
@@ -942,10 +948,13 @@ pub async fn alter_view(
     definition: &str,
 ) -> Result<(), String> {
     let pool = get_mysql_pool(params).await?;
-    let text = resolve_text_proto(&pool, params).await?;
     let escaped_name = escape_identifier(view_name);
     let query = format!("ALTER VIEW `{}` AS {}", escaped_name, definition);
-    exec_stmt(&pool, text, &query)
+    // `ALTER VIEW` is not supported by MySQL's prepared-statement protocol
+    // (server error 1295), so it must go through `raw_sql()` (text protocol)
+    // rather than `sqlx::query()`. See `is_text_protocol_stmt` for context.
+    sqlx::raw_sql(&query)
+        .execute(&pool)
         .await
         .map_err(|e| format!("Failed to alter view: {}", e))?;
     Ok(())
@@ -953,10 +962,13 @@ pub async fn alter_view(
 
 pub async fn drop_view(params: &ConnectionParams, view_name: &str) -> Result<(), String> {
     let pool = get_mysql_pool(params).await?;
-    let text = resolve_text_proto(&pool, params).await?;
     let escaped_name = escape_identifier(view_name);
     let query = format!("DROP VIEW IF EXISTS `{}`", escaped_name);
-    exec_stmt(&pool, text, &query)
+    // Routed through `raw_sql()` (text protocol) for consistency with
+    // create/alter view, which the prepared-statement protocol rejects
+    // with server error 1295.
+    sqlx::raw_sql(&query)
+        .execute(&pool)
         .await
         .map_err(|e| format!("Failed to drop view: {}", e))?;
     Ok(())
@@ -1078,11 +1090,15 @@ pub async fn get_routine_parameters(
         }
     }
 
-    // 2. Get parameters
+    // 2. Get parameters. Position 0 is the function's return value, which
+    // MySQL also exposes here (NULL name / NULL mode) — step 1 already
+    // reported it from information_schema.routines, so skip it to avoid a
+    // duplicated return-value row.
     let query = r#"
             SELECT parameter_name, data_type, parameter_mode, ordinal_position
             FROM information_schema.parameters
             WHERE specific_schema = ? AND specific_name = ?
+              AND ordinal_position >= 1
             ORDER BY ordinal_position
         "#;
 
@@ -1133,26 +1149,6 @@ async fn acquire_mysql_conn(
         get_mysql_pool(params).await?
     };
     pool.acquire().await.map_err(|e| e.to_string())
-}
-
-/// Statements that MySQL refuses on the prepared-statement protocol
-/// (server error 1295: "This command is not supported in the prepared
-/// statement protocol yet"). `sqlx::query()` always goes through
-/// `COM_STMT_PREPARE` + `COM_STMT_EXECUTE`, so these have to be routed
-/// through `sqlx::raw_sql()` which uses `COM_QUERY` (text protocol)
-/// instead. Without this, explicit transactions inside a multi-statement
-/// script (`BEGIN; … COMMIT;`) silently fail — which would defeat the
-/// point of `execute_batch` even after sharing a single connection.
-fn is_text_protocol_stmt(query: &str) -> bool {
-    let head = crate::drivers::common::strip_leading_sql_comments(query).to_uppercase();
-    head.starts_with("BEGIN")
-        || head.starts_with("START TRANSACTION")
-        || head.starts_with("COMMIT")
-        || head.starts_with("ROLLBACK")
-        || head.starts_with("SAVEPOINT")
-        || head.starts_with("RELEASE SAVEPOINT")
-        || head.starts_with("LOCK TABLES")
-        || head.starts_with("UNLOCK TABLES")
 }
 
 /// Executes one statement on an already-acquired connection. Used by both
@@ -1489,7 +1485,9 @@ impl MysqlDriver {
                 capabilities: DriverCapabilities {
                     schemas: false,
                     views: true,
+                    materialized_views: false,
                     routines: true,
+                    routine_management: true,
                     file_based: false,
                     folder_based: false,
                     connection_string: true,
@@ -1821,6 +1819,53 @@ impl DatabaseDriver for MysqlDriver {
         schema: Option<&str>,
     ) -> Result<String, String> {
         get_trigger_definition(params, trigger_name, schema).await
+    }
+
+    async fn build_routine_call_sql(
+        &self,
+        _params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        args: &[crate::models::RoutineCallArg],
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        Ok(routines::routine_call_sql(routine_name, routine_type, args))
+    }
+
+    async fn routine_create_template(
+        &self,
+        routine_type: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        Ok(routines::routine_create_template(routine_type))
+    }
+
+    async fn get_routine_edit_script(
+        &self,
+        params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        let definition = get_routine_definition(params, routine_name, routine_type).await?;
+        Ok(routines::routine_edit_script(
+            routine_name,
+            routine_type,
+            &definition,
+        ))
+    }
+
+    async fn drop_routine(
+        &self,
+        params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        let sql = routines::drop_routine_sql(routine_name, routine_type);
+        execute_query(params, &sql, None, 1, schema)
+            .await
+            .map(|_| ())
     }
 
     async fn create_trigger(

@@ -7,6 +7,7 @@ mod binding;
 mod client;
 mod explain;
 mod helpers;
+mod routines;
 
 #[cfg(test)]
 mod tests;
@@ -388,7 +389,7 @@ pub async fn get_indexes(
             JOIN pg_class i ON i.oid = ix.indexrelid
             JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
         WHERE
-            t.relkind = 'r'
+            t.relkind IN ('r', 'm')
             AND n.nspname = $1
             AND t.relname = $2
         ORDER BY
@@ -1156,6 +1157,120 @@ pub async fn get_view_columns(
         .collect())
 }
 
+pub async fn get_materialized_views(
+    params: &ConnectionParams,
+    schema: &str,
+) -> Result<Vec<ViewInfo>, String> {
+    log::debug!(
+        "PostgreSQL: Fetching materialized views for database: {} schema: {}",
+        params.database,
+        schema
+    );
+    let pool = get_postgres_pool(params).await?;
+    let rows = query_all(
+        &pool,
+        "SELECT matviewname as name FROM pg_matviews WHERE schemaname = $1 ORDER BY matviewname ASC",
+        &[&schema],
+    )
+    .await?;
+
+    let views: Vec<ViewInfo> = rows
+        .iter()
+        .map(|r| ViewInfo {
+            name: r.try_get("name").unwrap_or_default(),
+            definition: None,
+        })
+        .collect();
+    Ok(views)
+}
+
+/// Materialized views are not exposed via `information_schema.columns`, so their
+/// columns must be read from the system catalog (`pg_attribute`/`pg_class`).
+pub async fn get_materialized_view_columns(
+    params: &ConnectionParams,
+    view_name: &str,
+    schema: &str,
+) -> Result<Vec<TableColumn>, String> {
+    let pool = get_postgres_pool(params).await?;
+    let query = r#"
+        SELECT
+            a.attname AS column_name,
+            format_type(a.atttypid, a.atttypmod) AS data_type,
+            a.attnotnull AS not_null
+        FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = $1 AND c.relname = $2 AND c.relkind = 'm'
+          AND a.attnum > 0 AND NOT a.attisdropped
+        ORDER BY a.attnum
+    "#;
+
+    let rows = query_all(&pool, query, &[&schema, &view_name]).await?;
+
+    Ok(rows
+        .iter()
+        .map(|r| TableColumn {
+            name: r.try_get("column_name").unwrap_or_default(),
+            data_type: r.try_get("data_type").unwrap_or_default(),
+            is_pk: false,
+            is_nullable: !r.try_get::<_, bool>("not_null").unwrap_or(false),
+            is_auto_increment: false,
+            default_value: None,
+            character_maximum_length: None,
+        })
+        .collect())
+}
+
+pub async fn get_materialized_view_definition(
+    params: &ConnectionParams,
+    view_name: &str,
+    schema: &str,
+) -> Result<String, String> {
+    let pool = get_postgres_pool(params).await?;
+    let qualified = format!(
+        "\"{}\".\"{}\"",
+        escape_identifier(schema),
+        escape_identifier(view_name)
+    );
+
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+
+    let row = client
+        .query_one(
+            "SELECT pg_get_viewdef($1::regclass, true) as definition",
+            &[&qualified],
+        )
+        .await
+        .map_err(|e| format!("Failed to get materialized view definition: {}", e))?;
+
+    let definition: String = row.try_get("definition").unwrap_or_default();
+    Ok(format!(
+        "CREATE MATERIALIZED VIEW {} AS\n{}",
+        qualified, definition
+    ))
+}
+
+pub async fn refresh_materialized_view(
+    params: &ConnectionParams,
+    view_name: &str,
+    schema: &str,
+) -> Result<(), String> {
+    let pool = get_postgres_pool(params).await?;
+    let query = format!(
+        "REFRESH MATERIALIZED VIEW \"{}\".\"{}\"",
+        escape_identifier(schema),
+        escape_identifier(view_name)
+    );
+
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+    client
+        .execute(&query, &[])
+        .await
+        .map_err(|e| format!("Failed to refresh materialized view: {}", e))?;
+
+    Ok(())
+}
+
 pub async fn get_routines(
     params: &ConnectionParams,
     schema: &str,
@@ -1304,6 +1419,47 @@ pub async fn get_routine_definition(
     Ok(definition)
 }
 
+/// Drops a routine, resolving its exact identity signature first: PostgreSQL
+/// identifies routines by name *and* argument types, so a bare
+/// `DROP FUNCTION name` fails as soon as overloads exist.
+pub async fn drop_routine(
+    params: &ConnectionParams,
+    routine_name: &str,
+    routine_type: &str,
+    schema: &str,
+) -> Result<(), String> {
+    let pool = get_postgres_pool(params).await?;
+
+    let query = r#"
+            SELECT pg_get_function_identity_arguments(p.oid) AS args
+            FROM pg_proc p
+            JOIN pg_namespace n ON p.pronamespace = n.oid
+            WHERE n.nspname = $1 AND p.proname = $2
+        "#;
+    let rows = query_all(&pool, query, &[&schema, &routine_name]).await?;
+
+    match rows.len() {
+        0 => Err(format!(
+            "Routine '{}' not found in schema '{}'",
+            routine_name, schema
+        )),
+        1 => {
+            let identity_args: String = rows[0].try_get("args").unwrap_or_default();
+            let sql = routines::drop_routine_sql(
+                routine_name,
+                routine_type,
+                &identity_args,
+                Some(schema),
+            );
+            execute(&pool, &sql, &[]).await.map(|_| ())
+        }
+        n => Err(format!(
+            "Routine '{}' has {} overloads; drop it manually specifying the argument types",
+            routine_name, n
+        )),
+    }
+}
+
 pub async fn get_triggers(
     params: &ConnectionParams,
     schema: &str,
@@ -1424,7 +1580,9 @@ impl PostgresDriver {
                 capabilities: DriverCapabilities {
                     schemas: true,
                     views: true,
+                    materialized_views: true,
                     routines: true,
+                    routine_management: true,
                     file_based: false,
                     folder_based: false,
                     connection_string: true,
@@ -1616,6 +1774,41 @@ impl DatabaseDriver for PostgresDriver {
         drop_view(params, view_name, self.resolve_schema(schema)).await
     }
 
+    async fn get_materialized_views(
+        &self,
+        params: &crate::models::ConnectionParams,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::ViewInfo>, String> {
+        get_materialized_views(params, self.resolve_schema(schema)).await
+    }
+
+    async fn get_materialized_view_columns(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TableColumn>, String> {
+        get_materialized_view_columns(params, view_name, self.resolve_schema(schema)).await
+    }
+
+    async fn get_materialized_view_definition(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_materialized_view_definition(params, view_name, self.resolve_schema(schema)).await
+    }
+
+    async fn refresh_materialized_view(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        refresh_materialized_view(params, view_name, self.resolve_schema(schema)).await
+    }
+
     async fn get_routines(
         &self,
         params: &crate::models::ConnectionParams,
@@ -1647,6 +1840,46 @@ impl DatabaseDriver for PostgresDriver {
             self.resolve_schema(schema),
         )
         .await
+    }
+
+    async fn build_routine_call_sql(
+        &self,
+        _params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        args: &[crate::models::RoutineCallArg],
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        Ok(routines::routine_call_sql(
+            routine_name,
+            routine_type,
+            args,
+            Some(self.resolve_schema(schema)),
+        ))
+    }
+
+    async fn routine_create_template(
+        &self,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        Ok(routines::routine_create_template(
+            routine_type,
+            Some(self.resolve_schema(schema)),
+        ))
+    }
+
+    // `get_routine_edit_script` keeps the trait default: `pg_get_functiondef`
+    // already returns a re-runnable `CREATE OR REPLACE` statement.
+
+    async fn drop_routine(
+        &self,
+        params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        drop_routine(params, routine_name, routine_type, self.resolve_schema(schema)).await
     }
 
     async fn get_triggers(

@@ -54,6 +54,10 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const [connections, setConnections] = useState<SavedConnection[]>([]);
   const [connectionGroups, setConnectionGroups] = useState<ConnectionGroup[]>([]);
   const [isLoadingConnections, setIsLoadingConnections] = useState(false);
+  // Connection ids open anywhere in the app (shared backend, all windows).
+  // Kept in sync via the `connections:active-changed` broadcast so each window
+  // can show accurate cross-window connection status.
+  const [globallyOpenConnectionIds, setGloballyOpenConnectionIds] = useState<string[]>([]);
 
   // Refs used in the plugin-disable effect to avoid stale closures
   const openConnectionIdsRef = useRef(openConnectionIds);
@@ -85,6 +89,11 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const isLoadingSchemas = activeData?.isLoadingSchemas ?? false;
   const schemaDataMap = activeData?.schemaDataMap ?? {};
   const activeSchema = activeData?.activeSchema ?? null;
+  // Materialized views are schema-scoped (Postgres only), so resolve them from
+  // the active schema rather than the connection level (where they never load).
+  const materializedViews = activeSchema
+    ? (schemaDataMap[activeSchema]?.materializedViews ?? [])
+    : [];
   const selectedSchemas = activeData?.selectedSchemas ?? [];
   const needsSchemaSelection = activeData?.needsSchemaSelection ?? false;
   const selectedDatabases = useMemo(() => activeData?.selectedDatabases ?? [], [activeData?.selectedDatabases]);
@@ -190,9 +199,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     });
 
     try {
-      const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
+      const [tablesResult, viewsResult, materializedViewsResult, routinesResult, triggersResult] = await Promise.all([
         invoke<TableInfo[]>('get_tables', { connectionId: connId, schema }),
         invoke<ViewInfo[]>('get_views', { connectionId: connId, schema }),
+        (currentData.capabilities?.materialized_views
+          ? invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[])
+          : Promise.resolve([] as ViewInfo[])),
         invoke<RoutineInfo[]>('get_routines', { connectionId: connId, schema }),
         invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
       ]);
@@ -205,6 +217,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
             [schema]: {
               tables: tablesResult,
               views: viewsResult,
+              materializedViews: materializedViewsResult,
               routines: routinesResult,
               triggers: triggersResult,
               isLoading: false,
@@ -245,9 +258,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     });
 
     try {
-      const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
+      const [tablesResult, viewsResult, materializedViewsResult, routinesResult, triggersResult] = await Promise.all([
         invoke<TableInfo[]>('get_tables', { connectionId: connId, schema }),
         invoke<ViewInfo[]>('get_views', { connectionId: connId, schema }),
+        (currentData.capabilities?.materialized_views
+          ? invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[])
+          : Promise.resolve([] as ViewInfo[])),
         invoke<RoutineInfo[]>('get_routines', { connectionId: connId, schema }),
         invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
       ]);
@@ -260,6 +276,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
             [schema]: {
               tables: tablesResult,
               views: viewsResult,
+              materializedViews: materializedViewsResult,
               routines: routinesResult,
               triggers: triggersResult,
               isLoading: false,
@@ -595,9 +612,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
               // Ignore - no saved preference exists yet
             }
 
-            const [tablesResult, viewsResult, routinesResult, triggersResult] = await Promise.all([
+            const [tablesResult, viewsResult, materializedViewsResult, routinesResult, triggersResult] = await Promise.all([
               invoke<TableInfo[]>('get_tables', { connectionId, schema: preferredSchema }),
               invoke<ViewInfo[]>('get_views', { connectionId, schema: preferredSchema }),
+              (capabilities?.materialized_views
+                ? invoke<ViewInfo[]>('get_materialized_views', { connectionId, schema: preferredSchema }).catch(() => [] as ViewInfo[])
+                : Promise.resolve([] as ViewInfo[])),
               invoke<RoutineInfo[]>('get_routines', { connectionId, schema: preferredSchema }),
               invoke<TriggerInfo[]>('get_triggers', { connectionId, schema: preferredSchema }).catch(() => [] as TriggerInfo[]),
             ]);
@@ -610,6 +630,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
                 [preferredSchema]: {
                   tables: tablesResult,
                   views: viewsResult,
+                  materializedViews: materializedViewsResult,
                   routines: routinesResult,
                   triggers: triggersResult,
                   isLoading: false,
@@ -716,6 +737,25 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const detachConnection = useCallback((connectionId: string) => {
+    clearAutocompleteCache(connectionId);
+
+    setOpenConnectionIds(prev => prev.filter(id => id !== connectionId));
+    setConnectionDataMap(prev => {
+      const newMap = { ...prev };
+      delete newMap[connectionId];
+      return newMap;
+    });
+
+    setActiveConnectionId(prev => {
+      if (prev !== connectionId) return prev;
+      const remaining = openConnectionIds.filter(id => id !== connectionId);
+      if (remaining.length > 0) return remaining[0];
+      setActiveTable(null);
+      return null;
+    });
+  }, [openConnectionIds]);
+
   const switchConnection = useCallback((connectionId: string) => {
     if (openConnectionIds.includes(connectionId)) {
       setActiveConnectionId(connectionId);
@@ -751,6 +791,14 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const isConnectionOpen = useCallback((connectionId: string): boolean => {
     return openConnectionIds.includes(connectionId);
   }, [openConnectionIds]);
+
+  // True when the connection is open in ANY window (this one or another), based
+  // on the shared backend registry. Falls back to local state so a just-opened
+  // connection reflects immediately, before the broadcast round-trips.
+  const isConnectionOpenAnywhere = useCallback((connectionId: string): boolean => {
+    return openConnectionIds.includes(connectionId)
+      || globallyOpenConnectionIds.includes(connectionId);
+  }, [openConnectionIds, globallyOpenConnectionIds]);
 
   // Auto-disconnect open connections when their plugin is disabled
   useEffect(() => {
@@ -815,6 +863,18 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         });
       },
     );
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
+
+  // Track the set of connections open anywhere (across all windows). Seed from
+  // the backend snapshot, then keep in sync via the broadcast event.
+  useEffect(() => {
+    invoke<string[]>('get_active_connections')
+      .then(setGloballyOpenConnectionIds)
+      .catch(() => {});
+    const unlisten = listen<string[]>('connections:active-changed', (event) => {
+      setGloballyOpenConnectionIds(event.payload);
+    });
     return () => { unlisten.then(fn => fn()); };
   }, []);
 
@@ -899,6 +959,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       activeDatabaseName,
       tables,
       views,
+      materializedViews,
       routines,
       triggers,
       isLoadingTables,
@@ -919,6 +980,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       isLoadingConnections,
       connect,
       disconnect,
+      detachConnection,
       switchConnection,
       setActiveTable: setActiveTableWithSchema,
       refreshTables,
@@ -933,6 +995,8 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       setSelectedDatabases,
       getConnectionData,
       isConnectionOpen,
+      isConnectionOpenAnywhere,
+      globallyOpenConnectionIds,
       createGroup,
       updateGroup,
       deleteGroup,

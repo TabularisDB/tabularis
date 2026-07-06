@@ -32,6 +32,28 @@ pub async fn unregister_connection(connection_id: &str) {
     ACTIVE_CONNECTIONS.write().await.remove(connection_id);
 }
 
+/// Event broadcast to every window whenever the set of active (open)
+/// connections changes. Payload is the full list of active connection ids so
+/// each window can reconcile its cross-window view in one shot.
+pub const ACTIVE_CONNECTIONS_CHANGED_EVENT: &str = "connections:active-changed";
+
+/// Snapshot the currently active (open) connection ids.
+pub async fn active_connections() -> Vec<String> {
+    ACTIVE_CONNECTIONS.read().await.iter().cloned().collect()
+}
+
+/// Broadcast the current active-connection set to all windows.
+pub async fn emit_active_changed<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    let ids = active_connections().await;
+    if let Err(e) = app.emit(ACTIVE_CONNECTIONS_CHANGED_EVENT, ids) {
+        log::error!(
+            "Health check: failed to emit {} event: {}",
+            ACTIVE_CONNECTIONS_CHANGED_EVENT,
+            e
+        );
+    }
+}
+
 /// Start the periodic ping loop. If a loop is already running it is stopped first.
 pub async fn start_ping_loop(app: tauri::AppHandle, interval_secs: u64) {
     // Stop any existing loop
@@ -193,4 +215,7 @@ async fn handle_connection_failure(app: &tauri::AppHandle, connection_id: &str, 
             e
         );
     }
+
+    // Broadcast the updated active-connection set so every window reconciles.
+    emit_active_changed(app).await;
 }

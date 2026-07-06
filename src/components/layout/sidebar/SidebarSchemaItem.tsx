@@ -14,12 +14,14 @@ import { Accordion } from "./Accordion";
 import { SidebarTableItem } from "./SidebarTableItem";
 import { SidebarViewItem } from "./SidebarViewItem";
 import { SidebarRoutineItem } from "./SidebarRoutineItem";
+import { SidebarRoutineGroupHeader } from "./SidebarRoutineGroupHeader";
 import { SidebarTriggerItem } from "./SidebarTriggerItem";
 import type { SchemaData, RoutineInfo, TriggerInfo } from "../../../contexts/DatabaseContext";
 import type { TableColumn } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
 import { groupRoutinesByType } from "../../../utils/routines";
 import { formatObjectCount } from "../../../utils/schema";
+import { fuzzyFilter } from "../../../utils/fuzzy";
 
 interface SidebarSchemaItemProps {
   schemaName: string;
@@ -34,7 +36,11 @@ interface SidebarSchemaItemProps {
   onTableClick: (name: string, schema: string) => void;
   onTableDoubleClick: (name: string, schema: string) => void;
   onViewClick: (name: string) => void;
-  onViewDoubleClick: (name: string, schema: string) => void;
+  onViewDoubleClick: (
+    name: string,
+    schema: string,
+    materialized?: boolean,
+  ) => void;
   onRoutineDoubleClick: (routine: RoutineInfo, schema: string) => void;
   onTriggerDoubleClick: (trigger: TriggerInfo, schema: string) => void;
   onContextMenu: (
@@ -54,6 +60,7 @@ interface SidebarSchemaItemProps {
   onCreateView: () => void;
   onCreateTrigger: (schema: string) => void;
   showTriggers?: boolean;
+  refreshingMatView?: string | null;
 }
 
 export const SidebarSchemaItem = ({
@@ -83,6 +90,7 @@ export const SidebarSchemaItem = ({
   onCreateView,
   onCreateTrigger,
   showTriggers = false,
+  refreshingMatView = null,
 }: SidebarSchemaItemProps) => {
   const { t } = useTranslation();
 
@@ -92,6 +100,7 @@ export const SidebarSchemaItem = ({
   const [prevActiveSchema, setPrevActiveSchema] = useState(activeSchema);
   const [tablesOpen, setTablesOpen] = useState(true);
   const [viewsOpen, setViewsOpen] = useState(true);
+  const [materializedViewsOpen, setMaterializedViewsOpen] = useState(false);
   const [routinesOpen, setRoutinesOpen] = useState(false);
   const [triggersOpen, setTriggersOpen] = useState(false);
   const [functionsOpen, setFunctionsOpen] = useState(true);
@@ -108,15 +117,12 @@ export const SidebarSchemaItem = ({
   }
 
   const tables = schemaData?.tables ?? [];
-  const filteredTables = tableFilter
-    ? tables.filter((t) => t.name.toLowerCase().includes(tableFilter.toLowerCase()))
-    : tables;
+  const filteredTables = fuzzyFilter(tables, tableFilter, (t) => t.name);
   const views = schemaData?.views ?? [];
+  const materializedViews = schemaData?.materializedViews ?? [];
   const routines = schemaData?.routines ?? [];
   const triggers = schemaData?.triggers ?? [];
-  const filteredTriggers = triggerFilter
-    ? triggers.filter((tr) => tr.name.toLowerCase().includes(triggerFilter.toLowerCase()))
-    : triggers;
+  const filteredTriggers = fuzzyFilter(triggers, triggerFilter, (tr) => tr.name);
   const isLoading = schemaData?.isLoading ?? false;
   const isLoaded = schemaData?.isLoaded ?? false;
 
@@ -215,6 +221,7 @@ export const SidebarSchemaItem = ({
                       <Search size={11} className="absolute left-2 text-muted pointer-events-none" />
                       <input
                         type="text"
+                        data-table-filter
                         value={tableFilter}
                         onChange={(e) => setTableFilter(e.target.value)}
                         placeholder={t("sidebar.filterTables")}
@@ -305,6 +312,34 @@ export const SidebarSchemaItem = ({
                 )}
               </Accordion>
 
+              {materializedViews.length > 0 && (
+                <Accordion
+                  title={`${t("sidebar.materializedViews")} (${materializedViews.length})`}
+                  isOpen={materializedViewsOpen}
+                  onToggle={() => setMaterializedViewsOpen(!materializedViewsOpen)}
+                >
+                  <div>
+                    {materializedViews.map((view) => (
+                      <SidebarViewItem
+                        key={view.name}
+                        view={view}
+                        activeView={null}
+                        onViewClick={onViewClick}
+                        onViewDoubleClick={(name) =>
+                          onViewDoubleClick(name, schemaName, true)
+                        }
+                        onContextMenu={onContextMenu}
+                        connectionId={connectionId}
+                        driver={driver}
+                        schema={schemaName}
+                        materialized
+                        isRefreshing={refreshingMatView === view.name}
+                      />
+                    ))}
+                  </div>
+                </Accordion>
+              )}
+
               {/* Triggers */}
               {showTriggers && (
                 <Accordion
@@ -385,14 +420,12 @@ export const SidebarSchemaItem = ({
                     {/* Functions */}
                     {groupedRoutines.functions.length > 0 && (
                       <div className="mb-2">
-                        <button
-                          onClick={() => setFunctionsOpen(!functionsOpen)}
-                          className="flex items-center gap-1 px-2 py-1 w-full text-left text-xs font-semibold text-muted uppercase tracking-wider hover:text-secondary transition-colors"
-                        >
-                          {functionsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                          <span>{t("sidebar.functions")}</span>
-                          <span className="ml-auto text-[10px] opacity-50">{groupedRoutines.functions.length}</span>
-                        </button>
+                        <SidebarRoutineGroupHeader
+                          label={t("sidebar.functions")}
+                          count={groupedRoutines.functions.length}
+                          isOpen={functionsOpen}
+                          onToggle={() => setFunctionsOpen(!functionsOpen)}
+                        />
                         {functionsOpen && groupedRoutines.functions.map((routine) => (
                           <SidebarRoutineItem
                             key={routine.name}
@@ -409,14 +442,12 @@ export const SidebarSchemaItem = ({
                     {/* Procedures */}
                     {groupedRoutines.procedures.length > 0 && (
                       <div>
-                        <button
-                          onClick={() => setProceduresOpen(!proceduresOpen)}
-                          className="flex items-center gap-1 px-2 py-1 w-full text-left text-xs font-semibold text-muted uppercase tracking-wider hover:text-secondary transition-colors"
-                        >
-                          {proceduresOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                          <span>{t("sidebar.procedures")}</span>
-                          <span className="ml-auto text-[10px] opacity-50">{groupedRoutines.procedures.length}</span>
-                        </button>
+                        <SidebarRoutineGroupHeader
+                          label={t("sidebar.procedures")}
+                          count={groupedRoutines.procedures.length}
+                          isOpen={proceduresOpen}
+                          onToggle={() => setProceduresOpen(!proceduresOpen)}
+                        />
                         {proceduresOpen && groupedRoutines.procedures.map((routine) => (
                           <SidebarRoutineItem
                             key={routine.name}

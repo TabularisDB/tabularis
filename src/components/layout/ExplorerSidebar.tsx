@@ -61,11 +61,14 @@ import { ClipboardImportModal } from "../modals/ClipboardImportModal";
 import { ViewEditorModal } from "../modals/ViewEditorModal";
 import { TriggerEditorModal } from "../modals/TriggerEditorModal";
 import { ConfirmModal } from "../modals/ConfirmModal";
+import { RunRoutineModal } from "../modals/RunRoutineModal";
 import { Accordion } from "./sidebar/Accordion";
 import { SidebarTableItem } from "./sidebar/SidebarTableItem";
 import { buildTableItemSelector } from "../../utils/sidebarTableItem";
+import { fuzzyFilter } from "../../utils/fuzzy";
 import { SidebarViewItem } from "./sidebar/SidebarViewItem";
 import { SidebarRoutineItem } from "./sidebar/SidebarRoutineItem";
+import { SidebarRoutineGroupHeader } from "./sidebar/SidebarRoutineGroupHeader";
 import { SidebarSchemaItem } from "./sidebar/SidebarSchemaItem";
 import { SidebarDatabaseItem } from "./sidebar/SidebarDatabaseItem";
 import { SidebarTriggerItem } from "./sidebar/SidebarTriggerItem";
@@ -181,6 +184,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     data?: ContextMenuData;
   } | null>(null);
   const [schemaModal, setSchemaModal] = useState<{ tableName: string; schema?: string } | null>(null);
+  const [runRoutineModal, setRunRoutineModal] = useState<{ routine: RoutineInfo; schema?: string } | null>(null);
+  const [routineDropConfirm, setRoutineDropConfirm] = useState<{ name: string; routineType: string; schema?: string } | null>(null);
   const [isCreateTableModalOpen, setIsCreateTableModalOpen] = useState(false);
   const [createTableTarget, setCreateTableTarget] = useState<CreateTableTarget>(DEFAULT_CREATE_TABLE_TARGET);
   const [isClipboardImportOpen, setIsClipboardImportOpen] = useState(false);
@@ -206,6 +211,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const [favoriteDeleteConfirm, setFavoriteDeleteConfirm] = useState<string | null>(null);
   const [tableFilter, setTableFilter] = useState("");
   const [favoritesFilter, setFavoritesFilter] = useState("");
+  const [refreshingMatView, setRefreshingMatView] = useState<string | null>(null);
   const [selectedFavoriteId, setSelectedFavoriteId] = useState<string | null>(null);
   const [tablesOpen, setTablesOpen] = useState(true);
   const [viewsOpen, setViewsOpen] = useState(true);
@@ -331,6 +337,21 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     return () => window.removeEventListener("tabularis:paste-import", handler);
   }, [activeConnectionId, activeCapabilities]);
 
+  // Focus the first visible "Filter tables…" input (flat / per-schema / per-db
+  // layouts) when the focus_table_filter shortcut fires.
+  useEffect(() => {
+    const handler = () => {
+      const input = sidebarBodyRef.current?.querySelector<HTMLInputElement>(
+        "[data-table-filter]",
+      );
+      input?.focus();
+      input?.select();
+    };
+    window.addEventListener("tabularis:focus-table-filter", handler);
+    return () =>
+      window.removeEventListener("tabularis:focus-table-filter", handler);
+  }, []);
+
   const handleTableClick = (tableName: string, schema?: string) => {
     setActiveTable(tableName, schema);
   };
@@ -354,13 +375,18 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     setActiveView(viewName);
   };
 
-  const handleOpenView = (viewName: string, schema?: string) => {
+  const handleOpenView = (
+    viewName: string,
+    schema?: string,
+    materialized = false,
+  ) => {
     const quotedView = quoteTableRef(viewName, activeDriver, schema);
     navigate("/editor", {
       state: {
         initialQuery: `SELECT * FROM ${quotedView}`,
         tableName: viewName,
         schema,
+        materialized,
         targetConnectionId: activeConnectionId,
       },
     });
@@ -409,6 +435,43 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
         t("sidebar.failGetRoutineDefinition") + String(e),
         { kind: "error" }
       );
+    }
+  };
+
+  const handleNewRoutine = async (routineType: string) => {
+    try {
+      const template = await invoke<string>("get_routine_create_template", {
+        connectionId: activeConnectionId,
+        routineType,
+        ...(activeSchema ? { schema: activeSchema } : {}),
+      });
+      const tabName =
+        routineType === "FUNCTION"
+          ? t("routines.newFunction")
+          : t("routines.newProcedure");
+      runQuery(template, tabName, undefined, true, activeSchema ?? undefined);
+    } catch (e) {
+      console.error(e);
+      showAlert(t("routines.templateError") + String(e), { kind: "error" });
+    }
+  };
+
+  const handleDropRoutine = async () => {
+    if (!routineDropConfirm) return;
+    const { name, routineType, schema } = routineDropConfirm;
+    setRoutineDropConfirm(null);
+    try {
+      await invoke("drop_routine", {
+        connectionId: activeConnectionId,
+        routineName: name,
+        routineType,
+        ...(schema ? { schema } : {}),
+      });
+      showAlert(t("routines.dropSuccess", { name }), { kind: "info" });
+      if (refreshRoutines) refreshRoutines();
+    } catch (e) {
+      console.error(e);
+      showAlert(t("routines.dropError") + String(e), { kind: "error" });
     }
   };
 
@@ -1060,7 +1123,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           onTableClick={(name, schema) => handleTableClick(name, schema)}
                           onTableDoubleClick={(name, schema) => handleOpenTable(name, schema)}
                           onViewClick={handleViewClick}
-                          onViewDoubleClick={(name, schema) => handleOpenView(name, schema)}
+                          onViewDoubleClick={(name, schema, materialized) =>
+                            handleOpenView(name, schema, materialized)
+                          }
                           onRoutineDoubleClick={(routine, schema) => handleRoutineDoubleClick(routine, schema)}
                           onTriggerDoubleClick={(trigger, schema) => handleTriggerDoubleClick(trigger, schema)}
                           onContextMenu={handleContextMenu}
@@ -1124,6 +1189,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             setTriggerEditorModal({ isOpen: true, isNewTrigger: true, schema })
                           }
                           showTriggers={activeCapabilities?.triggers === true}
+                          refreshingMatView={refreshingMatView}
                         />
                       ))}
                     </>
@@ -1429,6 +1495,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           <Search size={11} className="absolute left-2 text-muted pointer-events-none" />
                           <input
                             type="text"
+                            data-table-filter
                             value={tableFilter}
                             onChange={(e) => setTableFilter(e.target.value)}
                             placeholder={t("sidebar.filterTables")}
@@ -1446,9 +1513,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       </div>
                     )}
                     {(() => {
-                      const filtered = tableFilter
-                        ? tables.filter((tbl) => tbl.name.toLowerCase().includes(tableFilter.toLowerCase()))
-                        : tables;
+                      const filtered = fuzzyFilter(tables, tableFilter, (tbl) => tbl.name);
                       return filtered.length === 0 ? (
                         <div className="text-center p-2 text-xs text-muted italic">
                           {tableFilter ? t("sidebar.noTablesMatch") : t("sidebar.noTables")}
@@ -1633,9 +1698,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         </div>
                       )}
                       {(() => {
-                        const filtered = triggerFilterFlat
-                          ? triggers.filter((tr) => tr.name.toLowerCase().includes(triggerFilterFlat.toLowerCase()))
-                          : triggers;
+                        const filtered = fuzzyFilter(triggers, triggerFilterFlat, (tr) => tr.name);
                         return filtered.length === 0 ? (
                           <div className="text-center p-2 text-xs text-muted italic">
                             {triggerFilterFlat ? t("sidebar.noTriggersMatch") : t("sidebar.noTriggers")}
@@ -1664,7 +1727,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       isOpen={routinesOpen}
                       onToggle={() => setRoutinesOpen(!routinesOpen)}
                       actions={
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 mr-2.5">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1675,6 +1738,18 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           >
                             <RefreshCw size={14} />
                           </button>
+                          {activeCapabilities?.routine_management === true && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleContextMenu(e, "routines-new", "routines-new", t("routines.newRoutine"));
+                              }}
+                              className="p-1 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors"
+                              title={t("routines.newRoutine")}
+                            >
+                              <Plus size={14} />
+                            </button>
+                          )}
                         </div>
                       }
                     >
@@ -1687,14 +1762,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           {/* Functions */}
                           {groupedRoutines.functions.length > 0 && (
                             <div className="mb-2">
-                              <button
-                                onClick={() => setFunctionsOpen(!functionsOpen)}
-                                className="flex items-center gap-1 px-2 py-1 w-full text-left text-xs font-semibold text-muted uppercase tracking-wider hover:text-secondary transition-colors"
-                              >
-                                {functionsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                                <span>{t("sidebar.functions")}</span>
-                                <span className="ml-auto text-[10px] opacity-50">{groupedRoutines.functions.length}</span>
-                              </button>
+                              <SidebarRoutineGroupHeader
+                                label={t("sidebar.functions")}
+                                count={groupedRoutines.functions.length}
+                                isOpen={functionsOpen}
+                                onToggle={() => setFunctionsOpen(!functionsOpen)}
+                              />
                               {functionsOpen && groupedRoutines.functions.map((routine) => (
                                 <SidebarRoutineItem
                                   key={routine.name}
@@ -1710,14 +1783,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           {/* Procedures */}
                           {groupedRoutines.procedures.length > 0 && (
                             <div>
-                              <button
-                                onClick={() => setProceduresOpen(!proceduresOpen)}
-                                className="flex items-center gap-1 px-2 py-1 w-full text-left text-xs font-semibold text-muted uppercase tracking-wider hover:text-secondary transition-colors"
-                              >
-                                {proceduresOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                                <span>{t("sidebar.procedures")}</span>
-                                <span className="ml-auto text-[10px] opacity-50">{groupedRoutines.procedures.length}</span>
-                              </button>
+                              <SidebarRoutineGroupHeader
+                                label={t("sidebar.procedures")}
+                                count={groupedRoutines.procedures.length}
+                                isOpen={proceduresOpen}
+                                onToggle={() => setProceduresOpen(!proceduresOpen)}
+                              />
                               {proceduresOpen && groupedRoutines.procedures.map((routine) => (
                                 <SidebarRoutineItem
                                   key={routine.name}
@@ -2012,30 +2083,61 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               },
                             ];
                           })()
-                        : contextMenu.type === "routine"
-                          ? [
+                        : contextMenu.type === "materialized_view"
+                        ? (() => {
+                            const mvCtxSchema = contextMenu.data && "schema" in contextMenu.data ? contextMenu.data.schema : undefined;
+                            return [
                               {
-                                label: t("sidebar.viewDefinition"),
+                                label: t("sidebar.showData"),
+                                icon: PlaySquare,
+                                action: () => {
+                                  const quotedView = quoteTableRef(contextMenu.id, activeDriver, mvCtxSchema);
+                                  runQuery(`SELECT * FROM ${quotedView}`, undefined, contextMenu.id);
+                                },
+                              },
+                              {
+                                label: t("sidebar.countRows"),
+                                icon: Hash,
+                                action: () => {
+                                  const quotedView = quoteTableRef(contextMenu.id, activeDriver, mvCtxSchema);
+                                  runQuery(`SELECT COUNT(*) as count FROM ${quotedView}`);
+                                },
+                              },
+                              {
+                                label: t("sidebar.refreshMaterializedView"),
+                                icon: RefreshCw,
+                                action: async () => {
+                                  const mvName = contextMenu.id;
+                                  setRefreshingMatView(mvName);
+                                  try {
+                                    await invoke("refresh_materialized_view", {
+                                      connectionId: activeConnectionId,
+                                      viewName: mvName,
+                                      ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
+                                    });
+                                    showAlert(t("views.refreshSuccess", { view: mvName }), { kind: "info" });
+                                  } catch (e) {
+                                    console.error(e);
+                                    showAlert(t("views.refreshError") + String(e), { kind: "error" });
+                                  } finally {
+                                    setRefreshingMatView(null);
+                                  }
+                                },
+                              },
+                              {
+                                label: t("sidebar.showDefinition"),
                                 icon: FileText,
                                 action: async () => {
                                   try {
-                                    const routineType =
-                                      contextMenu.data && 'routine_type' in contextMenu.data
-                                        ? (contextMenu.data).routine_type
-                                        : "PROCEDURE";
-                                    const definition = await invoke<string>("get_routine_definition", {
+                                    const definition = await invoke<string>("get_materialized_view_definition", {
                                       connectionId: activeConnectionId,
-                                      routineName: contextMenu.id,
-                                      routineType: routineType,
-                                      ...(activeSchema ? { schema: activeSchema } : {}),
+                                      viewName: contextMenu.id,
+                                      ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
                                     });
-                                    runQuery(definition, `${contextMenu.id} Definition`, undefined, true);
+                                    runQuery(definition, `${contextMenu.id} Definition`, undefined, true, mvCtxSchema, true);
                                   } catch (e) {
                                     console.error(e);
-                                    showAlert(
-                                      t("sidebar.failGetRoutineDefinition") + String(e),
-                                      { kind: "error" }
-                                    );
+                                    showAlert(t("views.failGetDefinition") + String(e), { kind: "error" });
                                   }
                                 },
                               },
@@ -2044,7 +2146,105 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 icon: Copy,
                                 action: () => navigator.clipboard.writeText(contextMenu.id),
                               },
-                            ]
+                            ];
+                          })()
+                        : contextMenu.type === "routine"
+                          ? (() => {
+                              const routineData =
+                                contextMenu.data && 'routine_type' in contextMenu.data
+                                  ? (contextMenu.data as RoutineInfo & { schema?: string })
+                                  : null;
+                              const routineType = routineData?.routine_type ?? "PROCEDURE";
+                              const routineSchema = routineData?.schema ?? activeSchema ?? undefined;
+                              const canManageRoutines =
+                                activeCapabilities?.routine_management === true;
+                              return [
+                                canManageRoutines ? {
+                                  label: t("routines.menuRun"),
+                                  icon: Play,
+                                  action: () => {
+                                    if (routineData) {
+                                      setRunRoutineModal({
+                                        routine: routineData,
+                                        schema: routineSchema,
+                                      });
+                                    }
+                                  },
+                                } : null,
+                                {
+                                  label: t("sidebar.viewDefinition"),
+                                  icon: FileText,
+                                  action: async () => {
+                                    try {
+                                      const definition = await invoke<string>("get_routine_definition", {
+                                        connectionId: activeConnectionId,
+                                        routineName: contextMenu.id,
+                                        routineType: routineType,
+                                        ...(routineSchema ? { schema: routineSchema } : {}),
+                                      });
+                                      runQuery(definition, `${contextMenu.id} Definition`, undefined, true, routineSchema);
+                                    } catch (e) {
+                                      console.error(e);
+                                      showAlert(
+                                        t("sidebar.failGetRoutineDefinition") + String(e),
+                                        { kind: "error" }
+                                      );
+                                    }
+                                  },
+                                },
+                                canManageRoutines ? {
+                                  label: t("routines.menuEdit"),
+                                  icon: Edit,
+                                  action: async () => {
+                                    try {
+                                      const script = await invoke<string>("get_routine_edit_script", {
+                                        connectionId: activeConnectionId,
+                                        routineName: contextMenu.id,
+                                        routineType: routineType,
+                                        ...(routineSchema ? { schema: routineSchema } : {}),
+                                      });
+                                      runQuery(script, `${contextMenu.id} Edit`, undefined, true, routineSchema);
+                                    } catch (e) {
+                                      console.error(e);
+                                      showAlert(
+                                        t("sidebar.failGetRoutineDefinition") + String(e),
+                                        { kind: "error" }
+                                      );
+                                    }
+                                  },
+                                } : null,
+                                canManageRoutines ? {
+                                  label: t("routines.menuDrop"),
+                                  icon: Trash2,
+                                  danger: true,
+                                  action: () => {
+                                    setRoutineDropConfirm({
+                                      name: contextMenu.id,
+                                      routineType,
+                                      schema: routineSchema,
+                                    });
+                                  },
+                                } : null,
+                                {
+                                  label: t("sidebar.copyName"),
+                                  icon: Copy,
+                                  action: () => navigator.clipboard.writeText(contextMenu.id),
+                                },
+                              ].filter(Boolean) as ContextMenuItem[];
+                            })()
+                          : contextMenu.type === "routines-new"
+                            ? [
+                                {
+                                  label: t("routines.newProcedure"),
+                                  icon: FileCode,
+                                  action: () => handleNewRoutine("PROCEDURE"),
+                                },
+                                {
+                                  label: t("routines.newFunction"),
+                                  icon: FileCode,
+                                  action: () => handleNewRoutine("FUNCTION"),
+                                },
+                              ]
                           : contextMenu.type === "trigger"
                             ? (() => {
                                 const triggerData = contextMenu.data && 'table_name' in contextMenu.data
@@ -2435,6 +2635,29 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           clearHistory();
           setHistoryClearConfirm(false);
         }}
+      />
+
+      {/* Run routine with parameters */}
+      {runRoutineModal && activeConnectionId && (
+        <RunRoutineModal
+          isOpen={true}
+          onClose={() => setRunRoutineModal(null)}
+          connectionId={activeConnectionId}
+          routine={runRoutineModal.routine}
+          schema={runRoutineModal.schema}
+          onRun={(sql) => {
+            runQuery(sql, `${t("routines.runTabPrefix")} ${runRoutineModal.routine.name}`, undefined, false, runRoutineModal.schema);
+          }}
+        />
+      )}
+
+      {/* Drop routine confirmation */}
+      <ConfirmModal
+        isOpen={routineDropConfirm !== null}
+        onClose={() => setRoutineDropConfirm(null)}
+        title={t("routines.dropConfirmTitle")}
+        message={t("routines.dropConfirmMessage", { name: routineDropConfirm?.name ?? "" })}
+        onConfirm={handleDropRoutine}
       />
     </>
   );

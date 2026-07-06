@@ -52,6 +52,9 @@
     "createView": "Create New View",
     "views": "Views",
     "noViews": "No views found",
+    "materializedViews": "Materialized Views",
+    "refreshMaterializedView": "Refresh",
+    "showDefinition": "Show Definition",
     "editView": "Edit View",
     "viewDefinition": "View Definition",
     "dropView": "Drop View",
@@ -73,6 +76,8 @@
     "expandTable": "Expand table {{name}}",
     "collapseTable": "Collapse table {{name}}",
     "columns": "columns",
+    "parameters": "parameters",
+    "noParameters": "No parameters",
     "keys": "keys",
     "foreignKeys": "foreign keys",
     "indexes": "indexes",
@@ -83,6 +88,7 @@
     "modifyColumn": "Modify Column",
     "copyName": "Copy Name",
     "openInEditor": "Open in Editor",
+    "openInNewWindow": "Open in New Window",
     "closePanel": "Close panel",
     "setAsActive": "Set as Active",
     "deleteTable": "Delete Table",
@@ -602,6 +608,7 @@
       "tabSwitcher": "Switch tab",
       "copySelection": "Copy selection",
       "toggleSidebar": "Toggle sidebar",
+      "focusTableFilter": "Focus table filter",
       "openConnections": "Open connections",
       "newConnection": "New connection",
       "newTab": "New tab",
@@ -748,7 +755,6 @@
     "selectTypeFirst": "Select context/namespace/type first",
     "useK8s": "Use Kubernetes Port-Forward",
     "useK8sConnection": "Saved Connection",
-    "advanced": "Advanced",
     "startupScript": "Startup Script",
     "startupScriptDescription": "SQL run on every new connection to this data source. Use it for session settings such as SET / set_config (e.g. bypassing RLS). Separate statements with semicolons.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
@@ -1263,7 +1269,10 @@
     "createSuccess": "View created successfully",
     "alterSuccess": "View updated successfully",
     "saveError": "Failed to save view: ",
-    "confirmAlter": "Are you sure you want to modify view \"{{view}}\"?"
+    "confirmAlter": "Are you sure you want to modify view \"{{view}}\"?",
+    "refreshSuccess": "Materialized view \"{{view}}\" refreshed",
+    "refreshError": "Failed to refresh materialized view: ",
+    "failGetDefinition": "Failed to get definition: "
   },
   "triggers": {
     "createTrigger": "Create Trigger",
@@ -1681,5 +1690,28 @@
       "resourceNameRequired": "Resource name is required",
       "portInvalid": "Port must be between 1 and 65535"
     }
+  },
+  "routines": {
+    "menuRun": "Run…",
+    "menuEdit": "Edit",
+    "menuDrop": "Drop",
+    "newRoutine": "New routine",
+    "newProcedure": "New procedure",
+    "newFunction": "New function",
+    "templateError": "Failed to load routine template: ",
+    "dropConfirmTitle": "Drop routine",
+    "dropConfirmMessage": "Drop routine \"{{name}}\"? This action cannot be undone.",
+    "dropSuccess": "Routine {{name}} dropped",
+    "dropError": "Failed to drop routine: ",
+    "runTitle": "Run {{name}}",
+    "runSubtitle": "Provide the parameter values, then review the generated SQL in the editor",
+    "loadingParameters": "Loading parameters…",
+    "noParameters": "This routine takes no parameters. The invocation script will open in the editor.",
+    "outputParameter": "Output parameter — returned as a result",
+    "rawLabel": "Raw",
+    "rawHint": "Insert the value verbatim, without string quoting (numbers, expressions)",
+    "runButton": "Run",
+    "runTabPrefix": "Run",
+    "returnValue": "returns"
   }
 }
