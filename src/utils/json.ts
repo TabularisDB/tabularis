@@ -13,6 +13,16 @@ export function isJsonColumn(dataType: string): boolean {
 }
 
 /**
+ * Returns true if the column is a PostgreSQL hstore column, identified by its
+ * real catalog type name (`udt_name`). `data_type` alone can't distinguish it —
+ * PostgreSQL reports hstore (and any other extension/custom type) generically
+ * as "USER-DEFINED".
+ */
+export function isHstoreColumn(udtName?: string | null): boolean {
+  return udtName?.toLowerCase() === "hstore";
+}
+
+/**
  * Serializes a value for display in a JSON editor.
  * Objects/arrays are pretty-printed; primitives and strings are returned as-is.
  */

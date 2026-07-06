@@ -17,6 +17,7 @@ export interface TableColumn {
   is_auto_increment: boolean;
   default_value?: string;
   character_maximum_length?: number;
+  udt_name?: string;
 }
 
 export interface TableSchema {

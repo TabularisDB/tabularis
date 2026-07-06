@@ -302,6 +302,8 @@ pub struct TableColumn {
     pub default_value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub character_maximum_length: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub udt_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

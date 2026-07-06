@@ -395,6 +395,7 @@ mod bind_pg_value_tests {
                 column_type: Some("boolean"),
                 max_blob_size: 1024,
                 allow_default: true,
+                hstore_oid: None,
             },
         )
         .unwrap();
@@ -412,6 +413,7 @@ mod bind_pg_value_tests {
                 column_type: Some("boolean"),
                 max_blob_size: 1024,
                 allow_default: true,
+                hstore_oid: None,
             },
         ) {
             Ok(_) => panic!("expected invalid boolean binding to fail"),
@@ -429,6 +431,7 @@ mod bind_pg_value_tests {
                 column_type: Some("integer"),
                 max_blob_size: 1024,
                 allow_default: true,
+                hstore_oid: None,
             },
         )
         .unwrap();
@@ -446,6 +449,7 @@ mod bind_pg_value_tests {
                 column_type: None,
                 max_blob_size: 1024,
                 allow_default: true,
+                hstore_oid: None,
             },
         )
         .unwrap();
@@ -463,6 +467,7 @@ mod bind_pg_value_tests {
                 column_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
+                hstore_oid: None,
             },
         )
         .unwrap();
@@ -480,6 +485,7 @@ mod bind_pg_value_tests {
                 column_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
+                hstore_oid: None,
             },
         )
         .unwrap();
@@ -497,6 +503,7 @@ mod bind_pg_value_tests {
                 column_type: Some("jsonb"),
                 max_blob_size: 1024,
                 allow_default: false,
+                hstore_oid: None,
             },
         )
         .unwrap();
@@ -514,6 +521,7 @@ mod bind_pg_value_tests {
                 column_type: Some("json"),
                 max_blob_size: 1024,
                 allow_default: false,
+                hstore_oid: None,
             },
         )
         .unwrap();
@@ -531,6 +539,7 @@ mod bind_pg_value_tests {
                 column_type: Some("jsonb"),
                 max_blob_size: 1024,
                 allow_default: false,
+                hstore_oid: None,
             },
         )
         .unwrap();
@@ -548,6 +557,7 @@ mod bind_pg_value_tests {
                 column_type: Some("text"),
                 max_blob_size: 1024,
                 allow_default: false,
+                hstore_oid: None,
             },
         ) {
             Ok(_) => panic!("expected error binding JSON object to non-JSON column"),
@@ -555,6 +565,120 @@ mod bind_pg_value_tests {
         };
         assert!(err.contains("JSON object"));
     }
+
+    #[test]
+fn hstore_object_bound_as_value_with_correct_type_name() {
+    let bound = bind_pg_value(
+        serde_json::json!({"key": "value", "other": "thing"}),
+        1,
+        PgValueOptions {
+            column_type: Some("USER-DEFINED"),
+            max_blob_size: 1024,
+            allow_default: false,
+            hstore_oid: Some(16_500),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(bound.sql, "$1");
+    let (_, pg_type) = bound.param.unwrap();
+    assert_eq!(pg_type.name(), "hstore");
+    assert_eq!(pg_type.oid(), 16_500);
+}
+
+#[test]
+fn hstore_object_with_null_value_bound_correctly() {
+    let bound = bind_pg_value(
+        serde_json::json!({"key": null}),
+        1,
+        PgValueOptions {
+            column_type: Some("USER-DEFINED"),
+            max_blob_size: 1024,
+            allow_default: false,
+            hstore_oid: Some(16_500),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(bound.sql, "$1");
+    assert!(bound.param.is_some());
+}
+
+#[test]
+fn hstore_null_value_stays_sql_null() {
+    let bound = bind_pg_value(
+        serde_json::Value::Null,
+        1,
+        PgValueOptions {
+            column_type: Some("USER-DEFINED"),
+            max_blob_size: 1024,
+            allow_default: false,
+            hstore_oid: Some(16_500),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(bound.sql, "NULL");
+    assert!(bound.param.is_none());
+}
+
+#[test]
+fn hstore_non_string_value_in_object_returns_clear_error() {
+    let err = match bind_pg_value(
+        serde_json::json!({"key": 42}),
+        1,
+        PgValueOptions {
+            column_type: Some("USER-DEFINED"),
+            max_blob_size: 1024,
+            allow_default: false,
+            hstore_oid: Some(16_500),
+        },
+    ) {
+        Ok(_) => panic!("expected an error for non-string hstore value"),
+        Err(e) => e,
+    };
+
+    assert!(err.contains("key"));
+    assert!(err.contains("string or null"));
+}
+
+#[test]
+fn hstore_non_object_value_returns_clear_error() {
+    let err = match bind_pg_value(
+        serde_json::json!("just a string"),
+        1,
+        PgValueOptions {
+            column_type: Some("USER-DEFINED"),
+            max_blob_size: 1024,
+            allow_default: false,
+            hstore_oid: Some(16_500),
+        },
+    ) {
+        Ok(_) => panic!("expected an error for non-object hstore value"),
+        Err(e) => e,
+    };
+
+    assert!(err.contains("JSON object"));
+}
+
+#[test]
+fn hstore_object_without_resolved_oid_returns_clear_error() {
+    let err = match bind_pg_value(
+        serde_json::json!({"key": "value"}),
+        1,
+        PgValueOptions {
+            column_type: Some("USER-DEFINED"),
+            max_blob_size: 1024,
+            allow_default: false,
+            hstore_oid: None,
+        },
+    ) {
+        Ok(_) => panic!("expected an error when hstore_oid could not be resolved"),
+        Err(e) => e,
+    };
+
+    assert!(err.contains("hstore"));
+}
 }
 
 mod build_pk_predicate_tests {

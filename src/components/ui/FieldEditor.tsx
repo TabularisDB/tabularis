@@ -8,7 +8,7 @@ import { JsonInput } from "./JsonInput";
 import { TextInput } from "./TextInput";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn } from "../../utils/blob";
-import { isJsonColumn, isJsonContent } from "../../utils/json";
+import { isJsonColumn, isJsonContent, isHstoreColumn } from "../../utils/json";
 import { isLongTextValue, isTextColumn } from "../../utils/text";
 import { getDateInputMode } from "../../utils/dateInput";
 import { USE_DEFAULT_SENTINEL } from "../../utils/dataGrid";
@@ -17,6 +17,7 @@ export interface FieldEditorProps {
   name: string;
   type?: string;
   characterMaximumLength?: number;
+  udtName?: string;
   value: unknown;
   onChange: (value: unknown) => void;
   placeholder?: string;
@@ -41,6 +42,7 @@ export const FieldEditor = ({
   name,
   type,
   characterMaximumLength,
+  udtName,
   value,
   onChange,
   placeholder,
@@ -59,7 +61,7 @@ export const FieldEditor = ({
   const { t } = useTranslation();
   const isGeometric = type && isGeometricType(type);
   const isBlob = type && isBlobColumn(type, characterMaximumLength);
-  const isJsonByType = !!(type && isJsonColumn(type));
+  const isJsonByType = !!(type && isJsonColumn(type)) || isHstoreColumn(udtName);
   const detectedJson =
     !isBlob &&
     !isGeometric &&

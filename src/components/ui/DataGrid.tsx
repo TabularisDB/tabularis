@@ -600,6 +600,11 @@ export const DataGrid = React.memo(
         value !== undefined
       ) {
         editValue = formatGeometricValue(value);
+      } else if (
+        value !== null &&
+        typeof value === "object"
+      ) {
+        editValue = JSON.stringify(value);
       }
 
       setEditingCell({ rowIndex, colIndex, value: editValue });
@@ -1683,6 +1688,7 @@ export const DataGrid = React.memo(
                     type: columnMetadata?.[index]?.data_type,
                     characterMaximumLength:
                       columnMetadata?.[index]?.character_maximum_length,
+                    udtName: columnMetadata?.[index]?.udt_name,
                   }))}
                   autoIncrementColumns={autoIncrementColumns}
                   defaultValueColumns={defaultValueColumns}

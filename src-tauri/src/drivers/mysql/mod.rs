@@ -317,6 +317,7 @@ pub async fn get_columns(
                 is_auto_increment,
                 default_value,
                 character_maximum_length,
+                udt_name: None,
             }
         })
         .collect())
@@ -414,6 +415,7 @@ pub async fn get_all_columns_batch(
             is_auto_increment,
             default_value,
             character_maximum_length,
+            udt_name: None,
         };
 
         result
@@ -1023,6 +1025,7 @@ pub async fn get_view_columns(
                 is_auto_increment,
                 default_value,
                 character_maximum_length,
+                udt_name: None,
             }
         })
         .collect())
