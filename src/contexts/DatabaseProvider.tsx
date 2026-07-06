@@ -54,6 +54,10 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const [connections, setConnections] = useState<SavedConnection[]>([]);
   const [connectionGroups, setConnectionGroups] = useState<ConnectionGroup[]>([]);
   const [isLoadingConnections, setIsLoadingConnections] = useState(false);
+  // Connection ids open anywhere in the app (shared backend, all windows).
+  // Kept in sync via the `connections:active-changed` broadcast so each window
+  // can show accurate cross-window connection status.
+  const [globallyOpenConnectionIds, setGloballyOpenConnectionIds] = useState<string[]>([]);
 
   // Refs used in the plugin-disable effect to avoid stale closures
   const openConnectionIdsRef = useRef(openConnectionIds);
@@ -733,6 +737,25 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const detachConnection = useCallback((connectionId: string) => {
+    clearAutocompleteCache(connectionId);
+
+    setOpenConnectionIds(prev => prev.filter(id => id !== connectionId));
+    setConnectionDataMap(prev => {
+      const newMap = { ...prev };
+      delete newMap[connectionId];
+      return newMap;
+    });
+
+    setActiveConnectionId(prev => {
+      if (prev !== connectionId) return prev;
+      const remaining = openConnectionIds.filter(id => id !== connectionId);
+      if (remaining.length > 0) return remaining[0];
+      setActiveTable(null);
+      return null;
+    });
+  }, [openConnectionIds]);
+
   const switchConnection = useCallback((connectionId: string) => {
     if (openConnectionIds.includes(connectionId)) {
       setActiveConnectionId(connectionId);
@@ -768,6 +791,14 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const isConnectionOpen = useCallback((connectionId: string): boolean => {
     return openConnectionIds.includes(connectionId);
   }, [openConnectionIds]);
+
+  // True when the connection is open in ANY window (this one or another), based
+  // on the shared backend registry. Falls back to local state so a just-opened
+  // connection reflects immediately, before the broadcast round-trips.
+  const isConnectionOpenAnywhere = useCallback((connectionId: string): boolean => {
+    return openConnectionIds.includes(connectionId)
+      || globallyOpenConnectionIds.includes(connectionId);
+  }, [openConnectionIds, globallyOpenConnectionIds]);
 
   // Auto-disconnect open connections when their plugin is disabled
   useEffect(() => {
@@ -832,6 +863,18 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         });
       },
     );
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
+
+  // Track the set of connections open anywhere (across all windows). Seed from
+  // the backend snapshot, then keep in sync via the broadcast event.
+  useEffect(() => {
+    invoke<string[]>('get_active_connections')
+      .then(setGloballyOpenConnectionIds)
+      .catch(() => {});
+    const unlisten = listen<string[]>('connections:active-changed', (event) => {
+      setGloballyOpenConnectionIds(event.payload);
+    });
     return () => { unlisten.then(fn => fn()); };
   }, []);
 
@@ -937,6 +980,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       isLoadingConnections,
       connect,
       disconnect,
+      detachConnection,
       switchConnection,
       setActiveTable: setActiveTableWithSchema,
       refreshTables,
@@ -951,6 +995,8 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       setSelectedDatabases,
       getConnectionData,
       isConnectionOpen,
+      isConnectionOpenAnywhere,
+      globallyOpenConnectionIds,
       createGroup,
       updateGroup,
       deleteGroup,

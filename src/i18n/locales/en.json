@@ -88,6 +88,7 @@
     "modifyColumn": "Modify Column",
     "copyName": "Copy Name",
     "openInEditor": "Open in Editor",
+    "openInNewWindow": "Open in New Window",
     "closePanel": "Close panel",
     "setAsActive": "Set as Active",
     "deleteTable": "Delete Table",
@@ -873,6 +874,7 @@
     "page": "Page {{current}}",
     "jumpToPage": "Click to jump to page",
     "loadRowCount": "Load row count",
+    "rowCount": "{{total}} rows",
     "executePrompt": "Execute a query to see results",
     "tableRunPrompt": "Press Run (Ctrl/Command+F5) to load table data",
     "results": {

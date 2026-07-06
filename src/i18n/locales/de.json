@@ -88,6 +88,7 @@
     "modifyColumn": "Spalte ändern",
     "copyName": "Namen kopieren",
     "openInEditor": "Im Editor öffnen",
+    "openInNewWindow": "In neuem Fenster öffnen",
     "closePanel": "Panel schließen",
     "setAsActive": "Als aktiv festlegen",
     "deleteTable": "Tabelle löschen",
@@ -857,6 +858,7 @@
     "page": "Seite {{current}}",
     "jumpToPage": "Klicken, um zur Seite zu springen",
     "loadRowCount": "Zeilenanzahl laden",
+    "rowCount": "{{total}} Zeilen",
     "executePrompt": "Führe eine Abfrage aus, um Ergebnisse zu sehen",
     "results": {
       "minimize": "Minimieren",

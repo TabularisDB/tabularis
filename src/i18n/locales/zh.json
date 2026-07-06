@@ -87,6 +87,7 @@
     "modifyColumn": "修改列",
     "copyName": "复制名称",
     "openInEditor": "在编辑器中打开",
+    "openInNewWindow": "在新窗口中打开",
     "closePanel": "关闭面板",
     "setAsActive": "设为激活",
     "deleteTable": "删除表",
@@ -825,6 +826,7 @@
     "page": "第 {{current}} 页",
     "jumpToPage": "点击跳转到页面",
     "loadRowCount": "加载行数",
+    "rowCount": "{{total}} 行",
     "executePrompt": "执行查询以查看结果",
     "results": {
       "minimize": "最小化",

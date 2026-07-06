@@ -88,6 +88,7 @@
     "modifyColumn": "Modifica colonna",
     "copyName": "Copia nome",
     "openInEditor": "Apri nell'editor",
+    "openInNewWindow": "Apri in una nuova finestra",
     "closePanel": "Chiudi pannello",
     "setAsActive": "Imposta come attiva",
     "deleteTable": "Elimina tabella",
@@ -840,6 +841,7 @@
     "page": "Pagina {{current}}",
     "jumpToPage": "Clicca per saltare alla pagina",
     "loadRowCount": "Carica conteggio righe",
+    "rowCount": "{{total}} righe",
     "executePrompt": "Esegui una query per vedere i risultati",
     "tableRunPrompt": "Premi Esegui (Ctrl/Command+F5) per caricare i dati della tabella",
     "results": {
