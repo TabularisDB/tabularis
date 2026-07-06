@@ -1032,6 +1032,23 @@ export const Editor = () => {
     [activeConnectionId, updateTab, patchResultEntry, settings.resultPageSize, activeSchema, t, isMultiDb, activeDatabaseName, addHistoryEntry],
   );
 
+  // Auto-run entry point for navigation-initiated executions (sidebar "open
+  // and run" flows). Multi-statement scripts — e.g. a routine invocation with
+  // OUT session variables (SET / CALL / SELECT) — must go through the batch
+  // path so every statement shares one connection and session state survives;
+  // a single statement keeps the plain runQuery path.
+  const runAutoQuery = useCallback(
+    (sql: string, page: number, tabId: string) => {
+      const statements = splitQueries(sql, activeDialect);
+      if (statements.length > 1) {
+        runMultipleQueries(statements);
+      } else {
+        runQuery(sql, page, tabId);
+      }
+    },
+    [activeDialect, runMultipleQueries, runQuery],
+  );
+
   const runResultEntryPage = useCallback(
     async (entryId: string, pageNum: number, tabIdArg?: string) => {
       const targetTabId = tabIdArg ?? activeTabIdRef.current;
@@ -2539,7 +2556,7 @@ export const Editor = () => {
           // Try immediate execution if tab exists (reused)
           const existingTab = tabsRef.current.find((t) => t.id === tabId);
           if (existingTab) {
-            runQuery(sql, 1, tabId);
+            runAutoQuery(sql || "", 1, tabId);
             delete pendingExecutionsRef.current[tabId];
           }
         }
@@ -2557,7 +2574,7 @@ export const Editor = () => {
     addTab,
     updateTab,
     navigate,
-    runQuery,
+    runAutoQuery,
     t,
   ]);
 
@@ -2567,11 +2584,11 @@ export const Editor = () => {
       const tab = tabs.find((t) => t.id === tabId);
       if (tab) {
         const { sql, page } = pendingExecutionsRef.current[tabId];
-        runQuery(sql, page, tabId);
+        runAutoQuery(sql, page, tabId);
         delete pendingExecutionsRef.current[tabId];
       }
     });
-  }, [tabs, runQuery]);
+  }, [tabs, runAutoQuery]);
 
   const startResize = () => {
     isDragging.current = true;

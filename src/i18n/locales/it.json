@@ -76,6 +76,8 @@
     "expandTable": "Espandi tabella {{name}}",
     "collapseTable": "Comprimi tabella {{name}}",
     "columns": "colonne",
+    "parameters": "parametri",
+    "noParameters": "Nessun parametro",
     "keys": "chiavi",
     "foreignKeys": "chiavi esterne",
     "indexes": "indici",
@@ -723,7 +725,6 @@
     "selectTypeFirst": "Seleziona prima contesto/namespace/tipo",
     "useK8s": "Usa Port-Forward Kubernetes",
     "useK8sConnection": "Connessione salvata",
-    "advanced": "Avanzate",
     "startupScript": "Script di avvio",
     "startupScriptDescription": "SQL eseguito a ogni nuova connessione a questa origine dati. Usalo per le impostazioni di sessione come SET / set_config (ad es. per bypassare la RLS). Separa le istruzioni con punto e virgola.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
@@ -1594,5 +1595,28 @@
       "resourceNameRequired": "Il nome della risorsa è obbligatorio",
       "portInvalid": "La porta deve essere compresa tra 1 e 65535"
     }
+  },
+  "routines": {
+    "menuRun": "Esegui…",
+    "menuEdit": "Modifica",
+    "menuDrop": "Elimina",
+    "newRoutine": "Nuova routine",
+    "newProcedure": "Nuova procedura",
+    "newFunction": "Nuova funzione",
+    "templateError": "Impossibile caricare il template della routine: ",
+    "dropConfirmTitle": "Elimina routine",
+    "dropConfirmMessage": "Eliminare la routine \"{{name}}\"? L'azione non può essere annullata.",
+    "dropSuccess": "Routine {{name}} eliminata",
+    "dropError": "Impossibile eliminare la routine: ",
+    "runTitle": "Esegui {{name}}",
+    "runSubtitle": "Inserisci i valori dei parametri, poi rivedi la SQL generata nell'editor",
+    "loadingParameters": "Caricamento parametri…",
+    "noParameters": "Questa routine non ha parametri. Lo script di invocazione si aprirà nell'editor.",
+    "outputParameter": "Parametro di output — restituito come risultato",
+    "rawLabel": "Raw",
+    "rawHint": "Inserisce il valore così com'è, senza quoting stringa (numeri, espressioni)",
+    "runButton": "Esegui",
+    "runTabPrefix": "Esegui",
+    "returnValue": "ritorna"
   }
 }

@@ -881,6 +881,7 @@ impl SqliteDriver {
                     views: true,
                     materialized_views: false,
                     routines: false,
+                    routine_management: false,
                     file_based: true,
                     folder_based: false,
                     connection_string: false,
