@@ -452,6 +452,19 @@ pub struct RoutineParameter {
     pub ordinal_position: i32,
 }
 
+/// One argument for invoking a stored routine, as collected by the
+/// run-routine UI. `value: None` means SQL `NULL`; `is_raw` skips string
+/// quoting so numbers and expressions pass through verbatim.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RoutineCallArg {
+    pub name: String,
+    pub mode: String, // "IN", "OUT", "INOUT"
+    #[serde(default)]
+    pub value: Option<String>,
+    #[serde(default)]
+    pub is_raw: bool,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ViewInfo {
     pub name: String,
