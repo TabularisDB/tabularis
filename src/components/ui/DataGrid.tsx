@@ -796,6 +796,10 @@ export const DataGrid = React.memo(
               const sortState = getColumnSortState(colName, sortClause);
               const displaySortState: "none" | "asc" | "desc" =
                 sortState ?? "none";
+              // Column data type for the DataGrip-style header hover tooltip.
+              // Only populated when column metadata is present (i.e. table
+              // browse), not for arbitrary query results.
+              const colType = columnTypeMap?.get(colName);
 
               return (
                 <div
@@ -808,17 +812,21 @@ export const DataGrid = React.memo(
                         ? t("dataGrid.sortByDesc", { col: colName })
                         : t("dataGrid.clearSort")
                   ) : undefined}
-                  className={`flex items-center gap-2 select-none group/header ${onSort ? "cursor-pointer" : ""}`}
+                  className={`relative flex items-center gap-2 select-none group/header ${onSort ? "cursor-pointer" : ""}`}
                   onClick={() => onSort && onSort(colName)}
                   onKeyDown={(e) => { if (onSort && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSort(colName); } }}
                   title={
-                    onSort
-                      ? displaySortState === "none"
-                        ? t("dataGrid.sortByAsc", { col: colName })
-                        : displaySortState === "asc"
-                          ? t("dataGrid.sortByDesc", { col: colName })
-                          : t("dataGrid.clearSort")
-                      : undefined
+                    // Suppress the native sort-hint title while the type tooltip
+                    // is shown, to avoid two overlapping tooltips on hover.
+                    colType
+                      ? undefined
+                      : onSort
+                        ? displaySortState === "none"
+                          ? t("dataGrid.sortByAsc", { col: colName })
+                          : displaySortState === "asc"
+                            ? t("dataGrid.sortByDesc", { col: colName })
+                            : t("dataGrid.clearSort")
+                        : undefined
                   }
                 >
                   <span>{colName}</span>
@@ -838,6 +846,14 @@ export const DataGrid = React.memo(
                       )}
                     </span>
                   )}
+                  {colType && (
+                    <span
+                      role="tooltip"
+                      className="pointer-events-none absolute left-0 top-full z-20 mt-1 whitespace-nowrap rounded-lg border border-strong bg-tooltip px-2 py-1 text-xs font-normal normal-case tracking-normal text-secondary opacity-0 shadow-xl transition-opacity duration-100 group-hover/header:opacity-100"
+                    >
+                      <span className="text-primary">{colName}</span>: {colType}
+                    </span>
+                  )}
                 </div>
               );
             },
@@ -849,6 +865,7 @@ export const DataGrid = React.memo(
         t,
         sortClause,
         onSort,
+        columnTypeMap,
       ],
     );
 
