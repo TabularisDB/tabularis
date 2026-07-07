@@ -7,10 +7,12 @@ use crate::drivers::common::{quote_qualified, render_sql_literal};
 use crate::models::RoutineCallArg;
 
 /// Builds the invocation script. Functions go through `SELECT * FROM` so
-/// both scalar and set-returning functions come back as a result set.
-/// Procedures use `CALL`; OUT parameters are rendered as `NULL` placeholders
-/// (PostgreSQL requires them in the argument list) and INOUT values are
-/// echoed back by the server as the procedure's result row.
+/// both scalar and set-returning functions come back as a result set; their
+/// pure `OUT` parameters are NOT part of the call signature in PostgreSQL, so
+/// they are excluded from the argument list (passing them raises
+/// `function ... does not exist`). Procedures use `CALL`; there OUT parameters
+/// ARE required in the argument list and are rendered as `NULL` placeholders,
+/// with INOUT values echoed back by the server as the procedure's result row.
 pub(super) fn routine_call_sql(
     routine_name: &str,
     routine_type: &str,
@@ -18,9 +20,14 @@ pub(super) fn routine_call_sql(
     schema: Option<&str>,
 ) -> String {
     let name = quote_qualified(routine_name, schema, "\"");
-    let rendered: Vec<String> = args.iter().map(render_sql_literal).collect();
+    let is_function = routine_type.eq_ignore_ascii_case("FUNCTION");
+    let rendered: Vec<String> = args
+        .iter()
+        .filter(|arg| !(is_function && arg.mode.eq_ignore_ascii_case("OUT")))
+        .map(render_sql_literal)
+        .collect();
     let arg_list = rendered.join(", ");
-    if routine_type.eq_ignore_ascii_case("FUNCTION") {
+    if is_function {
         format!("SELECT * FROM {}({});", name, arg_list)
     } else {
         format!("CALL {}({});", name, arg_list)
