@@ -88,6 +88,7 @@
     "modifyColumn": "Изменить столбец",
     "copyName": "Копировать имя",
     "openInEditor": "Открыть в редакторе",
+    "openInNewWindow": "Открыть в новом окне",
     "closePanel": "Закрыть панель",
     "setAsActive": "Сделать активным",
     "deleteTable": "Удалить таблицу",
@@ -850,6 +851,7 @@
     "page": "Страница {{current}}",
     "jumpToPage": "Нажмите для перехода на страницу",
     "loadRowCount": "Загрузить количество строк",
+    "rowCount": "{{total}} строк",
     "executePrompt": "Выполните запрос, чтобы увидеть результаты",
     "results": {
       "minimize": "Свернуть",

@@ -88,6 +88,7 @@
     "modifyColumn": "Modifier la colonne",
     "copyName": "Copier le nom",
     "openInEditor": "Ouvrir dans l’éditeur",
+    "openInNewWindow": "Ouvrir dans une nouvelle fenêtre",
     "closePanel": "Fermer le panneau",
     "setAsActive": "Définir comme actif",
     "deleteTable": "Supprimer la table",
@@ -855,6 +856,7 @@
     "page": "Page {{current}}",
     "jumpToPage": "Cliquer pour aller à la page",
     "loadRowCount": "Charger le nombre de lignes",
+    "rowCount": "{{total}} lignes",
     "executePrompt": "Exécutez une requête pour voir les résultats",
     "results": {
       "minimize": "Réduire",
