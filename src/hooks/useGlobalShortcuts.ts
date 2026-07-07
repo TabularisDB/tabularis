@@ -17,11 +17,13 @@ export function useGlobalShortcuts() {
       // Don't fire when typing in inputs / textareas / contenteditable (except for the quick navigator)
       const target = e.target as HTMLElement;
       const isQuickNavigator = matchesShortcut(e, "quick_navigator");
+      const isFocusTableFilter = matchesShortcut(e, "focus_table_filter");
       if (
         (target.tagName === "INPUT" ||
         target.tagName === "TEXTAREA" ||
         target.isContentEditable) &&
-        !isQuickNavigator
+        !isQuickNavigator &&
+        !isFocusTableFilter
       ) {
         return;
       }
@@ -29,6 +31,12 @@ export function useGlobalShortcuts() {
       if (matchesShortcut(e, "toggle_sidebar")) {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent("tabularis:toggle-sidebar"));
+        return;
+      }
+
+      if (matchesShortcut(e, "focus_table_filter")) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("tabularis:focus-table-filter"));
         return;
       }
 

@@ -3,11 +3,15 @@ import { Sidebar } from './Sidebar';
 import { SplitPaneLayout } from './SplitPaneLayout';
 import { useConnectionLayoutContext } from '../../hooks/useConnectionLayoutContext';
 import { useGlobalShortcuts } from '../../hooks/useGlobalShortcuts';
+import { useAutoConnectFromUrl } from '../../hooks/useAutoConnectFromUrl';
+import { useConnectionWindowLifecycle } from '../../hooks/useConnectionWindowLifecycle';
 
 export const MainLayout = () => {
   const { splitView, isSplitVisible } = useConnectionLayoutContext();
   const location = useLocation();
   useGlobalShortcuts();
+  useAutoConnectFromUrl();
+  useConnectionWindowLifecycle();
 
   const showSplit = !!splitView
     && isSplitVisible

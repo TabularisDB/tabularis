@@ -360,6 +360,12 @@ pub fn classify_query_kind(sql: &str) -> &'static str {
     if trimmed.is_empty() {
         return "unknown";
     }
+    let trimmed_upper = trimmed.to_uppercase();
+
+    if is_create_compound_routine(&trimmed_upper) {
+        return "ddl";
+    }
+
     // Fail closed for multi-statement payloads: a leading `SELECT 1; DROP …`
     // must NOT be tagged as a clean read just because the first keyword is
     // SELECT — the read-only and approval gates rely on this classification.
@@ -400,6 +406,67 @@ pub fn classify_query_kind(sql: &str) -> &'static str {
         "WITH" => classify_cte(&peeled_upper),
         _ => "unknown",
     }
+}
+
+fn is_create_compound_routine(upper_sql: &str) -> bool {
+    if first_keyword(upper_sql) != "CREATE" {
+        return false;
+    }
+
+    let header = upper_sql.split("BEGIN").next().unwrap_or(upper_sql);
+    let is_routine = ["PROCEDURE", "FUNCTION", "TRIGGER", "EVENT"]
+        .iter()
+        .any(|keyword| contains_keyword(header, keyword));
+    if !is_routine {
+        return false;
+    }
+
+    let without_terminal_semicolon = upper_sql.trim_end().trim_end_matches(';').trim_end();
+    if !without_terminal_semicolon.ends_with("END") {
+        return false;
+    }
+
+    !has_complete_end_before_terminal_statement(without_terminal_semicolon)
+}
+
+fn has_complete_end_before_terminal_statement(upper_sql: &str) -> bool {
+    let terminal_end = match upper_sql.rfind("END") {
+        Some(index) => index,
+        None => return false,
+    };
+    let before_terminal = &upper_sql[..terminal_end];
+    let bytes = before_terminal.as_bytes();
+    let is_word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+
+    for i in 0..bytes.len().saturating_sub(2) {
+        if &bytes[i..i + 3] != b"END" {
+            continue;
+        }
+        let prev_ok = i == 0 || !is_word(bytes[i - 1]);
+        let next_ok = i + 3 == bytes.len() || !is_word(bytes[i + 3]);
+        if !prev_ok || !next_ok {
+            continue;
+        }
+
+        let mut cursor = i + 3;
+        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
+            cursor += 1;
+        }
+        if cursor >= bytes.len() || bytes[cursor] != b';' {
+            continue;
+        }
+        cursor += 1;
+        while cursor < bytes.len()
+            && (bytes[cursor].is_ascii_whitespace() || bytes[cursor] == b';')
+        {
+            cursor += 1;
+        }
+        if cursor < bytes.len() && bytes[cursor].is_ascii_alphabetic() {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// Returns true when `stripped` contains a semicolon followed by additional

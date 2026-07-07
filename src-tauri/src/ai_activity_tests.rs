@@ -384,6 +384,72 @@ mod tests {
     #[test]
     fn classify_ddl() {
         assert_eq!(classify_query_kind("CREATE TABLE t (id INT)"), "ddl");
+        assert_eq!(
+            classify_query_kind(
+                "CREATE PROCEDURE tabularis_fix_test_proc()\n\
+                 BEGIN\n\
+                   SELECT 1 AS ok;\n\
+                 END"
+            ),
+            "ddl"
+        );
+        assert_eq!(
+            classify_query_kind(
+                "CREATE FUNCTION tabularis_fix_test_fn() RETURNS INT\n\
+                 BEGIN\n\
+                   RETURN 1;\n\
+                 END;"
+            ),
+            "ddl"
+        );
+        assert_eq!(
+            classify_query_kind(
+                "CREATE TRIGGER tabularis_fix_test_trigger BEFORE INSERT ON t\n\
+                 FOR EACH ROW\n\
+                 BEGIN\n\
+                   SET NEW.id = NEW.id;\n\
+                 END;"
+            ),
+            "ddl"
+        );
+        assert_eq!(
+            classify_query_kind(
+                "CREATE EVENT tabularis_fix_test_event\n\
+                 ON SCHEDULE EVERY 1 DAY\n\
+                 DO\n\
+                 BEGIN\n\
+                   SELECT 1;\n\
+                 END;"
+            ),
+            "ddl"
+        );
+        assert_eq!(
+            classify_query_kind(
+                "CREATE PROCEDURE tabularis_fix_test_proc()\n\
+                 BEGIN\n\
+                   SELECT 1;\n\
+                 END; DROP TABLE t"
+            ),
+            "unknown"
+        );
+        assert_eq!(
+            classify_query_kind(
+                "CREATE PROCEDURE tabularis_fix_test_proc()\n\
+                 BEGIN\n\
+                   SELECT 1;\n\
+                 END; DROP TABLE t; END"
+            ),
+            "unknown"
+        );
+        assert_eq!(
+            classify_query_kind(
+                "CREATE PROCEDURE tabularis_fix_test_proc()\n\
+                 BEGIN\n\
+                   SELECT 1;\n\
+                 END;; DROP TABLE t; END"
+            ),
+            "unknown"
+        );
         assert_eq!(classify_query_kind("DROP TABLE t"), "ddl");
         assert_eq!(classify_query_kind("ALTER TABLE t ADD COLUMN x INT"), "ddl");
         assert_eq!(classify_query_kind("TRUNCATE t"), "ddl");
