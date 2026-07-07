@@ -896,6 +896,13 @@
     "saveThisQuery": "Save this query",
     "noValidQueries": "No valid queries found",
     "queryFailed": "Query failed.",
+    "dangerousQueryTitle": "Run without a WHERE clause?",
+    "dangerousQueryMessage": "This statement will affect every row in the table because it has no WHERE clause. This cannot be undone.",
+    "dangerousQueryConfirm": "Run anyway",
+    "dangerousQueryDropTitle": "Drop this object?",
+    "dangerousQueryDropMessage": "DROP permanently removes this object and all of its data. This cannot be undone.",
+    "dangerousQueryTruncateTitle": "Truncate this table?",
+    "dangerousQueryTruncateMessage": "TRUNCATE deletes every row in the table. This cannot be undone.",
     "showErrorDetails": "Show details",
     "hideErrorDetails": "Hide details",
     "errorBoundary": {

@@ -863,6 +863,13 @@
     "saveThisQuery": "Salva questa query",
     "noValidQueries": "Nessuna query valida trovata",
     "queryFailed": "Esecuzione query fallita.",
+    "dangerousQueryTitle": "Eseguire senza clausola WHERE?",
+    "dangerousQueryMessage": "Questa istruzione interesserà tutte le righe della tabella perché non ha una clausola WHERE. L'operazione non può essere annullata.",
+    "dangerousQueryConfirm": "Esegui comunque",
+    "dangerousQueryDropTitle": "Eliminare questo oggetto?",
+    "dangerousQueryDropMessage": "DROP rimuove in modo permanente questo oggetto e tutti i suoi dati. L'operazione non può essere annullata.",
+    "dangerousQueryTruncateTitle": "Svuotare questa tabella?",
+    "dangerousQueryTruncateMessage": "TRUNCATE elimina tutte le righe della tabella. L'operazione non può essere annullata.",
     "showErrorDetails": "Mostra dettagli",
     "hideErrorDetails": "Nascondi dettagli",
     "errorBoundary": {
