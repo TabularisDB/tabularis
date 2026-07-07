@@ -233,6 +233,50 @@ fn require_iam_token(
     Ok(())
 }
 
+#[cfg(test)]
+mod require_iam_token_tests {
+    use super::require_iam_token;
+
+    #[test]
+    fn rejects_iam_with_both_passwords_empty() {
+        // The primary case: ad-hoc connection, IAM enabled, nothing in the
+        // form and nothing from the keychain.
+        let err = require_iam_token(true, None, None).unwrap_err();
+        assert!(err.contains("AWS IAM authentication is enabled"));
+        assert!(err.contains("15 minutes"));
+    }
+
+    #[test]
+    fn rejects_iam_with_empty_string_passwords() {
+        // Empty strings (rather than None) must also fail — sqlx stamps
+        // "" as a deliberate "user pressed Enter" password.
+        let err = require_iam_token(true, Some(""), Some("")).unwrap_err();
+        assert!(err.contains("AWS IAM authentication is enabled"));
+    }
+
+    #[test]
+    fn allows_iam_when_request_password_present() {
+        // A freshly pasted RDS auth token in the form is enough; the
+        // expanded (post-SSH/K8s) value is irrelevant.
+        require_iam_token(true, Some("fake-token"), None).unwrap();
+    }
+
+    #[test]
+    fn allows_iam_when_expanded_password_present() {
+        // The expanded value can also satisfy the guard (e.g. an SSH tunnel
+        // wrapper injected it).
+        require_iam_token(true, None, Some("fake-token")).unwrap();
+    }
+
+    #[test]
+    fn non_iam_always_passes() {
+        // Without IAM, an empty password is the caller's problem; the
+        // helper must never reject on its own.
+        require_iam_token(false, None, None).unwrap();
+        require_iam_token(false, Some(""), Some("")).unwrap();
+    }
+}
+
 /// Build the SSH tunnel map key for caching tunnels.
 #[inline]
 fn build_tunnel_map_key(
