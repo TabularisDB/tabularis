@@ -1435,9 +1435,12 @@ export const NewConnectionModal = ({
           }
           onChange={(v) => {
             updateField("ssl_mode", v);
-            // Cleartext auth must never go over an unencrypted link.
-            if (driver === "mysql" && v === "disabled") {
+            // Cleartext auth and RDS IAM must never go over an unencrypted
+            // link: both rely on a TLS-guaranteed channel to protect the
+            // password / pre-signed token.
+            if (driver === "mysql" && (v === "disabled" || v === "disable")) {
               updateField("enable_cleartext_plugin", false);
+              updateField("use_iam_auth", false);
             }
           }}
           searchable={false}
@@ -1567,46 +1570,67 @@ export const NewConnectionModal = ({
             </div>
           </div>
 
-          {driver === "mysql" && (
-            <div className="pt-2 border-t border-strong/50">
-              <label className="flex items-start gap-2 cursor-pointer">
+        </div>
+      )}
+
+      {/* AWS RDS IAM authentication (MySQL only).
+          Rendered outside the SSL Certificate Files block so it stays
+          reachable for new connections (where formData.ssl_mode is "" and
+          the cert block is hidden), and so that switching SSL to Disabled
+          doesn't unmount it while the underlying flag is still true. */}
+      {driver === "mysql" &&
+        (() => {
+          const effectiveSslMode = formData.ssl_mode || "required";
+          // Force-upgrade mirrors the backend: Preferred is opportunistic TLS
+          // and would let the pre-signed token travel in cleartext under the
+          // mysql_clear_password plugin.
+          const tlsOff =
+            !["required", "verify_ca", "verify_identity"].includes(
+              effectiveSslMode,
+            );
+          return (
+            <div className="space-y-1.5 pt-2 border-t border-strong">
+              <label
+                className={clsx(
+                  "flex items-center gap-2.5 select-none w-fit",
+                  tlsOff
+                    ? "cursor-not-allowed opacity-50"
+                    : "cursor-pointer",
+                )}
+              >
                 <input
                   type="checkbox"
-                  checked={!!formData.use_iam_auth}
+                  id="iam-auth-toggle"
+                  checked={!tlsOff && !!formData.use_iam_auth}
+                  disabled={tlsOff}
                   onChange={(e) =>
                     updateField("use_iam_auth", e.target.checked)
                   }
-                  className="mt-0.5 rounded border-strong bg-base text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                  className="accent-blue-500 w-3.5 h-3.5 rounded"
                 />
-                <div className="flex-1">
-                  <div className="text-sm text-primary font-medium">
-                    {t("newConnection.useIamAuth", {
-                      defaultValue: "Use AWS IAM Authentication (RDS)",
-                    })}
-                  </div>
-                  <div className="text-xs text-muted mt-0.5">
-                    {t("newConnection.useIamAuthHint", {
-                      defaultValue:
-                        "The password field is treated as an RDS auth token (from `aws rds generate-db-auth-token`). Requires TLS. Tokens expire every 15 minutes.",
-                    })}
-                  </div>
-                  {formData.use_iam_auth &&
-                    (formData.ssl_mode === "disabled" ||
-                      formData.ssl_mode === "disable" ||
-                      !formData.ssl_mode) && (
-                      <div className="text-xs text-amber-500 mt-1">
-                        {t("newConnection.useIamAuthTlsRequired", {
-                          defaultValue:
-                            "Enable an SSL mode above to use AWS IAM authentication.",
-                        })}
-                      </div>
-                    )}
-                </div>
+                <span className="text-sm font-medium text-secondary">
+                  {t("newConnection.useIamAuth", {
+                    defaultValue: "Use AWS IAM Authentication (RDS)",
+                  })}
+                </span>
               </label>
+              <p className="text-xs text-muted">
+                {t("newConnection.useIamAuthHint", {
+                  defaultValue:
+                    "The password field is treated as an RDS auth token (from `aws rds generate-db-auth-token`). Requires TLS. Tokens expire every 15 minutes.",
+                })}
+              </p>
+              {formData.use_iam_auth && tlsOff && (
+                <p className="text-xs text-amber-500">
+                  {t("newConnection.useIamAuthTlsRequired", {
+                    defaultValue:
+                      "Select an enforced TLS mode above (Required, Verify CA, or Verify Identity) to use AWS IAM authentication.",
+                  })}
+                </p>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          );
+        })()}
 
       {/* Cleartext password plugin (MySQL/MariaDB only) */}
       {driver === "mysql" &&
