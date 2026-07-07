@@ -158,6 +158,7 @@ export const DataGrid = React.memo(
     const { showAlert } = useAlert();
     const { settings } = useSettings();
     const colorByType = settings.resultColorByType ?? false;
+    const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
 
     const detectJsonInTextColumns = useMemo(() => {
       if (!connectionId) return false;
@@ -1332,100 +1333,109 @@ export const DataGrid = React.memo(
       );
     }
 
+    const virtualItems = rowVirtualizer.getVirtualItems();
+    const virtualPaddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+    const virtualPaddingBottom =
+      virtualItems.length > 0
+        ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
+        : 0;
+    const totalColumnCount = tableColumns.length + 1;
+
     return (
       <>
         <div
           ref={parentRef}
           className="h-full overflow-auto border border-default rounded bg-elevated relative"
         >
-          <div
-            style={{
-              height: `${rowVirtualizer.getTotalSize()}px`,
-              position: "relative",
-            }}
-          >
-            <table
-              className="w-full text-left border-collapse absolute top-0 left-0"
-              style={{
-                transform: `translateY(${rowVirtualizer.getVirtualItems()[0]?.start ?? 0}px)`,
-              }}
+          <table className="w-full text-left border-collapse">
+            <thead
+              className={`bg-base z-10 shadow-sm ${stickyColumnHeaders ? "sticky top-0" : ""}`}
             >
-              <thead
-                className="bg-base sticky top-0 z-10 shadow-sm"
-                style={{
-                  transform: `translateY(${-1 * (rowVirtualizer.getVirtualItems()[0]?.start ?? 0)}px)`,
-                }}
-              >
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  <th
+                    onClick={handleSelectAll}
+                    className="px-2 py-2 text-xs font-semibold text-muted border-b border-r border-default bg-base sticky left-0 z-20 text-center select-none w-[50px] min-w-[50px] cursor-pointer hover:bg-elevated"
+                  >
+                    #
+                  </th>
+                  {headerGroup.headers.map((header) => (
                     <th
-                      onClick={handleSelectAll}
-                      className="px-2 py-2 text-xs font-semibold text-muted border-b border-r border-default bg-base sticky left-0 z-20 text-center select-none w-[50px] min-w-[50px] cursor-pointer hover:bg-elevated"
+                      key={header.id}
+                      className="px-4 py-2 text-xs font-semibold text-secondary tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap"
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setHeaderContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          colName: header.id,
+                        });
+                      }}
                     >
-                      #
+                      {flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
                     </th>
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="px-4 py-2 text-xs font-semibold text-secondary tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap"
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          setHeaderContextMenu({
-                            x: e.clientX,
-                            y: e.clientY,
-                            colName: header.id,
-                          });
-                        }}
-                      >
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                  const rowIndex = virtualRow.index;
-                  const row = tableRows[rowIndex];
-                  const rowOriginal = row.original as unknown[];
-                  const isSelected = selectedRowIndices.has(rowIndex);
-                  const mergedRow = mergedRows[rowIndex];
-                  const isInsertion = mergedRow?.type === "insertion";
-                  const pkVal =
-                    pkIndexMaps.length > 0 && pkColumns
-                      ? serializePkKey(buildPkMap(pkColumns, rowOriginal as unknown[], pkIndexMaps))
-                      : null;
-                  const isPendingDelete =
-                    !isInsertion && pkVal
-                      ? pendingDeletions?.[pkVal] !== undefined
-                      : false;
-                  const isRowEditing = editingCell?.rowIndex === rowIndex;
-                  const isRowFocused = focusedCell?.rowIndex === rowIndex;
-                  const isRowExpanded = expandedCell?.rowIndex === rowIndex;
-                  return (
-                    <MemoRow
-                      key={row.id}
-                      ctx={rowCtx}
-                      rowIndex={rowIndex}
-                      rowOriginal={rowOriginal}
-                      isSelected={isSelected}
-                      isInsertion={isInsertion}
-                      isPendingDelete={isPendingDelete}
-                      pkVal={pkVal}
-                      editingColIndex={isRowEditing ? editingCell!.colIndex : null}
-                      editingValue={isRowEditing ? editingCell!.value : undefined}
-                      focusedColIndex={isRowFocused ? focusedCell!.colIndex : null}
-                      expandedColIndex={isRowExpanded ? expandedCell!.colIndex : null}
-                      expandedKind={isRowExpanded ? expandedCell!.kind : null}
-                    />
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {virtualPaddingTop > 0 && (
+                <tr>
+                  <td
+                    colSpan={totalColumnCount}
+                    style={{ height: virtualPaddingTop, padding: 0, border: "none" }}
+                  />
+                </tr>
+              )}
+              {virtualItems.map((virtualRow) => {
+                const rowIndex = virtualRow.index;
+                const row = tableRows[rowIndex];
+                const rowOriginal = row.original as unknown[];
+                const isSelected = selectedRowIndices.has(rowIndex);
+                const mergedRow = mergedRows[rowIndex];
+                const isInsertion = mergedRow?.type === "insertion";
+                const pkVal =
+                  pkIndexMaps.length > 0 && pkColumns
+                    ? serializePkKey(buildPkMap(pkColumns, rowOriginal as unknown[], pkIndexMaps))
+                    : null;
+                const isPendingDelete =
+                  !isInsertion && pkVal
+                    ? pendingDeletions?.[pkVal] !== undefined
+                    : false;
+                const isRowEditing = editingCell?.rowIndex === rowIndex;
+                const isRowFocused = focusedCell?.rowIndex === rowIndex;
+                const isRowExpanded = expandedCell?.rowIndex === rowIndex;
+                return (
+                  <MemoRow
+                    key={row.id}
+                    ctx={rowCtx}
+                    rowIndex={rowIndex}
+                    rowOriginal={rowOriginal}
+                    isSelected={isSelected}
+                    isInsertion={isInsertion}
+                    isPendingDelete={isPendingDelete}
+                    pkVal={pkVal}
+                    editingColIndex={isRowEditing ? editingCell!.colIndex : null}
+                    editingValue={isRowEditing ? editingCell!.value : undefined}
+                    focusedColIndex={isRowFocused ? focusedCell!.colIndex : null}
+                    expandedColIndex={isRowExpanded ? expandedCell!.colIndex : null}
+                    expandedKind={isRowExpanded ? expandedCell!.kind : null}
+                  />
+                );
+              })}
+              {virtualPaddingBottom > 0 && (
+                <tr>
+                  <td
+                    colSpan={totalColumnCount}
+                    style={{ height: virtualPaddingBottom, padding: 0, border: "none" }}
+                  />
+                </tr>
+              )}
+            </tbody>
+          </table>
 
           {contextMenu &&
             (() => {
