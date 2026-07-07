@@ -208,6 +208,31 @@ fn is_empty_or_whitespace(s: &Option<String>) -> bool {
     s.as_ref().map(|p| p.trim().is_empty()).unwrap_or(true)
 }
 
+/// Reject a connection attempt under AWS IAM auth when neither the raw form
+/// payload nor the expanded params (after SSH/K8s expansion) carry an RDS
+/// auth token. Both `test_connection` and `list_databases` run this guard
+/// before any pool / driver work so the user gets an actionable message
+/// instead of the opaque "Access denied" the server returns on an empty
+/// password.
+fn require_iam_token(
+    iam_auth: bool,
+    request_password: Option<&str>,
+    expanded_password: Option<&str>,
+) -> Result<(), String> {
+    if iam_auth
+        && request_password.unwrap_or("").is_empty()
+        && expanded_password.unwrap_or("").is_empty()
+    {
+        return Err(
+            "AWS IAM authentication is enabled but the password field is empty. \
+             Paste the output of `aws rds generate-db-auth-token` into the \
+             password field and try again. Tokens expire every 15 minutes."
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 /// Build the SSH tunnel map key for caching tunnels.
 #[inline]
 fn build_tunnel_map_key(
@@ -1736,21 +1761,14 @@ pub async fn test_connection<R: Runtime>(
     let iam_auth = expanded_params.use_iam_auth.unwrap_or(false);
 
     // IAM auth needs an RDS auth token right now. Without this guard the
-    // builder accepts an empty password (saved connections inject later),
-    // the server replies with the opaque "Access denied (using password:
-    // YES)", and the user can't tell whether the token is missing, wrong,
-    // or expired.
-    if iam_auth
-        && request.params.password.as_deref().unwrap_or("").is_empty()
-        && expanded_params.password.as_deref().unwrap_or("").is_empty()
-    {
-        return Err(
-            "AWS IAM authentication is enabled but the password field is empty. \
-             Paste the output of `aws rds generate-db-auth-token` into the \
-             password field and try again. Tokens expire every 15 minutes."
-                .to_string(),
-        );
-    }
+    // builder accepts an empty password, the server replies with the opaque
+    // "Access denied (using password: YES)", and the user can't tell whether
+    // the token is missing, wrong, or expired.
+    require_iam_token(
+        iam_auth,
+        request.params.password.as_deref(),
+        expanded_params.password.as_deref(),
+    )?;
 
     if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
         let saved_conn = match &request.connection_id {
@@ -2633,17 +2651,11 @@ pub async fn list_databases<R: Runtime>(
     // IAM auth needs an RDS auth token right now; skip the keychain fallback
     // so a stale token can't be reused, and fail fast with an actionable
     // message if none was supplied.
-    if iam_auth
-        && request.params.password.as_deref().unwrap_or("").is_empty()
-        && expanded_params.password.as_deref().unwrap_or("").is_empty()
-    {
-        return Err(
-            "AWS IAM authentication is enabled but the password field is empty. \
-             Paste the output of `aws rds generate-db-auth-token` into the \
-             password field and try again. Tokens expire every 15 minutes."
-                .to_string(),
-        );
-    }
+    require_iam_token(
+        iam_auth,
+        request.params.password.as_deref(),
+        expanded_params.password.as_deref(),
+    )?;
 
     if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
         let saved_conn = match &request.connection_id {
