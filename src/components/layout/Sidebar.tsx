@@ -23,6 +23,7 @@ import { SchemaModal } from "../modals/SchemaModal";
 // Hooks & Utils
 import { useSidebarResize } from "../../hooks/useSidebarResize";
 import { useConnectionManager } from "../../hooks/useConnectionManager";
+import { useOpenConnectionInNewWindow } from "../../hooks/useOpenConnectionInNewWindow";
 import { useConnectionLayoutContext } from "../../hooks/useConnectionLayoutContext";
 import { isConnectionGrouped } from "../../utils/connectionLayout";
 import { useDrivers } from "../../hooks/useDrivers";
@@ -205,6 +206,16 @@ export const Sidebar = () => {
     navigate("/editor");
   };
 
+  const openConnectionInNewWindow = useOpenConnectionInNewWindow();
+
+  const handleOpenInNewWindow = (connectionId: string) => {
+    const conn = connections.find(c => c.id === connectionId);
+    // Rail connections are already open (known-good), so this won't re-validate.
+    void openConnectionInNewWindow(connectionId, conn?.name ?? null).catch((e) => {
+      console.error(`[Sidebar] Failed to open connection in new window:`, e);
+    });
+  };
+
   const explorerConnId = (splitView && isSplitVisible) ? explorerConnectionId : activeConnectionId;
   const shouldShowExplorer =
     !!explorerConnId &&
@@ -259,6 +270,7 @@ export const Sidebar = () => {
                   isSelected={selectedConnectionIds.has(conn.id)}
                   onSwitch={() => handleSwitchOrSetExplorer(conn.id)}
                   onOpenInEditor={() => handleOpenInEditor(conn.id)}
+                  onOpenInNewWindow={() => handleOpenInNewWindow(conn.id)}
                   onDisconnect={() => handleDisconnectConnection(conn.id)}
                   onToggleSelect={(isCtrlHeld) => toggleSelection(conn.id, isCtrlHeld)}
                   selectedConnectionIds={selectedConnectionIds}

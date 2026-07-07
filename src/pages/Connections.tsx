@@ -20,6 +20,7 @@ import {
   Folder,
   Download,
   Upload,
+  AppWindow,
 } from "lucide-react";
 import { useDatabase } from "../hooks/useDatabase";
 import { useDrivers } from "../hooks/useDrivers";
@@ -27,8 +28,8 @@ import { useSettings } from "../hooks/useSettings";
 import clsx from "clsx";
 import { ContextMenu } from "../components/ui/ContextMenu";
 import type { SavedConnection } from "../contexts/DatabaseContext";
-import { hasConnectionMenuItems } from "../utils/connections";
 import { toErrorMessage } from "../utils/errors";
+import { useOpenConnectionInNewWindow } from "../hooks/useOpenConnectionInNewWindow";
 import { GroupHeader } from "../components/connections/GroupHeader";
 import { ConnectionCard } from "../components/connections/ConnectionCard";
 import { ConnectionListItem } from "../components/connections/ConnectionListItem";
@@ -44,6 +45,7 @@ export const Connections = () => {
     connect,
     disconnect,
     isConnectionOpen,
+    isConnectionOpenAnywhere,
     switchConnection,
     connectionGroups,
     createGroupPath,
@@ -57,6 +59,7 @@ export const Connections = () => {
     connections: contextConnections,
   } = useDatabase();
   const { drivers, allDrivers } = useDrivers();
+  const openConnectionInNewWindow = useOpenConnectionInNewWindow();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingConnection, setEditingConnection] =
     useState<SavedConnection | null>(null);
@@ -379,10 +382,30 @@ export const Connections = () => {
       navigate("/editor");
       return;
     }
+    // Open in another window: focus that window instead of opening a duplicate.
+    if (isConnectionOpenAnywhere(conn.id)) {
+      await openConnectionInNewWindow(conn.id, conn.name);
+      return;
+    }
     setConnectingId(conn.id);
     try {
       await connect(conn.id);
       navigate("/editor");
+    } catch (e) {
+      setError(
+        `${t("connections.failConnect", { name: conn.name })}\n\nError: ${toErrorMessage(e)}`,
+      );
+    } finally {
+      setConnectingId(null);
+    }
+  };
+
+  const handleOpenInNewWindow = async (conn: SavedConnection) => {
+    setError(null);
+    setConnectingId(conn.id);
+    try {
+      // Validates connectivity before the window is spawned; only opens on success.
+      await openConnectionInNewWindow(conn.id, conn.name);
     } catch (e) {
       setError(
         `${t("connections.failConnect", { name: conn.name })}\n\nError: ${toErrorMessage(e)}`,
@@ -408,7 +431,7 @@ export const Connections = () => {
       onConfirm: async () => {
         setConfirmModal(null);
         try {
-          if (isConnectionOpen(id)) await disconnect(id);
+          if (isConnectionOpenAnywhere(id)) await disconnect(id);
           await invoke("delete_connection", { id });
           void loadConnections();
         } catch (e) {
@@ -419,7 +442,7 @@ export const Connections = () => {
   };
 
   const openEdit = async (conn: SavedConnection) => {
-    if (isConnectionOpen(conn.id)) {
+    if (isConnectionOpenAnywhere(conn.id)) {
       await disconnect(conn.id);
     }
     setEditingConnection(conn);
@@ -465,7 +488,10 @@ export const Connections = () => {
     );
   }, [ungroupedConnections, search]);
 
-  const openCount = connections.filter((c) => isConnectionOpen(c.id)).length;
+  const openCount = connections.filter((c) => isConnectionOpenAnywhere(c.id)).length;
+  // Connections open in THIS window — gates the "Open in New Window" action,
+  // which detaches an open connection from the current window.
+  const hasLocalOpenConnections = connections.some((c) => isConnectionOpen(c.id));
 
   // ── Shared helpers for connection card/item rendering ────────────────────────
   const handleConnContextMenu = (
@@ -473,7 +499,6 @@ export const Connections = () => {
     conn: SavedConnection,
   ) => {
     e.preventDefault();
-    if (!hasConnectionMenuItems(sortedGroups, conn.group_id)) return;
     setConnectionContextMenu({ x: e.clientX, y: e.clientY, connId: conn.id });
   };
 
@@ -1148,6 +1173,15 @@ export const Connections = () => {
               x={connectionContextMenu.x}
               y={connectionContextMenu.y}
               items={[
+                {
+                  label: t("sidebar.openInNewWindow"),
+                  icon: AppWindow,
+                  disabled: !hasLocalOpenConnections,
+                  action: () => {
+                    if (conn) void handleOpenInNewWindow(conn);
+                  },
+                },
+                { separator: true as const },
                 ...availableGroups.map((group) => ({
                   label: group.name,
                   icon: Folder,

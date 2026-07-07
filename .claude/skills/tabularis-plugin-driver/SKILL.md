@@ -168,6 +168,27 @@ Prioritize these methods:
 
 If a method is not safe to emulate, fail explicitly instead of faking success.
 
+#### Optional routine-management methods
+
+When the manifest declares `"routine_management": true`, the host shows
+run / create / edit / drop actions for routines. The backing RPC methods are
+**optional**: if the plugin does not implement one, the host answers the
+JSON-RPC "method not found" error (-32601) with a dialect-neutral fallback
+(`CALL name(args)` / `SELECT name(args)`, generic `DROP`, the raw definition
+as edit script). Implement only what the dialect needs:
+
+- `build_routine_call_sql({ params, routine_name, routine_type, args, schema }) -> string` —
+  `args` is an ordered list of `{ name, mode, value: string|null, is_raw: bool }`;
+  return an executable invocation script (it is opened in the editor, so
+  multi-statement scripts are fine — e.g. MySQL's `SET @out` / `CALL` / `SELECT @out`).
+- `routine_create_template({ routine_type, schema }) -> string` — starter
+  script for a new PROCEDURE/FUNCTION in the plugin's dialect.
+- `get_routine_edit_script({ params, routine_name, routine_type, schema }) -> string` —
+  re-runnable script to alter the routine (e.g. `DROP` + `CREATE`, or
+  `CREATE OR REPLACE`).
+- `drop_routine({ params, routine_name, routine_type, schema }) -> null` —
+  drop the routine; resolve overloads yourself if the dialect has them.
+
 ### 5. Add settings only when they solve a real problem
 
 Typical useful settings:

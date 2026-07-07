@@ -76,6 +76,8 @@
     "expandTable": "Développer la table {{name}}",
     "collapseTable": "Réduire la table {{name}}",
     "columns": "colonnes",
+    "parameters": "paramètres",
+    "noParameters": "Aucun paramètre",
     "keys": "clés",
     "foreignKeys": "clés étrangères",
     "indexes": "index",
@@ -86,6 +88,7 @@
     "modifyColumn": "Modifier la colonne",
     "copyName": "Copier le nom",
     "openInEditor": "Ouvrir dans l’éditeur",
+    "openInNewWindow": "Ouvrir dans une nouvelle fenêtre",
     "closePanel": "Fermer le panneau",
     "setAsActive": "Définir comme actif",
     "deleteTable": "Supprimer la table",
@@ -572,6 +575,7 @@
       "tabSwitcher": "Changer d’onglet",
       "copySelection": "Copier la sélection",
       "toggleSidebar": "Afficher/masquer la barre latérale",
+      "focusTableFilter": "Focaliser le filtre de tables",
       "openConnections": "Ouvrir les connexions",
       "newConnection": "Nouvelle connexion",
       "newTab": "Nouvel onglet",
@@ -855,6 +859,7 @@
     "page": "Page {{current}}",
     "jumpToPage": "Cliquer pour aller à la page",
     "loadRowCount": "Charger le nombre de lignes",
+    "rowCount": "{{total}} lignes",
     "executePrompt": "Exécutez une requête pour voir les résultats",
     "results": {
       "minimize": "Réduire",
@@ -1613,5 +1618,28 @@
       "resourceNameRequired": "Le nom de la ressource est requis",
       "portInvalid": "Le port doit être compris entre 1 et 65535"
     }
+  },
+  "routines": {
+    "menuRun": "Exécuter…",
+    "menuEdit": "Modifier",
+    "menuDrop": "Supprimer",
+    "newRoutine": "Nouvelle routine",
+    "newProcedure": "Nouvelle procédure",
+    "newFunction": "Nouvelle fonction",
+    "templateError": "Impossible de charger le modèle de routine : ",
+    "dropConfirmTitle": "Supprimer la routine",
+    "dropConfirmMessage": "Supprimer la routine \"{{name}}\" ? Cette action est irréversible.",
+    "dropSuccess": "Routine {{name}} supprimée",
+    "dropError": "Impossible de supprimer la routine : ",
+    "runTitle": "Exécuter {{name}}",
+    "runSubtitle": "Saisissez les valeurs des paramètres, puis vérifiez le SQL généré dans l'éditeur",
+    "loadingParameters": "Chargement des paramètres…",
+    "noParameters": "Cette routine n'a aucun paramètre. Le script d'invocation s'ouvrira dans l'éditeur.",
+    "outputParameter": "Paramètre de sortie — renvoyé comme résultat",
+    "rawLabel": "Brut",
+    "rawHint": "Insère la valeur telle quelle, sans guillemets de chaîne (nombres, expressions)",
+    "runButton": "Exécuter",
+    "runTabPrefix": "Exécuter",
+    "returnValue": "retourne"
   }
 }

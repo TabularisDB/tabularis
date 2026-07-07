@@ -441,6 +441,9 @@ export const Editor = () => {
 
   const tabsRef = useRef<Tab[]>([]);
   const activeTabIdRef = useRef<string | null>(null);
+  // Last executed SQL per tab — used to preserve the loaded row count across
+  // pagination of the SAME query while resetting it when the query changes.
+  const lastRunQueryRef = useRef<Record<string, string>>({});
   // Stable refs for functions used inside Monaco actions (which capture closures at mount time)
   const runQueryRef = useRef<typeof runQuery>(null!);
   const runMultipleQueriesRef = useRef<typeof runMultipleQueries>(null!);
@@ -779,10 +782,13 @@ export const Editor = () => {
           }
         }
 
+        const isSameQuery = lastRunQueryRef.current[targetTabId] === textToRun;
+        lastRunQueryRef.current[targetTabId] = textToRun;
         const resultWithCount =
           res.pagination &&
           res.pagination.total_rows === null &&
-          previousTotalRows !== null
+          previousTotalRows !== null &&
+          isSameQuery
             ? {
                 ...res,
                 pagination: {
@@ -1032,6 +1038,23 @@ export const Editor = () => {
     [activeConnectionId, updateTab, patchResultEntry, settings.resultPageSize, activeSchema, t, isMultiDb, activeDatabaseName, addHistoryEntry],
   );
 
+  // Auto-run entry point for navigation-initiated executions (sidebar "open
+  // and run" flows). Multi-statement scripts — e.g. a routine invocation with
+  // OUT session variables (SET / CALL / SELECT) — must go through the batch
+  // path so every statement shares one connection and session state survives;
+  // a single statement keeps the plain runQuery path.
+  const runAutoQuery = useCallback(
+    (sql: string, page: number, tabId: string) => {
+      const statements = splitQueries(sql, activeDialect);
+      if (statements.length > 1) {
+        runMultipleQueries(statements);
+      } else {
+        runQuery(sql, page, tabId);
+      }
+    },
+    [activeDialect, runMultipleQueries, runQuery],
+  );
+
   const runResultEntryPage = useCallback(
     async (entryId: string, pageNum: number, tabIdArg?: string) => {
       const targetTabId = tabIdArg ?? activeTabIdRef.current;
@@ -1115,6 +1138,20 @@ export const Editor = () => {
         ? tabsRef.current.find((t) => t.id === tabIdArg)
         : activeTab;
       if (!tab?.result?.pagination || !activeConnectionId) return;
+      // Count the reconstructed filtered query, not tab.query (which omits the
+      // filter box's WHERE); LIMIT is dropped so it can't cap the count.
+      const countTarget =
+        tab.type === "table" && tab.activeTable
+          ? reconstructTableQuery(
+              {
+                ...tab,
+                schema:
+                  activeCapabilities?.schemas === true ? tab.schema : undefined,
+              },
+              activeDriver ?? undefined,
+              { sortOverride: null, limitOverride: null },
+            )
+          : tab.query;
       // setIsCountLoading drives the spinner in the main window only; skip it for
       // a count triggered from a detached window (its own window owns its spinner).
       const isDetached = detachedTabIdsRef.current.has(tab.id);
@@ -1122,7 +1159,7 @@ export const Editor = () => {
       try {
         const total = await invoke<number>("count_query", {
           connectionId: activeConnectionId,
-          query: tab.query,
+          query: countTarget,
           schema: tab.schema ?? activeSchema,
         });
         const latest = tabsRef.current.find((t) => t.id === tab.id) ?? tab;
@@ -1137,7 +1174,14 @@ export const Editor = () => {
         if (!isDetached) setIsCountLoading(false);
       }
     },
-    [activeTab, activeConnectionId, activeSchema, updateTab],
+    [
+      activeTab,
+      activeConnectionId,
+      activeSchema,
+      activeDriver,
+      activeCapabilities?.schemas,
+      updateTab,
+    ],
   );
 
   // --- Detached results windows (one per detached tab) ---
@@ -2539,7 +2583,7 @@ export const Editor = () => {
           // Try immediate execution if tab exists (reused)
           const existingTab = tabsRef.current.find((t) => t.id === tabId);
           if (existingTab) {
-            runQuery(sql, 1, tabId);
+            runAutoQuery(sql || "", 1, tabId);
             delete pendingExecutionsRef.current[tabId];
           }
         }
@@ -2557,7 +2601,7 @@ export const Editor = () => {
     addTab,
     updateTab,
     navigate,
-    runQuery,
+    runAutoQuery,
     t,
   ]);
 
@@ -2567,11 +2611,11 @@ export const Editor = () => {
       const tab = tabs.find((t) => t.id === tabId);
       if (tab) {
         const { sql, page } = pendingExecutionsRef.current[tabId];
-        runQuery(sql, page, tabId);
+        runAutoQuery(sql, page, tabId);
         delete pendingExecutionsRef.current[tabId];
       }
     });
-  }, [tabs, runQuery]);
+  }, [tabs, runAutoQuery]);
 
   const startResize = () => {
     isDragging.current = true;
@@ -3567,8 +3611,7 @@ export const Editor = () => {
                           )}
                         </div>
 
-                        {/* Count load button or spinner */}
-                        {activeTab.result.pagination.total_rows === null && (
+                        {activeTab.result.pagination.total_rows === null ? (
                           <button
                             disabled={isCountLoading || activeTab.isLoading}
                             onClick={() => loadCount()}
@@ -3581,6 +3624,13 @@ export const Editor = () => {
                               <Hash size={14} />
                             )}
                           </button>
+                        ) : (
+                          <span className="px-2 py-1 text-secondary text-xs font-medium border-l border-strong whitespace-nowrap">
+                            {t("editor.rowCount", {
+                              total:
+                                activeTab.result.pagination.total_rows.toLocaleString(),
+                            })}
+                          </span>
                         )}
 
                         <button

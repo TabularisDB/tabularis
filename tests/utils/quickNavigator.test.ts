@@ -135,5 +135,11 @@ describe("quickNavigator utility", () => {
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("user_sessions");
     });
+
+    it("should tolerate typos", () => {
+      const result = filterNavigatorItems(mockItems, "sesion").map((i) => i.name);
+      expect(result).toContain("user_sessions");
+      expect(result).toContain("active_sessions");
+    });
   });
 });
