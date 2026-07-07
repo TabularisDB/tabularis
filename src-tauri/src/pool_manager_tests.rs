@@ -486,6 +486,15 @@ mod tests {
         params.password = Some("fake-rds-auth-token".to_string());
         let opts = build_mysql_options(&params, None).expect("must build");
         assert!(matches!(opts.get_ssl_mode(), MySqlSslMode::VerifyCa));
+        // sqlx 0.8.6 has no public getter for `enable_cleartext_plugin`, so
+        // assert on the `Debug` output as a regression sentinel: a refactor
+        // that drops the cleartext opt-in during SSL escalation must fail
+        // this test.
+        let debug = format!("{:?}", opts);
+        assert!(
+            debug.contains("enable_cleartext_plugin: true"),
+            "expected cleartext plugin to remain enabled after SSL escalation; got: {debug}"
+        );
     }
 }
 
