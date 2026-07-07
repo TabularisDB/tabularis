@@ -31,4 +31,20 @@ describe("parseChangelog", () => {
       bugFixes: ["Correct release packaging"],
     });
   });
+
+  it("keeps inline markdown (links, code, bold) in the parsed lines", () => {
+    const entries = parseChangelog(
+      `# [0.10.0](https://example.com/compare/v0.9.21...v0.10.0) (2026-04-27)
+
+### Features
+
+* **editor:** support \`EXPLAIN\` and link to [the docs](https://example.com/docs) ([abc1234](https://example.com/commit/abc1234))
+`,
+      {},
+    );
+
+    expect(entries[0].features).toEqual([
+      "Support `EXPLAIN` and link to [the docs](https://example.com/docs)",
+    ]);
+  });
 });
