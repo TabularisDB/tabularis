@@ -333,17 +333,22 @@ mod tests {
     }
 
     #[test]
-    fn mysql_options_iam_auth_allows_empty_password_when_connection_id_set() {
-        // Saved connections get the password injected from the keychain after
-        // the builder returns, so an empty password here is fine.
+    fn mysql_options_iam_auth_rejects_empty_password_even_with_connection_id() {
+        // The empty-token guard fires regardless of `connection_id`: the
+        // keychain is deliberately skipped for IAM connections, so a saved
+        // connection with an empty password is a real "Access denied" trap
+        // rather than a placeholder waiting to be filled in.
         let mut params = mysql_params("required");
         params.use_iam_auth = Some(true);
         params.password = Some(String::new());
         params.connection_id = Some("conn-1".to_string());
 
-        let opts = build_mysql_options(&params, None)
-            .expect("must build when connection_id is set");
-        assert!(matches!(opts.get_ssl_mode(), MySqlSslMode::Required));
+        let err = build_mysql_options(&params, None)
+            .expect_err("must reject empty password for IAM regardless of connection_id");
+        assert!(
+            err.contains("AWS IAM authentication is enabled but the password field is empty"),
+            "expected empty-password error, got: {err}"
+        );
     }
 
     #[test]

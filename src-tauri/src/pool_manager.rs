@@ -210,9 +210,12 @@ pub(crate) fn build_mysql_options(
                     .to_string(),
             );
         }
-        // Saved connections get the token injected from the keychain after
-        // this builder returns, so an empty password is fine for them.
-        if password.is_empty() && params.connection_id.is_none() {
+        // Empty token is rejected unconditionally: `find_connection_by_id` and
+        // `duplicate_connection` deliberately skip the keychain for IAM
+        // connections (tokens are 15-minute pre-signed RDS auth tokens that
+        // must come from the form on every connect), so there is no path that
+        // injects the password after this builder returns.
+        if password.is_empty() {
             return Err(
                 "AWS IAM authentication is enabled but the password field is \
                  empty. Paste the output of `aws rds generate-db-auth-token` \
@@ -243,8 +246,7 @@ pub(crate) fn build_mysql_options(
 
     // Skip `.password(...)` when the password is empty: an empty string is
     // stamped by sqlx as "user pressed Enter", which the server rejects with
-    // "Access denied (using password: YES)". Saved IAM-auth connections get
-    // the token injected from the keychain after this builder returns.
+    // "Access denied (using password: YES)".
     if !password.is_empty() {
         options = options.password(password);
     }
