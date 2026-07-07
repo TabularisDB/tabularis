@@ -712,3 +712,47 @@ fn test_parse_unsafe_bigint_string_ignores_non_integer_strings() {
     // driver-level cast still handles them via implicit conversion.
     assert_eq!(parse_unsafe_bigint_string("18446744073709551615"), None);
 }
+
+mod routine_builders {
+    use super::super::routines::{
+        generic_drop_routine_sql, generic_routine_call_sql, quote_qualified, render_sql_literal,
+    };
+    use crate::models::RoutineCallArg;
+
+    fn arg(value: Option<&str>, is_raw: bool) -> RoutineCallArg {
+        RoutineCallArg {
+            name: "p".to_string(),
+            mode: "IN".to_string(),
+            value: value.map(|v| v.to_string()),
+            is_raw,
+        }
+    }
+
+    #[test]
+    fn literal_null_raw_and_quoted() {
+        assert_eq!(render_sql_literal(&arg(None, false)), "NULL");
+        assert_eq!(render_sql_literal(&arg(Some("42"), true)), "42");
+        assert_eq!(render_sql_literal(&arg(Some("a'b"), false)), "'a''b'");
+    }
+
+    #[test]
+    fn quote_qualified_handles_schema_and_embedded_quotes() {
+        assert_eq!(quote_qualified("fn", None, "\""), "\"fn\"");
+        assert_eq!(quote_qualified("fn", Some("s"), "\""), "\"s\".\"fn\"");
+        assert_eq!(quote_qualified("a\"b", None, "\""), "\"a\"\"b\"");
+        assert_eq!(quote_qualified("fn", Some(""), "\""), "\"fn\"");
+        assert_eq!(quote_qualified("fn", None, ""), "fn");
+    }
+
+    #[test]
+    fn generic_call_and_drop() {
+        let sql = generic_routine_call_sql("p", "PROCEDURE", &[arg(Some("x"), false)], None, "\"");
+        assert_eq!(sql, "CALL \"p\"('x');");
+        let sql = generic_routine_call_sql("f", "function", &[], Some("s"), "\"");
+        assert_eq!(sql, "SELECT \"s\".\"f\"() AS result;");
+        assert_eq!(
+            generic_drop_routine_sql("f", "FUNCTION", Some("s"), "\""),
+            "DROP FUNCTION \"s\".\"f\""
+        );
+    }
+}

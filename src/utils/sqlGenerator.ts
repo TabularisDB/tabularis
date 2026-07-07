@@ -157,20 +157,62 @@ export function generateIndexStatements(
   quote: string
 ): string[] {
   const statements: string[] = [];
+  const groupedIndexes = new Map<string, {
+    name: string;
+    is_unique: boolean;
+    is_primary: boolean;
+    columns: Array<{ name: string; seq_in_index?: number; position: number }>;
+  }>();
+
+  indexes.forEach((idx, position) => {
+    const existing = groupedIndexes.get(idx.name);
+    if (existing) {
+      existing.columns.push({
+        name: idx.column_name,
+        seq_in_index: idx.seq_in_index,
+        position,
+      });
+      return;
+    }
+
+    groupedIndexes.set(idx.name, {
+      name: idx.name,
+      is_unique: idx.is_unique,
+      is_primary: idx.is_primary,
+      columns: [{
+        name: idx.column_name,
+        seq_in_index: idx.seq_in_index,
+        position,
+      }],
+    });
+  });
+
+  const renderColumns = (columns: Array<{ name: string; seq_in_index?: number; position: number }>) =>
+    [...columns]
+      .sort((a, b) => {
+        const aSeq = a.seq_in_index ?? Number.MAX_SAFE_INTEGER;
+        const bSeq = b.seq_in_index ?? Number.MAX_SAFE_INTEGER;
+        if (aSeq !== bSeq) return aSeq - bSeq;
+        return a.position - b.position;
+      })
+      .map(col => `${quote}${col.name}${quote}`)
+      .join(', ');
+
+  const indexGroups = [...groupedIndexes.values()];
 
   // Unique indexes (excluding primary keys)
-  const uniqueIndexes = indexes.filter(idx => idx.is_unique && !idx.is_primary);
+  const uniqueIndexes = indexGroups.filter(idx => idx.is_unique && !idx.is_primary);
   uniqueIndexes.forEach(idx => {
     statements.push(
-      `CREATE UNIQUE INDEX ${quote}${idx.name}${quote} ON ${quote}${tableName}${quote} (${quote}${idx.column_name}${quote});`
+      `CREATE UNIQUE INDEX ${quote}${idx.name}${quote} ON ${quote}${tableName}${quote} (${renderColumns(idx.columns)});`
     );
   });
 
   // Non-unique indexes (excluding primary keys)
-  const nonUniqueIndexes = indexes.filter(idx => !idx.is_unique && !idx.is_primary);
+  const nonUniqueIndexes = indexGroups.filter(idx => !idx.is_unique && !idx.is_primary);
   nonUniqueIndexes.forEach(idx => {
     statements.push(
-      `CREATE INDEX ${quote}${idx.name}${quote} ON ${quote}${tableName}${quote} (${quote}${idx.column_name}${quote});`
+      `CREATE INDEX ${quote}${idx.name}${quote} ON ${quote}${tableName}${quote} (${renderColumns(idx.columns)});`
     );
   });
 

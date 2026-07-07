@@ -255,6 +255,43 @@ describe('sqlGenerator utils', () => {
       expect(result[0]).toBe('CREATE INDEX `idx_name` ON `users` (`name`);');
     });
 
+    it('should generate a single statement for composite indexes', () => {
+      const indexes: Index[] = [
+        { name: 'idx_orders_lookup', column_name: 'customer_id', is_unique: false, is_primary: false, seq_in_index: 1 },
+        { name: 'idx_orders_lookup', column_name: 'status', is_unique: false, is_primary: false, seq_in_index: 2 },
+        { name: 'idx_orders_lookup', column_name: 'created_at', is_unique: false, is_primary: false, seq_in_index: 3 },
+        { name: 'idx_orders_lookup', column_name: 'id', is_unique: false, is_primary: false, seq_in_index: 4 },
+      ];
+      const result = generateIndexStatements(indexes, 'orders', '`');
+      expect(result).toEqual([
+        'CREATE INDEX `idx_orders_lookup` ON `orders` (`customer_id`, `status`, `created_at`, `id`);',
+      ]);
+    });
+
+    it('should order composite index columns by sequence', () => {
+      const indexes: Index[] = [
+        { name: 'idx_orders_lookup', column_name: 'id', is_unique: false, is_primary: false, seq_in_index: 4 },
+        { name: 'idx_orders_lookup', column_name: 'customer_id', is_unique: false, is_primary: false, seq_in_index: 1 },
+        { name: 'idx_orders_lookup', column_name: 'created_at', is_unique: false, is_primary: false, seq_in_index: 3 },
+        { name: 'idx_orders_lookup', column_name: 'status', is_unique: false, is_primary: false, seq_in_index: 2 },
+      ];
+      const result = generateIndexStatements(indexes, 'orders', '`');
+      expect(result[0]).toBe(
+        'CREATE INDEX `idx_orders_lookup` ON `orders` (`customer_id`, `status`, `created_at`, `id`);',
+      );
+    });
+
+    it('should generate a single statement for composite unique indexes', () => {
+      const indexes: Index[] = [
+        { name: 'uk_user_email_scope', column_name: 'email', is_unique: true, is_primary: false, seq_in_index: 1 },
+        { name: 'uk_user_email_scope', column_name: 'account_id', is_unique: true, is_primary: false, seq_in_index: 2 },
+      ];
+      const result = generateIndexStatements(indexes, tableName, '`');
+      expect(result).toEqual([
+        'CREATE UNIQUE INDEX `uk_user_email_scope` ON `users` (`email`, `account_id`);',
+      ]);
+    });
+
     it('should generate multiple index statements', () => {
       const indexes: Index[] = [
         { name: 'uk_email', column_name: 'email', is_unique: true, is_primary: false },
@@ -321,6 +358,20 @@ describe('sqlGenerator utils', () => {
       ];
       const result = generateCreateTableSQL('users', columns, [], indexes, 'mysql');
       expect(result).toContain('CREATE INDEX `idx_name` ON `users` (`name`);');
+    });
+
+    it('should generate CREATE TABLE with composite indexes', () => {
+      const indexes: Index[] = [
+        { name: 'idx_orders_lookup', column_name: 'customer_id', is_unique: false, is_primary: false, seq_in_index: 1 },
+        { name: 'idx_orders_lookup', column_name: 'status', is_unique: false, is_primary: false, seq_in_index: 2 },
+        { name: 'idx_orders_lookup', column_name: 'created_at', is_unique: false, is_primary: false, seq_in_index: 3 },
+        { name: 'idx_orders_lookup', column_name: 'id', is_unique: false, is_primary: false, seq_in_index: 4 },
+      ];
+      const result = generateCreateTableSQL('orders', columns, [], indexes, 'mysql');
+      expect(result).toContain(
+        'CREATE INDEX `idx_orders_lookup` ON `orders` (`customer_id`, `status`, `created_at`, `id`);',
+      );
+      expect(result).not.toContain('CREATE INDEX `idx_orders_lookup` ON `orders` (`status`);');
     });
 
     it('should generate complete SQL for PostgreSQL', () => {

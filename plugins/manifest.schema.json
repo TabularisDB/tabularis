@@ -75,6 +75,11 @@
           "type": "boolean",
           "description": "true to enable stored procedures and functions in the database explorer."
         },
+        "routine_management": {
+          "type": "boolean",
+          "default": false,
+          "description": "true to enable routine management actions (run with parameters, create from template, edit, drop). The backing RPCs (build_routine_call_sql, routine_create_template, get_routine_edit_script, drop_routine) are optional: the host falls back to dialect-neutral SQL when the plugin does not implement them."
+        },
         "triggers": {
           "type": "boolean",
           "default": false,

@@ -21,6 +21,9 @@ pub mod config;
 pub mod connection_cache;
 #[cfg(test)]
 pub mod connection_cache_tests;
+pub mod connection_window;
+#[cfg(test)]
+pub mod connection_window_tests;
 pub mod credential_cache;
 pub mod dump_commands; // Added
 #[cfg(test)]
@@ -285,6 +288,7 @@ pub fn run() {
             commands::get_connection_by_id,
             commands::disconnect_connection,
             commands::register_active_connection,
+            commands::get_active_connections,
             commands::get_data_types,
             commands::map_inferred_column_types,
             // SSH Connections
@@ -343,6 +347,10 @@ pub fn run() {
             commands::alter_view,
             commands::drop_view,
             commands::get_view_columns,
+            commands::get_materialized_views,
+            commands::get_materialized_view_columns,
+            commands::get_materialized_view_definition,
+            commands::refresh_materialized_view,
             commands::set_window_title,
             commands::open_er_diagram_window,
             explain_import::load_explain_from_file,
@@ -414,6 +422,10 @@ pub fn run() {
             commands::get_routines,
             commands::get_routine_parameters,
             commands::get_routine_definition,
+            commands::build_routine_call_sql,
+            commands::get_routine_create_template,
+            commands::get_routine_edit_script,
+            commands::drop_routine,
             // Triggers
             commands::get_triggers,
             commands::get_trigger_definition,
@@ -486,6 +498,8 @@ pub fn run() {
             json_viewer::complete_json_viewer_session,
             results_window::open_results_window,
             results_window::close_results_window,
+            // Connection Window
+            connection_window::open_connection_window,
             // Task Manager
             task_manager::get_process_list,
             task_manager::get_system_stats,
