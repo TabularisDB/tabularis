@@ -1,3 +1,31 @@
+# [0.14.0](https://github.com/TabularisDB/tabularis/compare/v0.13.4...v0.14.0) (2026-07-07)
+
+
+### Bug Fixes
+
+* **mcp:** classify compound routines as ddl ([#385](https://github.com/TabularisDB/tabularis/issues/385)) ([11d4806](https://github.com/TabularisDB/tabularis/commit/11d48064fbdcbf3de8eb6dec0855c72da16e54d3))
+* **mysql:** remove duplicate test import and dead text-proto lookups ([c317f81](https://github.com/TabularisDB/tabularis/commit/c317f815dc172a1783e73d622eb67dfc1a1b7b7b))
+* **mysql:** route routine DDL through text protocol ([#348](https://github.com/TabularisDB/tabularis/issues/348)) ([04b22b0](https://github.com/TabularisDB/tabularis/commit/04b22b003233dcfffa737c487ef0f04e456ac622))
+* **mysql:** route view DDL through text protocol ([#390](https://github.com/TabularisDB/tabularis/issues/390)) ([99e3532](https://github.com/TabularisDB/tabularis/commit/99e35320207419d96705e2b0400102dbd0abfd6c))
+* **plugins:** keep ui_extensions driver filter when parsing plugin manifests ([#424](https://github.com/TabularisDB/tabularis/issues/424)) ([2d144d3](https://github.com/TabularisDB/tabularis/commit/2d144d334094e97c2e2d3e13d0a997dabda007c3))
+* **postgres:** bind temporal/uuid values via explicit wire types ([dc8ec17](https://github.com/TabularisDB/tabularis/commit/dc8ec17e8174871784327c9b58651420e7eed937)), closes [#392](https://github.com/TabularisDB/tabularis/issues/392)
+* **postgres:** cast view name through text before regclass for view definitions ([#400](https://github.com/TabularisDB/tabularis/issues/400)) ([f98b7a8](https://github.com/TabularisDB/tabularis/commit/f98b7a8e321011f5d4a440a137a8b3f71d991ae5))
+* preserve composite indexes in generated SQL ([#373](https://github.com/TabularisDB/tabularis/issues/373)) ([85f7c5b](https://github.com/TabularisDB/tabularis/commit/85f7c5b6e9d1d22507376ebb05f51b74fcd11dd3))
+* **sidebar:** prevent clear button (X) from overlapping scrollbar in table filter ([#403](https://github.com/TabularisDB/tabularis/issues/403)) ([d15d294](https://github.com/TabularisDB/tabularis/commit/d15d294a2117aad987ffd75859f02c5edeedf336))
+
+
+### Features
+
+* **connections:** open a connection in a dedicated window ([#409](https://github.com/TabularisDB/tabularis/issues/409)) ([1018b91](https://github.com/TabularisDB/tabularis/commit/1018b91b72b2c2177a60fe7071a00054e82410e3))
+* **editor:** show and correctly count the current query's total rows ([#410](https://github.com/TabularisDB/tabularis/issues/410)) ([ccb9652](https://github.com/TabularisDB/tabularis/commit/ccb965286c9c3ae70a2d5e4c34324f41bb9cc625))
+* **mysql:** support cleartext auth plugin for Warpgate bastions ([#336](https://github.com/TabularisDB/tabularis/issues/336)) ([#337](https://github.com/TabularisDB/tabularis/issues/337)) ([174091e](https://github.com/TabularisDB/tabularis/commit/174091eab4ae312b2f03b6cdda7ee74e87b8219c))
+* **navigator:** fuzzy search in the Quick Navigator ([#421](https://github.com/TabularisDB/tabularis/issues/421)) ([a1b3cfd](https://github.com/TabularisDB/tabularis/commit/a1b3cfdd5e9e88594eb94c935354d98558d7314b))
+* **routines:** stored routine management (run/create/edit/drop) with plugin support ([#416](https://github.com/TabularisDB/tabularis/issues/416)) ([cd7e774](https://github.com/TabularisDB/tabularis/commit/cd7e774a2e02e468e1d24b29ec31f083a99918a4))
+* **sidebar:** add keyboard shortcut to focus the table filter ([#412](https://github.com/TabularisDB/tabularis/issues/412)) ([feb3214](https://github.com/TabularisDB/tabularis/commit/feb32142be84cf8c9618247a8885c64b4a28963b))
+* **sidebar:** typo-tolerant fuzzy matching for the table/trigger filters ([#417](https://github.com/TabularisDB/tabularis/issues/417)) ([471b73e](https://github.com/TabularisDB/tabularis/commit/471b73e3f71e3129e1c80838520af820108209ad))
+* **views:** add PostgreSQL materialized views support ([#342](https://github.com/TabularisDB/tabularis/issues/342)) ([69a223c](https://github.com/TabularisDB/tabularis/commit/69a223c34a7444d05f1c7fd03b7fe1906de764de))
+* **whats-new:** render changelog items as markdown ([356586a](https://github.com/TabularisDB/tabularis/commit/356586a4d0fb6602236e2892f50966eb3a257b6e))
+
 ## [0.13.4](https://github.com/TabularisDB/tabularis/compare/v0.13.3...v0.13.4) (2026-06-30)
 
 
