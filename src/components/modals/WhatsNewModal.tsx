@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { SocialLinks } from "../SocialLinks";
+import Markdown from "react-markdown";
 import { type ChangelogEntry } from "../../utils/changelog";
 
 interface WhatsNewModalProps {
@@ -166,10 +167,46 @@ function ChangelogSection({
             key={i}
             className={`text-sm text-secondary pl-5 relative break-words before:content-[''] before:absolute before:left-1.5 before:top-2 before:w-1.5 before:h-1.5 before:rounded-full ${dotColor}`}
           >
-            {item}
+            <InlineMarkdown text={item} />
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+function InlineMarkdown({ text }: { text: string }) {
+  return (
+    <Markdown
+      components={{
+        // Keep list items on a single line: unwrap the paragraph react-markdown
+        // wraps inline content in.
+        p: ({ children }) => <>{children}</>,
+        // Open links via the OS opener instead of navigating the app window.
+        a: ({ href, children }) => (
+          <a
+            href={href}
+            onClick={(e) => {
+              e.preventDefault();
+              if (href) openUrl(href);
+            }}
+            className="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors cursor-pointer"
+          >
+            {children}
+          </a>
+        ),
+        code: ({ children }) => (
+          <code className="px-1 py-0.5 rounded bg-base text-primary font-mono text-xs">
+            {children}
+          </code>
+        ),
+        strong: ({ children }) => (
+          <strong className="font-semibold text-primary">{children}</strong>
+        ),
+        em: ({ children }) => <em className="italic">{children}</em>,
+      }}
+    >
+      {text}
+    </Markdown>
   );
 }

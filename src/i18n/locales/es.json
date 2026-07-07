@@ -877,6 +877,13 @@
     "saveThisQuery": "Guardar esta consulta",
     "noValidQueries": "No se encontraron consultas válidas",
     "queryFailed": "La consulta falló.",
+    "dangerousQueryTitle": "¿Ejecutar sin cláusula WHERE?",
+    "dangerousQueryMessage": "Esta sentencia afectará a todas las filas de la tabla porque no tiene una cláusula WHERE. Esta acción no se puede deshacer.",
+    "dangerousQueryConfirm": "Ejecutar de todos modos",
+    "dangerousQueryDropTitle": "¿Eliminar este objeto?",
+    "dangerousQueryDropMessage": "DROP elimina de forma permanente este objeto y todos sus datos. Esta acción no se puede deshacer.",
+    "dangerousQueryTruncateTitle": "¿Vaciar esta tabla?",
+    "dangerousQueryTruncateMessage": "TRUNCATE elimina todas las filas de la tabla. Esta acción no se puede deshacer.",
     "showErrorDetails": "Mostrar detalles",
     "hideErrorDetails": "Ocultar detalles",
     "errorBoundary": {

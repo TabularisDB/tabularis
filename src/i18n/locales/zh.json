@@ -847,6 +847,13 @@
     "saveThisQuery": "保存此查询",
     "noValidQueries": "未找到有效查询",
     "queryFailed": "查询失败。",
+    "dangerousQueryTitle": "不带 WHERE 子句执行？",
+    "dangerousQueryMessage": "此语句没有 WHERE 子句，将影响表中的所有行。此操作无法撤销。",
+    "dangerousQueryConfirm": "仍然执行",
+    "dangerousQueryDropTitle": "删除此对象？",
+    "dangerousQueryDropMessage": "DROP 会永久删除此对象及其所有数据。此操作无法撤销。",
+    "dangerousQueryTruncateTitle": "清空此表？",
+    "dangerousQueryTruncateMessage": "TRUNCATE 会删除表中的所有行。此操作无法撤销。",
     "showErrorDetails": "显示详情",
     "hideErrorDetails": "隐藏详情",
     "errorBoundary": {

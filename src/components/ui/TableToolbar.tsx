@@ -435,6 +435,9 @@ const TableToolbarInternal = ({
             <input
               ref={filterInputRef}
               type="text"
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="off"
               value={filterInput}
               onChange={handleWhereChange}
               onBlur={handleWhereBlur}
@@ -487,6 +490,9 @@ const TableToolbarInternal = ({
           <input
             ref={sortInputRef}
             type="text"
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
             value={sortInput}
             onChange={handleSortChange}
             onBlur={handleSortBlur}

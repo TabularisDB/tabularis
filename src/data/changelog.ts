@@ -52,4 +52,6 @@ export const versionLinks: Record<string, string> = {
     "https://tabularis.dev/blog/v0133-result-colors-gruvbox-themed-tabs-session-restore",
   "0.13.4":
     "https://tabularis.dev/blog/v0134-ssh-security-keys-detachable-results-smarter-editor",
+  "0.14.0":
+    "https://tabularis.dev/blog/v0140-stored-routines-connection-windows-destructive-query-guard",
 };
