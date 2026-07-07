@@ -183,9 +183,9 @@
     "id": "trigger_suggestions",
     "category": "editor",
     "defaultMac": "⌘+I",
-    "defaultWin": "Ctrl+Space",
+    "defaultWin": "Ctrl+I",
     "macMatch": { "metaKey": true, "key": "i" },
-    "winMatch": { "ctrlKey": true, "key": " " },
+    "winMatch": { "ctrlKey": true, "key": "i" },
     "i18nKey": "settings.shortcuts.triggerSuggestions",
     "overridable": true
   }
