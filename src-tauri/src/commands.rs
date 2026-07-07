@@ -565,6 +565,87 @@ pub async fn get_routine_definition<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn build_routine_call_sql<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    routine_name: String,
+    routine_type: String,
+    args: Vec<crate::models::RoutineCallArg>,
+    schema: Option<String>,
+) -> Result<String, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    drv.build_routine_call_sql(
+        &params,
+        &routine_name,
+        &routine_type,
+        &args,
+        schema.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn get_routine_create_template<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    routine_type: String,
+    schema: Option<String>,
+) -> Result<String, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    drv.routine_create_template(&routine_type, schema.as_deref())
+        .await
+}
+
+#[tauri::command]
+pub async fn get_routine_edit_script<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    routine_name: String,
+    routine_type: String,
+    schema: Option<String>,
+) -> Result<String, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    drv.get_routine_edit_script(&params, &routine_name, &routine_type, schema.as_deref())
+        .await
+}
+
+#[tauri::command]
+pub async fn drop_routine<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    routine_name: String,
+    routine_type: String,
+    schema: Option<String>,
+) -> Result<(), String> {
+    log::info!(
+        "Dropping routine: {} ({}) on connection: {}",
+        routine_name,
+        routine_type,
+        connection_id
+    );
+
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    drv.drop_routine(&params, &routine_name, &routine_type, schema.as_deref())
+        .await
+}
+
+#[tauri::command]
 pub async fn get_schema_snapshot<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
@@ -3979,8 +4060,17 @@ pub async fn drop_trigger<R: Runtime>(
 
 /// Register a connection as active for health-check pinging.
 #[tauri::command]
-pub async fn register_active_connection(connection_id: String) {
+pub async fn register_active_connection<R: Runtime>(app: AppHandle<R>, connection_id: String) {
     crate::health_check::register_connection(connection_id).await;
+    // Broadcast so every window learns this connection is now open.
+    crate::health_check::emit_active_changed(&app).await;
+}
+
+/// Snapshot of connection ids currently open in the shared backend (across all
+/// windows). Used by each window to render cross-window connection status.
+#[tauri::command]
+pub async fn get_active_connections() -> Vec<String> {
+    crate::health_check::active_connections().await
 }
 
 /// Disconnect from a database connection by closing its connection pool
@@ -4001,6 +4091,9 @@ pub async fn disconnect_connection<R: Runtime>(
 
     // Close the connection pool
     crate::pool_manager::close_pool_with_id(&params, Some(&connection_id)).await;
+
+    // Broadcast so every window learns this connection is now closed.
+    crate::health_check::emit_active_changed(&app).await;
 
     log::info!(
         "Successfully disconnected from connection: {}",

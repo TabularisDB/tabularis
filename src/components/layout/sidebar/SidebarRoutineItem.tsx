@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Code2,
+  Folder,
   Loader2,
   ChevronDown,
   ChevronRight,
@@ -80,7 +81,9 @@ export const SidebarRoutineItem = ({
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onContextMenu(e, "routine", routine.name, routine.name, routine);
+    // Forward the item's schema so menu actions (run / edit / drop) target
+    // the right namespace even outside the connection's active schema.
+    onContextMenu(e, "routine", routine.name, routine.name, { ...routine, schema });
   };
 
   return (
@@ -100,7 +103,7 @@ export const SidebarRoutineItem = ({
         <button className="p-0.5 rounded hover:bg-surface-secondary text-muted hover:text-primary transition-colors">
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
-        <Code2 size={14} className="text-muted group-hover:text-yellow-500" />
+        <Code2 size={14} className="text-muted group-hover:text-yellow-400" />
         <span className="truncate flex-1">{routine.name}</span>
       </div>
       {isExpanded && (
@@ -113,27 +116,51 @@ export const SidebarRoutineItem = ({
           ) : (
             <div className="flex flex-col">
               {parameters.length > 0 ? (
-                <div className="ml-2 border-l border-default/50">
-                  {parameters.map((param) => (
-                    <div
-                      key={`${param.name}-${param.ordinal_position}`}
-                      className="flex items-center gap-2 px-2 py-1 text-xs text-secondary hover:text-primary"
-                      title={`${param.mode} ${param.name} ${param.data_type}`}
-                    >
-                      <Variable size={10} className="text-blue-400" />
-                      <span className="text-muted text-[10px] uppercase font-mono w-8">
-                        {param.mode || (routine.routine_type === "FUNCTION" && !param.name ? "OUT" : "")}
-                      </span>
-                      <span className="truncate flex-1">{param.name}</span>
-                      <span className="text-muted text-[10px]">
-                        {param.data_type}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted select-none">
+                    <Folder size={12} className="text-blue-400/70" />
+                    <span>{t("sidebar.parameters")}</span>
+                    {/* mr-3.5 lines the count up with the group counts of
+                        Functions / Procedures (px-2 + mr-3.5 = same edge). */}
+                    <span className="ml-auto mr-3.5 text-[10px] opacity-50">
+                      {parameters.length}
+                    </span>
+                  </div>
+                  <div className="ml-4 border-l border-default/50">
+                    {parameters.map((param) => {
+                      const mode =
+                        param.mode ||
+                        (routine.routine_type === "FUNCTION" && !param.name
+                          ? "OUT"
+                          : "");
+                      return (
+                        <div
+                          key={`${param.name}-${param.ordinal_position}`}
+                          className="flex items-center gap-2 px-3 py-1 text-xs text-secondary hover:bg-surface-secondary hover:text-primary group font-mono"
+                          title={`${mode} ${param.name} ${param.data_type}`.trim()}
+                        >
+                          <Variable size={12} className="text-muted shrink-0" />
+                          <span className="truncate flex-1 min-w-0">
+                            {param.name || t("routines.returnValue")}
+                          </span>
+                          {mode && (
+                            <span className="text-[10px] text-muted opacity-60 shrink-0">
+                              {mode}
+                            </span>
+                          )}
+                          {/* px-3 (12px) + mr-2.5 (10px) ends at the same
+                              22px right edge as the group / parameter counts. */}
+                          <span className="text-muted text-[10px] ml-auto mr-2.5 shrink-0">
+                            {param.data_type}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               ) : (
                 <div className="p-2 text-xs text-muted italic ml-2">
-                  No parameters
+                  {t("sidebar.noParameters")}
                 </div>
               )}
             </div>

@@ -26,6 +26,14 @@ const PLUGIN_CALL_TIMEOUT: Duration = Duration::from_secs(120);
 /// plugin cannot stall MCP server startup indefinitely.
 const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
 
+/// Heuristic for the JSON-RPC "method not found" error (code -32601). Only
+/// the error *message* survives the response plumbing, so optional-method
+/// fallbacks match on the standard wording (and the code, for SDKs that
+/// embed it in the message).
+fn is_method_not_found(err: &str) -> bool {
+    err.to_lowercase().contains("method not found") || err.contains("-32601")
+}
+
 /// Message sent to the management task that owns the plugin child process.
 enum PluginCommand {
     /// Dispatch a JSON-RPC request and route the response back via the sender.
@@ -498,6 +506,126 @@ impl DatabaseDriver for RpcDriver {
     ) -> Result<String, String> {
         let res = self.process.call("get_routine_definition", json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
+    }
+
+    // --- Routine management ---------------------------------------------
+    //
+    // These RPC methods are OPTIONAL for plugins that declare the
+    // `routine_management` capability: when the plugin does not implement
+    // one, the host falls back to the same dialect-neutral SQL the trait
+    // defaults produce, so a plugin only overrides what its dialect needs.
+
+    async fn build_routine_call_sql(
+        &self,
+        params: &ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        args: &[crate::models::RoutineCallArg],
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        let res = self
+            .process
+            .call(
+                "build_routine_call_sql",
+                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "args": args, "schema": schema }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => {
+                Ok(crate::drivers::common::generic_routine_call_sql(
+                    routine_name,
+                    routine_type,
+                    args,
+                    schema,
+                    &self.manifest.capabilities.identifier_quote,
+                ))
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn routine_create_template(
+        &self,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        let res = self
+            .process
+            .call(
+                "routine_create_template",
+                json!({ "routine_type": routine_type, "schema": schema }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => {
+                let keyword = if routine_type.eq_ignore_ascii_case("FUNCTION") {
+                    "FUNCTION"
+                } else {
+                    "PROCEDURE"
+                };
+                Ok(format!(
+                    "CREATE {keyword} my_routine()\nBEGIN\n    -- routine body\nEND"
+                ))
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn get_routine_edit_script(
+        &self,
+        params: &ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        let res = self
+            .process
+            .call(
+                "get_routine_edit_script",
+                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => {
+                self.get_routine_definition(params, routine_name, routine_type, schema)
+                    .await
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn drop_routine(
+        &self,
+        params: &ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        let res = self
+            .process
+            .call(
+                "drop_routine",
+                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => {
+                let sql = crate::drivers::common::generic_drop_routine_sql(
+                    routine_name,
+                    routine_type,
+                    schema,
+                    &self.manifest.capabilities.identifier_quote,
+                );
+                self.execute_query(params, &sql, None, 1, schema)
+                    .await
+                    .map(|_| ())
+            }
+            Err(e) => Err(e),
+        }
     }
 
     async fn execute_query(

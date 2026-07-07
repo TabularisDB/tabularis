@@ -832,3 +832,62 @@ mod live_pg_temporal_and_uuid_regression {
         // clause uses the same uuid-cast binding path.
     }
 }
+
+mod routine_management {
+    use super::super::routines::{drop_routine_sql, routine_call_sql, routine_create_template};
+    use crate::models::RoutineCallArg;
+
+    fn arg(name: &str, mode: &str, value: Option<&str>, is_raw: bool) -> RoutineCallArg {
+        RoutineCallArg {
+            name: name.to_string(),
+            mode: mode.to_string(),
+            value: value.map(|v| v.to_string()),
+            is_raw,
+        }
+    }
+
+    #[test]
+    fn function_call_uses_select_star_from() {
+        let sql = routine_call_sql(
+            "fn_report",
+            "FUNCTION",
+            &[arg("p_year", "IN", Some("2026"), true)],
+            Some("public"),
+        );
+        assert_eq!(sql, "SELECT * FROM \"public\".\"fn_report\"(2026);");
+    }
+
+    #[test]
+    fn procedure_call_renders_out_params_as_null() {
+        let sql = routine_call_sql(
+            "sp_test",
+            "PROCEDURE",
+            &[
+                arg("p_in", "IN", Some("it's"), false),
+                arg("p_out", "OUT", None, false),
+            ],
+            Some("public"),
+        );
+        assert_eq!(sql, "CALL \"public\".\"sp_test\"('it''s', NULL);");
+    }
+
+    #[test]
+    fn create_templates_are_schema_qualified_or_replace() {
+        let tpl = routine_create_template("FUNCTION", Some("app"));
+        assert!(tpl.starts_with("CREATE OR REPLACE FUNCTION \"app\"."), "{tpl}");
+        let tpl = routine_create_template("PROCEDURE", None);
+        assert!(tpl.starts_with("CREATE OR REPLACE PROCEDURE my_procedure"), "{tpl}");
+    }
+
+    #[test]
+    fn drop_sql_includes_identity_signature() {
+        assert_eq!(
+            drop_routine_sql("fn_add", "FUNCTION", "integer, integer", Some("public")),
+            "DROP FUNCTION \"public\".\"fn_add\"(integer, integer)"
+        );
+        assert_eq!(
+            drop_routine_sql("sp", "PROCEDURE", "", None),
+            "DROP PROCEDURE \"sp\"()"
+        );
+    }
+}

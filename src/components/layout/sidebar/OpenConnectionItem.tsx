@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Shield, X, AlertCircle, Terminal, Check, Copy, Power, Columns2, Rows2 } from "lucide-react";
+import { Loader2, Shield, X, AlertCircle, Terminal, Check, Copy, Power, Columns2, Rows2, AppWindow } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { ConnectionStatus } from "../../../hooks/useConnectionManager";
 import { getConnectionItemClass, getStatusDotClass } from "../../../utils/connectionManager";
@@ -15,6 +15,7 @@ interface Props {
   isSelected: boolean;
   onSwitch: () => void;
   onOpenInEditor: () => void;
+  onOpenInNewWindow: () => void;
   onDisconnect: () => void;
   onToggleSelect: (isCtrlHeld: boolean) => void;
   selectedConnectionIds: Set<string>;
@@ -37,6 +38,7 @@ export const OpenConnectionItem = ({
   isSelected,
   onSwitch,
   onOpenInEditor,
+  onOpenInNewWindow,
   onDisconnect,
   onToggleSelect,
   selectedConnectionIds,
@@ -97,6 +99,11 @@ export const OpenConnectionItem = ({
       label: t("sidebar.openInEditor"),
       icon: Terminal,
       action: onOpenInEditor,
+    },
+    {
+      label: t("sidebar.openInNewWindow"),
+      icon: AppWindow,
+      action: onOpenInNewWindow,
     },
     {
       label: t("sidebar.setAsActive"),
