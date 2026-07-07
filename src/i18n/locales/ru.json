@@ -875,6 +875,13 @@
     "saveThisQuery": "Сохранить этот запрос",
     "noValidQueries": "Допустимые запросы не найдены",
     "queryFailed": "Ошибка выполнения запроса.",
+    "dangerousQueryTitle": "Выполнить без условия WHERE?",
+    "dangerousQueryMessage": "Этот запрос затронет все строки таблицы, так как в нём отсутствует условие WHERE. Это действие нельзя отменить.",
+    "dangerousQueryConfirm": "Всё равно выполнить",
+    "dangerousQueryDropTitle": "Удалить этот объект?",
+    "dangerousQueryDropMessage": "DROP безвозвратно удаляет этот объект и все его данные. Это действие нельзя отменить.",
+    "dangerousQueryTruncateTitle": "Очистить эту таблицу?",
+    "dangerousQueryTruncateMessage": "TRUNCATE удаляет все строки таблицы. Это действие нельзя отменить.",
     "showErrorDetails": "Показать подробности",
     "hideErrorDetails": "Скрыть подробности",
     "errorBoundary": {
