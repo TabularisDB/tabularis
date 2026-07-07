@@ -205,10 +205,18 @@ pub(crate) fn build_mysql_options(
         if matches!(ssl_mode, MySqlSslMode::Disabled) {
             return Err(
                 "AWS IAM authentication requires a TLS/SSL mode to be enabled \
-                 (Preferred, Required, Verify CA, or Verify Identity). Refusing \
-                 to send the RDS auth token over an unencrypted connection."
+                 (Required, Verify CA, or Verify Identity). Refusing to send \
+                 the RDS auth token over an unencrypted connection."
                     .to_string(),
             );
+        }
+        // Preferred is opportunistic TLS: sqlx tries the upgrade and silently
+        // falls back to plaintext if the handshake fails, while IAM forces
+        // enable_cleartext_plugin(true) which would then send the pre-signed
+        // token over the wire in the clear. Force-upgrade to Required so the
+        // TLS link is guaranteed.
+        if matches!(ssl_mode, MySqlSslMode::Preferred) {
+            ssl_mode = MySqlSslMode::Required;
         }
         // Empty token is rejected unconditionally: `find_connection_by_id` and
         // `duplicate_connection` deliberately skip the keychain for IAM

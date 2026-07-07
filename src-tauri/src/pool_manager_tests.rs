@@ -318,6 +318,19 @@ mod tests {
     }
 
     #[test]
+    fn mysql_options_iam_auth_force_upgrades_preferred_to_required() {
+        // Preferred is opportunistic TLS: a network attacker that strips the
+        // STARTTLS upgrade would catch the cleartext plugin's RDS token on
+        // the wire. Force-upgrade to Required so the TLS link is guaranteed.
+        let mut params = mysql_params("preferred");
+        params.use_iam_auth = Some(true);
+        params.password = Some("token".to_string());
+
+        let opts = build_mysql_options(&params, None).expect("must build");
+        assert!(matches!(opts.get_ssl_mode(), MySqlSslMode::Required));
+    }
+
+    #[test]
     fn mysql_options_iam_auth_rejects_empty_password_for_adhoc() {
         let mut params = mysql_params("required");
         params.use_iam_auth = Some(true);
