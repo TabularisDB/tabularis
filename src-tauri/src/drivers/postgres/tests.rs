@@ -858,6 +858,37 @@ mod routine_management {
     }
 
     #[test]
+    fn function_call_excludes_out_params() {
+        // PostgreSQL functions do not accept pure OUT parameters in the call
+        // signature; only IN/INOUT are passed.
+        let sql = routine_call_sql(
+            "fn_split",
+            "FUNCTION",
+            &[
+                arg("p_in", "IN", Some("5"), true),
+                arg("p_lo", "OUT", None, false),
+                arg("p_hi", "OUT", None, false),
+            ],
+            Some("public"),
+        );
+        assert_eq!(sql, "SELECT * FROM \"public\".\"fn_split\"(5);");
+    }
+
+    #[test]
+    fn function_call_keeps_inout_params() {
+        let sql = routine_call_sql(
+            "fn_adjust",
+            "FUNCTION",
+            &[
+                arg("p_val", "INOUT", Some("10"), true),
+                arg("p_out", "OUT", None, false),
+            ],
+            Some("public"),
+        );
+        assert_eq!(sql, "SELECT * FROM \"public\".\"fn_adjust\"(10);");
+    }
+
+    #[test]
     fn procedure_call_renders_out_params_as_null() {
         let sql = routine_call_sql(
             "sp_test",
