@@ -879,6 +879,13 @@
     "saveThisQuery": "Diese Abfrage speichern",
     "noValidQueries": "Keine gültigen Abfragen gefunden",
     "queryFailed": "Abfrage fehlgeschlagen.",
+    "dangerousQueryTitle": "Ohne WHERE-Klausel ausführen?",
+    "dangerousQueryMessage": "Diese Anweisung betrifft alle Zeilen der Tabelle, da keine WHERE-Klausel vorhanden ist. Dies kann nicht rückgängig gemacht werden.",
+    "dangerousQueryConfirm": "Trotzdem ausführen",
+    "dangerousQueryDropTitle": "Dieses Objekt löschen?",
+    "dangerousQueryDropMessage": "DROP entfernt dieses Objekt und alle seine Daten dauerhaft. Dies kann nicht rückgängig gemacht werden.",
+    "dangerousQueryTruncateTitle": "Diese Tabelle leeren?",
+    "dangerousQueryTruncateMessage": "TRUNCATE löscht alle Zeilen der Tabelle. Dies kann nicht rückgängig gemacht werden.",
     "showErrorDetails": "Details anzeigen",
     "hideErrorDetails": "Details ausblenden",
     "errorBoundary": {

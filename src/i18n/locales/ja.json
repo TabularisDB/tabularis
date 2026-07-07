@@ -892,6 +892,13 @@
     "saveThisQuery": "このクエリを保存",
     "noValidQueries": "有効なクエリが見つかりません",
     "queryFailed": "クエリが失敗しました。",
+    "dangerousQueryTitle": "WHERE句なしで実行しますか？",
+    "dangerousQueryMessage": "このステートメントにはWHERE句がないため、テーブルのすべての行に影響します。この操作は元に戻せません。",
+    "dangerousQueryConfirm": "実行する",
+    "dangerousQueryDropTitle": "このオブジェクトを削除しますか？",
+    "dangerousQueryDropMessage": "DROP はこのオブジェクトとそのすべてのデータを完全に削除します。この操作は元に戻せません。",
+    "dangerousQueryTruncateTitle": "このテーブルを空にしますか？",
+    "dangerousQueryTruncateMessage": "TRUNCATE はテーブルのすべての行を削除します。この操作は元に戻せません。",
     "showErrorDetails": "詳細を表示",
     "hideErrorDetails": "詳細を非表示",
     "errorBoundary": {

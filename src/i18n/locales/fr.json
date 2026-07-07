@@ -879,6 +879,13 @@
     "saveThisQuery": "Enregistrer cette requête",
     "noValidQueries": "Aucune requête valide trouvée",
     "queryFailed": "Échec de la requête.",
+    "dangerousQueryTitle": "Exécuter sans clause WHERE ?",
+    "dangerousQueryMessage": "Cette instruction affectera toutes les lignes de la table car elle ne comporte pas de clause WHERE. Cette action est irréversible.",
+    "dangerousQueryConfirm": "Exécuter quand même",
+    "dangerousQueryDropTitle": "Supprimer cet objet ?",
+    "dangerousQueryDropMessage": "DROP supprime définitivement cet objet et toutes ses données. Cette action est irréversible.",
+    "dangerousQueryTruncateTitle": "Vider cette table ?",
+    "dangerousQueryTruncateMessage": "TRUNCATE supprime toutes les lignes de la table. Cette action est irréversible.",
     "showErrorDetails": "Afficher les détails",
     "hideErrorDetails": "Masquer les détails",
     "errorBoundary": {
