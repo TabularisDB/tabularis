@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowUpDown, Copy, Loader2 } from 'lucide-react';
 import { copyTextToClipboard } from '../../utils/clipboard';
@@ -11,6 +12,7 @@ interface MiniResultGridProps {
 }
 
 export function MiniResultGrid({ columns, rows, loading, message }: MiniResultGridProps) {
+  const { t } = useTranslation();
   const parentRef = useRef<HTMLDivElement>(null);
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -50,7 +52,7 @@ export function MiniResultGrid({ columns, rows, loading, message }: MiniResultGr
     return (
       <div className="h-full flex items-center justify-center text-muted gap-2">
         <Loader2 size={18} className="animate-spin" />
-        <span className="text-sm">Running query...</span>
+        <span className="text-sm">{t('miniGrid.runningQuery')}</span>
       </div>
     );
   }
@@ -66,7 +68,7 @@ export function MiniResultGrid({ columns, rows, loading, message }: MiniResultGr
   if (columns.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-muted text-sm">
-        No results
+        {t('common.noResults')}
       </div>
     );
   }
@@ -123,14 +125,15 @@ export function MiniResultGrid({ columns, rows, loading, message }: MiniResultGr
         </div>
       </div>
       <div className="px-3 py-1.5 text-xs text-muted border-t border-strong bg-elevated flex items-center justify-between shrink-0">
-        <span>{rows.length} rows</span>
+        <span>{t('editor.rowCount', { total: rows.length })}</span>
         <button
           onClick={() => copyTextToClipboard(columns.join('\t') + '\n' + rows.map((r) => r.join('\t')).join('\n'))}
           className="flex items-center gap-1 hover:text-primary transition-colors"
-          title="Copy all"
+          title={t('miniGrid.copyAll')}
+          aria-label={t('miniGrid.copyAll')}
         >
           <Copy size={12} />
-          Copy
+          {t('common.copy')}
         </button>
       </div>
     </div>

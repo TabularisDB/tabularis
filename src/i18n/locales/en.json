@@ -37,7 +37,8 @@
     "noResults": "No results found",
     "error": "Error",
     "success": "Success",
-    "ok": "OK"
+    "ok": "OK",
+    "copy": "Copy"
   },
   "sidebar": {
     "connections": "Connections",
@@ -432,10 +433,9 @@
       "explainplanPromptDesc": "Customize instructions for AI analysis of EXPLAIN query plans. Use {{LANGUAGE}} for the output language.",
       "enterExplainplanPrompt": "Enter explain plan analysis prompt...",
       "keySaved": "API Key saved securely",
-      "promptSaved": "System prompt saved successfully",
+      "promptSaved": "Prompt saved",
       "explainPromptSaved": "Explain prompt saved successfully",
       "promptReset": "System prompt reset to default",
-      "explainPromptReset": "Explain prompt reset to default",
       "modelPlaceholder": "Select a model",
       "searchPlaceholder": "Search models...",
       "noResults": "No models found",
@@ -451,7 +451,9 @@
       "endpointUrlDesc": "The base URL of your OpenAI-compatible API. Examples: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "e.g., llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "Enter the model name provided by your OpenAI-compatible service.",
-      "customOpenaiModelHelp": "Enter the exact model name for your OpenAI-compatible provider."
+      "customOpenaiModelHelp": "Enter the exact model name for your OpenAI-compatible provider.",
+      "promptResetSuccess": "Prompt reset to default",
+      "apiKeySaved": "API key saved securely"
     },
     "updates": "Updates",
     "openSourceLibraries": "Open Source Libraries",
@@ -785,7 +787,10 @@
     "keyFile": "Key file",
     "quickTest": "Quick connection test",
     "testFailed": "Connection test failed",
-    "savedInKeychain": "Password saved in system keychain"
+    "savedInKeychain": "Password saved in system keychain",
+    "manageDesc": "Reusable SSH tunnels for your database connections. Passwords and passphrases are stored in the system keychain.",
+    "deleteInUse_one": "It is used by {{count}} saved database connection, which will no longer connect through this tunnel.",
+    "deleteInUse_other": "It is used by {{count}} saved database connections, which will no longer connect through this tunnel."
   },
   "sshAskpass": {
     "title": "SSH Authentication",
@@ -1573,7 +1578,8 @@
     "targetColumn": "Target column",
     "targetColumnPlaceholder": "Choose target...",
     "skipColumn": "Skip (do not import)",
-    "createNewColumn": "Create new column"
+    "createNewColumn": "Create new column",
+    "typePlaceholder": "Type"
   },
   "aiActivity": {
     "title": "AI Activity",
@@ -1723,5 +1729,15 @@
     "runButton": "Run",
     "runTabPrefix": "Run",
     "returnValue": "returns"
+  },
+  "pagination": {
+    "firstPage": "First page",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "lastPage": "Last page"
+  },
+  "miniGrid": {
+    "runningQuery": "Running query...",
+    "copyAll": "Copy all"
   }
 }

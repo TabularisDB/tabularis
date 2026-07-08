@@ -459,6 +459,7 @@ function EditForm({
           onChange={(e) => setName(e.target.value)}
           className={InputClass}
           placeholder={t("k8sConnections.namePlaceholder")}
+          autoFocus
         />
       </div>
 

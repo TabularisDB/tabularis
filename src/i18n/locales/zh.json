@@ -36,7 +36,8 @@
     "search": "搜索...",
     "error": "错误",
     "success": "成功",
-    "ok": "OK"
+    "ok": "OK",
+    "copy": "复制"
   },
   "sidebar": {
     "connections": "连接",
@@ -372,10 +373,9 @@
       "explainplanPromptDesc": "自定义 AI EXPLAIN 计划分析的指令。使用 {{LANGUAGE}} 作为输出语言的占位符。",
       "enterExplainplanPrompt": "输入执行计划分析提示词...",
       "keySaved": "API 密钥已安全保存",
-      "promptSaved": "系统提示词保存成功",
+      "promptSaved": "提示词已保存",
       "explainPromptSaved": "解释提示词保存成功",
       "promptReset": "系统提示词已重置为默认",
-      "explainPromptReset": "解释提示词已重置为默认",
       "modelPlaceholder": "选择一个模型",
       "searchPlaceholder": "搜索模型...",
       "noResults": "未找到模型",
@@ -391,7 +391,9 @@
       "endpointUrlDesc": "您的 OpenAI 兼容 API 的基础 URL。例如：https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "例如：llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "输入您的 OpenAI 兼容服务提供的模型名称。",
-      "customOpenaiModelHelp": "输入您的 OpenAI 兼容提供商的确切模型名称。"
+      "customOpenaiModelHelp": "输入您的 OpenAI 兼容提供商的确切模型名称。",
+      "promptResetSuccess": "提示词已重置为默认值",
+      "apiKeySaved": "API 密钥已安全保存"
     },
     "updates": "更新",
     "openSourceLibraries": "开源库",
@@ -719,7 +721,9 @@
     "keyFile": "密钥文件",
     "quickTest": "快速连接测试",
     "testFailed": "连接测试失败",
-    "savedInKeychain": "密码已保存到系统密钥链"
+    "savedInKeychain": "密码已保存到系统密钥链",
+    "manageDesc": "可在数据库连接中复用的 SSH 隧道。密码和口令保存在系统钥匙串中。",
+    "deleteInUse_other": "有 {{count}} 个已保存的数据库连接正在使用它，删除后这些连接将不再通过此隧道连接。"
   },
   "sshAskpass": {
     "title": "SSH 身份验证",
@@ -1442,7 +1446,8 @@
     "targetColumn": "目标列",
     "targetColumnPlaceholder": "选择目标...",
     "skipColumn": "跳过（不导入）",
-    "createNewColumn": "创建新列"
+    "createNewColumn": "创建新列",
+    "typePlaceholder": "类型"
   },
   "aiActivity": {
     "title": "AI 活动",
@@ -1588,5 +1593,15 @@
     "runButton": "运行",
     "runTabPrefix": "运行",
     "returnValue": "返回值"
+  },
+  "pagination": {
+    "firstPage": "第一页",
+    "previousPage": "上一页",
+    "nextPage": "下一页",
+    "lastPage": "最后一页"
+  },
+  "miniGrid": {
+    "runningQuery": "正在执行查询...",
+    "copyAll": "全部复制"
   }
 }
