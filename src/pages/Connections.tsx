@@ -3,6 +3,11 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { NewConnectionModal } from "../components/modals/NewConnectionModal";
 import { ConfirmModal } from "../components/modals/ConfirmModal";
+import {
+  ExportConnectionsModal,
+  type ExportMode,
+} from "../components/modals/ExportConnectionsModal";
+import { ImportPasswordModal } from "../components/modals/ImportPasswordModal";
 import { invoke } from "@tauri-apps/api/core";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
@@ -92,6 +97,13 @@ export const Connections = () => {
     variant?: "danger" | "warning" | "info";
     onConfirm: () => void;
   } | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [pendingEncryptedImport, setPendingEncryptedImport] = useState<
+    unknown | null
+  >(null);
+  const [importPasswordError, setImportPasswordError] = useState<
+    string | null
+  >(null);
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
   const isRenameCancelledRef = useRef(false);
@@ -215,29 +227,31 @@ export const Connections = () => {
     await toggleGroupCollapsed(groupId);
   };
 
-  const handleExport = async () => {
-    setConfirmModal({
-      title: t("connections.exportTitle"),
-      message: t("connections.exportWarning"),
-      confirmLabel: t("common.save"),
-      variant: "warning",
-      confirmClassName: "px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors",
-      onConfirm: async () => {
-        try {
-          const payload = await invoke("export_connections_payload");
-          const path = await save({
-            defaultPath: "tabularis-connections.json",
-            filters: [{ name: "JSON", extensions: ["json"] }],
-          });
-          if (path) {
-            await writeTextFile(path, JSON.stringify(payload, null, 2));
-          }
-        } catch (e) {
-          console.error("Export failed:", e);
-          setError(toErrorMessage(e));
-        }
-      },
-    });
+  const handleExport = async (mode: ExportMode, password?: string) => {
+    try {
+      const payload = await invoke("export_connections_payload", {
+        includeSecrets: mode !== "noSecrets",
+      });
+      const fileContent =
+        mode === "encrypted"
+          ? await invoke("encrypt_export_payload", { payload, password })
+          : payload;
+      const path = await save({
+        defaultPath: "tabularis-connections.json",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (path) {
+        await writeTextFile(path, JSON.stringify(fileContent, null, 2));
+      }
+    } catch (e) {
+      console.error("Export failed:", e);
+      setError(toErrorMessage(e));
+    }
+  };
+
+  const importPayload = async (payload: unknown) => {
+    await invoke("import_connections_payload", { payload });
+    await loadConnections();
   };
 
   const handleImport = async () => {
@@ -248,13 +262,32 @@ export const Connections = () => {
       });
       if (selected && !Array.isArray(selected)) {
         const content = await readTextFile(selected);
-        const payload = JSON.parse(content);
-        await invoke("import_connections_payload", { payload });
-        await loadConnections();
+        const payload = JSON.parse(content) as { encrypted?: boolean };
+        if (payload && payload.encrypted === true) {
+          setImportPasswordError(null);
+          setPendingEncryptedImport(payload);
+        } else {
+          await importPayload(payload);
+        }
       }
     } catch (e) {
       console.error("Import failed:", e);
       setError(toErrorMessage(e));
+    }
+  };
+
+  const handleEncryptedImport = async (password: string) => {
+    try {
+      const payload = await invoke("decrypt_export_payload", {
+        envelope: pendingEncryptedImport,
+        password,
+      });
+      await importPayload(payload);
+      setPendingEncryptedImport(null);
+      setImportPasswordError(null);
+    } catch (e) {
+      console.error("Encrypted import failed:", e);
+      setImportPasswordError(toErrorMessage(e));
     }
   };
 
@@ -732,7 +765,7 @@ export const Connections = () => {
                   <Upload size={14} />
                 </button>
                 <button
-                  onClick={handleExport}
+                  onClick={() => setIsExportModalOpen(true)}
                   className="p-1.5 rounded-lg text-muted hover:text-blue-400 hover:bg-blue-500/10 transition-all duration-150"
                   title={t("connections.export")}
                 >
@@ -914,6 +947,20 @@ export const Connections = () => {
         }}
         onSave={handleSave}
         initialConnection={editingConnection}
+      />
+      <ExportConnectionsModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        onExport={handleExport}
+      />
+      <ImportPasswordModal
+        isOpen={pendingEncryptedImport !== null}
+        onClose={() => {
+          setPendingEncryptedImport(null);
+          setImportPasswordError(null);
+        }}
+        onSubmit={handleEncryptedImport}
+        error={importPasswordError}
       />
       <ConfirmModal
         isOpen={confirmModal !== null}

@@ -256,8 +256,28 @@
     "listView": "Listenansicht",
     "export": "Verbindungen exportieren",
     "import": "Verbindungen importieren",
-    "exportTitle": "Verbindungen exportieren",
-    "exportWarning": "Die exportierte Datei enthält deine Datenbank- und SSH-Passwörter im Klartext. Bewahre sie sicher auf."
+    "exportWarning": "Die exportierte Datei enthält deine Datenbank- und SSH-Passwörter im Klartext. Bewahre sie sicher auf.",
+    "exportModal": {
+      "title": "Verbindungen exportieren",
+      "subtitle": "Wählen Sie, wie Ihre Verbindungen exportiert werden sollen",
+      "encrypted": "Mit Passwort verschlüsselt",
+      "encryptedDesc": "Alle Verbindungen und Passwörter sind enthalten und mit einem Passwort Ihrer Wahl geschützt. Empfohlen für Backups.",
+      "noSecrets": "Im Klartext, ohne Passwörter",
+      "noSecretsDesc": "Verbindungen werden als lesbares JSON exportiert, aber alle Passwörter und Passphrasen werden ausgeschlossen. Empfohlen zum Teilen.",
+      "plaintext": "Im Klartext, mit allen Passwörtern",
+      "plaintextDesc": "Verbindungen und Passwörter werden als lesbares JSON exportiert. Jeder mit der Datei kann Ihre Zugangsdaten lesen.",
+      "password": "Passwort",
+      "confirmPassword": "Passwort bestätigen",
+      "passwordRequired": "Für einen verschlüsselten Export ist ein Passwort erforderlich.",
+      "passwordMismatch": "Die Passwörter stimmen nicht überein.",
+      "export": "Exportieren"
+    },
+    "importPasswordModal": {
+      "title": "Verschlüsselte Exportdatei",
+      "subtitle": "Diese Datei ist mit einem Passwort geschützt",
+      "password": "Passwort",
+      "unlock": "Importieren"
+    }
   },
   "connectionAppearance": {
     "section": "Darstellung",

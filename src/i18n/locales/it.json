@@ -256,8 +256,28 @@
     "listView": "Vista lista",
     "export": "Esporta connessioni",
     "import": "Importa connessioni",
-    "exportTitle": "Esporta connessioni",
-    "exportWarning": "Il file esportato conterrà le password del database e SSH in chiaro. Conservalo in modo sicuro."
+    "exportWarning": "Il file esportato conterrà le password del database e SSH in chiaro. Conservalo in modo sicuro.",
+    "exportModal": {
+      "title": "Esporta connessioni",
+      "subtitle": "Scegli come esportare le tue connessioni",
+      "encrypted": "Crittografato con password",
+      "encryptedDesc": "Tutte le connessioni e le password sono incluse, protette con una password a tua scelta. Consigliato per i backup.",
+      "noSecrets": "In chiaro, senza password",
+      "noSecretsDesc": "Le connessioni vengono esportate come JSON leggibile, ma tutte le password e le passphrase sono escluse. Consigliato per la condivisione.",
+      "plaintext": "In chiaro, con tutte le password",
+      "plaintextDesc": "Connessioni e password vengono esportate come JSON leggibile. Chiunque abbia il file può leggere le tue credenziali.",
+      "password": "Password",
+      "confirmPassword": "Conferma password",
+      "passwordRequired": "È richiesta una password per un’esportazione crittografata.",
+      "passwordMismatch": "Le password non corrispondono.",
+      "export": "Esporta"
+    },
+    "importPasswordModal": {
+      "title": "File di esportazione crittografato",
+      "subtitle": "Questo file è protetto da una password",
+      "password": "Password",
+      "unlock": "Importa"
+    }
   },
   "connectionAppearance": {
     "section": "Aspetto",

@@ -255,8 +255,28 @@
     "listView": "列表视图",
     "export": "导出连接",
     "import": "导入连接",
-    "exportTitle": "导出连接",
-    "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。"
+    "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。",
+    "exportModal": {
+      "title": "导出连接",
+      "subtitle": "选择导出连接的方式",
+      "encrypted": "使用密码加密",
+      "encryptedDesc": "包含所有连接和密码，并使用您选择的密码加以保护。推荐用于备份。",
+      "noSecrets": "明文，不含密码",
+      "noSecretsDesc": "连接以可读 JSON 导出，但排除所有密码和口令短语。推荐用于分享。",
+      "plaintext": "明文，包含所有密码",
+      "plaintextDesc": "连接和密码以可读 JSON 导出。拿到文件的任何人都能读取您的凭据。",
+      "password": "密码",
+      "confirmPassword": "确认密码",
+      "passwordRequired": "加密导出需要设置密码。",
+      "passwordMismatch": "两次输入的密码不一致。",
+      "export": "导出"
+    },
+    "importPasswordModal": {
+      "title": "加密的导出文件",
+      "subtitle": "此文件受密码保护",
+      "password": "密码",
+      "unlock": "导入"
+    }
   },
   "connectionAppearance": {
     "section": "外观",

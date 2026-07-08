@@ -33,6 +33,7 @@ pub mod explain_import;
 #[cfg(test)]
 pub mod explain_import_tests;
 pub mod export;
+pub mod export_crypto;
 #[cfg(test)]
 pub mod export_import_tests;
 pub mod health_check;
@@ -318,6 +319,8 @@ pub fn run() {
             commands::reorder_groups,
             commands::reorder_connections_in_group,
             commands::export_connections_payload,
+            commands::encrypt_export_payload,
+            commands::decrypt_export_payload,
             commands::import_connections_payload,
             commands::get_schemas,
             commands::get_available_databases,

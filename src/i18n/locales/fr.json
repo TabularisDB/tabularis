@@ -256,8 +256,28 @@
     "listView": "Vue liste",
     "export": "Exporter les connexions",
     "import": "Importer les connexions",
-    "exportTitle": "Exporter les connexions",
-    "exportWarning": "Le fichier exporté contiendra vos mots de passe de base de données et SSH en clair. Conservez-le en lieu sûr."
+    "exportWarning": "Le fichier exporté contiendra vos mots de passe de base de données et SSH en clair. Conservez-le en lieu sûr.",
+    "exportModal": {
+      "title": "Exporter les connexions",
+      "subtitle": "Choisissez comment exporter vos connexions",
+      "encrypted": "Chiffré avec un mot de passe",
+      "encryptedDesc": "Toutes les connexions et mots de passe sont inclus, protégés par un mot de passe de votre choix. Recommandé pour les sauvegardes.",
+      "noSecrets": "En clair, sans les mots de passe",
+      "noSecretsDesc": "Les connexions sont exportées en JSON lisible, mais tous les mots de passe et passphrases sont exclus. Recommandé pour le partage.",
+      "plaintext": "En clair, avec tous les mots de passe",
+      "plaintextDesc": "Les connexions et mots de passe sont exportés en JSON lisible. Quiconque possède le fichier peut lire vos identifiants.",
+      "password": "Mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "passwordRequired": "Un mot de passe est requis pour un export chiffré.",
+      "passwordMismatch": "Les mots de passe ne correspondent pas.",
+      "export": "Exporter"
+    },
+    "importPasswordModal": {
+      "title": "Fichier d'export chiffré",
+      "subtitle": "Ce fichier est protégé par un mot de passe",
+      "password": "Mot de passe",
+      "unlock": "Importer"
+    }
   },
   "connectionAppearance": {
     "section": "Apparence",
