@@ -37,7 +37,8 @@
     "noResults": "No se encontraron resultados",
     "error": "Error",
     "success": "Éxito",
-    "ok": "OK"
+    "ok": "OK",
+    "copy": "Copiar"
   },
   "sidebar": {
     "connections": "Conexiones",
@@ -404,10 +405,9 @@
       "explainplanPromptDesc": "Personaliza las instrucciones para el analisis IA de los planes EXPLAIN. Usa {{LANGUAGE}} para el idioma de salida.",
       "enterExplainplanPrompt": "Ingresa el prompt de analisis del plan de ejecucion...",
       "keySaved": "Clave API guardada de forma segura",
-      "promptSaved": "Prompt del sistema guardado correctamente",
+      "promptSaved": "Prompt guardado",
       "explainPromptSaved": "Prompt de explicación guardado correctamente",
       "promptReset": "Prompt del sistema restablecido al predeterminado",
-      "explainPromptReset": "Prompt de explicación restablecido al predeterminado",
       "modelPlaceholder": "Selecciona un modelo",
       "searchPlaceholder": "Buscar modelos...",
       "noResults": "No se encontraron modelos",
@@ -423,7 +423,9 @@
       "endpointUrlDesc": "La URL base de tu API compatible con OpenAI. Ejemplos: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "ej., llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "Ingresa el nombre del modelo proporcionado por tu servicio compatible con OpenAI.",
-      "customOpenaiModelHelp": "Ingresa el nombre exacto del modelo para tu proveedor compatible con OpenAI."
+      "customOpenaiModelHelp": "Ingresa el nombre exacto del modelo para tu proveedor compatible con OpenAI.",
+      "promptResetSuccess": "Prompt restablecido al valor predeterminado",
+      "apiKeySaved": "Clave API guardada de forma segura"
     },
     "updates": "Actualizaciones",
     "openSourceLibraries": "Librerías Open Source",
@@ -753,7 +755,10 @@
     "keyFile": "Archivo de clave",
     "quickTest": "Prueba rápida de conexión",
     "testFailed": "La prueba de conexión falló",
-    "savedInKeychain": "Contraseña guardada en el llavero del sistema"
+    "savedInKeychain": "Contraseña guardada en el llavero del sistema",
+    "manageDesc": "Túneles SSH reutilizables para tus conexiones de base de datos. Las contraseñas y frases de acceso se guardan en el llavero del sistema.",
+    "deleteInUse_one": "La usa {{count}} conexión guardada, que dejará de conectarse a través de este túnel.",
+    "deleteInUse_other": "La usan {{count}} conexiones guardadas, que dejarán de conectarse a través de este túnel."
   },
   "sshAskpass": {
     "title": "Autenticación SSH",
@@ -1451,7 +1456,8 @@
     "targetColumn": "Columna destino",
     "targetColumnPlaceholder": "Elegir destino...",
     "skipColumn": "Omitir (no importar)",
-    "createNewColumn": "Crear nueva columna"
+    "createNewColumn": "Crear nueva columna",
+    "typePlaceholder": "Tipo"
   },
   "aiActivity": {
     "title": "Actividad IA",
@@ -1601,5 +1607,15 @@
     "runButton": "Ejecutar",
     "runTabPrefix": "Ejecutar",
     "returnValue": "devuelve"
+  },
+  "pagination": {
+    "firstPage": "Primera página",
+    "previousPage": "Página anterior",
+    "nextPage": "Página siguiente",
+    "lastPage": "Última página"
+  },
+  "miniGrid": {
+    "runningQuery": "Ejecutando consulta...",
+    "copyAll": "Copiar todo"
   }
 }

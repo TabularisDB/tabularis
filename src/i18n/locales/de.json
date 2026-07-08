@@ -37,7 +37,8 @@
     "noResults": "Keine Ergebnisse gefunden",
     "error": "Fehler",
     "success": "Erfolg",
-    "ok": "OK"
+    "ok": "OK",
+    "copy": "Kopieren"
   },
   "sidebar": {
     "connections": "Verbindungen",
@@ -399,10 +400,9 @@
       "explainplanPromptDesc": "Passe die Anweisungen für die KI-Analyse von EXPLAIN-Abfrageplänen an. Verwende {{LANGUAGE}} für die Ausgabesprache.",
       "enterExplainplanPrompt": "Prompt für Explain-Plan-Analyse eingeben...",
       "keySaved": "API-Schlüssel sicher gespeichert",
-      "promptSaved": "System-Prompt erfolgreich gespeichert",
+      "promptSaved": "Prompt gespeichert",
       "explainPromptSaved": "Explain-Prompt erfolgreich gespeichert",
       "promptReset": "System-Prompt auf Standard zurückgesetzt",
-      "explainPromptReset": "Explain-Prompt auf Standard zurückgesetzt",
       "modelPlaceholder": "Modell auswählen",
       "searchPlaceholder": "Modelle suchen...",
       "noResults": "Keine Modelle gefunden",
@@ -418,7 +418,9 @@
       "endpointUrlDesc": "Die Basis-URL deiner OpenAI-kompatiblen API. Beispiele: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "z. B. llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "Gib den Modellnamen deines OpenAI-kompatiblen Dienstes ein.",
-      "customOpenaiModelHelp": "Gib den exakten Modellnamen für deinen OpenAI-kompatiblen Anbieter ein."
+      "customOpenaiModelHelp": "Gib den exakten Modellnamen für deinen OpenAI-kompatiblen Anbieter ein.",
+      "promptResetSuccess": "Prompt auf Standard zurückgesetzt",
+      "apiKeySaved": "API-Schlüssel sicher gespeichert"
     },
     "updates": "Updates",
     "openSourceLibraries": "Open-Source-Bibliotheken",
@@ -748,7 +750,10 @@
     "keyFile": "Schlüsseldatei",
     "quickTest": "Schneller Verbindungstest",
     "testFailed": "Verbindungstest fehlgeschlagen",
-    "savedInKeychain": "Passwort im System-Keychain gespeichert"
+    "savedInKeychain": "Passwort im System-Keychain gespeichert",
+    "manageDesc": "Wiederverwendbare SSH-Tunnel für deine Datenbankverbindungen. Passwörter und Passphrasen werden im System-Schlüsselbund gespeichert.",
+    "deleteInUse_one": "Sie wird von {{count}} gespeicherten Verbindung verwendet, die sich nicht mehr über diesen Tunnel verbinden wird.",
+    "deleteInUse_other": "Sie wird von {{count}} gespeicherten Verbindungen verwendet, die sich nicht mehr über diesen Tunnel verbinden werden."
   },
   "sshAskpass": {
     "title": "SSH-Authentifizierung",
@@ -1494,7 +1499,8 @@
     "targetColumn": "Zielspalte",
     "targetColumnPlaceholder": "Ziel wählen...",
     "skipColumn": "Überspringen (nicht importieren)",
-    "createNewColumn": "Neue Spalte erstellen"
+    "createNewColumn": "Neue Spalte erstellen",
+    "typePlaceholder": "Typ"
   },
   "aiActivity": {
     "title": "KI-Aktivität",
@@ -1644,5 +1650,15 @@
     "runButton": "Ausführen",
     "runTabPrefix": "Ausführen",
     "returnValue": "Rückgabe"
+  },
+  "pagination": {
+    "firstPage": "Erste Seite",
+    "previousPage": "Vorherige Seite",
+    "nextPage": "Nächste Seite",
+    "lastPage": "Letzte Seite"
+  },
+  "miniGrid": {
+    "runningQuery": "Abfrage wird ausgeführt...",
+    "copyAll": "Alles kopieren"
   }
 }
