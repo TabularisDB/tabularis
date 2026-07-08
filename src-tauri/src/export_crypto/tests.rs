@@ -46,6 +46,22 @@ fn unknown_format_rejected() {
 }
 
 #[test]
+fn excessive_kdf_parameters_rejected() {
+    let mut envelope = encrypt("{}", "pw").unwrap();
+    envelope.m_cost = u32::MAX;
+    let err = decrypt(&envelope, "pw").unwrap_err();
+    assert!(err.contains("KDF parameters exceed allowed limits"));
+
+    let mut envelope = encrypt("{}", "pw").unwrap();
+    envelope.t_cost = 1000;
+    assert!(decrypt(&envelope, "pw").is_err());
+
+    let mut envelope = encrypt("{}", "pw").unwrap();
+    envelope.p_cost = 1000;
+    assert!(decrypt(&envelope, "pw").is_err());
+}
+
+#[test]
 fn envelope_serializes_with_encrypted_flag() {
     let envelope = encrypt("{}", "pw").unwrap();
     let json = serde_json::to_value(&envelope).unwrap();

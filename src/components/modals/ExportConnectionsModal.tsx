@@ -24,6 +24,13 @@ export const ExportConnectionsModal = ({
 
   if (!isOpen) return null;
 
+  const handleClose = () => {
+    setPassword("");
+    setConfirmPassword("");
+    setValidationError(null);
+    onClose();
+  };
+
   const options: {
     value: ExportMode;
     icon: typeof Lock;
@@ -96,7 +103,7 @@ export const ExportConnectionsModal = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-secondary hover:text-primary transition-colors"
           >
             <X size={20} />
@@ -183,7 +190,7 @@ export const ExportConnectionsModal = ({
         {/* Footer */}
         <div className="p-4 border-t border-default bg-base/50 flex justify-end gap-3">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
           >
             {t("common.cancel")}

@@ -24,6 +24,11 @@ const NONCE_LEN: usize = 12;
 const ARGON2_M_COST: u32 = 65536;
 const ARGON2_T_COST: u32 = 3;
 const ARGON2_P_COST: u32 = 1;
+// Upper bounds when decrypting: a malicious envelope must not be able to
+// request unbounded memory or CPU during key derivation.
+const ARGON2_MAX_M_COST: u32 = 1024 * 1024; // 1 GiB
+const ARGON2_MAX_T_COST: u32 = 32;
+const ARGON2_MAX_P_COST: u32 = 8;
 
 /// Encrypted wrapper written to disk instead of the plaintext payload.
 #[derive(Debug, Serialize, Deserialize)]
@@ -95,6 +100,12 @@ pub fn decrypt(envelope: &EncryptedEnvelope, password: &str) -> Result<String, S
     }
     if envelope.kdf != "argon2id" {
         return Err(format!("Unsupported KDF: {}", envelope.kdf));
+    }
+    if envelope.m_cost > ARGON2_MAX_M_COST
+        || envelope.t_cost > ARGON2_MAX_T_COST
+        || envelope.p_cost > ARGON2_MAX_P_COST
+    {
+        return Err("KDF parameters exceed allowed limits".to_string());
     }
 
     let salt = BASE64
