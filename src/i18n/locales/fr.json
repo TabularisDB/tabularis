@@ -37,7 +37,8 @@
     "noResults": "Aucun résultat trouvé",
     "error": "Erreur",
     "success": "Succès",
-    "ok": "OK"
+    "ok": "OK",
+    "copy": "Copier"
   },
   "sidebar": {
     "connections": "Connexions",
@@ -399,10 +400,9 @@
       "explainplanPromptDesc": "Personnalisez les instructions pour l’analyse IA des plans EXPLAIN. Utilisez {{LANGUAGE}} pour la langue de sortie.",
       "enterExplainplanPrompt": "Saisir le prompt d’analyse de plan EXPLAIN...",
       "keySaved": "Clé API enregistrée en toute sécurité",
-      "promptSaved": "Prompt système enregistré avec succès",
+      "promptSaved": "Prompt enregistré",
       "explainPromptSaved": "Prompt d’explication enregistré avec succès",
       "promptReset": "Prompt système réinitialisé par défaut",
-      "explainPromptReset": "Prompt d’explication réinitialisé par défaut",
       "modelPlaceholder": "Sélectionner un modèle",
       "searchPlaceholder": "Rechercher des modèles...",
       "noResults": "Aucun modèle trouvé",
@@ -418,7 +418,9 @@
       "endpointUrlDesc": "L’URL de base de votre API compatible OpenAI. Exemples : https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "ex. llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "Saisissez le nom du modèle fourni par votre service compatible OpenAI.",
-      "customOpenaiModelHelp": "Saisissez le nom exact du modèle pour votre fournisseur compatible OpenAI."
+      "customOpenaiModelHelp": "Saisissez le nom exact du modèle pour votre fournisseur compatible OpenAI.",
+      "promptResetSuccess": "Prompt réinitialisé par défaut",
+      "apiKeySaved": "Clé API enregistrée en toute sécurité"
     },
     "updates": "Mises à jour",
     "openSourceLibraries": "Bibliothèques open source",
@@ -751,7 +753,10 @@
     "keyFile": "Fichier de clé",
     "quickTest": "Test rapide de connexion",
     "testFailed": "Échec du test de connexion",
-    "savedInKeychain": "Mot de passe enregistré dans le trousseau système"
+    "savedInKeychain": "Mot de passe enregistré dans le trousseau système",
+    "manageDesc": "Tunnels SSH réutilisables pour vos connexions aux bases de données. Les mots de passe et phrases secrètes sont stockés dans le trousseau du système.",
+    "deleteInUse_one": "Elle est utilisée par {{count}} connexion enregistrée, qui ne passera plus par ce tunnel.",
+    "deleteInUse_other": "Elle est utilisée par {{count}} connexions enregistrées, qui ne passeront plus par ce tunnel."
   },
   "sshAskpass": {
     "title": "Authentification SSH",
@@ -1498,7 +1503,8 @@
     "targetColumn": "Colonne cible",
     "targetColumnPlaceholder": "Choisir la cible...",
     "skipColumn": "Ignorer (ne pas importer)",
-    "createNewColumn": "Créer une nouvelle colonne"
+    "createNewColumn": "Créer une nouvelle colonne",
+    "typePlaceholder": "Type"
   },
   "aiActivity": {
     "title": "Activité IA",
@@ -1648,5 +1654,15 @@
     "runButton": "Exécuter",
     "runTabPrefix": "Exécuter",
     "returnValue": "retourne"
+  },
+  "pagination": {
+    "firstPage": "Première page",
+    "previousPage": "Page précédente",
+    "nextPage": "Page suivante",
+    "lastPage": "Dernière page"
+  },
+  "miniGrid": {
+    "runningQuery": "Exécution de la requête...",
+    "copyAll": "Tout copier"
   }
 }

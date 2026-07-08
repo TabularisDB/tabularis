@@ -37,7 +37,8 @@
     "noResults": "結果が見つかりません",
     "error": "エラー",
     "success": "成功",
-    "ok": "OK"
+    "ok": "OK",
+    "copy": "コピー"
   },
   "sidebar": {
     "connections": "接続",
@@ -413,10 +414,9 @@
       "explainplanPromptDesc": "AI による EXPLAIN クエリ計画分析の指示をカスタマイズします。{{LANGUAGE}} を出力言語に使用します。",
       "enterExplainplanPrompt": "実行計画分析プロンプトを入力...",
       "keySaved": "API キーを安全に保存しました",
-      "promptSaved": "システムプロンプトを正常に保存しました",
+      "promptSaved": "プロンプトを保存しました",
       "explainPromptSaved": "説明プロンプトを正常に保存しました",
       "promptReset": "システムプロンプトをデフォルトに戻しました",
-      "explainPromptReset": "説明プロンプトをデフォルトに戻しました",
       "modelPlaceholder": "モデルを選択",
       "searchPlaceholder": "モデルを検索...",
       "noResults": "モデルが見つかりません",
@@ -432,7 +432,9 @@
       "endpointUrlDesc": "OpenAI 互換 API のベース URL です。例: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "例: llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "OpenAI 互換サービスが提供するモデル名を入力してください。",
-      "customOpenaiModelHelp": "OpenAI 互換プロバイダの正確なモデル名を入力してください。"
+      "customOpenaiModelHelp": "OpenAI 互換プロバイダの正確なモデル名を入力してください。",
+      "promptResetSuccess": "プロンプトをデフォルトにリセットしました",
+      "apiKeySaved": "APIキーを安全に保存しました"
     },
     "updates": "アップデート",
     "openSourceLibraries": "オープンソースライブラリ",
@@ -765,7 +767,9 @@
     "keyFile": "鍵ファイル",
     "quickTest": "簡易接続テスト",
     "testFailed": "接続テストに失敗しました",
-    "savedInKeychain": "パスワードをシステムのキーチェーンに保存しました"
+    "savedInKeychain": "パスワードをシステムのキーチェーンに保存しました",
+    "manageDesc": "データベース接続で再利用できるSSHトンネルです。パスワードとパスフレーズはシステムのキーチェーンに保存されます。",
+    "deleteInUse_other": "この接続は{{count}}件の保存済みデータベース接続で使用されており、削除するとこのトンネル経由で接続できなくなります。"
   },
   "sshAskpass": {
     "title": "SSH認証",
@@ -1517,7 +1521,8 @@
     "targetColumn": "対象カラム",
     "targetColumnPlaceholder": "対象を選択...",
     "skipColumn": "スキップ (インポートしない)",
-    "createNewColumn": "新規カラムを作成"
+    "createNewColumn": "新規カラムを作成",
+    "typePlaceholder": "型"
   },
   "aiActivity": {
     "title": "AI アクティビティ",
@@ -1667,5 +1672,15 @@
     "runButton": "実行",
     "runTabPrefix": "実行",
     "returnValue": "戻り値"
+  },
+  "pagination": {
+    "firstPage": "最初のページ",
+    "previousPage": "前のページ",
+    "nextPage": "次のページ",
+    "lastPage": "最後のページ"
+  },
+  "miniGrid": {
+    "runningQuery": "クエリを実行中...",
+    "copyAll": "すべてコピー"
   }
 }

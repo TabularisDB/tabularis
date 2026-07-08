@@ -271,7 +271,7 @@ export function SchemaEditor({
                               value={col.sqlType}
                               options={typeOptions}
                               onChange={(v) => onColumnChange(i, { sqlType: v })}
-                              placeholder="Type"
+                              placeholder={t('clipboardImport.typePlaceholder')}
                               searchPlaceholder={t('common.search')}
                               noResultsLabel={t('common.noResults')}
                             />
@@ -295,7 +295,7 @@ export function SchemaEditor({
                           value={col.sqlType}
                           options={typeOptions}
                           onChange={(v) => onColumnChange(i, { sqlType: v })}
-                          placeholder="Type"
+                          placeholder={t('clipboardImport.typePlaceholder')}
                           searchPlaceholder={t('common.search')}
                           noResultsLabel={t('common.noResults')}
                         />
