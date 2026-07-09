@@ -4543,6 +4543,16 @@ pub async fn import_connections_payload<R: Runtime>(
     app: AppHandle<R>,
     payload: ExportPayload,
 ) -> Result<(), String> {
+    apply_export_payload(app, payload).await
+}
+
+/// Merge an `ExportPayload` into the user's stored connections, groups, SSH and
+/// K8s records, moving any inline secrets into the keychain. Shared by the JSON
+/// import command above and the foreign-app import flow.
+pub async fn apply_export_payload<R: Runtime>(
+    app: AppHandle<R>,
+    payload: ExportPayload,
+) -> Result<(), String> {
     let conn_path = get_config_path(&app)?;
     let ssh_path = get_ssh_config_path(&app)?;
 

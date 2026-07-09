@@ -38,7 +38,12 @@
     "error": "エラー",
     "success": "成功",
     "ok": "OK",
-    "copy": "コピー"
+    "continue": "続行",
+    "back": "戻る",
+    "copy": "コピー",
+    "showDetails": "詳細を表示",
+    "hideDetails": "詳細を非表示",
+    "beta": "ベータ"
   },
   "sidebar": {
     "connections": "接続",
@@ -270,7 +275,38 @@
     "export": "接続をエクスポート",
     "import": "接続をインポート",
     "exportTitle": "接続をエクスポート",
-    "exportWarning": "エクスポートされたファイルには、データベースおよび SSH のパスワードが平文で含まれます。安全な場所に保管してください。"
+    "exportWarning": "エクスポートされたファイルには、データベースおよび SSH のパスワードが平文で含まれます。安全な場所に保管してください。",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Tabularis エクスポートファイル (.json)",
+      "menuLabel": "接続をインポート…",
+      "group": {
+        "label": "グループ:",
+        "none": "グループなし",
+        "new": "新規グループ…",
+        "newPlaceholder": "グループ名"
+      },
+      "betaNotice": "アプリからのインポートはベータ版です。問題が発生した場合は、",
+      "reportIssue": "GitHub で報告してください。"
+    }
   },
   "connectionAppearance": {
     "section": "外観",

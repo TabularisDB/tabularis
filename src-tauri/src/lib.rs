@@ -15,6 +15,8 @@ pub mod cli;
 pub mod clipboard_import;
 pub mod commands;
 pub mod connection_appearance;
+pub mod connection_import;
+pub mod connection_import_commands;
 #[cfg(test)]
 pub mod connection_appearance_tests;
 pub mod config;
@@ -185,6 +187,7 @@ pub fn run() {
         .manage(std::sync::Arc::new(
             connection_cache::ConnectionCache::default(),
         ))
+        .manage(connection_import_commands::ImportEnvelopeCache::default())
         .manage(explain_import::PendingExplainFile::default())
         .manage(json_viewer::JsonViewerStore::default())
         .manage(results_window::ResultsWindowStore::default())
@@ -319,6 +322,9 @@ pub fn run() {
             commands::reorder_connections_in_group,
             commands::export_connections_payload,
             commands::import_connections_payload,
+            connection_import_commands::list_connection_import_sources,
+            connection_import_commands::preview_connection_import,
+            connection_import_commands::apply_connection_import,
             commands::get_schemas,
             commands::get_available_databases,
             commands::get_tables,
