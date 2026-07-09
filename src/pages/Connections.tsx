@@ -585,11 +585,6 @@ export const Connections = () => {
       const targetEl = document.querySelector(
         `[data-group-id="${targetGroupId}"]`,
       ) as HTMLElement | null;
-      const sourceDepthAttr =
-        document
-          .querySelector(`[data-group-id="${sourceGroupId}"]`)
-          ?.getAttribute("data-group-depth") ?? "0";
-      const sourceDepth = Number.parseInt(sourceDepthAttr, 10) || 0;
       let reparent = false;
       if (targetEl) {
         const rect = targetEl.getBoundingClientRect();
@@ -606,7 +601,9 @@ export const Connections = () => {
           }
           return false;
         };
-        if (sourceDepth > 0 || isAncestor(targetGroupId)) {
+        // Reject only genuine cycles: dropping a group into one of its own
+        // descendants. Re-parenting an already-nested group elsewhere is fine.
+        if (isAncestor(targetGroupId)) {
           setError(
             t("groups.cannotMoveIntoDescendant", {
               defaultValue: "Cannot move a group into one of its own subfolders",
