@@ -37,7 +37,13 @@
     "noResults": "Keine Ergebnisse gefunden",
     "error": "Fehler",
     "success": "Erfolg",
-    "ok": "OK"
+    "ok": "OK",
+    "continue": "Weiter",
+    "back": "Zurück",
+    "copy": "Kopieren",
+    "showDetails": "Details anzeigen",
+    "hideDetails": "Details ausblenden",
+    "beta": "Beta"
   },
   "sidebar": {
     "connections": "Verbindungen",
@@ -52,6 +58,9 @@
     "createView": "Neue Ansicht erstellen",
     "views": "Ansichten",
     "noViews": "Keine Ansichten gefunden",
+    "materializedViews": "Materialisierte Ansichten",
+    "refreshMaterializedView": "Aktualisieren",
+    "showDefinition": "Definition anzeigen",
     "editView": "Ansicht bearbeiten",
     "viewDefinition": "Ansichtsdefinition",
     "dropView": "Ansicht löschen",
@@ -73,6 +82,8 @@
     "expandTable": "Tabelle {{name}} erweitern",
     "collapseTable": "Tabelle {{name}} einklappen",
     "columns": "Spalten",
+    "parameters": "Parameter",
+    "noParameters": "Keine Parameter",
     "keys": "Schlüssel",
     "foreignKeys": "Fremdschlüssel",
     "indexes": "Indizes",
@@ -83,6 +94,7 @@
     "modifyColumn": "Spalte ändern",
     "copyName": "Namen kopieren",
     "openInEditor": "Im Editor öffnen",
+    "openInNewWindow": "In neuem Fenster öffnen",
     "closePanel": "Panel schließen",
     "setAsActive": "Als aktiv festlegen",
     "deleteTable": "Tabelle löschen",
@@ -250,7 +262,38 @@
     "export": "Verbindungen exportieren",
     "import": "Verbindungen importieren",
     "exportTitle": "Verbindungen exportieren",
-    "exportWarning": "Die exportierte Datei enthält deine Datenbank- und SSH-Passwörter im Klartext. Bewahre sie sicher auf."
+    "exportWarning": "Die exportierte Datei enthält deine Datenbank- und SSH-Passwörter im Klartext. Bewahre sie sicher auf.",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Tabularis-Exportdatei (.json)",
+      "menuLabel": "Verbindungen importieren…",
+      "group": {
+        "label": "Gruppe:",
+        "none": "Keine Gruppe",
+        "new": "Neue Gruppe…",
+        "newPlaceholder": "Gruppenname"
+      },
+      "betaNotice": "Der Import aus einer App befindet sich in der Beta-Phase. Falls ein Problem auftritt,",
+      "reportIssue": "melde es auf GitHub."
+    }
   },
   "connectionAppearance": {
     "section": "Darstellung",
@@ -393,10 +436,9 @@
       "explainplanPromptDesc": "Passe die Anweisungen für die KI-Analyse von EXPLAIN-Abfrageplänen an. Verwende {{LANGUAGE}} für die Ausgabesprache.",
       "enterExplainplanPrompt": "Prompt für Explain-Plan-Analyse eingeben...",
       "keySaved": "API-Schlüssel sicher gespeichert",
-      "promptSaved": "System-Prompt erfolgreich gespeichert",
+      "promptSaved": "Prompt gespeichert",
       "explainPromptSaved": "Explain-Prompt erfolgreich gespeichert",
       "promptReset": "System-Prompt auf Standard zurückgesetzt",
-      "explainPromptReset": "Explain-Prompt auf Standard zurückgesetzt",
       "modelPlaceholder": "Modell auswählen",
       "searchPlaceholder": "Modelle suchen...",
       "noResults": "Keine Modelle gefunden",
@@ -412,7 +454,9 @@
       "endpointUrlDesc": "Die Basis-URL deiner OpenAI-kompatiblen API. Beispiele: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "z. B. llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "Gib den Modellnamen deines OpenAI-kompatiblen Dienstes ein.",
-      "customOpenaiModelHelp": "Gib den exakten Modellnamen für deinen OpenAI-kompatiblen Anbieter ein."
+      "customOpenaiModelHelp": "Gib den exakten Modellnamen für deinen OpenAI-kompatiblen Anbieter ein.",
+      "promptResetSuccess": "Prompt auf Standard zurückgesetzt",
+      "apiKeySaved": "API-Schlüssel sicher gespeichert"
     },
     "updates": "Updates",
     "openSourceLibraries": "Open-Source-Bibliotheken",
@@ -569,6 +613,7 @@
       "tabSwitcher": "Tab wechseln",
       "copySelection": "Auswahl kopieren",
       "toggleSidebar": "Seitenleiste umschalten",
+      "focusTableFilter": "Tabellenfilter fokussieren",
       "openConnections": "Verbindungen öffnen",
       "newConnection": "Neue Verbindung",
       "newTab": "Neuer Tab",
@@ -678,6 +723,9 @@
     "manageSshConnections": "SSH-Verbindungen verwalten",
     "noSshConnections": "Keine SSH-Verbindungen verfügbar",
     "sslMode": "SSL-Modus",
+    "enableCleartextPlugin": "Klartext-Passwort-Plugin aktivieren",
+    "enableCleartextPluginHint": "Sendet das Passwort über mysql_clear_password. Erforderlich für Bastions wie Warpgate. Wird nur über eine TLS-Verbindung verwendet.",
+    "enableCleartextPluginTlsRequired": "Wählen Sie oben einen erzwungenen TLS-Modus (Required, Verify CA oder Verify Identity), um das Klartext-Passwort-Plugin zu verwenden.",
     "sslModes": {
       "disable": "Deaktivieren",
       "allow": "Erlauben",
@@ -741,7 +789,10 @@
     "keyFile": "Schlüsseldatei",
     "quickTest": "Schneller Verbindungstest",
     "testFailed": "Verbindungstest fehlgeschlagen",
-    "savedInKeychain": "Passwort im System-Keychain gespeichert"
+    "savedInKeychain": "Passwort im System-Keychain gespeichert",
+    "manageDesc": "Wiederverwendbare SSH-Tunnel für deine Datenbankverbindungen. Passwörter und Passphrasen werden im System-Schlüsselbund gespeichert.",
+    "deleteInUse_one": "Sie wird von {{count}} gespeicherten Verbindung verwendet, die sich nicht mehr über diesen Tunnel verbinden wird.",
+    "deleteInUse_other": "Sie wird von {{count}} gespeicherten Verbindungen verwendet, die sich nicht mehr über diesen Tunnel verbinden werden."
   },
   "sshAskpass": {
     "title": "SSH-Authentifizierung",
@@ -849,6 +900,7 @@
     "page": "Seite {{current}}",
     "jumpToPage": "Klicken, um zur Seite zu springen",
     "loadRowCount": "Zeilenanzahl laden",
+    "rowCount": "{{total}} Zeilen",
     "executePrompt": "Führe eine Abfrage aus, um Ergebnisse zu sehen",
     "results": {
       "minimize": "Minimieren",
@@ -869,6 +921,13 @@
     "saveThisQuery": "Diese Abfrage speichern",
     "noValidQueries": "Keine gültigen Abfragen gefunden",
     "queryFailed": "Abfrage fehlgeschlagen.",
+    "dangerousQueryTitle": "Ohne WHERE-Klausel ausführen?",
+    "dangerousQueryMessage": "Diese Anweisung betrifft alle Zeilen der Tabelle, da keine WHERE-Klausel vorhanden ist. Dies kann nicht rückgängig gemacht werden.",
+    "dangerousQueryConfirm": "Trotzdem ausführen",
+    "dangerousQueryDropTitle": "Dieses Objekt löschen?",
+    "dangerousQueryDropMessage": "DROP entfernt dieses Objekt und alle seine Daten dauerhaft. Dies kann nicht rückgängig gemacht werden.",
+    "dangerousQueryTruncateTitle": "Diese Tabelle leeren?",
+    "dangerousQueryTruncateMessage": "TRUNCATE löscht alle Zeilen der Tabelle. Dies kann nicht rückgängig gemacht werden.",
     "showErrorDetails": "Details anzeigen",
     "hideErrorDetails": "Details ausblenden",
     "errorBoundary": {
@@ -1225,6 +1284,9 @@
     "createSuccess": "Ansicht erfolgreich erstellt",
     "alterSuccess": "Ansicht erfolgreich aktualisiert",
     "saveError": "Speichern der Ansicht fehlgeschlagen: ",
+    "refreshSuccess": "Materialisierte Ansicht \"{{view}}\" aktualisiert",
+    "refreshError": "Aktualisieren der materialisierten Ansicht fehlgeschlagen: ",
+    "failGetDefinition": "Abrufen der Definition fehlgeschlagen: ",
     "confirmAlter": "Möchtest du die Ansicht \"{{view}}\" wirklich ändern?"
   },
   "community": {
@@ -1477,7 +1539,8 @@
     "targetColumn": "Zielspalte",
     "targetColumnPlaceholder": "Ziel wählen...",
     "skipColumn": "Überspringen (nicht importieren)",
-    "createNewColumn": "Neue Spalte erstellen"
+    "createNewColumn": "Neue Spalte erstellen",
+    "typePlaceholder": "Typ"
   },
   "aiActivity": {
     "title": "KI-Aktivität",
@@ -1604,5 +1667,38 @@
       "resourceNameRequired": "Der Ressourcenname ist erforderlich",
       "portInvalid": "Der Port muss zwischen 1 und 65535 liegen"
     }
+  },
+  "routines": {
+    "menuRun": "Ausführen…",
+    "menuEdit": "Bearbeiten",
+    "menuDrop": "Löschen",
+    "newRoutine": "Neue Routine",
+    "newProcedure": "Neue Prozedur",
+    "newFunction": "Neue Funktion",
+    "templateError": "Routinen-Vorlage konnte nicht geladen werden: ",
+    "dropConfirmTitle": "Routine löschen",
+    "dropConfirmMessage": "Routine \"{{name}}\" löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+    "dropSuccess": "Routine {{name}} gelöscht",
+    "dropError": "Routine konnte nicht gelöscht werden: ",
+    "runTitle": "{{name}} ausführen",
+    "runSubtitle": "Parameterwerte eingeben und das generierte SQL im Editor prüfen",
+    "loadingParameters": "Parameter werden geladen…",
+    "noParameters": "Diese Routine hat keine Parameter. Das Aufrufskript wird im Editor geöffnet.",
+    "outputParameter": "Ausgabeparameter — wird als Ergebnis zurückgegeben",
+    "rawLabel": "Raw",
+    "rawHint": "Wert unverändert einfügen, ohne String-Quoting (Zahlen, Ausdrücke)",
+    "runButton": "Ausführen",
+    "runTabPrefix": "Ausführen",
+    "returnValue": "Rückgabe"
+  },
+  "pagination": {
+    "firstPage": "Erste Seite",
+    "previousPage": "Vorherige Seite",
+    "nextPage": "Nächste Seite",
+    "lastPage": "Letzte Seite"
+  },
+  "miniGrid": {
+    "runningQuery": "Abfrage wird ausgeführt...",
+    "copyAll": "Alles kopieren"
   }
 }

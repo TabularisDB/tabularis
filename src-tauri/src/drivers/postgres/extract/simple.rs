@@ -277,6 +277,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::approx_constant)]
     fn test_float4() {
         let buf = 3.14f32.to_be_bytes();
         let result = extract_or_null(&Type::FLOAT4, &buf);
@@ -290,6 +291,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::approx_constant)]
     fn test_float8() {
         let buf = 2.718281828f64.to_be_bytes();
         let result = extract_or_null(&Type::FLOAT8, &buf);

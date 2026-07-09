@@ -37,7 +37,13 @@
     "noResults": "No results found",
     "error": "Error",
     "success": "Success",
-    "ok": "OK"
+    "ok": "OK",
+    "continue": "Continue",
+    "back": "Back",
+    "copy": "Copy",
+    "showDetails": "Show details",
+    "hideDetails": "Hide details",
+    "beta": "Beta"
   },
   "sidebar": {
     "connections": "Connections",
@@ -52,6 +58,9 @@
     "createView": "Create New View",
     "views": "Views",
     "noViews": "No views found",
+    "materializedViews": "Materialized Views",
+    "refreshMaterializedView": "Refresh",
+    "showDefinition": "Show Definition",
     "editView": "Edit View",
     "viewDefinition": "View Definition",
     "dropView": "Drop View",
@@ -73,6 +82,8 @@
     "expandTable": "Expand table {{name}}",
     "collapseTable": "Collapse table {{name}}",
     "columns": "columns",
+    "parameters": "parameters",
+    "noParameters": "No parameters",
     "keys": "keys",
     "foreignKeys": "foreign keys",
     "indexes": "indexes",
@@ -83,6 +94,7 @@
     "modifyColumn": "Modify Column",
     "copyName": "Copy Name",
     "openInEditor": "Open in Editor",
+    "openInNewWindow": "Open in New Window",
     "closePanel": "Close panel",
     "setAsActive": "Set as Active",
     "deleteTable": "Delete Table",
@@ -263,7 +275,38 @@
     "export": "Export Connections",
     "import": "Import Connections",
     "exportTitle": "Export Connections",
-    "exportWarning": "The exported file will contain your database and SSH passwords in plaintext. Please store it securely."
+    "exportWarning": "The exported file will contain your database and SSH passwords in plaintext. Please store it securely.",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Tabularis export file (.json)",
+      "menuLabel": "Import connections…",
+      "group": {
+        "label": "Group:",
+        "none": "No group",
+        "new": "New group…",
+        "newPlaceholder": "Group name"
+      },
+      "betaNotice": "Import from App is in beta. If you run into a problem,",
+      "reportIssue": "report it on GitHub."
+    }
   },
   "connectionAppearance": {
     "section": "Appearance",
@@ -426,10 +469,9 @@
       "explainplanPromptDesc": "Customize instructions for AI analysis of EXPLAIN query plans. Use {{LANGUAGE}} for the output language.",
       "enterExplainplanPrompt": "Enter explain plan analysis prompt...",
       "keySaved": "API Key saved securely",
-      "promptSaved": "System prompt saved successfully",
+      "promptSaved": "Prompt saved",
       "explainPromptSaved": "Explain prompt saved successfully",
       "promptReset": "System prompt reset to default",
-      "explainPromptReset": "Explain prompt reset to default",
       "modelPlaceholder": "Select a model",
       "searchPlaceholder": "Search models...",
       "noResults": "No models found",
@@ -445,7 +487,9 @@
       "endpointUrlDesc": "The base URL of your OpenAI-compatible API. Examples: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "e.g., llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "Enter the model name provided by your OpenAI-compatible service.",
-      "customOpenaiModelHelp": "Enter the exact model name for your OpenAI-compatible provider."
+      "customOpenaiModelHelp": "Enter the exact model name for your OpenAI-compatible provider.",
+      "promptResetSuccess": "Prompt reset to default",
+      "apiKeySaved": "API key saved securely"
     },
     "updates": "Updates",
     "openSourceLibraries": "Open Source Libraries",
@@ -602,6 +646,7 @@
       "tabSwitcher": "Switch tab",
       "copySelection": "Copy selection",
       "toggleSidebar": "Toggle sidebar",
+      "focusTableFilter": "Focus table filter",
       "openConnections": "Open connections",
       "newConnection": "New connection",
       "newTab": "New tab",
@@ -712,6 +757,9 @@
     "manageSshConnections": "Manage SSH Connections",
     "noSshConnections": "No SSH connections available",
     "sslMode": "SSL Mode",
+    "enableCleartextPlugin": "Enable cleartext password plugin",
+    "enableCleartextPluginHint": "Sends the password using mysql_clear_password. Required for bastions like Warpgate. Only used over a TLS connection.",
+    "enableCleartextPluginTlsRequired": "Select an enforced TLS mode above (Required, Verify CA, or Verify Identity) to use the cleartext password plugin.",
     "sslModes": {
       "disable": "Disable",
       "allow": "Allow",
@@ -775,7 +823,10 @@
     "keyFile": "Key file",
     "quickTest": "Quick connection test",
     "testFailed": "Connection test failed",
-    "savedInKeychain": "Password saved in system keychain"
+    "savedInKeychain": "Password saved in system keychain",
+    "manageDesc": "Reusable SSH tunnels for your database connections. Passwords and passphrases are stored in the system keychain.",
+    "deleteInUse_one": "It is used by {{count}} saved database connection, which will no longer connect through this tunnel.",
+    "deleteInUse_other": "It is used by {{count}} saved database connections, which will no longer connect through this tunnel."
   },
   "sshAskpass": {
     "title": "SSH Authentication",
@@ -865,6 +916,7 @@
     "page": "Page {{current}}",
     "jumpToPage": "Click to jump to page",
     "loadRowCount": "Load row count",
+    "rowCount": "{{total}} rows",
     "executePrompt": "Execute a query to see results",
     "tableRunPrompt": "Press Run (Ctrl/Command+F5) to load table data",
     "results": {
@@ -885,6 +937,13 @@
     "saveThisQuery": "Save this query",
     "noValidQueries": "No valid queries found",
     "queryFailed": "Query failed.",
+    "dangerousQueryTitle": "Run without a WHERE clause?",
+    "dangerousQueryMessage": "This statement will affect every row in the table because it has no WHERE clause. This cannot be undone.",
+    "dangerousQueryConfirm": "Run anyway",
+    "dangerousQueryDropTitle": "Drop this object?",
+    "dangerousQueryDropMessage": "DROP permanently removes this object and all of its data. This cannot be undone.",
+    "dangerousQueryTruncateTitle": "Truncate this table?",
+    "dangerousQueryTruncateMessage": "TRUNCATE deletes every row in the table. This cannot be undone.",
     "showErrorDetails": "Show details",
     "hideErrorDetails": "Hide details",
     "errorBoundary": {
@@ -1261,7 +1320,10 @@
     "createSuccess": "View created successfully",
     "alterSuccess": "View updated successfully",
     "saveError": "Failed to save view: ",
-    "confirmAlter": "Are you sure you want to modify view \"{{view}}\"?"
+    "confirmAlter": "Are you sure you want to modify view \"{{view}}\"?",
+    "refreshSuccess": "Materialized view \"{{view}}\" refreshed",
+    "refreshError": "Failed to refresh materialized view: ",
+    "failGetDefinition": "Failed to get definition: "
   },
   "triggers": {
     "createTrigger": "Create Trigger",
@@ -1553,7 +1615,8 @@
     "targetColumn": "Target column",
     "targetColumnPlaceholder": "Choose target...",
     "skipColumn": "Skip (do not import)",
-    "createNewColumn": "Create new column"
+    "createNewColumn": "Create new column",
+    "typePlaceholder": "Type"
   },
   "aiActivity": {
     "title": "AI Activity",
@@ -1680,5 +1743,38 @@
       "resourceNameRequired": "Resource name is required",
       "portInvalid": "Port must be between 1 and 65535"
     }
+  },
+  "routines": {
+    "menuRun": "Run…",
+    "menuEdit": "Edit",
+    "menuDrop": "Drop",
+    "newRoutine": "New routine",
+    "newProcedure": "New procedure",
+    "newFunction": "New function",
+    "templateError": "Failed to load routine template: ",
+    "dropConfirmTitle": "Drop routine",
+    "dropConfirmMessage": "Drop routine \"{{name}}\"? This action cannot be undone.",
+    "dropSuccess": "Routine {{name}} dropped",
+    "dropError": "Failed to drop routine: ",
+    "runTitle": "Run {{name}}",
+    "runSubtitle": "Provide the parameter values, then review the generated SQL in the editor",
+    "loadingParameters": "Loading parameters…",
+    "noParameters": "This routine takes no parameters. The invocation script will open in the editor.",
+    "outputParameter": "Output parameter — returned as a result",
+    "rawLabel": "Raw",
+    "rawHint": "Insert the value verbatim, without string quoting (numbers, expressions)",
+    "runButton": "Run",
+    "runTabPrefix": "Run",
+    "returnValue": "returns"
+  },
+  "pagination": {
+    "firstPage": "First page",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "lastPage": "Last page"
+  },
+  "miniGrid": {
+    "runningQuery": "Running query...",
+    "copyAll": "Copy all"
   }
 }

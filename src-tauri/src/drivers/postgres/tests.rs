@@ -1,6 +1,6 @@
 use super::binding::{
-    PgValueOptions, bind_pg_boolean_string, bind_pg_number, bind_pg_numeric_string, bind_pg_value,
-    build_pk_map_predicate, build_pk_predicate,
+    PgValueOptions, bind_pg_boolean_string, bind_pg_number, bind_pg_numeric_string,
+    bind_pg_temporal_string, bind_pg_value, build_pk_map_predicate, build_pk_predicate,
 };
 use super::helpers::{extract_base_type, is_implicit_cast_compatible};
 
@@ -188,6 +188,7 @@ mod pg_number_binding_tests {
     }
 
     #[test]
+    #[allow(clippy::approx_constant)]
     fn f64_casts_to_double_precision() {
         let n = serde_json::Number::from_f64(3.14).unwrap();
         let bound = bind_pg_number(&n, 3).unwrap();
@@ -315,6 +316,70 @@ mod pg_boolean_string_binding_tests {
         };
         assert!(err.contains("Cannot convert value"));
         assert!(err.contains("boolean"));
+    }
+}
+
+mod pg_temporal_string_binding_tests {
+    use super::*;
+
+    #[test]
+    fn timestamptz_column_casts_to_canonical_type() {
+        let bound = bind_pg_temporal_string(
+            "2025-06-30T12:00:00+00:00",
+            "timestamp with time zone",
+            1,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(bound.sql, "CAST($1 AS timestamptz)");
+        let (_, pg_type) = bound.param.unwrap();
+        // The placeholder must be pinned to TEXT — not TIMESTAMPTZ — or
+        // tokio-postgres rejects the bound String client-side before the CAST
+        // ever runs server-side (#401).
+        assert_eq!(pg_type, tokio_postgres::types::Type::TEXT);
+    }
+
+    #[test]
+    fn timestamp_without_time_zone_casts_to_timestamp() {
+        let bound = bind_pg_temporal_string("2025-06-30 12:00:00", "timestamp without time zone", 2)
+            .unwrap()
+            .unwrap();
+        assert_eq!(bound.sql, "CAST($2 AS timestamp)");
+    }
+
+    #[test]
+    fn date_column_casts_to_date() {
+        let bound = bind_pg_temporal_string("2025-06-30", "date", 3)
+            .unwrap()
+            .unwrap();
+        assert_eq!(bound.sql, "CAST($3 AS date)");
+    }
+
+    #[test]
+    fn time_columns_cast_to_time_or_timetz() {
+        let plain = bind_pg_temporal_string("12:00:00", "time without time zone", 1)
+            .unwrap()
+            .unwrap();
+        assert_eq!(plain.sql, "CAST($1 AS time)");
+
+        let with_tz = bind_pg_temporal_string("12:00:00+02", "time with time zone", 1)
+            .unwrap()
+            .unwrap();
+        assert_eq!(with_tz.sql, "CAST($1 AS timetz)");
+    }
+
+    #[test]
+    fn interval_column_casts_to_interval() {
+        let bound = bind_pg_temporal_string("1 day", "interval", 1)
+            .unwrap()
+            .unwrap();
+        assert_eq!(bound.sql, "CAST($1 AS interval)");
+    }
+
+    #[test]
+    fn non_temporal_column_returns_none() {
+        assert!(bind_pg_temporal_string("2025-06-30", "text", 1).is_none());
+        assert!(bind_pg_temporal_string("2025-06-30", "integer", 1).is_none());
     }
 }
 
@@ -520,19 +585,21 @@ mod build_pk_predicate_tests {
     #[test]
     fn uuid_string_pk_binds_as_text_for_varchar_column() {
         let uuid = "550e8400-e29b-41d4-a716-446655440000";
-        let (sql, param) =
+        let (sql, (param, pg_type)) =
             build_pk_predicate("guid", serde_json::json!(uuid), 1, Some("character varying"))
                 .unwrap();
         assert_eq!(sql, "\"guid\" = $1");
+        assert_eq!(pg_type, tokio_postgres::types::Type::TEXT);
         assert_eq!(format!("{:?}", param), format!("{:?}", uuid.to_string()));
     }
 
     #[test]
     fn uuid_string_pk_binds_as_uuid_for_uuid_column() {
         let uuid = "550e8400-e29b-41d4-a716-446655440000";
-        let (sql, param) =
+        let (sql, (param, pg_type)) =
             build_pk_predicate("id", serde_json::json!(uuid), 1, Some("uuid")).unwrap();
         assert_eq!(sql, "\"id\" = $1");
+        assert_eq!(pg_type, tokio_postgres::types::Type::UUID);
         let expected: uuid::Uuid = uuid.parse().unwrap();
         assert_eq!(format!("{:?}", param), format!("{:?}", expected));
     }
@@ -622,8 +689,10 @@ mod build_pk_map_predicate_tests {
         assert_eq!(params.len(), 2);
         // guid (sorted first) binds as text, id binds as the native Uuid type.
         let expected_uuid: uuid::Uuid = uuid.parse().unwrap();
-        assert_eq!(format!("{:?}", params[0]), format!("{:?}", uuid.to_string()));
-        assert_eq!(format!("{:?}", params[1]), format!("{:?}", expected_uuid));
+        assert_eq!(params[0].1, tokio_postgres::types::Type::TEXT);
+        assert_eq!(params[1].1, tokio_postgres::types::Type::UUID);
+        assert_eq!(format!("{:?}", params[0].0), format!("{:?}", uuid.to_string()));
+        assert_eq!(format!("{:?}", params[1].0), format!("{:?}", expected_uuid));
     }
 
     #[test]
@@ -631,5 +700,225 @@ mod build_pk_map_predicate_tests {
         let pk_map: HashMap<String, serde_json::Value> = HashMap::new();
         let pk_types = HashMap::new();
         assert!(build_pk_map_predicate(&pk_map, &pk_types, 1).is_err());
+    }
+}
+
+/// Live-Postgres regression coverage for #401 (and the adjacent #392 uuid-cast
+/// bug it shares a root cause with). Exercises the real `update_record` driver
+/// function — not just `bind_pg_value`'s SQL/param shape — because the bug only
+/// surfaces once tokio-postgres actually prepares and binds the statement
+/// against a server: `CAST($N AS uuid/timestamptz)` makes PostgreSQL report the
+/// placeholder's *effective* type as the cast target, so a bound `String` is
+/// rejected client-side unless the placeholder is explicitly pinned to TEXT
+/// (see `binding::TypedPgParam` / `client::execute_typed`).
+///
+/// Ignored by default — requires a local PostgreSQL, e.g.:
+///   docker run -d -e POSTGRES_PASSWORD=postgres -p 55432:5432 postgres:16
+///   TABULARIS_TEST_PG=1 cargo test --lib postgres::tests::live_pg -- --ignored --nocapture
+/// Override TABULARIS_TEST_PG_{HOST,PORT,USER,PASSWORD,DB} for a non-default setup.
+#[cfg(test)]
+mod live_pg_temporal_and_uuid_regression {
+    use crate::models::{ConnectionParams, DatabaseSelection};
+    use std::collections::HashMap;
+
+    fn test_params() -> Option<ConnectionParams> {
+        // Plain env vars rather than a connection-string parser, to avoid
+        // pulling in a URL-parsing crate for a single ignored test.
+        if std::env::var("TABULARIS_TEST_PG").is_err() {
+            return None;
+        }
+        Some(ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some(
+                std::env::var("TABULARIS_TEST_PG_HOST").unwrap_or_else(|_| "localhost".to_string()),
+            ),
+            port: std::env::var("TABULARIS_TEST_PG_PORT")
+                .ok()
+                .and_then(|p| p.parse().ok())
+                .or(Some(55432)),
+            username: Some(
+                std::env::var("TABULARIS_TEST_PG_USER").unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            password: Some(
+                std::env::var("TABULARIS_TEST_PG_PASSWORD")
+                    .unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            database: DatabaseSelection::Single(
+                std::env::var("TABULARIS_TEST_PG_DB").unwrap_or_else(|_| "postgres".to_string()),
+            ),
+            ..Default::default()
+        })
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_pg_update_record_handles_temporal_and_uuid_columns() {
+        let Some(params) = test_params() else {
+            eprintln!("skipping: set TABULARIS_TEST_PG=1 to run this test");
+            return;
+        };
+
+        let pool = crate::pool_manager::get_postgres_pool(&params)
+            .await
+            .expect("connect to test postgres");
+        let setup_client = pool.get().await.expect("get client");
+        setup_client
+            .batch_execute(
+                "DROP TABLE IF EXISTS tabularis_401_regression; \
+                 CREATE TABLE tabularis_401_regression ( \
+                   id uuid PRIMARY KEY, \
+                   created_at timestamptz NOT NULL, \
+                   due_date date, \
+                   start_time time without time zone \
+                 ); \
+                 INSERT INTO tabularis_401_regression (id, created_at, due_date, start_time) \
+                 VALUES ('550e8400-e29b-41d4-a716-446655440000', '2024-01-15 10:30:00+00', '2024-01-15', '08:00:00');",
+            )
+            .await
+            .expect("seed table");
+        drop(setup_client);
+
+        let mut pk_map = HashMap::new();
+        pk_map.insert(
+            "id".to_string(),
+            serde_json::json!("550e8400-e29b-41d4-a716-446655440000"),
+        );
+
+        // Exactly the #401 repro: edit a `timestamptz` cell via the data-grid path.
+        let updated = super::super::update_record(
+            &params,
+            "tabularis_401_regression",
+            &pk_map,
+            "created_at",
+            serde_json::json!("2025-06-30T12:00:00+00:00"),
+            "public",
+            10 * 1024 * 1024,
+        )
+        .await
+        .expect("update timestamptz column");
+        assert_eq!(updated, 1);
+
+        // `date` column.
+        let updated = super::super::update_record(
+            &params,
+            "tabularis_401_regression",
+            &pk_map,
+            "due_date",
+            serde_json::json!("2025-07-01"),
+            "public",
+            10 * 1024 * 1024,
+        )
+        .await
+        .expect("update date column");
+        assert_eq!(updated, 1);
+
+        // `time` column.
+        let updated = super::super::update_record(
+            &params,
+            "tabularis_401_regression",
+            &pk_map,
+            "start_time",
+            serde_json::json!("09:30:00"),
+            "public",
+            10 * 1024 * 1024,
+        )
+        .await
+        .expect("update time column");
+        assert_eq!(updated, 1);
+
+        // #392 sibling bug: a uuid-shaped string PK must still bind correctly
+        // for the row to be found at all by the predicate above — implicitly
+        // covered by every assert_eq!(updated, 1) succeeding, since the WHERE
+        // clause uses the same uuid-cast binding path.
+    }
+}
+
+mod routine_management {
+    use super::super::routines::{drop_routine_sql, routine_call_sql, routine_create_template};
+    use crate::models::RoutineCallArg;
+
+    fn arg(name: &str, mode: &str, value: Option<&str>, is_raw: bool) -> RoutineCallArg {
+        RoutineCallArg {
+            name: name.to_string(),
+            mode: mode.to_string(),
+            value: value.map(|v| v.to_string()),
+            is_raw,
+        }
+    }
+
+    #[test]
+    fn function_call_uses_select_star_from() {
+        let sql = routine_call_sql(
+            "fn_report",
+            "FUNCTION",
+            &[arg("p_year", "IN", Some("2026"), true)],
+            Some("public"),
+        );
+        assert_eq!(sql, "SELECT * FROM \"public\".\"fn_report\"(2026);");
+    }
+
+    #[test]
+    fn function_call_excludes_out_params() {
+        // PostgreSQL functions do not accept pure OUT parameters in the call
+        // signature; only IN/INOUT are passed.
+        let sql = routine_call_sql(
+            "fn_split",
+            "FUNCTION",
+            &[
+                arg("p_in", "IN", Some("5"), true),
+                arg("p_lo", "OUT", None, false),
+                arg("p_hi", "OUT", None, false),
+            ],
+            Some("public"),
+        );
+        assert_eq!(sql, "SELECT * FROM \"public\".\"fn_split\"(5);");
+    }
+
+    #[test]
+    fn function_call_keeps_inout_params() {
+        let sql = routine_call_sql(
+            "fn_adjust",
+            "FUNCTION",
+            &[
+                arg("p_val", "INOUT", Some("10"), true),
+                arg("p_out", "OUT", None, false),
+            ],
+            Some("public"),
+        );
+        assert_eq!(sql, "SELECT * FROM \"public\".\"fn_adjust\"(10);");
+    }
+
+    #[test]
+    fn procedure_call_renders_out_params_as_null() {
+        let sql = routine_call_sql(
+            "sp_test",
+            "PROCEDURE",
+            &[
+                arg("p_in", "IN", Some("it's"), false),
+                arg("p_out", "OUT", None, false),
+            ],
+            Some("public"),
+        );
+        assert_eq!(sql, "CALL \"public\".\"sp_test\"('it''s', NULL);");
+    }
+
+    #[test]
+    fn create_templates_are_schema_qualified_or_replace() {
+        let tpl = routine_create_template("FUNCTION", Some("app"));
+        assert!(tpl.starts_with("CREATE OR REPLACE FUNCTION \"app\"."), "{tpl}");
+        let tpl = routine_create_template("PROCEDURE", None);
+        assert!(tpl.starts_with("CREATE OR REPLACE PROCEDURE my_procedure"), "{tpl}");
+    }
+
+    #[test]
+    fn drop_sql_includes_identity_signature() {
+        assert_eq!(
+            drop_routine_sql("fn_add", "FUNCTION", "integer, integer", Some("public")),
+            "DROP FUNCTION \"public\".\"fn_add\"(integer, integer)"
+        );
+        assert_eq!(
+            drop_routine_sql("sp", "PROCEDURE", "", None),
+            "DROP PROCEDURE \"sp\"()"
+        );
     }
 }

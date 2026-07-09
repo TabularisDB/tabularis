@@ -39,9 +39,10 @@ export const ConnectionListItem = ({
   onMouseDown,
 }: ConnectionListItemProps) => {
   const { t } = useTranslation();
-  const { activeConnectionId, isConnectionOpen } = useDatabase();
+  const { activeConnectionId, isConnectionOpenAnywhere } = useDatabase();
 
-  const isOpen = isConnectionOpen(conn.id);
+  // Reflect connection status across all windows (open here or in another window).
+  const isOpen = isConnectionOpenAnywhere(conn.id);
   const isConnecting = connectingId === conn.id;
   const isDriverEnabled = enabledDrivers.some(d => d.id === conn.params.driver);
   const driverManifest = allDrivers.find(d => d.id === conn.params.driver);
@@ -58,7 +59,7 @@ export const ConnectionListItem = ({
         'group flex items-center gap-3 px-3.5 py-2 rounded-xl border transition-all duration-150 cursor-pointer select-none',
         !isDriverEnabled && 'opacity-60 cursor-not-allowed',
         isConnecting && 'pointer-events-none',
-        getCardClass(conn.id, activeConnectionId, isConnectionOpen),
+        getCardClass(conn.id, activeConnectionId, isConnectionOpenAnywhere),
       )}
     >
       <div

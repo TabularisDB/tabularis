@@ -37,7 +37,13 @@
     "noResults": "結果が見つかりません",
     "error": "エラー",
     "success": "成功",
-    "ok": "OK"
+    "ok": "OK",
+    "continue": "続行",
+    "back": "戻る",
+    "copy": "コピー",
+    "showDetails": "詳細を表示",
+    "hideDetails": "詳細を非表示",
+    "beta": "ベータ"
   },
   "sidebar": {
     "connections": "接続",
@@ -52,6 +58,9 @@
     "createView": "ビューを新規作成",
     "views": "ビュー",
     "noViews": "ビューが見つかりません",
+    "materializedViews": "マテリアライズドビュー",
+    "refreshMaterializedView": "更新",
+    "showDefinition": "定義を表示",
     "editView": "ビューを編集",
     "viewDefinition": "ビュー定義",
     "dropView": "ビューを削除",
@@ -73,6 +82,8 @@
     "expandTable": "テーブル {{name}} を展開",
     "collapseTable": "テーブル {{name}} を折りたたむ",
     "columns": "カラム",
+    "parameters": "パラメータ",
+    "noParameters": "パラメータなし",
     "keys": "キー",
     "foreignKeys": "外部キー",
     "indexes": "インデックス",
@@ -83,6 +94,7 @@
     "modifyColumn": "カラムを変更",
     "copyName": "名前をコピー",
     "openInEditor": "エディタで開く",
+    "openInNewWindow": "新しいウィンドウで開く",
     "closePanel": "パネルを閉じる",
     "setAsActive": "アクティブに設定",
     "deleteTable": "テーブルを削除",
@@ -263,7 +275,38 @@
     "export": "接続をエクスポート",
     "import": "接続をインポート",
     "exportTitle": "接続をエクスポート",
-    "exportWarning": "エクスポートされたファイルには、データベースおよび SSH のパスワードが平文で含まれます。安全な場所に保管してください。"
+    "exportWarning": "エクスポートされたファイルには、データベースおよび SSH のパスワードが平文で含まれます。安全な場所に保管してください。",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Tabularis エクスポートファイル (.json)",
+      "menuLabel": "接続をインポート…",
+      "group": {
+        "label": "グループ:",
+        "none": "グループなし",
+        "new": "新規グループ…",
+        "newPlaceholder": "グループ名"
+      },
+      "betaNotice": "アプリからのインポートはベータ版です。問題が発生した場合は、",
+      "reportIssue": "GitHub で報告してください。"
+    }
   },
   "connectionAppearance": {
     "section": "外観",
@@ -407,10 +450,9 @@
       "explainplanPromptDesc": "AI による EXPLAIN クエリ計画分析の指示をカスタマイズします。{{LANGUAGE}} を出力言語に使用します。",
       "enterExplainplanPrompt": "実行計画分析プロンプトを入力...",
       "keySaved": "API キーを安全に保存しました",
-      "promptSaved": "システムプロンプトを正常に保存しました",
+      "promptSaved": "プロンプトを保存しました",
       "explainPromptSaved": "説明プロンプトを正常に保存しました",
       "promptReset": "システムプロンプトをデフォルトに戻しました",
-      "explainPromptReset": "説明プロンプトをデフォルトに戻しました",
       "modelPlaceholder": "モデルを選択",
       "searchPlaceholder": "モデルを検索...",
       "noResults": "モデルが見つかりません",
@@ -426,7 +468,9 @@
       "endpointUrlDesc": "OpenAI 互換 API のベース URL です。例: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "例: llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "OpenAI 互換サービスが提供するモデル名を入力してください。",
-      "customOpenaiModelHelp": "OpenAI 互換プロバイダの正確なモデル名を入力してください。"
+      "customOpenaiModelHelp": "OpenAI 互換プロバイダの正確なモデル名を入力してください。",
+      "promptResetSuccess": "プロンプトをデフォルトにリセットしました",
+      "apiKeySaved": "APIキーを安全に保存しました"
     },
     "updates": "アップデート",
     "openSourceLibraries": "オープンソースライブラリ",
@@ -583,6 +627,7 @@
       "tabSwitcher": "タブを切り替え",
       "copySelection": "選択範囲をコピー",
       "toggleSidebar": "サイドバーを切り替え",
+      "focusTableFilter": "テーブルフィルターにフォーカス",
       "openConnections": "接続を開く",
       "newConnection": "新規接続",
       "newTab": "新規タブ",
@@ -692,6 +737,9 @@
     "manageSshConnections": "SSH 接続を管理",
     "noSshConnections": "利用可能な SSH 接続がありません",
     "sslMode": "SSL モード",
+    "enableCleartextPlugin": "クリアテキストパスワードプラグインを有効にする",
+    "enableCleartextPluginHint": "mysql_clear_password を使用してパスワードを送信します。Warpgate などのバスティオンで必要です。TLS 接続でのみ使用されます。",
+    "enableCleartextPluginTlsRequired": "クリアテキストパスワードプラグインを使用するには、上で強制 TLS モード（Required、Verify CA、または Verify Identity）を選択してください。",
     "sslModes": {
       "disable": "無効",
       "allow": "許可",
@@ -755,7 +803,9 @@
     "keyFile": "鍵ファイル",
     "quickTest": "簡易接続テスト",
     "testFailed": "接続テストに失敗しました",
-    "savedInKeychain": "パスワードをシステムのキーチェーンに保存しました"
+    "savedInKeychain": "パスワードをシステムのキーチェーンに保存しました",
+    "manageDesc": "データベース接続で再利用できるSSHトンネルです。パスワードとパスフレーズはシステムのキーチェーンに保存されます。",
+    "deleteInUse_other": "この接続は{{count}}件の保存済みデータベース接続で使用されており、削除するとこのトンネル経由で接続できなくなります。"
   },
   "sshAskpass": {
     "title": "SSH認証",
@@ -862,6 +912,7 @@
     "page": "{{current}} ページ",
     "jumpToPage": "クリックでページ移動",
     "loadRowCount": "行数を読み込む",
+    "rowCount": "{{total}} 行",
     "executePrompt": "クエリを実行すると結果が表示されます",
     "results": {
       "minimize": "最小化",
@@ -882,6 +933,13 @@
     "saveThisQuery": "このクエリを保存",
     "noValidQueries": "有効なクエリが見つかりません",
     "queryFailed": "クエリが失敗しました。",
+    "dangerousQueryTitle": "WHERE句なしで実行しますか？",
+    "dangerousQueryMessage": "このステートメントにはWHERE句がないため、テーブルのすべての行に影響します。この操作は元に戻せません。",
+    "dangerousQueryConfirm": "実行する",
+    "dangerousQueryDropTitle": "このオブジェクトを削除しますか？",
+    "dangerousQueryDropMessage": "DROP はこのオブジェクトとそのすべてのデータを完全に削除します。この操作は元に戻せません。",
+    "dangerousQueryTruncateTitle": "このテーブルを空にしますか？",
+    "dangerousQueryTruncateMessage": "TRUNCATE はテーブルのすべての行を削除します。この操作は元に戻せません。",
     "showErrorDetails": "詳細を表示",
     "hideErrorDetails": "詳細を非表示",
     "errorBoundary": {
@@ -1237,6 +1295,9 @@
     "createSuccess": "ビューを正常に作成しました",
     "alterSuccess": "ビューを正常に更新しました",
     "saveError": "ビューの保存に失敗しました: ",
+    "refreshSuccess": "マテリアライズドビュー「{{view}}」を更新しました",
+    "refreshError": "マテリアライズドビューの更新に失敗しました: ",
+    "failGetDefinition": "定義の取得に失敗しました: ",
     "confirmAlter": "ビュー「{{view}}」を変更してもよろしいですか？"
   },
   "triggers": {
@@ -1496,7 +1557,8 @@
     "targetColumn": "対象カラム",
     "targetColumnPlaceholder": "対象を選択...",
     "skipColumn": "スキップ (インポートしない)",
-    "createNewColumn": "新規カラムを作成"
+    "createNewColumn": "新規カラムを作成",
+    "typePlaceholder": "型"
   },
   "aiActivity": {
     "title": "AI アクティビティ",
@@ -1623,5 +1685,38 @@
       "resourceNameRequired": "リソース名は必須です",
       "portInvalid": "ポートは 1 から 65535 の範囲で指定してください"
     }
+  },
+  "routines": {
+    "menuRun": "実行…",
+    "menuEdit": "編集",
+    "menuDrop": "削除",
+    "newRoutine": "新しいルーチン",
+    "newProcedure": "新しいプロシージャ",
+    "newFunction": "新しい関数",
+    "templateError": "ルーチンテンプレートの読み込みに失敗しました: ",
+    "dropConfirmTitle": "ルーチンを削除",
+    "dropConfirmMessage": "ルーチン「{{name}}」を削除しますか？この操作は元に戻せません。",
+    "dropSuccess": "ルーチン {{name}} を削除しました",
+    "dropError": "ルーチンの削除に失敗しました: ",
+    "runTitle": "{{name}} を実行",
+    "runSubtitle": "パラメータ値を入力し、生成されたSQLをエディタで確認してください",
+    "loadingParameters": "パラメータを読み込み中…",
+    "noParameters": "このルーチンにはパラメータがありません。呼び出しスクリプトがエディタで開きます。",
+    "outputParameter": "出力パラメータ — 結果として返されます",
+    "rawLabel": "Raw",
+    "rawHint": "文字列クォートなしでそのまま挿入します（数値・式）",
+    "runButton": "実行",
+    "runTabPrefix": "実行",
+    "returnValue": "戻り値"
+  },
+  "pagination": {
+    "firstPage": "最初のページ",
+    "previousPage": "前のページ",
+    "nextPage": "次のページ",
+    "lastPage": "最後のページ"
+  },
+  "miniGrid": {
+    "runningQuery": "クエリを実行中...",
+    "copyAll": "すべてコピー"
   }
 }

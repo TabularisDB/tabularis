@@ -7,6 +7,7 @@ mod binding;
 mod client;
 mod explain;
 mod helpers;
+mod routines;
 
 #[cfg(test)]
 mod tests;
@@ -17,11 +18,11 @@ use crate::models::{
 };
 use crate::pool_manager::get_postgres_pool;
 use binding::{PgValueOptions, bind_pg_value, build_pk_map_predicate};
-use client::{execute, format_pg_error, get_client, query_all, query_one};
+use client::{execute, execute_typed, format_pg_error, get_client, query_all, query_one, query_one_typed};
 pub use explain::explain_query;
 use extract::extract_value;
 use helpers::{escape_identifier, extract_base_type, is_implicit_cast_compatible};
-use tokio_postgres::types::ToSql;
+use tokio_postgres::types::{ToSql, Type};
 
 pub async fn get_schemas(params: &ConnectionParams) -> Result<Vec<String>, String> {
     let pool = get_postgres_pool(params).await?;
@@ -388,7 +389,7 @@ pub async fn get_indexes(
             JOIN pg_class i ON i.oid = ix.indexrelid
             JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
         WHERE
-            t.relkind = 'r'
+            t.relkind IN ('r', 'm')
             AND n.nspname = $1
             AND t.relname = $2
         ORDER BY
@@ -431,11 +432,11 @@ pub async fn save_blob_column_to_file(
         predicate,
     );
 
-    let params_ref: Vec<&(dyn ToSql + Sync)> = pk_params
+    let params_ref: Vec<(&(dyn ToSql + Sync), Type)> = pk_params
         .iter()
-        .map(|b| b.as_ref() as &(dyn ToSql + Sync))
+        .map(|(b, t)| (b.as_ref() as &(dyn ToSql + Sync), t.clone()))
         .collect();
-    let row = query_one(&pool, &query, &params_ref).await?;
+    let row = query_one_typed(&pool, &query, &params_ref).await?;
 
     let bytes: Vec<u8> = row.try_get(0).map_err(|e| format_pg_error(&e))?;
     std::fs::write(file_path, bytes).map_err(|e| e.to_string())
@@ -460,11 +461,11 @@ pub async fn fetch_blob_column_as_data_url(
         predicate,
     );
 
-    let params_ref: Vec<&(dyn ToSql + Sync)> = pk_params
+    let params_ref: Vec<(&(dyn ToSql + Sync), Type)> = pk_params
         .iter()
-        .map(|b| b.as_ref() as &(dyn ToSql + Sync))
+        .map(|(b, t)| (b.as_ref() as &(dyn ToSql + Sync), t.clone()))
         .collect();
-    let row = query_one(&pool, &query, &params_ref).await?;
+    let row = query_one_typed(&pool, &query, &params_ref).await?;
 
     let bytes: Vec<u8> = row.try_get(0).map_err(|e| format_pg_error(&e))?;
     Ok(crate::drivers::common::encode_blob_full(&bytes))
@@ -582,11 +583,11 @@ pub async fn delete_record(
         predicate,
     );
 
-    let params_ref: Vec<&(dyn ToSql + Sync)> = pk_params
+    let params_ref: Vec<(&(dyn ToSql + Sync), Type)> = pk_params
         .iter()
-        .map(|b| b.as_ref() as &(dyn ToSql + Sync))
+        .map(|(b, t)| (b.as_ref() as &(dyn ToSql + Sync), t.clone()))
         .collect();
-    execute(&pool, &query, &params_ref).await
+    execute_typed(&pool, &query, &params_ref).await
 }
 
 pub async fn update_record(
@@ -622,7 +623,8 @@ pub async fn update_record(
         escape_identifier(col_name)
     );
 
-    let mut bound_params: Vec<Box<dyn tokio_postgres::types::ToSql + Send + Sync>> = Vec::new();
+    let mut bound_params: Vec<(Box<dyn tokio_postgres::types::ToSql + Send + Sync>, Type)> =
+        Vec::new();
 
     let bound = bind_pg_value(
         new_val,
@@ -645,9 +647,9 @@ pub async fn update_record(
     query.push_str(&predicate);
     bound_params.extend(pk_params);
 
-    let params_ref: Vec<&(dyn ToSql + Sync)> = bound_params
+    let params_ref: Vec<(&(dyn ToSql + Sync), Type)> = bound_params
         .iter()
-        .map(|b| b.as_ref() as &(dyn ToSql + Sync))
+        .map(|(b, t)| (b.as_ref() as &(dyn ToSql + Sync), t.clone()))
         .collect();
 
     let first_pk_col = {
@@ -660,7 +662,7 @@ pub async fn update_record(
         .cloned()
         .unwrap_or(serde_json::Value::Null);
 
-    execute(&pool, &query, &params_ref).await.map_err(|err| {
+    execute_typed(&pool, &query, &params_ref).await.map_err(|err| {
         update_record_error_context(
             err,
             schema,
@@ -724,7 +726,7 @@ pub async fn insert_record(
             }
         };
 
-    let mut params: Vec<Box<dyn ToSql + Sync + Send>> = Vec::with_capacity(entries.len());
+    let mut params: Vec<(Box<dyn ToSql + Sync + Send>, Type)> = Vec::with_capacity(entries.len());
     let mut vals_set: Vec<String> = Vec::with_capacity(entries.len());
 
     for (col_name, val) in entries.drain(..) {
@@ -752,12 +754,12 @@ pub async fn insert_record(
         vals_set.join(", ")
     );
 
-    let params: Vec<&(dyn ToSql + Sync)> = params
+    let params: Vec<(&(dyn ToSql + Sync), Type)> = params
         .iter()
-        .map(|b| b.as_ref() as &(dyn ToSql + Sync))
+        .map(|(b, t)| (b.as_ref() as &(dyn ToSql + Sync), t.clone()))
         .collect();
 
-    execute(&pool, &query, &params).await
+    execute_typed(&pool, &query, &params).await
 }
 
 pub async fn get_table_ddl(
@@ -1155,6 +1157,120 @@ pub async fn get_view_columns(
         .collect())
 }
 
+pub async fn get_materialized_views(
+    params: &ConnectionParams,
+    schema: &str,
+) -> Result<Vec<ViewInfo>, String> {
+    log::debug!(
+        "PostgreSQL: Fetching materialized views for database: {} schema: {}",
+        params.database,
+        schema
+    );
+    let pool = get_postgres_pool(params).await?;
+    let rows = query_all(
+        &pool,
+        "SELECT matviewname as name FROM pg_matviews WHERE schemaname = $1 ORDER BY matviewname ASC",
+        &[&schema],
+    )
+    .await?;
+
+    let views: Vec<ViewInfo> = rows
+        .iter()
+        .map(|r| ViewInfo {
+            name: r.try_get("name").unwrap_or_default(),
+            definition: None,
+        })
+        .collect();
+    Ok(views)
+}
+
+/// Materialized views are not exposed via `information_schema.columns`, so their
+/// columns must be read from the system catalog (`pg_attribute`/`pg_class`).
+pub async fn get_materialized_view_columns(
+    params: &ConnectionParams,
+    view_name: &str,
+    schema: &str,
+) -> Result<Vec<TableColumn>, String> {
+    let pool = get_postgres_pool(params).await?;
+    let query = r#"
+        SELECT
+            a.attname AS column_name,
+            format_type(a.atttypid, a.atttypmod) AS data_type,
+            a.attnotnull AS not_null
+        FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = $1 AND c.relname = $2 AND c.relkind = 'm'
+          AND a.attnum > 0 AND NOT a.attisdropped
+        ORDER BY a.attnum
+    "#;
+
+    let rows = query_all(&pool, query, &[&schema, &view_name]).await?;
+
+    Ok(rows
+        .iter()
+        .map(|r| TableColumn {
+            name: r.try_get("column_name").unwrap_or_default(),
+            data_type: r.try_get("data_type").unwrap_or_default(),
+            is_pk: false,
+            is_nullable: !r.try_get::<_, bool>("not_null").unwrap_or(false),
+            is_auto_increment: false,
+            default_value: None,
+            character_maximum_length: None,
+        })
+        .collect())
+}
+
+pub async fn get_materialized_view_definition(
+    params: &ConnectionParams,
+    view_name: &str,
+    schema: &str,
+) -> Result<String, String> {
+    let pool = get_postgres_pool(params).await?;
+    let qualified = format!(
+        "\"{}\".\"{}\"",
+        escape_identifier(schema),
+        escape_identifier(view_name)
+    );
+
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+
+    let row = client
+        .query_one(
+            "SELECT pg_get_viewdef($1::regclass, true) as definition",
+            &[&qualified],
+        )
+        .await
+        .map_err(|e| format!("Failed to get materialized view definition: {}", e))?;
+
+    let definition: String = row.try_get("definition").unwrap_or_default();
+    Ok(format!(
+        "CREATE MATERIALIZED VIEW {} AS\n{}",
+        qualified, definition
+    ))
+}
+
+pub async fn refresh_materialized_view(
+    params: &ConnectionParams,
+    view_name: &str,
+    schema: &str,
+) -> Result<(), String> {
+    let pool = get_postgres_pool(params).await?;
+    let query = format!(
+        "REFRESH MATERIALIZED VIEW \"{}\".\"{}\"",
+        escape_identifier(schema),
+        escape_identifier(view_name)
+    );
+
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+    client
+        .execute(&query, &[])
+        .await
+        .map_err(|e| format!("Failed to refresh materialized view: {}", e))?;
+
+    Ok(())
+}
+
 pub async fn get_routines(
     params: &ConnectionParams,
     schema: &str,
@@ -1303,6 +1419,47 @@ pub async fn get_routine_definition(
     Ok(definition)
 }
 
+/// Drops a routine, resolving its exact identity signature first: PostgreSQL
+/// identifies routines by name *and* argument types, so a bare
+/// `DROP FUNCTION name` fails as soon as overloads exist.
+pub async fn drop_routine(
+    params: &ConnectionParams,
+    routine_name: &str,
+    routine_type: &str,
+    schema: &str,
+) -> Result<(), String> {
+    let pool = get_postgres_pool(params).await?;
+
+    let query = r#"
+            SELECT pg_get_function_identity_arguments(p.oid) AS args
+            FROM pg_proc p
+            JOIN pg_namespace n ON p.pronamespace = n.oid
+            WHERE n.nspname = $1 AND p.proname = $2
+        "#;
+    let rows = query_all(&pool, query, &[&schema, &routine_name]).await?;
+
+    match rows.len() {
+        0 => Err(format!(
+            "Routine '{}' not found in schema '{}'",
+            routine_name, schema
+        )),
+        1 => {
+            let identity_args: String = rows[0].try_get("args").unwrap_or_default();
+            let sql = routines::drop_routine_sql(
+                routine_name,
+                routine_type,
+                &identity_args,
+                Some(schema),
+            );
+            execute(&pool, &sql, &[]).await.map(|_| ())
+        }
+        n => Err(format!(
+            "Routine '{}' has {} overloads; drop it manually specifying the argument types",
+            routine_name, n
+        )),
+    }
+}
+
 pub async fn get_triggers(
     params: &ConnectionParams,
     schema: &str,
@@ -1423,7 +1580,9 @@ impl PostgresDriver {
                 capabilities: DriverCapabilities {
                     schemas: true,
                     views: true,
+                    materialized_views: true,
                     routines: true,
+                    routine_management: true,
                     file_based: false,
                     folder_based: false,
                     connection_string: true,
@@ -1615,6 +1774,41 @@ impl DatabaseDriver for PostgresDriver {
         drop_view(params, view_name, self.resolve_schema(schema)).await
     }
 
+    async fn get_materialized_views(
+        &self,
+        params: &crate::models::ConnectionParams,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::ViewInfo>, String> {
+        get_materialized_views(params, self.resolve_schema(schema)).await
+    }
+
+    async fn get_materialized_view_columns(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TableColumn>, String> {
+        get_materialized_view_columns(params, view_name, self.resolve_schema(schema)).await
+    }
+
+    async fn get_materialized_view_definition(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_materialized_view_definition(params, view_name, self.resolve_schema(schema)).await
+    }
+
+    async fn refresh_materialized_view(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        refresh_materialized_view(params, view_name, self.resolve_schema(schema)).await
+    }
+
     async fn get_routines(
         &self,
         params: &crate::models::ConnectionParams,
@@ -1646,6 +1840,46 @@ impl DatabaseDriver for PostgresDriver {
             self.resolve_schema(schema),
         )
         .await
+    }
+
+    async fn build_routine_call_sql(
+        &self,
+        _params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        args: &[crate::models::RoutineCallArg],
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        Ok(routines::routine_call_sql(
+            routine_name,
+            routine_type,
+            args,
+            Some(self.resolve_schema(schema)),
+        ))
+    }
+
+    async fn routine_create_template(
+        &self,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        Ok(routines::routine_create_template(
+            routine_type,
+            Some(self.resolve_schema(schema)),
+        ))
+    }
+
+    // `get_routine_edit_script` keeps the trait default: `pg_get_functiondef`
+    // already returns a re-runnable `CREATE OR REPLACE` statement.
+
+    async fn drop_routine(
+        &self,
+        params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        drop_routine(params, routine_name, routine_type, self.resolve_schema(schema)).await
     }
 
     async fn get_triggers(

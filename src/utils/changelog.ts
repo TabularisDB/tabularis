@@ -8,8 +8,10 @@ export interface ChangelogEntry {
 }
 
 /**
- * Strip markdown link syntax and commit hashes from a changelog line.
- * e.g. "**notebook:** add AI buttons ([d0ccee9](…))" → "add AI buttons"
+ * Trim conventional-changelog noise from a bullet line while keeping any
+ * inline markdown (links, `code`, **bold**) intact so it can be rendered
+ * downstream with a real markdown renderer.
+ * e.g. "**notebook:** add AI buttons ([d0ccee9](…))" → "Add AI buttons"
  */
 function cleanLine(raw: string): string {
   let line = raw.replace(/^\*\s*/, "").trim();
@@ -17,8 +19,6 @@ function cleanLine(raw: string): string {
   line = line.replace(/\s*\(\[[a-f0-9]+\]\([^)]+\)\)\s*$/, "").trim();
   // Remove scope prefix: **scope:** (colon is inside the bold markers)
   line = line.replace(/^\*\*[^*]+:\*\*\s*/, "").trim();
-  // Remove any remaining inline markdown: `code`
-  line = line.replace(/`([^`]+)`/g, "$1");
   // Capitalize first letter
   if (line.length > 0) {
     line = line.charAt(0).toUpperCase() + line.slice(1);

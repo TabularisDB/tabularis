@@ -4,7 +4,7 @@
  */
 
 import type { DriverCapabilities } from "../types/plugins";
-import type { SavedConnection, ConnectionGroup } from "../contexts/DatabaseContext";
+import type { SavedConnection } from "../contexts/DatabaseContext";
 import { isLocalDriver } from "./driverCapabilities";
 
 export type DatabaseDriver = string;
@@ -201,17 +201,6 @@ export function connectionSubtitle(
   const db = conn.params.database;
   const dbStr = Array.isArray(db) ? `${db.length} databases` : db;
   return `${conn.params.host ?? 'localhost'}:${conn.params.port ?? ''}  ·  ${dbStr}`;
-}
-
-/**
- * Returns true when a connection's context menu would have at least one item
- * (i.e. there are groups to move to, or the connection is already in a group).
- */
-export function hasConnectionMenuItems(
-  sortedGroups: ConnectionGroup[],
-  groupId: string | undefined,
-): boolean {
-  return sortedGroups.filter(g => g.id !== groupId).length > 0 || !!groupId;
 }
 
 /**

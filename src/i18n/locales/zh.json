@@ -36,7 +36,13 @@
     "search": "搜索...",
     "error": "错误",
     "success": "成功",
-    "ok": "OK"
+    "ok": "OK",
+    "continue": "继续",
+    "back": "返回",
+    "copy": "复制",
+    "showDetails": "显示详情",
+    "hideDetails": "隐藏详情",
+    "beta": "测试版"
   },
   "sidebar": {
     "connections": "连接",
@@ -51,6 +57,9 @@
     "createView": "创建新视图",
     "views": "视图",
     "noViews": "未找到视图",
+    "materializedViews": "物化视图",
+    "refreshMaterializedView": "刷新",
+    "showDefinition": "显示定义",
     "editView": "编辑视图",
     "viewDefinition": "视图定义",
     "dropView": "删除视图",
@@ -72,6 +81,8 @@
     "expandTable": "展开表 {{name}}",
     "collapseTable": "折叠表 {{name}}",
     "columns": "列",
+    "parameters": "参数",
+    "noParameters": "无参数",
     "keys": "键",
     "foreignKeys": "外键",
     "indexes": "索引",
@@ -82,6 +93,7 @@
     "modifyColumn": "修改列",
     "copyName": "复制名称",
     "openInEditor": "在编辑器中打开",
+    "openInNewWindow": "在新窗口中打开",
     "closePanel": "关闭面板",
     "setAsActive": "设为激活",
     "deleteTable": "删除表",
@@ -249,7 +261,38 @@
     "export": "导出连接",
     "import": "导入连接",
     "exportTitle": "导出连接",
-    "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。"
+    "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Tabularis 导出文件 (.json)",
+      "menuLabel": "导入连接…",
+      "group": {
+        "label": "分组：",
+        "none": "无分组",
+        "new": "新建分组…",
+        "newPlaceholder": "分组名称"
+      },
+      "betaNotice": "从应用导入功能处于测试阶段。如果遇到问题，",
+      "reportIssue": "请在 GitHub 上反馈。"
+    }
   },
   "connectionAppearance": {
     "section": "外观",
@@ -366,10 +409,9 @@
       "explainplanPromptDesc": "自定义 AI EXPLAIN 计划分析的指令。使用 {{LANGUAGE}} 作为输出语言的占位符。",
       "enterExplainplanPrompt": "输入执行计划分析提示词...",
       "keySaved": "API 密钥已安全保存",
-      "promptSaved": "系统提示词保存成功",
+      "promptSaved": "提示词已保存",
       "explainPromptSaved": "解释提示词保存成功",
       "promptReset": "系统提示词已重置为默认",
-      "explainPromptReset": "解释提示词已重置为默认",
       "modelPlaceholder": "选择一个模型",
       "searchPlaceholder": "搜索模型...",
       "noResults": "未找到模型",
@@ -385,7 +427,9 @@
       "endpointUrlDesc": "您的 OpenAI 兼容 API 的基础 URL。例如：https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "例如：llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "输入您的 OpenAI 兼容服务提供的模型名称。",
-      "customOpenaiModelHelp": "输入您的 OpenAI 兼容提供商的确切模型名称。"
+      "customOpenaiModelHelp": "输入您的 OpenAI 兼容提供商的确切模型名称。",
+      "promptResetSuccess": "提示词已重置为默认值",
+      "apiKeySaved": "API 密钥已安全保存"
     },
     "updates": "更新",
     "openSourceLibraries": "开源库",
@@ -538,6 +582,7 @@
       "tabSwitcher": "切换标签",
       "copySelection": "复制选区",
       "toggleSidebar": "切换侧边栏",
+      "focusTableFilter": "聚焦表格筛选",
       "openConnections": "打开连接",
       "newConnection": "新建连接",
       "newTab": "新建标签",
@@ -646,6 +691,9 @@
     "manageSshConnections": "管理 SSH 连接",
     "noSshConnections": "无 SSH 连接可用",
     "sslMode": "SSL 模式",
+    "enableCleartextPlugin": "启用明文密码插件",
+    "enableCleartextPluginHint": "使用 mysql_clear_password 发送密码。Warpgate 等堡垒机需要此选项。仅在 TLS 连接上使用。",
+    "enableCleartextPluginTlsRequired": "请在上方选择强制 TLS 模式（Required、Verify CA 或 Verify Identity）以使用明文密码插件。",
     "sslModes": {
       "disable": "禁用",
       "allow": "允许",
@@ -709,7 +757,9 @@
     "keyFile": "密钥文件",
     "quickTest": "快速连接测试",
     "testFailed": "连接测试失败",
-    "savedInKeychain": "密码已保存到系统密钥链"
+    "savedInKeychain": "密码已保存到系统密钥链",
+    "manageDesc": "可在数据库连接中复用的 SSH 隧道。密码和口令保存在系统钥匙串中。",
+    "deleteInUse_other": "有 {{count}} 个已保存的数据库连接正在使用它，删除后这些连接将不再通过此隧道连接。"
   },
   "sshAskpass": {
     "title": "SSH 身份验证",
@@ -817,6 +867,7 @@
     "page": "第 {{current}} 页",
     "jumpToPage": "点击跳转到页面",
     "loadRowCount": "加载行数",
+    "rowCount": "{{total}} 行",
     "executePrompt": "执行查询以查看结果",
     "results": {
       "minimize": "最小化",
@@ -837,6 +888,13 @@
     "saveThisQuery": "保存此查询",
     "noValidQueries": "未找到有效查询",
     "queryFailed": "查询失败。",
+    "dangerousQueryTitle": "不带 WHERE 子句执行？",
+    "dangerousQueryMessage": "此语句没有 WHERE 子句，将影响表中的所有行。此操作无法撤销。",
+    "dangerousQueryConfirm": "仍然执行",
+    "dangerousQueryDropTitle": "删除此对象？",
+    "dangerousQueryDropMessage": "DROP 会永久删除此对象及其所有数据。此操作无法撤销。",
+    "dangerousQueryTruncateTitle": "清空此表？",
+    "dangerousQueryTruncateMessage": "TRUNCATE 会删除表中的所有行。此操作无法撤销。",
     "showErrorDetails": "显示详情",
     "hideErrorDetails": "隐藏详情",
     "errorBoundary": {
@@ -1170,6 +1228,9 @@
     "createSuccess": "视图创建成功",
     "alterSuccess": "视图更新成功",
     "saveError": "保存视图失败：",
+    "refreshSuccess": "物化视图 \"{{view}}\" 已刷新",
+    "refreshError": "刷新物化视图失败：",
+    "failGetDefinition": "获取定义失败：",
     "confirmAlter": "确定要修改视图 \"{{view}}\" 吗？"
   },
   "community": {
@@ -1422,7 +1483,8 @@
     "targetColumn": "目标列",
     "targetColumnPlaceholder": "选择目标...",
     "skipColumn": "跳过（不导入）",
-    "createNewColumn": "创建新列"
+    "createNewColumn": "创建新列",
+    "typePlaceholder": "类型"
   },
   "aiActivity": {
     "title": "AI 活动",
@@ -1545,5 +1607,38 @@
       "resourceNameRequired": "资源名称为必填项",
       "portInvalid": "端口必须介于 1 和 65535 之间"
     }
+  },
+  "routines": {
+    "menuRun": "运行…",
+    "menuEdit": "编辑",
+    "menuDrop": "删除",
+    "newRoutine": "新建例程",
+    "newProcedure": "新建存储过程",
+    "newFunction": "新建函数",
+    "templateError": "无法加载例程模板：",
+    "dropConfirmTitle": "删除例程",
+    "dropConfirmMessage": "确定删除例程 \"{{name}}\" 吗？此操作无法撤销。",
+    "dropSuccess": "例程 {{name}} 已删除",
+    "dropError": "删除例程失败：",
+    "runTitle": "运行 {{name}}",
+    "runSubtitle": "输入参数值，然后在编辑器中检查生成的 SQL",
+    "loadingParameters": "正在加载参数…",
+    "noParameters": "此例程没有参数。调用脚本将在编辑器中打开。",
+    "outputParameter": "输出参数 — 作为结果返回",
+    "rawLabel": "原始值",
+    "rawHint": "按原样插入值，不加字符串引号（数字、表达式）",
+    "runButton": "运行",
+    "runTabPrefix": "运行",
+    "returnValue": "返回值"
+  },
+  "pagination": {
+    "firstPage": "第一页",
+    "previousPage": "上一页",
+    "nextPage": "下一页",
+    "lastPage": "最后一页"
+  },
+  "miniGrid": {
+    "runningQuery": "正在执行查询...",
+    "copyAll": "全部复制"
   }
 }

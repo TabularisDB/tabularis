@@ -1,11 +1,12 @@
 {
   "name": "tabularis",
   "private": true,
-  "version": "0.13.4",
+  "version": "0.14.0",
   "type": "module",
   "links": {
     "discord": "https://discord.com/invite/K2hmhfHRSt",
     "github": "https://github.com/TabularisDB/tabularis",
+    "github-issues": "https://github.com/TabularisDB/tabularis/issues",
     "x": "https://x.com/tabularisdb",
     "bluesky": "https://bsky.app/profile/tabularis.bsky.social",
     "mastodon": "https://mastodon.social/@tabularis"
@@ -48,6 +49,7 @@
     "clsx": "^2.1.1",
     "dagre": "^0.8.5",
     "emoji-picker-react": "^4.19.1",
+    "fuse.js": "^7.4.2",
     "i18next": "^25.10.10",
     "i18next-browser-languagedetector": "^8.2.1",
     "json-edit-react": "^1.29.1",

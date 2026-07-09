@@ -65,3 +65,55 @@ pub(super) async fn execute(
         .await
         .map_err(|e| format_pg_error(&e))
 }
+
+/// Like [`execute`], but pins every placeholder's wire type via `prepare_typed`
+/// instead of letting the server infer it from query context.
+///
+/// Inference breaks for a `CAST($N AS uuid)` / `CAST($N AS timestamptz)`-style
+/// placeholder: PostgreSQL resolves the parameter's *effective* type to the
+/// cast's target for the client-side `Describe` response, so a bound `String`
+/// is rejected before it ever reaches PostgreSQL's own text-to-uuid/temporal
+/// parsing (#392, #401). Declaring the placeholder's type explicitly (e.g.
+/// `TEXT`) sidesteps that client-side check and lets the `CAST` perform the
+/// real conversion server-side, exactly like a literal in plain SQL.
+#[inline]
+pub(super) async fn execute_typed(
+    pool: &PgPool,
+    sql: &str,
+    params: &[(&(dyn tokio_postgres::types::ToSql + Sync), tokio_postgres::types::Type)],
+) -> Result<u64, String> {
+    let client = get_client(pool).await?;
+    let types: Vec<tokio_postgres::types::Type> = params.iter().map(|(_, t)| t.clone()).collect();
+    let stmt = client
+        .prepare_typed(sql, &types)
+        .await
+        .map_err(|e| format_pg_error(&e))?;
+    let values: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
+        params.iter().map(|(v, _)| *v).collect();
+    client
+        .execute(&stmt, &values)
+        .await
+        .map_err(|e| format_pg_error(&e))
+}
+
+/// Like [`query_one`], but pins placeholder types via `prepare_typed`. See
+/// [`execute_typed`] for why this matters.
+#[inline]
+pub(super) async fn query_one_typed(
+    pool: &PgPool,
+    sql: &str,
+    params: &[(&(dyn tokio_postgres::types::ToSql + Sync), tokio_postgres::types::Type)],
+) -> Result<PgRow, String> {
+    let client = get_client(pool).await?;
+    let types: Vec<tokio_postgres::types::Type> = params.iter().map(|(_, t)| t.clone()).collect();
+    let stmt = client
+        .prepare_typed(sql, &types)
+        .await
+        .map_err(|e| format_pg_error(&e))?;
+    let values: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> =
+        params.iter().map(|(v, _)| *v).collect();
+    client
+        .query_one(&stmt, &values)
+        .await
+        .map_err(|e| format_pg_error(&e))
+}

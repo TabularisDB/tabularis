@@ -1,5 +1,7 @@
 // SQL Analysis Utilities - Pure logic functions for parsing and analyzing SQL
 
+import { leadingKeyword } from './sqlSplitter/classify';
+
 export interface ParsedTableRef {
   name: string;
   schema?: string;
@@ -60,6 +62,90 @@ export const parseTablesFromQuery = (sql: string): Map<string, ParsedTableRef> |
 
   return tableMap.size > 0 ? tableMap : null;
 };
+
+// Strips comments and quoted literals so the keyword/depth scan below never
+// matches text that only looks like SQL because it's inside a string or a
+// comment. `\\.` handles backslash-escaped quotes (MySQL's default string
+// escaping) in addition to the standard doubled-quote escaping.
+const stripCommentsAndLiterals = (sql: string): string =>
+  sql
+    .replace(/--[^\n]*/g, ' ')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/'(?:[^'\\]|\\.|'')*'/g, "''")
+    .replace(/"(?:[^"\\]|\\.|"")*"/g, '""')
+    .replace(/`(?:[^`]|``)*`/g, '``');
+
+const CTE_STATEMENT_KEYWORDS = new Set(['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'MERGE']);
+
+// A data-modifying CTE (`WITH x AS (...) DELETE FROM t ...`) carries its
+// real statement type after the CTE definitions, not at the start. Scan for
+// the first keyword that sits outside any parenthesized CTE body.
+function finalCteStatementKeyword(cleaned: string): string | null {
+  const tokenRe = /\(|\)|[A-Za-z_][A-Za-z0-9_]*/g;
+  let depth = 0;
+  let match: RegExpExecArray | null;
+  while ((match = tokenRe.exec(cleaned)) !== null) {
+    const token = match[0];
+    if (token === '(') { depth++; continue; }
+    if (token === ')') { depth = Math.max(0, depth - 1); continue; }
+    if (depth === 0) {
+      const word = token.toUpperCase();
+      if (CTE_STATEMENT_KEYWORDS.has(word)) return word;
+    }
+  }
+  return null;
+}
+
+// True if `WHERE` appears outside of any parenthesized group — a WHERE
+// nested in a subquery (e.g. an UPDATE...SET with a correlated subquery)
+// doesn't count, since it doesn't limit which rows of the target table are
+// affected.
+function hasTopLevelWhere(cleaned: string): boolean {
+  const tokenRe = /\(|\)|\bWHERE\b/gi;
+  let depth = 0;
+  let match: RegExpExecArray | null;
+  while ((match = tokenRe.exec(cleaned)) !== null) {
+    const token = match[0];
+    if (token === '(') { depth++; continue; }
+    if (token === ')') { depth = Math.max(0, depth - 1); continue; }
+    if (depth === 0) return true;
+  }
+  return false;
+}
+
+// The distinct ways a statement can be flagged as dangerous. Each maps to its
+// own confirmation copy so the dialog can explain the specific risk.
+//   - 'no-where':  DELETE/UPDATE with no top-level WHERE (wipes a whole table)
+//   - 'drop':      DROP removes an object (and its data) irreversibly
+//   - 'truncate':  TRUNCATE empties a table irreversibly
+export type DangerousQueryKind = 'no-where' | 'drop' | 'truncate';
+
+// Classifies a single statement's danger, or null when it is safe to run
+// without confirmation. Handles the same edge cases as the WHERE detection:
+// comments, string literals, and data-modifying CTEs.
+export const classifyDangerousQuery = (sql: string): DangerousQueryKind | null => {
+  const cleaned = stripCommentsAndLiterals(sql);
+  let keyword = leadingKeyword(cleaned);
+  if (keyword === 'WITH') {
+    keyword = finalCteStatementKeyword(cleaned) ?? keyword;
+  }
+
+  if (keyword === 'DROP') return 'drop';
+  if (keyword === 'TRUNCATE') return 'truncate';
+  if ((keyword === 'DELETE' || keyword === 'UPDATE') && !hasTopLevelWhere(cleaned)) {
+    return 'no-where';
+  }
+  return null;
+};
+
+// True when a statement should be gated behind a confirmation dialog.
+export const isDangerousQuery = (sql: string): boolean => classifyDangerousQuery(sql) !== null;
+
+// Flags DELETE/UPDATE statements with no top-level WHERE clause — the
+// classic "forgot the WHERE" accident that wipes or overwrites a whole
+// table.
+export const isDestructiveWithoutWhere = (sql: string): boolean =>
+  classifyDangerousQuery(sql) === 'no-where';
 
 // Optimized statement extractor - avoid full text scan when possible
 export const getCurrentStatement = (model: { getValue: () => string; getOffsetAt: (position: { lineNumber: number; column: number }) => number }, position: { lineNumber: number; column: number }): string => {

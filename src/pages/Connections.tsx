@@ -1,17 +1,18 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { NewConnectionModal } from "../components/modals/NewConnectionModal";
 import { ConfirmModal } from "../components/modals/ConfirmModal";
+import { ImportFromAppModal } from "../components/modals/ImportFromAppModal";
 import { invoke } from "@tauri-apps/api/core";
-import { save, open } from "@tauri-apps/plugin-dialog";
-import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import {
   Database,
   Plus,
   Edit,
   Trash2,
-  AlertCircle,
   Search,
   X,
   LayoutGrid,
@@ -19,7 +20,9 @@ import {
   FolderPlus,
   Folder,
   Download,
-  Upload,
+  FolderInput,
+  ChevronDown,
+  AppWindow,
 } from "lucide-react";
 import { useDatabase } from "../hooks/useDatabase";
 import { useDrivers } from "../hooks/useDrivers";
@@ -27,11 +30,13 @@ import { useSettings } from "../hooks/useSettings";
 import clsx from "clsx";
 import { ContextMenu } from "../components/ui/ContextMenu";
 import type { SavedConnection } from "../contexts/DatabaseContext";
-import { hasConnectionMenuItems } from "../utils/connections";
 import { toErrorMessage } from "../utils/errors";
+import { useOpenConnectionInNewWindow } from "../hooks/useOpenConnectionInNewWindow";
 import { GroupHeader } from "../components/connections/GroupHeader";
 import { ConnectionCard } from "../components/connections/ConnectionCard";
 import { ConnectionListItem } from "../components/connections/ConnectionListItem";
+import { ConnectionErrorBanner } from "../components/ConnectionErrorBanner";
+import { BetaBadge } from "../components/ui/BetaBadge";
 
 let autoConnectAttempted = false;
 
@@ -44,6 +49,7 @@ export const Connections = () => {
     connect,
     disconnect,
     isConnectionOpen,
+    isConnectionOpenAnywhere,
     switchConnection,
     connectionGroups,
     createGroupPath,
@@ -57,7 +63,25 @@ export const Connections = () => {
     connections: contextConnections,
   } = useDatabase();
   const { drivers, allDrivers } = useDrivers();
+  const openConnectionInNewWindow = useOpenConnectionInNewWindow();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportAppModalOpen, setIsImportAppModalOpen] = useState(false);
+  const [isImportMenuOpen, setIsImportMenuOpen] = useState(false);
+  const importMenuBtnRef = useRef<HTMLButtonElement>(null);
+  const [importMenuPos, setImportMenuPos] = useState({ top: 0, right: 0 });
+
+  // The header clips its overflow, so the dropup menu is portaled to the body
+  // and positioned just under the trigger button.
+  const toggleImportMenu = () => {
+    if (!isImportMenuOpen && importMenuBtnRef.current) {
+      const rect = importMenuBtnRef.current.getBoundingClientRect();
+      setImportMenuPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setIsImportMenuOpen((v) => !v);
+  };
   const [editingConnection, setEditingConnection] =
     useState<SavedConnection | null>(null);
   const connections = contextConnections as SavedConnection[];
@@ -298,24 +322,6 @@ export const Connections = () => {
     });
   };
 
-  const handleImport = async () => {
-    try {
-      const selected = await open({
-        filters: [{ name: "JSON", extensions: ["json"] }],
-        multiple: false,
-      });
-      if (selected && !Array.isArray(selected)) {
-        const content = await readTextFile(selected);
-        const payload = JSON.parse(content);
-        await invoke("import_connections_payload", { payload });
-        await loadConnections();
-      }
-    } catch (e) {
-      console.error("Import failed:", e);
-      setError(toErrorMessage(e));
-    }
-  };
-
   const handleRenameGroup = async (groupId: string) => {
     if (!editGroupName.trim()) return;
     try {
@@ -379,10 +385,30 @@ export const Connections = () => {
       navigate("/editor");
       return;
     }
+    // Open in another window: focus that window instead of opening a duplicate.
+    if (isConnectionOpenAnywhere(conn.id)) {
+      await openConnectionInNewWindow(conn.id, conn.name);
+      return;
+    }
     setConnectingId(conn.id);
     try {
       await connect(conn.id);
       navigate("/editor");
+    } catch (e) {
+      setError(
+        `${t("connections.failConnect", { name: conn.name })}\n\nError: ${toErrorMessage(e)}`,
+      );
+    } finally {
+      setConnectingId(null);
+    }
+  };
+
+  const handleOpenInNewWindow = async (conn: SavedConnection) => {
+    setError(null);
+    setConnectingId(conn.id);
+    try {
+      // Validates connectivity before the window is spawned; only opens on success.
+      await openConnectionInNewWindow(conn.id, conn.name);
     } catch (e) {
       setError(
         `${t("connections.failConnect", { name: conn.name })}\n\nError: ${toErrorMessage(e)}`,
@@ -408,7 +434,7 @@ export const Connections = () => {
       onConfirm: async () => {
         setConfirmModal(null);
         try {
-          if (isConnectionOpen(id)) await disconnect(id);
+          if (isConnectionOpenAnywhere(id)) await disconnect(id);
           await invoke("delete_connection", { id });
           void loadConnections();
         } catch (e) {
@@ -419,7 +445,7 @@ export const Connections = () => {
   };
 
   const openEdit = async (conn: SavedConnection) => {
-    if (isConnectionOpen(conn.id)) {
+    if (isConnectionOpenAnywhere(conn.id)) {
       await disconnect(conn.id);
     }
     setEditingConnection(conn);
@@ -465,7 +491,10 @@ export const Connections = () => {
     );
   }, [ungroupedConnections, search]);
 
-  const openCount = connections.filter((c) => isConnectionOpen(c.id)).length;
+  const openCount = connections.filter((c) => isConnectionOpenAnywhere(c.id)).length;
+  // Connections open in THIS window — gates the "Open in New Window" action,
+  // which detaches an open connection from the current window.
+  const hasLocalOpenConnections = connections.some((c) => isConnectionOpen(c.id));
 
   // ── Shared helpers for connection card/item rendering ────────────────────────
   const handleConnContextMenu = (
@@ -473,7 +502,6 @@ export const Connections = () => {
     conn: SavedConnection,
   ) => {
     e.preventDefault();
-    if (!hasConnectionMenuItems(sortedGroups, conn.group_id)) return;
     setConnectionContextMenu({ x: e.clientX, y: e.clientY, connId: conn.id });
   };
 
@@ -793,32 +821,66 @@ export const Connections = () => {
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            setEditingConnection(null);
-            setIsModalOpen(true);
-          }}
-          className="relative flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-150 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-px"
-        >
-          <Plus size={15} />
-          {t("connections.addConnection")}
-        </button>
+        <div className="relative flex items-stretch shadow-lg shadow-blue-500/20 rounded-xl">
+          <button
+            onClick={() => {
+              setEditingConnection(null);
+              setIsModalOpen(true);
+            }}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white pl-4 pr-3.5 py-2.5 rounded-l-xl font-semibold text-sm transition-colors duration-150"
+          >
+            <Plus size={15} />
+            {t("connections.addConnection")}
+          </button>
+          <button
+            ref={importMenuBtnRef}
+            onClick={toggleImportMenu}
+            className="flex items-center bg-blue-600 hover:bg-blue-500 text-white px-2 rounded-r-xl border-l border-blue-400/40 transition-colors duration-150"
+            title={t("connections.importFromApp.title")}
+            aria-haspopup="menu"
+            aria-expanded={isImportMenuOpen}
+          >
+            <ChevronDown
+              size={15}
+              className={clsx("transition-transform", isImportMenuOpen && "rotate-180")}
+            />
+          </button>
+          {isImportMenuOpen &&
+            createPortal(
+              <>
+                <div
+                  className="fixed inset-0 z-[200]"
+                  onClick={() => setIsImportMenuOpen(false)}
+                />
+                <div
+                  style={{ top: importMenuPos.top, right: importMenuPos.right }}
+                  className="fixed z-[201] w-60 bg-elevated border border-strong rounded-xl shadow-2xl py-1 overflow-hidden"
+                >
+                  <button
+                    onClick={() => {
+                      setIsImportMenuOpen(false);
+                      setIsImportAppModalOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-left"
+                  >
+                    <FolderInput size={15} className="shrink-0 text-blue-400" />
+                    <span className="flex-1">{t("connections.importFromApp.menuLabel")}</span>
+                    <BetaBadge />
+                  </button>
+                </div>
+              </>,
+              document.body,
+            )}
+        </div>
       </div>
 
       {/* ── Error banner ──────────────────────────────────────────────────── */}
       {error && (
-        <div className="mx-6 mt-4 p-3.5 bg-red-900/20 border border-red-900/40 rounded-xl flex items-start gap-3 text-red-400 shrink-0">
-          <AlertCircle size={15} className="mt-0.5 shrink-0" />
-          <span className="text-sm whitespace-pre-wrap flex-1 leading-relaxed">
-            {error}
-          </span>
-          <button
-            onClick={() => setError(null)}
-            className="text-red-400/50 hover:text-red-400 transition-colors shrink-0 mt-0.5"
-          >
-            <X size={14} />
-          </button>
-        </div>
+        <ConnectionErrorBanner
+          key={error}
+          message={error}
+          onClose={() => setError(null)}
+        />
       )}
 
       {/* ── Content ───────────────────────────────────────────────────────── */}
@@ -852,11 +914,12 @@ export const Connections = () => {
                 {t("connections.createFirst")}
               </button>
               <button
-                onClick={handleImport}
+                onClick={() => setIsImportAppModalOpen(true)}
                 className="flex items-center gap-2 bg-elevated border border-strong hover:border-blue-500/50 text-secondary hover:text-blue-400 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
               >
-                <Upload size={14} />
-                {t("connections.import")}
+                <FolderInput size={14} />
+                {t("connections.importFromApp.menuLabel")}
+                <BetaBadge />
               </button>
             </div>
           </div>
@@ -936,15 +999,8 @@ export const Connections = () => {
                 </button>
               )}
 
-              {/* Export/Import buttons */}
+              {/* Export button (import lives in the New Connection dropup) */}
               <div className="flex items-center gap-1.5 px-1 py-1 bg-elevated border border-strong rounded-xl shrink-0">
-                <button
-                  onClick={handleImport}
-                  className="p-1.5 rounded-lg text-muted hover:text-blue-400 hover:bg-blue-500/10 transition-all duration-150"
-                  title={t("connections.import")}
-                >
-                  <Upload size={14} />
-                </button>
                 <button
                   onClick={handleExport}
                   className="p-1.5 rounded-lg text-muted hover:text-blue-400 hover:bg-blue-500/10 transition-all duration-150"
@@ -1079,6 +1135,11 @@ export const Connections = () => {
         onSave={handleSave}
         initialConnection={editingConnection}
       />
+      <ImportFromAppModal
+        isOpen={isImportAppModalOpen}
+        onClose={() => setIsImportAppModalOpen(false)}
+        onImported={() => void loadConnections()}
+      />
       <ConfirmModal
         isOpen={confirmModal !== null}
         onClose={() => setConfirmModal(null)}
@@ -1148,6 +1209,15 @@ export const Connections = () => {
               x={connectionContextMenu.x}
               y={connectionContextMenu.y}
               items={[
+                {
+                  label: t("sidebar.openInNewWindow"),
+                  icon: AppWindow,
+                  disabled: !hasLocalOpenConnections,
+                  action: () => {
+                    if (conn) void handleOpenInNewWindow(conn);
+                  },
+                },
+                { separator: true as const },
                 ...availableGroups.map((group) => ({
                   label: group.name,
                   icon: Folder,
