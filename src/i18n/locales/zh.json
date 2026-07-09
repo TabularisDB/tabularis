@@ -288,7 +288,9 @@
         "label": "分组：",
         "none": "无分组",
         "new": "新建分组…",
-        "newPlaceholder": "分组名称"
+        "newPlaceholder": "分组名称",
+        "parentLabel": "位于",
+        "parentNone": "顶层"
       },
       "betaNotice": "从应用导入功能处于测试阶段。如果遇到问题，",
       "reportIssue": "请在 GitHub 上反馈。"

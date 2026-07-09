@@ -302,7 +302,9 @@
         "label": "Group:",
         "none": "No group",
         "new": "New group…",
-        "newPlaceholder": "Group name"
+        "newPlaceholder": "Group name",
+        "parentLabel": "in",
+        "parentNone": "Top level"
       },
       "betaNotice": "Import from App is in beta. If you run into a problem,",
       "reportIssue": "report it on GitHub."

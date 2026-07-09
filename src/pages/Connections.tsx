@@ -21,6 +21,7 @@ import {
   Folder,
   Download,
   FolderInput,
+  FolderTree,
   ChevronDown,
   AppWindow,
 } from "lucide-react";
@@ -30,6 +31,7 @@ import { useSettings } from "../hooks/useSettings";
 import clsx from "clsx";
 import { ContextMenu } from "../components/ui/ContextMenu";
 import type { SavedConnection } from "../contexts/DatabaseContext";
+import { flattenGroupTree } from "../utils/groupTree";
 import { toErrorMessage } from "../utils/errors";
 import { useOpenConnectionInNewWindow } from "../hooks/useOpenConnectionInNewWindow";
 import { GroupHeader } from "../components/connections/GroupHeader";
@@ -1201,9 +1203,13 @@ export const Connections = () => {
           );
           const currentGroupId = conn?.group_id;
           const isInGroup = !!currentGroupId;
-          const availableGroups = sortedGroups.filter(
-            (g) => g.id !== currentGroupId,
+          // Flatten the group tree in DFS order so the menu mirrors the
+          // nested sidebar structure. The group the connection already
+          // lives in is skipped, but its descendants remain valid targets.
+          const groupTree = flattenGroupTree(connectionGroups).filter(
+            ({ group }) => group.id !== currentGroupId,
           );
+          const hasAvailableGroups = groupTree.length > 0;
           return (
             <ContextMenu
               x={connectionContextMenu.x}
@@ -1217,21 +1223,28 @@ export const Connections = () => {
                     if (conn) void handleOpenInNewWindow(conn);
                   },
                 },
-                { separator: true as const },
-                ...availableGroups.map((group) => ({
-                  label: group.name,
-                  icon: Folder,
-                  action: () =>
-                    void handleMoveToGroup(
-                      connectionContextMenu.connId,
-                      group.id,
-                    ),
-                })),
+                ...(hasAvailableGroups
+                  ? [
+                      { separator: true as const },
+                      {
+                        label: t("groups.moveToGroup"),
+                        icon: FolderTree,
+                        submenu: groupTree.map(({ group, depth }) => ({
+                          label: group.name,
+                          icon: Folder,
+                          indent: depth,
+                          action: () =>
+                            void handleMoveToGroup(
+                              connectionContextMenu.connId,
+                              group.id,
+                            ),
+                        })),
+                      },
+                    ]
+                  : []),
                 ...(isInGroup
                   ? [
-                      ...(availableGroups.length > 0
-                        ? [{ separator: true as const }]
-                        : []),
+                      { separator: true as const },
                       {
                         label: t("groups.removeFromGroup"),
                         icon: X,

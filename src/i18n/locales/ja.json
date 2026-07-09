@@ -302,7 +302,9 @@
         "label": "グループ:",
         "none": "グループなし",
         "new": "新規グループ…",
-        "newPlaceholder": "グループ名"
+        "newPlaceholder": "グループ名",
+        "parentLabel": "場所",
+        "parentNone": "トップレベル"
       },
       "betaNotice": "アプリからのインポートはベータ版です。問題が発生した場合は、",
       "reportIssue": "GitHub で報告してください。"
