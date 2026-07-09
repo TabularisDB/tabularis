@@ -129,6 +129,9 @@ export function AiTab() {
       const openrouter = await invoke<AiKeyStatus>("check_ai_key_status", {
         provider: "openrouter",
       });
+      const minimax = await invoke<AiKeyStatus>("check_ai_key_status", {
+        provider: "minimax",
+      });
       const customOpenai = await invoke<AiKeyStatus>("check_ai_key_status", {
         provider: "custom-openai",
       });
@@ -137,6 +140,7 @@ export function AiTab() {
         openai,
         anthropic,
         openrouter,
+        minimax,
         "custom-openai": customOpenai,
         ollama,
       });
