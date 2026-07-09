@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { GripVertical, ChevronRight, Folder, FolderOpen, MoreVertical } from 'lucide-react';
+import { GripVertical, ChevronRight, Folder, FolderOpen, MoreVertical, Plus } from 'lucide-react';
 import clsx from 'clsx';
 import type { ConnectionGroup } from '../../contexts/DatabaseContext';
 
@@ -17,6 +17,8 @@ export interface GroupHeaderProps {
   onRenameConfirm: (groupId: string) => void;
   onGripMouseDown?: (e: React.MouseEvent) => void;
   isDragOver?: boolean;
+  onCreateSubgroup?: (groupId: string) => void;
+  depth?: number;
 }
 
 export const GroupHeader = ({
@@ -33,12 +35,15 @@ export const GroupHeader = ({
   onRenameConfirm,
   onGripMouseDown,
   isDragOver,
+  onCreateSubgroup,
+  depth = 0,
 }: GroupHeaderProps) => (
   <div
     className={clsx(
       "flex items-center gap-2 group cursor-pointer rounded-lg",
       isDragOver && "ring-1 ring-blue-400 bg-blue-500/5"
     )}
+    style={{ paddingLeft: depth > 0 ? Math.min(depth, 6) * 20 : 0 }}
     onClick={onToggleCollapse}
     onContextMenu={(e) => {
       e.preventDefault();
@@ -87,6 +92,18 @@ export const GroupHeader = ({
       <span className="text-sm font-semibold text-primary">{group.name}</span>
     )}
     <span className="text-xs text-muted">({connCount})</span>
+    {onCreateSubgroup && (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onCreateSubgroup(group.id);
+        }}
+        title="Add subfolder"
+        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-secondary transition-all"
+      >
+        <Plus size={12} className="text-amber-400" />
+      </button>
+    )}
     <button
       onClick={(e) => {
         e.stopPropagation();

@@ -37,7 +37,13 @@
     "noResults": "Keine Ergebnisse gefunden",
     "error": "Fehler",
     "success": "Erfolg",
-    "ok": "OK"
+    "ok": "OK",
+    "continue": "Weiter",
+    "back": "Zurück",
+    "copy": "Kopieren",
+    "showDetails": "Details anzeigen",
+    "hideDetails": "Details ausblenden",
+    "beta": "Beta"
   },
   "sidebar": {
     "connections": "Verbindungen",
@@ -256,7 +262,40 @@
     "export": "Verbindungen exportieren",
     "import": "Verbindungen importieren",
     "exportTitle": "Verbindungen exportieren",
-    "exportWarning": "Die exportierte Datei enthält deine Datenbank- und SSH-Passwörter im Klartext. Bewahre sie sicher auf."
+    "exportWarning": "Die exportierte Datei enthält deine Datenbank- und SSH-Passwörter im Klartext. Bewahre sie sicher auf.",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Tabularis-Exportdatei (.json)",
+      "menuLabel": "Verbindungen importieren…",
+      "group": {
+        "label": "Gruppe:",
+        "none": "Keine Gruppe",
+        "new": "Neue Gruppe…",
+        "newPlaceholder": "Gruppenname",
+        "parentLabel": "in",
+        "parentNone": "Oberste Ebene"
+      },
+      "betaNotice": "Der Import aus einer App befindet sich in der Beta-Phase. Falls ein Problem auftritt,",
+      "reportIssue": "melde es auf GitHub."
+    }
   },
   "connectionAppearance": {
     "section": "Darstellung",
@@ -399,10 +438,9 @@
       "explainplanPromptDesc": "Passe die Anweisungen für die KI-Analyse von EXPLAIN-Abfrageplänen an. Verwende {{LANGUAGE}} für die Ausgabesprache.",
       "enterExplainplanPrompt": "Prompt für Explain-Plan-Analyse eingeben...",
       "keySaved": "API-Schlüssel sicher gespeichert",
-      "promptSaved": "System-Prompt erfolgreich gespeichert",
+      "promptSaved": "Prompt gespeichert",
       "explainPromptSaved": "Explain-Prompt erfolgreich gespeichert",
       "promptReset": "System-Prompt auf Standard zurückgesetzt",
-      "explainPromptReset": "Explain-Prompt auf Standard zurückgesetzt",
       "modelPlaceholder": "Modell auswählen",
       "searchPlaceholder": "Modelle suchen...",
       "noResults": "Keine Modelle gefunden",
@@ -418,7 +456,9 @@
       "endpointUrlDesc": "Die Basis-URL deiner OpenAI-kompatiblen API. Beispiele: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "z. B. llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "Gib den Modellnamen deines OpenAI-kompatiblen Dienstes ein.",
-      "customOpenaiModelHelp": "Gib den exakten Modellnamen für deinen OpenAI-kompatiblen Anbieter ein."
+      "customOpenaiModelHelp": "Gib den exakten Modellnamen für deinen OpenAI-kompatiblen Anbieter ein.",
+      "promptResetSuccess": "Prompt auf Standard zurückgesetzt",
+      "apiKeySaved": "API-Schlüssel sicher gespeichert"
     },
     "updates": "Updates",
     "openSourceLibraries": "Open-Source-Bibliotheken",
@@ -725,7 +765,10 @@
     "startupScriptDescription": "SQL, das bei jeder neuen Verbindung zu dieser Datenquelle ausgeführt wird. Verwenden Sie es für Sitzungseinstellungen wie SET / set_config (z. B. zum Umgehen von RLS). Trennen Sie Anweisungen mit Semikolons.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Registerkarten nach links blättern",
-    "scrollTabsRight": "Registerkarten nach rechts blättern"
+    "scrollTabsRight": "Registerkarten nach rechts blättern",
+    "useIamAuth": "AWS-IAM-Authentifizierung verwenden (RDS)",
+    "useIamAuthHint": "Das Passwortfeld wird als RDS-Auth-Token verwendet (aus `aws rds generate-db-auth-token`). Erfordert TLS. Tokens laufen alle 15 Minuten ab.",
+    "useIamAuthTlsRequired": "Aktiviere oben einen SSL-Modus, um die AWS-IAM-Authentifizierung zu nutzen."
   },
   "sshConnections": {
     "title": "SSH-Verbindungen",
@@ -748,7 +791,10 @@
     "keyFile": "Schlüsseldatei",
     "quickTest": "Schneller Verbindungstest",
     "testFailed": "Verbindungstest fehlgeschlagen",
-    "savedInKeychain": "Passwort im System-Keychain gespeichert"
+    "savedInKeychain": "Passwort im System-Keychain gespeichert",
+    "manageDesc": "Wiederverwendbare SSH-Tunnel für deine Datenbankverbindungen. Passwörter und Passphrasen werden im System-Schlüsselbund gespeichert.",
+    "deleteInUse_one": "Sie wird von {{count}} gespeicherten Verbindung verwendet, die sich nicht mehr über diesen Tunnel verbinden wird.",
+    "deleteInUse_other": "Sie wird von {{count}} gespeicherten Verbindungen verwendet, die sich nicht mehr über diesen Tunnel verbinden werden."
   },
   "sshAskpass": {
     "title": "SSH-Authentifizierung",
@@ -877,6 +923,13 @@
     "saveThisQuery": "Diese Abfrage speichern",
     "noValidQueries": "Keine gültigen Abfragen gefunden",
     "queryFailed": "Abfrage fehlgeschlagen.",
+    "dangerousQueryTitle": "Ohne WHERE-Klausel ausführen?",
+    "dangerousQueryMessage": "Diese Anweisung betrifft alle Zeilen der Tabelle, da keine WHERE-Klausel vorhanden ist. Dies kann nicht rückgängig gemacht werden.",
+    "dangerousQueryConfirm": "Trotzdem ausführen",
+    "dangerousQueryDropTitle": "Dieses Objekt löschen?",
+    "dangerousQueryDropMessage": "DROP entfernt dieses Objekt und alle seine Daten dauerhaft. Dies kann nicht rückgängig gemacht werden.",
+    "dangerousQueryTruncateTitle": "Diese Tabelle leeren?",
+    "dangerousQueryTruncateMessage": "TRUNCATE löscht alle Zeilen der Tabelle. Dies kann nicht rückgängig gemacht werden.",
     "showErrorDetails": "Details anzeigen",
     "hideErrorDetails": "Details ausblenden",
     "errorBoundary": {
@@ -1435,7 +1488,8 @@
     "createFirst": "Erstelle deine erste Gruppe, um Verbindungen zu organisieren",
     "groupName": "Gruppenname",
     "dragHint": "Verbindungen hierher ziehen",
-    "createError": "Erstellen der Gruppe fehlgeschlagen"
+    "createError": "Erstellen der Gruppe fehlgeschlagen",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "Datenbank",
@@ -1487,7 +1541,8 @@
     "targetColumn": "Zielspalte",
     "targetColumnPlaceholder": "Ziel wählen...",
     "skipColumn": "Überspringen (nicht importieren)",
-    "createNewColumn": "Neue Spalte erstellen"
+    "createNewColumn": "Neue Spalte erstellen",
+    "typePlaceholder": "Typ"
   },
   "aiActivity": {
     "title": "KI-Aktivität",
@@ -1637,5 +1692,15 @@
     "runButton": "Ausführen",
     "runTabPrefix": "Ausführen",
     "returnValue": "Rückgabe"
+  },
+  "pagination": {
+    "firstPage": "Erste Seite",
+    "previousPage": "Vorherige Seite",
+    "nextPage": "Nächste Seite",
+    "lastPage": "Letzte Seite"
+  },
+  "miniGrid": {
+    "runningQuery": "Abfrage wird ausgeführt...",
+    "copyAll": "Alles kopieren"
   }
 }

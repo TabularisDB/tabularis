@@ -6,6 +6,10 @@ import { serializePkKey, buildPkMap } from "../utils/dataGrid";
 import { isMultiDatabaseCapable } from "../utils/database";
 import { isReadonly } from "../utils/driverCapabilities";
 import {
+  useDangerousQueryGuard,
+  DANGEROUS_QUERY_I18N,
+} from "../hooks/useDangerousQueryGuard";
+import {
   generateTempId,
   initializeNewRow,
   validatePendingInsertion,
@@ -59,6 +63,7 @@ import { MultiResultPanel } from "../components/ui/MultiResultPanel";
 import { ErrorDisplay } from "../components/ui/ErrorDisplay";
 import { NewRowModal } from "../components/modals/NewRowModal";
 import { QuerySelectionModal } from "../components/modals/QuerySelectionModal";
+import { ConfirmModal } from "../components/modals/ConfirmModal";
 import { ExplainSelectionModal } from "../components/modals/ExplainSelectionModal";
 import { TabSwitcherModal } from "../components/modals/TabSwitcherModal";
 import { QueryModal } from "../components/modals/QueryModal";
@@ -338,6 +343,11 @@ export const Editor = () => {
   const [selectableQueries, setSelectableQueries] = useState<string[]>([]);
   const [isQuerySelectionModalOpen, setIsQuerySelectionModalOpen] =
     useState(false);
+  const {
+    pending: dangerousQuery,
+    guardQuery: guardDangerousQuery,
+    resolve: resolveDangerousQuery,
+  } = useDangerousQueryGuard();
   const [isTabSwitcherOpen, setIsTabSwitcherOpen] = useState(false);
   const [isRunDropdownOpen, setIsRunDropdownOpen] = useState(false);
   const [isDbDropdownOpen, setIsDbDropdownOpen] = useState(false);
@@ -682,6 +692,8 @@ export const Editor = () => {
 
       if (!textToRun || !textToRun.trim()) return;
 
+      if (!(await guardDangerousQuery(textToRun))) return;
+
       // Check for parameters
       const params = extractQueryParams(textToRun);
       if (params.length > 0) {
@@ -854,6 +866,7 @@ export const Editor = () => {
       isMultiDb,
       activeDatabaseName,
       addHistoryEntry,
+      guardDangerousQuery,
     ],
   );
 
@@ -864,6 +877,8 @@ export const Editor = () => {
 
       const targetTab = tabsRef.current.find((t) => t.id === targetTabId);
       if (!targetTab) return;
+
+      if (!(await guardDangerousQuery(queries))) return;
 
       // Collect all unique parameters across all queries
       const allParams = [
@@ -1035,7 +1050,7 @@ export const Editor = () => {
       });
       updateTab(targetTabId, { isLoading: false });
     },
-    [activeConnectionId, updateTab, patchResultEntry, settings.resultPageSize, activeSchema, t, isMultiDb, activeDatabaseName, addHistoryEntry],
+    [activeConnectionId, updateTab, patchResultEntry, settings.resultPageSize, activeSchema, t, isMultiDb, activeDatabaseName, addHistoryEntry, guardDangerousQuery],
   );
 
   // Auto-run entry point for navigation-initiated executions (sidebar "open
@@ -3911,6 +3926,25 @@ export const Editor = () => {
           setIsQuerySelectionModalOpen(false);
         }}
         onClose={() => setIsQuerySelectionModalOpen(false)}
+      />
+      <ConfirmModal
+        isOpen={!!dangerousQuery}
+        onClose={() => resolveDangerousQuery(false)}
+        onConfirm={() => resolveDangerousQuery(true)}
+        title={t(
+          dangerousQuery
+            ? DANGEROUS_QUERY_I18N[dangerousQuery.kind].title
+            : "editor.dangerousQueryTitle",
+        )}
+        message={t(
+          dangerousQuery
+            ? DANGEROUS_QUERY_I18N[dangerousQuery.kind].message
+            : "editor.dangerousQueryMessage",
+        )}
+        sql={dangerousQuery?.sql}
+        confirmLabel={t("editor.dangerousQueryConfirm")}
+        variant="danger"
+        confirmDelaySeconds={5}
       />
       <TabSwitcherModal
         isOpen={isTabSwitcherOpen}
