@@ -38,7 +38,12 @@
     "error": "エラー",
     "success": "成功",
     "ok": "OK",
-    "copy": "コピー"
+    "continue": "続行",
+    "back": "戻る",
+    "copy": "コピー",
+    "showDetails": "詳細を表示",
+    "hideDetails": "詳細を非表示",
+    "beta": "ベータ"
   },
   "sidebar": {
     "connections": "接続",
@@ -270,7 +275,40 @@
     "export": "接続をエクスポート",
     "import": "接続をインポート",
     "exportTitle": "接続をエクスポート",
-    "exportWarning": "エクスポートされたファイルには、データベースおよび SSH のパスワードが平文で含まれます。安全な場所に保管してください。"
+    "exportWarning": "エクスポートされたファイルには、データベースおよび SSH のパスワードが平文で含まれます。安全な場所に保管してください。",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Tabularis エクスポートファイル (.json)",
+      "menuLabel": "接続をインポート…",
+      "group": {
+        "label": "グループ:",
+        "none": "グループなし",
+        "new": "新規グループ…",
+        "newPlaceholder": "グループ名",
+        "parentLabel": "場所",
+        "parentNone": "トップレベル"
+      },
+      "betaNotice": "アプリからのインポートはベータ版です。問題が発生した場合は、",
+      "reportIssue": "GitHub で報告してください。"
+    }
   },
   "connectionAppearance": {
     "section": "外観",
@@ -741,7 +779,10 @@
     "startupScriptDescription": "このデータソースへの新規接続ごとに実行される SQL です。SET / set_config（例: RLS のバイパス）などのセッション設定に使用します。複数のステートメントはセミコロンで区切ってください。",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "タブを左にスクロール",
-    "scrollTabsRight": "タブを右にスクロール"
+    "scrollTabsRight": "タブを右にスクロール",
+    "useIamAuth": "AWS IAM 認証を使用する (RDS)",
+    "useIamAuthHint": "パスワード欄は RDS 認証トークン (`aws rds generate-db-auth-token` の出力) として扱われます。TLS 必須。トークンの有効期限は 15 分です。",
+    "useIamAuthTlsRequired": "AWS IAM 認証を使用するには、上記で SSL モードを有効にしてください。"
   },
   "sshConnections": {
     "title": "SSH 接続",
@@ -1465,7 +1506,8 @@
     "createFirst": "最初のグループを作成して接続を整理しましょう",
     "groupName": "グループ名",
     "dragHint": "接続をここにドラッグ",
-    "createError": "グループの作成に失敗しました"
+    "createError": "グループの作成に失敗しました",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "データベース",

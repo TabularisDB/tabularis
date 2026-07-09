@@ -38,7 +38,12 @@
     "error": "Error",
     "success": "Success",
     "ok": "OK",
-    "copy": "Copy"
+    "continue": "Continue",
+    "back": "Back",
+    "copy": "Copy",
+    "showDetails": "Show details",
+    "hideDetails": "Hide details",
+    "beta": "Beta"
   },
   "sidebar": {
     "connections": "Connections",
@@ -270,7 +275,40 @@
     "export": "Export Connections",
     "import": "Import Connections",
     "exportTitle": "Export Connections",
-    "exportWarning": "The exported file will contain your database and SSH passwords in plaintext. Please store it securely."
+    "exportWarning": "The exported file will contain your database and SSH passwords in plaintext. Please store it securely.",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Tabularis export file (.json)",
+      "menuLabel": "Import connections…",
+      "group": {
+        "label": "Group:",
+        "none": "No group",
+        "new": "New group…",
+        "newPlaceholder": "Group name",
+        "parentLabel": "in",
+        "parentNone": "Top level"
+      },
+      "betaNotice": "Import from App is in beta. If you run into a problem,",
+      "reportIssue": "report it on GitHub."
+    }
   },
   "connectionAppearance": {
     "section": "Appearance",
@@ -761,7 +799,10 @@
     "startupScriptDescription": "SQL run on every new connection to this data source. Use it for session settings such as SET / set_config (e.g. bypassing RLS). Separate statements with semicolons.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Scroll tabs left",
-    "scrollTabsRight": "Scroll tabs right"
+    "scrollTabsRight": "Scroll tabs right",
+    "useIamAuth": "Use AWS IAM Authentication (RDS)",
+    "useIamAuthHint": "The password field is treated as an RDS auth token (from `aws rds generate-db-auth-token`). Requires TLS. Tokens expire every 15 minutes.",
+    "useIamAuthTlsRequired": "Enable an SSL mode above to use AWS IAM authentication."
   },
   "sshConnections": {
     "title": "SSH Connections",
@@ -1523,7 +1564,8 @@
     "createFirst": "Create your first group to organize connections",
     "groupName": "Group name",
     "dragHint": "Drag connections here",
-    "createError": "Failed to create group"
+    "createError": "Failed to create group",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "Database",

@@ -38,7 +38,12 @@
     "error": "Ошибка",
     "success": "Готово",
     "ok": "ОК",
-    "copy": "Копировать"
+    "continue": "Продолжить",
+    "back": "Назад",
+    "copy": "Копировать",
+    "showDetails": "Показать подробности",
+    "hideDetails": "Скрыть подробности",
+    "beta": "Бета"
   },
   "sidebar": {
     "connections": "Подключения",
@@ -273,7 +278,40 @@
     "export": "Экспортировать подключения",
     "import": "Импортировать подключения",
     "exportTitle": "Экспорт подключений",
-    "exportWarning": "Экспортируемый файл будет содержать пароли к базам данных и SSH в открытом виде. Храните его в надёжном месте!"
+    "exportWarning": "Экспортируемый файл будет содержать пароли к базам данных и SSH в открытом виде. Храните его в надёжном месте!",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Файл экспорта Tabularis (.json)",
+      "menuLabel": "Импорт подключений…",
+      "group": {
+        "label": "Группа:",
+        "none": "Без группы",
+        "new": "Новая группа…",
+        "newPlaceholder": "Название группы",
+        "parentLabel": "в",
+        "parentNone": "Верхний уровень"
+      },
+      "betaNotice": "Импорт из приложения находится в бета-версии. Если возникнет проблема,",
+      "reportIssue": "сообщите о ней на GitHub."
+    }
   },
   "settings": {
     "title": "Настройки",
@@ -720,7 +758,10 @@
     "startupScriptDescription": "SQL, выполняемый при каждом новом подключении к этому источнику данных. Используйте его для настроек сеанса, таких как SET / set_config (например, для обхода RLS). Разделяйте операторы точкой с запятой.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Прокрутить вкладки влево",
-    "scrollTabsRight": "Прокрутить вкладки вправо"
+    "scrollTabsRight": "Прокрутить вкладки вправо",
+    "useIamAuth": "Использовать аутентификацию AWS IAM (RDS)",
+    "useIamAuthHint": "Поле пароля используется как токен аутентификации RDS (команда `aws rds generate-db-auth-token`). Требуется TLS. Срок действия токенов — 15 минут.",
+    "useIamAuthTlsRequired": "Чтобы использовать аутентификацию AWS IAM, включите режим SSL выше."
   },
   "sshConnections": {
     "title": "SSH-подключения",
@@ -1501,7 +1542,8 @@
     "createFirst": "Создайте первую группу для организации подключений",
     "groupName": "Название группы",
     "dragHint": "Перетащите подключения сюда",
-    "createError": "Не удалось создать группу"
+    "createError": "Не удалось создать группу",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "База данных",

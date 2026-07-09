@@ -37,7 +37,12 @@
     "error": "错误",
     "success": "成功",
     "ok": "OK",
-    "copy": "复制"
+    "continue": "继续",
+    "back": "返回",
+    "copy": "复制",
+    "showDetails": "显示详情",
+    "hideDetails": "隐藏详情",
+    "beta": "测试版"
   },
   "sidebar": {
     "connections": "连接",
@@ -256,7 +261,40 @@
     "export": "导出连接",
     "import": "导入连接",
     "exportTitle": "导出连接",
-    "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。"
+    "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Tabularis 导出文件 (.json)",
+      "menuLabel": "导入连接…",
+      "group": {
+        "label": "分组：",
+        "none": "无分组",
+        "new": "新建分组…",
+        "newPlaceholder": "分组名称",
+        "parentLabel": "位于",
+        "parentNone": "顶层"
+      },
+      "betaNotice": "从应用导入功能处于测试阶段。如果遇到问题，",
+      "reportIssue": "请在 GitHub 上反馈。"
+    }
   },
   "connectionAppearance": {
     "section": "外观",
@@ -695,7 +733,10 @@
     "startupScriptDescription": "每次新建到此数据源的连接时执行的 SQL。可用于会话设置，例如 SET / set_config（如绕过 RLS）。多条语句请用分号分隔。",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "向左滚动标签页",
-    "scrollTabsRight": "向右滚动标签页"
+    "scrollTabsRight": "向右滚动标签页",
+    "useIamAuth": "使用 AWS IAM 身份验证 (RDS)",
+    "useIamAuthHint": "密码字段将被视为 RDS 身份验证令牌（由 `aws rds generate-db-auth-token` 生成）。需要 TLS。令牌每 15 分钟过期。",
+    "useIamAuthTlsRequired": "请在上方启用 SSL 模式以使用 AWS IAM 身份验证。"
   },
   "sshConnections": {
     "title": "SSH 连接",
@@ -1391,7 +1432,8 @@
     "createFirst": "创建您的第一个分组以组织连接",
     "groupName": "分组名称",
     "dragHint": "将连接拖到此处",
-    "createError": "创建分组失败"
+    "createError": "创建分组失败",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "数据库",

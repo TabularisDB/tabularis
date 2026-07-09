@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Sparkles, Ban, FileDigit } from "lucide-react";
+import { Sparkles, Ban, Eraser, FileDigit } from "lucide-react";
 import { GeometryInput } from "./GeometryInput";
 import { BlobInput } from "./BlobInput";
 import { DateInput } from "./DateInput";
@@ -9,7 +9,11 @@ import { TextInput } from "./TextInput";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn } from "../../utils/blob";
 import { isJsonColumn, isJsonContent } from "../../utils/json";
-import { isLongTextValue, isTextColumn } from "../../utils/text";
+import {
+  isLongTextValue,
+  isTextColumn,
+  supportsEmptyString,
+} from "../../utils/text";
 import { getDateInputMode } from "../../utils/dateInput";
 import { USE_DEFAULT_SENTINEL } from "../../utils/dataGrid";
 
@@ -190,13 +194,14 @@ export const FieldEditor = ({
             {t("dataGrid.setDefault")}
           </button>
         )}
-        {!isBlob && (
+        {supportsEmptyString(type) && (
           <button
             type="button"
-            onClick={() => onChange(" ")}
-            className="px-2 py-1 text-xs bg-surface-secondary text-secondary rounded border border-default hover:bg-surface-tertiary transition-colors"
+            onClick={() => onChange("")}
+            className="px-2 py-1 text-xs bg-surface-secondary text-secondary rounded border border-default hover:bg-surface-tertiary transition-colors flex items-center gap-1"
             title={t("dataGrid.setEmpty")}
           >
+            <Eraser size={12} />
             {t("dataGrid.setEmpty")}
           </button>
         )}

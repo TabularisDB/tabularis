@@ -38,7 +38,12 @@
     "error": "Erreur",
     "success": "Succès",
     "ok": "OK",
-    "copy": "Copier"
+    "continue": "Continuer",
+    "back": "Retour",
+    "copy": "Copier",
+    "showDetails": "Afficher les détails",
+    "hideDetails": "Masquer les détails",
+    "beta": "Bêta"
   },
   "sidebar": {
     "connections": "Connexions",
@@ -257,7 +262,40 @@
     "export": "Exporter les connexions",
     "import": "Importer les connexions",
     "exportTitle": "Exporter les connexions",
-    "exportWarning": "Le fichier exporté contiendra vos mots de passe de base de données et SSH en clair. Conservez-le en lieu sûr."
+    "exportWarning": "Le fichier exporté contiendra vos mots de passe de base de données et SSH en clair. Conservez-le en lieu sûr.",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Fichier d'export Tabularis (.json)",
+      "menuLabel": "Importer des connexions…",
+      "group": {
+        "label": "Groupe :",
+        "none": "Aucun groupe",
+        "new": "Nouveau groupe…",
+        "newPlaceholder": "Nom du groupe",
+        "parentLabel": "dans",
+        "parentNone": "Niveau racine"
+      },
+      "betaNotice": "L'import depuis une app est en bêta. En cas de problème,",
+      "reportIssue": "signalez-le sur GitHub."
+    }
   },
   "connectionAppearance": {
     "section": "Apparence",
@@ -727,7 +765,10 @@
     "startupScriptDescription": "SQL exécuté à chaque nouvelle connexion à cette source de données. Utilisez-le pour des paramètres de session tels que SET / set_config (par exemple, pour contourner la RLS). Séparez les instructions par des points-virgules.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Défiler les onglets vers la gauche",
-    "scrollTabsRight": "Défiler les onglets vers la droite"
+    "scrollTabsRight": "Défiler les onglets vers la droite",
+    "useIamAuth": "Utiliser l'authentification AWS IAM (RDS)",
+    "useIamAuthHint": "Le champ mot de passe est traité comme un jeton d'authentification RDS (généré par `aws rds generate-db-auth-token`). Nécessite TLS. Les jetons expirent toutes les 15 minutes.",
+    "useIamAuthTlsRequired": "Activez un mode SSL ci-dessus pour utiliser l'authentification AWS IAM."
   },
   "sshConnections": {
     "title": "Connexions SSH",
@@ -1447,7 +1488,8 @@
     "createFirst": "Créez votre premier groupe pour organiser vos connexions",
     "groupName": "Nom du groupe",
     "dragHint": "Glissez les connexions ici",
-    "createError": "Échec de création du groupe"
+    "createError": "Échec de création du groupe",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "Base de données",

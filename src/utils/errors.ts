@@ -18,3 +18,29 @@ export function toErrorMessage(err: unknown): string {
   }
   return String(err);
 }
+
+/**
+ * Separator used when composing a user-facing error banner as
+ * `${summary}\n\nError: ${technicalDetail}`.
+ */
+const ERROR_DETAILS_MARKER = "\n\nError: ";
+
+/**
+ * Splits a composed error banner message into its human-readable summary
+ * and the (optional) technical detail that follows the `Error:` marker.
+ *
+ * When the marker is absent the whole message is treated as the summary
+ * and `details` is `null`.
+ */
+export function splitErrorDetails(message: string): {
+  summary: string;
+  details: string | null;
+} {
+  const idx = message.indexOf(ERROR_DETAILS_MARKER);
+  if (idx === -1) return { summary: message, details: null };
+  const details = message.slice(idx + ERROR_DETAILS_MARKER.length).trim();
+  return {
+    summary: message.slice(0, idx),
+    details: details.length > 0 ? details : null,
+  };
+}
