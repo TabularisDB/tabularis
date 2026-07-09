@@ -28,6 +28,7 @@ import {
   Edit,
   Sparkles,
   Ban,
+  Eraser,
   FileDigit,
   ExternalLink,
   PanelBottomOpen,
@@ -50,6 +51,7 @@ import { useSettings } from "../../hooks/useSettings";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
 import { isJsonColumn, isJsonContent } from "../../utils/json";
+import { supportsEmptyString } from "../../utils/text";
 import {
   pickPrimaryForeignKeyByColumn,
   getForeignKeyForPreview,
@@ -1093,7 +1095,7 @@ export const DataGrid = React.memo(
       // For insertions, null triggers <default> display; for existing rows, use sentinel
       setCellValue(isInsertion ? null : USE_DEFAULT_SENTINEL);
     }, [contextMenu, setCellValue]);
-    const setCellEmpty = useCallback(() => setCellValue(" "), [setCellValue]);
+    const setCellEmpty = useCallback(() => setCellValue(""), [setCellValue]);
 
     const setCellServerNow = useCallback(() => {
       if (!contextMenu || !connectionId) return;
@@ -1483,12 +1485,14 @@ export const DataGrid = React.memo(
                     action: setCellDefault,
                   });
                 }
-                // Always allow setting empty string, except for BLOB columns
+                // Empty string ("") is only a valid value for textual columns.
+                // Strongly-typed columns (uuid, numeric, temporal, …) reject it,
+                // so offer "Set Empty" only where an empty string is assignable.
                 const colDataType = columnTypeMap?.get(colName) ?? "";
-                if (!isBlobColumn(colDataType, columnLengthMap?.get(colName))) {
+                if (supportsEmptyString(colDataType)) {
                   menuItems.push({
                     label: t("dataGrid.setEmpty"),
-                    icon: Copy,
+                    icon: Eraser,
                     action: setCellEmpty,
                   });
                 }
