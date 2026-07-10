@@ -505,6 +505,93 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
+    // EXPLAIN. Plain EXPLAIN only plans and is a read, but EXPLAIN ANALYZE
+    // (and EXPLAIN (ANALYZE ...)) *executes* the wrapped statement — so a
+    // wrapped write/DDL must be gated exactly like the bare statement, or it
+    // slips past read-only mode and the write-approval prompt.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn classify_plain_explain_is_select() {
+        assert_eq!(classify_query_kind("EXPLAIN SELECT 1"), "select");
+        assert_eq!(classify_query_kind("EXPLAIN VERBOSE SELECT * FROM t"), "select");
+        assert_eq!(classify_query_kind("EXPLAIN (FORMAT JSON) SELECT 1"), "select");
+        assert_eq!(classify_query_kind("EXPLAIN QUERY PLAN SELECT 1"), "select");
+        // Plain EXPLAIN of a write does not run it — Postgres only plans.
+        assert_eq!(classify_query_kind("EXPLAIN DELETE FROM t"), "select");
+        // ANALYZE appearing as an identifier, not an option, must not trip it.
+        assert_eq!(
+            classify_query_kind("EXPLAIN SELECT * FROM analyze_runs"),
+            "select"
+        );
+    }
+
+    #[test]
+    fn classify_explain_analyze_write_is_gated_like_the_write() {
+        // Legacy bare syntax.
+        assert_eq!(classify_query_kind("EXPLAIN ANALYZE DELETE FROM t"), "write");
+        assert_eq!(
+            classify_query_kind("EXPLAIN ANALYZE INSERT INTO t VALUES (1)"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("EXPLAIN ANALYZE VERBOSE UPDATE t SET x = 1"),
+            "write"
+        );
+        // Parenthesized option list, ANALYZE anywhere inside it.
+        assert_eq!(
+            classify_query_kind("EXPLAIN (ANALYZE) DELETE FROM t"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("EXPLAIN (ANALYZE, BUFFERS) DELETE FROM t"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("EXPLAIN (FORMAT JSON, ANALYZE, BUFFERS) UPDATE t SET x = 1"),
+            "write"
+        );
+    }
+
+    #[test]
+    fn classify_explain_analyze_ddl_is_ddl() {
+        assert_eq!(classify_query_kind("EXPLAIN ANALYZE DROP TABLE t"), "ddl");
+        assert_eq!(
+            classify_query_kind("EXPLAIN (ANALYZE) TRUNCATE t"),
+            "ddl"
+        );
+    }
+
+    #[test]
+    fn classify_explain_analyze_select_stays_select() {
+        // ANALYZE runs the SELECT, but a SELECT is still a read.
+        assert_eq!(classify_query_kind("EXPLAIN ANALYZE SELECT 1"), "select");
+        assert_eq!(
+            classify_query_kind("EXPLAIN (ANALYZE) SELECT * FROM t"),
+            "select"
+        );
+    }
+
+    #[test]
+    fn classify_explain_analyze_cte_write_is_write() {
+        assert_eq!(
+            classify_query_kind(
+                "EXPLAIN ANALYZE WITH x AS (SELECT 1) DELETE FROM o WHERE id IN x"
+            ),
+            "write"
+        );
+    }
+
+    #[test]
+    fn classify_explain_analyze_unbalanced_options_fails_closed() {
+        // An unterminated option list must not be treated as a clean read.
+        assert_eq!(
+            classify_query_kind("EXPLAIN (ANALYZE DELETE FROM t"),
+            "unknown"
+        );
+    }
+
+    // -----------------------------------------------------------------------
     // Parenthesized query expressions. A `(SELECT ...) UNION ALL (SELECT ...)`
     // starts with `(`, so the first keyword would come back empty and fall
     // through to "unknown" — needlessly tripping the read-only / approval
