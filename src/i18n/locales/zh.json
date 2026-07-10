@@ -489,6 +489,16 @@
     "erDiagram": "ER 图",
     "erDiagramDefaultLayout": "默认布局",
     "erDiagramDefaultLayoutDesc": "选择 ER 图的默认布局方向",
+    "cli": {
+      "title": "命令行",
+      "install": "安装 'tabularis' 命令",
+      "installDesc": "在 PATH 中创建符号链接，以便在终端中使用 CLI 和交互式 SQL shell。",
+      "installButton": "安装",
+      "installed": "已安装",
+      "replaceButton": "替换现有条目",
+      "removeButton": "移除",
+      "notInPath": "{{dir}} 不在 PATH 中。请将其添加到 shell 配置文件:"
+    },
     "plugins": {
       "title": "插件",
       "overviewTitle": "插件中心",

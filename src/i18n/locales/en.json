@@ -553,6 +553,16 @@
     "erDiagram": "ER Diagram",
     "erDiagramDefaultLayout": "Default Layout",
     "erDiagramDefaultLayoutDesc": "Choose the default layout direction for ER diagrams",
+    "cli": {
+      "title": "Command Line",
+      "install": "Install 'tabularis' command",
+      "installDesc": "Create a symlink in your PATH so the CLI and the interactive SQL shell can be used from a terminal.",
+      "installButton": "Install",
+      "installed": "Installed",
+      "replaceButton": "Replace existing entry",
+      "removeButton": "Remove",
+      "notInPath": "{{dir}} is not in your PATH. Add it to your shell profile:"
+    },
     "plugins": {
       "title": "Plugins",
       "overviewTitle": "Plugin Center",

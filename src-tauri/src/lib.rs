@@ -37,6 +37,7 @@ pub mod explain_import_tests;
 pub mod export;
 #[cfg(test)]
 pub mod export_import_tests;
+pub mod headless;
 pub mod health_check;
 #[cfg(test)]
 pub mod group_tree_tests;
@@ -134,6 +135,21 @@ pub fn run() {
     }
 
     let args = cli::parse();
+
+    if let Some(command) = args.command {
+        // Terminal mode: run the subcommand and exit without ever touching
+        // the Tauri builder. The custom logger writes to stderr only, so
+        // stdout stays clean for piping (csv/json output).
+        let level = if args.debug {
+            log::LevelFilter::Debug
+        } else {
+            log::LevelFilter::Warn
+        };
+        init_logger(create_log_buffer(1000), level);
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+        let exit_code = rt.block_on(cli::run_command(command));
+        std::process::exit(exit_code);
+    }
 
     if args.mcp {
         // Initialize the logger so plugin-loading and driver RPC errors (which
@@ -363,6 +379,10 @@ pub fn run() {
             commands::refresh_materialized_view,
             commands::set_window_title,
             commands::open_er_diagram_window,
+            // Terminal CLI shortcut
+            commands::get_cli_install_status,
+            commands::install_cli_shortcut,
+            commands::remove_cli_shortcut,
             explain_import::load_explain_from_file,
             explain_import::get_pending_explain_file,
             explain_import::open_visual_explain_window,

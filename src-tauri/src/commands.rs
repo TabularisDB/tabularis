@@ -5024,3 +5024,23 @@ pub async fn apply_export_payload<R: Runtime>(
 
     Ok(())
 }
+
+// --- Terminal CLI shortcut ----------------------------------------------------
+
+/// Install state of the `tabularis` terminal command, for the Settings page.
+#[tauri::command]
+pub fn get_cli_install_status() -> crate::cli::install::CliInstallStatus {
+    crate::cli::install::install_status()
+}
+
+/// Install the `tabularis` terminal command from the Settings page.
+#[tauri::command]
+pub fn install_cli_shortcut(force: bool) -> Result<crate::cli::install::CliInstallStatus, String> {
+    crate::cli::install::install_from_gui(force)
+}
+
+/// Remove the `tabularis` terminal command from the Settings page.
+#[tauri::command]
+pub fn remove_cli_shortcut() -> Result<crate::cli::install::CliInstallStatus, String> {
+    crate::cli::install::uninstall_from_gui()
+}

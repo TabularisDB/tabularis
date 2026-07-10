@@ -534,6 +534,16 @@
     "erDiagram": "ER 図",
     "erDiagramDefaultLayout": "デフォルトレイアウト",
     "erDiagramDefaultLayoutDesc": "ER 図のデフォルトのレイアウト方向を選択します",
+    "cli": {
+      "title": "コマンドライン",
+      "install": "'tabularis' コマンドをインストール",
+      "installDesc": "PATH にシンボリックリンクを作成し、ターミナルから CLI と対話型 SQL シェルを使えるようにします。",
+      "installButton": "インストール",
+      "installed": "インストール済み",
+      "replaceButton": "既存のエントリを置き換える",
+      "removeButton": "削除",
+      "notInPath": "{{dir}} は PATH にありません。シェルのプロファイルに追加してください:"
+    },
     "plugins": {
       "title": "プラグイン",
       "overviewTitle": "プラグインセンター",

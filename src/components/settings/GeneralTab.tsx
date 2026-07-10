@@ -8,6 +8,7 @@ import {
   SettingButtonGroup,
   SettingNumberInput,
 } from "./SettingControls";
+import { CliInstallSection } from "./CliInstallSection";
 
 export function GeneralTab() {
   const { t } = useTranslation();
@@ -161,6 +162,8 @@ export function GeneralTab() {
           />
         </SettingRow>
       </SettingSection>
+
+      <CliInstallSection />
     </div>
   );
 }

@@ -515,6 +515,16 @@
     "erDiagram": "ER-диаграмма",
     "erDiagramDefaultLayout": "Расположение по умолчанию",
     "erDiagramDefaultLayoutDesc": "Направление по умолчанию для ER-диаграмм",
+    "cli": {
+      "title": "Командная строка",
+      "install": "Установить команду 'tabularis'",
+      "installDesc": "Создаёт символическую ссылку в PATH, чтобы использовать CLI и интерактивную SQL-оболочку из терминала.",
+      "installButton": "Установить",
+      "installed": "Установлено",
+      "replaceButton": "Заменить существующую запись",
+      "removeButton": "Удалить",
+      "notInPath": "{{dir}} отсутствует в PATH. Добавьте его в профиль оболочки:"
+    },
     "plugins": {
       "title": "Плагины",
       "overviewTitle": "Центр плагинов",
