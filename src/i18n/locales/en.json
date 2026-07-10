@@ -302,7 +302,9 @@
         "label": "Group:",
         "none": "No group",
         "new": "New group…",
-        "newPlaceholder": "Group name"
+        "newPlaceholder": "Group name",
+        "parentLabel": "in",
+        "parentNone": "Top level"
       },
       "betaNotice": "Import from App is in beta. If you run into a problem,",
       "reportIssue": "report it on GitHub."
@@ -797,7 +799,10 @@
     "startupScriptDescription": "SQL run on every new connection to this data source. Use it for session settings such as SET / set_config (e.g. bypassing RLS). Separate statements with semicolons.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Scroll tabs left",
-    "scrollTabsRight": "Scroll tabs right"
+    "scrollTabsRight": "Scroll tabs right",
+    "useIamAuth": "Use AWS IAM Authentication (RDS)",
+    "useIamAuthHint": "The password field is treated as an RDS auth token (from `aws rds generate-db-auth-token`). Requires TLS. Tokens expire every 15 minutes.",
+    "useIamAuthTlsRequired": "Enable an SSL mode above to use AWS IAM authentication."
   },
   "sshConnections": {
     "title": "SSH Connections",
@@ -1559,7 +1564,8 @@
     "createFirst": "Create your first group to organize connections",
     "groupName": "Group name",
     "dragHint": "Drag connections here",
-    "createError": "Failed to create group"
+    "createError": "Failed to create group",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "Database",

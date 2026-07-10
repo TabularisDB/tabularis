@@ -289,7 +289,9 @@
         "label": "Gruppe:",
         "none": "Keine Gruppe",
         "new": "Neue Gruppe…",
-        "newPlaceholder": "Gruppenname"
+        "newPlaceholder": "Gruppenname",
+        "parentLabel": "in",
+        "parentNone": "Oberste Ebene"
       },
       "betaNotice": "Der Import aus einer App befindet sich in der Beta-Phase. Falls ein Problem auftritt,",
       "reportIssue": "melde es auf GitHub."
@@ -763,7 +765,10 @@
     "startupScriptDescription": "SQL, das bei jeder neuen Verbindung zu dieser Datenquelle ausgeführt wird. Verwenden Sie es für Sitzungseinstellungen wie SET / set_config (z. B. zum Umgehen von RLS). Trennen Sie Anweisungen mit Semikolons.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Registerkarten nach links blättern",
-    "scrollTabsRight": "Registerkarten nach rechts blättern"
+    "scrollTabsRight": "Registerkarten nach rechts blättern",
+    "useIamAuth": "AWS-IAM-Authentifizierung verwenden (RDS)",
+    "useIamAuthHint": "Das Passwortfeld wird als RDS-Auth-Token verwendet (aus `aws rds generate-db-auth-token`). Erfordert TLS. Tokens laufen alle 15 Minuten ab.",
+    "useIamAuthTlsRequired": "Aktiviere oben einen SSL-Modus, um die AWS-IAM-Authentifizierung zu nutzen."
   },
   "sshConnections": {
     "title": "SSH-Verbindungen",
@@ -1483,7 +1488,8 @@
     "createFirst": "Erstelle deine erste Gruppe, um Verbindungen zu organisieren",
     "groupName": "Gruppenname",
     "dragHint": "Verbindungen hierher ziehen",
-    "createError": "Erstellen der Gruppe fehlgeschlagen"
+    "createError": "Erstellen der Gruppe fehlgeschlagen",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "Datenbank",

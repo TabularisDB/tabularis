@@ -305,7 +305,9 @@
         "label": "Группа:",
         "none": "Без группы",
         "new": "Новая группа…",
-        "newPlaceholder": "Название группы"
+        "newPlaceholder": "Название группы",
+        "parentLabel": "в",
+        "parentNone": "Верхний уровень"
       },
       "betaNotice": "Импорт из приложения находится в бета-версии. Если возникнет проблема,",
       "reportIssue": "сообщите о ней на GitHub."
@@ -756,7 +758,10 @@
     "startupScriptDescription": "SQL, выполняемый при каждом новом подключении к этому источнику данных. Используйте его для настроек сеанса, таких как SET / set_config (например, для обхода RLS). Разделяйте операторы точкой с запятой.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Прокрутить вкладки влево",
-    "scrollTabsRight": "Прокрутить вкладки вправо"
+    "scrollTabsRight": "Прокрутить вкладки вправо",
+    "useIamAuth": "Использовать аутентификацию AWS IAM (RDS)",
+    "useIamAuthHint": "Поле пароля используется как токен аутентификации RDS (команда `aws rds generate-db-auth-token`). Требуется TLS. Срок действия токенов — 15 минут.",
+    "useIamAuthTlsRequired": "Чтобы использовать аутентификацию AWS IAM, включите режим SSL выше."
   },
   "sshConnections": {
     "title": "SSH-подключения",
@@ -1537,7 +1542,8 @@
     "createFirst": "Создайте первую группу для организации подключений",
     "groupName": "Название группы",
     "dragHint": "Перетащите подключения сюда",
-    "createError": "Не удалось создать группу"
+    "createError": "Не удалось создать группу",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "База данных",
