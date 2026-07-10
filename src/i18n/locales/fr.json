@@ -289,7 +289,9 @@
         "label": "Groupe :",
         "none": "Aucun groupe",
         "new": "Nouveau groupe…",
-        "newPlaceholder": "Nom du groupe"
+        "newPlaceholder": "Nom du groupe",
+        "parentLabel": "dans",
+        "parentNone": "Niveau racine"
       },
       "betaNotice": "L'import depuis une app est en bêta. En cas de problème,",
       "reportIssue": "signalez-le sur GitHub."
@@ -1486,7 +1488,8 @@
     "createFirst": "Créez votre premier groupe pour organiser vos connexions",
     "groupName": "Nom du groupe",
     "dragHint": "Glissez les connexions ici",
-    "createError": "Échec de création du groupe"
+    "createError": "Échec de création du groupe",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "Base de données",

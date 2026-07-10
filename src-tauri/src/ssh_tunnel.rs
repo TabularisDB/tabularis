@@ -87,6 +87,17 @@ pub fn get_tunnels() -> &'static Mutex<HashMap<String, SshTunnel>> {
     TUNNELS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+fn create_ssh_command() -> Command {
+    let mut cmd = Command::new("ssh");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
 impl SshTunnel {
     pub fn new(
         ssh_host: &str,
@@ -201,7 +212,7 @@ impl SshTunnel {
 
         println!("[SSH Tunnel] Executing: ssh {:?}", args);
 
-        let mut command = Command::new("ssh");
+        let mut command = create_ssh_command();
         command
             .args(&args)
             .stdout(Stdio::piped())
@@ -535,6 +546,16 @@ impl SshTunnel {
     }
 }
 
+pub fn stop_all_tunnels() {
+    if let Some(tunnels) = TUNNELS.get() {
+        if let Ok(mut guard) = tunnels.lock() {
+            for (_, tunnel) in guard.drain() {
+                tunnel.stop();
+            }
+        }
+    }
+}
+
 /// Test an SSH connection without creating a tunnel
 pub fn test_ssh_connection(
     ssh_host: &str,
@@ -614,7 +635,7 @@ fn test_ssh_connection_system(
 
     println!("[SSH Test] Executing: ssh {:?}", args);
 
-    let mut command = Command::new("ssh");
+    let mut command = create_ssh_command();
     command.args(&args);
 
     // Keep the askpass server alive while ssh runs: prompts can arrive at any

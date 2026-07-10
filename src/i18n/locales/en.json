@@ -302,7 +302,9 @@
         "label": "Group:",
         "none": "No group",
         "new": "New group…",
-        "newPlaceholder": "Group name"
+        "newPlaceholder": "Group name",
+        "parentLabel": "in",
+        "parentNone": "Top level"
       },
       "betaNotice": "Import from App is in beta. If you run into a problem,",
       "reportIssue": "report it on GitHub."
@@ -1562,7 +1564,8 @@
     "createFirst": "Create your first group to organize connections",
     "groupName": "Group name",
     "dragHint": "Drag connections here",
-    "createError": "Failed to create group"
+    "createError": "Failed to create group",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "Database",

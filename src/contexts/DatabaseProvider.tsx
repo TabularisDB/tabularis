@@ -879,9 +879,35 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // Connection Group methods
-  const createGroup = useCallback(async (name: string): Promise<ConnectionGroup> => {
-    const group = await invoke<ConnectionGroup>('create_connection_group', { name });
+  const createGroup = useCallback(async (
+    name: string,
+    parentId?: string | null
+  ): Promise<ConnectionGroup> => {
+    // The Tauri command expects `parent_id: Option<String>`. Passing
+    // `null` directly is fine — Tauri serialises it as `null` in JSON
+    // and the Rust deserializer maps it to `None`. Passing `undefined`
+    // would also work because serde's default attribute treats it the
+    // same, but we normalise to `null` for explicitness.
+    const group = await invoke<ConnectionGroup>('create_connection_group', {
+      name,
+      parentId: parentId ?? null,
+    });
     setConnectionGroups(prev => [...prev, group]);
+    return group;
+  }, []);
+
+  const createGroupPath = useCallback(async (
+    path: string,
+    parentId?: string | null
+  ): Promise<ConnectionGroup> => {
+    const group = await invoke<ConnectionGroup>('create_group_path', {
+      path,
+      parentId: parentId ?? null,
+    });
+    // Re-fetch the full group list because the backend may have reused
+    // existing segments and created new ones we don't yet know about.
+    const fresh = await invoke<ConnectionGroup[]>('get_connection_groups');
+    setConnectionGroups(fresh);
     return group;
   }, []);
 
@@ -895,13 +921,27 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     );
   }, []);
 
-  const deleteGroup = useCallback(async (id: string): Promise<void> => {
-    await invoke('delete_connection_group', { id });
-    setConnectionGroups(prev => prev.filter(g => g.id !== id));
-    // Update connections that were in this group
-    setConnections(prev =>
-      prev.map(c => (c.group_id === id ? { ...c, group_id: undefined } : c))
+  const moveGroupToParent = useCallback(async (
+    id: string,
+    parentId: string | null
+  ): Promise<void> => {
+    await invoke('move_group_to_parent', { id, parentId });
+    setConnectionGroups(prev =>
+      prev.map(g => (g.id === id ? { ...g, parent_id: parentId } : g))
     );
+  }, []);
+
+  const deleteGroup = useCallback(async (id: string): Promise<void> => {
+    // The backend cascade-deletes the target group, every nested child
+    // group, and all connections belonging to any group in that subtree.
+    // Re-load from the backend instead of mirroring the cascade in
+    // optimistic state — this keeps the optimistic update trivial and
+    // guarantees the UI matches the persisted file even if the cascade
+    // behaviour evolves.
+    await invoke('delete_connection_group', { id });
+    const fresh = await invoke<ConnectionsFile>('get_connections_with_groups');
+    setConnections(fresh.connections);
+    setConnectionGroups(fresh.groups);
   }, []);
 
   const moveConnectionToGroup = useCallback(async (
@@ -998,7 +1038,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       isConnectionOpenAnywhere,
       globallyOpenConnectionIds,
       createGroup,
+      createGroupPath,
       updateGroup,
+      moveGroupToParent,
       deleteGroup,
       moveConnectionToGroup,
       reorderGroups,

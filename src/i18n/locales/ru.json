@@ -305,7 +305,9 @@
         "label": "Группа:",
         "none": "Без группы",
         "new": "Новая группа…",
-        "newPlaceholder": "Название группы"
+        "newPlaceholder": "Название группы",
+        "parentLabel": "в",
+        "parentNone": "Верхний уровень"
       },
       "betaNotice": "Импорт из приложения находится в бета-версии. Если возникнет проблема,",
       "reportIssue": "сообщите о ней на GitHub."
@@ -1540,7 +1542,8 @@
     "createFirst": "Создайте первую группу для организации подключений",
     "groupName": "Название группы",
     "dragHint": "Перетащите подключения сюда",
-    "createError": "Не удалось создать группу"
+    "createError": "Не удалось создать группу",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "База данных",

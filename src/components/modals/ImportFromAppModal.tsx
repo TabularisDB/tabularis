@@ -21,6 +21,7 @@ import clsx from "clsx";
 import { toErrorMessage } from "../../utils/errors";
 import { useDatabase } from "../../hooks/useDatabase";
 import type { ConnectionGroup } from "../../contexts/DatabaseContext";
+import { flattenGroupTree } from "../../utils/groupTree";
 import { Select } from "../ui/Select";
 import { BetaBadge } from "../ui/BetaBadge";
 import { GITHUB_ISSUES_URL } from "../../config/links";
@@ -66,6 +67,8 @@ export const ImportFromAppModal = ({
   // Per-item group selection for new imports: a group id, GROUP_NONE, or GROUP_NEW.
   const [groupChoice, setGroupChoice] = useState<Record<number, string>>({});
   const [newGroupName, setNewGroupName] = useState<Record<number, string>>({});
+  // Parent group id for a "new group" choice; GROUP_NONE means top level.
+  const [newGroupParent, setNewGroupParent] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -193,9 +196,18 @@ export const ImportFromAppModal = ({
           if (choice === GROUP_NEW) {
             const name = newGroupName[item.index]?.trim();
             // An empty new-group name means "no group".
-            return name
-              ? { index: item.index, action, newGroupName: name }
-              : { index: item.index, action, groupId: "" };
+            if (!name) {
+              return { index: item.index, action, groupId: "" };
+            }
+            const parent = newGroupParent[item.index];
+            return {
+              index: item.index,
+              action,
+              newGroupName: name,
+              ...(parent && parent !== GROUP_NONE
+                ? { newGroupParentId: parent }
+                : {}),
+            };
           }
           // GROUP_NONE clears the group; any other value is an existing group id.
           return {
@@ -314,11 +326,15 @@ export const ImportFromAppModal = ({
               groups={connectionGroups}
               groupChoice={groupChoice}
               newGroupName={newGroupName}
+              newGroupParent={newGroupParent}
               onGroupChoiceChange={(index, value) =>
                 setGroupChoice((prev) => ({ ...prev, [index]: value }))
               }
               onNewGroupNameChange={(index, value) =>
                 setNewGroupName((prev) => ({ ...prev, [index]: value }))
+              }
+              onNewGroupParentChange={(index, value) =>
+                setNewGroupParent((prev) => ({ ...prev, [index]: value }))
               }
             />
           )}
@@ -456,8 +472,10 @@ interface PreviewListProps {
   groups: ConnectionGroup[];
   groupChoice: Record<number, string>;
   newGroupName: Record<number, string>;
+  newGroupParent: Record<number, string>;
   onGroupChoiceChange: (index: number, value: string) => void;
   onNewGroupNameChange: (index: number, value: string) => void;
+  onNewGroupParentChange: (index: number, value: string) => void;
 }
 
 const PreviewList = ({
@@ -467,8 +485,10 @@ const PreviewList = ({
   groups,
   groupChoice,
   newGroupName,
+  newGroupParent,
   onGroupChoiceChange,
   onNewGroupNameChange,
+  onNewGroupParentChange,
 }: PreviewListProps) => {
   const { t } = useTranslation();
 
@@ -483,8 +503,10 @@ const PreviewList = ({
           groups={groups}
           groupChoice={groupChoice[item.index] ?? GROUP_NONE}
           newGroupName={newGroupName[item.index] ?? ""}
+          newGroupParent={newGroupParent[item.index] ?? GROUP_NONE}
           onGroupChoiceChange={(value) => onGroupChoiceChange(item.index, value)}
           onNewGroupNameChange={(value) => onNewGroupNameChange(item.index, value)}
+          onNewGroupParentChange={(value) => onNewGroupParentChange(item.index, value)}
         />
       ))}
       {preview.items.length === 0 && (
@@ -503,8 +525,10 @@ interface PreviewRowProps {
   groups: ConnectionGroup[];
   groupChoice: string;
   newGroupName: string;
+  newGroupParent: string;
   onGroupChoiceChange: (value: string) => void;
   onNewGroupNameChange: (value: string) => void;
+  onNewGroupParentChange: (value: string) => void;
 }
 
 const PreviewRow = ({
@@ -514,11 +538,14 @@ const PreviewRow = ({
   groups,
   groupChoice,
   newGroupName,
+  newGroupParent,
   onGroupChoiceChange,
   onNewGroupNameChange,
+  onNewGroupParentChange,
 }: PreviewRowProps) => {
   const { t } = useTranslation();
   const isDuplicate = item.status.kind === "duplicate";
+  const groupTree = flattenGroupTree(groups);
 
   return (
     <div className="rounded-xl border border-strong bg-base px-3.5 py-2.5">
@@ -576,25 +603,49 @@ const PreviewRow = ({
           </label>
           <Select
             value={groupChoice}
-            options={[GROUP_NONE, ...groups.map((g) => g.id), GROUP_NEW]}
+            options={[GROUP_NONE, ...groupTree.map((e) => e.group.id), GROUP_NEW]}
             labels={{
               [GROUP_NONE]: t("connections.importFromApp.group.none"),
               [GROUP_NEW]: t("connections.importFromApp.group.new"),
-              ...Object.fromEntries(groups.map((g) => [g.id, g.name])),
+              ...Object.fromEntries(groupTree.map((e) => [e.group.id, e.group.name])),
             }}
+            indents={Object.fromEntries(
+              groupTree.map((e) => [e.group.id, e.depth]),
+            )}
             onChange={onGroupChoiceChange}
             searchable={groups.length > 6}
             className="min-w-0 flex-1"
           />
           {groupChoice === GROUP_NEW && (
-            <input
-              type="text"
-              value={newGroupName}
-              autoFocus
-              onChange={(e) => onNewGroupNameChange(e.target.value)}
-              placeholder={t("connections.importFromApp.group.newPlaceholder")}
-              className="min-w-0 flex-1 rounded border border-strong bg-base px-3 py-2 text-sm text-primary focus:border-blue-500 focus:outline-none"
-            />
+            <>
+              <input
+                type="text"
+                value={newGroupName}
+                autoFocus
+                onChange={(e) => onNewGroupNameChange(e.target.value)}
+                placeholder={t("connections.importFromApp.group.newPlaceholder")}
+                className="min-w-0 flex-1 rounded border border-strong bg-base px-3 py-2 text-sm text-primary focus:border-blue-500 focus:outline-none"
+              />
+              <span className="shrink-0 text-xs text-muted">
+                {t("connections.importFromApp.group.parentLabel")}
+              </span>
+              <Select
+                value={newGroupParent}
+                options={[GROUP_NONE, ...groupTree.map((e) => e.group.id)]}
+                labels={{
+                  [GROUP_NONE]: t("connections.importFromApp.group.parentNone"),
+                  ...Object.fromEntries(
+                    groupTree.map((e) => [e.group.id, e.group.name]),
+                  ),
+                }}
+                indents={Object.fromEntries(
+                  groupTree.map((e) => [e.group.id, e.depth]),
+                )}
+                onChange={onNewGroupParentChange}
+                searchable={groups.length > 6}
+                className="w-44 min-w-0 shrink-0"
+              />
+            </>
           )}
         </div>
       )}

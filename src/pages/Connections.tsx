@@ -21,6 +21,7 @@ import {
   Folder,
   Download,
   FolderInput,
+  FolderTree,
   ChevronDown,
   AppWindow,
 } from "lucide-react";
@@ -30,7 +31,9 @@ import { useSettings } from "../hooks/useSettings";
 import clsx from "clsx";
 import { ContextMenu } from "../components/ui/ContextMenu";
 import type { SavedConnection } from "../contexts/DatabaseContext";
+import { flattenGroupTree } from "../utils/groupTree";
 import { toErrorMessage } from "../utils/errors";
+import { fuzzyFilter } from "../utils/fuzzy";
 import { useOpenConnectionInNewWindow } from "../hooks/useOpenConnectionInNewWindow";
 import { GroupHeader } from "../components/connections/GroupHeader";
 import { ConnectionCard } from "../components/connections/ConnectionCard";
@@ -52,8 +55,9 @@ export const Connections = () => {
     isConnectionOpenAnywhere,
     switchConnection,
     connectionGroups,
-    createGroup,
+    createGroupPath,
     updateGroup,
+    moveGroupToParent,
     deleteGroup,
     moveConnectionToGroup,
     reorderGroups,
@@ -105,6 +109,8 @@ export const Connections = () => {
   } | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editGroupName, setEditGroupName] = useState("");
+  const [subgroupInputFor, setSubgroupInputFor] = useState<string | null>(null);
+  const [subgroupInputValue, setSubgroupInputValue] = useState("");
   const [confirmModal, setConfirmModal] = useState<{
     title: string;
     message: string;
@@ -182,6 +188,21 @@ export const Connections = () => {
     [connectionGroups],
   );
 
+  // parentId -> children, with null key for top-level groups
+  const groupsByParent = useMemo(() => {
+    const map = new Map<string | null, typeof connectionGroups>();
+    for (const g of connectionGroups) {
+      const key = g.parent_id ?? null;
+      const arr = map.get(key) ?? [];
+      arr.push(g);
+      map.set(key, arr);
+    }
+    for (const [, arr] of map) {
+      arr.sort((a, b) => a.sort_order - b.sort_order);
+    }
+    return map;
+  }, [connectionGroups]);
+
   // Organize connections by group
   const { groupedConnections, ungroupedConnections } = useMemo(() => {
     const grouped: Record<string, SavedConnection[]> = {};
@@ -210,15 +231,58 @@ export const Connections = () => {
   }, [connections]);
 
   // Group management functions
-  const handleCreateGroup = async () => {
+  const handleCreateGroup = async (parentId?: string | null) => {
     if (!newGroupName.trim()) return;
     try {
-      await createGroup(newGroupName.trim());
+      // `/` separates nested levels: "TEST/flexways" creates `flexways`
+      // inside the existing `TEST` group, or both if TEST doesn't exist.
+      await createGroupPath(newGroupName.trim(), parentId ?? null);
       setNewGroupName("");
       setIsCreatingGroup(false);
       await loadConnections();
     } catch (e) {
       console.error("Failed to create group:", e);
+      setError(t("groups.createError"));
+    }
+  };
+
+  const handleCreateSubgroup = async (parentGroupId: string) => {
+    const name = window.prompt(
+      t("groups.subgroupNamePrompt", { defaultValue: "Subfolder name (use / for nested levels)" }),
+    );
+    if (!name || !name.trim()) return;
+    try {
+      await createGroupPath(name.trim(), parentGroupId);
+      await loadConnections();
+    } catch (e) {
+      console.error("Failed to create subgroup:", e);
+      setError(t("groups.createError"));
+    }
+  };
+
+  const startInlineSubgroupInput = (parentGroupId: string) => {
+    setSubgroupInputFor(parentGroupId);
+    setSubgroupInputValue("");
+  };
+
+  const cancelInlineSubgroupInput = () => {
+    setSubgroupInputFor(null);
+    setSubgroupInputValue("");
+  };
+
+  const confirmInlineSubgroupInput = async () => {
+    if (!subgroupInputFor) return;
+    const name = subgroupInputValue.trim();
+    if (!name) {
+      cancelInlineSubgroupInput();
+      return;
+    }
+    try {
+      await createGroupPath(name, subgroupInputFor);
+      cancelInlineSubgroupInput();
+      await loadConnections();
+    } catch (e) {
+      console.error("Failed to create subgroup:", e);
       setError(t("groups.createError"));
     }
   };
@@ -409,10 +473,10 @@ export const Connections = () => {
     if (!search.trim()) return groupedConnections;
     const result: Record<string, SavedConnection[]> = {};
     for (const groupId in groupedConnections) {
-      const filteredConns = groupedConnections[groupId].filter(
-        (c) =>
-          c.name.toLowerCase().includes(search.toLowerCase()) ||
-          c.params.driver.toLowerCase().includes(search.toLowerCase()),
+      const filteredConns = fuzzyFilter(
+        groupedConnections[groupId],
+        search,
+        (c) => `${c.name} ${c.params.driver}`,
       );
       if (filteredConns.length > 0) {
         result[groupId] = filteredConns;
@@ -422,11 +486,10 @@ export const Connections = () => {
   }, [groupedConnections, search]);
 
   const filteredUngroupedConnections = useMemo(() => {
-    if (!search.trim()) return ungroupedConnections;
-    return ungroupedConnections.filter(
-      (c) =>
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.params.driver.toLowerCase().includes(search.toLowerCase()),
+    return fuzzyFilter(
+      ungroupedConnections,
+      search,
+      (c) => `${c.name} ${c.params.driver}`,
     );
   }, [ungroupedConnections, search]);
 
@@ -517,6 +580,45 @@ export const Connections = () => {
       setDraggingGroupId(null);
       setDragOverGroupId(null);
       if (!targetGroupId || targetGroupId === sourceGroupId) return;
+
+      // Drop right of target's left edge => re-parent as child; else reorder
+      const targetEl = document.querySelector(
+        `[data-group-id="${targetGroupId}"]`,
+      ) as HTMLElement | null;
+      let reparent = false;
+      if (targetEl) {
+        const rect = targetEl.getBoundingClientRect();
+        const indentStep = 16;
+        reparent = ev.clientX > rect.left + indentStep;
+      }
+
+      if (reparent) {
+        const isAncestor = (maybeAncestorId: string): boolean => {
+          let cur = connectionGroups.find((g) => g.id === maybeAncestorId);
+          while (cur) {
+            if (cur.id === sourceGroupId) return true;
+            cur = connectionGroups.find((g) => g.id === cur!.parent_id);
+          }
+          return false;
+        };
+        // Reject only genuine cycles: dropping a group into one of its own
+        // descendants. Re-parenting an already-nested group elsewhere is fine.
+        if (isAncestor(targetGroupId)) {
+          setError(
+            t("groups.cannotMoveIntoDescendant", {
+              defaultValue: "Cannot move a group into one of its own subfolders",
+            }),
+          );
+          return;
+        }
+        void moveGroupToParent(sourceGroupId, targetGroupId).catch((err) => {
+          console.error("Failed to move group:", err);
+          setError(String(err));
+        });
+        return;
+      }
+
+      // Same-depth reorder
       const newOrder = [...sortedGroups];
       const fromIdx = newOrder.findIndex((g) => g.id === sourceGroupId);
       const toIdx = newOrder.findIndex((g) => g.id === targetGroupId);
@@ -544,7 +646,141 @@ export const Connections = () => {
     onRenameConfirm: handleRenameGroup,
     onGripMouseDown: (e: React.MouseEvent) => handleGripMouseDown(e, group.id),
     isDragOver: dragOverGroupId === group.id && draggingGroupId !== group.id,
+    onCreateSubgroup: startInlineSubgroupInput,
   });
+
+  const renderGroupTree = (
+    parentId: string | null,
+    mode: "grid" | "list",
+    depth: number = 0,
+  ): React.ReactNode => {
+    const children = groupsByParent.get(parentId) ?? [];
+    if (children.length === 0) return null;
+    return children.map((group) => {
+      const groupConns = filteredGroupedConnections[group.id] || [];
+      const isCollapsed = collapsedGroups.has(group.id);
+      if (search.trim() && !hasAnyMatchingDescendant(group.id, search)) {
+        return null;
+      }
+      const indentPx = Math.min(depth, 6) * 16;
+      const connCount = countDescendantConnections(group.id);
+      return (
+        <div
+          key={group.id}
+          data-group-id={group.id}
+          data-group-depth={depth}
+          className={mode === "grid" ? "space-y-3" : "space-y-2"}
+        >
+          <GroupHeader
+            {...groupHeaderProps(group)}
+            connCount={connCount}
+            depth={depth}
+          />
+          {subgroupInputFor === group.id && (
+            <div
+              className="flex items-center gap-2"
+              style={{ paddingLeft: 24 + indentPx }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <FolderPlus size={12} className="text-amber-400 shrink-0" />
+              <input
+                type="text"
+                value={subgroupInputValue}
+                onChange={(e) => setSubgroupInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void confirmInlineSubgroupInput();
+                  if (e.key === "Escape") cancelInlineSubgroupInput();
+                }}
+                onBlur={() => {
+                  if (subgroupInputValue.trim()) {
+                    void confirmInlineSubgroupInput();
+                  } else {
+                    cancelInlineSubgroupInput();
+                  }
+                }}
+                placeholder="Subfolder name (use / for nested)"
+                autoFocus
+                className="flex-1 px-2 py-1 bg-elevated border border-strong rounded text-sm text-primary placeholder:text-muted focus:border-amber-500/70 focus:outline-none"
+              />
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => void confirmInlineSubgroupInput()}
+                disabled={!subgroupInputValue.trim()}
+                className="p-1 rounded bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Plus size={12} />
+              </button>
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={cancelInlineSubgroupInput}
+                className="p-1 rounded text-muted hover:text-primary hover:bg-surface-secondary transition-colors"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          )}
+          {!isCollapsed && (
+            <div
+              className={
+                mode === "grid"
+                  ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
+                  : "flex flex-col gap-1.5"
+              }
+              style={{ paddingLeft: 24 + indentPx + (depth + 1) * 20 }}
+            >
+              {groupConns.map((conn) =>
+                mode === "grid" ? (
+                  <ConnectionCard key={conn.id} {...connCardProps(conn)} />
+                ) : (
+                  <ConnectionListItem
+                    key={conn.id}
+                    {...connCardProps(conn)}
+                  />
+                ),
+              )}
+            </div>
+          )}
+          {!isCollapsed && renderGroupTree(group.id, mode, depth + 1)}
+        </div>
+      );
+    });
+  };
+
+  const hasAnyMatchingDescendant = (
+    rootGroupId: string,
+    query: string,
+  ): boolean => {
+    const lc = query.toLowerCase();
+    const stack: string[] = [rootGroupId];
+    const visited = new Set<string>();
+    while (stack.length > 0) {
+      const id = stack.pop()!;
+      if (visited.has(id)) continue;
+      visited.add(id);
+      const conns = filteredGroupedConnections[id] || [];
+      if (conns.length > 0) return true;
+      const g = connectionGroups.find((x) => x.id === id);
+      if (g && g.name.toLowerCase().includes(lc)) return true;
+      const kids = groupsByParent.get(id) ?? [];
+      for (const kid of kids) stack.push(kid.id);
+    }
+    return false;
+  };
+
+  const countDescendantConnections = (groupId: string): number => {
+    let total = 0;
+    const stack: string[] = [groupId];
+    const visited = new Set<string>();
+    while (stack.length > 0) {
+      const id = stack.pop()!;
+      if (visited.has(id)) continue;
+      visited.add(id);
+      total += (filteredGroupedConnections[id] || []).length;
+      const kids = groupsByParent.get(id) ?? [];
+      for (const kid of kids) stack.push(kid.id);
+    }
+    return total;
+  };
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-base">
@@ -726,7 +962,9 @@ export const Connections = () => {
                         setNewGroupName("");
                       }
                     }}
-                    placeholder={t("groups.groupName")}
+                    placeholder={t("groups.groupName", {
+                      defaultValue: "Group name (use / for nested)",
+                    })}
                     autoFocus
                     className="w-40 px-3 py-2 bg-elevated border border-strong rounded-xl text-sm text-primary placeholder:text-muted focus:border-amber-500/70 focus:outline-none transition-colors"
                   />
@@ -803,32 +1041,7 @@ export const Connections = () => {
             {/* ── Grid view ─────────────────────────────────────────────── */}
             {viewMode === "grid" ? (
               <div className="space-y-6">
-                {sortedGroups.map((group) => {
-                  const groupConns = filteredGroupedConnections[group.id] || [];
-                  if (groupConns.length === 0 && search.trim()) return null;
-                  return (
-                    <div
-                      key={group.id}
-                      data-group-id={group.id}
-                      className="space-y-3"
-                    >
-                      <GroupHeader
-                        {...groupHeaderProps(group)}
-                        connCount={groupConns.length}
-                      />
-                      {!collapsedGroups.has(group.id) && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pl-6">
-                          {groupConns.map((conn) => (
-                            <ConnectionCard
-                              key={conn.id}
-                              {...connCardProps(conn)}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {renderGroupTree(null, "grid")}
 
                 {filteredUngroupedConnections.length > 0 && (
                   <div className="space-y-3">
@@ -869,32 +1082,7 @@ export const Connections = () => {
             ) : (
               /* ── List view ──────────────────────────────────────────────── */
               <div className="space-y-6">
-                {sortedGroups.map((group) => {
-                  const groupConns = filteredGroupedConnections[group.id] || [];
-                  if (groupConns.length === 0 && search.trim()) return null;
-                  return (
-                    <div
-                      key={group.id}
-                      data-group-id={group.id}
-                      className="space-y-2"
-                    >
-                      <GroupHeader
-                        {...groupHeaderProps(group)}
-                        connCount={groupConns.length}
-                      />
-                      {!collapsedGroups.has(group.id) && (
-                        <div className="flex flex-col gap-1.5 pl-6">
-                          {groupConns.map((conn) => (
-                            <ConnectionListItem
-                              key={conn.id}
-                              {...connCardProps(conn)}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {renderGroupTree(null, "list")}
 
                 {filteredUngroupedConnections.length > 0 && (
                   <div className="space-y-2">
@@ -972,6 +1160,14 @@ export const Connections = () => {
           y={groupContextMenu.y}
           items={[
             {
+              label: t("groups.newSubfolder", { defaultValue: "New subfolder" }),
+              icon: FolderPlus,
+              action: () => {
+                void handleCreateSubgroup(groupContextMenu.groupId);
+              },
+            },
+            { separator: true as const },
+            {
               label: t("groups.rename"),
               icon: Edit,
               action: () => {
@@ -1004,9 +1200,13 @@ export const Connections = () => {
           );
           const currentGroupId = conn?.group_id;
           const isInGroup = !!currentGroupId;
-          const availableGroups = sortedGroups.filter(
-            (g) => g.id !== currentGroupId,
+          // Flatten the group tree in DFS order so the menu mirrors the
+          // nested sidebar structure. The group the connection already
+          // lives in is skipped, but its descendants remain valid targets.
+          const groupTree = flattenGroupTree(connectionGroups).filter(
+            ({ group }) => group.id !== currentGroupId,
           );
+          const hasAvailableGroups = groupTree.length > 0;
           return (
             <ContextMenu
               x={connectionContextMenu.x}
@@ -1020,21 +1220,28 @@ export const Connections = () => {
                     if (conn) void handleOpenInNewWindow(conn);
                   },
                 },
-                { separator: true as const },
-                ...availableGroups.map((group) => ({
-                  label: group.name,
-                  icon: Folder,
-                  action: () =>
-                    void handleMoveToGroup(
-                      connectionContextMenu.connId,
-                      group.id,
-                    ),
-                })),
+                ...(hasAvailableGroups
+                  ? [
+                      { separator: true as const },
+                      {
+                        label: t("groups.moveToGroup"),
+                        icon: FolderTree,
+                        submenu: groupTree.map(({ group, depth }) => ({
+                          label: group.name,
+                          icon: Folder,
+                          indent: depth,
+                          action: () =>
+                            void handleMoveToGroup(
+                              connectionContextMenu.connId,
+                              group.id,
+                            ),
+                        })),
+                      },
+                    ]
+                  : []),
                 ...(isInGroup
                   ? [
-                      ...(availableGroups.length > 0
-                        ? [{ separator: true as const }]
-                        : []),
+                      { separator: true as const },
                       {
                         label: t("groups.removeFromGroup"),
                         icon: X,

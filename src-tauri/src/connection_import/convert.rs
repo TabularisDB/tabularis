@@ -31,6 +31,10 @@ pub struct ImportResolution {
     /// connection. Takes precedence over `group_id`. Ignored for `replace`.
     #[serde(default)]
     pub new_group_name: Option<String>,
+    /// Existing group id under which `new_group_name` should be created. When
+    /// absent (or empty) the new group is created at the top level.
+    #[serde(default)]
+    pub new_group_parent_id: Option<String>,
 }
 
 /// Build the payload from the envelope and resolutions. `existing_groups` lets
@@ -72,7 +76,7 @@ pub fn build_payload(
                             payload: &mut ExportPayload| {
             conn.group_name
                 .as_ref()
-                .map(|name| resolve_group(name, existing_groups, group_ids, payload))
+                .map(|name| resolve_group(name, None, existing_groups, group_ids, payload))
         };
         let group_id = if res.action == "replace" {
             source_group(&mut group_ids, &mut payload)
@@ -82,7 +86,19 @@ pub fn build_payload(
             .map(str::trim)
             .filter(|s| !s.is_empty())
         {
-            Some(resolve_group(name, existing_groups, &mut group_ids, &mut payload))
+            // The new group can be nested under an existing group.
+            let parent = res
+                .new_group_parent_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty());
+            Some(resolve_group(
+                name,
+                parent,
+                existing_groups,
+                &mut group_ids,
+                &mut payload,
+            ))
         } else if let Some(gid) = &res.group_id {
             // `Some("")` is an explicit "no group"; a real id assigns to it.
             (!gid.is_empty()).then(|| gid.clone())
@@ -110,20 +126,23 @@ pub fn build_payload(
 
 fn resolve_group(
     name: &str,
+    parent_id: Option<&str>,
     existing_groups: &[ConnectionGroup],
     group_ids: &mut std::collections::HashMap<String, String>,
     payload: &mut ExportPayload,
 ) -> String {
-    let key = name.trim().to_ascii_lowercase();
-    if let Some(id) = group_ids.get(&key) {
+    // Cache/dedup are scoped to the parent so a subgroup never collides with a
+    // same-named group under a different parent.
+    let name_key = name.trim().to_ascii_lowercase();
+    let cache_key = format!("{}\u{0}{name_key}", parent_id.unwrap_or(""));
+    if let Some(id) = group_ids.get(&cache_key) {
         return id.clone();
     }
-    // Reuse an existing group with the same name.
-    if let Some(existing) = existing_groups
-        .iter()
-        .find(|g| g.name.trim().to_ascii_lowercase() == key)
-    {
-        group_ids.insert(key, existing.id.clone());
+    // Reuse an existing group with the same name under the same parent.
+    if let Some(existing) = existing_groups.iter().find(|g| {
+        g.name.trim().to_ascii_lowercase() == name_key && g.parent_id.as_deref() == parent_id
+    }) {
+        group_ids.insert(cache_key, existing.id.clone());
         return existing.id.clone();
     }
     // Otherwise create a new group and include it in the payload.
@@ -131,10 +150,11 @@ fn resolve_group(
     payload.groups.push(ConnectionGroup {
         id: id.clone(),
         name: name.to_string(),
+        parent_id: parent_id.map(str::to_string),
         collapsed: false,
         sort_order: 0,
     });
-    group_ids.insert(key, id.clone());
+    group_ids.insert(cache_key, id.clone());
     id
 }
 
@@ -236,6 +256,7 @@ mod tests {
             replace_existing_id: None,
             group_id: None,
             new_group_name: None,
+            new_group_parent_id: None,
         }
     }
 
@@ -243,8 +264,16 @@ mod tests {
         ConnectionGroup {
             id: id.to_string(),
             name: name.to_string(),
+            parent_id: None,
             collapsed: false,
             sort_order: 0,
+        }
+    }
+
+    fn subgroup(id: &str, name: &str, parent_id: &str) -> ConnectionGroup {
+        ConnectionGroup {
+            parent_id: Some(parent_id.to_string()),
+            ..group(id, name)
         }
     }
 
@@ -343,6 +372,50 @@ mod tests {
             payload.connections[0].group_id.as_deref(),
             Some(payload.groups[0].id.as_str())
         );
+    }
+
+    #[test]
+    fn import_creates_new_group_under_parent() {
+        let env = ImportEnvelope {
+            source_name: "X".into(),
+            connections: vec![base_conn()],
+            ..Default::default()
+        };
+        let mut r = res(0, "import");
+        r.new_group_name = Some("Child".into());
+        r.new_group_parent_id = Some("parent-id".into());
+        let groups = [group("parent-id", "Parent")];
+        let payload = build_payload(&env, &[r], &["postgres".into()], &groups);
+        // A new nested group is minted; the parent stays untouched.
+        assert_eq!(payload.groups.len(), 1);
+        assert_eq!(payload.groups[0].name, "Child");
+        assert_eq!(payload.groups[0].parent_id.as_deref(), Some("parent-id"));
+        assert_eq!(
+            payload.connections[0].group_id.as_deref(),
+            Some(payload.groups[0].id.as_str())
+        );
+    }
+
+    #[test]
+    fn import_new_group_under_parent_reuses_matching_subgroup() {
+        // A same-named group under a *different* parent must not be reused.
+        let env = ImportEnvelope {
+            source_name: "X".into(),
+            connections: vec![base_conn()],
+            ..Default::default()
+        };
+        let mut r = res(0, "import");
+        r.new_group_name = Some("Child".into());
+        r.new_group_parent_id = Some("parent-id".into());
+        let groups = [
+            group("parent-id", "Parent"),
+            subgroup("child-id", "Child", "parent-id"),
+            subgroup("other-child", "Child", "somewhere-else"),
+        ];
+        let payload = build_payload(&env, &[r], &["postgres".into()], &groups);
+        // The existing subgroup under the requested parent is reused.
+        assert!(payload.groups.is_empty());
+        assert_eq!(payload.connections[0].group_id.as_deref(), Some("child-id"));
     }
 
     #[test]

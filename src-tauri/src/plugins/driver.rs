@@ -17,6 +17,9 @@ use crate::models::{
 };
 use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse};
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 /// Maximum time to wait for a plugin to answer a single JSON-RPC call before
 /// giving up. Generous enough for slow query execution, bounded so a wedged
 /// plugin cannot block the (single-threaded) MCP request loop forever.
@@ -25,6 +28,9 @@ const PLUGIN_CALL_TIMEOUT: Duration = Duration::from_secs(120);
 /// Shorter ceiling for the startup `initialize` handshake so one unresponsive
 /// plugin cannot stall MCP server startup indefinitely.
 const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// Flag to create the process without a console window on Windows.
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 /// Heuristic for the JSON-RPC "method not found" error (code -32601). Only
 /// the error *message* survives the response plumbing, so optional-method
@@ -64,6 +70,10 @@ impl PluginProcess {
         } else {
             Command::new(&executable_path)
         };
+
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
         let child = cmd
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
@@ -690,7 +700,13 @@ impl DatabaseDriver for RpcDriver {
         pk_map: &std::collections::HashMap<String, serde_json::Value>,
         schema: Option<&str>,
     ) -> Result<u64, String> {
-        let res = self.process.call("delete_record", json!({ "params": params, "table": table, "pk_map": pk_map, "schema": schema })).await?;
+        let res = self
+            .process
+            .call(
+                "delete_record",
+                json!({ "params": params, "table": table, "pk_map": pk_map, "schema": schema }),
+            )
+            .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -834,8 +850,7 @@ impl DatabaseDriver for RpcDriver {
         trigger_sql: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        self
-            .process
+        self.process
             .call(
                 "create_trigger",
                 json!({ "params": params, "trigger_sql": trigger_sql, "schema": schema }),
@@ -851,8 +866,7 @@ impl DatabaseDriver for RpcDriver {
         table_name: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        self
-            .process
+        self.process
             .call(
                 "drop_trigger",
                 json!({

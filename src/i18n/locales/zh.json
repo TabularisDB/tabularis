@@ -288,7 +288,9 @@
         "label": "分组：",
         "none": "无分组",
         "new": "新建分组…",
-        "newPlaceholder": "分组名称"
+        "newPlaceholder": "分组名称",
+        "parentLabel": "位于",
+        "parentNone": "顶层"
       },
       "betaNotice": "从应用导入功能处于测试阶段。如果遇到问题，",
       "reportIssue": "请在 GitHub 上反馈。"
@@ -733,8 +735,8 @@
     "scrollTabsLeft": "向左滚动标签页",
     "scrollTabsRight": "向右滚动标签页",
     "useIamAuth": "使用 AWS IAM 身份验证 (RDS)",
-    "useIamAuthHint": "密码字段将被视为 RDS 身份验证令牌(通过 `aws rds generate-db-auth-token` 生成)。需要启用 TLS。令牌有效期为 15 分钟。",
-    "useIamAuthTlsRequired": "请先在上方启用 SSL 模式以使用 AWS IAM 身份验证。"
+    "useIamAuthHint": "密码字段将被视为 RDS 身份验证令牌（由 `aws rds generate-db-auth-token` 生成）。需要 TLS。令牌每 15 分钟过期。",
+    "useIamAuthTlsRequired": "请在上方启用 SSL 模式以使用 AWS IAM 身份验证。"
   },
   "sshConnections": {
     "title": "SSH 连接",
@@ -1430,7 +1432,8 @@
     "createFirst": "创建您的第一个分组以组织连接",
     "groupName": "分组名称",
     "dragHint": "将连接拖到此处",
-    "createError": "创建分组失败"
+    "createError": "创建分组失败",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "数据库",

@@ -54,4 +54,6 @@ export interface ImportResolution {
   groupId?: string;
   /** Name of a group to create (or reuse by name). Wins over `groupId`. */
   newGroupName?: string;
+  /** Existing group id to nest `newGroupName` under. Omitted → top level. */
+  newGroupParentId?: string;
 }
