@@ -148,7 +148,9 @@ describe("FieldEditor", () => {
 
     expect(screen.getByTitle("dataGrid.setGenerate")).toBeInTheDocument();
     expect(screen.getByTitle("dataGrid.setNull")).toBeInTheDocument();
-    expect(screen.getByTitle("dataGrid.setEmpty")).toBeInTheDocument();
+    // "Set Empty" is not offered for non-textual columns (an empty string is
+    // not a valid value for an integer column).
+    expect(screen.queryByTitle("dataGrid.setEmpty")).not.toBeInTheDocument();
   });
 
   it("should call onChange with null when SET GENERATED is clicked", () => {
@@ -226,7 +228,7 @@ describe("FieldEditor", () => {
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
-  it("should call onChange with space when SET EMPTY is clicked", () => {
+  it("should call onChange with an empty string when SET EMPTY is clicked", () => {
     const onChange = vi.fn();
     render(
       <FieldEditor
@@ -241,7 +243,25 @@ describe("FieldEditor", () => {
     const emptyBtn = screen.getByTitle("dataGrid.setEmpty");
     fireEvent.click(emptyBtn);
 
-    expect(onChange).toHaveBeenCalledWith(" ");
+    expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("should not show SET EMPTY for a non-textual (uuid) column", () => {
+    const onChange = vi.fn();
+    render(
+      <FieldEditor
+        name="categoryId"
+        type="uuid"
+        value=""
+        onChange={onChange}
+        isNullable={true}
+      />
+    );
+
+    // The uuid column is nullable, so the SET NULL action is still offered…
+    expect(screen.getByTitle("dataGrid.setNull")).toBeInTheDocument();
+    // …but SET EMPTY must not be, since Postgres rejects '' for a uuid column.
+    expect(screen.queryByTitle("dataGrid.setEmpty")).not.toBeInTheDocument();
   });
 
   it("should not show SET GENERATED button for non-insertion rows", () => {

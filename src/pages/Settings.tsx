@@ -11,6 +11,7 @@ import {
   Info,
   FileJson,
   Shield,
+  Cable,
 } from "lucide-react";
 import clsx from "clsx";
 import { ConfigJsonModal } from "../components/modals/ConfigJsonModal";
@@ -21,6 +22,7 @@ import { AiTab } from "../components/settings/AiTab";
 import { LogsTab } from "../components/settings/LogsTab";
 import { ShortcutsTab } from "../components/settings/ShortcutsTab";
 import { PluginsTab } from "../components/settings/PluginsTab";
+import { SshTab } from "../components/settings/SshTab";
 import { AiActivityPanel } from "../components/settings/AiActivityPanel";
 import { InfoTab } from "../components/settings/InfoTab";
 import { PluginSettingsPage } from "../components/settings/PluginSettingsPage";
@@ -29,6 +31,7 @@ import { useSettings } from "../hooks/useSettings";
 
 type SettingsTab =
   | "general"
+  | "ssh"
   | "appearance"
   | "localization"
   | "ai"
@@ -51,6 +54,7 @@ const TAB_ITEMS: Array<{
   labelKey: string;
 }> = [
   { id: "general", icon: SettingsIcon, labelKey: "settings.general" },
+  { id: "ssh", icon: Cable, labelKey: "sshConnections.title" },
   { id: "plugins", icon: Plug, labelKey: "settings.plugins.title" },
   { id: "appearance", icon: Palette, labelKey: "settings.appearance" },
   { id: "localization", icon: Languages, labelKey: "settings.localization" },
@@ -63,6 +67,7 @@ const TAB_ITEMS: Array<{
 
 const TAB_COMPONENTS: Partial<Record<SettingsTab, React.ComponentType>> = {
   general: GeneralTab,
+  ssh: SshTab,
   appearance: AppearanceTab,
   localization: LocalizationTab,
   ai: AiTab,
