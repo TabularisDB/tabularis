@@ -91,6 +91,9 @@ export const FilterRow = ({
       {!noValue && !isBetween && (
         <input
           type="text"
+          spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="off"
           value={filter.value}
           onChange={(e) => onChange({ ...filter, value: e.target.value })}
           onKeyDown={handleValueKeyDown}
@@ -104,6 +107,9 @@ export const FilterRow = ({
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           <input
             type="text"
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
             value={filter.value}
             onChange={(e) => onChange({ ...filter, value: e.target.value })}
             onKeyDown={handleValueKeyDown}
@@ -113,6 +119,9 @@ export const FilterRow = ({
           <span className="text-[10px] text-muted shrink-0 font-mono uppercase tracking-wider">AND</span>
           <input
             type="text"
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
             value={filter.value2 ?? ""}
             onChange={(e) => onChange({ ...filter, value2: e.target.value })}
             onKeyDown={handleValueKeyDown}
