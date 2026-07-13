@@ -73,6 +73,21 @@ export interface Settings {
   mcpPreflightExplain?: boolean;
   mcpApprovalAlwaysOnTop?: boolean;
   mcpApprovalNotifySound?: boolean;
+  // Automatic connections backup
+  /** When backups run: "manual" (default), "interval", "onClose" or "onLaunch". */
+  backupMode?: "manual" | "interval" | "onClose" | "onLaunch";
+  /** Directory the backup files are written to. */
+  backupDirectory?: string;
+  /** Minutes between automatic backups in interval mode. Default: 1440. */
+  backupIntervalMinutes?: number;
+  /** Number of backup files kept before rotation. Default: 10. */
+  backupRetention?: number;
+  /** Backup destination: "local" (default) or "webdav". */
+  backupTarget?: "local" | "webdav";
+  /** WebDAV collection URL the backups are uploaded into. */
+  backupWebdavUrl?: string;
+  /** WebDAV username; the password lives in the OS keychain. */
+  backupWebdavUsername?: string;
 }
 
 export interface SettingsContextType {
@@ -133,4 +148,8 @@ export const DEFAULT_SETTINGS: Settings = {
   mcpPreflightExplain: true,
   mcpApprovalAlwaysOnTop: true,
   mcpApprovalNotifySound: true,
+  backupMode: "manual",
+  backupDirectory: "",
+  backupIntervalMinutes: 1440,
+  backupRetention: 10,
 };
