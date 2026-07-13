@@ -38,7 +38,12 @@
     "error": "Error",
     "success": "Éxito",
     "ok": "OK",
-    "copy": "Copiar"
+    "continue": "Continuar",
+    "back": "Atrás",
+    "copy": "Copiar",
+    "showDetails": "Mostrar detalles",
+    "hideDetails": "Ocultar detalles",
+    "beta": "Beta"
   },
   "sidebar": {
     "connections": "Conexiones",
@@ -181,6 +186,26 @@
       "renamePlaceholder": "Nombre del notebook"
     }
   },
+  "groups": {
+    "title": "Grupos",
+    "newGroup": "Nuevo grupo",
+    "createGroup": "Crear grupo",
+    "rename": "Renombrar",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Seguro que quieres eliminar el grupo \"{{name}}\"? Las conexiones de este grupo pasarán a estar sin agrupar.",
+    "deleteTitle": "Eliminar grupo",
+    "connection": "conexión",
+    "connections": "conexiones",
+    "ungrouped": "Sin agrupar",
+    "moveToGroup": "Mover a",
+    "removeFromGroup": "Quitar del grupo",
+    "noGroups": "Aún no hay grupos",
+    "createFirst": "Crea tu primer grupo para organizar las conexiones",
+    "groupName": "Nombre del grupo",
+    "dragHint": "Arrastra las conexiones aquí",
+    "createError": "No se pudo crear el grupo",
+    "subgroupNamePrompt": "Nombre de la subcarpeta (usa / para niveles anidados)"
+  },
   "mcp": {
     "title": "Integración del Servidor MCP",
     "subtitle": "Conecta Tabularis a Claude Desktop, Cursor y más",
@@ -257,7 +282,40 @@
     "export": "Exportar conexiones",
     "import": "Importar conexiones",
     "exportTitle": "Exportar conexiones",
-    "exportWarning": "El archivo exportado contendrá tus contraseñas de base de datos y SSH en texto plano. Guárdalo de forma segura."
+    "exportWarning": "El archivo exportado contendrá tus contraseñas de base de datos y SSH en texto plano. Guárdalo de forma segura.",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Archivo de exportación de Tabularis (.json)",
+      "menuLabel": "Importar conexiones…",
+      "group": {
+        "label": "Grupo:",
+        "none": "Sin grupo",
+        "new": "Nuevo grupo…",
+        "newPlaceholder": "Nombre del grupo",
+        "parentLabel": "en",
+        "parentNone": "Nivel superior"
+      },
+      "betaNotice": "La importación desde otra app está en beta. Si tienes algún problema,",
+      "reportIssue": "repórtalo en GitHub."
+    }
   },
   "connectionAppearance": {
     "section": "Apariencia",
@@ -732,7 +790,10 @@
     "startupScriptDescription": "SQL que se ejecuta en cada nueva conexión a esta fuente de datos. Úsalo para ajustes de sesión como SET / set_config (p. ej., para omitir RLS). Separa las sentencias con punto y coma.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Desplazar pestañas a la izquierda",
-    "scrollTabsRight": "Desplazar pestañas a la derecha"
+    "scrollTabsRight": "Desplazar pestañas a la derecha",
+    "useIamAuth": "Usar autenticación AWS IAM (RDS)",
+    "useIamAuthHint": "El campo de contraseña se interpreta como un token de autenticación de RDS (obtenido con `aws rds generate-db-auth-token`). Requiere TLS. Los tokens caducan cada 15 minutos.",
+    "useIamAuthTlsRequired": "Activa un modo SSL arriba para usar la autenticación AWS IAM."
   },
   "sshConnections": {
     "title": "Conexiones SSH",
