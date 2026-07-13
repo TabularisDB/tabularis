@@ -629,7 +629,9 @@
       "notebookRunAll": "Alle Zellen ausführen",
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Aus Zwischenablage importieren",
-      "quickNavigator": "Schnellnavigation"
+      "quickNavigator": "Schnellnavigation",
+      "triggerSuggestions": "Vorschläge anzeigen",
+      "refreshTable": "Tabelle aktualisieren"
     },
     "aiActivity": "KI-Aktivität"
   },

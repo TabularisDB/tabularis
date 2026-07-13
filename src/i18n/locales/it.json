@@ -654,7 +654,9 @@
       "notebookRunAll": "Esegui Tutte le Celle",
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Importa dagli Appunti",
-      "quickNavigator": "Navigatore rapido"
+      "quickNavigator": "Navigatore rapido",
+      "triggerSuggestions": "Mostra suggerimenti",
+      "refreshTable": "Aggiorna tabella"
     },
     "aiActivity": "Attività AI"
   },

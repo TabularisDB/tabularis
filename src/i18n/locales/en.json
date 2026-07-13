@@ -385,6 +385,11 @@
       "confirm": "Confirm",
       "cancel": "Cancel"
     },
+    "dataGrid": {
+      "title": "Data Grid",
+      "stickyHeaders": "Sticky column headers",
+      "stickyHeadersDesc": "Keep the column headers visible at the top while scrolling through results."
+    },
     "appearance_general": "General",
     "appearance_sqlEditor": "SQL Editor",
     "appearance_editorTheme": "Editor Theme",
@@ -663,7 +668,9 @@
       "notebookRunAll": "Run All Cells",
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Import from Clipboard",
-      "quickNavigator": "Quick Navigator"
+      "quickNavigator": "Quick Navigator",
+      "triggerSuggestions": "Trigger suggestions",
+      "refreshTable": "Refresh table"
     },
     "aiActivity": "AI Activity"
   },

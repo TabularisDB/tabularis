@@ -643,7 +643,9 @@
       "notebookRunAll": "すべてのセルを実行",
       "categories_notebook": "ノートブック",
       "pasteImportClipboard": "クリップボードからインポート",
-      "quickNavigator": "クイックナビゲーター"
+      "quickNavigator": "クイックナビゲーター",
+      "triggerSuggestions": "候補を表示",
+      "refreshTable": "テーブルを更新"
     },
     "aiActivity": "AI アクティビティ"
   },
