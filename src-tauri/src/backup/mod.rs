@@ -356,7 +356,16 @@ async fn run_if_due<R: Runtime>(app: &AppHandle<R>) {
 pub fn run_exit_backup(app: &AppHandle) {
     let config = crate::config::load_config_internal(app);
     if backup_mode(&config) == "onClose" {
-        tauri::async_runtime::block_on(run_and_log(app));
+        // Bound the backup so a hung network operation can never prevent the
+        // process from exiting.
+        tauri::async_runtime::block_on(async {
+            if tokio::time::timeout(std::time::Duration::from_secs(30), run_and_log(app))
+                .await
+                .is_err()
+            {
+                log::error!("Exit backup timed out after 30s, exiting without it");
+            }
+        });
     }
 }
 
