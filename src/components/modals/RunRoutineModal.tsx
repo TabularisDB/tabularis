@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Loader2, Play, Variable } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { Modal } from "../ui/Modal";
 import type { RoutineInfo } from "../../contexts/DatabaseContext";
 import {
   buildRoutineCallArgs,
@@ -82,8 +83,6 @@ export const RunRoutineModal = ({
     [],
   );
 
-  if (!isOpen) return null;
-
   const handleRun = async () => {
     setIsBuilding(true);
     setError("");
@@ -106,7 +105,7 @@ export const RunRoutineModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] backdrop-blur-sm">
+    <Modal isOpen={isOpen} onClose={onClose}>
       <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[600px] max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
@@ -145,7 +144,7 @@ export const RunRoutineModal = ({
               </p>
             </div>
           ) : (
-            parameters.map((param) => {
+            parameters.map((param, paramIdx) => {
               const input = inputs[param.ordinal_position] ?? {
                 value: "",
                 isNull: false,
@@ -178,6 +177,9 @@ export const RunRoutineModal = ({
                         }
                         className="flex-1 px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none disabled:opacity-50"
                         placeholder={param.data_type}
+                        autoFocus={
+                          paramIdx === parameters.findIndex((p) => !isOutputOnly(p))
+                        }
                       />
                       <label className="flex items-center gap-1 text-xs text-secondary select-none">
                         <input
@@ -238,6 +240,6 @@ export const RunRoutineModal = ({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };

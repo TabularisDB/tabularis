@@ -34,6 +34,7 @@ import { useSettings } from "../../../hooks/useSettings";
 import { StatusBadge } from "./StatusBadge";
 import { QueryKindBadge } from "./QueryKindBadge";
 import { EventDetailModal } from "./EventDetailModal";
+import { ConfirmModal } from "../../modals/ConfirmModal";
 import { VisualExplainModal } from "../../modals/VisualExplainModal";
 import { Select } from "../../ui/Select";
 
@@ -51,6 +52,7 @@ export function AiActivityEventsTab() {
   const [explainTarget, setExplainTarget] = useState<ExplainTarget | null>(
     null,
   );
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const { events, loading, refetch } = useAiActivityEvents(filter);
 
   const stats = useMemo(() => {
@@ -67,7 +69,7 @@ export function AiActivityEventsTab() {
   }, [events]);
 
   const handleClear = async () => {
-    if (!confirm(t("aiActivity.clearConfirm"))) return;
+    setClearConfirmOpen(false);
     try {
       await clearAiActivity();
       await refetch();
@@ -116,7 +118,7 @@ export function AiActivityEventsTab() {
         filter={filter}
         onFilterChange={setFilter}
         onRefresh={refetch}
-        onClear={handleClear}
+        onClear={() => setClearConfirmOpen(true)}
         onExportJson={() => handleExport("json")}
         onExportCsv={() => handleExport("csv")}
         refreshing={loading}
@@ -152,6 +154,14 @@ export function AiActivityEventsTab() {
       {detail && (
         <EventDetailModal event={detail} onClose={() => setDetail(null)} />
       )}
+
+      <ConfirmModal
+        isOpen={clearConfirmOpen}
+        onClose={() => setClearConfirmOpen(false)}
+        title={t("aiActivity.clearAll")}
+        message={t("aiActivity.clearConfirm")}
+        onConfirm={handleClear}
+      />
 
       <VisualExplainModal
         isOpen={explainTarget !== null}
@@ -194,6 +204,7 @@ function FiltersBar({
   const toolOptions = [
     "",
     "list_connections",
+    "list_databases",
     "list_tables",
     "describe_table",
     "run_query",

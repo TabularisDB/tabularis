@@ -15,6 +15,8 @@ interface SelectProps {
   hasError?: boolean;
   searchable?: boolean;
   labels?: Record<string, string>;
+  /** Per-option nesting depth; indents matching options to show a tree. */
+  indents?: Record<string, number>;
 }
 
 export const Select = ({
@@ -29,6 +31,7 @@ export const Select = ({
   hasError = false,
   searchable = true,
   labels,
+  indents,
 }: SelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -137,21 +140,41 @@ export const Select = ({
         {filteredOptions.length === 0 ? (
           <div className="p-3 text-sm text-muted text-center italic">{noResultsLabel}</div>
         ) : (
-          filteredOptions.map((option) => (
-            <button
-              key={option}
-              onClick={() => handleSelect(option)}
-              className={clsx(
-                "w-full text-left px-3 py-2 text-sm rounded transition-colors truncate",
-                value === option
-                  ? "bg-blue-600/10 text-blue-400 font-medium"
-                  : "text-primary hover:bg-surface-secondary"
-              )}
-              title={getLabel(option)}
-            >
-              {getLabel(option)}
-            </button>
-          ))
+          filteredOptions.map((option) => {
+            const depth = indents?.[option] ?? 0;
+            return (
+              <button
+                key={option}
+                onClick={() => handleSelect(option)}
+                className={clsx(
+                  "w-full text-left py-2 pr-3 text-sm rounded transition-colors flex items-center gap-1",
+                  depth === 0 ? "px-3" : "pl-0",
+                  value === option
+                    ? "bg-blue-600/10 text-blue-400 font-medium"
+                    : "text-primary hover:bg-surface-secondary"
+                )}
+                title={getLabel(option)}
+              >
+                {depth > 0 && (
+                  <span className="self-stretch shrink-0 flex pl-3">
+                    {Array.from({ length: depth }).map((_, level) => (
+                      <span
+                        key={level}
+                        className="relative self-stretch shrink-0"
+                        style={{ width: "0.85rem" }}
+                      >
+                        <span className="absolute inset-y-0 left-1/2 w-px bg-default/70" />
+                        {level === depth - 1 && (
+                          <span className="absolute left-1/2 top-1/2 h-px w-1/2 bg-default/70" />
+                        )}
+                      </span>
+                    ))}
+                  </span>
+                )}
+                <span className="truncate">{getLabel(option)}</span>
+              </button>
+            );
+          })
         )}
       </div>
     </div>

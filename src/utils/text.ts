@@ -55,6 +55,22 @@ export function isTextColumn(dataType: string | undefined): boolean {
   return TEXT_TYPES.some((type) => normalized.includes(type));
 }
 
+/**
+ * Whether an empty string (`""`) is a legal, meaningful value for a column of
+ * the given type.
+ *
+ * Only textual types accept `""`. For strongly-typed columns (uuid, numeric,
+ * temporal, boolean, …) the database rejects an empty string — e.g. Postgres
+ * fails an UPDATE on a `uuid` column with `invalid input syntax for type uuid`
+ * or a text/uuid type mismatch — so the "Set Empty" quick action must not be
+ * offered there; "Set NULL" is the correct action instead. When the type is
+ * unknown we stay permissive rather than hide the action for lack of metadata.
+ */
+export function supportsEmptyString(dataType: string | undefined): boolean {
+  if (!dataType) return true;
+  return isTextColumn(dataType);
+}
+
 export function isLongTextValue(value: unknown): boolean {
   if (typeof value !== "string") return false;
   if (value.length > LONG_TEXT_THRESHOLD) return true;
