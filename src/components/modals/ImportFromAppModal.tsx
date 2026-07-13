@@ -12,6 +12,7 @@ import {
   Lock,
   FolderPlus,
   FlaskConical,
+  ListChecks,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -23,6 +24,7 @@ import { useDatabase } from "../../hooks/useDatabase";
 import type { ConnectionGroup } from "../../contexts/DatabaseContext";
 import { flattenGroupTree } from "../../utils/groupTree";
 import { Select } from "../ui/Select";
+import { PasswordInput } from "../ui/PasswordInput";
 import { BetaBadge } from "../ui/BetaBadge";
 import { GITHUB_ISSUES_URL } from "../../config/links";
 import type {
@@ -40,7 +42,7 @@ interface ImportFromAppModalProps {
   onImported: () => void;
 }
 
-type Step = "picker" | "preview";
+type Step = "picker" | "preview" | "password";
 
 /** Synthetic source: import from a Tabularis JSON export file (handled
  * directly, without the foreign-app preview pipeline). */
@@ -49,6 +51,10 @@ const TABULARIS_SOURCE_ID = "tabularis-json";
 /** Sentinel `groupChoice` values that aren't a real group id. */
 const GROUP_NONE = "__none__";
 const GROUP_NEW = "__new__";
+/** Bulk-only sentinel: leave each connection's own group choice untouched. */
+const GROUP_KEEP = "__keep__";
+/** Bulk-only sentinel: leave each connection's own action untouched. */
+const ACTION_KEEP = "__keep__";
 
 export const ImportFromAppModal = ({
   isOpen,
@@ -71,6 +77,17 @@ export const ImportFromAppModal = ({
   const [newGroupParent, setNewGroupParent] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Encrypted Tabularis export: the parsed envelope awaiting a password.
+  const [pendingEnvelope, setPendingEnvelope] = useState<unknown>(null);
+  const [password, setPassword] = useState("");
+  // Parsed (and decrypted) Tabularis payload backing the preview, so `apply`
+  // can re-send it without re-reading the file.
+  const [tabularisPayload, setTabularisPayload] = useState<unknown>(null);
+  // Bulk actions shown above the preview list.
+  const [bulkAction, setBulkAction] = useState<string>(ACTION_KEEP);
+  const [bulkGroup, setBulkGroup] = useState<string>(GROUP_KEEP);
+  const [bulkNewName, setBulkNewName] = useState("");
+  const [bulkNewParent, setBulkNewParent] = useState<string>(GROUP_NONE);
 
   const reset = useCallback(() => {
     setStep("picker");
@@ -82,6 +99,13 @@ export const ImportFromAppModal = ({
     setNewGroupName({});
     setError(null);
     setLoading(false);
+    setPendingEnvelope(null);
+    setPassword("");
+    setTabularisPayload(null);
+    setBulkAction(ACTION_KEEP);
+    setBulkGroup(GROUP_KEEP);
+    setBulkNewName("");
+    setBulkNewParent(GROUP_NONE);
   }, []);
 
   // Load the source list whenever the modal opens.
@@ -110,12 +134,56 @@ export const ImportFromAppModal = ({
 
   const selectedSource = sources.find((s) => s.id === selectedId) ?? null;
 
+  // Seed the preview step from a returned ImportPreview: import everything,
+  // skip duplicates, and default each item's group to its source folder
+  // (reusing a matching existing group, otherwise pre-filling a new-group name).
+  const showPreview = (result: ImportPreview) => {
+    const defaults: Record<number, ImportAction> = {};
+    const groupDefaults: Record<number, string> = {};
+    const newNameDefaults: Record<number, string> = {};
+    for (const item of result.items) {
+      defaults[item.index] = item.status.kind === "duplicate" ? "skip" : "import";
+      if (item.groupName) {
+        const match = connectionGroups.find(
+          (g) => g.name.trim().toLowerCase() === item.groupName!.trim().toLowerCase(),
+        );
+        if (match) {
+          groupDefaults[item.index] = match.id;
+        } else {
+          groupDefaults[item.index] = GROUP_NEW;
+          newNameDefaults[item.index] = item.groupName;
+        }
+      } else {
+        groupDefaults[item.index] = GROUP_NONE;
+      }
+    }
+    setPreview(result);
+    setResolutions(defaults);
+    setGroupChoice(groupDefaults);
+    setNewGroupName(newNameDefaults);
+    setBulkAction(ACTION_KEEP);
+    setBulkGroup(GROUP_KEEP);
+    setBulkNewName("");
+    setBulkNewParent(GROUP_NONE);
+    setStep("preview");
+  };
+
+  // Preview a parsed Tabularis payload (plain or already decrypted) so it goes
+  // through the same per-item group picker as a foreign-app import.
+  const previewTabularis = async (payload: unknown) => {
+    const result = await invoke<ImportPreview>("preview_tabularis_import", {
+      payload,
+    });
+    setTabularisPayload(payload);
+    showPreview(result);
+  };
+
   const handleContinue = async () => {
     if (!selectedSource || !selectedSource.available) return;
     setError(null);
     setLoading(true);
     try {
-      // Tabularis export file: reuse the existing lossless JSON import path.
+      // Tabularis export file: parse (decrypt if needed), then preview.
       if (selectedSource.id === TABULARIS_SOURCE_ID) {
         const picked = await open({
           filters: [{ name: "JSON", extensions: ["json"] }],
@@ -126,10 +194,18 @@ export const ImportFromAppModal = ({
           return;
         }
         const content = await readTextFile(picked);
-        const payload = JSON.parse(content);
-        await invoke("import_connections_payload", { payload });
-        onImported();
-        onClose();
+        const payload = JSON.parse(content) as { encrypted?: boolean };
+        // Encrypted exports are an opaque envelope: prompt for the password
+        // and decrypt before previewing.
+        if (payload && payload.encrypted === true) {
+          setPendingEnvelope(payload);
+          setPassword("");
+          setError(null);
+          setStep("password");
+          setLoading(false);
+          return;
+        }
+        await previewTabularis(payload);
         return;
       }
 
@@ -147,33 +223,24 @@ export const ImportFromAppModal = ({
         includePasswords,
         filePath,
       });
-      // Default: import everything, skip duplicates.
-      const defaults: Record<number, ImportAction> = {};
-      // Seed each item's group from its source-app folder: reuse a matching
-      // existing group, otherwise pre-fill a new-group name.
-      const groupDefaults: Record<number, string> = {};
-      const newNameDefaults: Record<number, string> = {};
-      for (const item of result.items) {
-        defaults[item.index] = item.status.kind === "duplicate" ? "skip" : "import";
-        if (item.groupName) {
-          const match = connectionGroups.find(
-            (g) => g.name.trim().toLowerCase() === item.groupName!.trim().toLowerCase(),
-          );
-          if (match) {
-            groupDefaults[item.index] = match.id;
-          } else {
-            groupDefaults[item.index] = GROUP_NEW;
-            newNameDefaults[item.index] = item.groupName;
-          }
-        } else {
-          groupDefaults[item.index] = GROUP_NONE;
-        }
-      }
-      setPreview(result);
-      setResolutions(defaults);
-      setGroupChoice(groupDefaults);
-      setNewGroupName(newNameDefaults);
-      setStep("preview");
+      showPreview(result);
+    } catch (e) {
+      setError(toErrorMessage(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDecryptImport = async () => {
+    if (!pendingEnvelope || !password) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const payload = await invoke("decrypt_export_payload", {
+        envelope: pendingEnvelope,
+        password,
+      });
+      await previewTabularis(payload);
     } catch (e) {
       setError(toErrorMessage(e));
     } finally {
@@ -218,10 +285,17 @@ export const ImportFromAppModal = ({
         }
         return { index: item.index, action };
       });
-      await invoke("apply_connection_import", {
-        sourceId: selectedSource.id,
-        resolutions: payload,
-      });
+      if (selectedSource.id === TABULARIS_SOURCE_ID) {
+        await invoke("apply_tabularis_import", {
+          payload: tabularisPayload,
+          resolutions: payload,
+        });
+      } else {
+        await invoke("apply_connection_import", {
+          sourceId: selectedSource.id,
+          resolutions: payload,
+        });
+      }
       onImported();
       onClose();
     } catch (e) {
@@ -229,6 +303,60 @@ export const ImportFromAppModal = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  // Bulk "action for all": import or skip every listed connection at once.
+  // ACTION_KEEP leaves each item's own choice intact.
+  const applyBulkAction = (action: string) => {
+    setBulkAction(action);
+    if (action === ACTION_KEEP || !preview) return;
+    const next: Record<number, ImportAction> = {};
+    preview.items.forEach((i) => {
+      next[i.index] = action as ImportAction;
+    });
+    setResolutions(next);
+  };
+
+  // Bulk "destination group for all": writes the chosen group to every item's
+  // per-connection resolution. GROUP_KEEP leaves each item's own choice intact.
+  const applyBulkGroup = (choice: string) => {
+    setBulkGroup(choice);
+    if (choice === GROUP_KEEP || !preview) return;
+    const next: Record<number, string> = {};
+    preview.items.forEach((i) => {
+      next[i.index] = choice;
+    });
+    setGroupChoice(next);
+    if (choice === GROUP_NEW) {
+      const names: Record<number, string> = {};
+      const parents: Record<number, string> = {};
+      preview.items.forEach((i) => {
+        names[i.index] = bulkNewName;
+        parents[i.index] = bulkNewParent;
+      });
+      setNewGroupName(names);
+      setNewGroupParent(parents);
+    }
+  };
+
+  const applyBulkNewName = (name: string) => {
+    setBulkNewName(name);
+    if (!preview) return;
+    const next: Record<number, string> = {};
+    preview.items.forEach((i) => {
+      next[i.index] = name;
+    });
+    setNewGroupName(next);
+  };
+
+  const applyBulkNewParent = (parent: string) => {
+    setBulkNewParent(parent);
+    if (!preview) return;
+    const next: Record<number, string> = {};
+    preview.items.forEach((i) => {
+      next[i.index] = parent;
+    });
+    setNewGroupParent(next);
   };
 
   if (!isOpen) return null;
@@ -243,7 +371,7 @@ export const ImportFromAppModal = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
-            {step === "preview" && (
+            {(step === "preview" || step === "password") && (
               <button
                 onClick={() => setStep("picker")}
                 className="text-secondary hover:text-primary transition-colors"
@@ -263,9 +391,11 @@ export const ImportFromAppModal = ({
               <p className="text-xs text-secondary">
                 {step === "picker"
                   ? t("connections.importFromApp.subtitle")
-                  : t("connections.importFromApp.previewSubtitle", {
-                      source: preview?.sourceName ?? "",
-                    })}
+                  : step === "password"
+                    ? t("connections.importPasswordModal.subtitle")
+                    : t("connections.importFromApp.previewSubtitle", {
+                        source: preview?.sourceName ?? "",
+                      })}
               </p>
             </div>
           </div>
@@ -317,26 +447,63 @@ export const ImportFromAppModal = ({
           )}
 
           {!loading && step === "preview" && preview && (
-            <PreviewList
-              preview={preview}
-              resolutions={resolutions}
-              onChange={(index, action) =>
-                setResolutions((prev) => ({ ...prev, [index]: action }))
-              }
-              groups={connectionGroups}
-              groupChoice={groupChoice}
-              newGroupName={newGroupName}
-              newGroupParent={newGroupParent}
-              onGroupChoiceChange={(index, value) =>
-                setGroupChoice((prev) => ({ ...prev, [index]: value }))
-              }
-              onNewGroupNameChange={(index, value) =>
-                setNewGroupName((prev) => ({ ...prev, [index]: value }))
-              }
-              onNewGroupParentChange={(index, value) =>
-                setNewGroupParent((prev) => ({ ...prev, [index]: value }))
-              }
-            />
+            <div className="space-y-3">
+              {preview.items.length > 0 && (
+                <BulkGroupSelector
+                  groups={connectionGroups}
+                  action={bulkAction}
+                  onActionChange={applyBulkAction}
+                  showGroup={importCount > 0}
+                  value={bulkGroup}
+                  newGroupName={bulkNewName}
+                  newGroupParent={bulkNewParent}
+                  onChange={applyBulkGroup}
+                  onNewGroupNameChange={applyBulkNewName}
+                  onNewGroupParentChange={applyBulkNewParent}
+                />
+              )}
+              <PreviewList
+                preview={preview}
+                resolutions={resolutions}
+                onChange={(index, action) =>
+                  setResolutions((prev) => ({ ...prev, [index]: action }))
+                }
+                groups={connectionGroups}
+                groupChoice={groupChoice}
+                newGroupName={newGroupName}
+                newGroupParent={newGroupParent}
+                onGroupChoiceChange={(index, value) =>
+                  setGroupChoice((prev) => ({ ...prev, [index]: value }))
+                }
+                onNewGroupNameChange={(index, value) =>
+                  setNewGroupName((prev) => ({ ...prev, [index]: value }))
+                }
+                onNewGroupParentChange={(index, value) =>
+                  setNewGroupParent((prev) => ({ ...prev, [index]: value }))
+                }
+              />
+            </div>
+          )}
+
+          {!loading && step === "password" && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-secondary">
+                <Lock size={15} className="text-blue-400 shrink-0" />
+                <span>{t("connections.importPasswordModal.title")}</span>
+              </div>
+              <label className="block text-xs font-medium text-secondary">
+                {t("connections.importPasswordModal.password")}
+              </label>
+              <PasswordInput
+                value={password}
+                onChange={setPassword}
+                autoFocus
+                aria-label={t("connections.importPasswordModal.password")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && password) void handleDecryptImport();
+                }}
+              />
+            </div>
           )}
         </div>
 
@@ -364,6 +531,14 @@ export const ImportFromAppModal = ({
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {t("common.continue", { defaultValue: "Continue" })}
+              </button>
+            ) : step === "password" ? (
+              <button
+                onClick={handleDecryptImport}
+                disabled={loading || !password}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {t("connections.importPasswordModal.unlock")}
               </button>
             ) : (
               <button
@@ -458,6 +633,113 @@ const SourcePicker = ({
           </p>
         </div>
       </label>
+      )}
+    </div>
+  );
+};
+
+// ── Bulk group selector ─────────────────────────────────────────────────────
+
+interface BulkGroupSelectorProps {
+  groups: ConnectionGroup[];
+  action: string;
+  onActionChange: (value: string) => void;
+  showGroup: boolean;
+  value: string;
+  newGroupName: string;
+  newGroupParent: string;
+  onChange: (value: string) => void;
+  onNewGroupNameChange: (value: string) => void;
+  onNewGroupParentChange: (value: string) => void;
+}
+
+/** Bulk controls applied to every listed connection at once: an action
+ * (import / skip all) and a single destination group. */
+const BulkGroupSelector = ({
+  groups,
+  action,
+  onActionChange,
+  showGroup,
+  value,
+  newGroupName,
+  newGroupParent,
+  onChange,
+  onNewGroupNameChange,
+  onNewGroupParentChange,
+}: BulkGroupSelectorProps) => {
+  const { t } = useTranslation();
+  const groupTree = flattenGroupTree(groups);
+
+  return (
+    <div className="space-y-2 rounded-xl border border-blue-500/30 bg-blue-500/5 px-3.5 py-2.5">
+      <div className="flex items-center gap-2">
+        <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-secondary">
+          <ListChecks size={13} className="text-blue-400" />
+          {t("connections.importFromApp.action.applyToAll")}
+        </label>
+        <Select
+          value={action}
+          options={[ACTION_KEEP, "import", "skip"]}
+          labels={{
+            [ACTION_KEEP]: t("connections.importFromApp.group.keepPerConnection"),
+            import: t("connections.importFromApp.action.import"),
+            skip: t("connections.importFromApp.action.skip"),
+          }}
+          onChange={onActionChange}
+          searchable={false}
+          className="min-w-0 flex-1"
+        />
+      </div>
+      {showGroup && (
+        <>
+          <div className="flex items-center gap-2">
+            <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-secondary">
+              <FolderPlus size={13} className="text-blue-400" />
+              {t("connections.importFromApp.group.applyToAll")}
+            </label>
+            <Select
+              value={value}
+              options={[GROUP_KEEP, GROUP_NONE, ...groupTree.map((e) => e.group.id), GROUP_NEW]}
+              labels={{
+                [GROUP_KEEP]: t("connections.importFromApp.group.keepPerConnection"),
+                [GROUP_NONE]: t("connections.importFromApp.group.none"),
+                [GROUP_NEW]: t("connections.importFromApp.group.new"),
+                ...Object.fromEntries(groupTree.map((e) => [e.group.id, e.group.name])),
+              }}
+              indents={Object.fromEntries(groupTree.map((e) => [e.group.id, e.depth]))}
+              onChange={onChange}
+              searchable={groups.length > 6}
+              className="min-w-0 flex-1"
+            />
+          </div>
+          {value === GROUP_NEW && (
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                type="text"
+                value={newGroupName}
+                autoFocus
+                onChange={(e) => onNewGroupNameChange(e.target.value)}
+                placeholder={t("connections.importFromApp.group.newPlaceholder")}
+                className="min-w-0 flex-1 rounded border border-strong bg-base px-3 py-2 text-sm text-primary focus:border-blue-500 focus:outline-none"
+              />
+              <label className="shrink-0 text-xs text-muted">
+                {t("connections.importFromApp.group.parentLabel")}
+              </label>
+              <Select
+                value={newGroupParent}
+                options={[GROUP_NONE, ...groupTree.map((e) => e.group.id)]}
+                labels={{
+                  [GROUP_NONE]: t("connections.importFromApp.group.parentNone"),
+                  ...Object.fromEntries(groupTree.map((e) => [e.group.id, e.group.name])),
+                }}
+                indents={Object.fromEntries(groupTree.map((e) => [e.group.id, e.depth]))}
+                onChange={onNewGroupParentChange}
+                searchable={groups.length > 6}
+                className="min-w-0 flex-1"
+              />
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -621,7 +903,6 @@ const PreviewRow = ({
               <input
                 type="text"
                 value={newGroupName}
-                autoFocus
                 onChange={(e) => onNewGroupNameChange(e.target.value)}
                 placeholder={t("connections.importFromApp.group.newPlaceholder")}
                 className="min-w-0 flex-1 rounded border border-strong bg-base px-3 py-2 text-sm text-primary focus:border-blue-500 focus:outline-none"

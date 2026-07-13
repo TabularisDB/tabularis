@@ -272,10 +272,37 @@
     "noSearchResults": "Aucune connexion ne correspond à \"{{query}}\"",
     "gridView": "Vue grille",
     "listView": "Vue liste",
+    "selectedCount": "{{count}} sélectionnée(s)",
+    "deleteSelected": "Supprimer la sélection",
+    "moveSelected": "Déplacer vers un groupe",
+    "deselectAll": "Tout désélectionner",
+    "confirmDeleteSelected": "Voulez-vous vraiment supprimer {{count}} connexions sélectionnées ?",
+    "deleteSelectedTitle": "Supprimer les connexions sélectionnées",
     "export": "Exporter les connexions",
     "import": "Importer les connexions",
     "exportTitle": "Exporter les connexions",
     "exportWarning": "Le fichier exporté contiendra vos mots de passe de base de données et SSH en clair. Conservez-le en lieu sûr.",
+    "exportModal": {
+      "title": "Exporter les connexions",
+      "subtitle": "Choisissez comment exporter vos connexions",
+      "encrypted": "Chiffré avec un mot de passe",
+      "encryptedDesc": "Toutes les connexions et mots de passe sont inclus, protégés par un mot de passe de votre choix. Recommandé pour les sauvegardes.",
+      "noSecrets": "En clair, sans les mots de passe",
+      "noSecretsDesc": "Les connexions sont exportées en JSON lisible, mais tous les mots de passe et passphrases sont exclus. Recommandé pour le partage.",
+      "plaintext": "En clair, avec tous les mots de passe",
+      "plaintextDesc": "Les connexions et mots de passe sont exportés en JSON lisible. Quiconque possède le fichier peut lire vos identifiants.",
+      "password": "Mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "passwordRequired": "Un mot de passe est requis pour un export chiffré.",
+      "passwordMismatch": "Les mots de passe ne correspondent pas.",
+      "export": "Exporter"
+    },
+    "importPasswordModal": {
+      "title": "Fichier d'export chiffré",
+      "subtitle": "Ce fichier est protégé par un mot de passe",
+      "password": "Mot de passe",
+      "unlock": "Importer"
+    },
     "importFromApp": {
       "title": "Import from App",
       "subtitle": "Import connections from another installed SQL client",
@@ -294,7 +321,8 @@
       "action": {
         "import": "Import",
         "skip": "Skip",
-        "replace": "Replace"
+        "replace": "Replace",
+        "applyToAll": "Action pour tout:"
       },
       "tabularisJsonHint": "Fichier d'export Tabularis (.json)",
       "menuLabel": "Importer des connexions…",
@@ -304,7 +332,9 @@
         "new": "Nouveau groupe…",
         "newPlaceholder": "Nom du groupe",
         "parentLabel": "dans",
-        "parentNone": "Niveau racine"
+        "parentNone": "Niveau racine",
+        "applyToAll": "Groupe pour tout:",
+        "keepPerConnection": "Par connexion"
       },
       "betaNotice": "L'import depuis une app est en bêta. En cas de problème,",
       "reportIssue": "signalez-le sur GitHub."

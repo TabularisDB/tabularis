@@ -124,7 +124,7 @@ pub fn build_payload(
     payload
 }
 
-fn resolve_group(
+pub(crate) fn resolve_group(
     name: &str,
     parent_id: Option<&str>,
     existing_groups: &[ConnectionGroup],
@@ -226,7 +226,7 @@ fn build_connection(
     (saved, ssh_record)
 }
 
-fn new_id() -> String {
+pub(crate) fn new_id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 

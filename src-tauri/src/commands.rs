@@ -4850,7 +4850,9 @@ pub async fn get_server_now<R: Runtime>(
 #[tauri::command]
 pub async fn export_connections_payload<R: Runtime>(
     app: AppHandle<R>,
+    include_secrets: Option<bool>,
 ) -> Result<ExportPayload, String> {
+    let include_secrets = include_secrets.unwrap_or(true);
     let conn_path = get_config_path(&app)?;
     let ssh_path = get_ssh_config_path(&app)?;
 
@@ -4869,6 +4871,13 @@ pub async fn export_connections_payload<R: Runtime>(
 
     // Resolve passwords for database connections
     for conn in &mut conn_file.connections {
+        if !include_secrets {
+            // Strip any secrets that may already live in the connections file
+            conn.params.password = None;
+            conn.params.ssh_password = None;
+            conn.params.ssh_key_passphrase = None;
+            continue;
+        }
         if conn.params.save_in_keychain.unwrap_or(false) {
             if let Ok(pwd) = credential_cache::get_db_password_cached(&cache, &conn.id) {
                 conn.params.password = Some(pwd);
@@ -4888,6 +4897,11 @@ pub async fn export_connections_payload<R: Runtime>(
 
     // Resolve passwords for SSH connections
     for ssh in &mut ssh_connections {
+        if !include_secrets {
+            ssh.password = None;
+            ssh.key_passphrase = None;
+            continue;
+        }
         if ssh.save_in_keychain.unwrap_or(false) {
             if let Ok(pwd) = credential_cache::get_ssh_password_cached(&cache, &ssh.id) {
                 ssh.password = Some(pwd);
@@ -4906,6 +4920,24 @@ pub async fn export_connections_payload<R: Runtime>(
         ssh_connections,
         k8s_connections: load_k8s_connections_sync(&app)?,
     })
+}
+
+#[tauri::command]
+pub async fn encrypt_export_payload(
+    payload: ExportPayload,
+    password: String,
+) -> Result<crate::export_crypto::EncryptedEnvelope, String> {
+    let plaintext = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
+    crate::export_crypto::encrypt(&plaintext, &password)
+}
+
+#[tauri::command]
+pub async fn decrypt_export_payload(
+    envelope: crate::export_crypto::EncryptedEnvelope,
+    password: String,
+) -> Result<ExportPayload, String> {
+    let plaintext = crate::export_crypto::decrypt(&envelope, &password)?;
+    serde_json::from_str(&plaintext).map_err(|e| format!("Invalid export payload: {e}"))
 }
 
 #[tauri::command]
