@@ -259,6 +259,7 @@ Clients pris en charge :
 Outils disponibles :
 
 - `list_connections`
+- `list_databases`
 - `list_tables`
 - `describe_table`
 - `run_query`

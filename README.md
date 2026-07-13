@@ -335,6 +335,7 @@ Once connected, your AI agent can:
 | Tool | Description |
 |------|-------------|
 | `list_connections` | List all saved database connections |
+| `list_databases` | List all databases available for a connection |
 | `list_tables` | List tables in a connection (with optional schema filter) |
 | `describe_table` | Get full schema: columns, indexes, foreign keys |
 | `run_query` | Execute any SQL query and return results |

@@ -262,6 +262,7 @@ tabularis --mcp
 可用工具：
 
 - `list_connections`
+- `list_databases`
 - `list_tables`
 - `describe_table`
 - `run_query`

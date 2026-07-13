@@ -24,6 +24,9 @@ pub mod preflight;
 pub mod protocol;
 use protocol::*;
 
+#[cfg(test)]
+mod tests;
+
 const APPROVAL_POLL_INTERVAL_MS: u64 = 500;
 
 /// Async-friendly mirror of the data we want to record on every tool call.
