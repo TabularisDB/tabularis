@@ -275,6 +275,7 @@
     "selectedCount": "{{count}} sélectionnée(s)",
     "deleteSelected": "Supprimer la sélection",
     "moveSelected": "Déplacer vers un groupe",
+    "exportSelected": "Exporter la sélection",
     "deselectAll": "Tout désélectionner",
     "confirmDeleteSelected": "Voulez-vous vraiment supprimer {{count}} connexions sélectionnées ?",
     "deleteSelectedTitle": "Supprimer les connexions sélectionnées",
@@ -285,6 +286,7 @@
     "exportModal": {
       "title": "Exporter les connexions",
       "subtitle": "Choisissez comment exporter vos connexions",
+      "subtitleSelected": "Exporter {{count}} connexion(s) sélectionnée(s)",
       "encrypted": "Chiffré avec un mot de passe",
       "encryptedDesc": "Toutes les connexions et mots de passe sont inclus, protégés par un mot de passe de votre choix. Recommandé pour les sauvegardes.",
       "noSecrets": "En clair, sans les mots de passe",

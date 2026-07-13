@@ -275,6 +275,7 @@
     "selectedCount": "{{count}} napili",
     "deleteSelected": "Burahin ang napili",
     "moveSelected": "Ilipat sa grupo",
+    "exportSelected": "I-export ang napili",
     "deselectAll": "Alisin ang lahat ng pagpili",
     "confirmDeleteSelected": "Sigurado ka bang gusto mong burahin ang {{count}} napiling koneksyon?",
     "deleteSelectedTitle": "Burahin ang mga napiling koneksyon",
@@ -285,6 +286,7 @@
     "exportModal": {
       "title": "I-export ang mga Koneksyon",
       "subtitle": "Piliin kung paano i-export ang iyong mga koneksyon",
+      "subtitleSelected": "I-export ang {{count}} napiling koneksyon",
       "encrypted": "Naka-encrypt gamit ang password",
       "encryptedDesc": "Kasama ang lahat ng koneksyon at password, protektado ng password na pipiliin mo. Inirerekomenda para sa mga backup.",
       "noSecrets": "Plain text, walang mga password",

@@ -4851,6 +4851,7 @@ pub async fn get_server_now<R: Runtime>(
 pub async fn export_connections_payload<R: Runtime>(
     app: AppHandle<R>,
     include_secrets: Option<bool>,
+    connection_ids: Option<Vec<String>>,
 ) -> Result<ExportPayload, String> {
     let include_secrets = include_secrets.unwrap_or(true);
     let conn_path = get_config_path(&app)?;
@@ -4863,6 +4864,29 @@ pub async fn export_connections_payload<R: Runtime>(
     } else {
         Vec::new()
     };
+    let mut k8s_connections = load_k8s_connections_sync(&app)?;
+
+    // When a selection is provided, keep only the selected connections (of any
+    // kind) plus the group chains needed to preserve their hierarchy. Done
+    // before password resolution so unselected credentials never leave the
+    // keychain.
+    if let Some(ids) = &connection_ids {
+        let selected: std::collections::HashSet<&str> =
+            ids.iter().map(String::as_str).collect();
+        conn_file
+            .connections
+            .retain(|c| selected.contains(c.id.as_str()));
+        ssh_connections.retain(|s| selected.contains(s.id.as_str()));
+        k8s_connections.retain(|k| selected.contains(k.id.as_str()));
+        let kept_groups = crate::models::collect_group_ancestors(
+            &conn_file.groups,
+            conn_file
+                .connections
+                .iter()
+                .filter_map(|c| c.group_id.as_deref()),
+        );
+        conn_file.groups.retain(|g| kept_groups.contains(&g.id));
+    }
 
     let cache = app
         .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
@@ -4918,7 +4942,7 @@ pub async fn export_connections_payload<R: Runtime>(
         groups: conn_file.groups,
         connections: conn_file.connections,
         ssh_connections,
-        k8s_connections: load_k8s_connections_sync(&app)?,
+        k8s_connections,
     })
 }
 

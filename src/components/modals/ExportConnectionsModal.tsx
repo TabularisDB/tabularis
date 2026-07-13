@@ -9,12 +9,15 @@ interface ExportConnectionsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onExport: (mode: ExportMode, password?: string) => Promise<void>;
+  /** When > 0, only that many selected connections will be exported. */
+  selectedCount?: number;
 }
 
 export const ExportConnectionsModal = ({
   isOpen,
   onClose,
   onExport,
+  selectedCount = 0,
 }: ExportConnectionsModalProps) => {
   const { t } = useTranslation();
   const [mode, setMode] = useState<ExportMode>("encrypted");
@@ -99,7 +102,11 @@ export const ExportConnectionsModal = ({
                 {t("connections.exportModal.title")}
               </h2>
               <p className="text-xs text-secondary">
-                {t("connections.exportModal.subtitle")}
+                {selectedCount > 0
+                  ? t("connections.exportModal.subtitleSelected", {
+                      count: selectedCount,
+                    })
+                  : t("connections.exportModal.subtitle")}
               </p>
             </div>
           </div>

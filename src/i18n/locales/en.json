@@ -275,6 +275,7 @@
     "selectedCount": "{{count}} selected",
     "deleteSelected": "Delete selected",
     "moveSelected": "Move to group",
+    "exportSelected": "Export selected",
     "deselectAll": "Deselect all",
     "confirmDeleteSelected": "Are you sure you want to delete {{count}} selected connection(s)?",
     "deleteSelectedTitle": "Delete selected connections",
@@ -285,6 +286,7 @@
     "exportModal": {
       "title": "Export Connections",
       "subtitle": "Choose how to export your connections",
+      "subtitleSelected": "Export {{count}} selected connection(s)",
       "encrypted": "Encrypted with a password",
       "encryptedDesc": "All connections and passwords are included, protected with a password of your choice. Recommended for backups.",
       "noSecrets": "Plain text, without passwords",
