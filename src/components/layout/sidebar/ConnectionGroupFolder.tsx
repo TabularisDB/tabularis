@@ -15,6 +15,7 @@ interface Props {
   onToggleCollapsed: () => void;
   onSwitch: (connectionId: string) => void;
   onOpenInEditor: (connectionId: string) => void;
+  onOpenInNewWindow: (connectionId: string) => void;
   onDisconnect: (connectionId: string) => void;
   onToggleSelect: (connectionId: string, isCtrlHeld: boolean) => void;
   onActivateSplit: (mode: 'vertical' | 'horizontal') => void;
@@ -31,6 +32,7 @@ export const ConnectionGroupFolder = ({
   onToggleCollapsed,
   onSwitch,
   onOpenInEditor,
+  onOpenInNewWindow,
   onDisconnect,
   onToggleSelect,
   onActivateSplit,
@@ -121,6 +123,7 @@ export const ConnectionGroupFolder = ({
               isSelected={selectedConnectionIds.has(conn.id)}
               onSwitch={() => onSwitch(conn.id)}
               onOpenInEditor={() => onOpenInEditor(conn.id)}
+              onOpenInNewWindow={() => onOpenInNewWindow(conn.id)}
               onDisconnect={() => onDisconnect(conn.id)}
               onToggleSelect={(isCtrlHeld) => onToggleSelect(conn.id, isCtrlHeld)}
               selectedConnectionIds={selectedConnectionIds}

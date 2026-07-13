@@ -8,7 +8,8 @@ use std::str::FromStr;
 
 use crate::models::{
     BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo, ExplainPlan,
-    ForeignKey, Index, QueryResult, RoutineInfo, RoutineParameter, TableColumn, TableInfo,
+    ForeignKey, Index, QueryResult, RoutineCallArg, RoutineInfo, RoutineParameter, TableColumn,
+    TableInfo,
     TableSchema, TriggerInfo, ViewInfo,
 };
 
@@ -113,6 +114,11 @@ pub struct DriverCapabilities {
     /// Supports listing and managing database triggers.
     #[serde(default)]
     pub triggers: bool,
+    /// Supports managing stored routines (run with parameters, create from
+    /// template, edit definition, drop). Requires `routines` to be useful;
+    /// plugins opt in via their manifest. Defaults to `false`.
+    #[serde(default, alias = "routineManagement")]
+    pub routine_management: bool,
     /// Supports the SSL/TLS configuration tab (mode + CA/client cert/key) in the
     /// connection modal. Built-in network drivers set this; plugins opt in via
     /// their manifest. Defaults to `false`.
@@ -407,6 +413,87 @@ pub trait DatabaseDriver: Send + Sync {
         routine_type: &str,
         schema: Option<&str>,
     ) -> Result<String, String>;
+
+    // --- Routine management (gated by `DriverCapabilities::routine_management`)
+
+    /// Builds an executable invocation script for a routine from the
+    /// argument values collected in the run-routine UI. The script is opened
+    /// in an editor tab so the user can review it before running.
+    ///
+    /// The default covers the common shape (`CALL proc(...)` /
+    /// `SELECT fn(...)`); dialects with richer conventions (MySQL `OUT`
+    /// session variables, PostgreSQL set-returning functions) override it.
+    async fn build_routine_call_sql(
+        &self,
+        _params: &ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        args: &[RoutineCallArg],
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        Ok(crate::drivers::common::generic_routine_call_sql(
+            routine_name,
+            routine_type,
+            args,
+            schema,
+            &self.manifest().capabilities.identifier_quote,
+        ))
+    }
+
+    /// Returns a starter script for creating a new routine of the given
+    /// type, opened in an editor tab. Dialect-specific (delimiters, body
+    /// quoting), so the default is a bare ISO-ish skeleton.
+    async fn routine_create_template(
+        &self,
+        routine_type: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        let keyword = if routine_type.eq_ignore_ascii_case("FUNCTION") {
+            "FUNCTION"
+        } else {
+            "PROCEDURE"
+        };
+        Ok(format!(
+            "CREATE {keyword} my_routine()\nBEGIN\n    -- routine body\nEND"
+        ))
+    }
+
+    /// Returns an executable script for editing an existing routine. The
+    /// default assumes `get_routine_definition` already yields a re-runnable
+    /// statement (true for PostgreSQL's `CREATE OR REPLACE`); dialects whose
+    /// definition is not directly re-executable (MySQL needs `DROP` +
+    /// `DELIMITER` wrapping) override it.
+    async fn get_routine_edit_script(
+        &self,
+        params: &ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        self.get_routine_definition(params, routine_name, routine_type, schema)
+            .await
+    }
+
+    /// Drops a routine. The default issues a generic
+    /// `DROP PROCEDURE|FUNCTION`; dialects that identify routines by
+    /// signature (PostgreSQL overloads) override it.
+    async fn drop_routine(
+        &self,
+        params: &ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        let sql = crate::drivers::common::generic_drop_routine_sql(
+            routine_name,
+            routine_type,
+            schema,
+            &self.manifest().capabilities.identifier_quote,
+        );
+        self.execute_query(params, &sql, None, 1, schema)
+            .await
+            .map(|_| ())
+    }
 
     // --- Query execution ----------------------------------------------------
 

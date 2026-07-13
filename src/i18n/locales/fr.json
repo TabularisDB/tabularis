@@ -37,7 +37,13 @@
     "noResults": "Aucun résultat trouvé",
     "error": "Erreur",
     "success": "Succès",
-    "ok": "OK"
+    "ok": "OK",
+    "continue": "Continuer",
+    "back": "Retour",
+    "copy": "Copier",
+    "showDetails": "Afficher les détails",
+    "hideDetails": "Masquer les détails",
+    "beta": "Bêta"
   },
   "sidebar": {
     "connections": "Connexions",
@@ -76,6 +82,8 @@
     "expandTable": "Développer la table {{name}}",
     "collapseTable": "Réduire la table {{name}}",
     "columns": "colonnes",
+    "parameters": "paramètres",
+    "noParameters": "Aucun paramètre",
     "keys": "clés",
     "foreignKeys": "clés étrangères",
     "indexes": "index",
@@ -86,6 +94,7 @@
     "modifyColumn": "Modifier la colonne",
     "copyName": "Copier le nom",
     "openInEditor": "Ouvrir dans l’éditeur",
+    "openInNewWindow": "Ouvrir dans une nouvelle fenêtre",
     "closePanel": "Fermer le panneau",
     "setAsActive": "Définir comme actif",
     "deleteTable": "Supprimer la table",
@@ -110,6 +119,19 @@
     "procedures": "Procédures",
     "noRoutines": "Aucune routine trouvée",
     "refreshRoutines": "Actualiser les routines",
+    "triggers": "Triggers",
+    "noTriggers": "Aucun trigger trouvé",
+    "filterTriggers": "Filtrer les triggers...",
+    "noTriggersMatch": "Aucun trigger ne correspond à votre filtre",
+    "createTrigger": "Créer un nouveau trigger",
+    "editTrigger": "Modifier le trigger",
+    "dropTrigger": "Supprimer le trigger",
+    "dropTriggerConfirm": "Êtes-vous sûr de vouloir supprimer le trigger « {{trigger}} » ?",
+    "viewTriggerDefinition": "Voir la définition",
+    "failDropTrigger": "Échec de la suppression du trigger : ",
+    "failGetTriggerDefinition": "Échec de la récupération de la définition du trigger : ",
+    "refreshTriggers": "Actualiser les triggers",
+    "onTable": "sur {{table}}",
     "objectSummary": "Objets",
     "databases": "Bases de données",
     "failGetRoutineDefinition": "Échec de récupération de la définition de la routine : ",
@@ -253,7 +275,40 @@
     "export": "Exporter les connexions",
     "import": "Importer les connexions",
     "exportTitle": "Exporter les connexions",
-    "exportWarning": "Le fichier exporté contiendra vos mots de passe de base de données et SSH en clair. Conservez-le en lieu sûr."
+    "exportWarning": "Le fichier exporté contiendra vos mots de passe de base de données et SSH en clair. Conservez-le en lieu sûr.",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Fichier d'export Tabularis (.json)",
+      "menuLabel": "Importer des connexions…",
+      "group": {
+        "label": "Groupe :",
+        "none": "Aucun groupe",
+        "new": "Nouveau groupe…",
+        "newPlaceholder": "Nom du groupe",
+        "parentLabel": "dans",
+        "parentNone": "Niveau racine"
+      },
+      "betaNotice": "L'import depuis une app est en bêta. En cas de problème,",
+      "reportIssue": "signalez-le sur GitHub."
+    }
   },
   "connectionAppearance": {
     "section": "Apparence",
@@ -268,6 +323,11 @@
       "emoji": "Emoji",
       "image": "Image"
     },
+    "previewLabel": "Aperçu",
+    "defaultHint": "Icône par défaut du driver utilisée.",
+    "emojiSelected": "Emoji sélectionné",
+    "emojiHint": "Cliquez sur un autre emoji ci-dessous pour changer.",
+    "removeEmoji": "Effacer",
     "chooseImage": "Choisir une image…",
     "removeImage": "Supprimer",
     "imageHint": "PNG, JPG, WebP ou SVG · max. 512 Ko",
@@ -313,6 +373,18 @@
     "fontSizeDesc": "Ajustez la taille de police de base utilisée dans toute l’application (10-20 px).",
     "preview": "Aperçu",
     "fontPreviewText": "Voix ambiguë d’un cœur qui au zéphyr préfère les jattes de kiwis",
+    "resultColors": {
+      "title": "Couleurs des résultats",
+      "enable": "Colorer les valeurs par type",
+      "enableDesc": "Colore les cellules des résultats de requête selon leur type de données.",
+      "number": "Nombre",
+      "string": "Texte",
+      "date": "Date / Heure",
+      "boolean": "Booléen",
+      "reset": "Réinitialiser au thème",
+      "confirm": "Confirmer",
+      "cancel": "Annuler"
+    },
     "appearance_general": "Général",
     "appearance_sqlEditor": "Éditeur SQL",
     "appearance_editorTheme": "Thème de l’éditeur",
@@ -342,6 +414,9 @@
     "language": "Langue",
     "languageDesc": "Choisissez votre langue préférée. \"Auto\" utilisera la langue de votre système.",
     "auto": "Auto (Système)",
+    "timezone": "Fuseau horaire",
+    "timezoneDesc": "Fuseau horaire utilisé pour afficher les horodatages et les exports. « Auto » suit le fuseau horaire de votre système.",
+    "timezoneSearch": "Rechercher un fuseau horaire...",
     "english": "Anglais",
     "italian": "Italien",
     "spanish": "Espagnol",
@@ -396,10 +471,9 @@
       "explainplanPromptDesc": "Personnalisez les instructions pour l’analyse IA des plans EXPLAIN. Utilisez {{LANGUAGE}} pour la langue de sortie.",
       "enterExplainplanPrompt": "Saisir le prompt d’analyse de plan EXPLAIN...",
       "keySaved": "Clé API enregistrée en toute sécurité",
-      "promptSaved": "Prompt système enregistré avec succès",
+      "promptSaved": "Prompt enregistré",
       "explainPromptSaved": "Prompt d’explication enregistré avec succès",
       "promptReset": "Prompt système réinitialisé par défaut",
-      "explainPromptReset": "Prompt d’explication réinitialisé par défaut",
       "modelPlaceholder": "Sélectionner un modèle",
       "searchPlaceholder": "Rechercher des modèles...",
       "noResults": "Aucun modèle trouvé",
@@ -415,7 +489,9 @@
       "endpointUrlDesc": "L’URL de base de votre API compatible OpenAI. Exemples : https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "ex. llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "Saisissez le nom du modèle fourni par votre service compatible OpenAI.",
-      "customOpenaiModelHelp": "Saisissez le nom exact du modèle pour votre fournisseur compatible OpenAI."
+      "customOpenaiModelHelp": "Saisissez le nom exact du modèle pour votre fournisseur compatible OpenAI.",
+      "promptResetSuccess": "Prompt réinitialisé par défaut",
+      "apiKeySaved": "Clé API enregistrée en toute sécurité"
     },
     "updates": "Mises à jour",
     "openSourceLibraries": "Bibliothèques open source",
@@ -579,6 +655,7 @@
       "closeTab": "Fermer l’onglet",
       "nextPage": "Page suivante",
       "prevPage": "Page précédente",
+      "saveGridChanges": "Enregistrer les modifications en attente",
       "switchConnection": "Passer à la connexion 1-9",
       "resetToDefault": "Réinitialiser par défaut",
       "notOverridable": "Intégré, non personnalisable",
@@ -718,12 +795,14 @@
     "selectTypeFirst": "Sélectionnez d'abord contexte/namespace/type",
     "useK8s": "Utiliser le Port-Forward Kubernetes",
     "useK8sConnection": "Connexion enregistrée",
-    "advanced": "Avancé",
     "startupScript": "Script de démarrage",
     "startupScriptDescription": "SQL exécuté à chaque nouvelle connexion à cette source de données. Utilisez-le pour des paramètres de session tels que SET / set_config (par exemple, pour contourner la RLS). Séparez les instructions par des points-virgules.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Défiler les onglets vers la gauche",
-    "scrollTabsRight": "Défiler les onglets vers la droite"
+    "scrollTabsRight": "Défiler les onglets vers la droite",
+    "useIamAuth": "Utiliser l'authentification AWS IAM (RDS)",
+    "useIamAuthHint": "Le champ mot de passe est traité comme un jeton d'authentification RDS (généré par `aws rds generate-db-auth-token`). Nécessite TLS. Les jetons expirent toutes les 15 minutes.",
+    "useIamAuthTlsRequired": "Activez un mode SSL ci-dessus pour utiliser l'authentification AWS IAM."
   },
   "sshConnections": {
     "title": "Connexions SSH",
@@ -746,7 +825,10 @@
     "keyFile": "Fichier de clé",
     "quickTest": "Test rapide de connexion",
     "testFailed": "Échec du test de connexion",
-    "savedInKeychain": "Mot de passe enregistré dans le trousseau système"
+    "savedInKeychain": "Mot de passe enregistré dans le trousseau système",
+    "manageDesc": "Tunnels SSH réutilisables pour vos connexions aux bases de données. Les mots de passe et phrases secrètes sont stockés dans le trousseau du système.",
+    "deleteInUse_one": "Elle est utilisée par {{count}} connexion enregistrée, qui ne passera plus par ce tunnel.",
+    "deleteInUse_other": "Elle est utilisée par {{count}} connexions enregistrées, qui ne passeront plus par ce tunnel."
   },
   "sshAskpass": {
     "title": "Authentification SSH",
@@ -764,6 +846,8 @@
     "deleteTitle": "Supprimer la ligne",
     "updateFailed": "Échec de la mise à jour : ",
     "deleteFailed": "Échec de la suppression de la ligne : ",
+    "columnNotEditable": "La colonne « {{column}} » ne peut pas être modifiée — ce n'est pas une colonne directe de la table « {{table}} » (probablement un alias ou une valeur calculée).",
+    "pkRequiredToEdit": "Pour modifier ce résultat, incluez la colonne de clé primaire « {{pk}} » dans votre SELECT.",
     "null": "null",
     "sortByAsc": "Trier par {{col}} ASC",
     "sortByDesc": "Trier par {{col}} DESC",
@@ -816,6 +900,71 @@
     "auto": "Auto"
   },
   "editor": {
+    "noTabs": "Aucun onglet ouvert pour cette connexion.",
+    "newConsole": "Nouvelle console",
+    "noActiveSession": "Aucune session active. Veuillez sélectionner une connexion.",
+    "stop": "Arrêter",
+    "run": "Exécuter",
+    "export": "Exporter",
+    "connected": "Connecté",
+    "disconnected": "Déconnecté",
+    "newRow": "Nouvelle ligne",
+    "editing": "Modification : {{table}}",
+    "rowsRetrieved": "{{count}} lignes récupérées",
+    "queryExecuted": "Requête exécutée avec succès",
+    "rowsAffected": "{{count}} lignes affectées",
+    "autoPaginated": "Pagination automatique",
+    "pageOf": "Page {{current}} sur {{total}}",
+    "page": "Page {{current}}",
+    "jumpToPage": "Cliquer pour aller à la page",
+    "loadRowCount": "Charger le nombre de lignes",
+    "rowCount": "{{total}} lignes",
+    "executePrompt": "Exécutez une requête pour voir les résultats",
+    "tableRunPrompt": "Appuyez sur Exécuter (Ctrl/Commande+F5) pour charger les données de la table",
+    "results": {
+      "minimize": "Réduire",
+      "maximize": "Agrandir (masquer l’éditeur)",
+      "restore": "Restaurer l’éditeur",
+      "close": "Fermer",
+      "detach": "Détacher dans une fenêtre séparée",
+      "detached": "Résultats détachés dans une fenêtre séparée",
+      "reattach": "Rattacher"
+    },
+    "closeTab": "Fermer l’onglet",
+    "closeOthers": "Fermer les autres onglets",
+    "closeRight": "Fermer les onglets à droite",
+    "closeLeft": "Fermer les onglets à gauche",
+    "closeAll": "Fermer tous les onglets",
+    "saveQuery": "Enregistrer la requête",
+    "saveThisQuery": "Enregistrer cette requête",
+    "noValidQueries": "Aucune requête valide trouvée",
+    "queryFailed": "Échec de la requête.",
+    "dangerousQueryTitle": "Exécuter sans clause WHERE ?",
+    "dangerousQueryMessage": "Cette instruction affectera toutes les lignes de la table car elle ne comporte pas de clause WHERE. Cette action est irréversible.",
+    "dangerousQueryConfirm": "Exécuter quand même",
+    "dangerousQueryDropTitle": "Supprimer cet objet ?",
+    "dangerousQueryDropMessage": "DROP supprime définitivement cet objet et toutes ses données. Cette action est irréversible.",
+    "dangerousQueryTruncateTitle": "Vider cette table ?",
+    "dangerousQueryTruncateMessage": "TRUNCATE supprime toutes les lignes de la table. Cette action est irréversible.",
+    "showErrorDetails": "Afficher les détails",
+    "hideErrorDetails": "Masquer les détails",
+    "errorBoundary": {
+      "title": "L'éditeur a planté de manière inattendue",
+      "description": "Un élément de l'éditeur n'a pas pu s'afficher. L'erreur est indiquée ci-dessous — réessayez ou revenez à vos connexions.",
+      "retry": "Réessayer",
+      "closeCurrentTab": "Fermer l’onglet actuel",
+      "backToConnections": "Retour aux connexions",
+      "showDetails": "Afficher les détails techniques"
+    },
+    "newVisualQuery": "Nouvelle requête visuelle",
+    "activeDatabase": "Base de données active",
+    "tabSwitcher": {
+      "title": "Onglets ouverts",
+      "hint": "Ctrl+Tab",
+      "tabs_one": "{{count}} onglet",
+      "tabs_other": "{{count}} onglets",
+      "escHint": "Esc pour fermer"
+    },
     "quickNavigator": {
       "placeholder": "Rechercher tables, vues, routines, triggers...",
       "noResults": "Aucun élément correspondant trouvé",
@@ -835,63 +984,6 @@
         "query": "Exécuter une requête SELECT",
         "copyName": "Copier le nom"
       }
-    },
-    "noTabs": "Aucun onglet ouvert pour cette connexion.",
-    "newConsole": "Nouvelle console",
-    "noActiveSession": "Aucune session active. Veuillez sélectionner une connexion.",
-    "stop": "Arrêter",
-    "run": "Exécuter",
-    "export": "Exporter",
-    "connected": "Connecté",
-    "disconnected": "Déconnecté",
-    "newRow": "Nouvelle ligne",
-    "editing": "Modification : {{table}}",
-    "rowsRetrieved": "{{count}} lignes récupérées",
-    "queryExecuted": "Requête exécutée avec succès",
-    "rowsAffected": "{{count}} lignes affectées",
-    "autoPaginated": "Pagination automatique",
-    "pageOf": "Page {{current}} sur {{total}}",
-    "page": "Page {{current}}",
-    "jumpToPage": "Cliquer pour aller à la page",
-    "loadRowCount": "Charger le nombre de lignes",
-    "executePrompt": "Exécutez une requête pour voir les résultats",
-    "results": {
-      "minimize": "Réduire",
-      "maximize": "Agrandir (masquer l’éditeur)",
-      "restore": "Restaurer l’éditeur",
-      "close": "Fermer",
-      "detach": "Détacher dans une fenêtre séparée",
-      "detached": "Résultats détachés dans une fenêtre séparée",
-      "reattach": "Rattacher"
-    },
-    "tableRunPrompt": "Appuyez sur Exécuter (Ctrl/Commande+F5) pour charger les données de la table",
-    "closeTab": "Fermer l’onglet",
-    "closeOthers": "Fermer les autres onglets",
-    "closeRight": "Fermer les onglets à droite",
-    "closeLeft": "Fermer les onglets à gauche",
-    "closeAll": "Fermer tous les onglets",
-    "saveQuery": "Enregistrer la requête",
-    "saveThisQuery": "Enregistrer cette requête",
-    "noValidQueries": "Aucune requête valide trouvée",
-    "queryFailed": "Échec de la requête.",
-    "showErrorDetails": "Afficher les détails",
-    "hideErrorDetails": "Masquer les détails",
-    "errorBoundary": {
-      "title": "L'éditeur a planté de manière inattendue",
-      "description": "Un élément de l'éditeur n'a pas pu s'afficher. L'erreur est indiquée ci-dessous — réessayez ou revenez à vos connexions.",
-      "retry": "Réessayer",
-      "closeCurrentTab": "Fermer l’onglet actuel",
-      "backToConnections": "Retour aux connexions",
-      "showDetails": "Afficher les détails techniques"
-    },
-    "newVisualQuery": "Nouvelle requête visuelle",
-    "activeDatabase": "Base de données active",
-    "tabSwitcher": {
-      "title": "Onglets ouverts",
-      "hint": "Ctrl+Tab",
-      "tabs_one": "{{count}} onglet",
-      "tabs_other": "{{count}} onglets",
-      "escHint": "Esc pour fermer"
     },
     "submitChanges": "Soumettre les modifications",
     "rollbackChanges": "Annuler les modifications",
@@ -1230,10 +1322,38 @@
     "createSuccess": "Vue créée avec succès",
     "alterSuccess": "Vue mise à jour avec succès",
     "saveError": "Échec de l’enregistrement de la vue : ",
+    "confirmAlter": "Voulez-vous vraiment modifier la vue \"{{view}}\" ?",
     "refreshSuccess": "Vue matérialisée \"{{view}}\" actualisée",
     "refreshError": "Échec de l’actualisation de la vue matérialisée : ",
-    "failGetDefinition": "Échec de la récupération de la définition : ",
-    "confirmAlter": "Voulez-vous vraiment modifier la vue \"{{view}}\" ?"
+    "failGetDefinition": "Échec de la récupération de la définition : "
+  },
+  "triggers": {
+    "createTrigger": "Créer un trigger",
+    "editTrigger": "Modifier le trigger",
+    "createSubtitle": "Créer un nouveau trigger de base de données",
+    "editSubtitle": "Modification du trigger : {{name}}",
+    "triggerName": "Nom du trigger",
+    "triggerNamePlaceholder": "ex. before_insert_user",
+    "tableName": "Nom de la table",
+    "tableNamePlaceholder": "ex. users",
+    "timing": "Moment",
+    "events": "Événements",
+    "body": "Corps du trigger (SQL)",
+    "sqlPreview": "Aperçu du SQL généré",
+    "rawSql": "SQL brut",
+    "guidedMode": "Guidé",
+    "rawSqlMode": "SQL brut",
+    "loading": "Chargement de la définition du trigger...",
+    "create": "Créer le trigger",
+    "save": "Enregistrer les modifications",
+    "sqlRequired": "Le SQL du trigger est requis",
+    "failLoadDefinition": "Échec du chargement de la définition du trigger : ",
+    "dropError": "Échec de la suppression du trigger existant : ",
+    "saveError": "Échec de l'enregistrement du trigger : ",
+    "createSuccess": "Trigger créé avec succès",
+    "updateSuccess": "Trigger mis à jour avec succès",
+    "recreateTrigger": "Recréer le trigger",
+    "confirmRecreate": "Modifier un trigger nécessite de le supprimer puis de le recréer. Continuer la modification de « {{trigger}} » ?"
   },
   "community": {
     "title": "Rejoindre la communauté",
@@ -1305,7 +1425,9 @@
     "copyPath": "Copier le chemin",
     "copyValue": "Copier la valeur",
     "addItem": "Ajouter un élément",
-    "removeItem": "Supprimer l'élément"
+    "removeItem": "Supprimer l'élément",
+    "diff": "Diff",
+    "sideBySide": "Côte à côte"
   },
   "jsonViewer": {
     "close": "Fermer",
@@ -1314,6 +1436,16 @@
   "jsonCell": {
     "expand": "Afficher/masquer l'arbre JSON",
     "openViewer": "Ouvrir le visualiseur JSON"
+  },
+  "textCell": {
+    "expand": "Basculer l'éditeur de texte intégré"
+  },
+  "textInput": {
+    "diff": "Diff",
+    "sideBySide": "Côte à côte"
+  },
+  "textViewer": {
+    "save": "Enregistrer"
   },
   "rowEditor": {
     "title": "Modifier la ligne",
@@ -1432,7 +1564,8 @@
     "createFirst": "Créez votre premier groupe pour organiser vos connexions",
     "groupName": "Nom du groupe",
     "dragHint": "Glissez les connexions ici",
-    "createError": "Échec de création du groupe"
+    "createError": "Échec de création du groupe",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "Base de données",
@@ -1484,7 +1617,8 @@
     "targetColumn": "Colonne cible",
     "targetColumnPlaceholder": "Choisir la cible...",
     "skipColumn": "Ignorer (ne pas importer)",
-    "createNewColumn": "Créer une nouvelle colonne"
+    "createNewColumn": "Créer une nouvelle colonne",
+    "typePlaceholder": "Type"
   },
   "aiActivity": {
     "title": "Activité IA",
@@ -1611,5 +1745,38 @@
       "resourceNameRequired": "Le nom de la ressource est requis",
       "portInvalid": "Le port doit être compris entre 1 et 65535"
     }
+  },
+  "routines": {
+    "menuRun": "Exécuter…",
+    "menuEdit": "Modifier",
+    "menuDrop": "Supprimer",
+    "newRoutine": "Nouvelle routine",
+    "newProcedure": "Nouvelle procédure",
+    "newFunction": "Nouvelle fonction",
+    "templateError": "Impossible de charger le modèle de routine : ",
+    "dropConfirmTitle": "Supprimer la routine",
+    "dropConfirmMessage": "Supprimer la routine \"{{name}}\" ? Cette action est irréversible.",
+    "dropSuccess": "Routine {{name}} supprimée",
+    "dropError": "Impossible de supprimer la routine : ",
+    "runTitle": "Exécuter {{name}}",
+    "runSubtitle": "Saisissez les valeurs des paramètres, puis vérifiez le SQL généré dans l'éditeur",
+    "loadingParameters": "Chargement des paramètres…",
+    "noParameters": "Cette routine n'a aucun paramètre. Le script d'invocation s'ouvrira dans l'éditeur.",
+    "outputParameter": "Paramètre de sortie — renvoyé comme résultat",
+    "rawLabel": "Brut",
+    "rawHint": "Insère la valeur telle quelle, sans guillemets de chaîne (nombres, expressions)",
+    "runButton": "Exécuter",
+    "runTabPrefix": "Exécuter",
+    "returnValue": "retourne"
+  },
+  "pagination": {
+    "firstPage": "Première page",
+    "previousPage": "Page précédente",
+    "nextPage": "Page suivante",
+    "lastPage": "Dernière page"
+  },
+  "miniGrid": {
+    "runningQuery": "Exécution de la requête...",
+    "copyAll": "Tout copier"
   }
 }

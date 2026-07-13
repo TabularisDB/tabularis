@@ -6,6 +6,7 @@ import {
   isLongTextCellTarget,
   isLongTextValue,
   isTextColumn,
+  supportsEmptyString,
   truncateCellPreview,
 } from "../../src/utils/text";
 
@@ -46,6 +47,31 @@ describe("text", () => {
     it("returns false for missing or empty type", () => {
       expect(isTextColumn(undefined)).toBe(false);
       expect(isTextColumn("")).toBe(false);
+    });
+  });
+
+  describe("supportsEmptyString", () => {
+    it("returns true for textual columns", () => {
+      expect(supportsEmptyString("TEXT")).toBe(true);
+      expect(supportsEmptyString("varchar(255)")).toBe(true);
+      expect(supportsEmptyString("character varying")).toBe(true);
+      expect(supportsEmptyString("CHAR(36)")).toBe(true);
+    });
+
+    it("returns false for strongly-typed columns that reject ''", () => {
+      expect(supportsEmptyString("uuid")).toBe(false);
+      expect(supportsEmptyString("integer")).toBe(false);
+      expect(supportsEmptyString("numeric")).toBe(false);
+      expect(supportsEmptyString("boolean")).toBe(false);
+      expect(supportsEmptyString("timestamp")).toBe(false);
+      expect(supportsEmptyString("date")).toBe(false);
+      expect(supportsEmptyString("json")).toBe(false);
+      expect(supportsEmptyString("jsonb")).toBe(false);
+    });
+
+    it("stays permissive when the type is unknown", () => {
+      expect(supportsEmptyString(undefined)).toBe(true);
+      expect(supportsEmptyString("")).toBe(true);
     });
   });
 

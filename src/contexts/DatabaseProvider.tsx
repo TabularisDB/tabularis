@@ -54,6 +54,10 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const [connections, setConnections] = useState<SavedConnection[]>([]);
   const [connectionGroups, setConnectionGroups] = useState<ConnectionGroup[]>([]);
   const [isLoadingConnections, setIsLoadingConnections] = useState(false);
+  // Connection ids open anywhere in the app (shared backend, all windows).
+  // Kept in sync via the `connections:active-changed` broadcast so each window
+  // can show accurate cross-window connection status.
+  const [globallyOpenConnectionIds, setGloballyOpenConnectionIds] = useState<string[]>([]);
 
   // Refs used in the plugin-disable effect to avoid stale closures
   const openConnectionIdsRef = useRef(openConnectionIds);
@@ -733,6 +737,25 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const detachConnection = useCallback((connectionId: string) => {
+    clearAutocompleteCache(connectionId);
+
+    setOpenConnectionIds(prev => prev.filter(id => id !== connectionId));
+    setConnectionDataMap(prev => {
+      const newMap = { ...prev };
+      delete newMap[connectionId];
+      return newMap;
+    });
+
+    setActiveConnectionId(prev => {
+      if (prev !== connectionId) return prev;
+      const remaining = openConnectionIds.filter(id => id !== connectionId);
+      if (remaining.length > 0) return remaining[0];
+      setActiveTable(null);
+      return null;
+    });
+  }, [openConnectionIds]);
+
   const switchConnection = useCallback((connectionId: string) => {
     if (openConnectionIds.includes(connectionId)) {
       setActiveConnectionId(connectionId);
@@ -768,6 +791,14 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const isConnectionOpen = useCallback((connectionId: string): boolean => {
     return openConnectionIds.includes(connectionId);
   }, [openConnectionIds]);
+
+  // True when the connection is open in ANY window (this one or another), based
+  // on the shared backend registry. Falls back to local state so a just-opened
+  // connection reflects immediately, before the broadcast round-trips.
+  const isConnectionOpenAnywhere = useCallback((connectionId: string): boolean => {
+    return openConnectionIds.includes(connectionId)
+      || globallyOpenConnectionIds.includes(connectionId);
+  }, [openConnectionIds, globallyOpenConnectionIds]);
 
   // Auto-disconnect open connections when their plugin is disabled
   useEffect(() => {
@@ -835,10 +866,48 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     return () => { unlisten.then(fn => fn()); };
   }, []);
 
+  // Track the set of connections open anywhere (across all windows). Seed from
+  // the backend snapshot, then keep in sync via the broadcast event.
+  useEffect(() => {
+    invoke<string[]>('get_active_connections')
+      .then(setGloballyOpenConnectionIds)
+      .catch(() => {});
+    const unlisten = listen<string[]>('connections:active-changed', (event) => {
+      setGloballyOpenConnectionIds(event.payload);
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
+
   // Connection Group methods
-  const createGroup = useCallback(async (name: string): Promise<ConnectionGroup> => {
-    const group = await invoke<ConnectionGroup>('create_connection_group', { name });
+  const createGroup = useCallback(async (
+    name: string,
+    parentId?: string | null
+  ): Promise<ConnectionGroup> => {
+    // The Tauri command expects `parent_id: Option<String>`. Passing
+    // `null` directly is fine — Tauri serialises it as `null` in JSON
+    // and the Rust deserializer maps it to `None`. Passing `undefined`
+    // would also work because serde's default attribute treats it the
+    // same, but we normalise to `null` for explicitness.
+    const group = await invoke<ConnectionGroup>('create_connection_group', {
+      name,
+      parentId: parentId ?? null,
+    });
     setConnectionGroups(prev => [...prev, group]);
+    return group;
+  }, []);
+
+  const createGroupPath = useCallback(async (
+    path: string,
+    parentId?: string | null
+  ): Promise<ConnectionGroup> => {
+    const group = await invoke<ConnectionGroup>('create_group_path', {
+      path,
+      parentId: parentId ?? null,
+    });
+    // Re-fetch the full group list because the backend may have reused
+    // existing segments and created new ones we don't yet know about.
+    const fresh = await invoke<ConnectionGroup[]>('get_connection_groups');
+    setConnectionGroups(fresh);
     return group;
   }, []);
 
@@ -852,13 +921,27 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     );
   }, []);
 
-  const deleteGroup = useCallback(async (id: string): Promise<void> => {
-    await invoke('delete_connection_group', { id });
-    setConnectionGroups(prev => prev.filter(g => g.id !== id));
-    // Update connections that were in this group
-    setConnections(prev =>
-      prev.map(c => (c.group_id === id ? { ...c, group_id: undefined } : c))
+  const moveGroupToParent = useCallback(async (
+    id: string,
+    parentId: string | null
+  ): Promise<void> => {
+    await invoke('move_group_to_parent', { id, parentId });
+    setConnectionGroups(prev =>
+      prev.map(g => (g.id === id ? { ...g, parent_id: parentId } : g))
     );
+  }, []);
+
+  const deleteGroup = useCallback(async (id: string): Promise<void> => {
+    // The backend cascade-deletes the target group, every nested child
+    // group, and all connections belonging to any group in that subtree.
+    // Re-load from the backend instead of mirroring the cascade in
+    // optimistic state — this keeps the optimistic update trivial and
+    // guarantees the UI matches the persisted file even if the cascade
+    // behaviour evolves.
+    await invoke('delete_connection_group', { id });
+    const fresh = await invoke<ConnectionsFile>('get_connections_with_groups');
+    setConnections(fresh.connections);
+    setConnectionGroups(fresh.groups);
   }, []);
 
   const moveConnectionToGroup = useCallback(async (
@@ -937,6 +1020,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       isLoadingConnections,
       connect,
       disconnect,
+      detachConnection,
       switchConnection,
       setActiveTable: setActiveTableWithSchema,
       refreshTables,
@@ -951,8 +1035,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       setSelectedDatabases,
       getConnectionData,
       isConnectionOpen,
+      isConnectionOpenAnywhere,
+      globallyOpenConnectionIds,
       createGroup,
+      createGroupPath,
       updateGroup,
+      moveGroupToParent,
       deleteGroup,
       moveConnectionToGroup,
       reorderGroups,

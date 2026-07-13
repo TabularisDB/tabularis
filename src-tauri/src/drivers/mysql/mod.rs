@@ -4,6 +4,7 @@ pub mod types;
 
 mod explain;
 mod helpers;
+mod routines;
 mod stmt_classify;
 
 #[cfg(test)]
@@ -1089,11 +1090,15 @@ pub async fn get_routine_parameters(
         }
     }
 
-    // 2. Get parameters
+    // 2. Get parameters. Position 0 is the function's return value, which
+    // MySQL also exposes here (NULL name / NULL mode) — step 1 already
+    // reported it from information_schema.routines, so skip it to avoid a
+    // duplicated return-value row.
     let query = r#"
             SELECT parameter_name, data_type, parameter_mode, ordinal_position
             FROM information_schema.parameters
             WHERE specific_schema = ? AND specific_name = ?
+              AND ordinal_position >= 1
             ORDER BY ordinal_position
         "#;
 
@@ -1482,6 +1487,7 @@ impl MysqlDriver {
                     views: true,
                     materialized_views: false,
                     routines: true,
+                    routine_management: true,
                     file_based: false,
                     folder_based: false,
                     connection_string: true,
@@ -1813,6 +1819,53 @@ impl DatabaseDriver for MysqlDriver {
         schema: Option<&str>,
     ) -> Result<String, String> {
         get_trigger_definition(params, trigger_name, schema).await
+    }
+
+    async fn build_routine_call_sql(
+        &self,
+        _params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        args: &[crate::models::RoutineCallArg],
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        Ok(routines::routine_call_sql(routine_name, routine_type, args))
+    }
+
+    async fn routine_create_template(
+        &self,
+        routine_type: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        Ok(routines::routine_create_template(routine_type))
+    }
+
+    async fn get_routine_edit_script(
+        &self,
+        params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        _schema: Option<&str>,
+    ) -> Result<String, String> {
+        let definition = get_routine_definition(params, routine_name, routine_type).await?;
+        Ok(routines::routine_edit_script(
+            routine_name,
+            routine_type,
+            &definition,
+        ))
+    }
+
+    async fn drop_routine(
+        &self,
+        params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        let sql = routines::drop_routine_sql(routine_name, routine_type);
+        execute_query(params, &sql, None, 1, schema)
+            .await
+            .map(|_| ())
     }
 
     async fn create_trigger(
