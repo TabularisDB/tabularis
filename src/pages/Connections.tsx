@@ -124,6 +124,7 @@ export const Connections = () => {
     onConfirm: () => void;
   } | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportSelectionOnly, setExportSelectionOnly] = useState(false);
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
   const isRenameCancelledRef = useRef(false);
@@ -312,6 +313,10 @@ export const Connections = () => {
     try {
       const payload = await invoke("export_connections_payload", {
         includeSecrets: mode !== "noSecrets",
+        connectionIds:
+          exportSelectionOnly && selectedIds.size > 0
+            ? [...selectedIds]
+            : null,
       });
       const fileContent =
         mode === "encrypted"
@@ -949,6 +954,16 @@ export const Connections = () => {
           </span>
           <div className="flex-1" />
           <button
+            onClick={() => {
+              setExportSelectionOnly(true);
+              setIsExportModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-blue-400 hover:border-blue-500/50 transition-colors"
+          >
+            <Download size={14} />
+            {t("connections.exportSelected")}
+          </button>
+          <button
             onClick={(e) => {
               const r = e.currentTarget.getBoundingClientRect();
               setBulkMoveMenu({ x: r.left, y: r.bottom + 4 });
@@ -1094,7 +1109,10 @@ export const Connections = () => {
               {/* Export button (import lives in the New Connection dropup) */}
               <div className="flex items-center gap-1.5 px-1 py-1 bg-elevated border border-strong rounded-xl shrink-0">
                 <button
-                  onClick={() => setIsExportModalOpen(true)}
+                  onClick={() => {
+                    setExportSelectionOnly(false);
+                    setIsExportModalOpen(true);
+                  }}
                   className="p-1.5 rounded-lg text-muted hover:text-blue-400 hover:bg-blue-500/10 transition-all duration-150"
                   title={t("connections.export")}
                 >
@@ -1231,6 +1249,7 @@ export const Connections = () => {
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         onExport={handleExport}
+        selectedCount={exportSelectionOnly ? selectedIds.size : 0}
       />
       <ImportFromAppModal
         isOpen={isImportAppModalOpen}

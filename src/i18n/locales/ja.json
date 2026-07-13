@@ -275,6 +275,7 @@
     "selectedCount": "{{count}} 件選択中",
     "deleteSelected": "選択項目を削除",
     "moveSelected": "グループに移動",
+    "exportSelected": "選択をエクスポート",
     "deselectAll": "選択を解除",
     "confirmDeleteSelected": "選択した {{count}} 件の接続を削除してもよろしいですか？",
     "deleteSelectedTitle": "選択した接続を削除",
@@ -285,6 +286,7 @@
     "exportModal": {
       "title": "接続をエクスポート",
       "subtitle": "接続のエクスポート方法を選択してください",
+      "subtitleSelected": "選択した{{count}}件の接続をエクスポート",
       "encrypted": "パスワードで暗号化",
       "encryptedDesc": "すべての接続とパスワードが含まれ、任意のパスワードで保護されます。バックアップに推奨。",
       "noSecrets": "平文（パスワードなし）",

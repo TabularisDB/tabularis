@@ -282,6 +282,7 @@
     "selectedCount": "{{count}} seleccionadas",
     "deleteSelected": "Eliminar seleccionadas",
     "moveSelected": "Mover a grupo",
+    "exportSelected": "Exportar selección",
     "deselectAll": "Deseleccionar todo",
     "confirmDeleteSelected": "¿Seguro que quieres eliminar {{count}} conexiones seleccionadas?",
     "deleteSelectedTitle": "Eliminar conexiones seleccionadas",
@@ -292,6 +293,7 @@
     "exportModal": {
       "title": "Exportar conexiones",
       "subtitle": "Elige cómo exportar tus conexiones",
+      "subtitleSelected": "Exportar {{count}} conexión(es) seleccionada(s)",
       "encrypted": "Cifrado con contraseña",
       "encryptedDesc": "Se incluyen todas las conexiones y contraseñas, protegidas con una contraseña de tu elección. Recomendado para copias de seguridad.",
       "noSecrets": "En texto plano, sin contraseñas",

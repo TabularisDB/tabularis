@@ -261,6 +261,7 @@
     "selectedCount": "已选择 {{count}} 个",
     "deleteSelected": "删除所选",
     "moveSelected": "移动到分组",
+    "exportSelected": "导出所选",
     "deselectAll": "取消选择",
     "confirmDeleteSelected": "确定要删除选中的 {{count}} 个连接吗？",
     "deleteSelectedTitle": "删除所选连接",
@@ -271,6 +272,7 @@
     "exportModal": {
       "title": "导出连接",
       "subtitle": "选择导出连接的方式",
+      "subtitleSelected": "导出 {{count}} 个所选连接",
       "encrypted": "使用密码加密",
       "encryptedDesc": "包含所有连接和密码，并使用您选择的密码加以保护。推荐用于备份。",
       "noSecrets": "明文，不含密码",
