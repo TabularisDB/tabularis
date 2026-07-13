@@ -21,6 +21,8 @@ interface ConfirmModalProps {
    * message before confirming a destructive action.
    */
   confirmDelaySeconds?: number;
+  /** Forwarded to the underlying Modal, e.g. to raise z-index above another modal. */
+  overlayClassName?: string;
 }
 
 export const ConfirmModal = ({
@@ -34,6 +36,7 @@ export const ConfirmModal = ({
   onConfirm,
   variant = "danger",
   confirmDelaySeconds,
+  overlayClassName,
 }: ConfirmModalProps) => {
   const { t } = useTranslation();
   const [remaining, setRemaining] = useState(confirmDelaySeconds ?? 0);
@@ -77,7 +80,7 @@ export const ConfirmModal = ({
   const currentVariant = variantStyles[variant];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={onClose} overlayClassName={overlayClassName}>
       <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[480px] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">

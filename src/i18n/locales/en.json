@@ -37,7 +37,13 @@
     "noResults": "No results found",
     "error": "Error",
     "success": "Success",
-    "ok": "OK"
+    "ok": "OK",
+    "continue": "Continue",
+    "back": "Back",
+    "copy": "Copy",
+    "showDetails": "Show details",
+    "hideDetails": "Hide details",
+    "beta": "Beta"
   },
   "sidebar": {
     "connections": "Connections",
@@ -269,7 +275,40 @@
     "export": "Export Connections",
     "import": "Import Connections",
     "exportTitle": "Export Connections",
-    "exportWarning": "The exported file will contain your database and SSH passwords in plaintext. Please store it securely."
+    "exportWarning": "The exported file will contain your database and SSH passwords in plaintext. Please store it securely.",
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace"
+      },
+      "tabularisJsonHint": "Tabularis export file (.json)",
+      "menuLabel": "Import connections…",
+      "group": {
+        "label": "Group:",
+        "none": "No group",
+        "new": "New group…",
+        "newPlaceholder": "Group name",
+        "parentLabel": "in",
+        "parentNone": "Top level"
+      },
+      "betaNotice": "Import from App is in beta. If you run into a problem,",
+      "reportIssue": "report it on GitHub."
+    }
   },
   "connectionAppearance": {
     "section": "Appearance",
@@ -437,10 +476,9 @@
       "explainplanPromptDesc": "Customize instructions for AI analysis of EXPLAIN query plans. Use {{LANGUAGE}} for the output language.",
       "enterExplainplanPrompt": "Enter explain plan analysis prompt...",
       "keySaved": "API Key saved securely",
-      "promptSaved": "System prompt saved successfully",
+      "promptSaved": "Prompt saved",
       "explainPromptSaved": "Explain prompt saved successfully",
       "promptReset": "System prompt reset to default",
-      "explainPromptReset": "Explain prompt reset to default",
       "modelPlaceholder": "Select a model",
       "searchPlaceholder": "Search models...",
       "noResults": "No models found",
@@ -456,7 +494,9 @@
       "endpointUrlDesc": "The base URL of your OpenAI-compatible API. Examples: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "e.g., llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "Enter the model name provided by your OpenAI-compatible service.",
-      "customOpenaiModelHelp": "Enter the exact model name for your OpenAI-compatible provider."
+      "customOpenaiModelHelp": "Enter the exact model name for your OpenAI-compatible provider.",
+      "promptResetSuccess": "Prompt reset to default",
+      "apiKeySaved": "API key saved securely"
     },
     "updates": "Updates",
     "openSourceLibraries": "Open Source Libraries",
@@ -764,7 +804,10 @@
     "startupScriptDescription": "SQL run on every new connection to this data source. Use it for session settings such as SET / set_config (e.g. bypassing RLS). Separate statements with semicolons.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Scroll tabs left",
-    "scrollTabsRight": "Scroll tabs right"
+    "scrollTabsRight": "Scroll tabs right",
+    "useIamAuth": "Use AWS IAM Authentication (RDS)",
+    "useIamAuthHint": "The password field is treated as an RDS auth token (from `aws rds generate-db-auth-token`). Requires TLS. Tokens expire every 15 minutes.",
+    "useIamAuthTlsRequired": "Enable an SSL mode above to use AWS IAM authentication."
   },
   "sshConnections": {
     "title": "SSH Connections",
@@ -787,7 +830,10 @@
     "keyFile": "Key file",
     "quickTest": "Quick connection test",
     "testFailed": "Connection test failed",
-    "savedInKeychain": "Password saved in system keychain"
+    "savedInKeychain": "Password saved in system keychain",
+    "manageDesc": "Reusable SSH tunnels for your database connections. Passwords and passphrases are stored in the system keychain.",
+    "deleteInUse_one": "It is used by {{count}} saved database connection, which will no longer connect through this tunnel.",
+    "deleteInUse_other": "It is used by {{count}} saved database connections, which will no longer connect through this tunnel."
   },
   "sshAskpass": {
     "title": "SSH Authentication",
@@ -1523,7 +1569,8 @@
     "createFirst": "Create your first group to organize connections",
     "groupName": "Group name",
     "dragHint": "Drag connections here",
-    "createError": "Failed to create group"
+    "createError": "Failed to create group",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "Database",
@@ -1575,7 +1622,8 @@
     "targetColumn": "Target column",
     "targetColumnPlaceholder": "Choose target...",
     "skipColumn": "Skip (do not import)",
-    "createNewColumn": "Create new column"
+    "createNewColumn": "Create new column",
+    "typePlaceholder": "Type"
   },
   "aiActivity": {
     "title": "AI Activity",
@@ -1725,5 +1773,15 @@
     "runButton": "Run",
     "runTabPrefix": "Run",
     "returnValue": "returns"
+  },
+  "pagination": {
+    "firstPage": "First page",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "lastPage": "Last page"
+  },
+  "miniGrid": {
+    "runningQuery": "Running query...",
+    "copyAll": "Copy all"
   }
 }
