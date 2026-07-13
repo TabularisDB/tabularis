@@ -38,7 +38,12 @@
     "error": "Fehler",
     "success": "Erfolg",
     "ok": "OK",
-    "copy": "Kopieren"
+    "continue": "Weiter",
+    "back": "Zurück",
+    "copy": "Kopieren",
+    "showDetails": "Details anzeigen",
+    "hideDetails": "Details ausblenden",
+    "beta": "Beta"
   },
   "sidebar": {
     "connections": "Verbindungen",
@@ -256,6 +261,7 @@
     "listView": "Listenansicht",
     "export": "Verbindungen exportieren",
     "import": "Verbindungen importieren",
+    "exportTitle": "Verbindungen exportieren",
     "exportWarning": "Die exportierte Datei enthält deine Datenbank- und SSH-Passwörter im Klartext. Bewahre sie sicher auf.",
     "exportModal": {
       "title": "Verbindungen exportieren",
@@ -277,6 +283,42 @@
       "subtitle": "Diese Datei ist mit einem Passwort geschützt",
       "password": "Passwort",
       "unlock": "Importieren"
+    },
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace",
+        "applyToAll": "Aktion für alle:"
+      },
+      "tabularisJsonHint": "Tabularis-Exportdatei (.json)",
+      "menuLabel": "Verbindungen importieren…",
+      "group": {
+        "label": "Gruppe:",
+        "none": "Keine Gruppe",
+        "new": "Neue Gruppe…",
+        "newPlaceholder": "Gruppenname",
+        "parentLabel": "in",
+        "parentNone": "Oberste Ebene",
+        "applyToAll": "Gruppe für alle:",
+        "keepPerConnection": "Pro Verbindung"
+      },
+      "betaNotice": "Der Import aus einer App befindet sich in der Beta-Phase. Falls ein Problem auftritt,",
+      "reportIssue": "melde es auf GitHub."
     }
   },
   "connectionAppearance": {
@@ -611,7 +653,9 @@
       "notebookRunAll": "Alle Zellen ausführen",
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Aus Zwischenablage importieren",
-      "quickNavigator": "Schnellnavigation"
+      "quickNavigator": "Schnellnavigation",
+      "triggerSuggestions": "Vorschläge anzeigen",
+      "refreshTable": "Tabelle aktualisieren"
     },
     "aiActivity": "KI-Aktivität"
   },
@@ -747,7 +791,10 @@
     "startupScriptDescription": "SQL, das bei jeder neuen Verbindung zu dieser Datenquelle ausgeführt wird. Verwenden Sie es für Sitzungseinstellungen wie SET / set_config (z. B. zum Umgehen von RLS). Trennen Sie Anweisungen mit Semikolons.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Registerkarten nach links blättern",
-    "scrollTabsRight": "Registerkarten nach rechts blättern"
+    "scrollTabsRight": "Registerkarten nach rechts blättern",
+    "useIamAuth": "AWS-IAM-Authentifizierung verwenden (RDS)",
+    "useIamAuthHint": "Das Passwortfeld wird als RDS-Auth-Token verwendet (aus `aws rds generate-db-auth-token`). Erfordert TLS. Tokens laufen alle 15 Minuten ab.",
+    "useIamAuthTlsRequired": "Aktiviere oben einen SSL-Modus, um die AWS-IAM-Authentifizierung zu nutzen."
   },
   "sshConnections": {
     "title": "SSH-Verbindungen",
@@ -1467,7 +1514,8 @@
     "createFirst": "Erstelle deine erste Gruppe, um Verbindungen zu organisieren",
     "groupName": "Gruppenname",
     "dragHint": "Verbindungen hierher ziehen",
-    "createError": "Erstellen der Gruppe fehlgeschlagen"
+    "createError": "Erstellen der Gruppe fehlgeschlagen",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "Datenbank",

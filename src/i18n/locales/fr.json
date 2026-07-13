@@ -38,7 +38,12 @@
     "error": "Erreur",
     "success": "Succès",
     "ok": "OK",
-    "copy": "Copier"
+    "continue": "Continuer",
+    "back": "Retour",
+    "copy": "Copier",
+    "showDetails": "Afficher les détails",
+    "hideDetails": "Masquer les détails",
+    "beta": "Bêta"
   },
   "sidebar": {
     "connections": "Connexions",
@@ -114,6 +119,19 @@
     "procedures": "Procédures",
     "noRoutines": "Aucune routine trouvée",
     "refreshRoutines": "Actualiser les routines",
+    "triggers": "Triggers",
+    "noTriggers": "Aucun trigger trouvé",
+    "filterTriggers": "Filtrer les triggers...",
+    "noTriggersMatch": "Aucun trigger ne correspond à votre filtre",
+    "createTrigger": "Créer un nouveau trigger",
+    "editTrigger": "Modifier le trigger",
+    "dropTrigger": "Supprimer le trigger",
+    "dropTriggerConfirm": "Êtes-vous sûr de vouloir supprimer le trigger « {{trigger}} » ?",
+    "viewTriggerDefinition": "Voir la définition",
+    "failDropTrigger": "Échec de la suppression du trigger : ",
+    "failGetTriggerDefinition": "Échec de la récupération de la définition du trigger : ",
+    "refreshTriggers": "Actualiser les triggers",
+    "onTable": "sur {{table}}",
     "objectSummary": "Objets",
     "databases": "Bases de données",
     "failGetRoutineDefinition": "Échec de récupération de la définition de la routine : ",
@@ -256,6 +274,7 @@
     "listView": "Vue liste",
     "export": "Exporter les connexions",
     "import": "Importer les connexions",
+    "exportTitle": "Exporter les connexions",
     "exportWarning": "Le fichier exporté contiendra vos mots de passe de base de données et SSH en clair. Conservez-le en lieu sûr.",
     "exportModal": {
       "title": "Exporter les connexions",
@@ -277,6 +296,42 @@
       "subtitle": "Ce fichier est protégé par un mot de passe",
       "password": "Mot de passe",
       "unlock": "Importer"
+    },
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace",
+        "applyToAll": "Action pour tout:"
+      },
+      "tabularisJsonHint": "Fichier d'export Tabularis (.json)",
+      "menuLabel": "Importer des connexions…",
+      "group": {
+        "label": "Groupe :",
+        "none": "Aucun groupe",
+        "new": "Nouveau groupe…",
+        "newPlaceholder": "Nom du groupe",
+        "parentLabel": "dans",
+        "parentNone": "Niveau racine",
+        "applyToAll": "Groupe pour tout:",
+        "keepPerConnection": "Par connexion"
+      },
+      "betaNotice": "L'import depuis une app est en bêta. En cas de problème,",
+      "reportIssue": "signalez-le sur GitHub."
     }
   },
   "connectionAppearance": {
@@ -292,6 +347,11 @@
       "emoji": "Emoji",
       "image": "Image"
     },
+    "previewLabel": "Aperçu",
+    "defaultHint": "Icône par défaut du driver utilisée.",
+    "emojiSelected": "Emoji sélectionné",
+    "emojiHint": "Cliquez sur un autre emoji ci-dessous pour changer.",
+    "removeEmoji": "Effacer",
     "chooseImage": "Choisir une image…",
     "removeImage": "Supprimer",
     "imageHint": "PNG, JPG, WebP ou SVG · max. 512 Ko",
@@ -337,6 +397,18 @@
     "fontSizeDesc": "Ajustez la taille de police de base utilisée dans toute l’application (10-20 px).",
     "preview": "Aperçu",
     "fontPreviewText": "Voix ambiguë d’un cœur qui au zéphyr préfère les jattes de kiwis",
+    "resultColors": {
+      "title": "Couleurs des résultats",
+      "enable": "Colorer les valeurs par type",
+      "enableDesc": "Colore les cellules des résultats de requête selon leur type de données.",
+      "number": "Nombre",
+      "string": "Texte",
+      "date": "Date / Heure",
+      "boolean": "Booléen",
+      "reset": "Réinitialiser au thème",
+      "confirm": "Confirmer",
+      "cancel": "Annuler"
+    },
     "appearance_general": "Général",
     "appearance_sqlEditor": "Éditeur SQL",
     "appearance_editorTheme": "Thème de l’éditeur",
@@ -366,6 +438,9 @@
     "language": "Langue",
     "languageDesc": "Choisissez votre langue préférée. \"Auto\" utilisera la langue de votre système.",
     "auto": "Auto (Système)",
+    "timezone": "Fuseau horaire",
+    "timezoneDesc": "Fuseau horaire utilisé pour afficher les horodatages et les exports. « Auto » suit le fuseau horaire de votre système.",
+    "timezoneSearch": "Rechercher un fuseau horaire...",
     "english": "Anglais",
     "italian": "Italien",
     "spanish": "Espagnol",
@@ -604,6 +679,7 @@
       "closeTab": "Fermer l’onglet",
       "nextPage": "Page suivante",
       "prevPage": "Page précédente",
+      "saveGridChanges": "Enregistrer les modifications en attente",
       "switchConnection": "Passer à la connexion 1-9",
       "resetToDefault": "Réinitialiser par défaut",
       "notOverridable": "Intégré, non personnalisable",
@@ -611,7 +687,9 @@
       "notebookRunAll": "Exécuter toutes les cellules",
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Importer depuis le Presse-papiers",
-      "quickNavigator": "Navigateur rapide"
+      "quickNavigator": "Navigateur rapide",
+      "triggerSuggestions": "Afficher les suggestions",
+      "refreshTable": "Actualiser la table"
     },
     "aiActivity": "Activité IA"
   },
@@ -747,7 +825,10 @@
     "startupScriptDescription": "SQL exécuté à chaque nouvelle connexion à cette source de données. Utilisez-le pour des paramètres de session tels que SET / set_config (par exemple, pour contourner la RLS). Séparez les instructions par des points-virgules.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Défiler les onglets vers la gauche",
-    "scrollTabsRight": "Défiler les onglets vers la droite"
+    "scrollTabsRight": "Défiler les onglets vers la droite",
+    "useIamAuth": "Utiliser l'authentification AWS IAM (RDS)",
+    "useIamAuthHint": "Le champ mot de passe est traité comme un jeton d'authentification RDS (généré par `aws rds generate-db-auth-token`). Nécessite TLS. Les jetons expirent toutes les 15 minutes.",
+    "useIamAuthTlsRequired": "Activez un mode SSL ci-dessus pour utiliser l'authentification AWS IAM."
   },
   "sshConnections": {
     "title": "Connexions SSH",
@@ -791,6 +872,8 @@
     "deleteTitle": "Supprimer la ligne",
     "updateFailed": "Échec de la mise à jour : ",
     "deleteFailed": "Échec de la suppression de la ligne : ",
+    "columnNotEditable": "La colonne « {{column}} » ne peut pas être modifiée — ce n'est pas une colonne directe de la table « {{table}} » (probablement un alias ou une valeur calculée).",
+    "pkRequiredToEdit": "Pour modifier ce résultat, incluez la colonne de clé primaire « {{pk}} » dans votre SELECT.",
     "null": "null",
     "sortByAsc": "Trier par {{col}} ASC",
     "sortByDesc": "Trier par {{col}} DESC",
@@ -843,26 +926,6 @@
     "auto": "Auto"
   },
   "editor": {
-    "quickNavigator": {
-      "placeholder": "Rechercher tables, vues, routines, triggers...",
-      "noResults": "Aucun élément correspondant trouvé",
-      "count_one": "1 élément",
-      "count_other": "{{count}} éléments",
-      "navigationHint": "↑↓ pour naviguer, Entrée pour ouvrir",
-      "escHint": "Échap pour fermer",
-      "type_table": "table",
-      "type_view": "vue",
-      "type_routine": "routine",
-      "type_trigger": "trigger",
-      "actions": {
-        "inspect": "Inspecter la structure",
-        "newConsole": "Nouvelle console",
-        "generateSql": "Générer des modèles SQL",
-        "countRows": "Compter les lignes",
-        "query": "Exécuter une requête SELECT",
-        "copyName": "Copier le nom"
-      }
-    },
     "noTabs": "Aucun onglet ouvert pour cette connexion.",
     "newConsole": "Nouvelle console",
     "noActiveSession": "Aucune session active. Veuillez sélectionner une connexion.",
@@ -883,6 +946,7 @@
     "loadRowCount": "Charger le nombre de lignes",
     "rowCount": "{{total}} lignes",
     "executePrompt": "Exécutez une requête pour voir les résultats",
+    "tableRunPrompt": "Appuyez sur Exécuter (Ctrl/Commande+F5) pour charger les données de la table",
     "results": {
       "minimize": "Réduire",
       "maximize": "Agrandir (masquer l’éditeur)",
@@ -892,7 +956,6 @@
       "detached": "Résultats détachés dans une fenêtre séparée",
       "reattach": "Rattacher"
     },
-    "tableRunPrompt": "Appuyez sur Exécuter (Ctrl/Commande+F5) pour charger les données de la table",
     "closeTab": "Fermer l’onglet",
     "closeOthers": "Fermer les autres onglets",
     "closeRight": "Fermer les onglets à droite",
@@ -927,6 +990,26 @@
       "tabs_one": "{{count}} onglet",
       "tabs_other": "{{count}} onglets",
       "escHint": "Esc pour fermer"
+    },
+    "quickNavigator": {
+      "placeholder": "Rechercher tables, vues, routines, triggers...",
+      "noResults": "Aucun élément correspondant trouvé",
+      "count_one": "1 élément",
+      "count_other": "{{count}} éléments",
+      "navigationHint": "↑↓ pour naviguer, Entrée pour ouvrir",
+      "escHint": "Échap pour fermer",
+      "type_table": "table",
+      "type_view": "vue",
+      "type_routine": "routine",
+      "type_trigger": "trigger",
+      "actions": {
+        "inspect": "Inspecter la structure",
+        "newConsole": "Nouvelle console",
+        "generateSql": "Générer des modèles SQL",
+        "countRows": "Compter les lignes",
+        "query": "Exécuter une requête SELECT",
+        "copyName": "Copier le nom"
+      }
     },
     "submitChanges": "Soumettre les modifications",
     "rollbackChanges": "Annuler les modifications",
@@ -1265,10 +1348,38 @@
     "createSuccess": "Vue créée avec succès",
     "alterSuccess": "Vue mise à jour avec succès",
     "saveError": "Échec de l’enregistrement de la vue : ",
+    "confirmAlter": "Voulez-vous vraiment modifier la vue \"{{view}}\" ?",
     "refreshSuccess": "Vue matérialisée \"{{view}}\" actualisée",
     "refreshError": "Échec de l’actualisation de la vue matérialisée : ",
-    "failGetDefinition": "Échec de la récupération de la définition : ",
-    "confirmAlter": "Voulez-vous vraiment modifier la vue \"{{view}}\" ?"
+    "failGetDefinition": "Échec de la récupération de la définition : "
+  },
+  "triggers": {
+    "createTrigger": "Créer un trigger",
+    "editTrigger": "Modifier le trigger",
+    "createSubtitle": "Créer un nouveau trigger de base de données",
+    "editSubtitle": "Modification du trigger : {{name}}",
+    "triggerName": "Nom du trigger",
+    "triggerNamePlaceholder": "ex. before_insert_user",
+    "tableName": "Nom de la table",
+    "tableNamePlaceholder": "ex. users",
+    "timing": "Moment",
+    "events": "Événements",
+    "body": "Corps du trigger (SQL)",
+    "sqlPreview": "Aperçu du SQL généré",
+    "rawSql": "SQL brut",
+    "guidedMode": "Guidé",
+    "rawSqlMode": "SQL brut",
+    "loading": "Chargement de la définition du trigger...",
+    "create": "Créer le trigger",
+    "save": "Enregistrer les modifications",
+    "sqlRequired": "Le SQL du trigger est requis",
+    "failLoadDefinition": "Échec du chargement de la définition du trigger : ",
+    "dropError": "Échec de la suppression du trigger existant : ",
+    "saveError": "Échec de l'enregistrement du trigger : ",
+    "createSuccess": "Trigger créé avec succès",
+    "updateSuccess": "Trigger mis à jour avec succès",
+    "recreateTrigger": "Recréer le trigger",
+    "confirmRecreate": "Modifier un trigger nécessite de le supprimer puis de le recréer. Continuer la modification de « {{trigger}} » ?"
   },
   "community": {
     "title": "Rejoindre la communauté",
@@ -1340,7 +1451,9 @@
     "copyPath": "Copier le chemin",
     "copyValue": "Copier la valeur",
     "addItem": "Ajouter un élément",
-    "removeItem": "Supprimer l'élément"
+    "removeItem": "Supprimer l'élément",
+    "diff": "Diff",
+    "sideBySide": "Côte à côte"
   },
   "jsonViewer": {
     "close": "Fermer",
@@ -1349,6 +1462,16 @@
   "jsonCell": {
     "expand": "Afficher/masquer l'arbre JSON",
     "openViewer": "Ouvrir le visualiseur JSON"
+  },
+  "textCell": {
+    "expand": "Basculer l'éditeur de texte intégré"
+  },
+  "textInput": {
+    "diff": "Diff",
+    "sideBySide": "Côte à côte"
+  },
+  "textViewer": {
+    "save": "Enregistrer"
   },
   "rowEditor": {
     "title": "Modifier la ligne",
@@ -1467,7 +1590,8 @@
     "createFirst": "Créez votre premier groupe pour organiser vos connexions",
     "groupName": "Nom du groupe",
     "dragHint": "Glissez les connexions ici",
-    "createError": "Échec de création du groupe"
+    "createError": "Échec de création du groupe",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "Base de données",

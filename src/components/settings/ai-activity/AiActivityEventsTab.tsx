@@ -204,6 +204,7 @@ function FiltersBar({
   const toolOptions = [
     "",
     "list_connections",
+    "list_databases",
     "list_tables",
     "describe_table",
     "run_query",

@@ -28,6 +28,8 @@ export interface Settings {
   resultColorByType?: boolean;
   /** Per-type hex color overrides for result cell values (keys: number, string, date, boolean). */
   resultTypeColors?: Record<string, string>;
+  /** Keep the result grid's column headers pinned to the top while scrolling. Default: true. */
+  stickyColumnHeaders?: boolean;
   aiEnabled: boolean;
   aiProvider: AiProvider | null;
   aiModel: string | null;
@@ -96,6 +98,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fontSize: 14,
   resultColorByType: false,
   resultTypeColors: {},
+  stickyColumnHeaders: true,
   aiEnabled: false,
   aiProvider: null,
   aiModel: null,

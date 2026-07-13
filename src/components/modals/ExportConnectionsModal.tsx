@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Download, Loader2, Lock, EyeOff, FileWarning } from "lucide-react";
+import { PasswordInput } from "../ui/PasswordInput";
 
 export type ExportMode = "encrypted" | "noSecrets" | "plaintext";
 
@@ -152,23 +153,21 @@ export const ExportConnectionsModal = ({
                 <label className="text-xs uppercase font-bold text-muted mb-1 block">
                   {t("connections.exportModal.password")}
                 </label>
-                <input
-                  type="password"
+                <PasswordInput
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none"
+                  onChange={setPassword}
                   autoFocus
+                  aria-label={t("connections.exportModal.password")}
                 />
               </div>
               <div>
                 <label className="text-xs uppercase font-bold text-muted mb-1 block">
                   {t("connections.exportModal.confirmPassword")}
                 </label>
-                <input
-                  type="password"
+                <PasswordInput
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none"
+                  onChange={setConfirmPassword}
+                  aria-label={t("connections.exportModal.confirmPassword")}
                 />
               </div>
             </div>
