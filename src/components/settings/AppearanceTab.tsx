@@ -107,6 +107,18 @@ export function AppearanceTab() {
             </div>
           </SettingSection>
 
+          <SettingSection title={t("settings.dataGrid.title")}>
+            <SettingRow
+              label={t("settings.dataGrid.stickyHeaders")}
+              description={t("settings.dataGrid.stickyHeadersDesc")}
+            >
+              <SettingToggle
+                checked={settings.stickyColumnHeaders ?? true}
+                onChange={(v) => updateSetting("stickyColumnHeaders", v)}
+              />
+            </SettingRow>
+          </SettingSection>
+
           <ResultColorsSection />
         </>
       )}
