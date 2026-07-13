@@ -174,7 +174,10 @@ impl WebdavClient {
             .filter(|u| !u.is_empty())
             .ok_or("WebDAV URL is not configured")?;
         Ok(Self {
-            http: reqwest::Client::new(),
+            http: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .map_err(|e| format!("Failed to build HTTP client: {e}"))?,
             base,
             username: config.backup_webdav_username.clone().unwrap_or_default(),
             password: get_webdav_password()?.ok_or("WebDAV password is not set")?,
