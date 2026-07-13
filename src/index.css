@@ -274,6 +274,7 @@ select,
 select option {
   background-color: var(--bg-input) !important;
   color: var(--text-primary) !important;
+  font-family: var(--font-base) !important;
 }
 
 select:focus,

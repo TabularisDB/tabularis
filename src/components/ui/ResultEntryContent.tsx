@@ -143,7 +143,7 @@ export function ResultEntryContent({
             )}
           </span>
           {entry.result.pagination?.has_more && (
-            <span className="px-2 py-0.5 bg-yellow-900/30 text-yellow-400 rounded text-[10px] font-semibold uppercase tracking-wide border border-yellow-500/30">
+            <span className="px-2 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50">
               {t("editor.autoPaginated")}
             </span>
           )}

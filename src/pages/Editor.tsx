@@ -42,7 +42,6 @@ import {
   XCircle,
   Trash2,
   Check,
-  Undo2,
   BookOpen,
   Pencil,
   Hash,
@@ -3528,7 +3527,7 @@ export const Editor = () => {
                       </span>
 
                       {activeTab.result.pagination?.has_more && (
-                        <span className="px-2 py-0.5 bg-yellow-900/30 text-yellow-400 rounded text-[10px] font-semibold uppercase tracking-wide border border-yellow-500/30">
+                        <span className="px-2 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50">
                           {t("editor.autoPaginated")}
                         </span>
                       )}
@@ -3781,38 +3780,40 @@ export const Editor = () => {
                     )}
 
                     {hasPendingChanges && (
-                      <div className="flex items-center gap-1 ml-2 border border-blue-900 bg-blue-900/20 rounded px-1 py-0.5">
-                        <label className="flex items-center gap-1.5 px-2 py-1 cursor-pointer select-none group">
+                      <div className="ml-auto flex items-center my-1 bg-surface-secondary/30 border border-default rounded-xl overflow-hidden cursor-pointer">
+                        <label className="flex items-center gap-2 px-4 py-2 cursor-pointer select-none group hover:bg-surface-secondary transition-colors">
                           <input
                             type="checkbox"
                             checked={applyToAll}
                             onChange={(e) => setApplyToAll(e.target.checked)}
-                            className="w-3.5 h-3.5 cursor-pointer accent-blue-500"
+                            className="w-4 h-4 cursor-pointer accent-primary"
                           />
-                          <span className="text-[10px] text-secondary group-hover:text-primary transition-colors">
+                          <span className="text-sm text-primary font-medium">
                             {t("editor.applyToAll")}
                           </span>
                         </label>
-                        <div className="w-[1px] h-4 bg-blue-900/50 mx-0.5"></div>
+                        <div className="w-px self-stretch bg-default"></div>
                         <button
                           onClick={handleSubmitChanges}
                           disabled={!applyToAll && !selectionHasPending}
-                          className="flex items-center gap-1.5 px-2 h-7 text-green-400 hover:bg-green-900/20 hover:text-green-300 rounded text-xs font-medium border border-transparent hover:border-green-900/50 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:border-transparent disabled:cursor-not-allowed"
+                          className="flex items-center gap-1.5 px-4 py-2 text-accent-success hover:bg-surface-secondary transition-colors text-sm font-medium disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
                           title={t("editor.submitChanges")}
                         >
-                          <Check size={14} />
+                          <Check size={15} />
                           <span>Submit</span>
                         </button>
+                        <div className="w-px self-stretch bg-default"></div>
                         <button
                           onClick={handleRollbackChanges}
                           disabled={!applyToAll && !selectionHasPending}
-                          className="flex items-center gap-1.5 px-2 h-7 text-secondary hover:bg-surface-secondary hover:text-primary rounded text-xs font-medium border border-transparent hover:border-strong transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:border-transparent disabled:cursor-not-allowed"
+                          className="flex items-center gap-1.5 px-4 py-2 text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-sm font-medium disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
                           title={t("editor.rollbackChanges")}
                         >
-                          <Undo2 size={14} />
+                          <ArrowLeftToLine size={15} />
                           <span>Rollback</span>
                         </button>
-                        <span className="text-[10px] text-blue-400 bg-blue-900/20 border border-blue-900/30 px-2 py-0.5 rounded-full font-medium select-none ml-2">
+                        <div className="w-px self-stretch bg-default"></div>
+                        <span className="px-4 py-2 text-sm font-medium text-accent-primary select-none hover:bg-surface-secondary transition-colors">
                           {Object.keys(activeTab.pendingChanges || {}).length +
                             Object.keys(activeTab.pendingDeletions || {})
                               .length +

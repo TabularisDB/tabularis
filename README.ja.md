@@ -18,7 +18,8 @@
   <a href="./README.fr.md">Français</a> |
   <a href="./README.de.md">Deutsch</a> |
   <a href="./README.ja.md">日本語</a> |
-  <a href="./README.ru.md">Русский</a>
+  <a href="./README.ru.md">Русский</a> |
+  <a href="./README.tl.md">Tagalog</a>
 </p>
 
 <p align="center">
@@ -59,7 +60,7 @@ sudo snap install tabularis                                      # Linux
 
 [![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis-0.13.1-1.x86_64.rpm)
 
-アプリの UI は英語、イタリア語、スペイン語、中国語（簡体字）、フランス語、ドイツ語、日本語、ロシア語に対応しています。
+アプリの UI は英語、イタリア語、スペイン語、中国語（簡体字）、フランス語、ドイツ語、日本語、ロシア語、タガログ語に対応しています。
 
 ## なぜ tabularis なのか？
 
@@ -226,7 +227,7 @@ yay -S tabularis-bin
 - `preferences/`
 - `connection-icons/`（接続アイコン用のカスタム画像）
 
-`config.json` の `language` フィールドは `auto`、`en`、`it`、`es`、`zh`、`fr`、`de` をサポートします。
+`config.json` の `language` フィールドは `auto`、`en`、`it`、`es`、`zh`、`fr`、`de`、`ja`、`ru`、`tl` をサポートします。
 
 ## AI
 

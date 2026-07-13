@@ -222,6 +222,7 @@ export function AiApprovalModal({
               onChange={(e) => setReason(e.target.value)}
               placeholder={t("aiApproval.reasonPlaceholder")}
               className="w-full px-3 py-2 bg-base border border-strong rounded-lg text-sm text-primary focus:outline-none focus:border-blue-500"
+              autoFocus
             />
           </section>
         </div>
