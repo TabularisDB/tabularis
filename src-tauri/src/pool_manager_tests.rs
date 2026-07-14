@@ -412,10 +412,12 @@ mod tests {
     // even though the same bundle validates fine with `openssl s_client`.
     //
     // `build_mysql_options` therefore escalates the mode to `VerifyCa`
-    // whenever a non-empty `ssl_ca` is supplied and the user has selected
-    // `Required` or `Preferred`. This mirrors the documented behaviour of
-    // `psql`'s `verify-ca` mode: supplying a CA file is itself an explicit
-    // opt-in to stricter validation.
+    // *only when* the connection uses IAM auth. For IAM the chain must be
+    // validated because the pre-signed RDS auth token only travels safely
+    // over a verified channel. For non-IAM connections, silently turning
+    // Required/Preferred into VerifyCa would break users whose CA bundle
+    // is partial or whose server chain the system trust store happens to
+    // know — `Required` already gives them an encrypted link.
 
     fn mysql_params_with_ca(ssl_mode: &str, ca_path: &str) -> ConnectionParams {
         let mut p = mysql_params(ssl_mode);
@@ -424,20 +426,60 @@ mod tests {
     }
 
     #[test]
-    fn mysql_options_escalates_required_to_verify_ca_when_ca_supplied() {
+    fn mysql_options_does_not_escalate_for_non_iam_with_ca() {
+        // Non-IAM connections with a CA set + Required must stay Required.
+        // Forcing VerifyCa on every CA-bearing connection is a silent
+        // regression: existing users whose bundle is incomplete or whose
+        // server chain only the OS trust store knows would lose a working
+        // connection.
         let params =
             mysql_params_with_ca("required", "/Users/dperez/.ssh/rds-combined-ca-bundle.pem");
         let opts = build_mysql_options(&params, None).expect("must build");
         assert!(
-            matches!(opts.get_ssl_mode(), MySqlSslMode::VerifyCa),
-            "required + ssl_ca must auto-escalate to VerifyCa so the bundle is used"
+            matches!(opts.get_ssl_mode(), MySqlSslMode::Required),
+            "non-IAM required + ssl_ca must stay Required; got: {:?}",
+            opts.get_ssl_mode()
         );
     }
 
     #[test]
-    fn mysql_options_escalates_preferred_to_verify_ca_when_ca_supplied() {
+    fn mysql_options_does_not_escalate_for_non_iam_with_ca_and_preferred() {
         let params =
             mysql_params_with_ca("preferred", "/Users/dperez/.ssh/rds-combined-ca-bundle.pem");
+        let opts = build_mysql_options(&params, None).expect("must build");
+        // Preferred is force-upgraded to Required for non-IAM only when
+        // tls-mode is being relaxed; here we keep the user's selection.
+        // (The IAM-specific Preferred -> Required upgrade lives in the
+        // IAM guard below; this test only covers the non-IAM path.)
+        assert!(
+            matches!(
+                opts.get_ssl_mode(),
+                MySqlSslMode::Preferred | MySqlSslMode::Required
+            ),
+            "non-IAM preferred + ssl_ca must not auto-escalate to VerifyCa; got: {:?}",
+            opts.get_ssl_mode()
+        );
+    }
+
+    #[test]
+    fn mysql_options_escalates_iam_required_with_ca_to_verify_ca() {
+        let mut params =
+            mysql_params_with_ca("required", "/Users/dperez/.ssh/rds-combined-ca-bundle.pem");
+        params.use_iam_auth = Some(true);
+        params.password = Some("fake-rds-auth-token".to_string());
+        let opts = build_mysql_options(&params, None).expect("must build");
+        assert!(matches!(opts.get_ssl_mode(), MySqlSslMode::VerifyCa));
+    }
+
+    #[test]
+    fn mysql_options_escalates_iam_preferred_with_ca_to_verify_ca() {
+        let mut params =
+            mysql_params_with_ca("preferred", "/Users/dperez/.ssh/rds-combined-ca-bundle.pem");
+        params.use_iam_auth = Some(true);
+        params.password = Some("fake-rds-auth-token".to_string());
+        // Preferred is force-upgraded to Required first (for the TLS
+        // invariant), then the VerifyCa escalation kicks in. End state is
+        // VerifyCa.
         let opts = build_mysql_options(&params, None).expect("must build");
         assert!(matches!(opts.get_ssl_mode(), MySqlSslMode::VerifyCa));
     }

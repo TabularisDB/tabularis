@@ -192,7 +192,15 @@ pub(crate) fn build_mysql_options(
         "verify_identity" => MySqlSslMode::VerifyIdentity,
         _ => MySqlSslMode::Required,
     };
-    if has_user_ca
+    // Auto-escalate Required/Preferred + ssl_ca to VerifyCa only for IAM
+    // connections. For IAM the chain must be validated because the
+    // pre-signed RDS auth token only travels safely over a verified
+    // channel. For non-IAM connections Required/Preferred already give
+    // an encrypted link; silently turning that into VerifyCa would
+    // break users whose CA bundle is partial or whose server chain
+    // the system trust store happens to know.
+    if params.use_iam_auth.unwrap_or(false)
+        && has_user_ca
         && matches!(ssl_mode, MySqlSslMode::Required | MySqlSslMode::Preferred)
     {
         ssl_mode = MySqlSslMode::VerifyCa;
