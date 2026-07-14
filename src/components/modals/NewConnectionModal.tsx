@@ -1435,12 +1435,20 @@ export const NewConnectionModal = ({
           }
           onChange={(v) => {
             updateField("ssl_mode", v);
-            // Cleartext auth and RDS IAM must never go over an unencrypted
-            // link: both rely on a TLS-guaranteed channel to protect the
-            // password / pre-signed token.
-            if (driver === "mysql" && (v === "disabled" || v === "disable")) {
-              updateField("enable_cleartext_plugin", false);
-              updateField("use_iam_auth", false);
+            // Cleartext auth and RDS IAM must never go over a TLS-off
+            // connection. `Preferred` is also TLS-off for our purposes
+            // (opportunistic — the backend force-upgrades it to Required
+            // for IAM, but the UI must reflect what the user picked so
+            // the persisted value matches the visible checkbox).
+            if (driver === "mysql") {
+              const effectiveSslMode = v || "required";
+              const tlsOff = !["required", "verify_ca", "verify_identity"].includes(
+                effectiveSslMode,
+              );
+              if (tlsOff) {
+                updateField("enable_cleartext_plugin", false);
+                updateField("use_iam_auth", false);
+              }
             }
           }}
           searchable={false}
