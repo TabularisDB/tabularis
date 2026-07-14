@@ -272,10 +272,39 @@
     "noSearchResults": "No connections match \"{{query}}\"",
     "gridView": "Grid view",
     "listView": "List view",
+    "selectedCount": "{{count}} selected",
+    "deleteSelected": "Delete selected",
+    "moveSelected": "Move to group",
+    "exportSelected": "Export selected",
+    "deselectAll": "Deselect all",
+    "confirmDeleteSelected": "Are you sure you want to delete {{count}} selected connection(s)?",
+    "deleteSelectedTitle": "Delete selected connections",
     "export": "Export Connections",
     "import": "Import Connections",
     "exportTitle": "Export Connections",
     "exportWarning": "The exported file will contain your database and SSH passwords in plaintext. Please store it securely.",
+    "exportModal": {
+      "title": "Export Connections",
+      "subtitle": "Choose how to export your connections",
+      "subtitleSelected": "Export {{count}} selected connection(s)",
+      "encrypted": "Encrypted with a password",
+      "encryptedDesc": "All connections and passwords are included, protected with a password of your choice. Recommended for backups.",
+      "noSecrets": "Plain text, without passwords",
+      "noSecretsDesc": "Connections are exported as readable JSON, but all passwords and passphrases are excluded. Recommended for sharing.",
+      "plaintext": "Plain text, with all passwords",
+      "plaintextDesc": "Connections and passwords are exported as readable JSON. Anyone with the file can read your credentials.",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "passwordRequired": "A password is required for an encrypted export.",
+      "passwordMismatch": "Passwords do not match.",
+      "export": "Export"
+    },
+    "importPasswordModal": {
+      "title": "Encrypted Export File",
+      "subtitle": "This file is protected with a password",
+      "password": "Password",
+      "unlock": "Import"
+    },
     "importFromApp": {
       "title": "Import from App",
       "subtitle": "Import connections from another installed SQL client",
@@ -294,7 +323,8 @@
       "action": {
         "import": "Import",
         "skip": "Skip",
-        "replace": "Replace"
+        "replace": "Replace",
+        "applyToAll": "Action for all:"
       },
       "tabularisJsonHint": "Tabularis export file (.json)",
       "menuLabel": "Import connections…",
@@ -304,7 +334,9 @@
         "new": "New group…",
         "newPlaceholder": "Group name",
         "parentLabel": "in",
-        "parentNone": "Top level"
+        "parentNone": "Top level",
+        "applyToAll": "Group for all:",
+        "keepPerConnection": "Per connection"
       },
       "betaNotice": "Import from App is in beta. If you run into a problem,",
       "reportIssue": "report it on GitHub."
@@ -856,6 +888,7 @@
     "columnNotEditable": "Column \"{{column}}\" can't be edited — it is not a direct column of table \"{{table}}\" (likely an alias or computed value).",
     "pkRequiredToEdit": "To edit this result, include the primary key column \"{{pk}}\" in your SELECT.",
     "null": "null",
+    "emptySet": "(empty set)",
     "sortByAsc": "Sort by {{col}} ASC",
     "sortByDesc": "Sort by {{col}} DESC",
     "clearSort": "Clear sort",

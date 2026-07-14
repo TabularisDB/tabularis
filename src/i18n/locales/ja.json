@@ -272,10 +272,39 @@
     "noSearchResults": "「{{query}}」に一致する接続はありません",
     "gridView": "グリッド表示",
     "listView": "リスト表示",
+    "selectedCount": "{{count}} 件選択中",
+    "deleteSelected": "選択項目を削除",
+    "moveSelected": "グループに移動",
+    "exportSelected": "選択をエクスポート",
+    "deselectAll": "選択を解除",
+    "confirmDeleteSelected": "選択した {{count}} 件の接続を削除してもよろしいですか？",
+    "deleteSelectedTitle": "選択した接続を削除",
     "export": "接続をエクスポート",
     "import": "接続をインポート",
     "exportTitle": "接続をエクスポート",
     "exportWarning": "エクスポートされたファイルには、データベースおよび SSH のパスワードが平文で含まれます。安全な場所に保管してください。",
+    "exportModal": {
+      "title": "接続をエクスポート",
+      "subtitle": "接続のエクスポート方法を選択してください",
+      "subtitleSelected": "選択した{{count}}件の接続をエクスポート",
+      "encrypted": "パスワードで暗号化",
+      "encryptedDesc": "すべての接続とパスワードが含まれ、任意のパスワードで保護されます。バックアップに推奨。",
+      "noSecrets": "平文（パスワードなし）",
+      "noSecretsDesc": "接続は読み取り可能なJSONとしてエクスポートされますが、パスワードとパスフレーズはすべて除外されます。共有に推奨。",
+      "plaintext": "平文（すべてのパスワードを含む）",
+      "plaintextDesc": "接続とパスワードが読み取り可能なJSONとしてエクスポートされます。ファイルを持つ誰もが認証情報を読めます。",
+      "password": "パスワード",
+      "confirmPassword": "パスワードの確認",
+      "passwordRequired": "暗号化エクスポートにはパスワードが必要です。",
+      "passwordMismatch": "パスワードが一致しません。",
+      "export": "エクスポート"
+    },
+    "importPasswordModal": {
+      "title": "暗号化されたエクスポートファイル",
+      "subtitle": "このファイルはパスワードで保護されています",
+      "password": "パスワード",
+      "unlock": "インポート"
+    },
     "importFromApp": {
       "title": "Import from App",
       "subtitle": "Import connections from another installed SQL client",
@@ -294,7 +323,8 @@
       "action": {
         "import": "Import",
         "skip": "Skip",
-        "replace": "Replace"
+        "replace": "Replace",
+        "applyToAll": "すべての操作:"
       },
       "tabularisJsonHint": "Tabularis エクスポートファイル (.json)",
       "menuLabel": "接続をインポート…",
@@ -304,7 +334,9 @@
         "new": "新規グループ…",
         "newPlaceholder": "グループ名",
         "parentLabel": "場所",
-        "parentNone": "トップレベル"
+        "parentNone": "トップレベル",
+        "applyToAll": "すべてのグループ:",
+        "keepPerConnection": "接続ごと"
       },
       "betaNotice": "アプリからのインポートはベータ版です。問題が発生した場合は、",
       "reportIssue": "GitHub で報告してください。"
@@ -827,6 +859,7 @@
     "updateFailed": "更新に失敗しました: ",
     "deleteFailed": "行の削除に失敗しました: ",
     "null": "null",
+    "emptySet": "（空のセット）",
     "sortByAsc": "{{col}} を昇順で並べ替え",
     "sortByDesc": "{{col}} を降順で並べ替え",
     "clearSort": "並べ替えを解除",

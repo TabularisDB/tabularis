@@ -275,10 +275,39 @@
     "noSearchResults": "Подключения по запросу \"{{query}}\" не найдены",
     "gridView": "Сетка",
     "listView": "Список",
+    "selectedCount": "Выбрано: {{count}}",
+    "deleteSelected": "Удалить выбранные",
+    "moveSelected": "Переместить в группу",
+    "exportSelected": "Экспортировать выбранные",
+    "deselectAll": "Снять выделение",
+    "confirmDeleteSelected": "Вы уверены, что хотите удалить {{count}} выбранных подключений?",
+    "deleteSelectedTitle": "Удалить выбранные подключения",
     "export": "Экспортировать подключения",
     "import": "Импортировать подключения",
     "exportTitle": "Экспорт подключений",
     "exportWarning": "Экспортируемый файл будет содержать пароли к базам данных и SSH в открытом виде. Храните его в надёжном месте!",
+    "exportModal": {
+      "title": "Экспорт подключений",
+      "subtitle": "Выберите способ экспорта подключений",
+      "subtitleSelected": "Экспортировать выбранные подключения: {{count}}",
+      "encrypted": "Зашифровано паролем",
+      "encryptedDesc": "Все подключения и пароли включены и защищены выбранным вами паролем. Рекомендуется для резервных копий.",
+      "noSecrets": "Открытым текстом, без паролей",
+      "noSecretsDesc": "Подключения экспортируются в читаемом JSON, но все пароли и парольные фразы исключаются. Рекомендуется для обмена.",
+      "plaintext": "Открытым текстом, со всеми паролями",
+      "plaintextDesc": "Подключения и пароли экспортируются в читаемом JSON. Любой, у кого есть файл, сможет прочитать ваши учётные данные.",
+      "password": "Пароль",
+      "confirmPassword": "Подтвердите пароль",
+      "passwordRequired": "Для зашифрованного экспорта требуется пароль.",
+      "passwordMismatch": "Пароли не совпадают.",
+      "export": "Экспортировать"
+    },
+    "importPasswordModal": {
+      "title": "Зашифрованный файл экспорта",
+      "subtitle": "Этот файл защищён паролем",
+      "password": "Пароль",
+      "unlock": "Импортировать"
+    },
     "importFromApp": {
       "title": "Import from App",
       "subtitle": "Import connections from another installed SQL client",
@@ -297,7 +326,8 @@
       "action": {
         "import": "Import",
         "skip": "Skip",
-        "replace": "Replace"
+        "replace": "Replace",
+        "applyToAll": "Действие для всех:"
       },
       "tabularisJsonHint": "Файл экспорта Tabularis (.json)",
       "menuLabel": "Импорт подключений…",
@@ -307,7 +337,9 @@
         "new": "Новая группа…",
         "newPlaceholder": "Название группы",
         "parentLabel": "в",
-        "parentNone": "Верхний уровень"
+        "parentNone": "Верхний уровень",
+        "applyToAll": "Группа для всех:",
+        "keepPerConnection": "Для каждого подключения"
       },
       "betaNotice": "Импорт из приложения находится в бета-версии. Если возникнет проблема,",
       "reportIssue": "сообщите о ней на GitHub."
@@ -813,6 +845,7 @@
     "updateFailed": "Ошибка обновления: ",
     "deleteFailed": "Не удалось удалить строку: ",
     "null": "null",
+    "emptySet": "(пустой набор)",
     "sortByAsc": "Сортировать по {{col}} ASC",
     "sortByDesc": "Сортировать по {{col}} DESC",
     "clearSort": "Сбросить сортировку",

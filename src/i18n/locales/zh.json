@@ -258,10 +258,39 @@
     "noSearchResults": "无匹配 \"{{query}}\" 的连接",
     "gridView": "网格视图",
     "listView": "列表视图",
+    "selectedCount": "已选择 {{count}} 个",
+    "deleteSelected": "删除所选",
+    "moveSelected": "移动到分组",
+    "exportSelected": "导出所选",
+    "deselectAll": "取消选择",
+    "confirmDeleteSelected": "确定要删除选中的 {{count}} 个连接吗？",
+    "deleteSelectedTitle": "删除所选连接",
     "export": "导出连接",
     "import": "导入连接",
     "exportTitle": "导出连接",
     "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。",
+    "exportModal": {
+      "title": "导出连接",
+      "subtitle": "选择导出连接的方式",
+      "subtitleSelected": "导出 {{count}} 个所选连接",
+      "encrypted": "使用密码加密",
+      "encryptedDesc": "包含所有连接和密码，并使用您选择的密码加以保护。推荐用于备份。",
+      "noSecrets": "明文，不含密码",
+      "noSecretsDesc": "连接以可读 JSON 导出，但排除所有密码和口令短语。推荐用于分享。",
+      "plaintext": "明文，包含所有密码",
+      "plaintextDesc": "连接和密码以可读 JSON 导出。拿到文件的任何人都能读取您的凭据。",
+      "password": "密码",
+      "confirmPassword": "确认密码",
+      "passwordRequired": "加密导出需要设置密码。",
+      "passwordMismatch": "两次输入的密码不一致。",
+      "export": "导出"
+    },
+    "importPasswordModal": {
+      "title": "加密的导出文件",
+      "subtitle": "此文件受密码保护",
+      "password": "密码",
+      "unlock": "导入"
+    },
     "importFromApp": {
       "title": "Import from App",
       "subtitle": "Import connections from another installed SQL client",
@@ -280,7 +309,8 @@
       "action": {
         "import": "Import",
         "skip": "Skip",
-        "replace": "Replace"
+        "replace": "Replace",
+        "applyToAll": "全部操作:"
       },
       "tabularisJsonHint": "Tabularis 导出文件 (.json)",
       "menuLabel": "导入连接…",
@@ -290,7 +320,9 @@
         "new": "新建分组…",
         "newPlaceholder": "分组名称",
         "parentLabel": "位于",
-        "parentNone": "顶层"
+        "parentNone": "顶层",
+        "applyToAll": "全部分组:",
+        "keepPerConnection": "按连接"
       },
       "betaNotice": "从应用导入功能处于测试阶段。如果遇到问题，",
       "reportIssue": "请在 GitHub 上反馈。"
@@ -782,6 +814,7 @@
     "updateFailed": "更新失败：",
     "deleteFailed": "删除行失败：",
     "null": "null",
+    "emptySet": "（空集）",
     "sortByAsc": "按 {{col}} 升序排序",
     "sortByDesc": "按 {{col}} 降序排序",
     "clearSort": "清除排序",

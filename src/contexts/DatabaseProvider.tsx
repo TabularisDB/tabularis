@@ -719,20 +719,29 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       console.error(`[DatabaseProvider] Failed to disconnect from ${targetId}:`, error);
     }
 
-    setOpenConnectionIds(prev => prev.filter(id => id !== targetId));
+    const remainingIds = openConnectionIds.filter(id => id !== targetId);
+
+    setOpenConnectionIds(remainingIds);
     setConnectionDataMap(prev => {
       const newMap = { ...prev };
       delete newMap[targetId];
       return newMap;
     });
 
+    // Persist the updated session immediately. A disconnect is an explicit user
+    // action, so we can't rely on the reactive persistence effect below (it skips
+    // the empty list to protect the startup state) — otherwise disconnecting the
+    // last connection would leave it in `last_open_connection_ids` and the app
+    // would auto-reconnect it (and restore its tabs) on next launch.
+    invoke('set_last_open_connections', { connectionIds: remainingIds }).catch(() => {});
+
     if (activeConnectionId === targetId) {
-      const remainingIds = openConnectionIds.filter(id => id !== targetId);
       if (remainingIds.length > 0) {
         setActiveConnectionId(remainingIds[0]);
       } else {
         setActiveConnectionId(null);
         setActiveTable(null);
+        invoke('set_last_active_connection', { connectionId: null }).catch(() => {});
       }
     }
   };

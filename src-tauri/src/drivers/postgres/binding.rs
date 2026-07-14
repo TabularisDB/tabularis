@@ -30,6 +30,10 @@ pub(super) struct BoundValue {
 
 pub(super) struct PgValueOptions<'a> {
     pub column_type: Option<&'a str>,
+    /// Schema-qualified, already-quoted enum type name (e.g. `"public"."plan_type"`)
+    /// when the target column is a PostgreSQL enum; `None` otherwise. Drives the
+    /// `CAST($N AS <enum>)` coercion in [`bind_pg_enum_string`] (#465).
+    pub enum_type: Option<&'a str>,
     pub max_blob_size: u64,
     pub allow_default: bool,
 }
@@ -360,6 +364,28 @@ pub(super) fn bind_pg_temporal_string(
     }))
 }
 
+/// Coerce a string value into a PostgreSQL enum column.
+///
+/// The data grid editor sends every edited cell as a JSON string, which binds as
+/// `TEXT`. PostgreSQL has no implicit text-to-enum assignment cast, so the server
+/// rejects the statement with SQLSTATE 42804 — `column "x" is of type <enum> but
+/// expression is of type text` (#465). Same two-part fix as the temporal/uuid
+/// coercions above: wrap the placeholder in `CAST($N AS <enum type>)` so the
+/// server converts through the enum's own input function, and pin the wire type
+/// to `TEXT` so tokio-postgres does not reject the bound `String` client-side.
+/// `qualified_enum` comes from `pg_catalog` and is quoted via
+/// `quote_qualified_type`, so it cannot be turned into a SQL-injection vector.
+pub(super) fn bind_pg_enum_string(
+    s: &str,
+    qualified_enum: &str,
+    placeholder_idx: usize,
+) -> BoundValue {
+    BoundValue {
+        sql: format!("CAST(${} AS {})", placeholder_idx, qualified_enum),
+        param: Some((Box::new(s.to_string()) as PgParam, Type::TEXT)),
+    }
+}
+
 fn bind_pg_string(
     s: &str,
     placeholder_idx: usize,
@@ -377,6 +403,13 @@ fn bind_pg_string(
             sql: format!("${}", placeholder_idx),
             param: Some((Box::new(bytes), Type::BYTEA)),
         });
+    }
+
+    // An enum column always coerces through its own type: any of the later
+    // shape-based heuristics (uuid-shaped, function-shaped, array-shaped
+    // strings) would misinterpret a label that merely looks like one of those.
+    if let Some(enum_type) = options.enum_type {
+        return Ok(bind_pg_enum_string(s, enum_type, placeholder_idx));
     }
 
     if let Some(binding) = options

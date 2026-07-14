@@ -279,10 +279,39 @@
     "noSearchResults": "Ninguna conexión coincide con \"{{query}}\"",
     "gridView": "Vista de cuadrícula",
     "listView": "Vista de lista",
+    "selectedCount": "{{count}} seleccionadas",
+    "deleteSelected": "Eliminar seleccionadas",
+    "moveSelected": "Mover a grupo",
+    "exportSelected": "Exportar selección",
+    "deselectAll": "Deseleccionar todo",
+    "confirmDeleteSelected": "¿Seguro que quieres eliminar {{count}} conexiones seleccionadas?",
+    "deleteSelectedTitle": "Eliminar conexiones seleccionadas",
     "export": "Exportar conexiones",
     "import": "Importar conexiones",
     "exportTitle": "Exportar conexiones",
     "exportWarning": "El archivo exportado contendrá tus contraseñas de base de datos y SSH en texto plano. Guárdalo de forma segura.",
+    "exportModal": {
+      "title": "Exportar conexiones",
+      "subtitle": "Elige cómo exportar tus conexiones",
+      "subtitleSelected": "Exportar {{count}} conexión(es) seleccionada(s)",
+      "encrypted": "Cifrado con contraseña",
+      "encryptedDesc": "Se incluyen todas las conexiones y contraseñas, protegidas con una contraseña de tu elección. Recomendado para copias de seguridad.",
+      "noSecrets": "En texto plano, sin contraseñas",
+      "noSecretsDesc": "Las conexiones se exportan como JSON legible, pero se excluyen todas las contraseñas y frases de paso. Recomendado para compartir.",
+      "plaintext": "En texto plano, con todas las contraseñas",
+      "plaintextDesc": "Las conexiones y contraseñas se exportan como JSON legible. Cualquiera con el archivo puede leer tus credenciales.",
+      "password": "Contraseña",
+      "confirmPassword": "Confirmar contraseña",
+      "passwordRequired": "Se requiere una contraseña para una exportación cifrada.",
+      "passwordMismatch": "Las contraseñas no coinciden.",
+      "export": "Exportar"
+    },
+    "importPasswordModal": {
+      "title": "Archivo de exportación cifrado",
+      "subtitle": "Este archivo está protegido con una contraseña",
+      "password": "Contraseña",
+      "unlock": "Importar"
+    },
     "importFromApp": {
       "title": "Import from App",
       "subtitle": "Import connections from another installed SQL client",
@@ -301,7 +330,8 @@
       "action": {
         "import": "Import",
         "skip": "Skip",
-        "replace": "Replace"
+        "replace": "Replace",
+        "applyToAll": "Acción para todas:"
       },
       "tabularisJsonHint": "Archivo de exportación de Tabularis (.json)",
       "menuLabel": "Importar conexiones…",
@@ -311,7 +341,9 @@
         "new": "Nuevo grupo…",
         "newPlaceholder": "Nombre del grupo",
         "parentLabel": "en",
-        "parentNone": "Nivel superior"
+        "parentNone": "Nivel superior",
+        "applyToAll": "Grupo para todas:",
+        "keepPerConnection": "Por conexión"
       },
       "betaNotice": "La importación desde otra app está en beta. Si tienes algún problema,",
       "reportIssue": "repórtalo en GitHub."
@@ -840,6 +872,7 @@
     "updateFailed": "Error en la actualización: ",
     "deleteFailed": "Error al eliminar la fila: ",
     "null": "null",
+    "emptySet": "(conjunto vacío)",
     "sortByAsc": "Ordenar por {{col}} ASC",
     "sortByDesc": "Ordenar por {{col}} DESC",
     "clearSort": "Quitar ordenamiento",
