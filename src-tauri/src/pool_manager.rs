@@ -782,11 +782,10 @@ async fn get_mysql_pool_for_database_with_id(
         params.host,
         key
     );
-    // sqlx-mysql's rustls backend (selected when sqlx is built with
-    // `tls-rustls` and not `tls-native-tls`) panics on the first handshake
-    // unless a process-level `CryptoProvider` has been installed. We share
-    // the same install-once helper the Postgres deadpool path uses.
-    ensure_rustls_crypto_provider();
+    // sqlx-mysql is built with `tls-native-tls` (not `tls-rustls`) so the OS
+    // trust store is used; a process-level rustls CryptoProvider is not
+    // required here. The Postgres deadpool path still installs one in
+    // build_postgres_configurations via the same helper.
     let options = build_mysql_options(params, override_db)?;
     let connect_timeout = Duration::from_millis(mysql_numeric_setting(
         "connectTimeout",
