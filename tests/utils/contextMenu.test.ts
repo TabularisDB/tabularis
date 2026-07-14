@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   calculateContextMenuPosition,
+  calculateSubmenuOffsetY,
   shouldPositionLeft,
   shouldPositionAbove,
   clamp,
@@ -303,6 +304,35 @@ describe('contextMenu utils', () => {
     it('should handle custom margins', () => {
       expect(shouldPositionAbove(500, 95, 600, 5)).toBe(false); // 500 + 95 = 595, 600 - 5 = 595
       expect(shouldPositionAbove(500, 96, 600, 5)).toBe(true); // 500 + 96 = 596 > 595
+    });
+  });
+
+  describe('calculateSubmenuOffsetY', () => {
+    it('returns 0 when the submenu fits below', () => {
+      expect(calculateSubmenuOffsetY(100, 200, 800)).toBe(0);
+    });
+
+    it('returns 0 when the submenu ends exactly at the margin', () => {
+      expect(calculateSubmenuOffsetY(590, 200, 800)).toBe(0);
+    });
+
+    it('shifts up by the bottom overflow', () => {
+      // bottom = 700 + 200 = 900, limit = 800 - 10 → overflow 110
+      expect(calculateSubmenuOffsetY(700, 200, 800)).toBe(-110);
+    });
+
+    it('never pushes the submenu top above the viewport margin', () => {
+      // Overflow is 210 but only 40px of shift is available above.
+      expect(calculateSubmenuOffsetY(50, 750, 600)).toBe(-40);
+    });
+
+    it('returns 0 when the submenu is taller than the viewport and already at the top', () => {
+      expect(calculateSubmenuOffsetY(10, 1000, 600)).toBe(0);
+    });
+
+    it('respects a custom margin', () => {
+      // bottom = 700 + 120 = 820, limit = 800 - 20 → overflow 40
+      expect(calculateSubmenuOffsetY(700, 120, 800, 20)).toBe(-40);
     });
   });
 

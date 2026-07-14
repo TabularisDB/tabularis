@@ -21,7 +21,10 @@ use binding::{PgValueOptions, bind_pg_value, build_pk_map_predicate};
 use client::{execute, execute_typed, format_pg_error, get_client, query_all, query_one, query_one_typed};
 pub use explain::explain_query;
 use extract::extract_value;
-use helpers::{escape_identifier, extract_base_type, is_implicit_cast_compatible};
+use helpers::{
+    enum_data_type, escape_identifier, extract_base_type, is_implicit_cast_compatible,
+    quote_qualified_type,
+};
 use tokio_postgres::types::{ToSql, Type};
 
 pub async fn get_schemas(params: &ConnectionParams) -> Result<Vec<String>, String> {
@@ -100,6 +103,11 @@ pub async fn get_columns(
             c.column_default::text,
             c.is_identity::text,
             c.character_maximum_length,
+            (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
+             FROM pg_enum e
+             JOIN pg_type t ON t.oid = e.enumtypid
+             JOIN pg_namespace tn ON tn.oid = t.typnamespace
+             WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
             (SELECT COUNT(*) FROM information_schema.table_constraints tc
              JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
              AND tc.table_schema = kcu.table_schema
@@ -141,9 +149,14 @@ pub async fn get_columns(
                 None
             };
 
+            let enum_values: Option<String> = r.try_get("enum_values").ok().flatten();
+
             TableColumn {
                 name: r.try_get("column_name").unwrap_or_default(),
-                data_type: r.try_get("data_type").unwrap_or_default(),
+                data_type: enum_data_type(
+                    r.try_get("data_type").unwrap_or_default(),
+                    enum_values,
+                ),
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
@@ -235,6 +248,11 @@ pub async fn get_all_columns_batch(
             c.column_default,
             c.is_identity,
             c.character_maximum_length,
+            (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
+             FROM pg_enum e
+             JOIN pg_type t ON t.oid = e.enumtypid
+             JOIN pg_namespace tn ON tn.oid = t.typnamespace
+             WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
             (SELECT COUNT(*) FROM information_schema.table_constraints tc
              JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
              AND tc.table_schema = kcu.table_schema
@@ -277,9 +295,11 @@ pub async fn get_all_columns_batch(
             None
         };
 
+        let enum_values: Option<String> = row.try_get("enum_values").ok().flatten();
+
         let column = TableColumn {
             name: row.try_get("column_name").unwrap_or_default(),
-            data_type: row.try_get("data_type").unwrap_or_default(),
+            data_type: enum_data_type(row.try_get("data_type").unwrap_or_default(), enum_values),
             is_pk,
             is_nullable: null_str == "YES",
             is_auto_increment: is_auto,
@@ -513,6 +533,48 @@ async fn get_pk_column_types(
     types
 }
 
+/// Map every enum-typed column of the table to its schema-qualified, quoted enum
+/// type name (e.g. `"public"."plan_type"`). PostgreSQL rejects a `TEXT`-bound
+/// parameter assigned to an enum column with SQLSTATE 42804 (#465), so the
+/// binding layer needs the real type to `CAST` through. On any catalog error the
+/// map is simply empty and binding falls back to the plain TEXT path.
+async fn get_enum_column_types(
+    pool: &deadpool_postgres::Pool,
+    schema: &str,
+    table: &str,
+) -> HashMap<String, String> {
+    let query = "SELECT a.attname::text AS column_name, \
+tn.nspname::text AS type_schema, t.typname::text AS type_name \
+FROM pg_attribute a \
+JOIN pg_class c ON c.oid = a.attrelid \
+JOIN pg_namespace n ON n.oid = c.relnamespace \
+JOIN pg_type t ON t.oid = a.atttypid \
+JOIN pg_namespace tn ON tn.oid = t.typnamespace \
+WHERE n.nspname = $1 AND c.relname = $2 \
+AND a.attnum > 0 AND NOT a.attisdropped AND t.typtype = 'e'";
+
+    match query_all(pool, query, &[&schema, &table]).await {
+        Ok(rows) => rows
+            .iter()
+            .filter_map(|row| {
+                let col: String = row.try_get("column_name").ok()?;
+                let type_schema: String = row.try_get("type_schema").ok()?;
+                let type_name: String = row.try_get("type_name").ok()?;
+                Some((col, quote_qualified_type(&type_schema, &type_name)))
+            })
+            .collect(),
+        Err(err) => {
+            log::debug!(
+                "Could not load PostgreSQL enum column types for {}.{}: {}",
+                schema,
+                table,
+                err
+            );
+            HashMap::new()
+        }
+    }
+}
+
 fn json_value_kind(value: &serde_json::Value) -> &'static str {
     match value {
         serde_json::Value::Null => "null",
@@ -613,6 +675,7 @@ pub async fn update_record(
             None
         }
     };
+    let enum_types = get_enum_column_types(&pool, schema, table).await;
     let new_val_for_context = new_val.clone();
     let pk_map_for_context = pk_map.clone();
 
@@ -631,6 +694,7 @@ pub async fn update_record(
         bound_params.len() + 1,
         PgValueOptions {
             column_type: column_data_type.as_deref(),
+            enum_type: enum_types.get(col_name).map(|s| s.as_str()),
             max_blob_size,
             allow_default: true,
         },
@@ -726,6 +790,8 @@ pub async fn insert_record(
             }
         };
 
+    let enum_types = get_enum_column_types(&pool, schema, table).await;
+
     let mut params: Vec<(Box<dyn ToSql + Sync + Send>, Type)> = Vec::with_capacity(entries.len());
     let mut vals_set: Vec<String> = Vec::with_capacity(entries.len());
 
@@ -736,6 +802,7 @@ pub async fn insert_record(
             params.len() + 1,
             PgValueOptions {
                 column_type,
+                enum_type: enum_types.get(&col_name).map(|s| s.as_str()),
                 max_blob_size,
                 allow_default: false,
             },
@@ -1103,6 +1170,11 @@ pub async fn get_view_columns(
             c.column_default,
             c.is_identity,
             c.character_maximum_length,
+            (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
+             FROM pg_enum e
+             JOIN pg_type t ON t.oid = e.enumtypid
+             JOIN pg_namespace tn ON tn.oid = t.typnamespace
+             WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
             (SELECT COUNT(*) FROM information_schema.table_constraints tc
              JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
              AND tc.table_schema = kcu.table_schema
@@ -1144,9 +1216,14 @@ pub async fn get_view_columns(
                 None
             };
 
+            let enum_values: Option<String> = r.try_get("enum_values").ok().flatten();
+
             TableColumn {
                 name: r.try_get("column_name").unwrap_or_default(),
-                data_type: r.try_get("data_type").unwrap_or_default(),
+                data_type: enum_data_type(
+                    r.try_get("data_type").unwrap_or_default(),
+                    enum_values,
+                ),
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,

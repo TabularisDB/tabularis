@@ -1,6 +1,10 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { calculateContextMenuPosition, type ViewportConstraints } from '../../utils/contextMenu';
+import {
+  calculateContextMenuPosition,
+  calculateSubmenuOffsetY,
+  type ViewportConstraints,
+} from '../../utils/contextMenu';
 
 export interface ContextMenuItem {
   label?: string;
@@ -97,6 +101,10 @@ const SubmenuRow = ({
   openLeft: boolean;
 }) => {
   const [open, setOpen] = useState(false);
+  // Vertical shift keeping the flyout inside the viewport when the row is
+  // near the bottom edge (measured right after the flyout mounts).
+  const [offsetY, setOffsetY] = useState(0);
+  const submenuRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cancelClose = () => {
@@ -107,10 +115,21 @@ const SubmenuRow = ({
   };
   const scheduleClose = () => {
     cancelClose();
-    closeTimer.current = setTimeout(() => setOpen(false), 120);
+    closeTimer.current = setTimeout(() => {
+      setOpen(false);
+      setOffsetY(0);
+    }, 120);
   };
 
   useEffect(() => () => cancelClose(), []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const el = submenuRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setOffsetY(calculateSubmenuOffsetY(rect.top, rect.height, window.innerHeight));
+  }, [open]);
 
   const Icon = item.icon;
   return (
@@ -139,8 +158,10 @@ const SubmenuRow = ({
 
       {open && !item.disabled && item.submenu && item.submenu.length > 0 && (
         <div
+          ref={submenuRef}
+          style={{ top: offsetY }}
           className={`
-            absolute top-0 z-50 min-w-[180px] max-h-[60vh] overflow-y-auto
+            absolute z-50 min-w-[180px] max-h-[60vh] overflow-y-auto
             bg-surface-secondary border border-strong rounded-lg shadow-xl py-1
             animate-in fade-in zoom-in-95 duration-100
             ${openLeft ? 'right-full mr-1 origin-top-right' : 'left-full ml-1 origin-top-left'}

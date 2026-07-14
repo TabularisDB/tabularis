@@ -220,7 +220,7 @@ async fn expand_k8s_params_for_mcp(
 }
 
 fn find_connection(conn_id: &str) -> Result<crate::models::SavedConnection, JsonRpcError> {
-    let config_path = paths::get_app_config_dir().join("connections.json");
+    let config_path = paths::resolve_connections_path(&paths::get_app_config_dir());
     let connections = persistence::load_connections(&config_path).map_err(|e| JsonRpcError {
         code: -32000,
         message: e,
@@ -432,7 +432,7 @@ fn handle_initialize(params: Option<Value>) -> Result<Value, JsonRpcError> {
 }
 
 async fn handle_list_resources() -> Result<Value, JsonRpcError> {
-    let config_path = paths::get_app_config_dir().join("connections.json");
+    let config_path = paths::resolve_connections_path(&paths::get_app_config_dir());
     let connections = persistence::load_connections(&config_path).map_err(|e| JsonRpcError {
         code: -32000,
         message: format!("Failed to load connections: {}", e),
@@ -478,7 +478,7 @@ async fn handle_read_resource(params: Option<Value>) -> Result<Value, JsonRpcErr
     })?;
 
     if uri == "tabularis://connections" {
-        let config_path = paths::get_app_config_dir().join("connections.json");
+        let config_path = paths::resolve_connections_path(&paths::get_app_config_dir());
         let connections =
             persistence::load_connections(&config_path).map_err(|e| JsonRpcError {
                 code: -32000,
@@ -764,7 +764,7 @@ fn require_args(
 }
 
 async fn tool_list_connections(_audit: &mut CallAudit) -> Result<Value, JsonRpcError> {
-    let config_path = paths::get_app_config_dir().join("connections.json");
+    let config_path = paths::resolve_connections_path(&paths::get_app_config_dir());
     let connections = persistence::load_connections(&config_path).map_err(|e| JsonRpcError {
         code: -32000,
         message: e,

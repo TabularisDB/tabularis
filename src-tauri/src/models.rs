@@ -24,6 +24,31 @@ pub fn collect_group_subtree(groups: &[ConnectionGroup], root_id: &str) -> HashS
     to_delete
 }
 
+/// Returns the set of group IDs consisting of `leaf_ids` and all their
+/// ancestors, walking `parent_id` pointers up to the roots. Unknown ids are
+/// ignored. Used to prune the group list when exporting a subset of
+/// connections without orphaning their group hierarchy.
+pub fn collect_group_ancestors<'a>(
+    groups: &[ConnectionGroup],
+    leaf_ids: impl IntoIterator<Item = &'a str>,
+) -> HashSet<String> {
+    let parents: HashMap<&str, Option<&str>> = groups
+        .iter()
+        .map(|g| (g.id.as_str(), g.parent_id.as_deref()))
+        .collect();
+    let mut kept: HashSet<String> = HashSet::new();
+    for leaf in leaf_ids {
+        let mut current = Some(leaf);
+        while let Some(id) = current {
+            if !parents.contains_key(id) || !kept.insert(id.to_string()) {
+                break;
+            }
+            current = parents.get(id).copied().flatten();
+        }
+    }
+    kept
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DatabaseSelection {
