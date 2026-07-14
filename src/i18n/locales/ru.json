@@ -695,7 +695,7 @@
       "webdavUsernameDesc": "Учётная запись для аутентификации на сервере WebDAV.",
       "webdavPassword": "Пароль WebDAV",
       "webdavPasswordDesc": "Хранится в системном хранилище ключей. Для Nextcloud лучше пароль приложения.",
-      "webdavSaved": "Настройки WebDAV сохранены.",
+      "webdavSaved": "Пароль WebDAV сохранён.",
       "mode": "Запуск резервного копирования",
       "modeDesc": "Когда записывается копия. Вручную — только кнопкой ниже.",
       "modeManual": "Вручную",

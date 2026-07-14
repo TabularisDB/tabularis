@@ -17,7 +17,7 @@ import {
 
 interface BackupStatus {
   passwordSet: boolean;
-  webdavPasswordSet: boolean;
+  targetPasswordSet: boolean;
   lastBackupAt: string | null;
 }
 
@@ -60,9 +60,11 @@ export function BackupTab() {
     }
   }, []);
 
+  // Status (stored credential, newest backup) is per target, so re-fetch it
+  // when the user switches the destination.
   useEffect(() => {
     void refreshStatus();
-  }, [refreshStatus]);
+  }, [refreshStatus, target]);
 
   const handlePickDirectory = async () => {
     const selected = await open({ multiple: false, directory: true });
@@ -86,17 +88,15 @@ export function BackupTab() {
     }
   };
 
-  const handleSaveWebdav = async () => {
+  const handleSaveWebdavPassword = async () => {
+    if (!webdavPassword) return;
     setSavingWebdav(true);
     try {
-      await updateSetting("backupWebdavUrl", webdavUrl.trim());
-      await updateSetting("backupWebdavUsername", webdavUsername.trim());
-      if (webdavPassword) {
-        await invoke("set_connections_backup_webdav_password", {
-          password: webdavPassword,
-        });
-        setWebdavPassword("");
-      }
+      await invoke("set_connections_backup_target_password", {
+        targetId: "webdav",
+        password: webdavPassword,
+      });
+      setWebdavPassword("");
       await refreshStatus();
       showAlert(t("settings.backup.webdavSaved"));
     } catch (e) {
@@ -122,7 +122,7 @@ export function BackupTab() {
   const configured =
     status?.passwordSet === true &&
     (target === "webdav"
-      ? Boolean(settings.backupWebdavUrl) && status?.webdavPasswordSet === true
+      ? Boolean(settings.backupWebdavUrl) && status?.targetPasswordSet === true
       : Boolean(settings.backupDirectory));
 
   return (
@@ -286,6 +286,9 @@ export function BackupTab() {
                 type="url"
                 value={webdavUrl}
                 onChange={(e) => setWebdavUrl(e.target.value)}
+                onBlur={() =>
+                  void updateSetting("backupWebdavUrl", webdavUrl.trim())
+                }
                 placeholder="https://cloud.example.com/remote.php/dav/files/user/backups"
                 spellCheck={false}
                 autoCorrect="off"
@@ -302,6 +305,12 @@ export function BackupTab() {
                 type="text"
                 value={webdavUsername}
                 onChange={(e) => setWebdavUsername(e.target.value)}
+                onBlur={() =>
+                  void updateSetting(
+                    "backupWebdavUsername",
+                    webdavUsername.trim(),
+                  )
+                }
                 spellCheck={false}
                 autoCorrect="off"
                 autoCapitalize="off"
@@ -312,7 +321,7 @@ export function BackupTab() {
             <SettingRow
               label={t("settings.backup.webdavPassword")}
               description={
-                status?.webdavPasswordSet
+                status?.targetPasswordSet
                   ? t("settings.backup.passwordSet")
                   : t("settings.backup.webdavPasswordDesc")
               }
@@ -326,8 +335,8 @@ export function BackupTab() {
                   />
                 </div>
                 <button
-                  onClick={() => void handleSaveWebdav()}
-                  disabled={savingWebdav}
+                  onClick={() => void handleSaveWebdavPassword()}
+                  disabled={savingWebdav || !webdavPassword}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm transition-colors"
                 >
                   {savingWebdav ? (

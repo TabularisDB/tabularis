@@ -1,10 +1,11 @@
 //! Automatic encrypted backups of the connections export.
 //!
 //! When enabled in the settings, a background loop periodically writes an
-//! encrypted connection export (same envelope as the manual export) into a
-//! user-chosen directory and prunes files beyond the retention count. The
-//! backup password lives in the OS keychain and never touches `config.json`;
-//! plaintext backups are deliberately not supported.
+//! encrypted connection export (same envelope as the manual export) to the
+//! configured [`BackupTarget`] (local directory or WebDAV) and prunes files
+//! beyond the retention count. Backup and target passwords live in the OS
+//! keychain and never touch `config.json`; plaintext backups are
+//! deliberately not supported.
 
 use chrono::NaiveDateTime;
 use keyring::Entry;
@@ -17,7 +18,6 @@ mod tests;
 
 const SERVICE_NAME: &str = "tabularis";
 const KEYCHAIN_USER: &str = "connections-backup";
-const KEYCHAIN_WEBDAV_USER: &str = "connections-backup-webdav";
 
 pub const FILE_PREFIX: &str = "tabularis-backup-";
 pub const FILE_SUFFIX: &str = ".json";
@@ -55,8 +55,15 @@ pub fn get_password() -> Result<Option<String>, String> {
     get_keychain(KEYCHAIN_USER)
 }
 
-pub fn get_webdav_password() -> Result<Option<String>, String> {
-    get_keychain(KEYCHAIN_WEBDAV_USER)
+/// Keychain entry name for a backup target's credential. Keyed by target id
+/// so every target brings its own secret; `webdav` maps to the entry name
+/// used before targets were generalized, so existing setups keep working.
+fn target_keychain_user(target_id: &str) -> String {
+    format!("{KEYCHAIN_USER}-{target_id}")
+}
+
+pub fn get_target_password(target_id: &str) -> Result<Option<String>, String> {
+    get_keychain(&target_keychain_user(target_id))
 }
 
 // ---------- Pure helpers (unit-tested in tests.rs) ----------
@@ -126,11 +133,70 @@ fn list_backup_names(dir: &PathBuf) -> Vec<String> {
         .unwrap_or_default()
 }
 
-pub fn newest_backup_timestamp(dir: &PathBuf) -> Option<NaiveDateTime> {
-    list_backup_names(dir)
-        .iter()
-        .filter_map(|n| parse_backup_timestamp(n))
-        .max()
+// ---------- Backup targets ----------
+
+/// A place backups are written to. Implementations only move opaque,
+/// already-encrypted blobs around; naming, rotation and scheduling stay in
+/// the host. Adding a new destination (another cloud provider, a plugin)
+/// means implementing these three operations plus [`Self::location`].
+#[async_trait::async_trait]
+trait BackupTarget: Send + Sync {
+    /// User-displayable location of the backup `name` on this target.
+    fn location(&self, name: &str) -> String;
+    async fn put(&self, name: &str, content: String) -> Result<(), String>;
+    /// File names present on the target. Foreign names are fine; callers
+    /// filter by the backup naming pattern.
+    async fn list(&self) -> Result<Vec<String>, String>;
+    async fn delete(&self, name: &str) -> Result<(), String>;
+}
+
+/// Builds the configured backup target. `"local"` is the default; unknown
+/// ids fall back to local so a config written by a newer version degrades
+/// gracefully instead of failing.
+fn target_from_config(
+    config: &crate::config::AppConfig,
+) -> Result<Box<dyn BackupTarget>, String> {
+    match backup_target(config).as_str() {
+        "webdav" => Ok(Box::new(WebdavTarget::from_config(config)?)),
+        _ => {
+            let dir = config
+                .backup_directory
+                .clone()
+                .filter(|d| !d.is_empty())
+                .ok_or("Backup directory is not configured")?;
+            Ok(Box::new(LocalDirectoryTarget {
+                dir: PathBuf::from(dir),
+            }))
+        }
+    }
+}
+
+// ---------- Local directory target ----------
+
+struct LocalDirectoryTarget {
+    dir: PathBuf,
+}
+
+#[async_trait::async_trait]
+impl BackupTarget for LocalDirectoryTarget {
+    fn location(&self, name: &str) -> String {
+        self.dir.join(name).display().to_string()
+    }
+
+    async fn put(&self, name: &str, content: String) -> Result<(), String> {
+        fs::create_dir_all(&self.dir)
+            .map_err(|e| format!("Cannot create backup directory: {e}"))?;
+        fs::write(self.dir.join(name), content)
+            .map_err(|e| format!("Cannot write backup file: {e}"))
+    }
+
+    async fn list(&self) -> Result<Vec<String>, String> {
+        Ok(list_backup_names(&self.dir))
+    }
+
+    async fn delete(&self, name: &str) -> Result<(), String> {
+        fs::remove_file(self.dir.join(name)).map_err(|e| e.to_string())
+    }
 }
 
 // ---------- WebDAV target ----------
@@ -159,14 +225,14 @@ pub fn parse_webdav_listing(xml: &str) -> Vec<String> {
         .collect()
 }
 
-struct WebdavClient {
+struct WebdavTarget {
     http: reqwest::Client,
     base: String,
     username: String,
     password: String,
 }
 
-impl WebdavClient {
+impl WebdavTarget {
     fn from_config(config: &crate::config::AppConfig) -> Result<Self, String> {
         let base = config
             .backup_webdav_url
@@ -180,8 +246,15 @@ impl WebdavClient {
                 .map_err(|e| format!("Failed to build HTTP client: {e}"))?,
             base,
             username: config.backup_webdav_username.clone().unwrap_or_default(),
-            password: get_webdav_password()?.ok_or("WebDAV password is not set")?,
+            password: get_target_password("webdav")?.ok_or("WebDAV password is not set")?,
         })
+    }
+}
+
+#[async_trait::async_trait]
+impl BackupTarget for WebdavTarget {
+    fn location(&self, name: &str) -> String {
+        webdav_file_url(&self.base, name)
     }
 
     async fn put(&self, name: &str, body: String) -> Result<(), String> {
@@ -244,28 +317,19 @@ fn backup_target(config: &crate::config::AppConfig) -> String {
 /// Timestamp of the newest existing backup on the configured target. Used
 /// for the due-check; a target that cannot be inspected yields `None`.
 async fn newest_backup(config: &crate::config::AppConfig) -> Option<NaiveDateTime> {
-    match backup_target(config).as_str() {
-        "webdav" => {
-            let client = WebdavClient::from_config(config).ok()?;
-            client
-                .list()
-                .await
-                .ok()?
-                .iter()
-                .filter_map(|n| parse_backup_timestamp(n))
-                .max()
-        }
-        _ => config
-            .backup_directory
-            .as_ref()
-            .filter(|d| !d.is_empty())
-            .and_then(|dir| newest_backup_timestamp(&PathBuf::from(dir))),
-    }
+    let target = target_from_config(config).ok()?;
+    target
+        .list()
+        .await
+        .ok()?
+        .iter()
+        .filter_map(|n| parse_backup_timestamp(n))
+        .max()
 }
 
-/// Writes one encrypted backup to the configured target (local directory or
-/// WebDAV) and prunes files beyond the retention count. Returns a
-/// user-displayable location of the written backup.
+/// Writes one encrypted backup to the configured target and prunes files
+/// beyond the retention count. Returns a user-displayable location of the
+/// written backup.
 pub async fn run_backup<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
     let config = crate::config::load_config_internal(&app);
     let password = get_password()?.ok_or("Backup password is not set")?;
@@ -278,41 +342,20 @@ pub async fn run_backup<R: Runtime>(app: AppHandle<R>) -> Result<String, String>
     let name = backup_file_name(chrono::Local::now().naive_local());
     let retention = config.backup_retention.unwrap_or(DEFAULT_RETENTION) as usize;
 
-    let location = match backup_target(&config).as_str() {
-        "webdav" => {
-            let client = WebdavClient::from_config(&config)?;
-            client.put(&name, content).await?;
-            match client.list().await {
-                Ok(names) => {
-                    for old in select_backups_to_prune(&names, retention) {
-                        if let Err(e) = client.delete(&old).await {
-                            log::warn!("Backup rotation: failed to remove {old}: {e}");
-                        }
-                    }
-                }
-                Err(e) => log::warn!("Backup rotation: WebDAV listing failed: {e}"),
-            }
-            webdav_file_url(&client.base, &name)
-        }
-        _ => {
-            let dir = PathBuf::from(
-                config
-                    .backup_directory
-                    .filter(|d| !d.is_empty())
-                    .ok_or("Backup directory is not configured")?,
-            );
-            fs::create_dir_all(&dir).map_err(|e| format!("Cannot create backup directory: {e}"))?;
-            let path = dir.join(&name);
-            fs::write(&path, content).map_err(|e| format!("Cannot write backup file: {e}"))?;
-            for old in select_backups_to_prune(&list_backup_names(&dir), retention) {
-                if let Err(e) = fs::remove_file(dir.join(&old)) {
+    let target = target_from_config(&config)?;
+    target.put(&name, content).await?;
+    match target.list().await {
+        Ok(names) => {
+            for old in select_backups_to_prune(&names, retention) {
+                if let Err(e) = target.delete(&old).await {
                     log::warn!("Backup rotation: failed to remove {old}: {e}");
                 }
             }
-            path.display().to_string()
         }
-    };
+        Err(e) => log::warn!("Backup rotation: listing failed: {e}"),
+    }
 
+    let location = target.location(&name);
     log::info!("Connections backup written to {location}");
     Ok(location)
 }
@@ -402,7 +445,9 @@ pub fn spawn_scheduler(app: AppHandle) {
 #[serde(rename_all = "camelCase")]
 pub struct BackupStatus {
     pub password_set: bool,
-    pub webdav_password_set: bool,
+    /// Whether a credential is stored for the configured target. Local
+    /// directories need none, so the local target always reports `true`.
+    pub target_password_set: bool,
     /// Timestamp of the newest backup on the configured target, local time.
     pub last_backup_at: Option<String>,
 }
@@ -415,9 +460,14 @@ pub async fn get_connections_backup_status<R: Runtime>(
     let last_backup_at = newest_backup(&config)
         .await
         .map(|ts| ts.format("%Y-%m-%dT%H:%M:%S").to_string());
+    let target_id = backup_target(&config);
+    let target_password_set = match target_id.as_str() {
+        "local" => true,
+        id => get_target_password(id)?.is_some(),
+    };
     Ok(BackupStatus {
         password_set: get_password()?.is_some(),
-        webdav_password_set: get_webdav_password()?.is_some(),
+        target_password_set,
         last_backup_at,
     })
 }
@@ -431,12 +481,18 @@ pub async fn set_connections_backup_password(password: String) -> Result<(), Str
     }
 }
 
+/// Stores (or clears, with an empty password) the credential of one backup
+/// target, keyed by its id (e.g. `"webdav"`).
 #[tauri::command]
-pub async fn set_connections_backup_webdav_password(password: String) -> Result<(), String> {
+pub async fn set_connections_backup_target_password(
+    target_id: String,
+    password: String,
+) -> Result<(), String> {
+    let user = target_keychain_user(&target_id);
     if password.is_empty() {
-        delete_keychain(KEYCHAIN_WEBDAV_USER)
+        delete_keychain(&user)
     } else {
-        set_keychain(KEYCHAIN_WEBDAV_USER, &password)
+        set_keychain(&user, &password)
     }
 }
 

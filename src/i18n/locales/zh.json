@@ -668,7 +668,7 @@
       "webdavUsernameDesc": "用于向 WebDAV 服务器进行身份验证的帐户。",
       "webdavPassword": "WebDAV 密码",
       "webdavPasswordDesc": "保存在系统钥匙串中。Nextcloud 建议使用应用密码。",
-      "webdavSaved": "WebDAV 设置已保存。",
+      "webdavSaved": "WebDAV 密码已保存。",
       "mode": "备份触发方式",
       "modeDesc": "何时写入备份。手动模式仅通过下方按钮备份。",
       "modeManual": "手动",

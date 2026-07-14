@@ -725,7 +725,7 @@
       "webdavUsernameDesc": "Account usato per autenticarsi sul server WebDAV.",
       "webdavPassword": "Password WebDAV",
       "webdavPasswordDesc": "Salvata nel portachiavi di sistema. Per Nextcloud, meglio una password per app.",
-      "webdavSaved": "Impostazioni WebDAV salvate.",
+      "webdavSaved": "Password WebDAV salvata.",
       "mode": "Attivazione",
       "modeDesc": "Quando viene scritto un backup. Manuale: solo tramite il pulsante qui sotto.",
       "modeManual": "Manuale",

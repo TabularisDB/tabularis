@@ -333,7 +333,7 @@ pub fn run() {
             commands::encrypt_export_payload,
             backup::get_connections_backup_status,
             backup::set_connections_backup_password,
-            backup::set_connections_backup_webdav_password,
+            backup::set_connections_backup_target_password,
             backup::run_connections_backup,
             commands::decrypt_export_payload,
             commands::import_connections_payload,

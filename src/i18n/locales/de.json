@@ -700,7 +700,7 @@
       "webdavUsernameDesc": "Konto zur Authentifizierung gegenüber dem WebDAV-Server.",
       "webdavPassword": "WebDAV-Passwort",
       "webdavPasswordDesc": "Wird im System-Schlüsselbund gespeichert. Für Nextcloud besser ein App-Passwort verwenden.",
-      "webdavSaved": "WebDAV-Einstellungen gespeichert.",
+      "webdavSaved": "WebDAV-Passwort gespeichert.",
       "mode": "Auslöser",
       "modeDesc": "Wann eine Sicherung geschrieben wird. Manuell: nur über den Button unten.",
       "modeManual": "Manuell",

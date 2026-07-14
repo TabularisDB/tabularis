@@ -714,7 +714,7 @@
       "webdavUsernameDesc": "WebDAV サーバーの認証に使うアカウント。",
       "webdavPassword": "WebDAV パスワード",
       "webdavPasswordDesc": "システムのキーチェーンに保存されます。Nextcloud ではアプリパスワードを推奨します。",
-      "webdavSaved": "WebDAV 設定を保存しました。",
+      "webdavSaved": "WebDAV パスワードを保存しました。",
       "mode": "バックアップのタイミング",
       "modeDesc": "バックアップを書き込むタイミング。手動では下のボタンからのみ実行します。",
       "modeManual": "手動",
