@@ -160,7 +160,7 @@ fn collect_warnings(
 }
 
 #[derive(PartialEq, Eq)]
-struct DupKey(Vec<String>);
+pub(crate) struct DupKey(Vec<String>);
 
 fn dup_key(host: &str, port: u16, database: &str, username: &str) -> DupKey {
     DupKey(vec![
@@ -171,7 +171,7 @@ fn dup_key(host: &str, port: u16, database: &str, username: &str) -> DupKey {
     ])
 }
 
-fn dup_key_existing(c: &SavedConnection) -> DupKey {
+pub(crate) fn dup_key_existing(c: &SavedConnection) -> DupKey {
     dup_key(
         c.params.host.as_deref().unwrap_or(""),
         c.params.port.unwrap_or(0),

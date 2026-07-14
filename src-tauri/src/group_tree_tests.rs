@@ -7,7 +7,7 @@
 #[cfg(test)]
 mod tests {
     use crate::commands::{find_child_group, parse_group_path, reject_if_would_create_cycle};
-    use crate::models::ConnectionGroup;
+    use crate::models::{collect_group_ancestors, ConnectionGroup};
 
     fn g(id: &str, parent: Option<&str>) -> ConnectionGroup {
         ConnectionGroup {
@@ -126,5 +126,47 @@ mod tests {
         // Wrong parent yields None.
         let missing = find_child_group(&groups, "alpha", &None);
         assert!(missing.is_none());
+    }
+
+    #[test]
+    fn group_ancestors_walks_up_to_the_root() {
+        let groups = vec![g("root", None), g("mid", Some("root")), g("leaf", Some("mid"))];
+        let kept = collect_group_ancestors(&groups, ["leaf"]);
+        assert_eq!(
+            kept,
+            ["root", "mid", "leaf"].iter().map(|s| s.to_string()).collect()
+        );
+    }
+
+    #[test]
+    fn group_ancestors_ignores_unknown_ids() {
+        let groups = vec![g("a", None)];
+        let kept = collect_group_ancestors(&groups, ["nope"]);
+        assert!(kept.is_empty());
+    }
+
+    #[test]
+    fn group_ancestors_merges_multiple_leaves_without_duplicates() {
+        let groups = vec![
+            g("root", None),
+            g("x", Some("root")),
+            g("y", Some("root")),
+            g("other", None),
+        ];
+        let kept = collect_group_ancestors(&groups, ["x", "y"]);
+        assert_eq!(
+            kept,
+            ["root", "x", "y"].iter().map(|s| s.to_string()).collect()
+        );
+        assert!(!kept.contains("other"));
+    }
+
+    #[test]
+    fn group_ancestors_terminates_on_cyclic_parents() {
+        // Defensive: the backend rejects cycles, but the walker must not spin
+        // forever if a corrupted file sneaks one in.
+        let groups = vec![g("a", Some("b")), g("b", Some("a"))];
+        let kept = collect_group_ancestors(&groups, ["a"]);
+        assert_eq!(kept, ["a", "b"].iter().map(|s| s.to_string()).collect());
     }
 }

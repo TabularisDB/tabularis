@@ -69,6 +69,8 @@ rustls-pemfile = "2"
 rustls-platform-verifier = "0.6"
 notify = "6"
 ulid = "1.2.1"
+argon2 = "0.5"
+aes-gcm = "0.10"
 # Foreign-app connection import: plist (TablePlus/Sequel Ace), XML (DataGrip).
 # AES/MD5 decryption (DBeaver, Beekeeper) reuses the existing `openssl` dep.
 plist = "1.7"

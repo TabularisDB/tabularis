@@ -15,8 +15,9 @@ use tauri::{AppHandle, Runtime};
 
 use crate::commands::{apply_export_payload, get_config_path};
 use crate::connection_import::{
-    all_importers, analyzer, convert, expand_home, importer_by_id, ImportEnvelope,
+    all_importers, analyzer, convert, expand_home, importer_by_id, tabularis, ImportEnvelope,
 };
+use crate::models::ExportPayload;
 use crate::persistence;
 
 /// Caches the most recent envelope per source so `apply` doesn't re-read the
@@ -112,6 +113,32 @@ pub async fn apply_connection_import<R: Runtime>(
     let payload = convert::build_payload(&envelope, &resolutions, &registered_ids, &existing_groups);
 
     apply_export_payload(app, payload).await
+}
+
+/// Preview a parsed Tabularis JSON export (already decrypted by the caller)
+/// against existing connections, so the frontend can render the same per-item
+/// group picker used for foreign-app imports.
+#[tauri::command]
+pub async fn preview_tabularis_import<R: Runtime>(
+    app: AppHandle<R>,
+    payload: ExportPayload,
+) -> Result<analyzer::ImportPreview, String> {
+    let existing = load_existing_connections(&app)?;
+    let registered_ids = registered_driver_ids().await;
+    Ok(tabularis::preview(&payload, &existing, &registered_ids))
+}
+
+/// Apply a Tabularis JSON export using the user's per-item resolutions,
+/// preserving native fields and honouring group overrides.
+#[tauri::command]
+pub async fn apply_tabularis_import<R: Runtime>(
+    app: AppHandle<R>,
+    payload: ExportPayload,
+    resolutions: Vec<convert::ImportResolution>,
+) -> Result<(), String> {
+    let existing_groups = load_existing_groups(&app)?;
+    let built = tabularis::apply(&payload, &resolutions, &existing_groups);
+    apply_export_payload(app, built).await
 }
 
 // MARK: - Helpers

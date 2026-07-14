@@ -272,10 +272,39 @@
     "noSearchResults": "Walang koneksyong tumugma sa \"{{query}}\"",
     "gridView": "Grid view",
     "listView": "List view",
+    "selectedCount": "{{count}} napili",
+    "deleteSelected": "Burahin ang napili",
+    "moveSelected": "Ilipat sa grupo",
+    "exportSelected": "I-export ang napili",
+    "deselectAll": "Alisin ang lahat ng pagpili",
+    "confirmDeleteSelected": "Sigurado ka bang gusto mong burahin ang {{count}} napiling koneksyon?",
+    "deleteSelectedTitle": "Burahin ang mga napiling koneksyon",
     "export": "I-export ang mga Koneksyon",
     "import": "I-import ang mga Koneksyon",
     "exportTitle": "I-export ang mga Koneksyon",
     "exportWarning": "Ang na-export na file ay maglalaman ng iyong database at SSH passwords sa plaintext. Pakitago ito nang ligtas.",
+    "exportModal": {
+      "title": "I-export ang mga Koneksyon",
+      "subtitle": "Piliin kung paano i-export ang iyong mga koneksyon",
+      "subtitleSelected": "I-export ang {{count}} napiling koneksyon",
+      "encrypted": "Naka-encrypt gamit ang password",
+      "encryptedDesc": "Kasama ang lahat ng koneksyon at password, protektado ng password na pipiliin mo. Inirerekomenda para sa mga backup.",
+      "noSecrets": "Plain text, walang mga password",
+      "noSecretsDesc": "Ang mga koneksyon ay ie-export bilang nababasang JSON, ngunit hindi kasama ang lahat ng password at passphrase. Inirerekomenda para sa pagbabahagi.",
+      "plaintext": "Plain text, kasama ang lahat ng password",
+      "plaintextDesc": "Ang mga koneksyon at password ay ie-export bilang nababasang JSON. Kayang basahin ng sinumang may hawak ng file ang iyong mga kredensyal.",
+      "password": "Password",
+      "confirmPassword": "Kumpirmahin ang password",
+      "passwordRequired": "Kailangan ng password para sa naka-encrypt na export.",
+      "passwordMismatch": "Hindi magkatugma ang mga password.",
+      "export": "I-export"
+    },
+    "importPasswordModal": {
+      "title": "Naka-encrypt na Export File",
+      "subtitle": "Ang file na ito ay protektado ng password",
+      "password": "Password",
+      "unlock": "I-import"
+    },
     "importFromApp": {
       "title": "Mag-import mula sa App",
       "subtitle": "Mag-import ng mga koneksyon mula sa ibang naka-install na SQL client",
@@ -294,7 +323,8 @@
       "action": {
         "import": "I-import",
         "skip": "Laktawan",
-        "replace": "Palitan"
+        "replace": "Palitan",
+        "applyToAll": "Aksyon para sa lahat:"
       },
       "tabularisJsonHint": "Tabularis export file (.json)",
       "menuLabel": "Mag-import ng mga koneksyon…",
@@ -304,7 +334,9 @@
         "new": "Bagong grupo…",
         "newPlaceholder": "Pangalan ng grupo",
         "parentLabel": "sa",
-        "parentNone": "Top level"
+        "parentNone": "Top level",
+        "applyToAll": "Grupo para lahat:",
+        "keepPerConnection": "Bawat koneksyon"
       },
       "betaNotice": "Ang Import from App ay nasa beta. Kung may problema ka,",
       "reportIssue": "i-report ito sa GitHub."
@@ -849,6 +881,7 @@
     "columnNotEditable": "Hindi ma-edit ang column na \"{{column}}\" — hindi ito direktang column ng table na \"{{table}}\" (malamang alias o computed value).",
     "pkRequiredToEdit": "Para ma-edit ang result na ito, isama ang primary key column na \"{{pk}}\" sa iyong SELECT.",
     "null": "null",
+    "emptySet": "(walang laman na set)",
     "sortByAsc": "I-sort ang {{col}} ASC",
     "sortByDesc": "I-sort ang {{col}} DESC",
     "clearSort": "Alisin ang sort",

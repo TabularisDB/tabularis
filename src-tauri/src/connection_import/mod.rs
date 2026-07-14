@@ -13,6 +13,7 @@ pub mod convert;
 pub mod crypto;
 pub mod driver_map;
 pub mod keychain_read;
+pub mod tabularis;
 pub mod types;
 
 mod beekeeper;
