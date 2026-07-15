@@ -694,6 +694,32 @@ pub async fn get_schema_snapshot<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn get_ai_schema_context<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    schema: Option<String>,
+) -> Result<String, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let driver = driver_for(&saved_conn.params.driver).await?;
+    let identifier_quote = driver.manifest().capabilities.identifier_quote.as_str();
+    let context = driver
+        .get_ai_schema_context(
+            &params,
+            schema.as_deref(),
+            crate::ai_schema_context::DEFAULT_MAX_TABLES,
+        )
+        .await?;
+
+    Ok(crate::ai_schema_context::format_for_prompt(
+        &context,
+        identifier_quote,
+    ))
+}
+
+#[tauri::command]
 pub async fn save_connection<R: Runtime>(
     app: AppHandle<R>,
     name: String,

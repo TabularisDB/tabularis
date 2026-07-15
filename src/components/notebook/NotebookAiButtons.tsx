@@ -49,6 +49,8 @@ export function NotebookAiButtons({
       <AiQueryModal
         isOpen={isGenerateOpen}
         onClose={() => setIsGenerateOpen(false)}
+        connectionId={connectionId}
+        schema={schema}
         onInsert={(sql) => {
           onInsert(sql);
           setIsGenerateOpen(false);

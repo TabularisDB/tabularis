@@ -488,6 +488,15 @@ pub struct TableSchema {
     pub foreign_keys: Vec<ForeignKey>,
 }
 
+/// Bounded schema metadata prepared by a database driver for AI features.
+/// The host remains responsible for rendering this structured data into a
+/// provider-agnostic prompt.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AiSchemaContext {
+    pub tables: Vec<TableSchema>,
+    pub total_table_count: usize,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RoutineInfo {
     pub name: String,
