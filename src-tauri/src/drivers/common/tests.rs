@@ -285,6 +285,142 @@ fn test_build_paginated_query_no_user_limit() {
 }
 
 #[test]
+fn test_build_paginated_query_strips_trailing_semicolon() {
+    let q = "SELECT DATABASE() AS current_db;";
+    let result = build_paginated_query(q, 1, 1);
+    assert_eq!(result, "SELECT DATABASE() AS current_db LIMIT 2 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_strips_trailing_semicolon_with_whitespace() {
+    let q = "SELECT ROUTINE_NAME FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = DATABASE() ORDER BY ROUTINE_NAME;   ";
+    let result = build_paginated_query(q, 50, 1);
+    assert_eq!(
+        result,
+        "SELECT ROUTINE_NAME FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = DATABASE() ORDER BY ROUTINE_NAME LIMIT 51 OFFSET 0"
+    );
+}
+
+#[test]
+fn test_build_paginated_query_strips_semicolon_before_line_comment() {
+    let q = "SELECT DATABASE() AS current_db; -- current schema";
+    let result = build_paginated_query(q, 1, 1);
+    assert_eq!(result, "SELECT DATABASE() AS current_db LIMIT 2 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_strips_semicolon_before_hash_comment() {
+    let q = "SELECT DATABASE() AS current_db; # current schema";
+    let result = build_paginated_query(q, 1, 1);
+    assert_eq!(result, "SELECT DATABASE() AS current_db LIMIT 2 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_strips_semicolon_before_block_comment() {
+    let q = "SELECT DATABASE() AS current_db; /* current schema */";
+    let result = build_paginated_query(q, 1, 1);
+    assert_eq!(result, "SELECT DATABASE() AS current_db LIMIT 2 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_keeps_line_comment_marker_inside_string() {
+    let q = "SELECT '--'; -- trailing comment";
+    let result = build_paginated_query(q, 1, 1);
+    assert_eq!(result, "SELECT '--' LIMIT 2 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_keeps_line_comment_marker_after_backslash_quote() {
+    let q = r"SELECT 'it\'s -- not a comment'; -- trailing comment";
+    let result = build_paginated_query(q, 1, 1);
+    assert_eq!(result, r"SELECT 'it\'s -- not a comment' LIMIT 2 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_preserves_newline_after_inline_comment_before_semicolon() {
+    let q = "SELECT 1 -- inline comment\n;";
+    let result = build_paginated_query(q, 1, 1);
+    assert_eq!(result, "SELECT 1 -- inline comment\nLIMIT 2 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_preserves_trailing_line_comment_without_semicolon() {
+    let q = "SELECT 1 -- inline comment";
+    let result = build_paginated_query(q, 1, 1);
+    assert_eq!(result, "SELECT 1 -- inline comment\nLIMIT 2 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_preserves_trailing_hash_comment_without_semicolon() {
+    let q = "SELECT 1 # inline comment";
+    let result = build_paginated_query(q, 1, 1);
+    assert_eq!(result, "SELECT 1 # inline comment\nLIMIT 2 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_honors_user_limit_before_trailing_line_comment() {
+    let q = "SELECT * FROM t ORDER BY id LIMIT 50 -- cap";
+    let result = build_paginated_query(q, 100, 1);
+    assert_eq!(result, "SELECT * FROM t ORDER BY id LIMIT 50 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_honors_user_limit_before_trailing_hash_comment() {
+    let q = "SELECT * FROM t ORDER BY id LIMIT 50 # cap";
+    let result = build_paginated_query(q, 100, 1);
+    assert_eq!(result, "SELECT * FROM t ORDER BY id LIMIT 50 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_honors_user_limit_offset_before_trailing_comment() {
+    let q = "SELECT * FROM t ORDER BY id LIMIT 50 OFFSET 10 -- cap";
+    let result = build_paginated_query(q, 100, 1);
+    assert_eq!(result, "SELECT * FROM t ORDER BY id LIMIT 50 OFFSET 10");
+}
+
+#[test]
+fn test_build_paginated_query_honors_user_limit_after_backslash_quoted_string() {
+    let q = r"SELECT 'it\'s LIMIT 5' AS label FROM t LIMIT 50 -- cap";
+    let result = build_paginated_query(q, 100, 1);
+    assert_eq!(result, r"SELECT 'it\'s LIMIT 5' AS label FROM t LIMIT 50 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_keeps_mysql_minus_expression() {
+    let q = "SELECT 1--2;";
+    let result = build_paginated_query(q, 1, 1);
+    assert_eq!(result, "SELECT 1--2 LIMIT 2 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_keeps_hash_marker_inside_string() {
+    let q = "SELECT '# not a comment'; # trailing comment";
+    let result = build_paginated_query(q, 1, 1);
+    assert_eq!(result, "SELECT '# not a comment' LIMIT 2 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_keeps_block_comment_marker_inside_string() {
+    let q = "SELECT '/* not a comment */'; /* trailing comment */";
+    let result = build_paginated_query(q, 1, 1);
+    assert_eq!(result, "SELECT '/* not a comment */' LIMIT 2 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_honors_user_limit_before_trailing_semicolon() {
+    let q = "SELECT * FROM t ORDER BY id LIMIT 50;";
+    let result = build_paginated_query(q, 100, 1);
+    assert_eq!(result, "SELECT * FROM t ORDER BY id LIMIT 50 OFFSET 0");
+}
+
+#[test]
+fn test_build_paginated_query_honors_user_limit_offset_before_trailing_semicolon() {
+    let q = "SELECT * FROM t ORDER BY id LIMIT 50 OFFSET 10;";
+    let result = build_paginated_query(q, 100, 1);
+    assert_eq!(result, "SELECT * FROM t ORDER BY id LIMIT 50 OFFSET 10");
+}
+
+#[test]
 fn test_build_paginated_query_replaces_user_limit() {
     let q = "SELECT * FROM t ORDER BY id LIMIT 50";
     let result = build_paginated_query(q, 100, 1);
@@ -575,4 +711,48 @@ fn test_parse_unsafe_bigint_string_ignores_non_integer_strings() {
     // (BIGINT UNSIGNED) but write-back to such columns is rare and the
     // driver-level cast still handles them via implicit conversion.
     assert_eq!(parse_unsafe_bigint_string("18446744073709551615"), None);
+}
+
+mod routine_builders {
+    use super::super::routines::{
+        generic_drop_routine_sql, generic_routine_call_sql, quote_qualified, render_sql_literal,
+    };
+    use crate::models::RoutineCallArg;
+
+    fn arg(value: Option<&str>, is_raw: bool) -> RoutineCallArg {
+        RoutineCallArg {
+            name: "p".to_string(),
+            mode: "IN".to_string(),
+            value: value.map(|v| v.to_string()),
+            is_raw,
+        }
+    }
+
+    #[test]
+    fn literal_null_raw_and_quoted() {
+        assert_eq!(render_sql_literal(&arg(None, false)), "NULL");
+        assert_eq!(render_sql_literal(&arg(Some("42"), true)), "42");
+        assert_eq!(render_sql_literal(&arg(Some("a'b"), false)), "'a''b'");
+    }
+
+    #[test]
+    fn quote_qualified_handles_schema_and_embedded_quotes() {
+        assert_eq!(quote_qualified("fn", None, "\""), "\"fn\"");
+        assert_eq!(quote_qualified("fn", Some("s"), "\""), "\"s\".\"fn\"");
+        assert_eq!(quote_qualified("a\"b", None, "\""), "\"a\"\"b\"");
+        assert_eq!(quote_qualified("fn", Some(""), "\""), "\"fn\"");
+        assert_eq!(quote_qualified("fn", None, ""), "fn");
+    }
+
+    #[test]
+    fn generic_call_and_drop() {
+        let sql = generic_routine_call_sql("p", "PROCEDURE", &[arg(Some("x"), false)], None, "\"");
+        assert_eq!(sql, "CALL \"p\"('x');");
+        let sql = generic_routine_call_sql("f", "function", &[], Some("s"), "\"");
+        assert_eq!(sql, "SELECT \"s\".\"f\"() AS result;");
+        assert_eq!(
+            generic_drop_routine_sql("f", "FUNCTION", Some("s"), "\""),
+            "DROP FUNCTION \"s\".\"f\""
+        );
+    }
 }

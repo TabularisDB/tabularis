@@ -5,8 +5,8 @@
 # tabularis
 
 <p align="center">
-  <strong>Клиент баз данных с открытым исходным кодом для PostgreSQL, MySQL/MariaDB и SQLite.<br />
-  SQL-блокноты, Visual EXPLAIN, AI и MCP уже встроены. Всё остальное добавляют плагины.</strong>
+  <strong>Tabularis — настольная среда для работы с SQL с открытым исходным кодом для PostgreSQL, MySQL/MariaDB, SQLite и ещё 12+ баз данных, таких как DuckDB, ClickHouse, Redis и Firestore.<br />
+  Встроенный MCP-сервер позволяет Claude, Cursor и Devin (ранее Windsurf) читать вашу схему и выполнять запросы прямо в том приложении, которым вы уже пользуетесь.</strong>
 </p>
 
 <p align="center">
@@ -18,7 +18,9 @@
   <a href="./README.fr.md">Français</a> |
   <a href="./README.de.md">Deutsch</a> |
   <a href="./README.ja.md">日本語</a> |
-  <a href="./README.ru.md">Русский</a>
+  <a href="./README.ru.md">Русский</a> |
+  <a href="./README.tl.md">Tagalog</a> |
+  <a href="./README.ko.md">한국어</a>
 </p>
 
 <p align="center">
@@ -59,7 +61,7 @@ sudo snap install tabularis                                      # Linux
 
 [![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis-0.13.1-1.x86_64.rpm)
 
-Интерфейс приложения доступен на английском, итальянском, испанском, китайском (упрощённом), французском, немецком, японском и русском языках.
+Интерфейс приложения доступен на английском, итальянском, испанском, китайском (упрощённом), французском, немецком, японском, русском и тагальском языках.
 
 ## Почему tabularis?
 
@@ -71,9 +73,17 @@ sudo snap install tabularis                                      # Linux
 | Плагины на **любом языке** (JSON-RPC через stdio) | ✅ | Плагины Java/Eclipse | Плагины JavaScript | ❌ |
 | AI text-to-SQL с **локальными моделями** (Ollama) | ✅ | Облачный AI-ассистент | ❌ | ❌ |
 | Visual EXPLAIN с интерактивными графами планов | ✅ | ✅ | ❌ | ❌ |
-| Баз данных «из коробки» | 3 (+ любые через плагины) | 100+ | 20+ | ~10 |
+| Баз данных «из коробки» | 3 встроенных + 12 официальных плагинов | 100+ | 20+ | ~10 |
 
 > Сравнение по состоянию на июнь 2026 года; возможности других инструментов с тех пор могли измениться. Если вам нужны десятки драйверов, используйте DBeaver — tabularis сосредоточен на том, чтобы хорошо поддерживать несколько баз данных.
+
+### Поддержка баз данных
+
+PostgreSQL, MySQL/MariaDB и SQLite встроены изначально. Всё остальное — это плагины; ниже показано, на какой стадии находится каждая интеграция сегодня, в соответствии с [покрытием драйверов и плагинов](https://tabularis.dev/#driver-coverage) на сайте.
+
+ClickHouse (выпущено), Cloudflare D1 (выпущено), DuckDB (выпущено), Firestore (выпущено), IBM Db2 (выпущено), IBM Informix (выпущено), Redis (выпущено), CSV Folder (выпущено), Google Sheets (выпущено), HackerNews (выпущено), Google BigQuery (закреплено), LibSQL / Turso (закреплено), Meilisearch (закреплено), MongoDB (закреплено), Oracle (закреплено), SQL Server (закреплено), Amazon Redshift (запланировано), CockroachDB (запланировано), TiDB (запланировано), DynamoDB (скоро), Snowflake (скоро), Cassandra (открыто), Elasticsearch (открыто), Etcd (открыто), Firebird (открыто), ScyllaDB (открыто), SQL Anywhere (открыто), SurrealDB (открыто), Trino / Presto (открыто).
+
+> Драйверы со статусом **Выпущено** можно установить из [реестра плагинов](https://tabularis.dev/plugins). Всё остальное находится на [доске задач](https://tabularis.dev/plugins/bounties) — возьмите задачу, спонсируйте её или [запросите базу данных](https://github.com/TabularisDB/tabularis/discussions).
 
 ## Установка
 
@@ -92,7 +102,12 @@ brew tap TabularisDB/tabularis
 brew install --cask tabularis
 ```
 
-При установке напрямую из релиза может потребоваться выполнить:
+Сборки, начиная с **v0.13.1**, подписаны и нотаризованы Apple, поэтому открываются без дополнительных действий.
+
+Приведённые ниже примечания относятся только к более старым релизам (до v0.13.1), скачанным напрямую:
+
+- При установке tabularis на macOS может потребоваться предоставить доступ к специальным возможностям (Конфиденциальность и безопасность). При обновлении, если предыдущая версия уже добавлена в список разрешённых, её нужно удалить вручную, прежде чем доступ можно будет предоставить новой версии.
+- Может потребоваться выполнить:
 
 ```bash
 xattr -c /Applications/tabularis.app
@@ -215,7 +230,7 @@ yay -S tabularis-bin
 - `themes/`
 - `preferences/`
 
-Поле `language` в `config.json` поддерживает значения `auto`, `en`, `it`, `es`, `zh`, `fr`, `de`, `ja`, `ru`.
+Поле `language` в `config.json` поддерживает значения `auto`, `en`, `it`, `es`, `zh`, `fr`, `de`, `ja`, `ru`, `tl`.
 
 ## AI
 
@@ -247,6 +262,7 @@ tabularis --mcp
 Доступные инструменты:
 
 - `list_connections`
+- `list_databases`
 - `list_tables`
 - `describe_table`
 - `run_query`

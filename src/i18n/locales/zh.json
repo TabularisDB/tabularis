@@ -36,7 +36,13 @@
     "search": "搜索...",
     "error": "错误",
     "success": "成功",
-    "ok": "OK"
+    "ok": "OK",
+    "continue": "继续",
+    "back": "返回",
+    "copy": "复制",
+    "showDetails": "显示详情",
+    "hideDetails": "隐藏详情",
+    "beta": "测试版"
   },
   "sidebar": {
     "connections": "连接",
@@ -51,6 +57,9 @@
     "createView": "创建新视图",
     "views": "视图",
     "noViews": "未找到视图",
+    "materializedViews": "物化视图",
+    "refreshMaterializedView": "刷新",
+    "showDefinition": "显示定义",
     "editView": "编辑视图",
     "viewDefinition": "视图定义",
     "dropView": "删除视图",
@@ -69,7 +78,11 @@
     "confirmDeleteQuery": "确定要删除查询 \"{{name}}\" 吗？",
     "confirmDeleteTitle": "删除查询",
     "noTables": "未找到表",
+    "expandTable": "展开表 {{name}}",
+    "collapseTable": "折叠表 {{name}}",
     "columns": "列",
+    "parameters": "参数",
+    "noParameters": "无参数",
     "keys": "键",
     "foreignKeys": "外键",
     "indexes": "索引",
@@ -80,6 +93,7 @@
     "modifyColumn": "修改列",
     "copyName": "复制名称",
     "openInEditor": "在编辑器中打开",
+    "openInNewWindow": "在新窗口中打开",
     "closePanel": "关闭面板",
     "setAsActive": "设为激活",
     "deleteTable": "删除表",
@@ -244,10 +258,75 @@
     "noSearchResults": "无匹配 \"{{query}}\" 的连接",
     "gridView": "网格视图",
     "listView": "列表视图",
+    "selectedCount": "已选择 {{count}} 个",
+    "deleteSelected": "删除所选",
+    "moveSelected": "移动到分组",
+    "exportSelected": "导出所选",
+    "deselectAll": "取消选择",
+    "confirmDeleteSelected": "确定要删除选中的 {{count}} 个连接吗？",
+    "deleteSelectedTitle": "删除所选连接",
     "export": "导出连接",
     "import": "导入连接",
     "exportTitle": "导出连接",
-    "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。"
+    "exportWarning": "导出的文件将包含您的数据库和 SSH 明文密码。请妥善保管该文件。",
+    "exportModal": {
+      "title": "导出连接",
+      "subtitle": "选择导出连接的方式",
+      "subtitleSelected": "导出 {{count}} 个所选连接",
+      "encrypted": "使用密码加密",
+      "encryptedDesc": "包含所有连接和密码，并使用您选择的密码加以保护。推荐用于备份。",
+      "noSecrets": "明文，不含密码",
+      "noSecretsDesc": "连接以可读 JSON 导出，但排除所有密码和口令短语。推荐用于分享。",
+      "plaintext": "明文，包含所有密码",
+      "plaintextDesc": "连接和密码以可读 JSON 导出。拿到文件的任何人都能读取您的凭据。",
+      "password": "密码",
+      "confirmPassword": "确认密码",
+      "passwordRequired": "加密导出需要设置密码。",
+      "passwordMismatch": "两次输入的密码不一致。",
+      "export": "导出"
+    },
+    "importPasswordModal": {
+      "title": "加密的导出文件",
+      "subtitle": "此文件受密码保护",
+      "password": "密码",
+      "unlock": "导入"
+    },
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace",
+        "applyToAll": "全部操作:"
+      },
+      "tabularisJsonHint": "Tabularis 导出文件 (.json)",
+      "menuLabel": "导入连接…",
+      "group": {
+        "label": "分组：",
+        "none": "无分组",
+        "new": "新建分组…",
+        "newPlaceholder": "分组名称",
+        "parentLabel": "位于",
+        "parentNone": "顶层",
+        "applyToAll": "全部分组:",
+        "keepPerConnection": "按连接"
+      },
+      "betaNotice": "从应用导入功能处于测试阶段。如果遇到问题，",
+      "reportIssue": "请在 GitHub 上反馈。"
+    }
   },
   "connectionAppearance": {
     "section": "外观",
@@ -364,10 +443,9 @@
       "explainplanPromptDesc": "自定义 AI EXPLAIN 计划分析的指令。使用 {{LANGUAGE}} 作为输出语言的占位符。",
       "enterExplainplanPrompt": "输入执行计划分析提示词...",
       "keySaved": "API 密钥已安全保存",
-      "promptSaved": "系统提示词保存成功",
+      "promptSaved": "提示词已保存",
       "explainPromptSaved": "解释提示词保存成功",
       "promptReset": "系统提示词已重置为默认",
-      "explainPromptReset": "解释提示词已重置为默认",
       "modelPlaceholder": "选择一个模型",
       "searchPlaceholder": "搜索模型...",
       "noResults": "未找到模型",
@@ -383,7 +461,9 @@
       "endpointUrlDesc": "您的 OpenAI 兼容 API 的基础 URL。例如：https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "例如：llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "输入您的 OpenAI 兼容服务提供的模型名称。",
-      "customOpenaiModelHelp": "输入您的 OpenAI 兼容提供商的确切模型名称。"
+      "customOpenaiModelHelp": "输入您的 OpenAI 兼容提供商的确切模型名称。",
+      "promptResetSuccess": "提示词已重置为默认值",
+      "apiKeySaved": "API 密钥已安全保存"
     },
     "updates": "更新",
     "openSourceLibraries": "开源库",
@@ -536,6 +616,7 @@
       "tabSwitcher": "切换标签",
       "copySelection": "复制选区",
       "toggleSidebar": "切换侧边栏",
+      "focusTableFilter": "聚焦表格筛选",
       "openConnections": "打开连接",
       "newConnection": "新建连接",
       "newTab": "新建标签",
@@ -548,7 +629,9 @@
       "pressKeys": "按下组合键...",
       "notebookRunAll": "运行所有单元格",
       "categories_notebook": "笔记本",
-      "quickNavigator": "快速导航"
+      "quickNavigator": "快速导航",
+      "triggerSuggestions": "触发建议",
+      "refreshTable": "刷新表格"
     },
     "aiActivity": "AI 活动"
   },
@@ -633,6 +716,7 @@
     "sshKeyFilePlaceholder": "/path/to/id_rsa",
     "sshKeyPassphrase": "SSH 密钥密码（可选）",
     "sshKeyPassphrasePlaceholder": "如果加密请输入密钥密码",
+    "allowSshPrompt": "允许 SSH 密码/PIN 提示",
     "saveKeychain": "在密钥链中保存密码",
     "testConnection": "测试连接",
     "save": "保存",
@@ -643,6 +727,9 @@
     "manageSshConnections": "管理 SSH 连接",
     "noSshConnections": "无 SSH 连接可用",
     "sslMode": "SSL 模式",
+    "enableCleartextPlugin": "启用明文密码插件",
+    "enableCleartextPluginHint": "使用 mysql_clear_password 发送密码。Warpgate 等堡垒机需要此选项。仅在 TLS 连接上使用。",
+    "enableCleartextPluginTlsRequired": "请在上方选择强制 TLS 模式（Required、Verify CA 或 Verify Identity）以使用明文密码插件。",
     "sslModes": {
       "disable": "禁用",
       "allow": "允许",
@@ -651,6 +738,9 @@
       "verify-ca": "验证 CA",
       "verify-full": "完全验证"
     },
+    "advanced": "高级",
+    "pipesAsConcat": "连接时设置 PIPES_AS_CONCAT sql_mode",
+    "pipesAsConcatHint": "保持启用 — Tabularis 会在拒绝它的服务器（Vitess/PlanetScale）上自动跳过。",
     "chooseContext": "选择上下文...",
     "chooseK8s": "选择连接...",
     "chooseNamespace": "选择命名空间...",
@@ -672,7 +762,15 @@
     "selectK8sConnection": "选择 K8s 连接",
     "selectTypeFirst": "请先选择上下文/命名空间/类型",
     "useK8s": "使用 Kubernetes 端口转发",
-    "useK8sConnection": "已保存的连接"
+    "useK8sConnection": "已保存的连接",
+    "startupScript": "启动脚本",
+    "startupScriptDescription": "每次新建到此数据源的连接时执行的 SQL。可用于会话设置，例如 SET / set_config（如绕过 RLS）。多条语句请用分号分隔。",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "向左滚动标签页",
+    "scrollTabsRight": "向右滚动标签页",
+    "useIamAuth": "使用 AWS IAM 身份验证 (RDS)",
+    "useIamAuthHint": "密码字段将被视为 RDS 身份验证令牌（由 `aws rds generate-db-auth-token` 生成）。需要 TLS。令牌每 15 分钟过期。",
+    "useIamAuthTlsRequired": "请在上方启用 SSL 模式以使用 AWS IAM 身份验证。"
   },
   "sshConnections": {
     "title": "SSH 连接",
@@ -695,7 +793,15 @@
     "keyFile": "密钥文件",
     "quickTest": "快速连接测试",
     "testFailed": "连接测试失败",
-    "savedInKeychain": "密码已保存到系统密钥链"
+    "savedInKeychain": "密码已保存到系统密钥链",
+    "manageDesc": "可在数据库连接中复用的 SSH 隧道。密码和口令保存在系统钥匙串中。",
+    "deleteInUse_other": "有 {{count}} 个已保存的数据库连接正在使用它，删除后这些连接将不再通过此隧道连接。"
+  },
+  "sshAskpass": {
+    "title": "SSH 身份验证",
+    "subtitle": "SSH 连接需要您的输入",
+    "placeholder": "PIN 或密码短语",
+    "waiting": "正在等待您的安全密钥 — 触摸以确认。"
   },
   "dataGrid": {
     "newRow": "新建",
@@ -708,6 +814,7 @@
     "updateFailed": "更新失败：",
     "deleteFailed": "删除行失败：",
     "null": "null",
+    "emptySet": "（空集）",
     "sortByAsc": "按 {{col}} 升序排序",
     "sortByDesc": "按 {{col}} 降序排序",
     "clearSort": "清除排序",
@@ -790,12 +897,24 @@
     "newRow": "新建行",
     "editing": "编辑中：{{table}}",
     "rowsRetrieved": "已检索 {{count}} 行",
+    "queryExecuted": "查询执行成功",
+    "rowsAffected": "{{count}} 行受影响",
     "autoPaginated": "自动分页",
     "pageOf": "第 {{current}} 页，共 {{total}} 页",
     "page": "第 {{current}} 页",
     "jumpToPage": "点击跳转到页面",
     "loadRowCount": "加载行数",
+    "rowCount": "{{total}} 行",
     "executePrompt": "执行查询以查看结果",
+    "results": {
+      "minimize": "最小化",
+      "maximize": "最大化（隐藏编辑器）",
+      "restore": "恢复编辑器",
+      "close": "关闭",
+      "detach": "分离到独立窗口",
+      "detached": "结果已分离到独立窗口",
+      "reattach": "重新附加"
+    },
     "tableRunPrompt": "按运行（Ctrl/Command+F5）加载表数据",
     "closeTab": "关闭标签",
     "closeOthers": "关闭其他标签",
@@ -806,6 +925,13 @@
     "saveThisQuery": "保存此查询",
     "noValidQueries": "未找到有效查询",
     "queryFailed": "查询失败。",
+    "dangerousQueryTitle": "不带 WHERE 子句执行？",
+    "dangerousQueryMessage": "此语句没有 WHERE 子句，将影响表中的所有行。此操作无法撤销。",
+    "dangerousQueryConfirm": "仍然执行",
+    "dangerousQueryDropTitle": "删除此对象？",
+    "dangerousQueryDropMessage": "DROP 会永久删除此对象及其所有数据。此操作无法撤销。",
+    "dangerousQueryTruncateTitle": "清空此表？",
+    "dangerousQueryTruncateMessage": "TRUNCATE 会删除表中的所有行。此操作无法撤销。",
     "showErrorDetails": "显示详情",
     "hideErrorDetails": "隐藏详情",
     "errorBoundary": {
@@ -954,6 +1080,11 @@
       "noHistory": "暂无执行历史",
       "collapseCell": "折叠单元格",
       "expandCell": "展开单元格",
+      "sectionQuery": "查询",
+      "sectionResults": "结果",
+      "sectionChart": "图表",
+      "collapseSection": "折叠区域",
+      "expandSection": "展开区域",
       "collapseAll": "全部折叠",
       "expandAll": "全部展开",
       "outline": "大纲",
@@ -1004,7 +1135,8 @@
       "close": "关闭标签",
       "rename": "重命名",
       "aiGenerateName": "使用 AI 生成名称",
-      "generatingName": "正在生成名称..."
+      "generatingName": "正在生成名称...",
+      "resultSetPrefix": "结果"
     }
   },
   "createTable": {
@@ -1120,6 +1252,7 @@
     "viewNamePlaceholder": "例如：active_users, order_summary",
     "viewDefinition": "视图定义 (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "格式化",
     "preview": "预览",
     "runPreview": "运行预览",
     "previewEmpty": "点击\"运行预览\"查看结果",
@@ -1133,6 +1266,9 @@
     "createSuccess": "视图创建成功",
     "alterSuccess": "视图更新成功",
     "saveError": "保存视图失败：",
+    "refreshSuccess": "物化视图 \"{{view}}\" 已刷新",
+    "refreshError": "刷新物化视图失败：",
+    "failGetDefinition": "获取定义失败：",
     "confirmAlter": "确定要修改视图 \"{{view}}\" 吗？"
   },
   "community": {
@@ -1332,7 +1468,8 @@
     "createFirst": "创建您的第一个分组以组织连接",
     "groupName": "分组名称",
     "dragHint": "将连接拖到此处",
-    "createError": "创建分组失败"
+    "createError": "创建分组失败",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "数据库",
@@ -1384,7 +1521,8 @@
     "targetColumn": "目标列",
     "targetColumnPlaceholder": "选择目标...",
     "skipColumn": "跳过（不导入）",
-    "createNewColumn": "创建新列"
+    "createNewColumn": "创建新列",
+    "typePlaceholder": "类型"
   },
   "aiActivity": {
     "title": "AI 活动",
@@ -1507,5 +1645,38 @@
       "resourceNameRequired": "资源名称为必填项",
       "portInvalid": "端口必须介于 1 和 65535 之间"
     }
+  },
+  "routines": {
+    "menuRun": "运行…",
+    "menuEdit": "编辑",
+    "menuDrop": "删除",
+    "newRoutine": "新建例程",
+    "newProcedure": "新建存储过程",
+    "newFunction": "新建函数",
+    "templateError": "无法加载例程模板：",
+    "dropConfirmTitle": "删除例程",
+    "dropConfirmMessage": "确定删除例程 \"{{name}}\" 吗？此操作无法撤销。",
+    "dropSuccess": "例程 {{name}} 已删除",
+    "dropError": "删除例程失败：",
+    "runTitle": "运行 {{name}}",
+    "runSubtitle": "输入参数值，然后在编辑器中检查生成的 SQL",
+    "loadingParameters": "正在加载参数…",
+    "noParameters": "此例程没有参数。调用脚本将在编辑器中打开。",
+    "outputParameter": "输出参数 — 作为结果返回",
+    "rawLabel": "原始值",
+    "rawHint": "按原样插入值，不加字符串引号（数字、表达式）",
+    "runButton": "运行",
+    "runTabPrefix": "运行",
+    "returnValue": "返回值"
+  },
+  "pagination": {
+    "firstPage": "第一页",
+    "previousPage": "上一页",
+    "nextPage": "下一页",
+    "lastPage": "最后一页"
+  },
+  "miniGrid": {
+    "runningQuery": "正在执行查询...",
+    "copyAll": "全部复制"
   }
 }

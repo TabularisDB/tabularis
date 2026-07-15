@@ -37,6 +37,11 @@ export interface QueryResult {
   affected_rows: number;
   truncated?: boolean;
   pagination?: Pagination;
+  /// Extra result sets beyond the first one from a single statement, e.g. a
+  /// MySQL `CALL` whose procedure body holds multiple `SELECT`s. Mirrors
+  /// `src-tauri/src/models.rs::QueryResult`; the first set stays in
+  /// `columns` / `rows`.
+  additional_results?: QueryResult[];
 }
 
 /// One statement's outcome inside an `execute_query_batch` invocation.
@@ -61,7 +66,7 @@ export interface QueryResultEntry {
   isLoading: boolean;
   page: number;
   activeTable: string | null;
-  pkColumn: string | null;
+  pkColumns: string[] | null;
 }
 
 import type { NotebookState } from "./notebook";
@@ -88,7 +93,7 @@ export interface Tab {
   executionTime: number | null;
   page: number;
   activeTable: string | null;
-  pkColumn: string | null;
+  pkColumns: string[] | null;
   autoIncrementColumns?: string[]; // Names of auto-increment columns
   defaultValueColumns?: string[]; // Names of columns with default values
   nullableColumns?: string[]; // Names of nullable columns
@@ -111,6 +116,7 @@ export interface Tab {
   queryParams?: Record<string, string>; // Saved values for query parameters
   schema?: string; // Schema name (PostgreSQL) for query reconstruction
   readOnly?: boolean; // Hides the Run button (e.g. for definition views)
+  materialized?: boolean; // Grid data is read-only (e.g. materialized views: only REFRESH writes)
   results?: QueryResultEntry[];
   activeResultId?: string;
   notebookId?: string; // Reference to notebook file in config dir

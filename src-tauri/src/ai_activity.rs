@@ -360,6 +360,12 @@ pub fn classify_query_kind(sql: &str) -> &'static str {
     if trimmed.is_empty() {
         return "unknown";
     }
+    let trimmed_upper = trimmed.to_uppercase();
+
+    if is_create_compound_routine(&trimmed_upper) {
+        return "ddl";
+    }
+
     // Fail closed for multi-statement payloads: a leading `SELECT 1; DROP …`
     // must NOT be tagged as a clean read just because the first keyword is
     // SELECT — the read-only and approval gates rely on this classification.
@@ -392,7 +398,13 @@ pub fn classify_query_kind(sql: &str) -> &'static str {
     let first = first_keyword(&peeled_upper);
 
     match first.as_str() {
-        "SELECT" | "SHOW" | "EXPLAIN" | "DESCRIBE" | "DESC" | "PRAGMA" | "VALUES" => "select",
+        // EXPLAIN needs option-aware handling: plain EXPLAIN only plans, but
+        // EXPLAIN ANALYZE (and EXPLAIN (ANALYZE ...)) *executes* the wrapped
+        // statement. Classifying it blindly as a read would let
+        // `EXPLAIN ANALYZE DELETE …` run past read-only mode and the approval
+        // gate. See `classify_explain`.
+        "EXPLAIN" => classify_explain(&peeled_upper),
+        "SELECT" | "SHOW" | "DESCRIBE" | "DESC" | "PRAGMA" | "VALUES" => "select",
         "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "REPLACE" => "write",
         "CREATE" | "DROP" | "ALTER" | "TRUNCATE" | "RENAME" | "GRANT" | "REVOKE" | "COMMENT" => {
             "ddl"
@@ -400,6 +412,67 @@ pub fn classify_query_kind(sql: &str) -> &'static str {
         "WITH" => classify_cte(&peeled_upper),
         _ => "unknown",
     }
+}
+
+fn is_create_compound_routine(upper_sql: &str) -> bool {
+    if first_keyword(upper_sql) != "CREATE" {
+        return false;
+    }
+
+    let header = upper_sql.split("BEGIN").next().unwrap_or(upper_sql);
+    let is_routine = ["PROCEDURE", "FUNCTION", "TRIGGER", "EVENT"]
+        .iter()
+        .any(|keyword| contains_keyword(header, keyword));
+    if !is_routine {
+        return false;
+    }
+
+    let without_terminal_semicolon = upper_sql.trim_end().trim_end_matches(';').trim_end();
+    if !without_terminal_semicolon.ends_with("END") {
+        return false;
+    }
+
+    !has_complete_end_before_terminal_statement(without_terminal_semicolon)
+}
+
+fn has_complete_end_before_terminal_statement(upper_sql: &str) -> bool {
+    let terminal_end = match upper_sql.rfind("END") {
+        Some(index) => index,
+        None => return false,
+    };
+    let before_terminal = &upper_sql[..terminal_end];
+    let bytes = before_terminal.as_bytes();
+    let is_word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+
+    for i in 0..bytes.len().saturating_sub(2) {
+        if &bytes[i..i + 3] != b"END" {
+            continue;
+        }
+        let prev_ok = i == 0 || !is_word(bytes[i - 1]);
+        let next_ok = i + 3 == bytes.len() || !is_word(bytes[i + 3]);
+        if !prev_ok || !next_ok {
+            continue;
+        }
+
+        let mut cursor = i + 3;
+        while cursor < bytes.len() && bytes[cursor].is_ascii_whitespace() {
+            cursor += 1;
+        }
+        if cursor >= bytes.len() || bytes[cursor] != b';' {
+            continue;
+        }
+        cursor += 1;
+        while cursor < bytes.len()
+            && (bytes[cursor].is_ascii_whitespace() || bytes[cursor] == b';')
+        {
+            cursor += 1;
+        }
+        if cursor < bytes.len() && bytes[cursor].is_ascii_alphabetic() {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// Returns true when `stripped` contains a semicolon followed by additional
@@ -446,11 +519,18 @@ fn classify_cte(stripped_upper: &str) -> &'static str {
 }
 
 fn contains_keyword(haystack: &str, needle: &str) -> bool {
+    keyword_index(haystack, needle).is_some()
+}
+
+/// Byte offset of the first whole-word occurrence of `needle` in `haystack`,
+/// or `None`. "Whole word" means the match is not flanked by an identifier
+/// byte on either side, so `ANALYZE` does not match inside `analyze_runs`.
+fn keyword_index(haystack: &str, needle: &str) -> Option<usize> {
     let bytes = haystack.as_bytes();
     let nbytes = needle.as_bytes();
     let nlen = nbytes.len();
     if nlen == 0 || bytes.len() < nlen {
-        return false;
+        return None;
     }
     let is_word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
     for i in 0..=bytes.len() - nlen {
@@ -458,11 +538,93 @@ fn contains_keyword(haystack: &str, needle: &str) -> bool {
             let prev_ok = i == 0 || !is_word(bytes[i - 1]);
             let next_ok = i + nlen == bytes.len() || !is_word(bytes[i + nlen]);
             if prev_ok && next_ok {
-                return true;
+                return Some(i);
             }
         }
     }
-    false
+    None
+}
+
+/// Classify an `EXPLAIN …` statement, whose kind depends on its options.
+///
+/// A plain `EXPLAIN` only produces a plan and never touches data, so it is a
+/// read. But `EXPLAIN ANALYZE …` (legacy syntax) and `EXPLAIN (ANALYZE …) …`
+/// (parenthesized options) *run* the wrapped statement to gather actual timing
+/// — so an `ANALYZE` option makes the whole thing as dangerous as the wrapped
+/// statement itself. We therefore detect an `ANALYZE` option and, when present,
+/// classify the wrapped statement (`write`/`ddl`/`unknown`) instead of `select`.
+///
+/// `explain_upper` must be the stripped, upper-cased SQL whose first keyword is
+/// `EXPLAIN`.
+fn classify_explain(explain_upper: &str) -> &'static str {
+    let after = explain_upper["EXPLAIN".len()..].trim_start();
+    let (options, wrapped) = split_explain_options(after);
+
+    // Only ANALYZE causes execution; every other option (VERBOSE, BUFFERS,
+    // FORMAT …, SQLite's QUERY PLAN, MySQL's FORMAT=JSON) is plan-only.
+    if !contains_keyword(options, "ANALYZE") {
+        return "select";
+    }
+    classify_wrapped_statement(wrapped)
+}
+
+/// Split the text following `EXPLAIN` into `(options, wrapped_statement)`.
+///
+/// Handles both the parenthesized form `(ANALYZE, BUFFERS) SELECT …` and the
+/// bare form `ANALYZE VERBOSE SELECT …`. For the bare form the option list runs
+/// up to the wrapped statement's first keyword. Fails closed (everything is
+/// "options", wrapped is empty) when a leading `(` is never closed.
+fn split_explain_options(after: &str) -> (&str, &str) {
+    if after.starts_with('(') {
+        let bytes = after.as_bytes();
+        let mut depth = 0usize;
+        for (i, &b) in bytes.iter().enumerate() {
+            match b {
+                b'(' => depth += 1,
+                b')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return (&after[1..i], after[i + 1..].trim_start());
+                    }
+                }
+                _ => {}
+            }
+        }
+        return (after, "");
+    }
+    match first_wrapped_statement_index(after) {
+        Some(idx) => (&after[..idx], &after[idx..]),
+        None => (after, ""),
+    }
+}
+
+/// Byte offset of the earliest statement keyword that could begin the target of
+/// an `EXPLAIN`, used to find where a bare option list ends.
+fn first_wrapped_statement_index(upper: &str) -> Option<usize> {
+    const KEYWORDS: &[&str] = &[
+        "SELECT", "INSERT", "UPDATE", "DELETE", "MERGE", "REPLACE", "VALUES", "TABLE", "WITH",
+        "CREATE", "DROP", "ALTER", "TRUNCATE", "RENAME",
+    ];
+    KEYWORDS
+        .iter()
+        .filter_map(|kw| keyword_index(upper, kw))
+        .min()
+}
+
+/// Classify the statement wrapped by an executing `EXPLAIN ANALYZE`, as if it
+/// had been submitted directly. Unrecognized/empty input is `"unknown"` so the
+/// safety gates fail closed.
+fn classify_wrapped_statement(wrapped_upper: &str) -> &'static str {
+    let peeled = wrapped_upper.trim_start_matches(|c: char| c == '(' || c.is_whitespace());
+    match first_keyword(peeled).as_str() {
+        "SELECT" | "SHOW" | "DESCRIBE" | "DESC" | "PRAGMA" | "VALUES" | "TABLE" => "select",
+        "INSERT" | "UPDATE" | "DELETE" | "MERGE" | "REPLACE" => "write",
+        "CREATE" | "DROP" | "ALTER" | "TRUNCATE" | "RENAME" | "GRANT" | "REVOKE" | "COMMENT" => {
+            "ddl"
+        }
+        "WITH" => classify_cte(peeled),
+        _ => "unknown",
+    }
 }
 
 /// Replace string literals and SQL comments with whitespace so keyword

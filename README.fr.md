@@ -5,8 +5,8 @@
 # tabularis
 
 <p align="center">
-  <strong>Un client de bases de données open source pour PostgreSQL, MySQL/MariaDB et SQLite.<br />
-  Notebooks SQL, EXPLAIN visuel, IA et MCP intégrés. Les plugins ajoutent tout le reste.</strong>
+  <strong>Tabularis est un espace de travail SQL de bureau open source pour PostgreSQL, MySQL/MariaDB, SQLite et plus de 12 autres bases de données comme DuckDB, ClickHouse, Redis et Firestore.<br />
+  Son serveur MCP intégré permet à Claude, Cursor et Devin (anciennement Windsurf) de lire votre schéma et d’exécuter des requêtes dans l’application que vous utilisez déjà.</strong>
 </p>
 
 <p align="center">
@@ -18,7 +18,9 @@
   <a href="./README.fr.md">Français</a> |
   <a href="./README.de.md">Deutsch</a> |
   <a href="./README.ja.md">日本語</a> |
-  <a href="./README.ru.md">Русский</a>
+  <a href="./README.ru.md">Русский</a> |
+  <a href="./README.tl.md">Tagalog</a> |
+  <a href="./README.ko.md">한국어</a>
 </p>
 
 <p align="center">
@@ -59,7 +61,7 @@ Ou téléchargez directement un installateur :
 
 [![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis-0.13.1-1.x86_64.rpm)
 
-L’interface de l’application est disponible en anglais, italien, espagnol, chinois (simplifié), français, allemand, japonais et russe.
+L’interface de l’application est disponible en anglais, italien, espagnol, chinois (simplifié), français, allemand, japonais, russe et tagalog.
 
 ## Pourquoi tabularis ?
 
@@ -71,9 +73,17 @@ L’interface de l’application est disponible en anglais, italien, espagnol, c
 | Plugins dans **n’importe quel langage** (JSON-RPC sur stdio) | ✅ | Plugins Java/Eclipse | Plugins JavaScript | ❌ |
 | Text-to-SQL par IA avec **modèles locaux** (Ollama) | ✅ | Assistant IA dans le cloud | ❌ | ❌ |
 | EXPLAIN visuel avec graphes de plan interactifs | ✅ | ✅ | ❌ | ❌ |
-| Bases de données prises en charge nativement | 3 (+ toutes via plugins) | 100+ | 20+ | ~10 |
+| Bases de données prises en charge nativement | 3 intégrées + 12 plugins officiels | 100+ | 20+ | ~10 |
 
 > Comparaison datée de juin 2026 ; les fonctionnalités des autres outils ont pu évoluer depuis. Si vous avez besoin de dizaines de drivers, utilisez DBeaver — tabularis se concentre sur bien prendre en charge quelques bases de données.
+
+### Bases de données prises en charge
+
+PostgreSQL, MySQL/MariaDB et SQLite sont intégrés nativement. Tout le reste est un plugin — voici l’état actuel de chaque intégration, qui reflète la [couverture des drivers et plugins](https://tabularis.dev/#driver-coverage) sur le site web.
+
+Au-delà des bases intégrées : ClickHouse (disponible), Cloudflare D1 (disponible), DuckDB (disponible), Firestore (disponible), IBM Db2 (disponible), IBM Informix (disponible), Redis (disponible), CSV Folder (disponible), Google Sheets (disponible), HackerNews (disponible), Google BigQuery (réservé), LibSQL / Turso (réservé), Meilisearch (réservé), MongoDB (réservé), Oracle (réservé), SQL Server (réservé), Amazon Redshift (cadré), CockroachDB (cadré), TiDB (cadré), DynamoDB (bientôt disponible), Snowflake (bientôt disponible), Cassandra (ouvert), Elasticsearch (ouvert), Etcd (ouvert), Firebird (ouvert), ScyllaDB (ouvert), SQL Anywhere (ouvert), SurrealDB (ouvert) et Trino / Presto (ouvert).
+
+> Les drivers **Disponibles** sont installables depuis le [registre des plugins](https://tabularis.dev/plugins). Tout le reste se trouve sur le [tableau des primes](https://tabularis.dev/plugins/bounties) — réservez-en un, sponsorisez-en un, ou [demandez une base de données](https://github.com/TabularisDB/tabularis/discussions).
 
 ## Installation
 
@@ -92,11 +102,12 @@ brew tap TabularisDB/tabularis
 brew install --cask tabularis
 ```
 
-En cas d’installation directe depuis une release, il peut être nécessaire d’exécuter :
+Les builds à partir de la **v0.13.1** sont signés et notarisés par Apple : ils s’ouvrent sans aucune étape supplémentaire.
 
-```bash
-xattr -c /Applications/tabularis.app
-```
+Les notes suivantes ne concernent que les anciennes versions (antérieures à la v0.13.1) téléchargées directement :
+
+- Vous devez autoriser l’accès à l’accessibilité (Confidentialité et sécurité) pour l’application tabularis. Si vous effectuez une mise à jour et que tabularis figure déjà dans la liste des applications autorisées, retirez-la manuellement avant que l’accès à l’accessibilité puisse être accordé à la nouvelle version.
+- En cas d’installation directe, il peut être nécessaire d’exécuter `xattr -c /Applications/tabularis.app`.
 
 ### Linux
 
@@ -217,7 +228,7 @@ Fichiers principaux :
 - `preferences/`
 - `connection-icons/` (images personnalisées pour les icônes de connexion)
 
-Dans `config.json`, le champ `language` prend en charge `auto`, `en`, `it`, `es`, `zh`, `fr`, `de`.
+Dans `config.json`, le champ `language` prend en charge `auto`, `en`, `it`, `es`, `zh`, `fr`, `de`, `ja`, `ru`, `tl`.
 
 ## IA
 
@@ -249,6 +260,7 @@ Clients pris en charge :
 Outils disponibles :
 
 - `list_connections`
+- `list_databases`
 - `list_tables`
 - `describe_table`
 - `run_query`

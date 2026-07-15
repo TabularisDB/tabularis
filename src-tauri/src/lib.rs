@@ -10,16 +10,25 @@ pub mod ai_commands;
 pub mod ai_notebook_export;
 #[cfg(test)]
 pub mod ai_notebook_export_tests;
+pub mod ai_schema_context;
+#[cfg(test)]
+pub mod ai_schema_context_tests;
+pub mod askpass;
 pub mod cli;
 pub mod clipboard_import;
 pub mod commands;
 pub mod connection_appearance;
+pub mod connection_import;
+pub mod connection_import_commands;
 #[cfg(test)]
 pub mod connection_appearance_tests;
 pub mod config;
 pub mod connection_cache;
 #[cfg(test)]
 pub mod connection_cache_tests;
+pub mod connection_window;
+#[cfg(test)]
+pub mod connection_window_tests;
 pub mod credential_cache;
 pub mod dump_commands; // Added
 #[cfg(test)]
@@ -29,14 +38,18 @@ pub mod explain_import;
 #[cfg(test)]
 pub mod explain_import_tests;
 pub mod export;
+pub mod export_crypto;
 #[cfg(test)]
 pub mod export_import_tests;
 pub mod health_check;
+#[cfg(test)]
+pub mod group_tree_tests;
 pub mod heartbeat;
 #[cfg(test)]
 pub mod heartbeat_tests;
 pub mod json_viewer;
 pub mod keychain_utils;
+pub mod results_window;
 pub mod k8s_tunnel;
 pub mod log_commands;
 pub mod logger;
@@ -107,6 +120,10 @@ fn close_devtools(window: tauri::WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // When ssh re-executes this binary as its SSH_ASKPASS helper (see the
+    // `askpass` module), serve the prompt and exit without booting the app.
+    askpass::maybe_run_askpass_client();
+
     // On Linux + Wayland, disable the DMA-BUF renderer in WebKitGTK to prevent
     // "Protocol error dispatching to Wayland display" crashes.
     // This targets the specific protocol causing the error while keeping GPU
@@ -176,10 +193,16 @@ pub fn run() {
         .manage(std::sync::Arc::new(
             connection_cache::ConnectionCache::default(),
         ))
+        .manage(connection_import_commands::ImportEnvelopeCache::default())
         .manage(explain_import::PendingExplainFile::default())
         .manage(json_viewer::JsonViewerStore::default())
+        .manage(results_window::ResultsWindowStore::default())
         .manage(query_history::QueryHistoryState::default())
         .setup(move |app| {
+            // Allow the SSH tunnel code (which runs without a Tauri context)
+            // to bridge askpass prompts to the frontend.
+            askpass::set_app_handle(app.handle().clone());
+
             // Read persisted config to know which external plugins are enabled.
             // `None` means no preference has been saved yet → load all installed plugins.
             let active_ext_drivers =
@@ -274,6 +297,7 @@ pub fn run() {
             commands::get_connection_by_id,
             commands::disconnect_connection,
             commands::register_active_connection,
+            commands::get_active_connections,
             commands::get_data_types,
             commands::map_inferred_column_types,
             // SSH Connections
@@ -282,6 +306,7 @@ pub fn run() {
             commands::update_ssh_connection,
             commands::delete_ssh_connection,
             commands::test_ssh_connection,
+            askpass::respond_ssh_askpass,
             // K8s Connections
             commands::get_k8s_connections,
             commands::save_k8s_connection,
@@ -296,13 +321,22 @@ pub fn run() {
             commands::get_connection_groups,
             commands::get_connections_with_groups,
             commands::create_connection_group,
+            commands::create_group_path,
             commands::update_connection_group,
+            commands::move_group_to_parent,
             commands::delete_connection_group,
             commands::move_connection_to_group,
             commands::reorder_groups,
             commands::reorder_connections_in_group,
             commands::export_connections_payload,
+            commands::encrypt_export_payload,
+            commands::decrypt_export_payload,
             commands::import_connections_payload,
+            connection_import_commands::list_connection_import_sources,
+            connection_import_commands::preview_connection_import,
+            connection_import_commands::apply_connection_import,
+            connection_import_commands::preview_tabularis_import,
+            connection_import_commands::apply_tabularis_import,
             commands::get_schemas,
             commands::get_available_databases,
             commands::get_tables,
@@ -331,6 +365,10 @@ pub fn run() {
             commands::alter_view,
             commands::drop_view,
             commands::get_view_columns,
+            commands::get_materialized_views,
+            commands::get_materialized_view_columns,
+            commands::get_materialized_view_definition,
+            commands::refresh_materialized_view,
             commands::set_window_title,
             commands::open_er_diagram_window,
             explain_import::load_explain_from_file,
@@ -389,6 +427,7 @@ pub fn run() {
             ai::get_ai_models,
             // Clipboard Import
             clipboard_import::execute_clipboard_import,
+            commands::get_ai_schema_context,
             commands::get_schema_snapshot,
             // DDL generation
             commands::get_create_table_sql,
@@ -402,6 +441,10 @@ pub fn run() {
             commands::get_routines,
             commands::get_routine_parameters,
             commands::get_routine_definition,
+            commands::build_routine_call_sql,
+            commands::get_routine_create_template,
+            commands::get_routine_edit_script,
+            commands::drop_routine,
             // Triggers
             commands::get_triggers,
             commands::get_trigger_definition,
@@ -472,6 +515,10 @@ pub fn run() {
             json_viewer::open_json_viewer_window,
             json_viewer::get_json_viewer_session,
             json_viewer::complete_json_viewer_session,
+            results_window::open_results_window,
+            results_window::close_results_window,
+            // Connection Window
+            connection_window::open_connection_window,
             // Task Manager
             task_manager::get_process_list,
             task_manager::get_system_stats,
@@ -484,6 +531,12 @@ pub fn run() {
             connection_appearance::delete_connection_icon,
             commands::set_connection_appearance,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                log::info!("Application exiting, stopping all active SSH tunnels...");
+                crate::ssh_tunnel::stop_all_tunnels();
+            }
+        });
 }

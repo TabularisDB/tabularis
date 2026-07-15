@@ -81,6 +81,14 @@ export function scanToken(
     if (dollarToken) return dollarToken;
   }
 
+  if (
+    options.qQuoting &&
+    (ch === 'Q' || ch === 'q' || ch === 'N' || ch === 'n')
+  ) {
+    const qQuoteToken = scanQQuoted(source, position);
+    if (qQuoteToken) return qQuoteToken;
+  }
+
   for (const rule of options.quotes) {
     if (source.startsWith(rule.open, position)) {
       return scanQuoted(source, position, rule);
@@ -97,6 +105,10 @@ export function scanToken(
     }
     if (options.goDelimiter && matchesKeyword(source, position, 'GO')) {
       const token = readGoDelimiter(source, position);
+      if (token) return token;
+    }
+    if (options.slashDelimiter && ch === '/') {
+      const token = readSlashDelimiter(source, position);
       if (token) return token;
     }
   }
@@ -200,6 +212,78 @@ function scanDollarQuoted(source: string, position: number): Token | null {
   return { kind: 'string', length: source.length - position };
 }
 
+function scanQQuoted(source: string, position: number): Token | null {
+  const prevIndex = position - 1;
+  if (isIdentBoundary(source, prevIndex)) return null;
+
+  let prefixLength = 0;
+  const ch = source[position];
+  const next = source[position + 1];
+  const third = source[position + 2];
+  if ((ch === 'Q' || ch === 'q') && next === "'") {
+    prefixLength = 2;
+  } else if (
+    (ch === 'N' || ch === 'n') &&
+    (next === 'Q' || next === 'q') &&
+    third === "'"
+  ) {
+    prefixLength = 3;
+  } else {
+    return null;
+  }
+
+  const delimiterPosition = position + prefixLength;
+  if (delimiterPosition >= source.length) return null;
+  const openCodePoint = source.codePointAt(delimiterPosition);
+  if (openCodePoint === undefined) return null;
+
+  const openDelimiter = String.fromCodePoint(openCodePoint);
+  if (isQQuoteWhitespaceDelimiter(openDelimiter)) return null;
+  const openLength = openCodePoint > 0xffff ? 2 : 1;
+  const closeDelimiter = qQuoteCloseDelimiter(openDelimiter);
+  let p = delimiterPosition + openLength;
+
+  while (p < source.length) {
+    if (
+      source.startsWith(closeDelimiter, p) &&
+      source[p + closeDelimiter.length] === "'"
+    ) {
+      return {
+        kind: 'string',
+        length: p + closeDelimiter.length + 1 - position,
+      };
+    }
+    const codePoint = source.codePointAt(p);
+    p += codePoint !== undefined && codePoint > 0xffff ? 2 : 1;
+  }
+
+  return { kind: 'string', length: source.length - position };
+}
+
+function isQQuoteWhitespaceDelimiter(delimiter: string): boolean {
+  return (
+    delimiter === ' ' ||
+    delimiter === '\t' ||
+    delimiter === '\r' ||
+    delimiter === '\n'
+  );
+}
+
+function qQuoteCloseDelimiter(openDelimiter: string): string {
+  switch (openDelimiter) {
+    case '[':
+      return ']';
+    case '{':
+      return '}';
+    case '(':
+      return ')';
+    case '<':
+      return '>';
+    default:
+      return openDelimiter;
+  }
+}
+
 function matchesKeyword(
   source: string,
   position: number,
@@ -240,4 +324,14 @@ function readGoDelimiter(source: string, position: number): Token | null {
   if (!m) return null;
   const length = m[0].endsWith('\n') ? m[0].length - 1 : m[0].length;
   return { kind: 'goDelimiter', length };
+}
+
+const SLASH_RE = /\/[ \t\r]*(\n|$)/y;
+
+function readSlashDelimiter(source: string, position: number): Token | null {
+  SLASH_RE.lastIndex = position;
+  const m = SLASH_RE.exec(source);
+  if (!m) return null;
+  const length = m[0].endsWith('\n') ? m[0].length - 1 : m[0].length;
+  return { kind: 'slashDelimiter', length };
 }

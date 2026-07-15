@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import { Shield, PlugZap } from 'lucide-react';
+import { Shield, PlugZap, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import type { SavedConnection } from '../../contexts/DatabaseContext';
@@ -23,6 +23,12 @@ export interface ConnectionListItemProps {
   onDelete: () => void;
   onContextMenu: (e: MouseEvent<HTMLDivElement>) => void;
   onMouseDown?: (e: MouseEvent<HTMLDivElement>) => void;
+  /** Whether this connection is checked in multi-select mode. */
+  selected?: boolean;
+  /** Whether any connection is currently selected (keeps checkboxes visible). */
+  selectionActive?: boolean;
+  /** Toggles this connection's selection. Enables the checkbox when provided. */
+  onToggleSelect?: () => void;
 }
 
 export const ConnectionListItem = ({
@@ -37,11 +43,15 @@ export const ConnectionListItem = ({
   onDelete,
   onContextMenu,
   onMouseDown,
+  selected = false,
+  selectionActive = false,
+  onToggleSelect,
 }: ConnectionListItemProps) => {
   const { t } = useTranslation();
-  const { activeConnectionId, isConnectionOpen } = useDatabase();
+  const { activeConnectionId, isConnectionOpenAnywhere } = useDatabase();
 
-  const isOpen = isConnectionOpen(conn.id);
+  // Reflect connection status across all windows (open here or in another window).
+  const isOpen = isConnectionOpenAnywhere(conn.id);
   const isConnecting = connectingId === conn.id;
   const isDriverEnabled = enabledDrivers.some(d => d.id === conn.params.driver);
   const driverManifest = allDrivers.find(d => d.id === conn.params.driver);
@@ -58,9 +68,32 @@ export const ConnectionListItem = ({
         'group flex items-center gap-3 px-3.5 py-2 rounded-xl border transition-all duration-150 cursor-pointer select-none',
         !isDriverEnabled && 'opacity-60 cursor-not-allowed',
         isConnecting && 'pointer-events-none',
-        getCardClass(conn.id, activeConnectionId, isConnectionOpen),
+        selected && 'ring-2 ring-blue-500/70',
+        getCardClass(conn.id, activeConnectionId, isConnectionOpenAnywhere),
       )}
     >
+      {onToggleSelect && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          aria-pressed={selected}
+          className={clsx(
+            'w-5 h-5 shrink-0 rounded-md border flex items-center justify-center transition-all duration-150',
+            selected
+              ? 'bg-blue-600 border-blue-500 text-white opacity-100'
+              : clsx(
+                  'bg-elevated/90 border-strong text-transparent hover:border-blue-400',
+                  selectionActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                ),
+          )}
+        >
+          <Check size={12} />
+        </button>
+      )}
       <div
         className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm"
         style={{ backgroundColor: driverColor }}

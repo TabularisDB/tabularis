@@ -37,7 +37,13 @@
     "noResults": "Ничего не найдено",
     "error": "Ошибка",
     "success": "Готово",
-    "ok": "ОК"
+    "ok": "ОК",
+    "continue": "Продолжить",
+    "back": "Назад",
+    "copy": "Копировать",
+    "showDetails": "Показать подробности",
+    "hideDetails": "Скрыть подробности",
+    "beta": "Бета"
   },
   "sidebar": {
     "connections": "Подключения",
@@ -52,6 +58,9 @@
     "createView": "Создать новое представление",
     "views": "Представления",
     "noViews": "Представления не найдены",
+    "materializedViews": "Материализованные представления",
+    "refreshMaterializedView": "Обновить",
+    "showDefinition": "Показать определение",
     "editView": "Изменить представление",
     "viewDefinition": "Определение представления",
     "dropView": "Удалить представление",
@@ -70,7 +79,11 @@
     "confirmDeleteQuery": "Удалить запрос \"{{name}}\"?",
     "confirmDeleteTitle": "Удалить запрос",
     "noTables": "Таблицы не найдены",
+    "expandTable": "Развернуть таблицу {{name}}",
+    "collapseTable": "Свернуть таблицу {{name}}",
     "columns": "столбцы",
+    "parameters": "параметры",
+    "noParameters": "Нет параметров",
     "keys": "ключи",
     "foreignKeys": "внешние ключи",
     "indexes": "индексы",
@@ -81,6 +94,7 @@
     "modifyColumn": "Изменить столбец",
     "copyName": "Копировать имя",
     "openInEditor": "Открыть в редакторе",
+    "openInNewWindow": "Открыть в новом окне",
     "closePanel": "Закрыть панель",
     "setAsActive": "Сделать активным",
     "deleteTable": "Удалить таблицу",
@@ -261,10 +275,75 @@
     "noSearchResults": "Подключения по запросу \"{{query}}\" не найдены",
     "gridView": "Сетка",
     "listView": "Список",
+    "selectedCount": "Выбрано: {{count}}",
+    "deleteSelected": "Удалить выбранные",
+    "moveSelected": "Переместить в группу",
+    "exportSelected": "Экспортировать выбранные",
+    "deselectAll": "Снять выделение",
+    "confirmDeleteSelected": "Вы уверены, что хотите удалить {{count}} выбранных подключений?",
+    "deleteSelectedTitle": "Удалить выбранные подключения",
     "export": "Экспортировать подключения",
     "import": "Импортировать подключения",
     "exportTitle": "Экспорт подключений",
-    "exportWarning": "Экспортируемый файл будет содержать пароли к базам данных и SSH в открытом виде. Храните его в надёжном месте!"
+    "exportWarning": "Экспортируемый файл будет содержать пароли к базам данных и SSH в открытом виде. Храните его в надёжном месте!",
+    "exportModal": {
+      "title": "Экспорт подключений",
+      "subtitle": "Выберите способ экспорта подключений",
+      "subtitleSelected": "Экспортировать выбранные подключения: {{count}}",
+      "encrypted": "Зашифровано паролем",
+      "encryptedDesc": "Все подключения и пароли включены и защищены выбранным вами паролем. Рекомендуется для резервных копий.",
+      "noSecrets": "Открытым текстом, без паролей",
+      "noSecretsDesc": "Подключения экспортируются в читаемом JSON, но все пароли и парольные фразы исключаются. Рекомендуется для обмена.",
+      "plaintext": "Открытым текстом, со всеми паролями",
+      "plaintextDesc": "Подключения и пароли экспортируются в читаемом JSON. Любой, у кого есть файл, сможет прочитать ваши учётные данные.",
+      "password": "Пароль",
+      "confirmPassword": "Подтвердите пароль",
+      "passwordRequired": "Для зашифрованного экспорта требуется пароль.",
+      "passwordMismatch": "Пароли не совпадают.",
+      "export": "Экспортировать"
+    },
+    "importPasswordModal": {
+      "title": "Зашифрованный файл экспорта",
+      "subtitle": "Этот файл защищён паролем",
+      "password": "Пароль",
+      "unlock": "Импортировать"
+    },
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace",
+        "applyToAll": "Действие для всех:"
+      },
+      "tabularisJsonHint": "Файл экспорта Tabularis (.json)",
+      "menuLabel": "Импорт подключений…",
+      "group": {
+        "label": "Группа:",
+        "none": "Без группы",
+        "new": "Новая группа…",
+        "newPlaceholder": "Название группы",
+        "parentLabel": "в",
+        "parentNone": "Верхний уровень",
+        "applyToAll": "Группа для всех:",
+        "keepPerConnection": "Для каждого подключения"
+      },
+      "betaNotice": "Импорт из приложения находится в бета-версии. Если возникнет проблема,",
+      "reportIssue": "сообщите о ней на GitHub."
+    }
   },
   "settings": {
     "title": "Настройки",
@@ -386,10 +465,9 @@
       "explainplanPromptDesc": "Настройте инструкции для AI-анализа планов EXPLAIN. Используйте {{LANGUAGE}} для языка вывода.",
       "enterExplainplanPrompt": "Введите промпт для анализа плана выполнения...",
       "keySaved": "API-ключ сохранён в хранилище ключей",
-      "promptSaved": "Системный промпт сохранён",
+      "promptSaved": "Промпт сохранён",
       "explainPromptSaved": "Промпт для объяснения сохранён",
       "promptReset": "Системный промпт сброшен",
-      "explainPromptReset": "Промпт для объяснения сброшен",
       "modelPlaceholder": "Выберите модель",
       "searchPlaceholder": "Поиск моделей...",
       "noResults": "Модели не найдены",
@@ -405,7 +483,9 @@
       "endpointUrlDesc": "Базовый URL OpenAI-совместимого API. Примеры: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "например, llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "Введите название модели, предоставляемой OpenAI-совместимым сервисом.",
-      "customOpenaiModelHelp": "Укажите точное название модели вашего OpenAI-совместимого провайдера."
+      "customOpenaiModelHelp": "Укажите точное название модели вашего OpenAI-совместимого провайдера.",
+      "promptResetSuccess": "Промпт сброшен к значению по умолчанию",
+      "apiKeySaved": "API-ключ надёжно сохранён"
     },
     "updates": "Обновления",
     "openSourceLibraries": "Библиотеки с открытым исходным кодом",
@@ -562,6 +642,7 @@
       "tabSwitcher": "Переключить вкладку",
       "copySelection": "Копировать выделение",
       "toggleSidebar": "Показать/скрыть боковую панель",
+      "focusTableFilter": "Фокус на фильтре таблиц",
       "openConnections": "Открыть подключения",
       "newConnection": "Новое подключение",
       "newTab": "Новая вкладка",
@@ -575,7 +656,9 @@
       "notebookRunAll": "Выполнить все ячейки",
       "categories_notebook": "Ноутбук",
       "pasteImportClipboard": "Импортировать из буфера обмена",
-      "quickNavigator": "Быстрый навигатор"
+      "quickNavigator": "Быстрый навигатор",
+      "triggerSuggestions": "Показать подсказки",
+      "refreshTable": "Обновить таблицу"
     },
     "aiActivity": "Активность AI"
   },
@@ -659,6 +742,7 @@
     "sshKeyFilePlaceholder": "/path/to/id_rsa",
     "sshKeyPassphrase": "Пароль SSH-ключа (необязательно)",
     "sshKeyPassphrasePlaceholder": "Введите пароль, если ключ зашифрован",
+    "allowSshPrompt": "Разрешить запрос пароля/PIN-кода SSH",
     "saveKeychain": "Сохранять пароли в Keychain",
     "testConnection": "Проверить подключение",
     "save": "Сохранить",
@@ -669,12 +753,18 @@
     "manageSshConnections": "Управление SSH-подключениями",
     "noSshConnections": "Нет доступных SSH-подключений",
     "sslMode": "Режим SSL",
+    "enableCleartextPlugin": "Включить плагин пароля в открытом виде",
+    "enableCleartextPluginHint": "Отправляет пароль через mysql_clear_password. Требуется для бастионов, таких как Warpgate. Используется только при TLS-соединении.",
+    "enableCleartextPluginTlsRequired": "Выберите выше строгий режим TLS (Required, Verify CA или Verify Identity), чтобы использовать плагин пароля в открытом виде.",
     "sslModes": {
       "disable": "Отключён",
       "allow": "Разрешён",
       "prefer": "Предпочтительный",
       "require": "Обязательный"
     },
+    "advanced": "Дополнительно",
+    "pipesAsConcat": "Устанавливать sql_mode PIPES_AS_CONCAT при подключении",
+    "pipesAsConcatHint": "Оставьте включённым — Tabularis автоматически пропускает это на серверах, которые его отклоняют (Vitess/PlanetScale).",
     "chooseContext": "Выберите контекст...",
     "chooseK8s": "Выберите подключение...",
     "chooseNamespace": "Выберите пространство имён...",
@@ -697,7 +787,15 @@
     "selectTypeFirst": "Сначала выберите контекст/пространство имён/тип",
     "useK8s": "Использовать проброс портов Kubernetes",
     "useK8sConnection": "Сохранённое подключение",
-    "appearance": "Внешний вид"
+    "appearance": "Внешний вид",
+    "startupScript": "Сценарий запуска",
+    "startupScriptDescription": "SQL, выполняемый при каждом новом подключении к этому источнику данных. Используйте его для настроек сеанса, таких как SET / set_config (например, для обхода RLS). Разделяйте операторы точкой с запятой.",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Прокрутить вкладки влево",
+    "scrollTabsRight": "Прокрутить вкладки вправо",
+    "useIamAuth": "Использовать аутентификацию AWS IAM (RDS)",
+    "useIamAuthHint": "Поле пароля используется как токен аутентификации RDS (команда `aws rds generate-db-auth-token`). Требуется TLS. Срок действия токенов — 15 минут.",
+    "useIamAuthTlsRequired": "Чтобы использовать аутентификацию AWS IAM, включите режим SSL выше."
   },
   "sshConnections": {
     "title": "SSH-подключения",
@@ -720,7 +818,18 @@
     "keyFile": "Файл ключа",
     "quickTest": "Быстрая проверка подключения",
     "testFailed": "Проверка подключения не удалась",
-    "savedInKeychain": "Пароль сохранён в системном хранилище ключей"
+    "savedInKeychain": "Пароль сохранён в системном хранилище ключей",
+    "manageDesc": "Многоразовые SSH-туннели для подключений к базам данных. Пароли и парольные фразы хранятся в системной связке ключей.",
+    "deleteInUse_one": "Его использует {{count}} сохранённое подключение, которое больше не будет подключаться через этот туннель.",
+    "deleteInUse_few": "Его используют {{count}} сохранённых подключения, которые больше не будут подключаться через этот туннель.",
+    "deleteInUse_many": "Его используют {{count}} сохранённых подключений, которые больше не будут подключаться через этот туннель.",
+    "deleteInUse_other": "Его используют {{count}} сохранённых подключений, которые больше не будут подключаться через этот туннель."
+  },
+  "sshAskpass": {
+    "title": "Аутентификация SSH",
+    "subtitle": "SSH-подключению требуется ваш ввод",
+    "placeholder": "PIN-код или парольная фраза",
+    "waiting": "Ожидание ключа безопасности — коснитесь его для подтверждения."
   },
   "dataGrid": {
     "newRow": "НОВАЯ",
@@ -736,6 +845,7 @@
     "updateFailed": "Ошибка обновления: ",
     "deleteFailed": "Не удалось удалить строку: ",
     "null": "null",
+    "emptySet": "(пустой набор)",
     "sortByAsc": "Сортировать по {{col}} ASC",
     "sortByDesc": "Сортировать по {{col}} DESC",
     "clearSort": "Сбросить сортировку",
@@ -817,12 +927,24 @@
     "newRow": "Новая строка",
     "editing": "Редактирование: {{table}}",
     "rowsRetrieved": "Строк: {{count}}",
+    "queryExecuted": "Запрос выполнен успешно",
+    "rowsAffected": "затронуто строк: {{count}}",
     "autoPaginated": "Автопостраничный вывод",
     "pageOf": "Страница {{current}} из {{total}}",
     "page": "Страница {{current}}",
     "jumpToPage": "Нажмите для перехода на страницу",
     "loadRowCount": "Загрузить количество строк",
+    "rowCount": "{{total}} строк",
     "executePrompt": "Выполните запрос, чтобы увидеть результаты",
+    "results": {
+      "minimize": "Свернуть",
+      "maximize": "Развернуть (скрыть редактор)",
+      "restore": "Восстановить редактор",
+      "close": "Закрыть",
+      "detach": "Открепить в отдельное окно",
+      "detached": "Результаты откреплены в отдельное окно",
+      "reattach": "Прикрепить обратно"
+    },
     "tableRunPrompt": "Нажмите «Запустить» (Ctrl/Command+F5) для загрузки данных таблицы",
     "closeTab": "Закрыть вкладку",
     "closeOthers": "Закрыть остальные вкладки",
@@ -833,6 +955,13 @@
     "saveThisQuery": "Сохранить этот запрос",
     "noValidQueries": "Допустимые запросы не найдены",
     "queryFailed": "Ошибка выполнения запроса.",
+    "dangerousQueryTitle": "Выполнить без условия WHERE?",
+    "dangerousQueryMessage": "Этот запрос затронет все строки таблицы, так как в нём отсутствует условие WHERE. Это действие нельзя отменить.",
+    "dangerousQueryConfirm": "Всё равно выполнить",
+    "dangerousQueryDropTitle": "Удалить этот объект?",
+    "dangerousQueryDropMessage": "DROP безвозвратно удаляет этот объект и все его данные. Это действие нельзя отменить.",
+    "dangerousQueryTruncateTitle": "Очистить эту таблицу?",
+    "dangerousQueryTruncateMessage": "TRUNCATE удаляет все строки таблицы. Это действие нельзя отменить.",
     "showErrorDetails": "Показать подробности",
     "hideErrorDetails": "Скрыть подробности",
     "errorBoundary": {
@@ -988,6 +1117,11 @@
       "noHistory": "История выполнения пуста",
       "collapseCell": "Свернуть ячейку",
       "expandCell": "Развернуть ячейку",
+      "sectionQuery": "Запрос",
+      "sectionResults": "Результаты",
+      "sectionChart": "Диаграмма",
+      "collapseSection": "Свернуть раздел",
+      "expandSection": "Развернуть раздел",
       "collapseAll": "Свернуть все",
       "expandAll": "Развернуть все",
       "outline": "Структура",
@@ -1056,6 +1190,7 @@
       "viewTabs": "Вкладки",
       "viewStacked": "Список",
       "queryPrefix": "Запрос",
+      "resultSetPrefix": "Результат",
       "results": "Результаты",
       "collapseAll": "Свернуть все",
       "expandAll": "Развернуть все",
@@ -1181,6 +1316,7 @@
     "viewNamePlaceholder": "например, active_users, order_summary",
     "viewDefinition": "Определение представления (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Форматировать",
     "preview": "Предпросмотр",
     "runPreview": "Запустить предпросмотр",
     "previewEmpty": "Нажмите «Запустить предпросмотр», чтобы увидеть результаты",
@@ -1194,6 +1330,9 @@
     "createSuccess": "Представление создано",
     "alterSuccess": "Представление обновлено",
     "saveError": "Не удалось сохранить представление: ",
+    "refreshSuccess": "Материализованное представление \"{{view}}\" обновлено",
+    "refreshError": "Не удалось обновить материализованное представление: ",
+    "failGetDefinition": "Не удалось получить определение: ",
     "confirmAlter": "Изменить представление \"{{view}}\"?"
   },
   "triggers": {
@@ -1439,7 +1578,8 @@
     "createFirst": "Создайте первую группу для организации подключений",
     "groupName": "Название группы",
     "dragHint": "Перетащите подключения сюда",
-    "createError": "Не удалось создать группу"
+    "createError": "Не удалось создать группу",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "База данных",
@@ -1503,7 +1643,8 @@
     "targetColumn": "Целевой столбец",
     "targetColumnPlaceholder": "Выберите цель...",
     "skipColumn": "Пропустить (не импортировать)",
-    "createNewColumn": "Создать новый столбец"
+    "createNewColumn": "Создать новый столбец",
+    "typePlaceholder": "Тип"
   },
   "aiActivity": {
     "title": "Активность AI",
@@ -1638,5 +1779,38 @@
       "resourceNameRequired": "Имя ресурса обязательно",
       "portInvalid": "Порт должен быть в диапазоне от 1 до 65535"
     }
+  },
+  "routines": {
+    "menuRun": "Выполнить…",
+    "menuEdit": "Изменить",
+    "menuDrop": "Удалить",
+    "newRoutine": "Новая процедура/функция",
+    "newProcedure": "Новая процедура",
+    "newFunction": "Новая функция",
+    "templateError": "Не удалось загрузить шаблон: ",
+    "dropConfirmTitle": "Удалить процедуру",
+    "dropConfirmMessage": "Удалить \"{{name}}\"? Это действие нельзя отменить.",
+    "dropSuccess": "{{name}} удалена",
+    "dropError": "Не удалось удалить: ",
+    "runTitle": "Выполнить {{name}}",
+    "runSubtitle": "Укажите значения параметров, затем проверьте сгенерированный SQL в редакторе",
+    "loadingParameters": "Загрузка параметров…",
+    "noParameters": "У этой процедуры нет параметров. Скрипт вызова откроется в редакторе.",
+    "outputParameter": "Выходной параметр — возвращается как результат",
+    "rawLabel": "Raw",
+    "rawHint": "Вставить значение как есть, без строковых кавычек (числа, выражения)",
+    "runButton": "Выполнить",
+    "runTabPrefix": "Выполнить",
+    "returnValue": "возвращает"
+  },
+  "pagination": {
+    "firstPage": "Первая страница",
+    "previousPage": "Предыдущая страница",
+    "nextPage": "Следующая страница",
+    "lastPage": "Последняя страница"
+  },
+  "miniGrid": {
+    "runningQuery": "Выполнение запроса...",
+    "copyAll": "Копировать всё"
   }
 }

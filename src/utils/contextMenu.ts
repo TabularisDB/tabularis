@@ -102,6 +102,27 @@ export function shouldPositionAbove(
 }
 
 /**
+ * Vertical shift (≤ 0) that keeps a flyout submenu inside the viewport:
+ * moves it up by the amount it overflows the bottom edge, without pushing
+ * its top above the viewport margin.
+ * @param submenuTop - Viewport Y of the submenu's top edge before shifting
+ * @param submenuHeight - Height of the submenu
+ * @param viewportHeight - Height of the viewport
+ * @returns Offset in px to add to the submenu's top (0 when it already fits)
+ */
+export function calculateSubmenuOffsetY(
+  submenuTop: number,
+  submenuHeight: number,
+  viewportHeight: number,
+  margin: number = 10
+): number {
+  const overflow = submenuTop + submenuHeight - (viewportHeight - margin);
+  if (overflow <= 0) return 0;
+  const shift = Math.min(overflow, Math.max(submenuTop - margin, 0));
+  return shift > 0 ? -shift : 0;
+}
+
+/**
  * Clamps a value between min and max
  */
 export function clamp(value: number, min: number, max: number): number {

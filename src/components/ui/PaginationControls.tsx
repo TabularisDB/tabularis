@@ -31,7 +31,8 @@ export function PaginationControls({
         disabled={isFirstPage || isLoading}
         onClick={() => onPageChange(1)}
         className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-        title="First Page"
+        title={t("pagination.firstPage")}
+        aria-label={t("pagination.firstPage")}
       >
         <ChevronsLeft size={14} />
       </button>
@@ -39,7 +40,8 @@ export function PaginationControls({
         disabled={isFirstPage || isLoading}
         onClick={() => onPageChange(pagination.page - 1)}
         className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-        title="Previous Page"
+        title={t("pagination.previousPage")}
+        aria-label={t("pagination.previousPage")}
       >
         <ChevronLeft size={14} />
       </button>
@@ -57,7 +59,8 @@ export function PaginationControls({
         disabled={!pagination.has_more || isLoading}
         onClick={() => onPageChange(pagination.page + 1)}
         className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-        title="Next Page"
+        title={t("pagination.nextPage")}
+        aria-label={t("pagination.nextPage")}
       >
         <ChevronRight size={14} />
       </button>
@@ -67,7 +70,8 @@ export function PaginationControls({
           if (totalPages !== null) onPageChange(totalPages);
         }}
         className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
-        title="Last Page"
+        title={t("pagination.lastPage")}
+        aria-label={t("pagination.lastPage")}
       >
         <ChevronsRight size={14} />
       </button>

@@ -57,7 +57,7 @@ function makeEntry(
     isLoading: true,
     page: 1,
     activeTable: null,
-    pkColumn: null,
+    pkColumns: null,
     ...overrides,
   };
 }
@@ -315,8 +315,8 @@ describe("MultiResultPanel", () => {
         activeResultId="r-0"
       />,
     );
-    expect(screen.getByTitle("Next Page")).toBeInTheDocument();
-    expect(screen.getByTitle("First Page")).toBeInTheDocument();
+    expect(screen.getByTitle("pagination.nextPage")).toBeInTheDocument();
+    expect(screen.getByTitle("pagination.firstPage")).toBeInTheDocument();
   });
 
   it("calls onPageChange when Next Page is clicked", () => {
@@ -345,7 +345,7 @@ describe("MultiResultPanel", () => {
         activeResultId="r-0"
       />,
     );
-    fireEvent.click(screen.getByTitle("Next Page"));
+    fireEvent.click(screen.getByTitle("pagination.nextPage"));
     expect(mockOnPageChange).toHaveBeenCalledWith("r-0", 2);
   });
 

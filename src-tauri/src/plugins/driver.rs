@@ -12,10 +12,14 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::drivers::driver_trait::{DatabaseDriver, PluginManifest};
 use crate::models::{
-    ColumnDefinition, ConnectionParams, DataTypeInfo, ExplainPlan, ForeignKey, Index, QueryResult,
-    RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema, TriggerInfo, ViewInfo,
+    AiSchemaContext, ColumnDefinition, ConnectionParams, DataTypeInfo, ExplainPlan, ForeignKey,
+    Index, QueryResult, RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema,
+    TriggerInfo, ViewInfo,
 };
 use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse};
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 /// Maximum time to wait for a plugin to answer a single JSON-RPC call before
 /// giving up. Generous enough for slow query execution, bounded so a wedged
@@ -25,6 +29,17 @@ const PLUGIN_CALL_TIMEOUT: Duration = Duration::from_secs(120);
 /// Shorter ceiling for the startup `initialize` handshake so one unresponsive
 /// plugin cannot stall MCP server startup indefinitely.
 const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// Flag to create the process without a console window on Windows.
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+/// Heuristic for the JSON-RPC "method not found" error (code -32601). Only
+/// the error *message* survives the response plumbing, so optional-method
+/// fallbacks match on the standard wording (and the code, for SDKs that
+/// embed it in the message).
+fn is_method_not_found(err: &str) -> bool {
+    err.to_lowercase().contains("method not found") || err.contains("-32601")
+}
 
 /// Message sent to the management task that owns the plugin child process.
 enum PluginCommand {
@@ -56,6 +71,10 @@ impl PluginProcess {
         } else {
             Command::new(&executable_path)
         };
+
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
         let child = cmd
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
@@ -500,6 +519,126 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    // --- Routine management ---------------------------------------------
+    //
+    // These RPC methods are OPTIONAL for plugins that declare the
+    // `routine_management` capability: when the plugin does not implement
+    // one, the host falls back to the same dialect-neutral SQL the trait
+    // defaults produce, so a plugin only overrides what its dialect needs.
+
+    async fn build_routine_call_sql(
+        &self,
+        params: &ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        args: &[crate::models::RoutineCallArg],
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        let res = self
+            .process
+            .call(
+                "build_routine_call_sql",
+                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "args": args, "schema": schema }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => {
+                Ok(crate::drivers::common::generic_routine_call_sql(
+                    routine_name,
+                    routine_type,
+                    args,
+                    schema,
+                    &self.manifest.capabilities.identifier_quote,
+                ))
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn routine_create_template(
+        &self,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        let res = self
+            .process
+            .call(
+                "routine_create_template",
+                json!({ "routine_type": routine_type, "schema": schema }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => {
+                let keyword = if routine_type.eq_ignore_ascii_case("FUNCTION") {
+                    "FUNCTION"
+                } else {
+                    "PROCEDURE"
+                };
+                Ok(format!(
+                    "CREATE {keyword} my_routine()\nBEGIN\n    -- routine body\nEND"
+                ))
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn get_routine_edit_script(
+        &self,
+        params: &ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        let res = self
+            .process
+            .call(
+                "get_routine_edit_script",
+                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => {
+                self.get_routine_definition(params, routine_name, routine_type, schema)
+                    .await
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn drop_routine(
+        &self,
+        params: &ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        let res = self
+            .process
+            .call(
+                "drop_routine",
+                json!({ "params": params, "routine_name": routine_name, "routine_type": routine_type, "schema": schema }),
+            )
+            .await;
+        match res {
+            Ok(v) => serde_json::from_value(v).map_err(|e| e.to_string()),
+            Err(e) if is_method_not_found(&e) => {
+                let sql = crate::drivers::common::generic_drop_routine_sql(
+                    routine_name,
+                    routine_type,
+                    schema,
+                    &self.manifest.capabilities.identifier_quote,
+                );
+                self.execute_query(params, &sql, None, 1, schema)
+                    .await
+                    .map(|_| ())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     async fn execute_query(
         &self,
         params: &ConnectionParams,
@@ -545,14 +684,13 @@ impl DatabaseDriver for RpcDriver {
         &self,
         params: &ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         col_name: &str,
         new_val: serde_json::Value,
         schema: Option<&str>,
         max_blob_size: u64,
     ) -> Result<u64, String> {
-        let res = self.process.call("update_record", json!({ "params": params, "table": table, "pk_col": pk_col, "pk_val": pk_val, "col_name": col_name, "new_val": new_val, "schema": schema, "max_blob_size": max_blob_size })).await?;
+        let res = self.process.call("update_record", json!({ "params": params, "table": table, "pk_map": pk_map, "col_name": col_name, "new_val": new_val, "schema": schema, "max_blob_size": max_blob_size })).await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -560,11 +698,16 @@ impl DatabaseDriver for RpcDriver {
         &self,
         params: &ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         schema: Option<&str>,
     ) -> Result<u64, String> {
-        let res = self.process.call("delete_record", json!({ "params": params, "table": table, "pk_col": pk_col, "pk_val": pk_val, "schema": schema })).await?;
+        let res = self
+            .process
+            .call(
+                "delete_record",
+                json!({ "params": params, "table": table, "pk_map": pk_map, "schema": schema }),
+            )
+            .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
@@ -708,8 +851,7 @@ impl DatabaseDriver for RpcDriver {
         trigger_sql: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        self
-            .process
+        self.process
             .call(
                 "create_trigger",
                 json!({ "params": params, "trigger_sql": trigger_sql, "schema": schema }),
@@ -725,8 +867,7 @@ impl DatabaseDriver for RpcDriver {
         table_name: &str,
         schema: Option<&str>,
     ) -> Result<(), String> {
-        self
-            .process
+        self.process
             .call(
                 "drop_trigger",
                 json!({
@@ -753,6 +894,32 @@ impl DatabaseDriver for RpcDriver {
             )
             .await?;
         serde_json::from_value(res).map_err(|e| e.to_string())
+    }
+
+    async fn get_ai_schema_context(
+        &self,
+        params: &ConnectionParams,
+        schema: Option<&str>,
+        max_tables: usize,
+    ) -> Result<AiSchemaContext, String> {
+        match self
+            .process
+            .call(
+                "get_ai_schema_context",
+                json!({
+                    "params": params,
+                    "schema": schema,
+                    "max_tables": max_tables,
+                }),
+            )
+            .await
+        {
+            Ok(value) => serde_json::from_value(value).map_err(|e| e.to_string()),
+            Err(error) if is_method_not_found(&error) => {
+                crate::ai_schema_context::load_from_driver(self, params, schema, max_tables).await
+            }
+            Err(error) => Err(error),
+        }
     }
 
     async fn get_all_columns_batch(
@@ -824,6 +991,8 @@ mod tests {
             ssl_ca: None,
             ssl_cert: None,
             ssl_key: None,
+            enable_cleartext_plugin: None,
+            pipes_as_concat: None,
             ssh_enabled: None,
             ssh_connection_id: None,
             ssh_host: None,
@@ -832,6 +1001,7 @@ mod tests {
             ssh_password: None,
             ssh_key_file: None,
             ssh_key_passphrase: None,
+            ssh_allow_passphrase_prompt: None,
             save_in_keychain: None,
             k8s_enabled: None,
             k8s_connection_id: None,
@@ -840,6 +1010,7 @@ mod tests {
             k8s_resource_type: None,
             k8s_resource_name: None,
             k8s_port: None,
+            startup_script: None,
             connection_id: Some("conn-1".to_string()),
         }
     }
@@ -872,6 +1043,86 @@ mod tests {
             }),
             data_types: Vec::new(),
         }
+    }
+
+    fn test_driver_result<F>(mut handle_request: F) -> RpcDriver
+    where
+        F: FnMut(JsonRpcRequest) -> Result<Value, String> + Send + 'static,
+    {
+        let (tx, mut rx) = mpsc::channel::<PluginCommand>(8);
+        tokio::spawn(async move {
+            while let Some(command) = rx.recv().await {
+                if let PluginCommand::Call(request, response_tx) = command {
+                    let result = handle_request(request);
+                    let _ = response_tx.send(result);
+                }
+            }
+        });
+
+        let (shutdown_tx, _shutdown_rx) = oneshot::channel();
+        RpcDriver {
+            manifest: test_manifest(),
+            process: Arc::new(PluginProcess {
+                sender: tx,
+                next_id: AtomicU64::new(1),
+                shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
+                pid: None,
+            }),
+            data_types: Vec::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_uses_custom_ai_schema_context_when_available() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "get_ai_schema_context");
+            assert_eq!(request.params["schema"], "public");
+            assert_eq!(request.params["max_tables"], 20);
+            json!({
+                "tables": [{
+                    "name": "users",
+                    "columns": [],
+                    "foreign_keys": []
+                }],
+                "total_table_count": 1
+            })
+        });
+
+        let context = driver
+            .get_ai_schema_context(&test_connection_params(), Some("public"), 20)
+            .await
+            .expect("get_ai_schema_context");
+
+        assert_eq!(context.tables.len(), 1);
+        assert_eq!(context.tables[0].name, "users");
+        assert_eq!(context.total_table_count, 1);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_builds_ai_schema_context_from_standard_metadata_as_fallback() {
+        let driver = test_driver_result(|request| match request.method.as_str() {
+            "get_ai_schema_context" => Err("Method not found (-32601)".to_string()),
+            "get_tables" => Ok(json!([{ "name": "users" }])),
+            "get_columns" => Ok(json!([{
+                "name": "id",
+                "data_type": "bigint",
+                "is_pk": true,
+                "is_nullable": false,
+                "is_auto_increment": true
+            }])),
+            "get_foreign_keys" => Ok(json!([])),
+            method => Err(format!("Unexpected method: {method}")),
+        });
+
+        let context = driver
+            .get_ai_schema_context(&test_connection_params(), Some("public"), 20)
+            .await
+            .expect("fallback schema context");
+
+        assert_eq!(context.tables.len(), 1);
+        assert_eq!(context.tables[0].name, "users");
+        assert_eq!(context.tables[0].columns[0].name, "id");
+        assert_eq!(context.total_table_count, 1);
     }
 
     #[tokio::test]

@@ -49,6 +49,7 @@ export interface SavedConnection {
     ssh_connection_id?: string;
     k8s_enabled?: boolean;
     k8s_connection_id?: string;
+    startup_script?: string;
   };
   group_id?: string;
   sort_order?: number;
@@ -62,6 +63,9 @@ export interface ConnectionGroup {
   name: string;
   collapsed: boolean;
   sort_order: number;
+  /** When set, this group is a child of another group. `undefined` or `null`
+   * means top-level root. Cycles are rejected by the backend. */
+  parent_id?: string | null;
 }
 
 export interface ConnectionsFile {
@@ -72,6 +76,7 @@ export interface ConnectionsFile {
 export interface SchemaData {
   tables: TableInfo[];
   views: ViewInfo[];
+  materializedViews?: ViewInfo[];
   routines: RoutineInfo[];
   triggers: TriggerInfo[];
   isLoading: boolean;
@@ -115,6 +120,7 @@ export interface DatabaseContextType {
   activeDatabaseName: string | null;
   tables: TableInfo[];
   views: ViewInfo[];
+  materializedViews: ViewInfo[];
   routines: RoutineInfo[];
   triggers: TriggerInfo[];
   isLoadingTables: boolean;
@@ -135,6 +141,12 @@ export interface DatabaseContextType {
   isLoadingConnections: boolean;
   connect: (connectionId: string) => Promise<void>;
   disconnect: (connectionId?: string) => Promise<void>;
+  /**
+   * Remove a connection from THIS window's UI without closing its backend pool.
+   * Used when handing a connection off to a dedicated window (the pool is
+   * process-global and reused by the new window, which owns it from then on).
+   */
+  detachConnection: (connectionId: string) => void;
   switchConnection: (connectionId: string) => void;
   setActiveTable: (table: string | null, schema?: string | null) => void;
   refreshTables: (connectionId?: string) => Promise<void>;
@@ -149,9 +161,23 @@ export interface DatabaseContextType {
   setSelectedDatabases: (databases: string[], connectionId?: string) => void;
   getConnectionData: (connectionId: string) => ConnectionData | undefined;
   isConnectionOpen: (connectionId: string) => boolean;
+  /** Connection ids open in ANY window (shared backend registry). */
+  globallyOpenConnectionIds: string[];
+  /** True when the connection is open in this window OR another window. */
+  isConnectionOpenAnywhere: (connectionId: string) => boolean;
   // Connection Group methods
-  createGroup: (name: string) => Promise<ConnectionGroup>;
+  createGroup: (name: string, parentId?: string | null) => Promise<ConnectionGroup>;
+  /**
+   * Creates a nested hierarchy from a `/`-separated path (e.g.
+   * "TEST/flexways"). Existing segments are reused, missing ones are
+   * created. Returns the deepest (last) group.
+   */
+  createGroupPath: (path: string, parentId?: string | null) => Promise<ConnectionGroup>;
   updateGroup: (id: string, updates: { name?: string; collapsed?: boolean; sort_order?: number }) => Promise<void>;
+  /** Re-parent a group. `parentId === null` moves the group to the top
+   * level; `undefined` would be a no-op (kept distinct to match the
+   * Tauri command's `Option<String>` parameter). */
+  moveGroupToParent: (id: string, parentId: string | null) => Promise<void>;
   deleteGroup: (id: string) => Promise<void>;
   moveConnectionToGroup: (connectionId: string, groupId: string | null) => Promise<void>;
   reorderGroups: (groupOrders: Array<[string, number]>) => Promise<void>;

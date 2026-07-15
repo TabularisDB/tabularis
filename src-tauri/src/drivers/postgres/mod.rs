@@ -7,6 +7,7 @@ mod binding;
 mod client;
 mod explain;
 mod helpers;
+mod routines;
 
 #[cfg(test)]
 mod tests;
@@ -16,12 +17,15 @@ use crate::models::{
     TableColumn, TableInfo, TriggerInfo, ViewInfo,
 };
 use crate::pool_manager::get_postgres_pool;
-use binding::{PgValueOptions, bind_pg_value, build_pk_predicate};
-use client::{execute, format_pg_error, get_client, query_all, query_one};
+use binding::{PgValueOptions, bind_pg_value, build_pk_map_predicate};
+use client::{execute, execute_typed, format_pg_error, get_client, query_all, query_one, query_one_typed};
 pub use explain::explain_query;
 use extract::extract_value;
-use helpers::{escape_identifier, extract_base_type, is_implicit_cast_compatible};
-use tokio_postgres::types::ToSql;
+use helpers::{
+    enum_data_type, escape_identifier, extract_base_type, is_implicit_cast_compatible,
+    quote_qualified_type,
+};
+use tokio_postgres::types::{ToSql, Type};
 
 pub async fn get_schemas(params: &ConnectionParams) -> Result<Vec<String>, String> {
     let pool = get_postgres_pool(params).await?;
@@ -99,6 +103,11 @@ pub async fn get_columns(
             c.column_default::text,
             c.is_identity::text,
             c.character_maximum_length,
+            (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
+             FROM pg_enum e
+             JOIN pg_type t ON t.oid = e.enumtypid
+             JOIN pg_namespace tn ON tn.oid = t.typnamespace
+             WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
             (SELECT COUNT(*) FROM information_schema.table_constraints tc
              JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
              AND tc.table_schema = kcu.table_schema
@@ -140,9 +149,14 @@ pub async fn get_columns(
                 None
             };
 
+            let enum_values: Option<String> = r.try_get("enum_values").ok().flatten();
+
             TableColumn {
                 name: r.try_get("column_name").unwrap_or_default(),
-                data_type: r.try_get("data_type").unwrap_or_default(),
+                data_type: enum_data_type(
+                    r.try_get("data_type").unwrap_or_default(),
+                    enum_values,
+                ),
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
@@ -234,6 +248,11 @@ pub async fn get_all_columns_batch(
             c.column_default,
             c.is_identity,
             c.character_maximum_length,
+            (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
+             FROM pg_enum e
+             JOIN pg_type t ON t.oid = e.enumtypid
+             JOIN pg_namespace tn ON tn.oid = t.typnamespace
+             WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
             (SELECT COUNT(*) FROM information_schema.table_constraints tc
              JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
              AND tc.table_schema = kcu.table_schema
@@ -276,9 +295,11 @@ pub async fn get_all_columns_batch(
             None
         };
 
+        let enum_values: Option<String> = row.try_get("enum_values").ok().flatten();
+
         let column = TableColumn {
             name: row.try_get("column_name").unwrap_or_default(),
-            data_type: row.try_get("data_type").unwrap_or_default(),
+            data_type: enum_data_type(row.try_get("data_type").unwrap_or_default(), enum_values),
             is_pk,
             is_nullable: null_str == "YES",
             is_auto_increment: is_auto,
@@ -388,7 +409,7 @@ pub async fn get_indexes(
             JOIN pg_class i ON i.oid = ix.indexrelid
             JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
         WHERE
-            t.relkind = 'r'
+            t.relkind IN ('r', 'm')
             AND n.nspname = $1
             AND t.relname = $2
         ORDER BY
@@ -415,14 +436,14 @@ pub async fn save_blob_column_to_file(
     params: &ConnectionParams,
     table: &str,
     col_name: &str,
-    pk_col: &str,
-    pk_val: serde_json::Value,
+    pk_map: &HashMap<String, serde_json::Value>,
     schema: &str,
     file_path: &str,
 ) -> Result<(), String> {
     let pool = get_postgres_pool(params).await?;
 
-    let (predicate, param) = build_pk_predicate(pk_col, pk_val, 1)?;
+    let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
+    let (predicate, pk_params) = build_pk_map_predicate(pk_map, &pk_types, 1)?;
     let query = format!(
         "SELECT \"{}\" FROM \"{}\".\"{}\" WHERE {}",
         escape_identifier(col_name),
@@ -431,7 +452,11 @@ pub async fn save_blob_column_to_file(
         predicate,
     );
 
-    let row = query_one(&pool, &query, &[param.as_ref() as &(dyn ToSql + Sync)]).await?;
+    let params_ref: Vec<(&(dyn ToSql + Sync), Type)> = pk_params
+        .iter()
+        .map(|(b, t)| (b.as_ref() as &(dyn ToSql + Sync), t.clone()))
+        .collect();
+    let row = query_one_typed(&pool, &query, &params_ref).await?;
 
     let bytes: Vec<u8> = row.try_get(0).map_err(|e| format_pg_error(&e))?;
     std::fs::write(file_path, bytes).map_err(|e| e.to_string())
@@ -441,13 +466,13 @@ pub async fn fetch_blob_column_as_data_url(
     params: &ConnectionParams,
     table: &str,
     col_name: &str,
-    pk_col: &str,
-    pk_val: serde_json::Value,
+    pk_map: &HashMap<String, serde_json::Value>,
     schema: &str,
 ) -> Result<String, String> {
     let pool = get_postgres_pool(params).await?;
 
-    let (predicate, param) = build_pk_predicate(pk_col, pk_val, 1)?;
+    let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
+    let (predicate, pk_params) = build_pk_map_predicate(pk_map, &pk_types, 1)?;
     let query = format!(
         "SELECT \"{}\" FROM \"{}\".\"{}\" WHERE {}",
         escape_identifier(col_name),
@@ -456,7 +481,11 @@ pub async fn fetch_blob_column_as_data_url(
         predicate,
     );
 
-    let row = query_one(&pool, &query, &[param.as_ref() as &(dyn ToSql + Sync)]).await?;
+    let params_ref: Vec<(&(dyn ToSql + Sync), Type)> = pk_params
+        .iter()
+        .map(|(b, t)| (b.as_ref() as &(dyn ToSql + Sync), t.clone()))
+        .collect();
+    let row = query_one_typed(&pool, &query, &params_ref).await?;
 
     let bytes: Vec<u8> = row.try_get(0).map_err(|e| format_pg_error(&e))?;
     Ok(crate::drivers::common::encode_blob_full(&bytes))
@@ -483,6 +512,67 @@ LIMIT 1",
             .or_else(|_| row.try_get::<_, String>("udt_name"))
             .unwrap_or_else(|_| "unknown".to_string())
     }))
+}
+
+/// Resolve the declared type of every column in `pk_map`, so each PK member binds
+/// against its real column type (uuid vs varchar etc. — #392). Columns whose type
+/// cannot be loaded are simply omitted, leaving `build_pk_map_predicate` to fall back
+/// to the shape heuristic for them.
+async fn get_pk_column_types(
+    pool: &deadpool_postgres::Pool,
+    schema: &str,
+    table: &str,
+    pk_map: &HashMap<String, serde_json::Value>,
+) -> HashMap<String, String> {
+    let mut types = HashMap::new();
+    for col in pk_map.keys() {
+        if let Ok(Some(t)) = get_column_data_type(pool, schema, table, col).await {
+            types.insert(col.clone(), t);
+        }
+    }
+    types
+}
+
+/// Map every enum-typed column of the table to its schema-qualified, quoted enum
+/// type name (e.g. `"public"."plan_type"`). PostgreSQL rejects a `TEXT`-bound
+/// parameter assigned to an enum column with SQLSTATE 42804 (#465), so the
+/// binding layer needs the real type to `CAST` through. On any catalog error the
+/// map is simply empty and binding falls back to the plain TEXT path.
+async fn get_enum_column_types(
+    pool: &deadpool_postgres::Pool,
+    schema: &str,
+    table: &str,
+) -> HashMap<String, String> {
+    let query = "SELECT a.attname::text AS column_name, \
+tn.nspname::text AS type_schema, t.typname::text AS type_name \
+FROM pg_attribute a \
+JOIN pg_class c ON c.oid = a.attrelid \
+JOIN pg_namespace n ON n.oid = c.relnamespace \
+JOIN pg_type t ON t.oid = a.atttypid \
+JOIN pg_namespace tn ON tn.oid = t.typnamespace \
+WHERE n.nspname = $1 AND c.relname = $2 \
+AND a.attnum > 0 AND NOT a.attisdropped AND t.typtype = 'e'";
+
+    match query_all(pool, query, &[&schema, &table]).await {
+        Ok(rows) => rows
+            .iter()
+            .filter_map(|row| {
+                let col: String = row.try_get("column_name").ok()?;
+                let type_schema: String = row.try_get("type_schema").ok()?;
+                let type_name: String = row.try_get("type_name").ok()?;
+                Some((col, quote_qualified_type(&type_schema, &type_name)))
+            })
+            .collect(),
+        Err(err) => {
+            log::debug!(
+                "Could not load PostgreSQL enum column types for {}.{}: {}",
+                schema,
+                table,
+                err
+            );
+            HashMap::new()
+        }
+    }
 }
 
 fn json_value_kind(value: &serde_json::Value) -> &'static str {
@@ -541,13 +631,13 @@ fn update_record_error_context(
 pub async fn delete_record(
     params: &ConnectionParams,
     table: &str,
-    pk_col: &str,
-    pk_val: serde_json::Value,
+    pk_map: &HashMap<String, serde_json::Value>,
     schema: &str,
 ) -> Result<u64, String> {
     let pool = get_postgres_pool(params).await?;
 
-    let (predicate, param) = build_pk_predicate(pk_col, pk_val, 1)?;
+    let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
+    let (predicate, pk_params) = build_pk_map_predicate(pk_map, &pk_types, 1)?;
     let query = format!(
         "DELETE FROM \"{}\".\"{}\" WHERE {}",
         escape_identifier(schema),
@@ -555,14 +645,17 @@ pub async fn delete_record(
         predicate,
     );
 
-    execute(&pool, &query, &[param.as_ref() as &(dyn ToSql + Sync)]).await
+    let params_ref: Vec<(&(dyn ToSql + Sync), Type)> = pk_params
+        .iter()
+        .map(|(b, t)| (b.as_ref() as &(dyn ToSql + Sync), t.clone()))
+        .collect();
+    execute_typed(&pool, &query, &params_ref).await
 }
 
 pub async fn update_record(
     params: &ConnectionParams,
     table: &str,
-    pk_col: &str,
-    pk_val: serde_json::Value,
+    pk_map: &HashMap<String, serde_json::Value>,
     col_name: &str,
     new_val: serde_json::Value,
     schema: &str,
@@ -582,8 +675,9 @@ pub async fn update_record(
             None
         }
     };
+    let enum_types = get_enum_column_types(&pool, schema, table).await;
     let new_val_for_context = new_val.clone();
-    let pk_val_for_context = pk_val.clone();
+    let pk_map_for_context = pk_map.clone();
 
     let mut query = format!(
         "UPDATE \"{}\".\"{}\" SET \"{}\" = ",
@@ -592,39 +686,53 @@ pub async fn update_record(
         escape_identifier(col_name)
     );
 
-    let mut params: Vec<Box<dyn tokio_postgres::types::ToSql + Send + Sync>> = Vec::new();
+    let mut bound_params: Vec<(Box<dyn tokio_postgres::types::ToSql + Send + Sync>, Type)> =
+        Vec::new();
 
     let bound = bind_pg_value(
         new_val,
-        params.len() + 1,
+        bound_params.len() + 1,
         PgValueOptions {
             column_type: column_data_type.as_deref(),
+            enum_type: enum_types.get(col_name).map(|s| s.as_str()),
             max_blob_size,
             allow_default: true,
         },
     )?;
     query.push_str(&bound.sql);
     if let Some(param) = bound.param {
-        params.push(param);
+        bound_params.push(param);
     }
 
-    let (predicate, pk_param) = build_pk_predicate(pk_col, pk_val, params.len() + 1)?;
+    let pk_types = get_pk_column_types(&pool, schema, table, pk_map).await;
+    let (predicate, pk_params) =
+        build_pk_map_predicate(pk_map, &pk_types, bound_params.len() + 1)?;
     query.push_str(" WHERE ");
     query.push_str(&predicate);
-    params.push(pk_param);
+    bound_params.extend(pk_params);
 
-    let params: Vec<&(dyn ToSql + Sync)> = params
+    let params_ref: Vec<(&(dyn ToSql + Sync), Type)> = bound_params
         .iter()
-        .map(|b| b.as_ref() as &(dyn ToSql + Sync))
+        .map(|(b, t)| (b.as_ref() as &(dyn ToSql + Sync), t.clone()))
         .collect();
 
-    execute(&pool, &query, &params).await.map_err(|err| {
+    let first_pk_col = {
+        let mut keys: Vec<&String> = pk_map_for_context.keys().collect();
+        keys.sort();
+        keys.first().map(|k| k.as_str()).unwrap_or("")
+    };
+    let first_pk_val = pk_map_for_context
+        .get(first_pk_col)
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+
+    execute_typed(&pool, &query, &params_ref).await.map_err(|err| {
         update_record_error_context(
             err,
             schema,
             table,
-            pk_col,
-            &pk_val_for_context,
+            first_pk_col,
+            &first_pk_val,
             col_name,
             &new_val_for_context,
             column_data_type.as_deref(),
@@ -682,7 +790,9 @@ pub async fn insert_record(
             }
         };
 
-    let mut params: Vec<Box<dyn ToSql + Sync + Send>> = Vec::with_capacity(entries.len());
+    let enum_types = get_enum_column_types(&pool, schema, table).await;
+
+    let mut params: Vec<(Box<dyn ToSql + Sync + Send>, Type)> = Vec::with_capacity(entries.len());
     let mut vals_set: Vec<String> = Vec::with_capacity(entries.len());
 
     for (col_name, val) in entries.drain(..) {
@@ -692,6 +802,7 @@ pub async fn insert_record(
             params.len() + 1,
             PgValueOptions {
                 column_type,
+                enum_type: enum_types.get(&col_name).map(|s| s.as_str()),
                 max_blob_size,
                 allow_default: false,
             },
@@ -710,12 +821,12 @@ pub async fn insert_record(
         vals_set.join(", ")
     );
 
-    let params: Vec<&(dyn ToSql + Sync)> = params
+    let params: Vec<(&(dyn ToSql + Sync), Type)> = params
         .iter()
-        .map(|b| b.as_ref() as &(dyn ToSql + Sync))
+        .map(|(b, t)| (b.as_ref() as &(dyn ToSql + Sync), t.clone()))
         .collect();
 
-    execute(&pool, &query, &params).await
+    execute_typed(&pool, &query, &params).await
 }
 
 pub async fn get_table_ddl(
@@ -801,6 +912,7 @@ async fn exec_on_pg_client(
             affected_rows: affected,
             truncated: false,
             pagination: None,
+            additional_results: None,
         });
     }
 
@@ -877,6 +989,7 @@ async fn exec_on_pg_client(
         affected_rows: 0,
         truncated,
         pagination,
+        additional_results: None,
     })
 }
 
@@ -964,7 +1077,7 @@ pub async fn get_view_definition(
 
     let row = client
         .query_one(
-            "SELECT pg_get_viewdef($1::regclass, true) as definition",
+            "SELECT pg_get_viewdef(($1::text)::regclass, true) as definition",
             &[&qualified],
         )
         .await
@@ -1059,6 +1172,11 @@ pub async fn get_view_columns(
             c.column_default,
             c.is_identity,
             c.character_maximum_length,
+            (SELECT string_agg('''' || replace(e.enumlabel, '''', '''''') || '''', ',' ORDER BY e.enumsortorder)
+             FROM pg_enum e
+             JOIN pg_type t ON t.oid = e.enumtypid
+             JOIN pg_namespace tn ON tn.oid = t.typnamespace
+             WHERE t.typname = c.udt_name AND tn.nspname = c.udt_schema) AS enum_values,
             (SELECT COUNT(*) FROM information_schema.table_constraints tc
              JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
              AND tc.table_schema = kcu.table_schema
@@ -1100,9 +1218,14 @@ pub async fn get_view_columns(
                 None
             };
 
+            let enum_values: Option<String> = r.try_get("enum_values").ok().flatten();
+
             TableColumn {
                 name: r.try_get("column_name").unwrap_or_default(),
-                data_type: r.try_get("data_type").unwrap_or_default(),
+                data_type: enum_data_type(
+                    r.try_get("data_type").unwrap_or_default(),
+                    enum_values,
+                ),
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
@@ -1113,20 +1236,162 @@ pub async fn get_view_columns(
         .collect())
 }
 
+pub async fn get_materialized_views(
+    params: &ConnectionParams,
+    schema: &str,
+) -> Result<Vec<ViewInfo>, String> {
+    log::debug!(
+        "PostgreSQL: Fetching materialized views for database: {} schema: {}",
+        params.database,
+        schema
+    );
+    let pool = get_postgres_pool(params).await?;
+    let rows = query_all(
+        &pool,
+        "SELECT matviewname as name FROM pg_matviews WHERE schemaname = $1 ORDER BY matviewname ASC",
+        &[&schema],
+    )
+    .await?;
+
+    let views: Vec<ViewInfo> = rows
+        .iter()
+        .map(|r| ViewInfo {
+            name: r.try_get("name").unwrap_or_default(),
+            definition: None,
+        })
+        .collect();
+    Ok(views)
+}
+
+/// Materialized views are not exposed via `information_schema.columns`, so their
+/// columns must be read from the system catalog (`pg_attribute`/`pg_class`).
+pub async fn get_materialized_view_columns(
+    params: &ConnectionParams,
+    view_name: &str,
+    schema: &str,
+) -> Result<Vec<TableColumn>, String> {
+    let pool = get_postgres_pool(params).await?;
+    let query = r#"
+        SELECT
+            a.attname AS column_name,
+            format_type(a.atttypid, a.atttypmod) AS data_type,
+            a.attnotnull AS not_null
+        FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = $1 AND c.relname = $2 AND c.relkind = 'm'
+          AND a.attnum > 0 AND NOT a.attisdropped
+        ORDER BY a.attnum
+    "#;
+
+    let rows = query_all(&pool, query, &[&schema, &view_name]).await?;
+
+    Ok(rows
+        .iter()
+        .map(|r| TableColumn {
+            name: r.try_get("column_name").unwrap_or_default(),
+            data_type: r.try_get("data_type").unwrap_or_default(),
+            is_pk: false,
+            is_nullable: !r.try_get::<_, bool>("not_null").unwrap_or(false),
+            is_auto_increment: false,
+            default_value: None,
+            character_maximum_length: None,
+        })
+        .collect())
+}
+
+pub async fn get_materialized_view_definition(
+    params: &ConnectionParams,
+    view_name: &str,
+    schema: &str,
+) -> Result<String, String> {
+    let pool = get_postgres_pool(params).await?;
+    let qualified = format!(
+        "\"{}\".\"{}\"",
+        escape_identifier(schema),
+        escape_identifier(view_name)
+    );
+
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+
+    let row = client
+        .query_one(
+            "SELECT pg_get_viewdef($1::regclass, true) as definition",
+            &[&qualified],
+        )
+        .await
+        .map_err(|e| format!("Failed to get materialized view definition: {}", e))?;
+
+    let definition: String = row.try_get("definition").unwrap_or_default();
+    Ok(format!(
+        "CREATE MATERIALIZED VIEW {} AS\n{}",
+        qualified, definition
+    ))
+}
+
+pub async fn refresh_materialized_view(
+    params: &ConnectionParams,
+    view_name: &str,
+    schema: &str,
+) -> Result<(), String> {
+    let pool = get_postgres_pool(params).await?;
+    let query = format!(
+        "REFRESH MATERIALIZED VIEW \"{}\".\"{}\"",
+        escape_identifier(schema),
+        escape_identifier(view_name)
+    );
+
+    let client = pool.get().await.map_err(|e| e.to_string())?;
+    client
+        .execute(&query, &[])
+        .await
+        .map_err(|e| format!("Failed to refresh materialized view: {}", e))?;
+
+    Ok(())
+}
+
 pub async fn get_routines(
     params: &ConnectionParams,
     schema: &str,
 ) -> Result<Vec<RoutineInfo>, String> {
     let pool = get_postgres_pool(params).await?;
-    let query = r#"
+
+    // `pg_proc.prokind` was introduced in PostgreSQL 11, replacing the boolean
+    // columns `proisagg` / `proiswindow`. On 9.x and 10 the column does not
+    // exist, so referencing it fails at parse time (SQLSTATE 42703). Pick the
+    // query based on the server version.
+    let server_version_num: i32 = query_one(
+        &pool,
+        "SELECT current_setting('server_version_num')::int4 AS v",
+        &[],
+    )
+    .await?
+    .try_get("v")
+    .unwrap_or(0);
+
+    let query = if server_version_num >= 110000 {
+        r#"
             SELECT proname, prokind
             FROM pg_proc
             WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1)
             AND prokind IN ('f', 'p')
             ORDER BY proname
-        "#;
+        "#
+    } else {
+        // Pre-11: procedures don't exist; exclude aggregates and window
+        // functions and report everything else as a plain function ('f').
+        // Cast to the internal "char" type so it maps to i8 like prokind.
+        r#"
+            SELECT proname, 'f'::"char" AS prokind
+            FROM pg_proc
+            WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1)
+            AND NOT proisagg
+            AND NOT proiswindow
+            ORDER BY proname
+        "#
+    };
 
-    let rows = query_all(&pool, &query, &[&schema]).await?;
+    let rows = query_all(&pool, query, &[&schema]).await?;
 
     Ok(rows
         .iter()
@@ -1231,6 +1496,47 @@ pub async fn get_routine_definition(
 
     let definition: String = row.try_get("definition").unwrap_or_default();
     Ok(definition)
+}
+
+/// Drops a routine, resolving its exact identity signature first: PostgreSQL
+/// identifies routines by name *and* argument types, so a bare
+/// `DROP FUNCTION name` fails as soon as overloads exist.
+pub async fn drop_routine(
+    params: &ConnectionParams,
+    routine_name: &str,
+    routine_type: &str,
+    schema: &str,
+) -> Result<(), String> {
+    let pool = get_postgres_pool(params).await?;
+
+    let query = r#"
+            SELECT pg_get_function_identity_arguments(p.oid) AS args
+            FROM pg_proc p
+            JOIN pg_namespace n ON p.pronamespace = n.oid
+            WHERE n.nspname = $1 AND p.proname = $2
+        "#;
+    let rows = query_all(&pool, query, &[&schema, &routine_name]).await?;
+
+    match rows.len() {
+        0 => Err(format!(
+            "Routine '{}' not found in schema '{}'",
+            routine_name, schema
+        )),
+        1 => {
+            let identity_args: String = rows[0].try_get("args").unwrap_or_default();
+            let sql = routines::drop_routine_sql(
+                routine_name,
+                routine_type,
+                &identity_args,
+                Some(schema),
+            );
+            execute(&pool, &sql, &[]).await.map(|_| ())
+        }
+        n => Err(format!(
+            "Routine '{}' has {} overloads; drop it manually specifying the argument types",
+            routine_name, n
+        )),
+    }
 }
 
 pub async fn get_triggers(
@@ -1353,7 +1659,9 @@ impl PostgresDriver {
                 capabilities: DriverCapabilities {
                     schemas: true,
                     views: true,
+                    materialized_views: true,
                     routines: true,
+                    routine_management: true,
                     file_based: false,
                     folder_based: false,
                     connection_string: true,
@@ -1555,6 +1863,41 @@ impl DatabaseDriver for PostgresDriver {
         drop_view(params, view_name, self.resolve_schema(schema)).await
     }
 
+    async fn get_materialized_views(
+        &self,
+        params: &crate::models::ConnectionParams,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::ViewInfo>, String> {
+        get_materialized_views(params, self.resolve_schema(schema)).await
+    }
+
+    async fn get_materialized_view_columns(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        schema: Option<&str>,
+    ) -> Result<Vec<crate::models::TableColumn>, String> {
+        get_materialized_view_columns(params, view_name, self.resolve_schema(schema)).await
+    }
+
+    async fn get_materialized_view_definition(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        get_materialized_view_definition(params, view_name, self.resolve_schema(schema)).await
+    }
+
+    async fn refresh_materialized_view(
+        &self,
+        params: &crate::models::ConnectionParams,
+        view_name: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        refresh_materialized_view(params, view_name, self.resolve_schema(schema)).await
+    }
+
     async fn get_routines(
         &self,
         params: &crate::models::ConnectionParams,
@@ -1586,6 +1929,46 @@ impl DatabaseDriver for PostgresDriver {
             self.resolve_schema(schema),
         )
         .await
+    }
+
+    async fn build_routine_call_sql(
+        &self,
+        _params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        args: &[crate::models::RoutineCallArg],
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        Ok(routines::routine_call_sql(
+            routine_name,
+            routine_type,
+            args,
+            Some(self.resolve_schema(schema)),
+        ))
+    }
+
+    async fn routine_create_template(
+        &self,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        Ok(routines::routine_create_template(
+            routine_type,
+            Some(self.resolve_schema(schema)),
+        ))
+    }
+
+    // `get_routine_edit_script` keeps the trait default: `pg_get_functiondef`
+    // already returns a re-runnable `CREATE OR REPLACE` statement.
+
+    async fn drop_routine(
+        &self,
+        params: &crate::models::ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        drop_routine(params, routine_name, routine_type, self.resolve_schema(schema)).await
     }
 
     async fn get_triggers(
@@ -1680,8 +2063,7 @@ impl DatabaseDriver for PostgresDriver {
         &self,
         params: &crate::models::ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         col_name: &str,
         new_val: serde_json::Value,
         schema: Option<&str>,
@@ -1690,8 +2072,7 @@ impl DatabaseDriver for PostgresDriver {
         update_record(
             params,
             table,
-            pk_col,
-            pk_val,
+            pk_map,
             col_name,
             new_val,
             self.resolve_schema(schema),
@@ -1704,11 +2085,10 @@ impl DatabaseDriver for PostgresDriver {
         &self,
         params: &crate::models::ConnectionParams,
         table: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         schema: Option<&str>,
     ) -> Result<u64, String> {
-        delete_record(params, table, pk_col, pk_val, self.resolve_schema(schema)).await
+        delete_record(params, table, pk_map, self.resolve_schema(schema)).await
     }
 
     async fn save_blob_to_file(
@@ -1716,8 +2096,7 @@ impl DatabaseDriver for PostgresDriver {
         params: &crate::models::ConnectionParams,
         table: &str,
         col_name: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         schema: Option<&str>,
         file_path: &str,
     ) -> Result<(), String> {
@@ -1725,8 +2104,7 @@ impl DatabaseDriver for PostgresDriver {
             params,
             table,
             col_name,
-            pk_col,
-            pk_val,
+            pk_map,
             self.resolve_schema(schema),
             file_path,
         )
@@ -1738,16 +2116,14 @@ impl DatabaseDriver for PostgresDriver {
         params: &crate::models::ConnectionParams,
         table: &str,
         col_name: &str,
-        pk_col: &str,
-        pk_val: serde_json::Value,
+        pk_map: &std::collections::HashMap<String, serde_json::Value>,
         schema: Option<&str>,
     ) -> Result<String, String> {
         fetch_blob_column_as_data_url(
             params,
             table,
             col_name,
-            pk_col,
-            pk_val,
+            pk_map,
             self.resolve_schema(schema),
         )
         .await

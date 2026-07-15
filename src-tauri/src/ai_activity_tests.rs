@@ -384,6 +384,72 @@ mod tests {
     #[test]
     fn classify_ddl() {
         assert_eq!(classify_query_kind("CREATE TABLE t (id INT)"), "ddl");
+        assert_eq!(
+            classify_query_kind(
+                "CREATE PROCEDURE tabularis_fix_test_proc()\n\
+                 BEGIN\n\
+                   SELECT 1 AS ok;\n\
+                 END"
+            ),
+            "ddl"
+        );
+        assert_eq!(
+            classify_query_kind(
+                "CREATE FUNCTION tabularis_fix_test_fn() RETURNS INT\n\
+                 BEGIN\n\
+                   RETURN 1;\n\
+                 END;"
+            ),
+            "ddl"
+        );
+        assert_eq!(
+            classify_query_kind(
+                "CREATE TRIGGER tabularis_fix_test_trigger BEFORE INSERT ON t\n\
+                 FOR EACH ROW\n\
+                 BEGIN\n\
+                   SET NEW.id = NEW.id;\n\
+                 END;"
+            ),
+            "ddl"
+        );
+        assert_eq!(
+            classify_query_kind(
+                "CREATE EVENT tabularis_fix_test_event\n\
+                 ON SCHEDULE EVERY 1 DAY\n\
+                 DO\n\
+                 BEGIN\n\
+                   SELECT 1;\n\
+                 END;"
+            ),
+            "ddl"
+        );
+        assert_eq!(
+            classify_query_kind(
+                "CREATE PROCEDURE tabularis_fix_test_proc()\n\
+                 BEGIN\n\
+                   SELECT 1;\n\
+                 END; DROP TABLE t"
+            ),
+            "unknown"
+        );
+        assert_eq!(
+            classify_query_kind(
+                "CREATE PROCEDURE tabularis_fix_test_proc()\n\
+                 BEGIN\n\
+                   SELECT 1;\n\
+                 END; DROP TABLE t; END"
+            ),
+            "unknown"
+        );
+        assert_eq!(
+            classify_query_kind(
+                "CREATE PROCEDURE tabularis_fix_test_proc()\n\
+                 BEGIN\n\
+                   SELECT 1;\n\
+                 END;; DROP TABLE t; END"
+            ),
+            "unknown"
+        );
         assert_eq!(classify_query_kind("DROP TABLE t"), "ddl");
         assert_eq!(classify_query_kind("ALTER TABLE t ADD COLUMN x INT"), "ddl");
         assert_eq!(classify_query_kind("TRUNCATE t"), "ddl");
@@ -435,6 +501,93 @@ mod tests {
         assert_eq!(
             classify_query_kind("WITH t AS (SELECT 1) CREATE TABLE x AS SELECT * FROM t"),
             "ddl"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // EXPLAIN. Plain EXPLAIN only plans and is a read, but EXPLAIN ANALYZE
+    // (and EXPLAIN (ANALYZE ...)) *executes* the wrapped statement — so a
+    // wrapped write/DDL must be gated exactly like the bare statement, or it
+    // slips past read-only mode and the write-approval prompt.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn classify_plain_explain_is_select() {
+        assert_eq!(classify_query_kind("EXPLAIN SELECT 1"), "select");
+        assert_eq!(classify_query_kind("EXPLAIN VERBOSE SELECT * FROM t"), "select");
+        assert_eq!(classify_query_kind("EXPLAIN (FORMAT JSON) SELECT 1"), "select");
+        assert_eq!(classify_query_kind("EXPLAIN QUERY PLAN SELECT 1"), "select");
+        // Plain EXPLAIN of a write does not run it — Postgres only plans.
+        assert_eq!(classify_query_kind("EXPLAIN DELETE FROM t"), "select");
+        // ANALYZE appearing as an identifier, not an option, must not trip it.
+        assert_eq!(
+            classify_query_kind("EXPLAIN SELECT * FROM analyze_runs"),
+            "select"
+        );
+    }
+
+    #[test]
+    fn classify_explain_analyze_write_is_gated_like_the_write() {
+        // Legacy bare syntax.
+        assert_eq!(classify_query_kind("EXPLAIN ANALYZE DELETE FROM t"), "write");
+        assert_eq!(
+            classify_query_kind("EXPLAIN ANALYZE INSERT INTO t VALUES (1)"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("EXPLAIN ANALYZE VERBOSE UPDATE t SET x = 1"),
+            "write"
+        );
+        // Parenthesized option list, ANALYZE anywhere inside it.
+        assert_eq!(
+            classify_query_kind("EXPLAIN (ANALYZE) DELETE FROM t"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("EXPLAIN (ANALYZE, BUFFERS) DELETE FROM t"),
+            "write"
+        );
+        assert_eq!(
+            classify_query_kind("EXPLAIN (FORMAT JSON, ANALYZE, BUFFERS) UPDATE t SET x = 1"),
+            "write"
+        );
+    }
+
+    #[test]
+    fn classify_explain_analyze_ddl_is_ddl() {
+        assert_eq!(classify_query_kind("EXPLAIN ANALYZE DROP TABLE t"), "ddl");
+        assert_eq!(
+            classify_query_kind("EXPLAIN (ANALYZE) TRUNCATE t"),
+            "ddl"
+        );
+    }
+
+    #[test]
+    fn classify_explain_analyze_select_stays_select() {
+        // ANALYZE runs the SELECT, but a SELECT is still a read.
+        assert_eq!(classify_query_kind("EXPLAIN ANALYZE SELECT 1"), "select");
+        assert_eq!(
+            classify_query_kind("EXPLAIN (ANALYZE) SELECT * FROM t"),
+            "select"
+        );
+    }
+
+    #[test]
+    fn classify_explain_analyze_cte_write_is_write() {
+        assert_eq!(
+            classify_query_kind(
+                "EXPLAIN ANALYZE WITH x AS (SELECT 1) DELETE FROM o WHERE id IN x"
+            ),
+            "write"
+        );
+    }
+
+    #[test]
+    fn classify_explain_analyze_unbalanced_options_fails_closed() {
+        // An unterminated option list must not be treated as a clean read.
+        assert_eq!(
+            classify_query_kind("EXPLAIN (ANALYZE DELETE FROM t"),
+            "unknown"
         );
     }
 

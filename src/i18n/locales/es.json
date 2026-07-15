@@ -37,7 +37,13 @@
     "noResults": "No se encontraron resultados",
     "error": "Error",
     "success": "Éxito",
-    "ok": "OK"
+    "ok": "OK",
+    "continue": "Continuar",
+    "back": "Atrás",
+    "copy": "Copiar",
+    "showDetails": "Mostrar detalles",
+    "hideDetails": "Ocultar detalles",
+    "beta": "Beta"
   },
   "sidebar": {
     "connections": "Conexiones",
@@ -52,6 +58,9 @@
     "createView": "Crear Nueva Vista",
     "views": "Vistas",
     "noViews": "No se encontraron vistas",
+    "materializedViews": "Vistas Materializadas",
+    "refreshMaterializedView": "Actualizar",
+    "showDefinition": "Mostrar Definición",
     "editView": "Editar Vista",
     "viewDefinition": "Definición de Vista",
     "dropView": "Eliminar Vista",
@@ -70,7 +79,11 @@
     "confirmDeleteQuery": "¿Estás seguro de que quieres eliminar la consulta \"{{name}}\"?",
     "confirmDeleteTitle": "Eliminar Consulta",
     "noTables": "No se encontraron tablas",
+    "expandTable": "Expandir tabla {{name}}",
+    "collapseTable": "Contraer tabla {{name}}",
     "columns": "columnas",
+    "parameters": "parámetros",
+    "noParameters": "Sin parámetros",
     "keys": "claves",
     "foreignKeys": "claves foráneas",
     "indexes": "índices",
@@ -81,6 +94,7 @@
     "modifyColumn": "Modificar Columna",
     "copyName": "Copiar Nombre",
     "openInEditor": "Abrir en el Editor",
+    "openInNewWindow": "Abrir en una nueva ventana",
     "closePanel": "Cerrar panel",
     "setAsActive": "Establecer como Activa",
     "deleteTable": "Eliminar Tabla",
@@ -172,6 +186,26 @@
       "renamePlaceholder": "Nombre del notebook"
     }
   },
+  "groups": {
+    "title": "Grupos",
+    "newGroup": "Nuevo grupo",
+    "createGroup": "Crear grupo",
+    "rename": "Renombrar",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Seguro que quieres eliminar el grupo \"{{name}}\"? Las conexiones de este grupo pasarán a estar sin agrupar.",
+    "deleteTitle": "Eliminar grupo",
+    "connection": "conexión",
+    "connections": "conexiones",
+    "ungrouped": "Sin agrupar",
+    "moveToGroup": "Mover a",
+    "removeFromGroup": "Quitar del grupo",
+    "noGroups": "Aún no hay grupos",
+    "createFirst": "Crea tu primer grupo para organizar las conexiones",
+    "groupName": "Nombre del grupo",
+    "dragHint": "Arrastra las conexiones aquí",
+    "createError": "No se pudo crear el grupo",
+    "subgroupNamePrompt": "Nombre de la subcarpeta (usa / para niveles anidados)"
+  },
   "mcp": {
     "title": "Integración del Servidor MCP",
     "subtitle": "Conecta Tabularis a Claude Desktop, Cursor y más",
@@ -245,10 +279,75 @@
     "noSearchResults": "Ninguna conexión coincide con \"{{query}}\"",
     "gridView": "Vista de cuadrícula",
     "listView": "Vista de lista",
+    "selectedCount": "{{count}} seleccionadas",
+    "deleteSelected": "Eliminar seleccionadas",
+    "moveSelected": "Mover a grupo",
+    "exportSelected": "Exportar selección",
+    "deselectAll": "Deseleccionar todo",
+    "confirmDeleteSelected": "¿Seguro que quieres eliminar {{count}} conexiones seleccionadas?",
+    "deleteSelectedTitle": "Eliminar conexiones seleccionadas",
     "export": "Exportar conexiones",
     "import": "Importar conexiones",
     "exportTitle": "Exportar conexiones",
-    "exportWarning": "El archivo exportado contendrá tus contraseñas de base de datos y SSH en texto plano. Guárdalo de forma segura."
+    "exportWarning": "El archivo exportado contendrá tus contraseñas de base de datos y SSH en texto plano. Guárdalo de forma segura.",
+    "exportModal": {
+      "title": "Exportar conexiones",
+      "subtitle": "Elige cómo exportar tus conexiones",
+      "subtitleSelected": "Exportar {{count}} conexión(es) seleccionada(s)",
+      "encrypted": "Cifrado con contraseña",
+      "encryptedDesc": "Se incluyen todas las conexiones y contraseñas, protegidas con una contraseña de tu elección. Recomendado para copias de seguridad.",
+      "noSecrets": "En texto plano, sin contraseñas",
+      "noSecretsDesc": "Las conexiones se exportan como JSON legible, pero se excluyen todas las contraseñas y frases de paso. Recomendado para compartir.",
+      "plaintext": "En texto plano, con todas las contraseñas",
+      "plaintextDesc": "Las conexiones y contraseñas se exportan como JSON legible. Cualquiera con el archivo puede leer tus credenciales.",
+      "password": "Contraseña",
+      "confirmPassword": "Confirmar contraseña",
+      "passwordRequired": "Se requiere una contraseña para una exportación cifrada.",
+      "passwordMismatch": "Las contraseñas no coinciden.",
+      "export": "Exportar"
+    },
+    "importPasswordModal": {
+      "title": "Archivo de exportación cifrado",
+      "subtitle": "Este archivo está protegido con una contraseña",
+      "password": "Contraseña",
+      "unlock": "Importar"
+    },
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace",
+        "applyToAll": "Acción para todas:"
+      },
+      "tabularisJsonHint": "Archivo de exportación de Tabularis (.json)",
+      "menuLabel": "Importar conexiones…",
+      "group": {
+        "label": "Grupo:",
+        "none": "Sin grupo",
+        "new": "Nuevo grupo…",
+        "newPlaceholder": "Nombre del grupo",
+        "parentLabel": "en",
+        "parentNone": "Nivel superior",
+        "applyToAll": "Grupo para todas:",
+        "keepPerConnection": "Por conexión"
+      },
+      "betaNotice": "La importación desde otra app está en beta. Si tienes algún problema,",
+      "reportIssue": "repórtalo en GitHub."
+    }
   },
   "connectionAppearance": {
     "section": "Apariencia",
@@ -396,10 +495,9 @@
       "explainplanPromptDesc": "Personaliza las instrucciones para el analisis IA de los planes EXPLAIN. Usa {{LANGUAGE}} para el idioma de salida.",
       "enterExplainplanPrompt": "Ingresa el prompt de analisis del plan de ejecucion...",
       "keySaved": "Clave API guardada de forma segura",
-      "promptSaved": "Prompt del sistema guardado correctamente",
+      "promptSaved": "Prompt guardado",
       "explainPromptSaved": "Prompt de explicación guardado correctamente",
       "promptReset": "Prompt del sistema restablecido al predeterminado",
-      "explainPromptReset": "Prompt de explicación restablecido al predeterminado",
       "modelPlaceholder": "Selecciona un modelo",
       "searchPlaceholder": "Buscar modelos...",
       "noResults": "No se encontraron modelos",
@@ -415,7 +513,9 @@
       "endpointUrlDesc": "La URL base de tu API compatible con OpenAI. Ejemplos: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "ej., llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "Ingresa el nombre del modelo proporcionado por tu servicio compatible con OpenAI.",
-      "customOpenaiModelHelp": "Ingresa el nombre exacto del modelo para tu proveedor compatible con OpenAI."
+      "customOpenaiModelHelp": "Ingresa el nombre exacto del modelo para tu proveedor compatible con OpenAI.",
+      "promptResetSuccess": "Prompt restablecido al valor predeterminado",
+      "apiKeySaved": "Clave API guardada de forma segura"
     },
     "updates": "Actualizaciones",
     "openSourceLibraries": "Librerías Open Source",
@@ -572,6 +672,7 @@
       "tabSwitcher": "Cambiar pestaña",
       "copySelection": "Copiar selección",
       "toggleSidebar": "Mostrar/ocultar barra lateral",
+      "focusTableFilter": "Enfocar el filtro de tablas",
       "openConnections": "Abrir conexiones",
       "newConnection": "Nueva conexión",
       "newTab": "Nueva pestaña",
@@ -585,7 +686,9 @@
       "notebookRunAll": "Ejecutar Todas las Celdas",
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Importar desde Portapapeles",
-      "quickNavigator": "Navegador rápido"
+      "quickNavigator": "Navegador rápido",
+      "triggerSuggestions": "Mostrar sugerencias",
+      "refreshTable": "Actualizar tabla"
     },
     "aiActivity": "Actividad IA"
   },
@@ -670,6 +773,7 @@
     "sshKeyFilePlaceholder": "/ruta/a/id_rsa",
     "sshKeyPassphrase": "Frase de Paso de Clave SSH (Opcional)",
     "sshKeyPassphrasePlaceholder": "Ingresa la frase de paso si la clave está cifrada",
+    "allowSshPrompt": "Permitir solicitud de contraseña/PIN de SSH",
     "saveKeychain": "Guardar contraseñas en el Llavero",
     "testConnection": "Probar Conexión",
     "save": "Guardar",
@@ -680,6 +784,9 @@
     "manageSshConnections": "Gestionar Conexiones SSH",
     "noSshConnections": "No hay conexiones SSH disponibles",
     "sslMode": "Modo SSL",
+    "enableCleartextPlugin": "Habilitar el complemento de contraseña en texto plano",
+    "enableCleartextPluginHint": "Envía la contraseña usando mysql_clear_password. Necesario para bastiones como Warpgate. Solo se usa en una conexión TLS.",
+    "enableCleartextPluginTlsRequired": "Selecciona arriba un modo TLS forzado (Required, Verify CA o Verify Identity) para usar el complemento de contraseña en texto plano.",
     "sslModes": {
       "disable": "Desactivado",
       "allow": "Permitir",
@@ -688,6 +795,9 @@
       "verify-ca": "Verificar CA",
       "verify-full": "Verificación completa"
     },
+    "advanced": "Avanzado",
+    "pipesAsConcat": "Establecer sql_mode PIPES_AS_CONCAT al conectar",
+    "pipesAsConcatHint": "Déjalo activado: Tabularis lo omite automáticamente en servidores que lo rechazan (Vitess/PlanetScale).",
     "chooseContext": "Elige un contexto...",
     "chooseK8s": "Elige una conexión...",
     "chooseNamespace": "Elige un namespace...",
@@ -709,7 +819,15 @@
     "selectK8sConnection": "Selecciona conexión de K8s",
     "selectTypeFirst": "Selecciona primero contexto/namespace/tipo",
     "useK8s": "Usar Port-Forward de Kubernetes",
-    "useK8sConnection": "Conexión guardada"
+    "useK8sConnection": "Conexión guardada",
+    "startupScript": "Script de inicio",
+    "startupScriptDescription": "SQL que se ejecuta en cada nueva conexión a esta fuente de datos. Úsalo para ajustes de sesión como SET / set_config (p. ej., para omitir RLS). Separa las sentencias con punto y coma.",
+    "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
+    "scrollTabsLeft": "Desplazar pestañas a la izquierda",
+    "scrollTabsRight": "Desplazar pestañas a la derecha",
+    "useIamAuth": "Usar autenticación AWS IAM (RDS)",
+    "useIamAuthHint": "El campo de contraseña se interpreta como un token de autenticación de RDS (obtenido con `aws rds generate-db-auth-token`). Requiere TLS. Los tokens caducan cada 15 minutos.",
+    "useIamAuthTlsRequired": "Activa un modo SSL arriba para usar la autenticación AWS IAM."
   },
   "sshConnections": {
     "title": "Conexiones SSH",
@@ -732,7 +850,16 @@
     "keyFile": "Archivo de clave",
     "quickTest": "Prueba rápida de conexión",
     "testFailed": "La prueba de conexión falló",
-    "savedInKeychain": "Contraseña guardada en el llavero del sistema"
+    "savedInKeychain": "Contraseña guardada en el llavero del sistema",
+    "manageDesc": "Túneles SSH reutilizables para tus conexiones de base de datos. Las contraseñas y frases de acceso se guardan en el llavero del sistema.",
+    "deleteInUse_one": "La usa {{count}} conexión guardada, que dejará de conectarse a través de este túnel.",
+    "deleteInUse_other": "La usan {{count}} conexiones guardadas, que dejarán de conectarse a través de este túnel."
+  },
+  "sshAskpass": {
+    "title": "Autenticación SSH",
+    "subtitle": "La conexión SSH necesita tu intervención",
+    "placeholder": "PIN o frase de contraseña",
+    "waiting": "Esperando tu llave de seguridad — tócala para confirmar."
   },
   "dataGrid": {
     "newRow": "NUEVA",
@@ -745,6 +872,7 @@
     "updateFailed": "Error en la actualización: ",
     "deleteFailed": "Error al eliminar la fila: ",
     "null": "null",
+    "emptySet": "(conjunto vacío)",
     "sortByAsc": "Ordenar por {{col}} ASC",
     "sortByDesc": "Ordenar por {{col}} DESC",
     "clearSort": "Quitar ordenamiento",
@@ -821,12 +949,24 @@
     "newRow": "Nueva Fila",
     "editing": "Editando: {{table}}",
     "rowsRetrieved": "{{count}} filas obtenidas",
+    "queryExecuted": "Consulta ejecutada correctamente",
+    "rowsAffected": "{{count}} filas afectadas",
     "autoPaginated": "Paginación automática",
     "pageOf": "Página {{current}} de {{total}}",
     "page": "Página {{current}}",
     "jumpToPage": "Clic para ir a la página",
     "loadRowCount": "Cargar conteo de filas",
+    "rowCount": "{{total}} filas",
     "executePrompt": "Ejecuta una consulta para ver resultados",
+    "results": {
+      "minimize": "Minimizar",
+      "maximize": "Maximizar (ocultar editor)",
+      "restore": "Restaurar editor",
+      "close": "Cerrar",
+      "detach": "Separar en una ventana aparte",
+      "detached": "Resultados separados en una ventana aparte",
+      "reattach": "Volver a acoplar"
+    },
     "closeTab": "Cerrar Pestaña",
     "closeOthers": "Cerrar Otras Pestañas",
     "closeRight": "Cerrar Pestañas a la Derecha",
@@ -836,6 +976,13 @@
     "saveThisQuery": "Guardar esta consulta",
     "noValidQueries": "No se encontraron consultas válidas",
     "queryFailed": "La consulta falló.",
+    "dangerousQueryTitle": "¿Ejecutar sin cláusula WHERE?",
+    "dangerousQueryMessage": "Esta sentencia afectará a todas las filas de la tabla porque no tiene una cláusula WHERE. Esta acción no se puede deshacer.",
+    "dangerousQueryConfirm": "Ejecutar de todos modos",
+    "dangerousQueryDropTitle": "¿Eliminar este objeto?",
+    "dangerousQueryDropMessage": "DROP elimina de forma permanente este objeto y todos sus datos. Esta acción no se puede deshacer.",
+    "dangerousQueryTruncateTitle": "¿Vaciar esta tabla?",
+    "dangerousQueryTruncateMessage": "TRUNCATE elimina todas las filas de la tabla. Esta acción no se puede deshacer.",
     "showErrorDetails": "Mostrar detalles",
     "hideErrorDetails": "Ocultar detalles",
     "errorBoundary": {
@@ -983,6 +1130,11 @@
       "noHistory": "Sin historial de ejecución",
       "collapseCell": "Contraer Celda",
       "expandCell": "Expandir Celda",
+      "sectionQuery": "Consulta",
+      "sectionResults": "Resultados",
+      "sectionChart": "Gráfico",
+      "collapseSection": "Contraer Sección",
+      "expandSection": "Expandir Sección",
       "collapseAll": "Contraer Todo",
       "expandAll": "Expandir Todo",
       "outline": "Esquema",
@@ -1045,6 +1197,7 @@
       "viewTabs": "Vista en pestañas",
       "viewStacked": "Vista apilada",
       "queryPrefix": "Consulta",
+      "resultSetPrefix": "Resultado",
       "results": "Resultados",
       "collapseAll": "Contraer todo",
       "expandAll": "Expandir todo",
@@ -1170,6 +1323,7 @@
     "viewNamePlaceholder": "ej. usuarios_activos, resumen_pedidos",
     "viewDefinition": "Definición de Vista (SQL)",
     "definitionPlaceholder": "SELECT * FROM ...",
+    "formatSql": "Embellecer",
     "preview": "Vista Previa",
     "runPreview": "Ejecutar Vista Previa",
     "previewEmpty": "Haz clic en 'Ejecutar Vista Previa' para ver resultados",
@@ -1183,6 +1337,9 @@
     "createSuccess": "Vista creada correctamente",
     "alterSuccess": "Vista actualizada correctamente",
     "saveError": "Error al guardar la vista: ",
+    "refreshSuccess": "Vista materializada \"{{view}}\" actualizada",
+    "refreshError": "Error al actualizar la vista materializada: ",
+    "failGetDefinition": "Error al obtener la definición: ",
     "confirmAlter": "¿Estás seguro de que deseas modificar la vista \"{{view}}\"?"
   },
   "dump": {
@@ -1396,7 +1553,8 @@
     "targetColumn": "Columna destino",
     "targetColumnPlaceholder": "Elegir destino...",
     "skipColumn": "Omitir (no importar)",
-    "createNewColumn": "Crear nueva columna"
+    "createNewColumn": "Crear nueva columna",
+    "typePlaceholder": "Tipo"
   },
   "aiActivity": {
     "title": "Actividad IA",
@@ -1523,5 +1681,38 @@
       "resourceNameRequired": "El nombre del recurso es obligatorio",
       "portInvalid": "El puerto debe estar entre 1 y 65535"
     }
+  },
+  "routines": {
+    "menuRun": "Ejecutar…",
+    "menuEdit": "Editar",
+    "menuDrop": "Eliminar",
+    "newRoutine": "Nueva rutina",
+    "newProcedure": "Nuevo procedimiento",
+    "newFunction": "Nueva función",
+    "templateError": "No se pudo cargar la plantilla de la rutina: ",
+    "dropConfirmTitle": "Eliminar rutina",
+    "dropConfirmMessage": "¿Eliminar la rutina \"{{name}}\"? Esta acción no se puede deshacer.",
+    "dropSuccess": "Rutina {{name}} eliminada",
+    "dropError": "No se pudo eliminar la rutina: ",
+    "runTitle": "Ejecutar {{name}}",
+    "runSubtitle": "Introduce los valores de los parámetros y revisa el SQL generado en el editor",
+    "loadingParameters": "Cargando parámetros…",
+    "noParameters": "Esta rutina no tiene parámetros. El script de invocación se abrirá en el editor.",
+    "outputParameter": "Parámetro de salida — devuelto como resultado",
+    "rawLabel": "Raw",
+    "rawHint": "Inserta el valor tal cual, sin comillas de cadena (números, expresiones)",
+    "runButton": "Ejecutar",
+    "runTabPrefix": "Ejecutar",
+    "returnValue": "devuelve"
+  },
+  "pagination": {
+    "firstPage": "Primera página",
+    "previousPage": "Página anterior",
+    "nextPage": "Página siguiente",
+    "lastPage": "Última página"
+  },
+  "miniGrid": {
+    "runningQuery": "Ejecutando consulta...",
+    "copyAll": "Copiar todo"
   }
 }

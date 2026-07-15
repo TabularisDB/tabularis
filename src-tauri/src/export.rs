@@ -186,6 +186,53 @@ where
         "mysql" => mysql::export::stream_query(params, query, &mut on_row).await,
         "postgres" => postgres::export::stream_query(params, query, &mut on_row).await,
         "sqlite" => sqlite::export::stream_query(params, query, &mut on_row).await,
-        other => Err(format!("Unsupported driver for export: {}", other)),
+        // External plugin drivers: page through the driver's own paginated
+        // `execute_query` and forward every row to the sink.
+        other => stream_query_via_plugin(other, params, query, &mut on_row).await,
     }
+}
+
+/// Streams a query for an external plugin driver by repeatedly calling its
+/// `execute_query` with the driver's pagination, forwarding each row to
+/// `on_row`. Built-in drivers stream directly from the database; plugins only
+/// expose paged query execution over JSON-RPC, so we drive that here.
+async fn stream_query_via_plugin<F>(
+    driver_id: &str,
+    params: &ConnectionParams,
+    query: &str,
+    mut on_row: F,
+) -> Result<(), String>
+where
+    F: FnMut(&[String], &[Value]) -> Result<(), String> + Send,
+{
+    const PAGE_SIZE: u32 = 1000;
+
+    let driver = crate::drivers::registry::get_driver(driver_id)
+        .await
+        .ok_or_else(|| format!("Unsupported driver for export: {driver_id}"))?;
+
+    let mut page: u32 = 1;
+    loop {
+        let result = driver
+            .execute_query(params, query, Some(PAGE_SIZE), page, None)
+            .await?;
+
+        for row in &result.rows {
+            on_row(&result.columns, row)?;
+        }
+
+        let fetched = result.rows.len() as u32;
+        let has_more = result
+            .pagination
+            .as_ref()
+            .map(|p| p.has_more)
+            .unwrap_or(fetched >= PAGE_SIZE);
+
+        if fetched == 0 || !has_more {
+            break;
+        }
+        page += 1;
+    }
+
+    Ok(())
 }

@@ -14,6 +14,7 @@ import type { ExplainPlan } from "../../types/explain";
 import { isDataModifyingQuery } from "../../utils/explainPlan";
 import { isExplainableQuery } from "../../utils/sql";
 import { getConnectionIcon } from "../../utils/driverUI";
+import { Modal } from "../ui/Modal";
 import { VisualExplainView } from "../explain/VisualExplainView";
 import type { ExplainViewMode } from "./visual-explain/ExplainSummaryBar";
 
@@ -100,10 +101,8 @@ export const VisualExplainModal = ({
     }
   }, [isOpen, query, connectionId, handleExplain]);
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] backdrop-blur-sm">
+    <Modal isOpen={isOpen} onClose={onClose}>
       <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[90vw] h-[85vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
@@ -189,6 +188,6 @@ export const VisualExplainModal = ({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };

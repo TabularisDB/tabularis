@@ -43,6 +43,28 @@ pub(super) fn escape_identifier(name: &str) -> String {
     name.replace('"', "\"\"")
 }
 
+/// Quote a schema-qualified type name (e.g. `"public"."plan_type"`) so it can be
+/// spliced into a `CAST($N AS ...)` without becoming an injection vector.
+pub(super) fn quote_qualified_type(type_schema: &str, type_name: &str) -> String {
+    format!(
+        "\"{}\".\"{}\"",
+        escape_identifier(type_schema),
+        escape_identifier(type_name)
+    )
+}
+
+/// `information_schema.columns` reports enum columns only as `USER-DEFINED`.
+/// When the allowed labels could be loaded from `pg_enum` (pre-quoted and
+/// comma-joined, e.g. `'free','pro'`), surface the full definition in MySQL's
+/// `column_type` shape — `enum('free','pro')` — so the UI can offer a dropdown
+/// of the allowed values (#465). Falls back to the raw `data_type` otherwise.
+pub(super) fn enum_data_type(data_type: String, enum_values: Option<String>) -> String {
+    match enum_values {
+        Some(vals) if !vals.is_empty() => format!("enum({})", vals),
+        _ => data_type,
+    }
+}
+
 /// Checks if a string value looks like WKT (Well-Known Text) geometry format
 pub(super) fn is_wkt_geometry(s: &str) -> bool {
     let s_upper = s.trim().to_uppercase();

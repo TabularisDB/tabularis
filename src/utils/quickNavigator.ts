@@ -1,4 +1,5 @@
 import type { TableInfo, ViewInfo, RoutineInfo, TriggerInfo, SchemaData } from '../contexts/DatabaseContext';
+import { fuzzyFilter } from './fuzzy';
 
 export interface NavigatorItem {
   name: string;
@@ -158,11 +159,7 @@ export function getNavigatorItems(params: NavigatorItemParams): NavigatorItem[] 
 }
 
 export function filterNavigatorItems(items: NavigatorItem[], search: string): NavigatorItem[] {
-  if (!search) return items;
-  const lowerSearch = search.toLowerCase();
-  return items.filter((item) => {
-    const matchName = item.name.toLowerCase().includes(lowerSearch);
-    const matchSchema = item.schema?.toLowerCase().includes(lowerSearch);
-    return matchName || matchSchema;
-  });
+  return fuzzyFilter(items, search, (item) =>
+    item.schema ? `${item.name} ${item.schema}` : item.name,
+  );
 }

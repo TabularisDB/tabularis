@@ -1,15 +1,26 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Sparkles, Ban, FileDigit } from "lucide-react";
+import { Sparkles, Ban, Eraser, FileDigit } from "lucide-react";
 import { GeometryInput } from "./GeometryInput";
 import { BlobInput } from "./BlobInput";
 import { DateInput } from "./DateInput";
 import { JsonInput } from "./JsonInput";
 import { TextInput } from "./TextInput";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
+import {
+  isEnumType,
+  parseEnumValues,
+  isSetType,
+  parseSetValues,
+} from "../../utils/columnTypes";
+import { EnumSetInput } from "./EnumSetInput";
 import { isBlobColumn } from "../../utils/blob";
 import { isJsonColumn, isJsonContent } from "../../utils/json";
-import { isLongTextValue, isTextColumn } from "../../utils/text";
+import {
+  isLongTextValue,
+  isTextColumn,
+  supportsEmptyString,
+} from "../../utils/text";
 import { getDateInputMode } from "../../utils/dateInput";
 import { USE_DEFAULT_SENTINEL } from "../../utils/dataGrid";
 
@@ -29,8 +40,7 @@ export interface FieldEditorProps {
   detectJsonInTextColumns?: boolean;
   connectionId?: string | null;
   tableName?: string | null;
-  pkCol?: string | null;
-  pkVal?: unknown;
+  pkMap?: Record<string, unknown> | null;
   schema?: string | null;
 }
 
@@ -54,8 +64,7 @@ export const FieldEditor = ({
   detectJsonInTextColumns = false,
   connectionId,
   tableName,
-  pkCol,
-  pkVal,
+  pkMap,
   schema,
 }: FieldEditorProps) => {
   const { t } = useTranslation();
@@ -72,11 +81,23 @@ export const FieldEditor = ({
       isJsonContent(originalValue));
   const isJson = isJsonByType || detectedJson;
   const dateMode = !isJson && type ? getDateInputMode(type) : null;
+  const isEnum =
+    !isBlob && !isGeometric && !isJson && !dateMode && type
+      ? isEnumType(type)
+      : false;
+  const enumValues = isEnum && type ? parseEnumValues(type) : [];
+  const isSet =
+    !isBlob && !isGeometric && !isJson && !dateMode && !isEnum && type
+      ? isSetType(type)
+      : false;
+  const setValues = isSet && type ? parseSetValues(type) : [];
   const isLongText =
     !isBlob &&
     !isGeometric &&
     !isJson &&
     !dateMode &&
+    !isEnum &&
+    !isSet &&
     isTextColumn(type) &&
     (isLongTextValue(value) || isLongTextValue(originalValue));
 
@@ -102,8 +123,7 @@ export const FieldEditor = ({
         placeholder={defaultPlaceholder}
         connectionId={connectionId}
         tableName={tableName}
-        pkCol={pkCol}
-        pkVal={pkVal}
+        pkMap={pkMap}
         colName={name}
         schema={schema}
       />
@@ -130,6 +150,16 @@ export const FieldEditor = ({
     <DateInput
       value={String(value ?? "")}
       mode={dateMode}
+      onChange={(newValue) => onChange(newValue)}
+      className={className}
+    />
+  ) : isEnum || isSet ? (
+    <EnumSetInput
+      variant="inline"
+      multiple={isSet}
+      value={value === null || value === undefined ? null : String(value)}
+      options={isSet ? setValues : enumValues}
+      isNullable={isNullable}
       onChange={(newValue) => onChange(newValue)}
       className={className}
     />
@@ -193,13 +223,14 @@ export const FieldEditor = ({
             {t("dataGrid.setDefault")}
           </button>
         )}
-        {!isBlob && (
+        {supportsEmptyString(type) && (
           <button
             type="button"
-            onClick={() => onChange(" ")}
-            className="px-2 py-1 text-xs bg-surface-secondary text-secondary rounded border border-default hover:bg-surface-tertiary transition-colors"
+            onClick={() => onChange("")}
+            className="px-2 py-1 text-xs bg-surface-secondary text-secondary rounded border border-default hover:bg-surface-tertiary transition-colors flex items-center gap-1"
             title={t("dataGrid.setEmpty")}
           >
+            <Eraser size={12} />
             {t("dataGrid.setEmpty")}
           </button>
         )}

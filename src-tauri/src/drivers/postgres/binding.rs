@@ -3,17 +3,37 @@ use super::helpers::{
     json_array_to_pg_literal, try_parse_pg_array,
 };
 use crate::drivers::common::parse_unsafe_bigint_string;
-use tokio_postgres::types::ToSql;
+use std::collections::HashMap;
+use tokio_postgres::types::{ToSql, Type};
 
 pub(super) type PgParam = Box<dyn ToSql + Send + Sync>;
 
+/// A boxed parameter plus the PostgreSQL wire type it must be declared as.
+///
+/// `tokio-postgres` lets a caller pin a parameter's type via `prepare_typed`
+/// instead of having the server infer it from query context. Pinning matters
+/// whenever the bound Rust value's natural type does not match what the SQL
+/// expression around the placeholder implies — most commonly a `String` bound
+/// into `CAST($N AS uuid)` / `CAST($N AS timestamptz)` etc., where the column's
+/// real type would otherwise be inferred for the placeholder and the bind is
+/// rejected client-side with "error serializing parameter N" (#392, #401)
+/// before the value ever reaches PostgreSQL's own (perfectly capable) text-to-
+/// temporal/uuid parsing. Declaring the placeholder as `TEXT` instead makes the
+/// `CAST` do the actual conversion server-side, exactly like a literal in a
+/// plain SQL statement.
+pub(super) type TypedPgParam = (PgParam, Type);
+
 pub(super) struct BoundValue {
     pub sql: String,
-    pub param: Option<PgParam>,
+    pub param: Option<TypedPgParam>,
 }
 
 pub(super) struct PgValueOptions<'a> {
     pub column_type: Option<&'a str>,
+    /// Schema-qualified, already-quoted enum type name (e.g. `"public"."plan_type"`)
+    /// when the target column is a PostgreSQL enum; `None` otherwise. Drives the
+    /// `CAST($N AS <enum>)` coercion in [`bind_pg_enum_string`] (#465).
+    pub enum_type: Option<&'a str>,
     pub max_blob_size: u64,
     pub allow_default: bool,
 }
@@ -22,11 +42,20 @@ pub(super) struct PgValueOptions<'a> {
 /// given JSON pk_val. Numeric values are cast through bigint/double precision so the
 /// bind succeeds against int2/int4/int8/real columns; UUID strings are bound as the
 /// `Uuid` type so PostgreSQL receives the matching OID.
+///
+/// `pk_type` is the PK column's declared type (e.g. `"uuid"`, `"character
+/// varying"`); `None` when column metadata could not be loaded. It decides how a
+/// uuid-/integer-shaped string binds: a uuid-shaped value goes out as the native
+/// `Uuid` type only for an actual `uuid` column — a `varchar`/`text` PK that merely
+/// holds a uuid-shaped string (e.g. `guid varchar(36)`) must bind as text, or
+/// tokio-postgres rejects the param with "error serializing parameter N" (#392).
+/// When the type is unknown we fall back to the shape heuristic.
 pub(super) fn build_pk_predicate(
     pk_col: &str,
     pk_val: serde_json::Value,
     placeholder_idx: usize,
-) -> Result<(String, PgParam), String> {
+    pk_type: Option<&str>,
+) -> Result<(String, TypedPgParam), String> {
     let col = format!("\"{}\"", escape_identifier(pk_col));
     match pk_val {
         serde_json::Value::Number(n) => {
@@ -37,22 +66,75 @@ pub(super) fn build_pk_predicate(
             Ok((format!("{} = {}", col, bound.sql), param))
         }
         serde_json::Value::String(s) => {
-            if let Ok(uuid) = s.parse::<uuid::Uuid>() {
-                Ok((format!("{} = ${}", col, placeholder_idx), Box::new(uuid)))
-            } else if let Some(n) = parse_unsafe_bigint_string(&s) {
-                // Bigint PK values outside JS safe range arrive from the UI as
-                // strings. Cast through bigint so the equality test against an
-                // int8 column does not trip a PostgreSQL type mismatch.
-                Ok((
-                    format!("{} = CAST(${} AS bigint)", col, placeholder_idx),
-                    Box::new(n),
-                ))
-            } else {
-                Ok((format!("{} = ${}", col, placeholder_idx), Box::new(s)))
+            let base = pk_type.map(|t| extract_base_type(t).to_lowercase());
+
+            if matches!(base.as_deref(), Some("uuid") | None) {
+                if let Ok(uuid) = s.parse::<uuid::Uuid>() {
+                    return Ok((
+                        format!("{} = ${}", col, placeholder_idx),
+                        (Box::new(uuid), Type::UUID),
+                    ));
+                }
             }
+
+            // Bigint PK values outside JS safe range arrive from the UI as
+            // strings. Cast through bigint so the equality test against an int8
+            // column does not trip a type mismatch — but skip for known text
+            // columns, which would reject `varchar = bigint`.
+            let integerish = matches!(
+                base.as_deref(),
+                Some("smallint" | "integer" | "bigint" | "int2" | "int4" | "int8") | None
+            );
+            if integerish {
+                if let Some(n) = parse_unsafe_bigint_string(&s) {
+                    return Ok((
+                        format!("{} = CAST(${} AS bigint)", col, placeholder_idx),
+                        (Box::new(n), Type::INT8),
+                    ));
+                }
+            }
+
+            Ok((
+                format!("{} = ${}", col, placeholder_idx),
+                (Box::new(s), Type::TEXT),
+            ))
         }
         _ => Err("Unsupported PK type".into()),
     }
+}
+
+/// Build a compound WHERE predicate from all entries of a pk_map.
+/// Keys are sorted for determinism. Returns the predicate string and all boxed params.
+/// E.g. `"col1" = $2 AND "col2" = $3` with params starting at placeholder_idx.
+///
+/// `pk_types` maps each PK column to its declared type (e.g. `"uuid"`, `"character
+/// varying"`); a column missing from the map binds via the shape heuristic. The type
+/// is threaded per column into [`build_pk_predicate`] so each member of a composite PK
+/// binds correctly — including a uuid-shaped value in a `varchar`/`text` column (#392).
+pub(super) fn build_pk_map_predicate(
+    pk_map: &HashMap<String, serde_json::Value>,
+    pk_types: &HashMap<String, String>,
+    placeholder_idx: usize,
+) -> Result<(String, Vec<TypedPgParam>), String> {
+    if pk_map.is_empty() {
+        return Err("pk_map must not be empty".into());
+    }
+    let mut keys: Vec<&String> = pk_map.keys().collect();
+    keys.sort();
+    let mut predicates = Vec::new();
+    let mut params: Vec<TypedPgParam> = Vec::new();
+    for key in keys {
+        let val = pk_map[key].clone();
+        let (pred, param) = build_pk_predicate(
+            key,
+            val,
+            placeholder_idx + params.len(),
+            pk_types.get(key).map(|s| s.as_str()),
+        )?;
+        predicates.push(pred);
+        params.push(param);
+    }
+    Ok((predicates.join(" AND "), params))
 }
 
 pub(super) fn bind_pg_value(
@@ -67,9 +149,14 @@ pub(super) fn bind_pg_value(
             match &value {
                 serde_json::Value::String(_) | serde_json::Value::Null => {}
                 _ => {
+                    let pg_type = if normalized == "JSONB" {
+                        Type::JSONB
+                    } else {
+                        Type::JSON
+                    };
                     return Ok(BoundValue {
                         sql: format!("${}", placeholder_idx),
-                        param: Some(Box::new(value)),
+                        param: Some((Box::new(value), pg_type)),
                     });
                 }
             }
@@ -81,7 +168,7 @@ pub(super) fn bind_pg_value(
         serde_json::Value::String(s) => bind_pg_string(&s, placeholder_idx, options),
         serde_json::Value::Bool(b) => Ok(BoundValue {
             sql: format!("${}", placeholder_idx),
-            param: Some(Box::new(b)),
+            param: Some((Box::new(b), Type::BOOL)),
         }),
         serde_json::Value::Null => Ok(BoundValue {
             sql: "NULL".to_string(),
@@ -111,12 +198,12 @@ pub(super) fn bind_pg_number(
     if let Some(v) = n.as_i64() {
         Ok(BoundValue {
             sql: format!("CAST(${} AS bigint)", placeholder_idx),
-            param: Some(Box::new(v)),
+            param: Some((Box::new(v), Type::INT8)),
         })
     } else if let Some(v) = n.as_f64() {
         Ok(BoundValue {
             sql: format!("CAST(${} AS double precision)", placeholder_idx),
-            param: Some(Box::new(v)),
+            param: Some((Box::new(v), Type::FLOAT8)),
         })
     } else {
         Err(format!("Unsupported numeric value: {}", n))
@@ -159,7 +246,7 @@ pub(super) fn bind_pg_boolean_string(
         |b| {
             Ok(BoundValue {
                 sql: format!("${}", placeholder_idx),
-                param: Some(Box::new(b) as PgParam),
+                param: Some((Box::new(b) as PgParam, Type::BOOL)),
             })
         },
     ))
@@ -187,7 +274,7 @@ pub(super) fn bind_pg_numeric_string(
             |v| {
                 Ok(BoundValue {
                     sql: format!("CAST(${} AS bigint)", placeholder_idx),
-                    param: Some(Box::new(v) as PgParam),
+                    param: Some((Box::new(v) as PgParam, Type::INT8)),
                 })
             },
         ));
@@ -204,7 +291,7 @@ pub(super) fn bind_pg_numeric_string(
             |v| {
                 Ok(BoundValue {
                     sql: format!("CAST(${} AS numeric)", placeholder_idx),
-                    param: Some(Box::new(v) as PgParam),
+                    param: Some((Box::new(v) as PgParam, Type::NUMERIC)),
                 })
             },
         ));
@@ -224,13 +311,79 @@ pub(super) fn bind_pg_numeric_string(
             |v| {
                 Ok(BoundValue {
                     sql: format!("CAST(${} AS double precision)", placeholder_idx),
-                    param: Some(Box::new(v) as PgParam),
+                    param: Some((Box::new(v) as PgParam, Type::FLOAT8)),
                 })
             },
         ));
     }
 
     None
+}
+
+/// Coerce a string value into a temporal PostgreSQL column (`timestamp`,
+/// `timestamptz`, `date`, `time`, `timetz`, `interval`).
+///
+/// The data grid editor sends every edited cell as a JSON string. `tokio-postgres`
+/// infers an unannotated placeholder's wire type from the temporal OID it sits
+/// next to — even inside `CAST($N AS timestamptz)`, where PostgreSQL resolves
+/// the parameter's *effective* type to `timestamptz` for the purposes of the
+/// client-side `Describe` response. Binding a Rust `String` against that
+/// inferred type is then rejected client-side with "error serializing
+/// parameter X" before the value ever reaches PostgreSQL's own (perfectly
+/// capable) text-to-temporal parsing (#401). The fix is therefore two-part:
+/// the `CAST(...)` text (so the *value* parses correctly) plus pinning the
+/// placeholder's wire type to `TEXT` via [`TypedPgParam`] when the statement is
+/// prepared, so the client-side type check matches what we're actually
+/// sending and PostgreSQL performs the real conversion server-side. The cast
+/// target is always one of the fixed canonical names below — never the raw
+/// column-type string — so this can't be turned into a SQL-injection vector
+/// via a crafted column type.
+///
+/// Returns `None` if the column is not a temporal type, so callers can fall
+/// through to the next coercion path.
+pub(super) fn bind_pg_temporal_string(
+    s: &str,
+    column_type: &str,
+    placeholder_idx: usize,
+) -> Option<Result<BoundValue, String>> {
+    let normalized = extract_base_type(column_type);
+
+    let cast_type = match normalized.as_str() {
+        "TIMESTAMP" | "TIMESTAMP WITHOUT TIME ZONE" => "timestamp",
+        "TIMESTAMPTZ" | "TIMESTAMP WITH TIME ZONE" => "timestamptz",
+        "DATE" => "date",
+        "TIME" | "TIME WITHOUT TIME ZONE" => "time",
+        "TIMETZ" | "TIME WITH TIME ZONE" => "timetz",
+        "INTERVAL" => "interval",
+        _ => return None,
+    };
+
+    Some(Ok(BoundValue {
+        sql: format!("CAST(${} AS {})", placeholder_idx, cast_type),
+        param: Some((Box::new(s.to_string()) as PgParam, Type::TEXT)),
+    }))
+}
+
+/// Coerce a string value into a PostgreSQL enum column.
+///
+/// The data grid editor sends every edited cell as a JSON string, which binds as
+/// `TEXT`. PostgreSQL has no implicit text-to-enum assignment cast, so the server
+/// rejects the statement with SQLSTATE 42804 — `column "x" is of type <enum> but
+/// expression is of type text` (#465). Same two-part fix as the temporal/uuid
+/// coercions above: wrap the placeholder in `CAST($N AS <enum type>)` so the
+/// server converts through the enum's own input function, and pin the wire type
+/// to `TEXT` so tokio-postgres does not reject the bound `String` client-side.
+/// `qualified_enum` comes from `pg_catalog` and is quoted via
+/// `quote_qualified_type`, so it cannot be turned into a SQL-injection vector.
+pub(super) fn bind_pg_enum_string(
+    s: &str,
+    qualified_enum: &str,
+    placeholder_idx: usize,
+) -> BoundValue {
+    BoundValue {
+        sql: format!("CAST(${} AS {})", placeholder_idx, qualified_enum),
+        param: Some((Box::new(s.to_string()) as PgParam, Type::TEXT)),
+    }
 }
 
 fn bind_pg_string(
@@ -248,8 +401,15 @@ fn bind_pg_string(
     if let Some(bytes) = crate::drivers::common::decode_blob_wire_format(s, options.max_blob_size) {
         return Ok(BoundValue {
             sql: format!("${}", placeholder_idx),
-            param: Some(Box::new(bytes)),
+            param: Some((Box::new(bytes), Type::BYTEA)),
         });
+    }
+
+    // An enum column always coerces through its own type: any of the later
+    // shape-based heuristics (uuid-shaped, function-shaped, array-shaped
+    // strings) would misinterpret a label that merely looks like one of those.
+    if let Some(enum_type) = options.enum_type {
+        return Ok(bind_pg_enum_string(s, enum_type, placeholder_idx));
     }
 
     if let Some(binding) = options
@@ -266,6 +426,13 @@ fn bind_pg_string(
         return binding;
     }
 
+    if let Some(binding) = options
+        .column_type
+        .and_then(|data_type| bind_pg_temporal_string(s, data_type, placeholder_idx))
+    {
+        return binding;
+    }
+
     if is_raw_sql_function(s) {
         return Ok(BoundValue {
             sql: s.to_string(),
@@ -276,14 +443,19 @@ fn bind_pg_string(
     if is_wkt_geometry(s) {
         return Ok(BoundValue {
             sql: format!("ST_GeomFromText(${})", placeholder_idx),
-            param: Some(Box::new(s.to_string())),
+            param: Some((Box::new(s.to_string()), Type::TEXT)),
         });
     }
 
+    // A uuid-shaped string CAST into a `uuid` column has the same client-side
+    // type-pinning requirement as the temporal coercion above: PostgreSQL
+    // resolves $N's effective type to `uuid` through the CAST, so the
+    // placeholder must be pinned to TEXT or tokio-postgres rejects the bound
+    // `String` before it reaches PostgreSQL's own uuid parser (#392, #401).
     if s.parse::<uuid::Uuid>().is_ok() {
         return Ok(BoundValue {
             sql: format!("CAST(${} AS uuid)", placeholder_idx),
-            param: Some(Box::new(s.to_string())),
+            param: Some((Box::new(s.to_string()), Type::TEXT)),
         });
     }
 
@@ -296,6 +468,6 @@ fn bind_pg_string(
 
     Ok(BoundValue {
         sql: format!("${}", placeholder_idx),
-        param: Some(Box::new(s.to_string())),
+        param: Some((Box::new(s.to_string()), Type::TEXT)),
     })
 }
