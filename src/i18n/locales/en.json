@@ -898,6 +898,8 @@
     "copyColumnName": "Copy column name",
     "copyColumnNameQuoted": "Copy as `column`",
     "copyColumnNameTable": "Copy as table.column",
+    "copyColumnValues": "Copy column values",
+    "copyColumnValuesIn": "Copy column values (IN clause)",
     "copyCells": "Copy {{count}} Cells",
     "copyRows": "Copy {{count}} Rows",
     "copied": "Copied to clipboard",

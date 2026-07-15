@@ -46,6 +46,16 @@ export function getSelectedRows(
   return sortedIndices.map((idx) => data[idx]);
 }
 
+export function columnValuesToText(rows: unknown[][], colIndex: number, nullLabel: string = "null"): string {
+  return rows
+    .map((row) => formatCellValue(row[colIndex], nullLabel))
+    .join("\n");
+}
+
+export function columnValuesToInClause(rows: unknown[][], colIndex: number): string {
+  return rows.map((row) => sqlValue(row[colIndex])).join(", ");
+}
+
 function sqlValue(cell: unknown): string {
   if (cell === null || cell === undefined) return "NULL";
   if (typeof cell === "boolean") return cell ? "TRUE" : "FALSE";
