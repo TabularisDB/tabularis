@@ -432,6 +432,9 @@
     "appearance_editorShowLineNumbersDesc": "Ipakita ang mga line number sa editor gutter.",
     "appearance_editorAcceptSuggestionOnEnter": "Tanggapin ang Suggestion gamit ang Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Payagan ang Enter (bukod sa Tab) para tanggapin ang aktibong autocomplete suggestion. Kapag off, laging nag-i-insert ng newline ang Enter.",
+    "queryExecution": "Pagpapatakbo ng Query",
+    "runStatementUnderCursor": "Patakbuhin ang statement sa ilalim ng cursor",
+    "runStatementUnderCursorDesc": "Kapag maraming statement ang isang script, patakbuhin ang nasa ilalim ng cursor sa halip na ipakita ang query picker. Pumili ng teksto para patakbuhin ang isang partikular na saklaw.",
     "editConfigJson": "I-edit ang config.json",
     "editConfigJsonDesc": "Direktang i-edit ang raw configuration file. Kailangan ng restart para mailapat ang mga pagbabago.",
     "configJsonModal": {

@@ -685,7 +685,10 @@
       "nextBackup": "下次备份：{{date}}",
       "nextBackupSoon": "下次备份：下次检查时",
       "hours": "小时"
-    }
+    },
+    "queryExecution": "查询执行",
+    "runStatementUnderCursor": "执行光标所在的语句",
+    "runStatementUnderCursorDesc": "当脚本包含多条语句时，执行光标所在的语句，而不显示查询选择器。选中文本可执行指定范围。"
   },
   "update": {
     "newVersionAvailable": "有新版本可用",

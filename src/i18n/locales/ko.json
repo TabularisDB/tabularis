@@ -400,6 +400,9 @@
     "appearance_editorShowLineNumbersDesc": "에디터 여백에 줄 번호를 표시합니다.",
     "appearance_editorAcceptSuggestionOnEnter": "Enter로 제안 수락",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Tab 외에 Enter 키로도 현재 자동완성 제안을 수락할 수 있게 합니다. 끄면 Enter는 항상 줄바꿈을 삽입합니다.",
+    "queryExecution": "쿼리 실행",
+    "runStatementUnderCursor": "커서 위치의 구문 실행",
+    "runStatementUnderCursorDesc": "스크립트에 여러 구문이 있을 때 쿼리 선택 창을 표시하지 않고 커서 위치의 구문을 실행합니다. 특정 범위를 실행하려면 텍스트를 선택하세요.",
     "editConfigJson": "config.json 편집",
     "editConfigJsonDesc": "원본 설정 파일을 직접 편집합니다. 변경 사항을 적용하려면 재시작이 필요합니다.",
     "configJsonModal": {

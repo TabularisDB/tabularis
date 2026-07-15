@@ -437,6 +437,9 @@
     "appearance_editorShowLineNumbersDesc": "Display line numbers in the editor gutter.",
     "appearance_editorAcceptSuggestionOnEnter": "Accept Suggestion with Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Allow Enter (in addition to Tab) to accept the active autocomplete suggestion. When off, Enter always inserts a newline.",
+    "queryExecution": "Query Execution",
+    "runStatementUnderCursor": "Run statement under cursor",
+    "runStatementUnderCursorDesc": "When a script has multiple statements, run the one under the cursor instead of showing the query picker. Select text to run a specific range.",
     "editConfigJson": "Edit config.json",
     "editConfigJsonDesc": "Directly edit the raw configuration file. A restart is required to apply changes.",
     "configJsonModal": {

@@ -402,6 +402,9 @@
     "appearance_editorShowLineNumbersDesc": "Zeigt Zeilennummern im Rand des Editors an.",
     "appearance_editorAcceptSuggestionOnEnter": "Vorschlag mit Eingabetaste übernehmen",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Erlaubt der Eingabetaste (zusätzlich zu Tab), den aktiven Autovervollständigungsvorschlag zu übernehmen. Bei deaktivierter Option fügt Enter immer einen Zeilenumbruch ein.",
+    "queryExecution": "Abfrageausführung",
+    "runStatementUnderCursor": "Anweisung unter dem Cursor ausführen",
+    "runStatementUnderCursorDesc": "Wenn ein Skript mehrere Anweisungen enthält, wird die Anweisung unter dem Cursor ausgeführt, statt die Abfrageauswahl anzuzeigen. Markiere Text, um einen bestimmten Bereich auszuführen.",
     "editConfigJson": "config.json bearbeiten",
     "editConfigJsonDesc": "Bearbeite die rohe Konfigurationsdatei direkt. Ein Neustart ist erforderlich, um Änderungen anzuwenden.",
     "configJsonModal": {

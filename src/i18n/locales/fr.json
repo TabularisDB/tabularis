@@ -432,6 +432,9 @@
     "appearance_editorShowLineNumbersDesc": "Affiche les numéros de ligne dans la marge de l’éditeur.",
     "appearance_editorAcceptSuggestionOnEnter": "Accepter la suggestion avec Entrée",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Autorise la touche Entrée (en plus de Tab) à accepter la suggestion d’autocomplétion active. Lorsqu’elle est désactivée, Entrée insère toujours un saut de ligne.",
+    "queryExecution": "Exécution des requêtes",
+    "runStatementUnderCursor": "Exécuter l'instruction sous le curseur",
+    "runStatementUnderCursorDesc": "Lorsqu'un script contient plusieurs instructions, exécute celle sous le curseur au lieu d'afficher le sélecteur de requêtes. Sélectionnez du texte pour exécuter une plage spécifique.",
     "editConfigJson": "Modifier config.json",
     "editConfigJsonDesc": "Modifiez directement le fichier de configuration brut. Un redémarrage est nécessaire pour appliquer les changements.",
     "configJsonModal": {

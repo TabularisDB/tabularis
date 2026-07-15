@@ -427,6 +427,9 @@
     "appearance_editorShowLineNumbersDesc": "Visualizza i numeri di riga nel margine dell'editor.",
     "appearance_editorAcceptSuggestionOnEnter": "Accetta Suggerimento con Invio",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Permetti al tasto Invio (oltre a Tab) di accettare il suggerimento di autocompletamento attivo. Quando disattivato, Invio inserisce sempre una nuova riga.",
+    "queryExecution": "Esecuzione query",
+    "runStatementUnderCursor": "Esegui l'istruzione sotto il cursore",
+    "runStatementUnderCursorDesc": "Quando uno script contiene più istruzioni, esegue quella sotto il cursore invece di mostrare il selettore di query. Seleziona il testo per eseguire un intervallo specifico.",
     "editConfigJson": "Modifica config.json",
     "editConfigJsonDesc": "Modifica direttamente il file di configurazione grezzo. È necessario un riavvio per applicare le modifiche.",
     "configJsonModal": {
