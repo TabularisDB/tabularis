@@ -38,6 +38,22 @@ export function rowsToJSON(rows: unknown[][], columns: string[]): string {
   );
 }
 
+function markdownCell(cell: unknown, nullLabel: string = "null"): string {
+  return formatCellValue(cell, nullLabel)
+    .replace(/\|/g, "\\|")
+    .replace(/\r?\n/g, "<br>");
+}
+
+export function rowsToMarkdown(rows: unknown[][], columns: string[], nullLabel: string = "null", includeHeaders: boolean = true): string {
+  const body = rows.map(
+    (row) => `| ${row.map((cell) => markdownCell(cell, nullLabel)).join(" | ")} |`,
+  );
+  if (!includeHeaders) return body.join("\n");
+  const header = `| ${columns.map((c) => markdownCell(c)).join(" | ")} |`;
+  const separator = `| ${columns.map(() => "---").join(" | ")} |`;
+  return [header, separator, ...body].join("\n");
+}
+
 export function getSelectedRows(
   data: unknown[][],
   selectedIndices: Set<number>

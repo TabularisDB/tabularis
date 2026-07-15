@@ -360,7 +360,7 @@ export const Editor = () => {
   const [tempPage, setTempPage] = useState("1");
   const [isCountLoading, setIsCountLoading] = useState(false);
   const [applyToAll, setApplyToAll] = useState(false);
-  const [copyFormat, setCopyFormat] = useState<"csv" | "json" | "sql-insert">(
+  const [copyFormat, setCopyFormat] = useState<"csv" | "json" | "sql-insert" | "markdown">(
     settings.copyFormat ?? "csv",
   );
   const [csvDelimiter, setCsvDelimiter] = useState(
@@ -2697,7 +2697,7 @@ export const Editor = () => {
     setExportState((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
-  const handleExportCommon = async (format: "csv" | "json") => {
+  const handleExportCommon = async (format: "csv" | "json" | "markdown") => {
     if (!activeTab || !activeConnectionId) return;
 
     const effectiveSchema =
@@ -2711,9 +2711,15 @@ export const Editor = () => {
     if (!query || !query.trim()) return;
 
     try {
+      const extension = format === "markdown" ? "md" : format;
       const filePath = await save({
-        filters: [{ name: format.toUpperCase(), extensions: [format] }],
-        defaultPath: `result_${Date.now()}.${format}`,
+        filters: [
+          {
+            name: format === "markdown" ? "Markdown" : format.toUpperCase(),
+            extensions: [extension],
+          },
+        ],
+        defaultPath: `result_${Date.now()}.${extension}`,
       });
 
       if (!filePath) return;
@@ -2763,6 +2769,7 @@ export const Editor = () => {
 
   const handleExportCSV = () => handleExportCommon("csv");
   const handleExportJSON = () => handleExportCommon("json");
+  const handleExportMarkdown = () => handleExportCommon("markdown");
 
   const handleRunDropdownToggle = useCallback(() => {
     if (!isRunDropdownOpen) {
@@ -3161,6 +3168,15 @@ export const Editor = () => {
                   <FileJson size={14} className="shrink-0 opacity-80" />
                   <span className="flex-1">JSON</span>
                   <span className="text-xs text-muted">.json</span>
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={handleExportMarkdown}
+                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
+                >
+                  <FileText size={14} className="shrink-0 opacity-80" />
+                  <span className="flex-1">Markdown</span>
+                  <span className="text-xs text-muted">.md</span>
                 </button>
               </div>
             </>
@@ -3733,7 +3749,7 @@ export const Editor = () => {
                       <select
                         value={copyFormat}
                         onChange={(e) =>
-                          setCopyFormat(e.target.value as "csv" | "json" | "sql-insert")
+                          setCopyFormat(e.target.value as "csv" | "json" | "sql-insert" | "markdown")
                         }
                         className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium uppercase tracking-wide"
                         title={t("settings.copyFormat")}
@@ -3742,6 +3758,7 @@ export const Editor = () => {
                         <option value="csv">CSV</option>
                         <option value="json">JSON</option>
                         <option value="sql-insert">SQL INSERT</option>
+                        <option value="markdown">Markdown</option>
                       </select>
                       {copyFormat === "csv" && (
                         <select
@@ -3765,7 +3782,7 @@ export const Editor = () => {
                           </option>
                         </select>
                       )}
-                      {copyFormat === "csv" && (
+                      {(copyFormat === "csv" || copyFormat === "markdown") && (
                         <label
                           className="flex items-center gap-1 cursor-pointer select-none text-[11px] text-secondary hover:text-primary"
                           title={t("settings.csvIncludeHeaders")}
