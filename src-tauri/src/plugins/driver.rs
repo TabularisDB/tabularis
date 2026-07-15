@@ -12,8 +12,9 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::drivers::driver_trait::{DatabaseDriver, PluginManifest};
 use crate::models::{
-    ColumnDefinition, ConnectionParams, DataTypeInfo, ExplainPlan, ForeignKey, Index, QueryResult,
-    RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema, TriggerInfo, ViewInfo,
+    AiSchemaContext, ColumnDefinition, ConnectionParams, DataTypeInfo, ExplainPlan, ForeignKey,
+    Index, QueryResult, RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema,
+    TriggerInfo, ViewInfo,
 };
 use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse};
 
@@ -895,6 +896,32 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    async fn get_ai_schema_context(
+        &self,
+        params: &ConnectionParams,
+        schema: Option<&str>,
+        max_tables: usize,
+    ) -> Result<AiSchemaContext, String> {
+        match self
+            .process
+            .call(
+                "get_ai_schema_context",
+                json!({
+                    "params": params,
+                    "schema": schema,
+                    "max_tables": max_tables,
+                }),
+            )
+            .await
+        {
+            Ok(value) => serde_json::from_value(value).map_err(|e| e.to_string()),
+            Err(error) if is_method_not_found(&error) => {
+                crate::ai_schema_context::load_from_driver(self, params, schema, max_tables).await
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     async fn get_all_columns_batch(
         &self,
         params: &ConnectionParams,
@@ -1016,6 +1043,86 @@ mod tests {
             }),
             data_types: Vec::new(),
         }
+    }
+
+    fn test_driver_result<F>(mut handle_request: F) -> RpcDriver
+    where
+        F: FnMut(JsonRpcRequest) -> Result<Value, String> + Send + 'static,
+    {
+        let (tx, mut rx) = mpsc::channel::<PluginCommand>(8);
+        tokio::spawn(async move {
+            while let Some(command) = rx.recv().await {
+                if let PluginCommand::Call(request, response_tx) = command {
+                    let result = handle_request(request);
+                    let _ = response_tx.send(result);
+                }
+            }
+        });
+
+        let (shutdown_tx, _shutdown_rx) = oneshot::channel();
+        RpcDriver {
+            manifest: test_manifest(),
+            process: Arc::new(PluginProcess {
+                sender: tx,
+                next_id: AtomicU64::new(1),
+                shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
+                pid: None,
+            }),
+            data_types: Vec::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_uses_custom_ai_schema_context_when_available() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "get_ai_schema_context");
+            assert_eq!(request.params["schema"], "public");
+            assert_eq!(request.params["max_tables"], 20);
+            json!({
+                "tables": [{
+                    "name": "users",
+                    "columns": [],
+                    "foreign_keys": []
+                }],
+                "total_table_count": 1
+            })
+        });
+
+        let context = driver
+            .get_ai_schema_context(&test_connection_params(), Some("public"), 20)
+            .await
+            .expect("get_ai_schema_context");
+
+        assert_eq!(context.tables.len(), 1);
+        assert_eq!(context.tables[0].name, "users");
+        assert_eq!(context.total_table_count, 1);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_builds_ai_schema_context_from_standard_metadata_as_fallback() {
+        let driver = test_driver_result(|request| match request.method.as_str() {
+            "get_ai_schema_context" => Err("Method not found (-32601)".to_string()),
+            "get_tables" => Ok(json!([{ "name": "users" }])),
+            "get_columns" => Ok(json!([{
+                "name": "id",
+                "data_type": "bigint",
+                "is_pk": true,
+                "is_nullable": false,
+                "is_auto_increment": true
+            }])),
+            "get_foreign_keys" => Ok(json!([])),
+            method => Err(format!("Unexpected method: {method}")),
+        });
+
+        let context = driver
+            .get_ai_schema_context(&test_connection_params(), Some("public"), 20)
+            .await
+            .expect("fallback schema context");
+
+        assert_eq!(context.tables.len(), 1);
+        assert_eq!(context.tables[0].name, "users");
+        assert_eq!(context.tables[0].columns[0].name, "id");
+        assert_eq!(context.total_table_count, 1);
     }
 
     #[tokio::test]

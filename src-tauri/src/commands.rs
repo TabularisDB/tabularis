@@ -375,7 +375,7 @@ pub fn get_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String
     if !config_dir.exists() {
         fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     }
-    Ok(config_dir.join("connections.json"))
+    Ok(crate::paths::resolve_connections_path(&config_dir))
 }
 
 pub fn get_ssh_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
@@ -691,6 +691,32 @@ pub async fn get_schema_snapshot<R: Runtime>(
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
     drv.get_schema_snapshot(&params, schema.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn get_ai_schema_context<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    schema: Option<String>,
+) -> Result<String, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let driver = driver_for(&saved_conn.params.driver).await?;
+    let identifier_quote = driver.manifest().capabilities.identifier_quote.as_str();
+    let context = driver
+        .get_ai_schema_context(
+            &params,
+            schema.as_deref(),
+            crate::ai_schema_context::DEFAULT_MAX_TABLES,
+        )
+        .await?;
+
+    Ok(crate::ai_schema_context::format_for_prompt(
+        &context,
+        identifier_quote,
+    ))
 }
 
 #[tauri::command]

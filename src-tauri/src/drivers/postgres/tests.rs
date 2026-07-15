@@ -1,8 +1,11 @@
 use super::binding::{
-    PgValueOptions, bind_pg_boolean_string, bind_pg_number, bind_pg_numeric_string,
-    bind_pg_temporal_string, bind_pg_value, build_pk_map_predicate, build_pk_predicate,
+    PgValueOptions, bind_pg_boolean_string, bind_pg_enum_string, bind_pg_number,
+    bind_pg_numeric_string, bind_pg_temporal_string, bind_pg_value, build_pk_map_predicate,
+    build_pk_predicate,
 };
-use super::helpers::{extract_base_type, is_implicit_cast_compatible};
+use super::helpers::{
+    enum_data_type, extract_base_type, is_implicit_cast_compatible, quote_qualified_type,
+};
 
 mod extract_base_type_tests {
     use super::*;
@@ -393,6 +396,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("boolean"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: true,
             },
@@ -410,6 +414,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("boolean"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: true,
             },
@@ -427,6 +432,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("integer"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: true,
             },
@@ -444,6 +450,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: None,
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: true,
             },
@@ -461,6 +468,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: None,
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
             },
@@ -478,6 +486,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: None,
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
             },
@@ -495,6 +504,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("jsonb"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
             },
@@ -512,6 +522,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("json"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
             },
@@ -529,6 +540,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("jsonb"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
             },
@@ -546,6 +558,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("text"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
             },
@@ -554,6 +567,141 @@ mod bind_pg_value_tests {
             Err(err) => err,
         };
         assert!(err.contains("JSON object"));
+    }
+}
+
+mod bind_pg_enum_string_tests {
+    use super::*;
+    use tokio_postgres::types::Type;
+
+    #[test]
+    fn casts_through_the_qualified_enum_type_pinned_as_text() {
+        let bound = bind_pg_enum_string("pro", "\"public\".\"plan_type\"", 1);
+        assert_eq!(bound.sql, "CAST($1 AS \"public\".\"plan_type\")");
+        let (_, ty) = bound.param.expect("expected a bound parameter");
+        assert_eq!(ty, Type::TEXT);
+    }
+
+    #[test]
+    fn placeholder_index_is_respected() {
+        let bound = bind_pg_enum_string("free", "\"public\".\"plan_type\"", 3);
+        assert_eq!(bound.sql, "CAST($3 AS \"public\".\"plan_type\")");
+    }
+
+    #[test]
+    fn bind_pg_value_uses_enum_coercion_for_enum_columns() {
+        let bound = bind_pg_value(
+            serde_json::json!("enterprise"),
+            1,
+            PgValueOptions {
+                column_type: Some("USER-DEFINED"),
+                enum_type: Some("\"public\".\"plan_type\""),
+                max_blob_size: 1024,
+                allow_default: true,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(bound.sql, "CAST($1 AS \"public\".\"plan_type\")");
+        assert!(bound.param.is_some());
+    }
+
+    #[test]
+    fn enum_coercion_wins_over_shape_heuristics() {
+        // A label that happens to be uuid-shaped must still cast to the enum,
+        // not to uuid.
+        let bound = bind_pg_value(
+            serde_json::json!("123e4567-e89b-12d3-a456-426614174000"),
+            1,
+            PgValueOptions {
+                column_type: Some("USER-DEFINED"),
+                enum_type: Some("\"public\".\"weird_enum\""),
+                max_blob_size: 1024,
+                allow_default: true,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(bound.sql, "CAST($1 AS \"public\".\"weird_enum\")");
+    }
+
+    #[test]
+    fn null_for_enum_column_stays_sql_null() {
+        let bound = bind_pg_value(
+            serde_json::Value::Null,
+            1,
+            PgValueOptions {
+                column_type: Some("USER-DEFINED"),
+                enum_type: Some("\"public\".\"plan_type\""),
+                max_blob_size: 1024,
+                allow_default: true,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(bound.sql, "NULL");
+        assert!(bound.param.is_none());
+    }
+
+    #[test]
+    fn default_sentinel_wins_over_enum_coercion() {
+        let bound = bind_pg_value(
+            serde_json::json!("__USE_DEFAULT__"),
+            1,
+            PgValueOptions {
+                column_type: Some("USER-DEFINED"),
+                enum_type: Some("\"public\".\"plan_type\""),
+                max_blob_size: 1024,
+                allow_default: true,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(bound.sql, "DEFAULT");
+        assert!(bound.param.is_none());
+    }
+}
+
+mod enum_helpers_tests {
+    use super::*;
+
+    #[test]
+    fn quote_qualified_type_quotes_schema_and_name() {
+        assert_eq!(
+            quote_qualified_type("public", "plan_type"),
+            "\"public\".\"plan_type\""
+        );
+    }
+
+    #[test]
+    fn quote_qualified_type_escapes_embedded_quotes() {
+        assert_eq!(
+            quote_qualified_type("pub\"lic", "plan\"type"),
+            "\"pub\"\"lic\".\"plan\"\"type\""
+        );
+    }
+
+    #[test]
+    fn enum_data_type_surfaces_allowed_values() {
+        assert_eq!(
+            enum_data_type(
+                "USER-DEFINED".to_string(),
+                Some("'free','basic','pro'".to_string())
+            ),
+            "enum('free','basic','pro')"
+        );
+    }
+
+    #[test]
+    fn enum_data_type_keeps_raw_type_without_values() {
+        assert_eq!(
+            enum_data_type("integer".to_string(), None),
+            "integer"
+        );
+        assert_eq!(
+            enum_data_type("USER-DEFINED".to_string(), Some(String::new())),
+            "USER-DEFINED"
+        );
     }
 }
 

@@ -13,6 +13,11 @@ import {
   parseSetMembers,
   serializeSetMembers,
 } from "../../utils/columnTypes";
+import {
+  DROPDOWN_MAX_HEIGHT,
+  computeDropdownPosition,
+  dropdownPositionStyle,
+} from "../../utils/dropdownPosition";
 
 export interface EnumSetInputProps {
   /**
@@ -75,7 +80,13 @@ export const EnumSetInput = ({
 }: EnumSetInputProps) => {
   const { t } = useTranslation();
   const [open, setOpen] = useState(autoOpen);
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const [pos, setPos] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+    maxHeight: DROPDOWN_MAX_HEIGHT,
+    openUp: false,
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -99,7 +110,7 @@ export const EnumSetInput = ({
   const updatePosition = useCallback(() => {
     if (!buttonRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
-    setPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    setPos(computeDropdownPosition(rect));
   }, []);
 
   const close = useCallback(() => {
@@ -206,11 +217,14 @@ export const EnumSetInput = ({
     <span className="truncate">{String(value)}</span>
   );
 
+  // The panel hugs its content, so the trigger width is a minimum, not fixed.
+  const { width: dropdownWidth, ...dropdownStyle } = dropdownPositionStyle(pos);
+
   const dropdown = open && (
     <div
       ref={dropdownRef}
-      className="fixed z-[200] bg-elevated border border-strong rounded-lg shadow-xl max-h-60 overflow-y-auto p-1 scrollbar-thin scrollbar-thumb-surface-tertiary scrollbar-track-transparent animate-in fade-in zoom-in-95 duration-100"
-      style={{ top: pos.top, left: pos.left, minWidth: pos.width }}
+      className="fixed z-[200] bg-elevated border border-strong rounded-lg shadow-xl overflow-y-auto p-1 scrollbar-thin scrollbar-thumb-surface-tertiary scrollbar-track-transparent animate-in fade-in zoom-in-95 duration-100"
+      style={{ ...dropdownStyle, minWidth: dropdownWidth }}
     >
       {isNullable && (
         <button

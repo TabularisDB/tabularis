@@ -1,4 +1,4 @@
-import type { QueryResultEntry } from "../types/editor";
+import type { QueryResult, QueryResultEntry } from "../types/editor";
 
 /**
  * Creates initial QueryResultEntry array from a list of queries.
@@ -16,6 +16,41 @@ export function createResultEntries(
     error: "",
     executionTime: null,
     isLoading: true,
+    page: 1,
+    activeTable: null,
+    pkColumns: null,
+  }));
+}
+
+/**
+ * Builds already-resolved QueryResultEntry items for a single statement that
+ * returned multiple result sets (e.g. a MySQL CALL with several SELECTs in
+ * the procedure body). The primary result (stripped of `additional_results`)
+ * and each additional result set become one entry each, labelled
+ * "{labelPrefix} 1..N".
+ *
+ * The execution time is attached to the first entry only: the statement ran
+ * once, so summing per-entry times across the tab bar must yield the real
+ * total instead of N copies of it.
+ */
+export function createEntriesFromResultSets(
+  tabId: string,
+  query: string,
+  result: QueryResult,
+  executionTime: number | null,
+  labelPrefix: string,
+): QueryResultEntry[] {
+  const { additional_results, ...primary } = result;
+  const sets: QueryResult[] = [primary, ...(additional_results ?? [])];
+  return sets.map((res, index) => ({
+    id: `${tabId}-result-${index}`,
+    queryIndex: index,
+    query,
+    label: `${labelPrefix} ${index + 1}`,
+    result: res,
+    error: "",
+    executionTime: index === 0 ? executionTime : null,
+    isLoading: false,
     page: 1,
     activeTable: null,
     pkColumns: null,
