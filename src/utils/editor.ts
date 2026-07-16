@@ -318,6 +318,16 @@ export interface ReconstructQueryOptions {
 }
 
 /**
+ * Fold macOS "Smart Quotes" (curly ‘ ’ “ ”) back to straight ASCII quotes.
+ * SQL engines only accept straight ' as a string delimiter, so a filter typed
+ * as `status = 'x'` that the OS rewrote to `status = ‘x’` fails to parse
+ * ("unterminated quoted string").
+ */
+function normalizeSmartQuotes(s: string): string {
+  return s.replace(/[‘’‚‛]/g, "'").replace(/[“”„‟]/g, '"');
+}
+
+/**
  * Reconstruct a SELECT query for a table tab with filters, sort, and limit.
  * Optional overrides replace the tab's own clause values when provided.
  * When wrapLimitSubquery is true, the LIMIT is applied via a subquery wrapper
@@ -345,8 +355,8 @@ export function reconstructTableQuery(
       ? options.limitOverride
       : tab.limitClause;
 
-  const filter = filterClause ? `WHERE ${filterClause}` : "";
-  const sort = sortClause ? `ORDER BY ${sortClause}` : "";
+  const filter = filterClause ? `WHERE ${normalizeSmartQuotes(filterClause)}` : "";
+  const sort = sortClause ? `ORDER BY ${normalizeSmartQuotes(sortClause)}` : "";
   const quotedTable = quoteTableRef(tab.activeTable, driver, tab.schema);
 
   let baseQuery = `SELECT * FROM ${quotedTable} ${filter} ${sort}`.trim();

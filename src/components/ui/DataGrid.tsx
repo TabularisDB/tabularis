@@ -28,6 +28,7 @@ import {
   Edit,
   Sparkles,
   Ban,
+  Eraser,
   FileDigit,
   ExternalLink,
   PanelBottomOpen,
@@ -50,6 +51,7 @@ import { useSettings } from "../../hooks/useSettings";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
 import { isJsonColumn, isJsonContent } from "../../utils/json";
+import { supportsEmptyString } from "../../utils/text";
 import {
   pickPrimaryForeignKeyByColumn,
   getForeignKeyForPreview,
@@ -158,6 +160,7 @@ export const DataGrid = React.memo(
     const { showAlert } = useAlert();
     const { settings } = useSettings();
     const colorByType = settings.resultColorByType ?? false;
+    const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
 
     const detectJsonInTextColumns = useMemo(() => {
       if (!connectionId) return false;
@@ -780,6 +783,20 @@ export const DataGrid = React.memo(
       }
     }, [handleEditCommit, mergedRows, columns]);
 
+    // Commit a specific value in a single event, bypassing the editingCellRef
+    // lag (the ref is synced via a passive effect, so a picker that changes and
+    // commits within the same click — e.g. an ENUM dropdown — would otherwise
+    // read the stale previous value).
+    const commitEditWithValue = useCallback(
+      (value: unknown) => {
+        if (editingCellRef.current) {
+          editingCellRef.current = { ...editingCellRef.current, value };
+        }
+        handleEditCommit();
+      },
+      [handleEditCommit],
+    );
+
     const columnHelper = useMemo(() => createColumnHelper<unknown[]>(), []);
 
     const coreRowModel = useMemo(() => getCoreRowModel(), []);
@@ -796,6 +813,10 @@ export const DataGrid = React.memo(
               const sortState = getColumnSortState(colName, sortClause);
               const displaySortState: "none" | "asc" | "desc" =
                 sortState ?? "none";
+              // Column data type for the DataGrip-style header hover tooltip.
+              // Only populated when column metadata is present (i.e. table
+              // browse), not for arbitrary query results.
+              const colType = columnTypeMap?.get(colName);
 
               return (
                 <div
@@ -808,17 +829,21 @@ export const DataGrid = React.memo(
                         ? t("dataGrid.sortByDesc", { col: colName })
                         : t("dataGrid.clearSort")
                   ) : undefined}
-                  className={`flex items-center gap-2 select-none group/header ${onSort ? "cursor-pointer" : ""}`}
+                  className={`relative flex items-center gap-2 select-none group/header ${onSort ? "cursor-pointer" : ""}`}
                   onClick={() => onSort && onSort(colName)}
                   onKeyDown={(e) => { if (onSort && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSort(colName); } }}
                   title={
-                    onSort
-                      ? displaySortState === "none"
-                        ? t("dataGrid.sortByAsc", { col: colName })
-                        : displaySortState === "asc"
-                          ? t("dataGrid.sortByDesc", { col: colName })
-                          : t("dataGrid.clearSort")
-                      : undefined
+                    // Suppress the native sort-hint title while the type tooltip
+                    // is shown, to avoid two overlapping tooltips on hover.
+                    colType
+                      ? undefined
+                      : onSort
+                        ? displaySortState === "none"
+                          ? t("dataGrid.sortByAsc", { col: colName })
+                          : displaySortState === "asc"
+                            ? t("dataGrid.sortByDesc", { col: colName })
+                            : t("dataGrid.clearSort")
+                        : undefined
                   }
                 >
                   <span>{colName}</span>
@@ -838,6 +863,14 @@ export const DataGrid = React.memo(
                       )}
                     </span>
                   )}
+                  {colType && (
+                    <span
+                      role="tooltip"
+                      className="pointer-events-none absolute left-0 top-full z-20 mt-1 whitespace-nowrap rounded-lg border border-strong bg-tooltip px-2 py-1 text-xs font-normal normal-case tracking-normal text-secondary opacity-0 shadow-xl transition-opacity duration-100 group-hover/header:opacity-100"
+                    >
+                      <span className="text-primary">{colName}</span>: {colType}
+                    </span>
+                  )}
                 </div>
               );
             },
@@ -849,6 +882,7 @@ export const DataGrid = React.memo(
         t,
         sortClause,
         onSort,
+        columnTypeMap,
       ],
     );
 
@@ -1093,7 +1127,7 @@ export const DataGrid = React.memo(
       // For insertions, null triggers <default> display; for existing rows, use sentinel
       setCellValue(isInsertion ? null : USE_DEFAULT_SENTINEL);
     }, [contextMenu, setCellValue]);
-    const setCellEmpty = useCallback(() => setCellValue(" "), [setCellValue]);
+    const setCellEmpty = useCallback(() => setCellValue(""), [setCellValue]);
 
     const setCellServerNow = useCallback(() => {
       if (!contextMenu || !connectionId) return;
@@ -1273,6 +1307,7 @@ export const DataGrid = React.memo(
         handleCellDoubleClick,
         handleContextMenu,
         handleEditCommit,
+        commitEditWithValue,
         handleKeyDown,
         onForeignKeyShowPanel,
         onForeignKeyHidePanel,
@@ -1310,6 +1345,7 @@ export const DataGrid = React.memo(
         handleCellDoubleClick,
         handleContextMenu,
         handleEditCommit,
+        commitEditWithValue,
         handleKeyDown,
         onForeignKeyShowPanel,
         onForeignKeyHidePanel,
@@ -1332,100 +1368,109 @@ export const DataGrid = React.memo(
       );
     }
 
+    const virtualItems = rowVirtualizer.getVirtualItems();
+    const virtualPaddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+    const virtualPaddingBottom =
+      virtualItems.length > 0
+        ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
+        : 0;
+    const totalColumnCount = tableColumns.length + 1;
+
     return (
       <>
         <div
           ref={parentRef}
           className="h-full overflow-auto border border-default rounded bg-elevated relative"
         >
-          <div
-            style={{
-              height: `${rowVirtualizer.getTotalSize()}px`,
-              position: "relative",
-            }}
-          >
-            <table
-              className="w-full text-left border-collapse absolute top-0 left-0"
-              style={{
-                transform: `translateY(${rowVirtualizer.getVirtualItems()[0]?.start ?? 0}px)`,
-              }}
+          <table className="w-full text-left border-collapse">
+            <thead
+              className={`bg-base z-10 shadow-sm ${stickyColumnHeaders ? "sticky top-0" : ""}`}
             >
-              <thead
-                className="bg-base sticky top-0 z-10 shadow-sm"
-                style={{
-                  transform: `translateY(${-1 * (rowVirtualizer.getVirtualItems()[0]?.start ?? 0)}px)`,
-                }}
-              >
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  <th
+                    onClick={handleSelectAll}
+                    className="px-2 py-2 text-xs font-semibold text-muted border-b border-r border-default bg-base sticky left-0 z-20 text-center select-none w-[50px] min-w-[50px] cursor-pointer hover:bg-elevated"
+                  >
+                    #
+                  </th>
+                  {headerGroup.headers.map((header) => (
                     <th
-                      onClick={handleSelectAll}
-                      className="px-2 py-2 text-xs font-semibold text-muted border-b border-r border-default bg-base sticky left-0 z-20 text-center select-none w-[50px] min-w-[50px] cursor-pointer hover:bg-elevated"
+                      key={header.id}
+                      className="px-4 py-2 text-xs font-semibold text-secondary tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap"
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setHeaderContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          colName: header.id,
+                        });
+                      }}
                     >
-                      #
+                      {flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
                     </th>
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="px-4 py-2 text-xs font-semibold text-secondary tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap"
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          setHeaderContextMenu({
-                            x: e.clientX,
-                            y: e.clientY,
-                            colName: header.id,
-                          });
-                        }}
-                      >
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                  const rowIndex = virtualRow.index;
-                  const row = tableRows[rowIndex];
-                  const rowOriginal = row.original as unknown[];
-                  const isSelected = selectedRowIndices.has(rowIndex);
-                  const mergedRow = mergedRows[rowIndex];
-                  const isInsertion = mergedRow?.type === "insertion";
-                  const pkVal =
-                    pkIndexMaps.length > 0 && pkColumns
-                      ? serializePkKey(buildPkMap(pkColumns, rowOriginal as unknown[], pkIndexMaps))
-                      : null;
-                  const isPendingDelete =
-                    !isInsertion && pkVal
-                      ? pendingDeletions?.[pkVal] !== undefined
-                      : false;
-                  const isRowEditing = editingCell?.rowIndex === rowIndex;
-                  const isRowFocused = focusedCell?.rowIndex === rowIndex;
-                  const isRowExpanded = expandedCell?.rowIndex === rowIndex;
-                  return (
-                    <MemoRow
-                      key={row.id}
-                      ctx={rowCtx}
-                      rowIndex={rowIndex}
-                      rowOriginal={rowOriginal}
-                      isSelected={isSelected}
-                      isInsertion={isInsertion}
-                      isPendingDelete={isPendingDelete}
-                      pkVal={pkVal}
-                      editingColIndex={isRowEditing ? editingCell!.colIndex : null}
-                      editingValue={isRowEditing ? editingCell!.value : undefined}
-                      focusedColIndex={isRowFocused ? focusedCell!.colIndex : null}
-                      expandedColIndex={isRowExpanded ? expandedCell!.colIndex : null}
-                      expandedKind={isRowExpanded ? expandedCell!.kind : null}
-                    />
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {virtualPaddingTop > 0 && (
+                <tr>
+                  <td
+                    colSpan={totalColumnCount}
+                    style={{ height: virtualPaddingTop, padding: 0, border: "none" }}
+                  />
+                </tr>
+              )}
+              {virtualItems.map((virtualRow) => {
+                const rowIndex = virtualRow.index;
+                const row = tableRows[rowIndex];
+                const rowOriginal = row.original as unknown[];
+                const isSelected = selectedRowIndices.has(rowIndex);
+                const mergedRow = mergedRows[rowIndex];
+                const isInsertion = mergedRow?.type === "insertion";
+                const pkVal =
+                  pkIndexMaps.length > 0 && pkColumns
+                    ? serializePkKey(buildPkMap(pkColumns, rowOriginal as unknown[], pkIndexMaps))
+                    : null;
+                const isPendingDelete =
+                  !isInsertion && pkVal
+                    ? pendingDeletions?.[pkVal] !== undefined
+                    : false;
+                const isRowEditing = editingCell?.rowIndex === rowIndex;
+                const isRowFocused = focusedCell?.rowIndex === rowIndex;
+                const isRowExpanded = expandedCell?.rowIndex === rowIndex;
+                return (
+                  <MemoRow
+                    key={row.id}
+                    ctx={rowCtx}
+                    rowIndex={rowIndex}
+                    rowOriginal={rowOriginal}
+                    isSelected={isSelected}
+                    isInsertion={isInsertion}
+                    isPendingDelete={isPendingDelete}
+                    pkVal={pkVal}
+                    editingColIndex={isRowEditing ? editingCell!.colIndex : null}
+                    editingValue={isRowEditing ? editingCell!.value : undefined}
+                    focusedColIndex={isRowFocused ? focusedCell!.colIndex : null}
+                    expandedColIndex={isRowExpanded ? expandedCell!.colIndex : null}
+                    expandedKind={isRowExpanded ? expandedCell!.kind : null}
+                  />
+                );
+              })}
+              {virtualPaddingBottom > 0 && (
+                <tr>
+                  <td
+                    colSpan={totalColumnCount}
+                    style={{ height: virtualPaddingBottom, padding: 0, border: "none" }}
+                  />
+                </tr>
+              )}
+            </tbody>
+          </table>
 
           {contextMenu &&
             (() => {
@@ -1483,12 +1528,14 @@ export const DataGrid = React.memo(
                     action: setCellDefault,
                   });
                 }
-                // Always allow setting empty string, except for BLOB columns
+                // Empty string ("") is only a valid value for textual columns.
+                // Strongly-typed columns (uuid, numeric, temporal, …) reject it,
+                // so offer "Set Empty" only where an empty string is assignable.
                 const colDataType = columnTypeMap?.get(colName) ?? "";
-                if (!isBlobColumn(colDataType, columnLengthMap?.get(colName))) {
+                if (supportsEmptyString(colDataType)) {
                   menuItems.push({
                     label: t("dataGrid.setEmpty"),
-                    icon: Copy,
+                    icon: Eraser,
                     action: setCellEmpty,
                   });
                 }
@@ -1678,12 +1725,17 @@ export const DataGrid = React.memo(
                   detectJsonInTextColumns={detectJsonInTextColumns}
                   rowIndex={sidebarRowData.rowIndex}
                   isInsertion={isInsertion}
-                  columns={columns.map((colName, index) => ({
-                    name: colName,
-                    type: columnMetadata?.[index]?.data_type,
-                    characterMaximumLength:
-                      columnMetadata?.[index]?.character_maximum_length,
-                  }))}
+                  columns={columns.map((colName) => {
+                    const meta = columnMetadata?.find(
+                      (c) => c.name === colName,
+                    );
+                    return {
+                      name: colName,
+                      type: meta?.data_type,
+                      characterMaximumLength:
+                        meta?.character_maximum_length,
+                    };
+                  })}
                   autoIncrementColumns={autoIncrementColumns}
                   defaultValueColumns={defaultValueColumns}
                   nullableColumns={nullableColumns}

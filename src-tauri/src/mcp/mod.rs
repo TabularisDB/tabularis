@@ -24,6 +24,9 @@ pub mod preflight;
 pub mod protocol;
 use protocol::*;
 
+#[cfg(test)]
+mod tests;
+
 const APPROVAL_POLL_INTERVAL_MS: u64 = 500;
 
 /// Async-friendly mirror of the data we want to record on every tool call.
@@ -217,7 +220,7 @@ async fn expand_k8s_params_for_mcp(
 }
 
 fn find_connection(conn_id: &str) -> Result<crate::models::SavedConnection, JsonRpcError> {
-    let config_path = paths::get_app_config_dir().join("connections.json");
+    let config_path = paths::resolve_connections_path(&paths::get_app_config_dir());
     let connections = persistence::load_connections(&config_path).map_err(|e| JsonRpcError {
         code: -32000,
         message: e,
@@ -429,7 +432,7 @@ fn handle_initialize(params: Option<Value>) -> Result<Value, JsonRpcError> {
 }
 
 async fn handle_list_resources() -> Result<Value, JsonRpcError> {
-    let config_path = paths::get_app_config_dir().join("connections.json");
+    let config_path = paths::resolve_connections_path(&paths::get_app_config_dir());
     let connections = persistence::load_connections(&config_path).map_err(|e| JsonRpcError {
         code: -32000,
         message: format!("Failed to load connections: {}", e),
@@ -475,7 +478,7 @@ async fn handle_read_resource(params: Option<Value>) -> Result<Value, JsonRpcErr
     })?;
 
     if uri == "tabularis://connections" {
-        let config_path = paths::get_app_config_dir().join("connections.json");
+        let config_path = paths::resolve_connections_path(&paths::get_app_config_dir());
         let connections =
             persistence::load_connections(&config_path).map_err(|e| JsonRpcError {
                 code: -32000,
@@ -561,6 +564,17 @@ fn handle_list_tools() -> Result<Value, JsonRpcError> {
             input_schema: json!({
                 "type": "object",
                 "properties": {}
+            }),
+        },
+        Tool {
+            name: "list_databases".to_string(),
+            description: Some("List all databases available for a connection".to_string()),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "connection_id": { "type": "string", "description": "The ID or name of the connection" }
+                },
+                "required": ["connection_id"]
             }),
         },
         Tool {
@@ -715,6 +729,10 @@ async fn dispatch_tool(
 ) -> Result<Value, JsonRpcError> {
     match name {
         "list_connections" => tool_list_connections(audit).await,
+        "list_databases" => {
+            let args = require_args(args)?;
+            tool_list_databases(args, audit).await
+        }
         "list_tables" => {
             let args = require_args(args)?;
             tool_list_tables(args, audit).await
@@ -746,7 +764,7 @@ fn require_args(
 }
 
 async fn tool_list_connections(_audit: &mut CallAudit) -> Result<Value, JsonRpcError> {
-    let config_path = paths::get_app_config_dir().join("connections.json");
+    let config_path = paths::resolve_connections_path(&paths::get_app_config_dir());
     let connections = persistence::load_connections(&config_path).map_err(|e| JsonRpcError {
         code: -32000,
         message: e,
@@ -761,7 +779,7 @@ async fn tool_list_connections(_audit: &mut CallAudit) -> Result<Value, JsonRpcE
                 "name": c.name,
                 "driver": c.params.driver,
                 "host": c.params.host,
-                "database": c.params.database.to_string()
+                "database": c.params.database.as_vec()
             })
         })
         .collect();
@@ -813,6 +831,42 @@ async fn tool_list_tables(
         "content": [{
             "type": "text",
             "text": serde_json::to_string_pretty(&names).unwrap()
+        }]
+    }))
+}
+
+async fn tool_list_databases(
+    args: &serde_json::Map<String, Value>,
+    audit: &mut CallAudit,
+) -> Result<Value, JsonRpcError> {
+    let conn_id = args
+        .get("connection_id")
+        .and_then(|v| v.as_str())
+        .ok_or(JsonRpcError {
+            code: -32602,
+            message: "Missing connection_id".to_string(),
+            data: None,
+        })?;
+
+    audit.connection_id = Some(conn_id.to_string());
+
+    let (conn, db_params, driver) = resolve_db_driver(conn_id).await?;
+    audit.connection_name = Some(conn.name.clone());
+
+    let databases = driver
+        .get_databases(&db_params)
+        .await
+        .map_err(|e| JsonRpcError {
+            code: -32000,
+            message: e,
+            data: None,
+        })?;
+
+    audit.rows = Some(databases.len());
+    Ok(json!({
+        "content": [{
+            "type": "text",
+            "text": serde_json::to_string_pretty(&databases).unwrap()
         }]
     }))
 }

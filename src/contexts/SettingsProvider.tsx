@@ -125,7 +125,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     (currentLanguageApplied || trackedLanguageState?.settled === true);
 
   // Load settings from backend on mount
+  const hasLoadedSettingsRef = useRef(false);
   useEffect(() => {
+    if (hasLoadedSettingsRef.current) return;
+    hasLoadedSettingsRef.current = true;
+
     const loadSettings = async () => {
       try {
         const config = await invoke<Partial<Settings>>("get_config");
@@ -255,7 +259,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     };
 
     loadSettings();
-  }, []);
+  }, [isLanguageApplied, queueLanguageApplication]);
 
   // Update i18n when language changes
   useEffect(() => {

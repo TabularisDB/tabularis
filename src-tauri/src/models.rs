@@ -1,6 +1,53 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
+
+/// Returns the set of group IDs that form the subtree rooted at `root_id`,
+/// including the root itself. Walks `parent_id` pointers transitively so
+/// any number of nesting levels is collected. The caller is expected to
+/// have already verified that `root_id` exists; an unknown id yields a
+/// singleton set containing just that id (which won't match any record).
+pub fn collect_group_subtree(groups: &[ConnectionGroup], root_id: &str) -> HashSet<String> {
+    let mut to_delete: HashSet<String> = HashSet::new();
+    to_delete.insert(root_id.to_string());
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for g in groups {
+            if let Some(parent) = g.parent_id.as_ref() {
+                if to_delete.contains(parent) && to_delete.insert(g.id.clone()) {
+                    changed = true;
+                }
+            }
+        }
+    }
+    to_delete
+}
+
+/// Returns the set of group IDs consisting of `leaf_ids` and all their
+/// ancestors, walking `parent_id` pointers up to the roots. Unknown ids are
+/// ignored. Used to prune the group list when exporting a subset of
+/// connections without orphaning their group hierarchy.
+pub fn collect_group_ancestors<'a>(
+    groups: &[ConnectionGroup],
+    leaf_ids: impl IntoIterator<Item = &'a str>,
+) -> HashSet<String> {
+    let parents: HashMap<&str, Option<&str>> = groups
+        .iter()
+        .map(|g| (g.id.as_str(), g.parent_id.as_deref()))
+        .collect();
+    let mut kept: HashSet<String> = HashSet::new();
+    for leaf in leaf_ids {
+        let mut current = Some(leaf);
+        while let Some(id) = current {
+            if !parents.contains_key(id) || !kept.insert(id.to_string()) {
+                break;
+            }
+            current = parents.get(id).copied().flatten();
+        }
+    }
+    kept
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -218,7 +265,7 @@ pub struct SavedConnection {
     pub appearance: Option<ConnectionAppearance>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct ConnectionGroup {
     pub id: String,
     pub name: String,
@@ -226,6 +273,10 @@ pub struct ConnectionGroup {
     pub collapsed: bool,
     #[serde(default)]
     pub sort_order: i32,
+    /// `Some(group_id)` makes this group a child of that group; `None` is a
+    /// top-level root. Cycles are rejected by the backend.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -339,6 +390,12 @@ pub struct QueryResult {
     #[serde(default)]
     pub truncated: bool,
     pub pagination: Option<Pagination>,
+    /// Extra result sets produced by a single statement beyond the first one,
+    /// e.g. a MySQL `CALL` to a stored procedure containing multiple `SELECT`s.
+    /// The first result set stays in `columns` / `rows` so consumers unaware
+    /// of multi-result statements keep working unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub additional_results: Option<Vec<QueryResult>>,
 }
 
 /// One statement's outcome within an `execute_batch` call. Exactly one of
@@ -435,6 +492,15 @@ pub struct TableSchema {
     pub name: String,
     pub columns: Vec<TableColumn>,
     pub foreign_keys: Vec<ForeignKey>,
+}
+
+/// Bounded schema metadata prepared by a database driver for AI features.
+/// The host remains responsible for rendering this structured data into a
+/// provider-agnostic prompt.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AiSchemaContext {
+    pub tables: Vec<TableSchema>,
+    pub total_table_count: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

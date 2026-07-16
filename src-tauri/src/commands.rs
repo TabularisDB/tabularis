@@ -375,7 +375,7 @@ pub fn get_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String
     if !config_dir.exists() {
         fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     }
-    Ok(config_dir.join("connections.json"))
+    Ok(crate::paths::resolve_connections_path(&config_dir))
 }
 
 pub fn get_ssh_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
@@ -439,6 +439,40 @@ pub fn find_connection_by_id<R: Runtime>(
     }
 
     Ok(conn)
+}
+
+/// Merge a list of incoming groups into an existing list, preserving hierarchy
+/// and repairing any `parent_id` that points to a group id not present in the
+/// union (i.e. neither in the existing list nor in the incoming batch).
+///
+/// Behaviour:
+/// - Existing groups with the same id are overwritten by the incoming one
+///   (so renames / re-ordering / new parent_id from the JSON win).
+/// - Missing parents are demoted to root (`parent_id = None`) rather than
+///   being rejected, so a partially-malformed JSON still imports successfully
+///   and the user keeps most of their tree.
+/// - The merge is idempotent: running it twice on the same input is a no-op.
+pub(crate) fn merge_groups(existing: &mut Vec<ConnectionGroup>, incoming: Vec<ConnectionGroup>) {
+    for new_group in incoming {
+        if let Some(existing_group) = existing.iter_mut().find(|g| g.id == new_group.id) {
+            *existing_group = new_group;
+        } else {
+            existing.push(new_group);
+        }
+    }
+
+    // Build the set of every group id we now have (post-merge) so we can
+    // detect parent_ids that no longer point anywhere. Collected into an
+    // owned set to release the immutable borrow before we mutate existing.
+    let known_ids: std::collections::HashSet<String> =
+        existing.iter().map(|g| g.id.clone()).collect();
+    for g in existing.iter_mut() {
+        if let Some(parent) = g.parent_id.as_deref() {
+            if !known_ids.contains(parent) {
+                g.parent_id = None;
+            }
+        }
+    }
 }
 
 /// Write the connections file and invalidate the in-memory connection cache so
@@ -657,6 +691,32 @@ pub async fn get_schema_snapshot<R: Runtime>(
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
     let drv = driver_for(&saved_conn.params.driver).await?;
     drv.get_schema_snapshot(&params, schema.as_deref()).await
+}
+
+#[tauri::command]
+pub async fn get_ai_schema_context<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    schema: Option<String>,
+) -> Result<String, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let driver = driver_for(&saved_conn.params.driver).await?;
+    let identifier_quote = driver.manifest().capabilities.identifier_quote.as_str();
+    let context = driver
+        .get_ai_schema_context(
+            &params,
+            schema.as_deref(),
+            crate::ai_schema_context::DEFAULT_MAX_TABLES,
+        )
+        .await?;
+
+    Ok(crate::ai_schema_context::format_for_prompt(
+        &context,
+        identifier_quote,
+    ))
 }
 
 #[tauri::command]
@@ -1073,7 +1133,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
         return Ok(()); // No migration needed
     }
 
-    println!("[Migration] Starting SSH connections migration...");
+    eprintln!("[Migration] Starting SSH connections migration...");
 
     let ssh_path = get_ssh_config_path(app)?;
     let mut ssh_connections: Vec<SshConnection> = if ssh_path.exists() {
@@ -1171,7 +1231,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
     conn_file.connections = migrated_connections;
     save_connections_and_invalidate(app, &conn_path, &conn_file)?;
 
-    println!(
+    eprintln!(
         "[Migration] Successfully migrated {} SSH connections",
         ssh_connections.len()
     );
@@ -2664,6 +2724,162 @@ mod tests {
             assert!(explain_task.await.unwrap_err().is_cancelled());
             assert!(state.handles.lock().unwrap().get("conn-1").is_none());
         }
+    }
+
+    // -------------------------------------------------------------------
+    // Cascade-delete helpers
+    // -------------------------------------------------------------------
+
+    fn group(id: &str, parent: Option<&str>) -> ConnectionGroup {
+        ConnectionGroup {
+            id: id.to_string(),
+            name: id.to_string(),
+            collapsed: false,
+            sort_order: 0,
+            parent_id: parent.map(|p| p.to_string()),
+        }
+    }
+
+    fn conn(id: &str, group_id: Option<&str>) -> SavedConnection {
+        let mut c = saved_conn(id, None, false);
+        c.group_id = group_id.map(|g| g.to_string());
+        c
+    }
+
+    #[test]
+    fn collect_group_subtree_returns_root_only_for_leaf() {
+        let groups = vec![group("a", None), group("b", None)];
+        let subtree = crate::models::collect_group_subtree(&groups, "a");
+        assert_eq!(subtree, std::collections::HashSet::from(["a".to_string()]));
+    }
+
+    #[test]
+    fn collect_group_subtree_walks_full_descendant_chain() {
+        // Tree:
+        //   root
+        //   ├── child1
+        //   │   └── grand1
+        //   │       └── great1
+        //   └── child2
+        //   other (unrelated)
+        let groups = vec![
+            group("root", None),
+            group("child1", Some("root")),
+            group("grand1", Some("child1")),
+            group("great1", Some("grand1")),
+            group("child2", Some("root")),
+            group("other", None),
+        ];
+        let subtree = crate::models::collect_group_subtree(&groups, "root");
+        assert_eq!(
+            subtree,
+            std::collections::HashSet::from([
+                "root".to_string(),
+                "child1".to_string(),
+                "grand1".to_string(),
+                "great1".to_string(),
+                "child2".to_string(),
+            ])
+        );
+        assert!(!subtree.contains("other"));
+    }
+
+    #[test]
+    fn collect_group_subtree_for_subgroup_does_not_include_siblings() {
+        // Tree:
+        //   root
+        //   ├── keep
+        //   └── drop
+        let groups = vec![
+            group("root", None),
+            group("keep", Some("root")),
+            group("drop", Some("root")),
+        ];
+        let subtree = crate::models::collect_group_subtree(&groups, "drop");
+        assert_eq!(subtree, std::collections::HashSet::from(["drop".to_string()]));
+        assert!(!subtree.contains("root"));
+        assert!(!subtree.contains("keep"));
+    }
+
+    #[test]
+    fn collect_group_subtree_for_unknown_id_is_singleton() {
+        let groups = vec![group("a", None)];
+        let subtree = crate::models::collect_group_subtree(&groups, "missing");
+        assert_eq!(subtree, std::collections::HashSet::from(["missing".to_string()]));
+    }
+
+    #[test]
+    fn cascade_delete_removes_parent_descendants_and_connections() {
+        // Mirrors what the command does after the helper returns: groups
+        // and connections not in the subtree must survive untouched.
+        let groups = vec![
+            group("root", None),
+            group("child", Some("root")),
+            group("grand", Some("child")),
+            group("sibling", None),
+        ];
+        let connections = vec![
+            conn("c1", Some("root")),
+            conn("c2", Some("child")),
+            conn("c3", Some("grand")),
+            conn("c4", Some("sibling")),
+            conn("c5", None),
+        ];
+        let to_delete = crate::models::collect_group_subtree(&groups, "root");
+
+        let groups_after: Vec<_> = groups
+            .iter()
+            .filter(|g| !to_delete.contains(&g.id))
+            .cloned()
+            .collect();
+        let conns_after: Vec<_> = connections
+            .iter()
+            .filter(|c| !c.group_id.as_ref().is_some_and(|g| to_delete.contains(g)))
+            .cloned()
+            .collect();
+
+        assert_eq!(groups_after, vec![group("sibling", None)]);
+        assert_eq!(
+            conns_after.iter().map(|c| c.id.clone()).collect::<Vec<_>>(),
+            vec!["c4".to_string(), "c5".to_string()],
+        );
+    }
+
+    #[test]
+    fn cascade_delete_subgroup_leaves_parent_and_other_subgroups_alone() {
+        let groups = vec![
+            group("root", None),
+            group("keep", Some("root")),
+            group("drop", Some("root")),
+            group("grand", Some("drop")),
+        ];
+        let connections = vec![
+            conn("c1", Some("root")),
+            conn("c2", Some("drop")),
+            conn("c3", Some("grand")),
+            conn("c4", Some("keep")),
+        ];
+        let to_delete = crate::models::collect_group_subtree(&groups, "drop");
+
+        let groups_after: Vec<_> = groups
+            .iter()
+            .filter(|g| !to_delete.contains(&g.id))
+            .cloned()
+            .collect();
+        let conns_after: Vec<_> = connections
+            .iter()
+            .filter(|c| !c.group_id.as_ref().is_some_and(|g| to_delete.contains(g)))
+            .cloned()
+            .collect();
+
+        assert_eq!(
+            groups_after,
+            vec![group("root", None), group("keep", Some("root"))],
+        );
+        assert_eq!(
+            conns_after.iter().map(|c| c.id.clone()).collect::<Vec<_>>(),
+            vec!["c1".to_string(), "c4".to_string()],
+        );
     }
 }
 
@@ -4310,24 +4526,120 @@ pub async fn get_connections_with_groups<R: Runtime>(
 pub async fn create_connection_group<R: Runtime>(
     app: AppHandle<R>,
     name: String,
+    parent_id: Option<String>,
 ) -> Result<ConnectionGroup, String> {
     let path = get_config_path(&app)?;
     let mut file = persistence::load_connections_file(&path).unwrap_or_default();
 
-    // Calculate next sort_order
-    let max_order = file.groups.iter().map(|g| g.sort_order).max().unwrap_or(-1);
+    if let Some(pid) = &parent_id {
+        if !file.groups.iter().any(|g| &g.id == pid) {
+            return Err(format!("Parent group with ID {} not found", pid));
+        }
+    }
+
+    let max_order = file
+        .groups
+        .iter()
+        .filter(|g| g.parent_id == parent_id)
+        .map(|g| g.sort_order)
+        .max()
+        .unwrap_or(-1);
 
     let group = ConnectionGroup {
         id: Uuid::new_v4().to_string(),
         name,
         collapsed: false,
         sort_order: max_order + 1,
+        parent_id,
     };
 
     file.groups.push(group.clone());
     save_connections_and_invalidate(&app, &path, &file)?;
 
     Ok(group)
+}
+
+/// Splits a `/`-separated group path into trimmed, non-empty segments.
+/// Returns an error if the result is empty.
+pub(crate) fn parse_group_path(path: &str) -> Result<Vec<String>, String> {
+    let segments: Vec<String> = path
+        .split('/')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    if segments.is_empty() {
+        return Err("Group path cannot be empty".to_string());
+    }
+    Ok(segments)
+}
+
+/// Finds an existing group by case-insensitive name match within a parent's
+/// children, or `None` if no such group exists.
+pub(crate) fn find_child_group<'a>(
+    groups: &'a [ConnectionGroup],
+    name: &str,
+    parent_id: &Option<String>,
+) -> Option<&'a ConnectionGroup> {
+    let name_lower = name.to_lowercase();
+    groups
+        .iter()
+        .find(|g| g.name.to_lowercase() == name_lower && g.parent_id == *parent_id)
+}
+
+/// Creates a nested group hierarchy from a `/`-separated path.
+///
+/// Each segment of `path` becomes one group. Existing segments are reused
+/// (looked up case-insensitively among the children of the current parent);
+/// missing segments are created in order. The final segment is returned.
+/// The hierarchy is created atomically: either every missing segment is
+/// persisted or none are.
+#[tauri::command]
+pub async fn create_group_path<R: Runtime>(
+    app: AppHandle<R>,
+    path: String,
+    parent_id: Option<String>,
+) -> Result<ConnectionGroup, String> {
+    let path_cfg = get_config_path(&app)?;
+    let mut file = persistence::load_connections_file(&path_cfg).unwrap_or_default();
+
+    if let Some(pid) = &parent_id {
+        if !file.groups.iter().any(|g| &g.id == pid) {
+            return Err(format!("Parent group with ID {} not found", pid));
+        }
+    }
+
+    let segments = parse_group_path(&path)?;
+    let mut current_parent = parent_id;
+    let mut last_created: Option<ConnectionGroup> = None;
+
+    for seg in segments {
+        if let Some(g) = find_child_group(&file.groups, &seg, &current_parent).cloned() {
+            current_parent = Some(g.id.clone());
+            last_created = Some(g);
+            continue;
+        }
+        let max_order = file
+            .groups
+            .iter()
+            .filter(|g| g.parent_id == current_parent)
+            .map(|g| g.sort_order)
+            .max()
+            .unwrap_or(-1);
+        let new_group = ConnectionGroup {
+            id: Uuid::new_v4().to_string(),
+            name: seg,
+            collapsed: false,
+            sort_order: max_order + 1,
+            parent_id: current_parent.clone(),
+        };
+        current_parent = Some(new_group.id.clone());
+        last_created = Some(new_group.clone());
+        file.groups.push(new_group);
+    }
+
+    save_connections_and_invalidate(&app, &path_cfg, &file)?;
+
+    last_created.ok_or_else(|| "Group path resolved to an empty hierarchy".to_string())
 }
 
 #[tauri::command]
@@ -4362,6 +4674,83 @@ pub async fn update_connection_group<R: Runtime>(
 
     Ok(updated)
 }
+/// Re-parent a group. Pass `Some(id)` to make it a child of that group,
+/// or `None` to make it a top-level root. Cycles are rejected.
+#[tauri::command]
+pub async fn move_group_to_parent<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    parent_id: Option<String>,
+) -> Result<ConnectionGroup, String> {
+    let path = get_config_path(&app)?;
+    let mut file = persistence::load_connections_file(&path)?;
+
+    if !file.groups.iter().any(|g| g.id == id) {
+        return Err(format!("Group with ID {} not found", id));
+    }
+
+    if let Some(pid) = &parent_id {
+        if pid == &id {
+            return Err("A group cannot be its own parent".to_string());
+        }
+        if !file.groups.iter().any(|g| &g.id == pid) {
+            return Err(format!("Parent group with ID {} not found", pid));
+        }
+    }
+
+    reject_if_would_create_cycle(&file.groups, &id, parent_id.as_deref())?;
+
+    let group = file
+        .groups
+        .iter_mut()
+        .find(|g| g.id == id)
+        .expect("group existence checked above");
+    group.parent_id = parent_id;
+    let updated = group.clone();
+
+    save_connections_and_invalidate(&app, &path, &file)?;
+    Ok(updated)
+}
+
+/// Reject re-parenting that would create a cycle: `target` must not be a
+/// descendant of `group_id`. Walks up from `target` looking for `group_id`.
+/// Bounded by `groups.len()` to fail-safe against pre-existing data cycles.
+pub(crate) fn reject_if_would_create_cycle(
+    groups: &[ConnectionGroup],
+    group_id: &str,
+    new_parent_id: Option<&str>,
+) -> Result<(), String> {
+    let Some(target) = new_parent_id else {
+        return Ok(());
+    };
+    let mut current = Some(target.to_string());
+    let mut visited = std::collections::HashSet::new();
+    let max_steps = groups.len() + 1;
+    for _ in 0..max_steps {
+        match current {
+            Some(node) if node == group_id => {
+                return Err(
+                    "Cannot move a group into one of its own descendants (would create a cycle)"
+                        .to_string(),
+                );
+            }
+            Some(node) => {
+                if !visited.insert(node.clone()) {
+                    return Err(
+                        "Connection-group tree contains a pre-existing cycle; refusing to modify it"
+                            .to_string(),
+                    );
+                }
+                current = groups
+                    .iter()
+                    .find(|g| g.id == node)
+                    .and_then(|g| g.parent_id.clone());
+            }
+            None => return Ok(()),
+        }
+    }
+    Err("Connection-group tree is deeper than the number of groups; refusing to modify it".to_string())
+}
 
 #[tauri::command]
 pub async fn delete_connection_group<R: Runtime>(
@@ -4371,15 +4760,22 @@ pub async fn delete_connection_group<R: Runtime>(
     let path = get_config_path(&app)?;
     let mut file = persistence::load_connections_file(&path)?;
 
-    // Remove connections from the group (set group_id to None)
-    for conn in &mut file.connections {
-        if conn.group_id.as_ref() == Some(&id) {
-            conn.group_id = None;
-        }
+    // Ensure the group exists before we walk the tree.
+    if !file.groups.iter().any(|g| g.id == id) {
+        return Err(format!("Group with ID {} not found", id));
     }
 
-    // Remove the group
-    file.groups.retain(|g| g.id != id);
+    // Cascade delete: collect the target group and all of its descendants
+    // (transitively) so the entire subtree is removed. The caller only
+    // needs to specify the top-level group — every nested child group is
+    // deleted along with it. Connections belonging to any group in the
+    // subtree are removed as well.
+    let to_delete = crate::models::collect_group_subtree(&file.groups, &id);
+
+    file.groups.retain(|g| !to_delete.contains(&g.id));
+    file.connections
+        .retain(|c| !c.group_id.as_ref().is_some_and(|gid| to_delete.contains(gid)));
+
     save_connections_and_invalidate(&app, &path, &file)?;
 
     Ok(())
@@ -4480,7 +4876,10 @@ pub async fn get_server_now<R: Runtime>(
 #[tauri::command]
 pub async fn export_connections_payload<R: Runtime>(
     app: AppHandle<R>,
+    include_secrets: Option<bool>,
+    connection_ids: Option<Vec<String>>,
 ) -> Result<ExportPayload, String> {
+    let include_secrets = include_secrets.unwrap_or(true);
     let conn_path = get_config_path(&app)?;
     let ssh_path = get_ssh_config_path(&app)?;
 
@@ -4491,6 +4890,29 @@ pub async fn export_connections_payload<R: Runtime>(
     } else {
         Vec::new()
     };
+    let mut k8s_connections = load_k8s_connections_sync(&app)?;
+
+    // When a selection is provided, keep only the selected connections (of any
+    // kind) plus the group chains needed to preserve their hierarchy. Done
+    // before password resolution so unselected credentials never leave the
+    // keychain.
+    if let Some(ids) = &connection_ids {
+        let selected: std::collections::HashSet<&str> =
+            ids.iter().map(String::as_str).collect();
+        conn_file
+            .connections
+            .retain(|c| selected.contains(c.id.as_str()));
+        ssh_connections.retain(|s| selected.contains(s.id.as_str()));
+        k8s_connections.retain(|k| selected.contains(k.id.as_str()));
+        let kept_groups = crate::models::collect_group_ancestors(
+            &conn_file.groups,
+            conn_file
+                .connections
+                .iter()
+                .filter_map(|c| c.group_id.as_deref()),
+        );
+        conn_file.groups.retain(|g| kept_groups.contains(&g.id));
+    }
 
     let cache = app
         .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
@@ -4499,6 +4921,13 @@ pub async fn export_connections_payload<R: Runtime>(
 
     // Resolve passwords for database connections
     for conn in &mut conn_file.connections {
+        if !include_secrets {
+            // Strip any secrets that may already live in the connections file
+            conn.params.password = None;
+            conn.params.ssh_password = None;
+            conn.params.ssh_key_passphrase = None;
+            continue;
+        }
         if conn.params.save_in_keychain.unwrap_or(false) {
             if let Ok(pwd) = credential_cache::get_db_password_cached(&cache, &conn.id) {
                 conn.params.password = Some(pwd);
@@ -4518,6 +4947,11 @@ pub async fn export_connections_payload<R: Runtime>(
 
     // Resolve passwords for SSH connections
     for ssh in &mut ssh_connections {
+        if !include_secrets {
+            ssh.password = None;
+            ssh.key_passphrase = None;
+            continue;
+        }
         if ssh.save_in_keychain.unwrap_or(false) {
             if let Ok(pwd) = credential_cache::get_ssh_password_cached(&cache, &ssh.id) {
                 ssh.password = Some(pwd);
@@ -4534,12 +4968,40 @@ pub async fn export_connections_payload<R: Runtime>(
         groups: conn_file.groups,
         connections: conn_file.connections,
         ssh_connections,
-        k8s_connections: load_k8s_connections_sync(&app)?,
+        k8s_connections,
     })
 }
 
 #[tauri::command]
+pub async fn encrypt_export_payload(
+    payload: ExportPayload,
+    password: String,
+) -> Result<crate::export_crypto::EncryptedEnvelope, String> {
+    let plaintext = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
+    crate::export_crypto::encrypt(&plaintext, &password)
+}
+
+#[tauri::command]
+pub async fn decrypt_export_payload(
+    envelope: crate::export_crypto::EncryptedEnvelope,
+    password: String,
+) -> Result<ExportPayload, String> {
+    let plaintext = crate::export_crypto::decrypt(&envelope, &password)?;
+    serde_json::from_str(&plaintext).map_err(|e| format!("Invalid export payload: {e}"))
+}
+
+#[tauri::command]
 pub async fn import_connections_payload<R: Runtime>(
+    app: AppHandle<R>,
+    payload: ExportPayload,
+) -> Result<(), String> {
+    apply_export_payload(app, payload).await
+}
+
+/// Merge an `ExportPayload` into the user's stored connections, groups, SSH and
+/// K8s records, moving any inline secrets into the keychain. Shared by the JSON
+/// import command above and the foreign-app import flow.
+pub async fn apply_export_payload<R: Runtime>(
     app: AppHandle<R>,
     payload: ExportPayload,
 ) -> Result<(), String> {
@@ -4559,14 +5021,8 @@ pub async fn import_connections_payload<R: Runtime>(
         .inner()
         .clone();
 
-    // Merge groups
-    for new_group in payload.groups {
-        if let Some(existing) = current_file.groups.iter_mut().find(|g| g.id == new_group.id) {
-            *existing = new_group;
-        } else {
-            current_file.groups.push(new_group);
-        }
-    }
+    // Merge groups (preserves hierarchy; demotes orphaned parent_ids to root)
+    merge_groups(&mut current_file.groups, payload.groups);
 
     // Merge connections and handle passwords
     for mut new_conn in payload.connections {

@@ -132,6 +132,25 @@ pub fn get_data_types() -> Vec<DataTypeInfo> {
             supports_auto_increment: false,
             requires_extension: None,
         },
+        // Enum / Set (requires_length so the UI exposes a field for allowed values)
+        DataTypeInfo {
+            name: "ENUM".to_string(),
+            category: "string".to_string(),
+            requires_length: true,
+            requires_precision: false,
+            default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
+        },
+        DataTypeInfo {
+            name: "SET".to_string(),
+            category: "string".to_string(),
+            requires_length: true,
+            requires_precision: false,
+            default_length: None,
+            supports_auto_increment: false,
+            requires_extension: None,
+        },
         // Boolean (alias for TINYINT(1))
         DataTypeInfo {
             name: "BOOLEAN".to_string(),
