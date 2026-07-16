@@ -1135,7 +1135,8 @@
       "close": "关闭标签",
       "rename": "重命名",
       "aiGenerateName": "使用 AI 生成名称",
-      "generatingName": "正在生成名称..."
+      "generatingName": "正在生成名称...",
+      "resultSetPrefix": "结果"
     }
   },
   "createTable": {

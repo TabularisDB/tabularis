@@ -7,10 +7,9 @@ use sqlx::{AnyConnection, Connection};
 use std::str::FromStr;
 
 use crate::models::{
-    BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo, ExplainPlan,
-    ForeignKey, Index, QueryResult, RoutineCallArg, RoutineInfo, RoutineParameter, TableColumn,
-    TableInfo,
-    TableSchema, TriggerInfo, ViewInfo,
+    AiSchemaContext, BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo,
+    ExplainPlan, ForeignKey, Index, QueryResult, RoutineCallArg, RoutineInfo, RoutineParameter,
+    TableColumn, TableInfo, TableSchema, TriggerInfo, ViewInfo,
 };
 
 /// Callback invoked the moment each statement in a batch finishes, with the
@@ -291,6 +290,20 @@ pub trait DatabaseDriver: Send + Sync {
         table: &str,
         schema: Option<&str>,
     ) -> Result<Vec<TableColumn>, String>;
+
+    /// Returns a bounded, structured schema context for AI features.
+    ///
+    /// Drivers may override this to use a database-specific batch query. The
+    /// default implementation composes the context from the standard metadata
+    /// methods, so existing external plugins work without a protocol update.
+    async fn get_ai_schema_context(
+        &self,
+        params: &ConnectionParams,
+        schema: Option<&str>,
+        max_tables: usize,
+    ) -> Result<AiSchemaContext, String> {
+        crate::ai_schema_context::load_from_driver(self, params, schema, max_tables).await
+    }
 
     async fn get_foreign_keys(
         &self,

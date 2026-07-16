@@ -1197,6 +1197,7 @@
       "viewTabs": "Vista en pestañas",
       "viewStacked": "Vista apilada",
       "queryPrefix": "Consulta",
+      "resultSetPrefix": "Resultado",
       "results": "Resultados",
       "collapseAll": "Contraer todo",
       "expandAll": "Expandir todo",

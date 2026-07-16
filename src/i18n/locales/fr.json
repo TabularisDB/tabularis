@@ -1218,6 +1218,7 @@
       "viewTabs": "Vue onglets",
       "viewStacked": "Vue empilée",
       "queryPrefix": "Requête",
+      "resultSetPrefix": "Résultat",
       "results": "Résultats",
       "collapseAll": "Tout réduire",
       "expandAll": "Tout développer",

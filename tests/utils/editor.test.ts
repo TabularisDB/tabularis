@@ -845,6 +845,12 @@ describe("editor", () => {
       expect(result).toContain("ORDER BY");
       expect(result).not.toMatch(/\s{2,}/);
     });
+
+    it("should fold macOS smart quotes in the filter to straight ASCII", () => {
+      const tab = createMockTab({ filterClause: "status = ‘active’" });
+      const result = reconstructTableQuery(tab);
+      expect(result).toBe("SELECT * FROM \"users\" WHERE status = 'active'");
+    });
   });
 
   describe("formatExportFileName", () => {

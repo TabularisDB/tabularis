@@ -1190,6 +1190,7 @@
       "viewTabs": "Вкладки",
       "viewStacked": "Список",
       "queryPrefix": "Запрос",
+      "resultSetPrefix": "Результат",
       "results": "Результаты",
       "collapseAll": "Свернуть все",
       "expandAll": "Развернуть все",

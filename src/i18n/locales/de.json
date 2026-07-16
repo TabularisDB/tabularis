@@ -1182,6 +1182,7 @@
       "viewTabs": "Tab-Ansicht",
       "viewStacked": "Gestapelte Ansicht",
       "queryPrefix": "Abfrage",
+      "resultSetPrefix": "Ergebnis",
       "results": "Ergebnisse",
       "collapseAll": "Alle einklappen",
       "expandAll": "Alle ausklappen",

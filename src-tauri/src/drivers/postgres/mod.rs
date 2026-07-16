@@ -912,6 +912,7 @@ async fn exec_on_pg_client(
             affected_rows: affected,
             truncated: false,
             pagination: None,
+            additional_results: None,
         });
     }
 
@@ -988,6 +989,7 @@ async fn exec_on_pg_client(
         affected_rows: 0,
         truncated,
         pagination,
+        additional_results: None,
     })
 }
 

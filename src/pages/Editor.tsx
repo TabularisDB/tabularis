@@ -77,6 +77,7 @@ import {
 import { splitQueries, extractTableName, getExplainableQueries, statementLabel } from "../utils/sql";
 import {
   createResultEntries,
+  createEntriesFromResultSets,
   updateResultEntry,
   removeResultEntry,
   removeOtherEntries,
@@ -774,6 +775,41 @@ export const Editor = () => {
           ...(schema ? { schema } : {}),
         });
         const end = performance.now();
+
+        // A single statement can return several result sets (e.g. a MySQL
+        // CALL to a procedure with multiple SELECTs): show them as separate
+        // result tabs, reusing the multi-statement results UI. Row editing
+        // metadata (activeTable / pkColumns) is skipped — procedure output
+        // is not row-editable.
+        if (res.additional_results && res.additional_results.length > 0) {
+          const entries = createEntriesFromResultSets(
+            targetTabId,
+            textToRun,
+            res,
+            end - start,
+            t("editor.multiResult.resultSetPrefix"),
+          );
+          updateTab(targetTabId, {
+            results: entries,
+            activeResultId: entries[0].id,
+            result: null,
+            executionTime: end - start,
+            isLoading: false,
+            activeTable: null,
+            pkColumns: null,
+          });
+          if (shouldRecordHistory) {
+            addHistoryEntry(
+              textToRun,
+              end - start,
+              "success",
+              null,
+              null,
+              historyDb,
+            );
+          }
+          return;
+        }
 
         // Fetch PK column if this is a table tab OR if the query references a table
         const currentTab = tabsRef.current.find((t) => t.id === targetTabId);
@@ -3985,6 +4021,8 @@ export const Editor = () => {
       <AiQueryModal
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
+        connectionId={activeConnectionId ?? undefined}
+        schema={activeTab?.schema ?? activeSchema ?? undefined}
         onInsert={(q) => {
           updateActiveTab({ query: q });
           runQuery(q, 1);

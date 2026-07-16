@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { X, Sparkles, Loader2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDatabase } from "../../hooks/useDatabase";
@@ -9,62 +9,95 @@ interface AiQueryModalProps {
   isOpen: boolean;
   onClose: () => void;
   onInsert: (sql: string) => void;
+  connectionId?: string;
+  schema?: string;
 }
 
-interface TableColumn {
-  name: string;
-  data_type: string;
+interface SchemaLoadState {
+  key: string;
+  context: string;
+  error: string | null;
 }
 
-export const AiQueryModal = ({ isOpen, onClose, onInsert }: AiQueryModalProps) => {
-  const { activeConnectionId, tables, activeSchema } = useDatabase();
+export const AiQueryModal = ({
+  isOpen,
+  onClose,
+  onInsert,
+  connectionId,
+  schema,
+}: AiQueryModalProps) => {
+  const { activeConnectionId, activeSchema } = useDatabase();
   const { settings } = useSettings();
+  const resolvedConnectionId = connectionId ?? activeConnectionId;
+  const resolvedSchema = schema ?? activeSchema ?? undefined;
+  const schemaKey = `${resolvedConnectionId ?? ""}:${resolvedSchema ?? ""}`;
   
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [schemaContext, setSchemaContext] = useState<string>("");
-  const [isSchemaLoading, setIsSchemaLoading] = useState(false);
+  const [schemaLoad, setSchemaLoad] = useState<SchemaLoadState>({
+    key: "",
+    context: "",
+    error: null,
+  });
+  const inFlightSchemaLoad = useRef<{
+    key: string;
+    promise: Promise<string>;
+  } | null>(null);
+  const isSchemaLoading = Boolean(
+    isOpen && resolvedConnectionId && schemaLoad.key !== schemaKey,
+  );
 
-  const loadSchema = useCallback(async () => {
-    setIsSchemaLoading(true);
-    setError(null);
-    try {
-      // Parallel fetch of columns for all tables
-      // Limit to first 20 tables to prevent massive overhead for now
-      // TODO: Implement smart schema selection or backend-side schema dump
-      const tablesToFetch = tables.slice(0, 20); 
-      
-      const promises = tablesToFetch.map(async (table) => {
-        const cols = await invoke<TableColumn[]>("get_columns", {
-          connectionId: activeConnectionId,
-          tableName: table.name,
-          ...(activeSchema ? { schema: activeSchema } : {}),
-        });
-        return `Table: ${table.name} (${cols.map(c => `${c.name} ${c.data_type}`).join(", ")})`;
-      });
-
-      const schemas = await Promise.all(promises);
-      let context = schemas.join("\n");
-      
-      if (tables.length > 20) {
-          context += `\n... and ${tables.length - 20} more tables (names: ${tables.slice(20).map(t => t.name).join(", ")})`;
-      }
-      
-      setSchemaContext(context);
-    } catch (err) {
-      console.error("Failed to load schema:", err);
-      setError("Failed to load database schema context");
-    } finally {
-      setIsSchemaLoading(false);
+  const loadSchema = useCallback((): Promise<string> => {
+    if (!resolvedConnectionId) {
+      return Promise.resolve("");
     }
-  }, [activeConnectionId, tables, activeSchema]);
+
+    if (inFlightSchemaLoad.current?.key === schemaKey) {
+      return inFlightSchemaLoad.current.promise;
+    }
+
+    const promise = invoke<string>("get_ai_schema_context", {
+      connectionId: resolvedConnectionId,
+      ...(resolvedSchema ? { schema: resolvedSchema } : {}),
+    });
+    inFlightSchemaLoad.current = { key: schemaKey, promise };
+    const clearInFlight = () => {
+      if (inFlightSchemaLoad.current?.promise === promise) {
+        inFlightSchemaLoad.current = null;
+      }
+    };
+    void promise.then(clearInFlight, clearInFlight);
+    return promise;
+  }, [resolvedConnectionId, resolvedSchema, schemaKey]);
 
   useEffect(() => {
-    if (isOpen && activeConnectionId && tables.length > 0) {
-      loadSchema();
+    if (!isOpen || !resolvedConnectionId) {
+      return;
     }
-  }, [isOpen, activeConnectionId, tables, loadSchema]);
+
+    let cancelled = false;
+    void loadSchema()
+      .then((context) => {
+        if (!cancelled) {
+          setSchemaLoad({ key: schemaKey, context, error: null });
+        }
+      })
+      .catch((loadError: unknown) => {
+        console.error("Failed to load schema:", loadError);
+        if (!cancelled) {
+          setSchemaLoad({
+            key: schemaKey,
+            context: "",
+            error: "Failed to load database schema context",
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, resolvedConnectionId, schemaKey, loadSchema]);
 
   const handleGenerate = async () => {
     if (!prompt.trim() || !settings.aiProvider) {
@@ -76,12 +109,16 @@ export const AiQueryModal = ({ isOpen, onClose, onInsert }: AiQueryModalProps) =
     setError(null);
 
     try {
+      const schemaContext =
+        schemaLoad.key === schemaKey && schemaLoad.error === null
+          ? schemaLoad.context
+          : await loadSchema();
       const sql = await invoke<string>("generate_ai_query", {
         req: {
           provider: settings.aiProvider,
           model: settings.aiModel || "", // Default fallback handled by backend (first model in list)
           prompt,
-          schema: schemaContext
+          schema: schemaContext,
         }
       });
       onInsert(sql);
@@ -134,9 +171,9 @@ export const AiQueryModal = ({ isOpen, onClose, onInsert }: AiQueryModalProps) =
             />
           </div>
 
-          {error && (
+          {(error || schemaLoad.error) && (
             <div className="text-error-text text-sm bg-error-bg p-2 rounded border border-error-border">
-              {error}
+              {error || schemaLoad.error}
             </div>
           )}
 

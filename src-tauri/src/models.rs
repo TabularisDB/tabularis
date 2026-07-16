@@ -395,6 +395,12 @@ pub struct QueryResult {
     #[serde(default)]
     pub truncated: bool,
     pub pagination: Option<Pagination>,
+    /// Extra result sets produced by a single statement beyond the first one,
+    /// e.g. a MySQL `CALL` to a stored procedure containing multiple `SELECT`s.
+    /// The first result set stays in `columns` / `rows` so consumers unaware
+    /// of multi-result statements keep working unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub additional_results: Option<Vec<QueryResult>>,
 }
 
 /// One statement's outcome within an `execute_batch` call. Exactly one of
@@ -491,6 +497,15 @@ pub struct TableSchema {
     pub name: String,
     pub columns: Vec<TableColumn>,
     pub foreign_keys: Vec<ForeignKey>,
+}
+
+/// Bounded schema metadata prepared by a database driver for AI features.
+/// The host remains responsible for rendering this structured data into a
+/// provider-agnostic prompt.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AiSchemaContext {
+    pub tables: Vec<TableSchema>,
+    pub total_table_count: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

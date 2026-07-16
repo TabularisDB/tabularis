@@ -814,6 +814,121 @@ mod build_mysql_pk_where_tests {
     }
 }
 
+mod multi_result_collector {
+    use super::super::multi_result::ResultSetCollector;
+    use serde_json::json;
+
+    fn row(v: i64) -> Vec<serde_json::Value> {
+        vec![json!(v)]
+    }
+
+    #[test]
+    fn single_result_set_is_collected() {
+        let mut c = ResultSetCollector::new(None);
+        assert!(c.needs_columns());
+        c.set_columns(vec!["id".to_string()]);
+        assert!(!c.needs_columns());
+        c.push_row(row(1));
+        c.push_row(row(2));
+        c.end_result_set();
+
+        let sets = c.finish();
+        assert_eq!(sets.len(), 1);
+        assert_eq!(sets[0].columns, vec!["id".to_string()]);
+        assert_eq!(sets[0].rows.len(), 2);
+        assert!(!sets[0].truncated);
+    }
+
+    #[test]
+    fn multiple_result_sets_are_split_at_terminators() {
+        let mut c = ResultSetCollector::new(None);
+        for set in 0..3 {
+            assert!(c.needs_columns());
+            c.set_columns(vec![format!("col{set}")]);
+            c.push_row(row(set));
+            c.end_result_set();
+        }
+
+        let sets = c.finish();
+        assert_eq!(sets.len(), 3);
+        assert_eq!(sets[1].columns, vec!["col1".to_string()]);
+        assert_eq!(sets[2].rows, vec![row(2)]);
+    }
+
+    #[test]
+    fn empty_result_sets_are_dropped() {
+        // A CALL emits a trailing OK packet that surfaces as an empty set;
+        // rowless SELECTs are indistinguishable from it and dropped too.
+        let mut c = ResultSetCollector::new(None);
+        c.set_columns(vec!["id".to_string()]);
+        c.push_row(row(1));
+        c.end_result_set();
+        c.end_result_set();
+        c.end_result_set();
+
+        let sets = c.finish();
+        assert_eq!(sets.len(), 1);
+    }
+
+    #[test]
+    fn no_rows_at_all_yields_no_sets() {
+        let mut c = ResultSetCollector::new(None);
+        c.end_result_set();
+        assert!(c.finish().is_empty());
+    }
+
+    #[test]
+    fn per_set_limit_truncates_each_set_independently() {
+        let mut c = ResultSetCollector::new(Some(2));
+        c.set_columns(vec!["id".to_string()]);
+        c.push_row(row(1));
+        assert!(!c.at_limit());
+        c.push_row(row(2));
+        assert!(c.at_limit());
+        c.note_overflow_row();
+        c.end_result_set();
+
+        // The cap applies per result set: the next set starts fresh.
+        c.set_columns(vec!["id".to_string()]);
+        c.push_row(row(3));
+        assert!(!c.at_limit());
+        c.end_result_set();
+
+        let sets = c.finish();
+        assert_eq!(sets.len(), 2);
+        assert_eq!(sets[0].rows.len(), 2);
+        assert!(sets[0].truncated);
+        assert_eq!(sets[1].rows.len(), 1);
+        assert!(!sets[1].truncated);
+    }
+
+    #[test]
+    fn push_row_beyond_limit_drops_row_and_marks_truncated() {
+        let mut c = ResultSetCollector::new(Some(1));
+        c.set_columns(vec!["id".to_string()]);
+        c.push_row(row(1));
+        c.push_row(row(2));
+        c.end_result_set();
+
+        let sets = c.finish();
+        assert_eq!(sets[0].rows, vec![row(1)]);
+        assert!(sets[0].truncated);
+    }
+
+    #[test]
+    fn finish_flushes_an_unterminated_set() {
+        // Defensive: a stream that ends without a final terminator must not
+        // lose the in-flight rows.
+        let mut c = ResultSetCollector::new(None);
+        c.set_columns(vec!["id".to_string()]);
+        c.push_row(row(1));
+
+        let sets = c.finish();
+        assert_eq!(sets.len(), 1);
+        assert_eq!(sets[0].rows.len(), 1);
+    }
+}
+
 mod routine_management {
     use super::super::routines::{
         drop_routine_sql, routine_call_sql, routine_create_template, routine_edit_script,
