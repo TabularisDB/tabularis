@@ -1208,7 +1208,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
         return Ok(()); // No migration needed
     }
 
-    println!("[Migration] Starting SSH connections migration...");
+    eprintln!("[Migration] Starting SSH connections migration...");
 
     let ssh_path = get_ssh_config_path(app)?;
     let mut ssh_connections: Vec<SshConnection> = if ssh_path.exists() {
@@ -1306,7 +1306,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
     conn_file.connections = migrated_connections;
     save_connections_and_invalidate(app, &conn_path, &conn_file)?;
 
-    println!(
+    eprintln!(
         "[Migration] Successfully migrated {} SSH connections",
         ssh_connections.len()
     );
