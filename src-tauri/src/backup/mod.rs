@@ -329,8 +329,9 @@ async fn newest_backup(config: &crate::config::AppConfig) -> Option<NaiveDateTim
 
 /// Writes one encrypted backup to the configured target and prunes files
 /// beyond the retention count. Returns a user-displayable location of the
-/// written backup.
-pub async fn run_backup<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
+/// written backup. `trigger` names what started the backup (manual, interval,
+/// on close, on launch) so the log tells the runs apart.
+pub async fn run_backup<R: Runtime>(app: AppHandle<R>, trigger: &str) -> Result<String, String> {
     let config = crate::config::load_config_internal(&app);
     let password = get_password()?.ok_or("Backup password is not set")?;
 
@@ -356,7 +357,7 @@ pub async fn run_backup<R: Runtime>(app: AppHandle<R>) -> Result<String, String>
     }
 
     let location = target.location(&name);
-    log::info!("Connections backup written to {location}");
+    log::info!("Connections backup ({trigger}) written to {location}");
     Ok(location)
 }
 
@@ -368,9 +369,9 @@ fn backup_mode(config: &crate::config::AppConfig) -> String {
         .unwrap_or_else(|| "manual".to_string())
 }
 
-async fn run_and_log<R: Runtime>(app: &AppHandle<R>) {
-    if let Err(e) = run_backup(app.clone()).await {
-        log::warn!("Automatic connections backup failed: {e}");
+async fn run_and_log<R: Runtime>(app: &AppHandle<R>, trigger: &str) {
+    if let Err(e) = run_backup(app.clone(), trigger).await {
+        log::warn!("Connections backup ({trigger}) failed: {e}");
     }
 }
 
@@ -389,7 +390,7 @@ async fn run_if_due<R: Runtime>(app: &AppHandle<R>) {
         chrono::Local::now().naive_local(),
         interval,
     ) {
-        run_and_log(app).await;
+        run_and_log(app, "interval").await;
     }
 }
 
@@ -402,7 +403,7 @@ pub fn run_exit_backup(app: &AppHandle) {
         // Bound the backup so a hung network operation can never prevent the
         // process from exiting.
         tauri::async_runtime::block_on(async {
-            if tokio::time::timeout(std::time::Duration::from_secs(30), run_and_log(app))
+            if tokio::time::timeout(std::time::Duration::from_secs(30), run_and_log(app, "on close"))
                 .await
                 .is_err()
             {
@@ -420,7 +421,7 @@ pub fn run_exit_backup(app: &AppHandle) {
 pub fn spawn_scheduler(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         if backup_mode(&crate::config::load_config_internal(&app)) == "onLaunch" {
-            run_and_log(&app).await;
+            run_and_log(&app, "on launch").await;
         }
         // Wake up every minute but only run the (possibly network-touching)
         // due-check at the tick cadence, so interval changes in the settings
@@ -498,5 +499,5 @@ pub async fn set_connections_backup_target_password(
 
 #[tauri::command]
 pub async fn run_connections_backup<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
-    run_backup(app).await
+    run_backup(app, "manual").await
 }
