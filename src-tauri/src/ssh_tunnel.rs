@@ -87,6 +87,17 @@ pub fn get_tunnels() -> &'static Mutex<HashMap<String, SshTunnel>> {
     TUNNELS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+fn create_ssh_command() -> Command {
+    let mut cmd = Command::new("ssh");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
 impl SshTunnel {
     pub fn new(
         ssh_host: &str,
@@ -100,7 +111,7 @@ impl SshTunnel {
         remote_port: u16,
     ) -> Result<Self, String> {
         let use_system_ssh = should_use_system_ssh(ssh_password);
-        println!(
+        eprintln!(
             "[SSH Tunnel] New Request: Host={}, Port={}, User={}, UseSystemSSH={}, AllowPrompt={}",
             ssh_host, ssh_port, ssh_user, use_system_ssh, ssh_allow_passphrase_prompt
         );
@@ -113,7 +124,7 @@ impl SshTunnel {
             })?;
             listener.local_addr().unwrap().port()
         };
-        println!("[SSH Tunnel] Assigned Local Port: {}", local_port);
+        eprintln!("[SSH Tunnel] Assigned Local Port: {}", local_port);
 
         if use_system_ssh {
             Self::new_system_ssh(
@@ -199,9 +210,9 @@ impl SshTunnel {
 
         args.push(destination);
 
-        println!("[SSH Tunnel] Executing: ssh {:?}", args);
+        eprintln!("[SSH Tunnel] Executing: ssh {:?}", args);
 
-        let mut command = Command::new("ssh");
+        let mut command = create_ssh_command();
         command
             .args(&args)
             .stdout(Stdio::piped())
@@ -229,7 +240,7 @@ impl SshTunnel {
                 for line in reader.lines() {
                     if let Ok(l) = line {
                         #[cfg(debug_assertions)]
-                        println!("[SSH System Out] {}", l);
+                        eprintln!("[SSH System Out] {}", l);
 
                         if let Ok(mut g) = log.lock() {
                             g.push(l);
@@ -291,7 +302,7 @@ impl SshTunnel {
             // Try connecting to the local port to see if forwarding is active
             match TcpStream::connect(format!("127.0.0.1:{}", local_port)) {
                 Ok(_) => {
-                    println!(
+                    eprintln!(
                         "[SSH Tunnel] Tunnel established successfully on port {}",
                         local_port
                     );
@@ -330,7 +341,7 @@ impl SshTunnel {
         remote_port: u16,
         local_port: u16,
     ) -> Result<Self, String> {
-        println!("[SSH Tunnel] Russh connecting to {}:{}", ssh_host, ssh_port);
+        eprintln!("[SSH Tunnel] Russh connecting to {}:{}", ssh_host, ssh_port);
         let listener = TcpListener::bind(format!("127.0.0.1:{}", local_port)).map_err(|e| {
             let err = format!("Failed to bind local port {}: {}", local_port, e);
             eprintln!("[SSH Tunnel Error] {}", err);
@@ -384,7 +395,7 @@ impl SshTunnel {
                 let authenticated = if let Some(key_path) =
                     ssh_key_file.as_deref().filter(|p| !p.trim().is_empty())
                 {
-                    println!("[SSH Tunnel] Authenticating with key file: {}", key_path);
+                    eprintln!("[SSH Tunnel] Authenticating with key file: {}", key_path);
                     let passphrase = ssh_key_passphrase
                         .as_deref()
                         .filter(|p| !p.trim().is_empty());
@@ -404,7 +415,7 @@ impl SshTunnel {
                     })?
                     .map_err(|e| format!("SSH key auth failed: {}", e))?
                 } else if let Some(pwd) = ssh_password.as_deref() {
-                    println!(
+                    eprintln!(
                         "[SSH Tunnel] Authenticating with password (length: {})",
                         pwd.len()
                     );
@@ -422,7 +433,7 @@ impl SshTunnel {
                     })?
                     .map_err(|e| format!("SSH password auth failed: {}", e))?;
 
-                    println!(
+                    eprintln!(
                         "[SSH Tunnel] Password authentication result: {}",
                         auth_result
                     );
@@ -441,17 +452,17 @@ impl SshTunnel {
                     return Err(err);
                 }
 
-                println!("[SSH Tunnel] Authentication successful! Setting up tunnel listener...");
+                eprintln!("[SSH Tunnel] Authentication successful! Setting up tunnel listener...");
 
                 let listener = tokio::net::TcpListener::from_std(listener)
                     .map_err(|e| format!("Failed to configure async listener: {}", e))?;
 
                 let handle = Arc::new(TokioMutex::new(handle));
 
-                println!("[SSH Tunnel] Tunnel is ready, sending success signal");
+                eprintln!("[SSH Tunnel] Tunnel is ready, sending success signal");
                 let _ = ready_tx_inner.send(Ok(()));
 
-                println!("[SSH Tunnel] Starting tunnel forwarding loop");
+                eprintln!("[SSH Tunnel] Starting tunnel forwarding loop");
                 while running_clone.load(Ordering::Relaxed) {
                     let accept = tokio::time::timeout(
                         Duration::from_millis(SSH_ACCEPT_POLL_MS),
@@ -535,6 +546,16 @@ impl SshTunnel {
     }
 }
 
+pub fn stop_all_tunnels() {
+    if let Some(tunnels) = TUNNELS.get() {
+        if let Ok(mut guard) = tunnels.lock() {
+            for (_, tunnel) in guard.drain() {
+                tunnel.stop();
+            }
+        }
+    }
+}
+
 /// Test an SSH connection without creating a tunnel
 pub fn test_ssh_connection(
     ssh_host: &str,
@@ -546,7 +567,7 @@ pub fn test_ssh_connection(
     ssh_allow_passphrase_prompt: bool,
 ) -> Result<String, String> {
     let use_system_ssh = should_use_system_ssh(ssh_password);
-    println!(
+    eprintln!(
         "[SSH Test] Testing connection to {}:{} as {} (UseSystemSSH={}, AllowPrompt={})",
         ssh_host, ssh_port, ssh_user, use_system_ssh, ssh_allow_passphrase_prompt
     );
@@ -579,7 +600,7 @@ fn test_ssh_connection_system(
     ssh_key_file: Option<&str>,
     ssh_allow_passphrase_prompt: bool,
 ) -> Result<String, String> {
-    println!("[SSH Test] Using system SSH (supports ~/.ssh/config)");
+    eprintln!("[SSH Test] Using system SSH (supports ~/.ssh/config)");
 
     // Create owned strings to avoid lifetime issues
     let port_string = ssh_port.to_string();
@@ -612,9 +633,9 @@ fn test_ssh_connection_system(
     args.push(&destination);
     args.push("exit");
 
-    println!("[SSH Test] Executing: ssh {:?}", args);
+    eprintln!("[SSH Test] Executing: ssh {:?}", args);
 
-    let mut command = Command::new("ssh");
+    let mut command = create_ssh_command();
     command.args(&args);
 
     // Keep the askpass server alive while ssh runs: prompts can arrive at any
@@ -629,7 +650,7 @@ fn test_ssh_connection_system(
     })?;
 
     if output.status.success() {
-        println!("[SSH Test] Connection successful!");
+        eprintln!("[SSH Test] Connection successful!");
         Ok(format!(
             "SSH connection to {}@{}:{} established successfully!",
             ssh_user, ssh_host, ssh_port
@@ -670,7 +691,7 @@ async fn test_ssh_connection_russh_async(
     })?;
 
     let authenticated = if let Some(key_path) = ssh_key_file.filter(|p| !p.trim().is_empty()) {
-        println!("[SSH Test] Authenticating with key file: {}", key_path);
+        eprintln!("[SSH Test] Authenticating with key file: {}", key_path);
         // Don't filter empty passphrase - if provided, use it even if empty
         let key = russh_keys::load_secret_key(Path::new(key_path), ssh_key_passphrase)
             .map_err(|e| format!("SSH key authentication failed: {}", e))?;
@@ -679,7 +700,7 @@ async fn test_ssh_connection_russh_async(
             .await
             .map_err(|e| format!("SSH key authentication failed: {}", e))?
     } else if let Some(pwd) = ssh_password {
-        println!("[SSH Test] Authenticating with password");
+        eprintln!("[SSH Test] Authenticating with password");
         handle
             .authenticate_password(ssh_user, pwd)
             .await
@@ -696,7 +717,7 @@ async fn test_ssh_connection_russh_async(
         return Err(err);
     }
 
-    println!("[SSH Test] Connection successful!");
+    eprintln!("[SSH Test] Connection successful!");
     Ok(format!(
         "SSH connection to {}@{}:{} established successfully!",
         ssh_user, ssh_host, ssh_port
@@ -712,7 +733,7 @@ fn test_ssh_connection_russh(
     ssh_key_file: Option<&str>,
     ssh_key_passphrase: Option<&str>,
 ) -> Result<String, String> {
-    println!("[SSH Test] Using russh for authentication");
+    eprintln!("[SSH Test] Using russh for authentication");
 
     // Convert parameters to owned strings for the thread
     let ssh_host = ssh_host.to_string();
@@ -753,7 +774,7 @@ fn configure_askpass(
     match crate::askpass::start_frontend_server() {
         Ok(server) => {
             server.configure_command(command)?;
-            println!(
+            eprintln!(
                 "[SSH Tunnel] In-app askpass bridge active at {}",
                 server.endpoint()
             );

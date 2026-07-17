@@ -9,6 +9,7 @@ vi.mock('../../../src/utils/contextMenu', () => ({
     top: constraints.clickY,
     left: constraints.clickX,
   })),
+  calculateSubmenuOffsetY: vi.fn(() => 0),
 }));
 
 describe('ContextMenu', () => {
@@ -182,6 +183,89 @@ describe('ContextMenu', () => {
 
     const buttons = container.querySelectorAll('button');
     expect(buttons.length).toBe(0);
+  });
+
+  it('renders a header item as a non-interactive label', () => {
+    render(
+      <ContextMenu
+        x={100}
+        y={100}
+        items={[
+          { label: 'Move to Group', header: true },
+          { label: 'Item 1', action: mockAction1 },
+        ]}
+        onClose={mockOnClose}
+      />
+    );
+
+    const header = screen.getByText('Move to Group');
+    // Headers are not clickable buttons
+    expect(header.closest('button')).toBeNull();
+    fireEvent.click(header);
+    expect(mockAction1).not.toHaveBeenCalled();
+    expect(mockOnClose).not.toHaveBeenCalled();
+    // The actual item is still a button
+    expect(screen.getByText('Item 1').closest('button')).not.toBeNull();
+  });
+
+  it('renders tree guides for indented items', () => {
+    const { container } = render(
+      <ContextMenu
+        x={100}
+        y={100}
+        items={[
+          { label: 'Root', action: mockAction1, indent: 0 },
+          { label: 'Child', action: mockAction2, indent: 1 },
+          { label: 'Grandchild', action: vi.fn(), indent: 2 },
+        ]}
+        onClose={mockOnClose}
+      />
+    );
+
+    const rootBtn = screen.getByText('Root').closest('button')!;
+    const childBtn = screen.getByText('Child').closest('button')!;
+    const grandBtn = screen.getByText('Grandchild').closest('button')!;
+
+    // depth 0 → no rails; depth 1 → 1 rail; depth 2 → 2 rails
+    const rails = (btn: HTMLElement) =>
+      btn.querySelectorAll('span.relative.self-stretch').length;
+    expect(rails(rootBtn)).toBe(0);
+    expect(rails(childBtn)).toBe(1);
+    expect(rails(grandBtn)).toBe(2);
+    // Indented items still trigger their action
+    fireEvent.click(childBtn);
+    expect(mockAction2).toHaveBeenCalled();
+    // sanity: container rendered
+    expect(container).toBeTruthy();
+  });
+
+  it('opens a submenu on hover and fires the child action', () => {
+    const childAction = vi.fn();
+    render(
+      <ContextMenu
+        x={100}
+        y={100}
+        items={[
+          {
+            label: 'Move to Group',
+            submenu: [{ label: 'tests', action: childAction, indent: 0 }],
+          },
+        ]}
+        onClose={mockOnClose}
+      />
+    );
+
+    // Submenu items are hidden until hover
+    expect(screen.queryByText('tests')).toBeNull();
+
+    const parent = screen.getByText('Move to Group').closest('div')!;
+    fireEvent.mouseEnter(parent);
+
+    const child = screen.getByText('tests');
+    expect(child).toBeInTheDocument();
+    fireEvent.click(child);
+    expect(childAction).toHaveBeenCalled();
+    expect(mockOnClose).toHaveBeenCalled();
   });
 
   it('handles many menu items', () => {

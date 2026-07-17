@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   createResultEntries,
+  createEntriesFromResultSets,
   updateResultEntry,
   findActiveEntry,
   countSucceeded,
@@ -13,7 +14,7 @@ import {
   getEntryDisplayLabel,
   getStackedGridHeight,
 } from "../../src/utils/multiResult";
-import type { QueryResultEntry } from "../../src/types/editor";
+import type { QueryResult, QueryResultEntry } from "../../src/types/editor";
 
 function makeEntry(overrides: Partial<QueryResultEntry> = {}): QueryResultEntry {
   return {
@@ -31,7 +32,93 @@ function makeEntry(overrides: Partial<QueryResultEntry> = {}): QueryResultEntry 
   };
 }
 
+function makeResult(overrides: Partial<QueryResult> = {}): QueryResult {
+  return {
+    columns: ["message"],
+    rows: [["First result"]],
+    affected_rows: 0,
+    ...overrides,
+  };
+}
+
 describe("multiResult", () => {
+  describe("createEntriesFromResultSets", () => {
+    it("should create one entry per result set (primary + additional)", () => {
+      const result = makeResult({
+        additional_results: [
+          makeResult({ rows: [["Second result"]] }),
+          makeResult({ rows: [["Third result"]] }),
+        ],
+      });
+      const entries = createEntriesFromResultSets(
+        "tab-1",
+        "CALL sp_test()",
+        result,
+        42,
+        "Result",
+      );
+      expect(entries).toHaveLength(3);
+      expect(entries[0].id).toBe("tab-1-result-0");
+      expect(entries[0].result?.rows).toEqual([["First result"]]);
+      expect(entries[1].result?.rows).toEqual([["Second result"]]);
+      expect(entries[2].result?.rows).toEqual([["Third result"]]);
+    });
+
+    it("should strip additional_results from the primary entry's result", () => {
+      const result = makeResult({
+        additional_results: [makeResult()],
+      });
+      const entries = createEntriesFromResultSets("t", "CALL p()", result, 1, "Result");
+      expect(entries[0].result?.additional_results).toBeUndefined();
+    });
+
+    it("should label entries with the given prefix and 1-based index", () => {
+      const result = makeResult({ additional_results: [makeResult()] });
+      const entries = createEntriesFromResultSets("t", "CALL p()", result, 1, "Result");
+      expect(entries[0].label).toBe("Result 1");
+      expect(entries[1].label).toBe("Result 2");
+    });
+
+    it("should attach the execution time to the first entry only", () => {
+      const result = makeResult({
+        additional_results: [makeResult(), makeResult()],
+      });
+      const entries = createEntriesFromResultSets("t", "CALL p()", result, 123, "Result");
+      expect(entries[0].executionTime).toBe(123);
+      expect(entries[1].executionTime).toBeNull();
+      expect(entries[2].executionTime).toBeNull();
+    });
+
+    it("should mark all entries as resolved and non-editable", () => {
+      const result = makeResult({ additional_results: [makeResult()] });
+      const entries = createEntriesFromResultSets("t", "CALL p()", result, 1, "Result");
+      for (const entry of entries) {
+        expect(entry.isLoading).toBe(false);
+        expect(entry.error).toBe("");
+        expect(entry.page).toBe(1);
+        expect(entry.activeTable).toBeNull();
+        expect(entry.pkColumns).toBeNull();
+        expect(entry.query).toBe("CALL p()");
+      }
+    });
+
+    it("should handle a result without additional sets as a single entry", () => {
+      const entries = createEntriesFromResultSets("t", "SELECT 1", makeResult(), 5, "Result");
+      expect(entries).toHaveLength(1);
+      expect(entries[0].result?.columns).toEqual(["message"]);
+    });
+
+    it("should preserve per-set truncated and pagination fields", () => {
+      const result = makeResult({
+        truncated: true,
+        additional_results: [makeResult({ truncated: false })],
+      });
+      const entries = createEntriesFromResultSets("t", "CALL p()", result, 1, "Result");
+      expect(entries[0].result?.truncated).toBe(true);
+      expect(entries[1].result?.truncated).toBe(false);
+    });
+  });
+
   describe("createResultEntries", () => {
     it("should create entries from queries with correct ids", () => {
       const entries = createResultEntries("tab-1", [

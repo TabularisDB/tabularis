@@ -38,7 +38,12 @@
     "error": "Error",
     "success": "Success",
     "ok": "OK",
-    "copy": "Copy"
+    "continue": "Continue",
+    "back": "Back",
+    "copy": "Copy",
+    "showDetails": "Show details",
+    "hideDetails": "Hide details",
+    "beta": "Beta"
   },
   "sidebar": {
     "connections": "Connections",
@@ -267,10 +272,75 @@
     "noSearchResults": "No connections match \"{{query}}\"",
     "gridView": "Grid view",
     "listView": "List view",
+    "selectedCount": "{{count}} selected",
+    "deleteSelected": "Delete selected",
+    "moveSelected": "Move to group",
+    "exportSelected": "Export selected",
+    "deselectAll": "Deselect all",
+    "confirmDeleteSelected": "Are you sure you want to delete {{count}} selected connection(s)?",
+    "deleteSelectedTitle": "Delete selected connections",
     "export": "Export Connections",
     "import": "Import Connections",
     "exportTitle": "Export Connections",
-    "exportWarning": "The exported file will contain your database and SSH passwords in plaintext. Please store it securely."
+    "exportWarning": "The exported file will contain your database and SSH passwords in plaintext. Please store it securely.",
+    "exportModal": {
+      "title": "Export Connections",
+      "subtitle": "Choose how to export your connections",
+      "subtitleSelected": "Export {{count}} selected connection(s)",
+      "encrypted": "Encrypted with a password",
+      "encryptedDesc": "All connections and passwords are included, protected with a password of your choice. Recommended for backups.",
+      "noSecrets": "Plain text, without passwords",
+      "noSecretsDesc": "Connections are exported as readable JSON, but all passwords and passphrases are excluded. Recommended for sharing.",
+      "plaintext": "Plain text, with all passwords",
+      "plaintextDesc": "Connections and passwords are exported as readable JSON. Anyone with the file can read your credentials.",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "passwordRequired": "A password is required for an encrypted export.",
+      "passwordMismatch": "Passwords do not match.",
+      "export": "Export"
+    },
+    "importPasswordModal": {
+      "title": "Encrypted Export File",
+      "subtitle": "This file is protected with a password",
+      "password": "Password",
+      "unlock": "Import"
+    },
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace",
+        "applyToAll": "Action for all:"
+      },
+      "tabularisJsonHint": "Tabularis export file (.json)",
+      "menuLabel": "Import connections…",
+      "group": {
+        "label": "Group:",
+        "none": "No group",
+        "new": "New group…",
+        "newPlaceholder": "Group name",
+        "parentLabel": "in",
+        "parentNone": "Top level",
+        "applyToAll": "Group for all:",
+        "keepPerConnection": "Per connection"
+      },
+      "betaNotice": "Import from App is in beta. If you run into a problem,",
+      "reportIssue": "report it on GitHub."
+    }
   },
   "connectionAppearance": {
     "section": "Appearance",
@@ -346,6 +416,11 @@
       "reset": "Reset to theme",
       "confirm": "Confirm",
       "cancel": "Cancel"
+    },
+    "dataGrid": {
+      "title": "Data Grid",
+      "stickyHeaders": "Sticky column headers",
+      "stickyHeadersDesc": "Keep the column headers visible at the top while scrolling through results."
     },
     "appearance_general": "General",
     "appearance_sqlEditor": "SQL Editor",
@@ -625,7 +700,9 @@
       "notebookRunAll": "Run All Cells",
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Import from Clipboard",
-      "quickNavigator": "Quick Navigator"
+      "quickNavigator": "Quick Navigator",
+      "triggerSuggestions": "Trigger suggestions",
+      "refreshTable": "Refresh table"
     },
     "aiActivity": "AI Activity"
   },
@@ -761,7 +838,10 @@
     "startupScriptDescription": "SQL run on every new connection to this data source. Use it for session settings such as SET / set_config (e.g. bypassing RLS). Separate statements with semicolons.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Scroll tabs left",
-    "scrollTabsRight": "Scroll tabs right"
+    "scrollTabsRight": "Scroll tabs right",
+    "useIamAuth": "Use AWS IAM Authentication (RDS)",
+    "useIamAuthHint": "The password field is treated as an RDS auth token (from `aws rds generate-db-auth-token`). Requires TLS. Tokens expire every 15 minutes.",
+    "useIamAuthTlsRequired": "Enable an SSL mode above to use AWS IAM authentication."
   },
   "sshConnections": {
     "title": "SSH Connections",
@@ -808,6 +888,7 @@
     "columnNotEditable": "Column \"{{column}}\" can't be edited — it is not a direct column of table \"{{table}}\" (likely an alias or computed value).",
     "pkRequiredToEdit": "To edit this result, include the primary key column \"{{pk}}\" in your SELECT.",
     "null": "null",
+    "emptySet": "(empty set)",
     "sortByAsc": "Sort by {{col}} ASC",
     "sortByDesc": "Sort by {{col}} DESC",
     "clearSort": "Clear sort",
@@ -1142,6 +1223,7 @@
       "viewTabs": "Tab view",
       "viewStacked": "Stacked view",
       "queryPrefix": "Query",
+      "resultSetPrefix": "Result",
       "results": "Results",
       "collapseAll": "Collapse all",
       "expandAll": "Expand all",
@@ -1523,7 +1605,8 @@
     "createFirst": "Create your first group to organize connections",
     "groupName": "Group name",
     "dragHint": "Drag connections here",
-    "createError": "Failed to create group"
+    "createError": "Failed to create group",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "Database",

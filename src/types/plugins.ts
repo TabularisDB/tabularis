@@ -29,6 +29,8 @@ export interface DriverCapabilities {
   manage_tables?: boolean;
   /** When true, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. Table/column management is also hidden regardless of manage_tables. Defaults to false. */
   readonly?: boolean;
+  /** Supports EXPLAIN / query plan visualization. When false, the Visual Explain UI is hidden for connections using this driver. Defaults to false. */
+  explain?: boolean;
   /** Supports listing and managing database triggers. Defaults to false. */
   triggers?: boolean;
   /** Supports managing stored routines (run with parameters, create from template, edit, drop). Defaults to false. */

@@ -54,4 +54,6 @@ export const versionLinks: Record<string, string> = {
     "https://tabularis.dev/blog/v0134-ssh-security-keys-detachable-results-smarter-editor",
   "0.14.0":
     "https://tabularis.dev/blog/v0140-stored-routines-connection-windows-destructive-query-guard",
+  "0.15.0":
+    "https://tabularis.dev/blog/v0150-import-connections-nested-groups-encrypted-exports"
 };

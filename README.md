@@ -18,7 +18,9 @@
   <a href="./README.fr.md">Français</a> |
   <a href="./README.de.md">Deutsch</a> |
   <a href="./README.ja.md">日本語</a> |
-  <a href="./README.ru.md">Русский</a>
+  <a href="./README.ru.md">Русский</a> |
+  <a href="./README.tl.md">Tagalog</a> |
+  <a href="./README.ko.md">한국어</a>
 </p>
 
 <p align="center">
@@ -58,9 +60,9 @@ sudo snap install tabularis                                      # Linux
 
 Or grab an installer directly:
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis-0.13.1-1.x86_64.rpm)
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.15.0/tabularis_0.15.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.15.0/tabularis_0.15.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.15.0/tabularis_0.15.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.15.0/tabularis_0.15.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.15.0/tabularis_0.15.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.15.0/tabularis-0.13.1-1.x86_64.rpm)
 
-The app UI is available in English, Italian, Spanish, Chinese (Simplified), French, German, Japanese and Russian.
+The app UI is available in English, Italian, Spanish, Chinese (Simplified), French, German, Japanese, Russian and Tagalog.
 
 **Discord** — [Join our Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with the maintainers, share feedback, and get help from the community.
 
@@ -334,6 +336,7 @@ Once connected, your AI agent can:
 | Tool | Description |
 |------|-------------|
 | `list_connections` | List all saved database connections |
+| `list_databases` | List all databases available for a connection |
 | `list_tables` | List tables in a connection (with optional schema filter) |
 | `describe_table` | Get full schema: columns, indexes, foreign keys |
 | `run_query` | Execute any SQL query and return results |
@@ -405,6 +408,7 @@ Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md). Good pla
 - <a href="https://tolgee.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/tolgee_compact.svg" height="28" alt="Tolgee" /></a> **[Tolgee](https://tolgee.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Open-source localization platform — translate your app in context, without the spreadsheet chaos.
 - <a href="https://1password.com/developers?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/1password_compact.png" height="28" alt="1Password" /></a> **[1Password](https://1password.com/developers?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — The password and secrets manager developers trust — free for open-source projects.
 - <a href="https://www.jetbrains.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/jetbrains_compact.png" height="28" alt="JetBrains" /></a> **[JetBrains](https://www.jetbrains.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Professional developer tools — IntelliJ IDEA, WebStorm, DataGrip and the rest of the All Products Pack.
+- <a href="https://signpath.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/signpath_compact.png" height="28" alt="SignPath" /></a> **[SignPath](https://signpath.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Code signing for open source — signed Windows releases without the certificate bill.
 
 _[Become a sponsor →](https://tabularis.dev/sponsors)_
 

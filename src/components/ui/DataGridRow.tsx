@@ -12,6 +12,12 @@ import {
   type MergedRow,
 } from "../../utils/dataGrid";
 import { isGeometricType } from "../../utils/geometry";
+import {
+  isEnumType,
+  parseEnumValues,
+  isSetType,
+  parseSetValues,
+} from "../../utils/columnTypes";
 import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
 import { isLongTextCellTarget, truncateCellPreview } from "../../utils/text";
 import { getForeignKeyForPreview } from "../../utils/foreignKeys";
@@ -23,6 +29,7 @@ import { JsonCell } from "./JsonCell";
 import { JsonExpansionEditor } from "./JsonExpansionEditor";
 import { TextCell } from "./TextCell";
 import { TextExpansionEditor } from "./TextExpansionEditor";
+import { EnumSetInput } from "./EnumSetInput";
 import type { ForeignKey } from "../../types/editor";
 
 /**
@@ -96,6 +103,7 @@ export interface RowCtx {
     colName: string,
   ) => void;
   handleEditCommit: () => void;
+  commitEditWithValue: (value: unknown) => void;
   handleKeyDown: (e: React.KeyboardEvent) => void;
   onForeignKeyShowPanel?: (fk: ForeignKey, value: unknown) => void;
   onForeignKeyHidePanel?: () => void;
@@ -181,6 +189,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
     handleCellDoubleClick,
     handleContextMenu,
     handleEditCommit,
+    commitEditWithValue,
     handleKeyDown,
     onForeignKeyShowPanel,
     onForeignKeyHidePanel,
@@ -430,6 +439,46 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                           onKeyDown={handleKeyDown}
                           inputRef={editInputRef}
                         />
+                      );
+                    }
+                    const isEnumCol = colType && isEnumType(colType);
+                    const isSetCol = colType && isSetType(colType);
+                    if (isEnumCol || isSetCol) {
+                      const allowedValues = isSetCol
+                        ? parseSetValues(colType!)
+                        : parseEnumValues(colType!);
+                      const isNullable =
+                        columnInfo.nullableColumns?.includes(colName) ?? false;
+                      const rawVal = editingCell.value;
+                      const currentValue =
+                        rawVal === null || rawVal === undefined
+                          ? null
+                          : String(rawVal);
+                      return (
+                        <>
+                          <span className="invisible whitespace-nowrap">
+                            {String(displayValue)}
+                          </span>
+                          <EnumSetInput
+                            variant="grid"
+                            multiple={!!isSetCol}
+                            autoOpen
+                            rootRef={
+                              editInputRef as React.MutableRefObject<HTMLElement | null>
+                            }
+                            value={currentValue}
+                            options={allowedValues}
+                            isNullable={isNullable}
+                            onChange={(newVal) =>
+                              setEditingCell((prev) =>
+                                prev ? { ...prev, value: newVal } : null,
+                              )
+                            }
+                            onCommitValue={commitEditWithValue}
+                            onClose={handleEditCommit}
+                            onCancel={() => setEditingCell(null)}
+                          />
+                        </>
                       );
                     }
                     const textValue = String(editingCell.value ?? "");

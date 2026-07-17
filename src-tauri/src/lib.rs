@@ -10,11 +10,16 @@ pub mod ai_commands;
 pub mod ai_notebook_export;
 #[cfg(test)]
 pub mod ai_notebook_export_tests;
+pub mod ai_schema_context;
+#[cfg(test)]
+pub mod ai_schema_context_tests;
 pub mod askpass;
 pub mod cli;
 pub mod clipboard_import;
 pub mod commands;
 pub mod connection_appearance;
+pub mod connection_import;
+pub mod connection_import_commands;
 #[cfg(test)]
 pub mod connection_appearance_tests;
 pub mod config;
@@ -33,9 +38,12 @@ pub mod explain_import;
 #[cfg(test)]
 pub mod explain_import_tests;
 pub mod export;
+pub mod export_crypto;
 #[cfg(test)]
 pub mod export_import_tests;
 pub mod health_check;
+#[cfg(test)]
+pub mod group_tree_tests;
 pub mod heartbeat;
 #[cfg(test)]
 pub mod heartbeat_tests;
@@ -185,6 +193,7 @@ pub fn run() {
         .manage(std::sync::Arc::new(
             connection_cache::ConnectionCache::default(),
         ))
+        .manage(connection_import_commands::ImportEnvelopeCache::default())
         .manage(explain_import::PendingExplainFile::default())
         .manage(json_viewer::JsonViewerStore::default())
         .manage(results_window::ResultsWindowStore::default())
@@ -312,13 +321,22 @@ pub fn run() {
             commands::get_connection_groups,
             commands::get_connections_with_groups,
             commands::create_connection_group,
+            commands::create_group_path,
             commands::update_connection_group,
+            commands::move_group_to_parent,
             commands::delete_connection_group,
             commands::move_connection_to_group,
             commands::reorder_groups,
             commands::reorder_connections_in_group,
             commands::export_connections_payload,
+            commands::encrypt_export_payload,
+            commands::decrypt_export_payload,
             commands::import_connections_payload,
+            connection_import_commands::list_connection_import_sources,
+            connection_import_commands::preview_connection_import,
+            connection_import_commands::apply_connection_import,
+            connection_import_commands::preview_tabularis_import,
+            connection_import_commands::apply_tabularis_import,
             commands::get_schemas,
             commands::get_available_databases,
             commands::get_tables,
@@ -409,6 +427,7 @@ pub fn run() {
             ai::get_ai_models,
             // Clipboard Import
             clipboard_import::execute_clipboard_import,
+            commands::get_ai_schema_context,
             commands::get_schema_snapshot,
             // DDL generation
             commands::get_create_table_sql,
@@ -512,6 +531,12 @@ pub fn run() {
             connection_appearance::delete_connection_icon,
             commands::set_connection_appearance,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                log::info!("Application exiting, stopping all active SSH tunnels...");
+                crate::ssh_tunnel::stop_all_tunnels();
+            }
+        });
 }

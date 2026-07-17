@@ -70,6 +70,16 @@
     "overridable": true
   },
   {
+    "id": "refresh_table",
+    "category": "data_grid",
+    "defaultMac": "⌘+R",
+    "defaultWin": "Ctrl+R",
+    "macMatch": { "metaKey": true, "key": "r" },
+    "winMatch": { "ctrlKey": true, "key": "r" },
+    "i18nKey": "settings.shortcuts.refreshTable",
+    "overridable": true
+  },
+  {
     "id": "tab_switcher",
     "category": "editor",
     "defaultMac": "Ctrl+Tab",
@@ -167,6 +177,16 @@
     "macMatch": { "metaKey": true, "key": "p" },
     "winMatch": { "ctrlKey": true, "key": "p" },
     "i18nKey": "settings.shortcuts.quickNavigator",
+    "overridable": true
+  },
+  {
+    "id": "trigger_suggestions",
+    "category": "editor",
+    "defaultMac": "⌘+I",
+    "defaultWin": "Ctrl+I",
+    "macMatch": { "metaKey": true, "key": "i" },
+    "winMatch": { "ctrlKey": true, "key": "i" },
+    "i18nKey": "settings.shortcuts.triggerSuggestions",
     "overridable": true
   }
 ]
