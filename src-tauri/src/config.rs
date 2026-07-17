@@ -110,6 +110,23 @@ pub struct AppConfig {
     /// approval request arrives. Default: true.
     pub mcp_approval_notify_sound: Option<bool>,
 
+    // ----- Automatic connections backup -----
+    /// When backups run: `"manual"` (default), `"interval"`, `"onClose"`
+    /// or `"onLaunch"`.
+    pub backup_mode: Option<String>,
+    /// Directory the backup files are written to.
+    pub backup_directory: Option<String>,
+    /// Minutes between automatic backups in interval mode. Default: 1440.
+    pub backup_interval_minutes: Option<u32>,
+    /// Number of backup files kept before rotation. Default: 10.
+    pub backup_retention: Option<u32>,
+    /// Backup destination: `"local"` (default) or `"webdav"`.
+    pub backup_target: Option<String>,
+    /// WebDAV collection URL the backups are uploaded into.
+    pub backup_webdav_url: Option<String>,
+    /// WebDAV username; the password lives in the OS keychain.
+    pub backup_webdav_username: Option<String>,
+
     // ----- Session restore -----
     /// Reconnect to the last active connection on startup. Default: true.
     pub auto_connect_last_connection: Option<bool>,
@@ -378,6 +395,27 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.mcp_approval_notify_sound.is_some() {
             existing_config.mcp_approval_notify_sound = config.mcp_approval_notify_sound;
+        }
+        if config.backup_mode.is_some() {
+            existing_config.backup_mode = config.backup_mode;
+        }
+        if config.backup_directory.is_some() {
+            existing_config.backup_directory = config.backup_directory;
+        }
+        if config.backup_interval_minutes.is_some() {
+            existing_config.backup_interval_minutes = config.backup_interval_minutes;
+        }
+        if config.backup_retention.is_some() {
+            existing_config.backup_retention = config.backup_retention;
+        }
+        if config.backup_target.is_some() {
+            existing_config.backup_target = config.backup_target;
+        }
+        if config.backup_webdav_url.is_some() {
+            existing_config.backup_webdav_url = config.backup_webdav_url;
+        }
+        if config.backup_webdav_username.is_some() {
+            existing_config.backup_webdav_username = config.backup_webdav_username;
         }
         if config.auto_connect_last_connection.is_some() {
             existing_config.auto_connect_last_connection = config.auto_connect_last_connection;

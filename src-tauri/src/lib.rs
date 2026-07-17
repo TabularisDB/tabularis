@@ -14,6 +14,7 @@ pub mod ai_schema_context;
 #[cfg(test)]
 pub mod ai_schema_context_tests;
 pub mod askpass;
+pub mod backup;
 pub mod cli;
 pub mod clipboard_import;
 pub mod commands;
@@ -234,6 +235,9 @@ pub fn run() {
             // Watch for pending MCP approval requests and run periodic cleanup.
             ai_approval_watcher::spawn(app.handle().clone());
 
+            // Periodic encrypted backup of the connections, when enabled.
+            backup::spawn_scheduler(app.handle().clone());
+
             // Refresh the GUI heartbeat so the MCP subprocess can detect
             // when Tabularis is closed and fail fast on approval-gated
             // queries instead of waiting for the full approval timeout.
@@ -330,6 +334,10 @@ pub fn run() {
             commands::reorder_connections_in_group,
             commands::export_connections_payload,
             commands::encrypt_export_payload,
+            backup::get_connections_backup_status,
+            backup::set_connections_backup_password,
+            backup::set_connections_backup_target_password,
+            backup::run_connections_backup,
             commands::decrypt_export_payload,
             commands::import_connections_payload,
             connection_import_commands::list_connection_import_sources,
@@ -533,8 +541,11 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app_handle, event| {
+        .run(|app_handle, event| {
             if let tauri::RunEvent::Exit = event {
+                // Back up the freshest state before the process ends (no-op
+                // unless backups are enabled and due).
+                backup::run_exit_backup(app_handle);
                 log::info!("Application exiting, stopping all active SSH tunnels...");
                 crate::ssh_tunnel::stop_all_tunnels();
             }
