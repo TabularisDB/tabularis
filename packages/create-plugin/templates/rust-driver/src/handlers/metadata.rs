@@ -62,15 +62,9 @@ pub fn get_routine_definition(id: Value, _params: &Value) -> Value {
 }
 
 pub fn get_schema_snapshot(id: Value, _params: &Value) -> Value {
-    // Used for the ER diagram. Return tables + columns + foreign_keys in one shot.
-    ok_response(
-        id,
-        json!({
-            "tables": [],
-            "columns": {},
-            "foreign_keys": {},
-        }),
-    )
+    // Used for the ER diagram. Return
+    // [{ name, columns: [...], foreign_keys: [...] }].
+    ok_response(id, json!([]))
 }
 
 pub fn get_all_columns_batch(id: Value, _params: &Value) -> Value {

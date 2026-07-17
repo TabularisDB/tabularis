@@ -9,6 +9,7 @@ vi.mock('../../../src/utils/contextMenu', () => ({
     top: constraints.clickY,
     left: constraints.clickX,
   })),
+  calculateSubmenuOffsetY: vi.fn(() => 0),
 }));
 
 describe('ContextMenu', () => {

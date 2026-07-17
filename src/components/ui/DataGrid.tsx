@@ -783,6 +783,20 @@ export const DataGrid = React.memo(
       }
     }, [handleEditCommit, mergedRows, columns]);
 
+    // Commit a specific value in a single event, bypassing the editingCellRef
+    // lag (the ref is synced via a passive effect, so a picker that changes and
+    // commits within the same click — e.g. an ENUM dropdown — would otherwise
+    // read the stale previous value).
+    const commitEditWithValue = useCallback(
+      (value: unknown) => {
+        if (editingCellRef.current) {
+          editingCellRef.current = { ...editingCellRef.current, value };
+        }
+        handleEditCommit();
+      },
+      [handleEditCommit],
+    );
+
     const columnHelper = useMemo(() => createColumnHelper<unknown[]>(), []);
 
     const coreRowModel = useMemo(() => getCoreRowModel(), []);
@@ -1293,6 +1307,7 @@ export const DataGrid = React.memo(
         handleCellDoubleClick,
         handleContextMenu,
         handleEditCommit,
+        commitEditWithValue,
         handleKeyDown,
         onForeignKeyShowPanel,
         onForeignKeyHidePanel,
@@ -1330,6 +1345,7 @@ export const DataGrid = React.memo(
         handleCellDoubleClick,
         handleContextMenu,
         handleEditCommit,
+        commitEditWithValue,
         handleKeyDown,
         onForeignKeyShowPanel,
         onForeignKeyHidePanel,
@@ -1709,12 +1725,17 @@ export const DataGrid = React.memo(
                   detectJsonInTextColumns={detectJsonInTextColumns}
                   rowIndex={sidebarRowData.rowIndex}
                   isInsertion={isInsertion}
-                  columns={columns.map((colName, index) => ({
-                    name: colName,
-                    type: columnMetadata?.[index]?.data_type,
-                    characterMaximumLength:
-                      columnMetadata?.[index]?.character_maximum_length,
-                  }))}
+                  columns={columns.map((colName) => {
+                    const meta = columnMetadata?.find(
+                      (c) => c.name === colName,
+                    );
+                    return {
+                      name: colName,
+                      type: meta?.data_type,
+                      characterMaximumLength:
+                        meta?.character_maximum_length,
+                    };
+                  })}
                   autoIncrementColumns={autoIncrementColumns}
                   defaultValueColumns={defaultValueColumns}
                   nullableColumns={nullableColumns}

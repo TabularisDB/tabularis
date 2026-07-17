@@ -7,6 +7,13 @@ import { DateInput } from "./DateInput";
 import { JsonInput } from "./JsonInput";
 import { TextInput } from "./TextInput";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
+import {
+  isEnumType,
+  parseEnumValues,
+  isSetType,
+  parseSetValues,
+} from "../../utils/columnTypes";
+import { EnumSetInput } from "./EnumSetInput";
 import { isBlobColumn } from "../../utils/blob";
 import { isJsonColumn, isJsonContent } from "../../utils/json";
 import {
@@ -74,11 +81,23 @@ export const FieldEditor = ({
       isJsonContent(originalValue));
   const isJson = isJsonByType || detectedJson;
   const dateMode = !isJson && type ? getDateInputMode(type) : null;
+  const isEnum =
+    !isBlob && !isGeometric && !isJson && !dateMode && type
+      ? isEnumType(type)
+      : false;
+  const enumValues = isEnum && type ? parseEnumValues(type) : [];
+  const isSet =
+    !isBlob && !isGeometric && !isJson && !dateMode && !isEnum && type
+      ? isSetType(type)
+      : false;
+  const setValues = isSet && type ? parseSetValues(type) : [];
   const isLongText =
     !isBlob &&
     !isGeometric &&
     !isJson &&
     !dateMode &&
+    !isEnum &&
+    !isSet &&
     isTextColumn(type) &&
     (isLongTextValue(value) || isLongTextValue(originalValue));
 
@@ -131,6 +150,16 @@ export const FieldEditor = ({
     <DateInput
       value={String(value ?? "")}
       mode={dateMode}
+      onChange={(newValue) => onChange(newValue)}
+      className={className}
+    />
+  ) : isEnum || isSet ? (
+    <EnumSetInput
+      variant="inline"
+      multiple={isSet}
+      value={value === null || value === undefined ? null : String(value)}
+      options={isSet ? setValues : enumValues}
+      isNullable={isNullable}
       onChange={(newValue) => onChange(newValue)}
       className={className}
     />

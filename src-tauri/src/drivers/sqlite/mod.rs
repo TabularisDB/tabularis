@@ -530,6 +530,7 @@ async fn exec_on_sqlite_conn(
             affected_rows: exec_result.rows_affected(),
             truncated: false,
             pagination: None,
+            additional_results: None,
         });
     }
 
@@ -605,6 +606,7 @@ async fn exec_on_sqlite_conn(
         affected_rows: 0,
         truncated,
         pagination,
+        additional_results: None,
     })
 }
 
@@ -895,6 +897,7 @@ impl SqliteDriver {
                     create_foreign_keys: false,
                     no_connection_required: false,
                     manage_tables: true,
+                    explain: true,
                     readonly: false,
                     triggers: true,
                     supports_ssl: false,

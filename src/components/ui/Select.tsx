@@ -2,6 +2,11 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Search, ChevronDown, X } from "lucide-react";
 import clsx from "clsx";
+import {
+  DROPDOWN_MAX_HEIGHT,
+  computeDropdownPosition,
+  dropdownPositionStyle,
+} from "../../utils/dropdownPosition";
 
 interface SelectProps {
   value: string | null;
@@ -35,7 +40,13 @@ export const Select = ({
 }: SelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+    maxHeight: DROPDOWN_MAX_HEIGHT,
+    openUp: false,
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -46,11 +57,7 @@ export const Select = ({
   const updatePosition = useCallback(() => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
-      });
+      setDropdownPosition(computeDropdownPosition(rect));
     }
   }, []);
 
@@ -108,8 +115,8 @@ export const Select = ({
   const dropdown = isOpen && !disabled && (
     <div
       ref={dropdownRef}
-      className="fixed z-[200] bg-elevated border border-strong rounded-lg shadow-xl max-h-60 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100"
-      style={{ top: dropdownPosition.top, left: dropdownPosition.left, width: dropdownPosition.width }}
+      className="fixed z-[200] bg-elevated border border-strong rounded-lg shadow-xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+      style={dropdownPositionStyle(dropdownPosition)}
     >
       {searchable && (
         <div className="p-2 border-b border-default bg-elevated">
