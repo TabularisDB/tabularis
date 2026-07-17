@@ -912,6 +912,7 @@ async fn exec_on_pg_client(
             affected_rows: affected,
             truncated: false,
             pagination: None,
+            additional_results: None,
         });
     }
 
@@ -988,6 +989,7 @@ async fn exec_on_pg_client(
         affected_rows: 0,
         truncated,
         pagination,
+        additional_results: None,
     })
 }
 
@@ -1673,6 +1675,7 @@ impl PostgresDriver {
                     create_foreign_keys: true,
                     no_connection_required: false,
                     manage_tables: true,
+                    explain: true,
                     readonly: false,
                     triggers: true,
                     supports_ssl: true,

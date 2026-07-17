@@ -10,6 +10,9 @@ pub mod ai_commands;
 pub mod ai_notebook_export;
 #[cfg(test)]
 pub mod ai_notebook_export_tests;
+pub mod ai_schema_context;
+#[cfg(test)]
+pub mod ai_schema_context_tests;
 pub mod askpass;
 pub mod cli;
 pub mod clipboard_import;
@@ -424,6 +427,7 @@ pub fn run() {
             ai::get_ai_models,
             // Clipboard Import
             clipboard_import::execute_clipboard_import,
+            commands::get_ai_schema_context,
             commands::get_schema_snapshot,
             // DDL generation
             commands::get_create_table_sql,

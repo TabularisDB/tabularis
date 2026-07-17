@@ -1223,6 +1223,7 @@
       "viewTabs": "Tab view",
       "viewStacked": "Stacked view",
       "queryPrefix": "Query",
+      "resultSetPrefix": "Result",
       "results": "Results",
       "collapseAll": "Collapse all",
       "expandAll": "Expand all",

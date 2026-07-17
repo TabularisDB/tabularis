@@ -1193,6 +1193,7 @@
       "viewTabs": "タブ表示",
       "viewStacked": "スタック表示",
       "queryPrefix": "クエリ",
+      "resultSetPrefix": "結果",
       "results": "結果",
       "collapseAll": "すべて折りたたむ",
       "expandAll": "すべて展開",
