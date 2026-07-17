@@ -1104,33 +1104,6 @@ mod tests {
         }
     }
 
-    fn test_driver_result<F>(mut handle_request: F) -> RpcDriver
-    where
-        F: FnMut(JsonRpcRequest) -> Result<Value, String> + Send + 'static,
-    {
-        let (tx, mut rx) = mpsc::channel::<PluginCommand>(8);
-        tokio::spawn(async move {
-            while let Some(command) = rx.recv().await {
-                if let PluginCommand::Call(request, response_tx) = command {
-                    let result = handle_request(request);
-                    let _ = response_tx.send(result);
-                }
-            }
-        });
-
-        let (shutdown_tx, _shutdown_rx) = oneshot::channel();
-        RpcDriver {
-            manifest: test_manifest(),
-            process: Arc::new(PluginProcess {
-                sender: tx,
-                next_id: AtomicU64::new(1),
-                shutdown_tx: tokio::sync::Mutex::new(Some(shutdown_tx)),
-                pid: None,
-            }),
-            data_types: Vec::new(),
-        }
-    }
-
     #[tokio::test]
     async fn rpc_driver_uses_custom_ai_schema_context_when_available() {
         let driver = test_driver(|request| {
