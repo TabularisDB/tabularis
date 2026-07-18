@@ -36,16 +36,18 @@ struct UpdateCheckCache {
 }
 
 // GitHub API response
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 struct GitHubRelease {
     tag_name: String,
     body: String,
     html_url: String,
     published_at: String,
+    #[serde(default)]
+    prerelease: bool,
     assets: Vec<GitHubAsset>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 struct GitHubAsset {
     name: String,
     browser_download_url: String,
@@ -147,6 +149,45 @@ async fn fetch_latest_release() -> Result<GitHubRelease, String> {
     res.json::<GitHubRelease>()
         .await
         .map_err(|e| format!("Failed to parse response: {}", e))
+}
+
+/// Newest `nightly-*` prerelease by `published_at`. The legacy rolling `nightly`
+/// tag has no dash, so `nightly-` never matches it.
+fn select_newest_nightly(releases: Vec<GitHubRelease>) -> Option<GitHubRelease> {
+    releases
+        .into_iter()
+        .filter(|r| r.prerelease && r.tag_name.starts_with("nightly-"))
+        .max_by(|a, b| a.published_at.cmp(&b.published_at))
+}
+
+/// URL of the release's `latest.json` updater manifest asset, if present.
+fn nightly_latest_json_url(release: &GitHubRelease) -> Option<String> {
+    release
+        .assets
+        .iter()
+        .find(|a| a.name == "latest.json")
+        .map(|a| a.browser_download_url.clone())
+}
+
+/// Fetch the repository releases and return the newest nightly prerelease.
+async fn newest_nightly_release() -> Result<GitHubRelease, String> {
+    let client = Client::new();
+    let url = format!("https://api.github.com/repos/{}/releases?per_page=30", GITHUB_REPO);
+    let res = client
+        .get(&url)
+        .header("User-Agent", "Tabularis")
+        .header("Accept", "application/vnd.github.v3+json")
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {}", e))?;
+    if !res.status().is_success() {
+        return Err(format!("GitHub API error: {}", res.status()));
+    }
+    let releases = res
+        .json::<Vec<GitHubRelease>>()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+    select_newest_nightly(releases).ok_or_else(|| "No nightly release available yet".to_string())
 }
 
 fn categorize_asset(name: &str) -> String {
@@ -437,5 +478,65 @@ mod tests {
         let source = detect_installation_source();
         // On a dev/CI machine without pacman or tabularis-bin installed, must be None
         assert!(source.is_none() || source.as_deref() == Some("aur"));
+    }
+
+    fn mk_release(tag: &str, prerelease: bool, published_at: &str, assets: &[&str]) -> GitHubRelease {
+        GitHubRelease {
+            tag_name: tag.to_string(),
+            body: String::new(),
+            html_url: format!("https://example.com/{tag}"),
+            published_at: published_at.to_string(),
+            prerelease,
+            assets: assets
+                .iter()
+                .map(|name| GitHubAsset {
+                    name: name.to_string(),
+                    browser_download_url: format!("https://dl/{tag}/{name}"),
+                    size: 1,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn test_select_newest_nightly_picks_latest_prerelease() {
+        let releases = vec![
+            mk_release("v0.15.0", false, "2026-07-18T00:00:00Z", &["latest.json"]),
+            mk_release("nightly-20260716-aaaaaaa", true, "2026-07-16T03:00:00Z", &["latest.json"]),
+            mk_release("nightly-20260718-ccccccc", true, "2026-07-18T03:00:00Z", &["latest.json"]),
+            mk_release("nightly-20260717-bbbbbbb", true, "2026-07-17T03:00:00Z", &["latest.json"]),
+        ];
+        let got = select_newest_nightly(releases).expect("a nightly");
+        assert_eq!(got.tag_name, "nightly-20260718-ccccccc");
+    }
+
+    #[test]
+    fn test_select_newest_nightly_ignores_stable_and_old_rolling_tag() {
+        let releases = vec![
+            mk_release("v0.15.0", false, "2026-07-18T00:00:00Z", &["latest.json"]),
+            // legacy rolling tag "nightly" (no dash) must not match
+            mk_release("nightly", true, "2026-07-18T04:00:00Z", &["latest.json"]),
+        ];
+        assert!(select_newest_nightly(releases).is_none());
+    }
+
+    #[test]
+    fn test_nightly_latest_json_url() {
+        let rel = mk_release(
+            "nightly-20260718-ccccccc",
+            true,
+            "2026-07-18T03:00:00Z",
+            &["tabularis_0.15.0_amd64.AppImage", "latest.json"],
+        );
+        assert_eq!(
+            nightly_latest_json_url(&rel).as_deref(),
+            Some("https://dl/nightly-20260718-ccccccc/latest.json")
+        );
+    }
+
+    #[test]
+    fn test_nightly_latest_json_url_missing() {
+        let rel = mk_release("nightly-20260718-ccccccc", true, "2026-07-18T03:00:00Z", &["only.deb"]);
+        assert!(nightly_latest_json_url(&rel).is_none());
     }
 }
