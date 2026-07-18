@@ -202,6 +202,13 @@ fn categorize_asset(name: &str) -> String {
     }
 }
 
+/// Effective update channel from config. Anything other than "nightly" ⇒ stable.
+fn release_channel<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> String {
+    crate::config::load_config_internal(app)
+        .release_channel
+        .unwrap_or_else(|| "stable".to_string())
+}
+
 // Tauri commands
 #[tauri::command]
 pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateCheckResult, String> {
@@ -215,6 +222,44 @@ pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateChec
     // Check if updates are disabled
     if !force && config.check_for_updates == Some(false) {
         return Err("Update checks disabled".to_string());
+    }
+
+    if release_channel(&app) == "nightly" {
+        let release = newest_nightly_release().await?;
+        let url = nightly_latest_json_url(&release)
+            .ok_or_else(|| "Nightly release is missing its updater manifest".to_string())?;
+
+        // Ask the updater plugin (prerelease-aware semver) whether this nightly
+        // is newer than the running build.
+        use tauri_plugin_updater::UpdaterExt;
+        let updater = app
+            .updater_builder()
+            .endpoints(vec![url.parse().map_err(|e| format!("Bad nightly url: {e}"))?])
+            .map_err(|e| e.to_string())?
+            .build()
+            .map_err(|e| e.to_string())?;
+        let has_update = updater.check().await.map_err(|e| e.to_string())?.is_some();
+
+        let current_version = env!("CARGO_PKG_VERSION");
+        let download_urls = release
+            .assets
+            .iter()
+            .map(|asset| DownloadAsset {
+                name: asset.name.clone(),
+                url: asset.browser_download_url.clone(),
+                size: asset.size,
+                platform: categorize_asset(&asset.name),
+            })
+            .collect();
+        return Ok(UpdateCheckResult {
+            has_update,
+            current_version: current_version.to_string(),
+            latest_version: release.tag_name.clone(),
+            release_notes: release.body.clone(),
+            release_url: release.html_url.clone(),
+            published_at: release.published_at.clone(),
+            download_urls,
+        });
     }
 
     // Check cache if not forced
@@ -294,7 +339,16 @@ pub async fn download_and_install_update(app: AppHandle) -> Result<(), String> {
     // Usa tauri-plugin-updater per gestire il download e installazione
     use tauri_plugin_updater::UpdaterExt;
 
-    let updater = app.updater_builder().build().map_err(|e| e.to_string())?;
+    let mut builder = app.updater_builder();
+    if release_channel(&app) == "nightly" {
+        let release = newest_nightly_release().await?;
+        let url = nightly_latest_json_url(&release)
+            .ok_or_else(|| "Nightly release is missing its updater manifest".to_string())?;
+        builder = builder
+            .endpoints(vec![url.parse().map_err(|e| format!("Bad nightly url: {e}"))?])
+            .map_err(|e| e.to_string())?;
+    }
+    let updater = builder.build().map_err(|e| e.to_string())?;
 
     if let Some(update) = updater.check().await.map_err(|e| e.to_string())? {
         // Emetti eventi per aggiornare la UI sul progresso
