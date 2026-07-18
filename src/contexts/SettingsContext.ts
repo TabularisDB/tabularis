@@ -38,6 +38,7 @@ export interface Settings {
   aiCustomOpenaiUrl?: string;
   aiCustomOpenaiModel?: string;
   autoCheckUpdatesOnStartup?: boolean;
+  releaseChannel?: "stable" | "nightly";
   loggingEnabled?: boolean;
   maxLogEntries?: number;
   erDiagramDefaultLayout?: ERDiagramLayout;
