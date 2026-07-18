@@ -130,6 +130,15 @@
   --radius-xl: 1rem;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -159,6 +168,16 @@ code {
 }
 
 @layer utilities {
+  .overflow-auto {
+    overscroll-behavior: none;
+  }
+  .overflow-y-auto {
+    overscroll-behavior-y: none;
+  }
+  .overflow-x-auto {
+    overscroll-behavior-x: none;
+  }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }

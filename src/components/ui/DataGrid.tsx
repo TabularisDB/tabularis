@@ -820,6 +820,8 @@ export const DataGrid = React.memo(
               // Only populated when column metadata is present (i.e. table
               // browse), not for arbitrary query results.
               const colType = columnTypeMap?.get(colName);
+              const tooltipAlignment =
+                index === columns.length - 1 ? "right-0" : "left-0";
 
               return (
                 <div
@@ -869,7 +871,7 @@ export const DataGrid = React.memo(
                   {colType && (
                     <span
                       role="tooltip"
-                      className="pointer-events-none absolute left-0 top-full z-20 mt-1 whitespace-nowrap rounded-lg border border-strong bg-tooltip px-2 py-1 text-xs font-normal normal-case tracking-normal text-secondary opacity-0 shadow-xl transition-opacity duration-100 group-hover/header:opacity-100"
+                      className={`pointer-events-none absolute ${tooltipAlignment} top-full z-20 mt-1 hidden whitespace-nowrap rounded-lg border border-strong bg-tooltip px-2 py-1 text-xs font-normal normal-case tracking-normal text-secondary shadow-xl group-hover/header:block`}
                     >
                       <span className="text-primary">{colName}</span>: {colType}
                     </span>
