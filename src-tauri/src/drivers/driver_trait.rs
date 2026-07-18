@@ -129,6 +129,12 @@ pub struct DriverCapabilities {
     /// their manifest. Defaults to `false`.
     #[serde(default, alias = "supportsSsl")]
     pub supports_ssl: bool,
+    /// Supports connecting through a Unix socket on this machine instead of
+    /// host:port (the connection modal shows the local Socket Path field).
+    /// Built-in network drivers (mysql, postgres) set this; plugins opt in
+    /// via their manifest. Defaults to `false`.
+    #[serde(default, alias = "unixSocket")]
+    pub unix_socket: bool,
     /// Supports EXPLAIN / query plan visualization (`explain_query`).
     /// When `false`, the Visual Explain UI is hidden for connections using
     /// this driver. Built-in drivers set this; plugins opt in via their

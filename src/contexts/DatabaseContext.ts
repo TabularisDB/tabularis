@@ -43,6 +43,8 @@ export interface SavedConnection {
     host?: string;
     database: string | string[];
     port?: number;
+    /** Local Unix socket the drivers dial instead of host:port (no tunnel). */
+    unix_socket_path?: string;
     username?: string;
     password?: string;
     ssh_enabled?: boolean;

@@ -31,6 +31,34 @@ enum TunnelBackend {
     SystemSsh(Arc<Mutex<Child>>),
 }
 
+/// What the SSH server connects to on the far end of a local forward.
+/// A TCP destination opens a `direct-tcpip` channel; a Unix socket destination
+/// opens a `direct-streamlocal@openssh.com` channel, the equivalent of
+/// `ssh -L <localPort>:/path/to/socket`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SshForwardDestination {
+    Tcp { host: String, port: u16 },
+    UnixSocket { path: String },
+}
+
+impl SshForwardDestination {
+    /// The `-L` forward spec for system ssh: OpenSSH accepts either
+    /// `bind:port:host:hostport` or `bind:port:remote_socket_path`.
+    fn forward_spec(&self, local_port: u16) -> String {
+        match self {
+            Self::Tcp { host, port } => format!("127.0.0.1:{}:{}:{}", local_port, host, port),
+            Self::UnixSocket { path } => format!("127.0.0.1:{}:{}", local_port, path),
+        }
+    }
+
+    fn log_description(&self) -> String {
+        match self {
+            Self::Tcp { host, port } => format!("{}:{}", host, port),
+            Self::UnixSocket { path } => path.clone(),
+        }
+    }
+}
+
 #[derive(Clone)]
 struct RusshClientHandler {
     ssh_host: String,
@@ -107,13 +135,17 @@ impl SshTunnel {
         ssh_key_file: Option<&str>,
         ssh_key_passphrase: Option<&str>,
         ssh_allow_passphrase_prompt: bool,
-        remote_host: &str,
-        remote_port: u16,
+        destination: &SshForwardDestination,
     ) -> Result<Self, String> {
         let use_system_ssh = should_use_system_ssh(ssh_password);
         eprintln!(
-            "[SSH Tunnel] New Request: Host={}, Port={}, User={}, UseSystemSSH={}, AllowPrompt={}",
-            ssh_host, ssh_port, ssh_user, use_system_ssh, ssh_allow_passphrase_prompt
+            "[SSH Tunnel] New Request: Host={}, Port={}, User={}, Destination={}, UseSystemSSH={}, AllowPrompt={}",
+            ssh_host,
+            ssh_port,
+            ssh_user,
+            destination.log_description(),
+            use_system_ssh,
+            ssh_allow_passphrase_prompt
         );
 
         let local_port = {
@@ -133,8 +165,7 @@ impl SshTunnel {
                 ssh_user,
                 ssh_key_file,
                 ssh_allow_passphrase_prompt,
-                remote_host,
-                remote_port,
+                destination,
                 local_port,
             )
             .map_err(|e| {
@@ -149,8 +180,7 @@ impl SshTunnel {
                 ssh_password,
                 ssh_key_file,
                 ssh_key_passphrase,
-                remote_host,
-                remote_port,
+                destination,
                 local_port,
             )
             .map_err(|e| {
@@ -166,8 +196,7 @@ impl SshTunnel {
         ssh_user: &str,
         ssh_key_file: Option<&str>,
         ssh_allow_passphrase_prompt: bool,
-        remote_host: &str,
-        remote_port: u16,
+        destination: &SshForwardDestination,
         local_port: u16,
     ) -> Result<Self, String> {
         let mut args = Vec::with_capacity(16); // Pre-allocate for typical argument count
@@ -178,10 +207,7 @@ impl SshTunnel {
         args.push("-N".to_string()); // No remote command
         args.push("-L".to_string());
         // Explicitly bind to 127.0.0.1 to avoid ambiguity or public binding
-        args.push(format!(
-            "127.0.0.1:{}:{}:{}",
-            local_port, remote_host, remote_port
-        ));
+        args.push(destination.forward_spec(local_port));
 
         let destination = if !ssh_user.trim().is_empty() {
             format!("{}@{}", ssh_user, ssh_host)
@@ -337,8 +363,7 @@ impl SshTunnel {
         ssh_password: Option<&str>,
         ssh_key_file: Option<&str>,
         ssh_key_passphrase: Option<&str>,
-        remote_host: &str,
-        remote_port: u16,
+        destination: &SshForwardDestination,
         local_port: u16,
     ) -> Result<Self, String> {
         eprintln!("[SSH Tunnel] Russh connecting to {}:{}", ssh_host, ssh_port);
@@ -361,7 +386,7 @@ impl SshTunnel {
         let ssh_password = ssh_password.map(|p| p.to_string());
         let ssh_key_file = ssh_key_file.map(|p| p.to_string());
         let ssh_key_passphrase = ssh_key_passphrase.map(|p| p.to_string());
-        let remote_host = remote_host.to_string();
+        let destination = destination.clone();
 
         let (ready_tx, ready_rx) = mpsc::channel();
 
@@ -483,18 +508,25 @@ impl SshTunnel {
                     };
 
                     let handle = handle.clone();
-                    let r_host = remote_host.clone();
+                    let dest = destination.clone();
                     tokio::spawn(async move {
                         let handle = handle.lock().await;
-                        let channel = match handle
-                            .channel_open_direct_tcpip(
-                                r_host,
-                                u32::from(remote_port),
-                                "127.0.0.1",
-                                0,
-                            )
-                            .await
-                        {
+                        let channel_result = match &dest {
+                            SshForwardDestination::Tcp { host, port } => {
+                                handle
+                                    .channel_open_direct_tcpip(
+                                        host.clone(),
+                                        u32::from(*port),
+                                        "127.0.0.1",
+                                        0,
+                                    )
+                                    .await
+                            }
+                            SshForwardDestination::UnixSocket { path } => {
+                                handle.channel_open_direct_streamlocal(path.clone()).await
+                            }
+                        };
+                        let channel = match channel_result {
                             Ok(c) => c,
                             Err(e) => {
                                 eprintln!("[SSH Tunnel Error] Failed to open SSH channel: {}", e);
@@ -798,13 +830,16 @@ pub fn build_tunnel_key(
     ssh_user: &str,
     ssh_host: &str,
     ssh_port: u16,
-    remote_host: &str,
-    remote_port: u16,
+    destination: &SshForwardDestination,
 ) -> String {
-    format!(
-        "{}@{}:{}:{}->{}",
-        ssh_user, ssh_host, ssh_port, remote_host, remote_port
-    )
+    match destination {
+        SshForwardDestination::Tcp { host, port } => {
+            format!("{}@{}:{}:{}->{}", ssh_user, ssh_host, ssh_port, host, port)
+        }
+        SshForwardDestination::UnixSocket { path } => {
+            format!("{}@{}:{}:socket->{}", ssh_user, ssh_host, ssh_port, path)
+        }
+    }
 }
 
 /// Check if a string is empty or contains only whitespace.
@@ -827,22 +862,76 @@ mod tests {
     mod build_tunnel_key_tests {
         use super::*;
 
+        fn tcp(host: &str, port: u16) -> SshForwardDestination {
+            SshForwardDestination::Tcp {
+                host: host.to_string(),
+                port,
+            }
+        }
+
         #[test]
         fn test_basic_key_format() {
-            let key = build_tunnel_key("user", "host.example.com", 22, "db.internal", 3306);
+            let key = build_tunnel_key("user", "host.example.com", 22, &tcp("db.internal", 3306));
             assert_eq!(key, "user@host.example.com:22:db.internal->3306");
         }
 
         #[test]
         fn test_non_standard_port() {
-            let key = build_tunnel_key("admin", "jump.server", 2222, "localhost", 5432);
+            let key = build_tunnel_key("admin", "jump.server", 2222, &tcp("localhost", 5432));
             assert_eq!(key, "admin@jump.server:2222:localhost->5432");
         }
 
         #[test]
         fn test_empty_user() {
-            let key = build_tunnel_key("", "host", 22, "remote", 80);
+            let key = build_tunnel_key("", "host", 22, &tcp("remote", 80));
             assert_eq!(key, "@host:22:remote->80");
+        }
+
+        #[test]
+        fn test_unix_socket_destination() {
+            let destination = SshForwardDestination::UnixSocket {
+                path: "/var/run/mysqld/mysqld.sock".to_string(),
+            };
+            let key = build_tunnel_key("user", "host", 22, &destination);
+            assert_eq!(key, "user@host:22:socket->/var/run/mysqld/mysqld.sock");
+        }
+
+        #[test]
+        fn test_socket_and_tcp_keys_differ() {
+            let socket = SshForwardDestination::UnixSocket {
+                path: "/tmp/db.sock".to_string(),
+            };
+            assert_ne!(
+                build_tunnel_key("user", "host", 22, &socket),
+                build_tunnel_key("user", "host", 22, &tcp("/tmp/db.sock", 0))
+            );
+        }
+    }
+
+    mod forward_spec_tests {
+        use super::*;
+
+        #[test]
+        fn test_tcp_spec() {
+            let destination = SshForwardDestination::Tcp {
+                host: "db.internal".to_string(),
+                port: 3306,
+            };
+            assert_eq!(
+                destination.forward_spec(15000),
+                "127.0.0.1:15000:db.internal:3306"
+            );
+        }
+
+        #[test]
+        fn test_unix_socket_spec() {
+            let destination = SshForwardDestination::UnixSocket {
+                path: "/var/run/postgresql/.s.PGSQL.5432".to_string(),
+            };
+            assert_eq!(
+                destination.forward_spec(15000),
+                "127.0.0.1:15000:/var/run/postgresql/.s.PGSQL.5432"
+            );
         }
     }
 

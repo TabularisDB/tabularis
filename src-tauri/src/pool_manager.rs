@@ -127,11 +127,20 @@ pub(crate) fn build_connection_key(
         // targets behind a single host:port and pick the backend from the
         // username, so without it two different targets would share one pool and
         // serve each other's databases.
+        // A local socket replaces host:port as the endpoint, so it must key the
+        // pool the same way host:port does.
+        let endpoint = match params.local_unix_socket_path() {
+            Some(socket) => format!("socket:{socket}"),
+            None => format!(
+                "{}:{}",
+                params.host.as_deref().unwrap_or("localhost"),
+                params.port.unwrap_or(0)
+            ),
+        };
         format!(
-            "{}:{}:{}:{}:{}",
+            "{}:{}:{}:{}",
             params.driver,
-            params.host.as_deref().unwrap_or("localhost"),
-            params.port.unwrap_or(0),
+            endpoint,
             params.username.as_deref().unwrap_or(""),
             params.database
         )
@@ -170,19 +179,30 @@ pub(crate) fn build_mysql_options(
     let database = override_db.unwrap_or_else(|| params.database.primary());
     let timezone = mysql_string_setting("timezone", DEFAULT_MYSQL_TIMEZONE);
 
+    let local_socket = params.local_unix_socket_path();
+
     let mut options = MySqlConnectOptions::new()
-        .host(host)
-        .port(port)
         .username(username)
         .database(database)
         .timezone(timezone);
+
+    // A local Unix socket replaces host:port entirely.
+    options = match local_socket {
+        Some(socket) => options.socket(socket),
+        None => options.host(host).port(port),
+    };
 
     if !password.is_empty() {
         options = options.password(password);
     }
 
-    // Configure SSL mode based on params.ssl_mode
-    let ssl_mode = match params.ssl_mode.as_deref().unwrap_or("required") {
+    // Configure SSL mode based on params.ssl_mode. TLS cannot be negotiated
+    // over a local Unix socket (and the traffic never leaves the machine), so
+    // a socket connection forces it off regardless of the configured mode.
+    let ssl_mode = match local_socket
+        .map(|_| "disabled")
+        .unwrap_or_else(|| params.ssl_mode.as_deref().unwrap_or("required"))
+    {
         "disabled" | "disable" => MySqlSslMode::Disabled,
         "preferred" | "prefer" => MySqlSslMode::Preferred,
         "required" | "require" => MySqlSslMode::Required,
@@ -207,12 +227,15 @@ pub(crate) fn build_mysql_options(
     // bastions like Warpgate. Cleartext credentials must never be sent over an
     // unencrypted link, so require a TLS mode that actually guarantees
     // encryption. `Preferred` only attempts TLS and silently falls back to
-    // plaintext, so it is rejected alongside `Disabled`.
+    // plaintext, so it is rejected alongside `Disabled`. A local Unix socket is
+    // exempt: its traffic never crosses a network link.
     if params.enable_cleartext_plugin.unwrap_or(false) {
-        if !matches!(
-            ssl_mode,
-            MySqlSslMode::Required | MySqlSslMode::VerifyCa | MySqlSslMode::VerifyIdentity
-        ) {
+        if local_socket.is_none()
+            && !matches!(
+                ssl_mode,
+                MySqlSslMode::Required | MySqlSslMode::VerifyCa | MySqlSslMode::VerifyIdentity
+            )
+        {
             return Err(
                 "Cleartext password plugin requires an enforced TLS/SSL mode \
                 (Required, Verify CA, or Verify Identity). Preferred is not enough \
@@ -293,13 +316,42 @@ pub(crate) fn is_pipes_as_concat_unsupported(err: &str) -> bool {
     err.contains("pipes_as_concat") || err.contains("no_engine_substitution")
 }
 
+/// Split a user-entered PostgreSQL socket path into what tokio_postgres wants:
+/// the *directory* holding the socket plus the port that names it. Users point
+/// at the socket file (`/var/run/postgresql/.s.PGSQL.5432`), matching the SSH
+/// forward field; a path whose last component is not `.s.PGSQL.<port>` is
+/// taken as the directory itself, paired with `default_port`.
+pub(crate) fn split_postgres_socket_path(path: &str, default_port: u16) -> (String, u16) {
+    if let Some((dir, file)) = path.rsplit_once('/') {
+        if let Some(port) = file
+            .strip_prefix(".s.PGSQL.")
+            .and_then(|p| p.parse::<u16>().ok())
+        {
+            let dir = if dir.is_empty() { "/" } else { dir };
+            return (dir.to_string(), port);
+        }
+    }
+    (path.to_string(), default_port)
+}
+
 pub(crate) fn build_postgres_configurations(params: &ConnectionParams) -> PgConfig {
     let mut cfg = PgConfig::new();
     cfg.user(params.username.as_deref().unwrap_or_default())
         .password(params.password.as_deref().unwrap_or_default())
-        .port(params.port.unwrap_or(5432))
-        .host(params.host.as_deref().unwrap_or_default())
         .dbname(&format!("{}", params.database));
+
+    if let Some(socket) = params.local_unix_socket_path() {
+        let (dir, port) = split_postgres_socket_path(socket, params.port.unwrap_or(5432));
+        cfg.host_path(dir).port(port);
+        // TLS cannot be negotiated over a local Unix socket, and the traffic
+        // never leaves the machine — force it off so `prefer`-style defaults
+        // don't stall the handshake.
+        cfg.ssl_mode(PgSslMode::Disable);
+        return cfg;
+    }
+
+    cfg.port(params.port.unwrap_or(5432))
+        .host(params.host.as_deref().unwrap_or_default());
 
     if let Some(ssl_mode) = params.ssl_mode.as_deref() {
         match ssl_mode {

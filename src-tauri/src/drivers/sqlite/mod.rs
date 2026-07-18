@@ -902,6 +902,7 @@ impl SqliteDriver {
                     readonly: false,
                     triggers: true,
                     supports_ssl: false,
+                    unix_socket: false,
                     sql_dialect: SqlDialect::Sqlite,
                 },
                 is_builtin: true,

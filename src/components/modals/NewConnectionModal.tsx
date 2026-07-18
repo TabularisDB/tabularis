@@ -49,6 +49,7 @@ import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
 import { isMultiDatabaseCapable } from "../../utils/database";
 import { toErrorMessage } from "../../utils/errors";
 import { fetchConnectionWithCredentials } from "../../utils/credentials";
+import { unixSocketPathIssue } from "../../utils/connections";
 import { getDriverIcon, getDriverColorStyle } from "../../utils/driverUI";
 import {
   parseConnectionString,
@@ -106,6 +107,9 @@ interface ConnectionParams {
   ssh_key_file?: string;
   ssh_key_passphrase?: string;
   ssh_allow_passphrase_prompt?: boolean;
+  // Unix socket at the connection's destination, replacing host:port:
+  // dialed locally without a tunnel, by the SSH server with SSH enabled
+  unix_socket_path?: string;
   save_in_keychain?: boolean;
   // K8s
   k8s_enabled?: boolean;
@@ -162,6 +166,7 @@ const FieldInput = ({
   placeholder,
   autoFocus,
   className,
+  disabled,
 }: {
   label: string;
   value: string | number | undefined;
@@ -170,6 +175,7 @@ const FieldInput = ({
   placeholder?: string;
   autoFocus?: boolean;
   className?: string;
+  disabled?: boolean;
 }) => {
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === "password";
@@ -186,13 +192,15 @@ const FieldInput = ({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           autoFocus={autoFocus}
+          disabled={disabled}
           autoCorrect="off"
           autoCapitalize="off"
           autoComplete="off"
           spellCheck={false}
           className={clsx(
             "w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors",
-            isPassword && "pr-10"
+            isPassword && "pr-10",
+            disabled && "opacity-50 cursor-not-allowed"
           )}
         />
         {isPassword && (
@@ -516,6 +524,7 @@ export const NewConnectionModal = ({
     !noConnectionRequired &&
     activeDriver?.capabilities?.file_based === false &&
     !activeDriver?.capabilities?.folder_based;
+  const supportsUnixSocket = activeDriver?.capabilities?.unix_socket === true;
   const k8sDefaultPort = activeDriver?.default_port ?? undefined;
   // Derive K8s ports instead of seeding formData so edit flows with no saved port are covered.
   const getK8sAutoPort = (params: Partial<ConnectionParams>) =>
@@ -1222,6 +1231,19 @@ export const NewConnectionModal = ({
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
+
+  const tunnelEnabled = !!formData.ssh_enabled || !!formData.k8s_enabled;
+  const socketPathSet = !!formData.unix_socket_path?.trim();
+  // The socket replaces host:port at the destination: dialed by the SSH
+  // server when SSH is enabled, locally otherwise (capability-gated). A K8s
+  // tunnel ignores it.
+  const usesForwardSocket = !!formData.ssh_enabled && socketPathSet;
+  const usesLocalSocket =
+    supportsUnixSocket && !tunnelEnabled && socketPathSet;
+  const usesSocket = usesForwardSocket || usesLocalSocket;
+  const socketPathIssue = unixSocketPathIssue(
+    formData.unix_socket_path ?? "",
+  );
 
   const loadDatabases = async (
     overrides?: Partial<ConnectionParams>,
@@ -2039,6 +2061,7 @@ export const NewConnectionModal = ({
               value={formData.host}
               onChange={(v) => updateField("host", v)}
               placeholder="localhost"
+              disabled={usesSocket}
             />
             <FieldInput
               label={t("newConnection.port")}
@@ -2046,8 +2069,58 @@ export const NewConnectionModal = ({
               onChange={(v) => updateField("port", v)}
               type="number"
               placeholder={driver === "mysql" ? "3306" : "5432"}
+              disabled={usesSocket}
             />
           </div>
+
+          {/* Unix socket instead of host:port — dialed locally (capability-gated)
+              or by the SSH server when the tunnel is enabled */}
+          {(supportsUnixSocket || !!formData.ssh_enabled) && (
+            <div className="flex flex-col gap-1">
+              <FieldInput
+                label={t("newConnection.socketPath")}
+                value={formData.unix_socket_path}
+                onChange={(v) => updateField("unix_socket_path", v)}
+                placeholder={
+                  driver === "postgres"
+                    ? "/var/run/postgresql/.s.PGSQL.5432"
+                    : formData.ssh_enabled
+                      ? "/var/run/mysqld/mysqld.sock"
+                      : "/tmp/mysql.sock"
+                }
+                disabled={!!formData.k8s_enabled}
+              />
+              {formData.k8s_enabled && (
+                <p className="text-[10px] text-muted mt-0.5">
+                  {t("newConnection.socketPathTunnel")}
+                </p>
+              )}
+              {!formData.k8s_enabled && socketPathIssue === "notAbsolute" && (
+                <p className="text-[10px] text-amber-500 flex items-center gap-1 mt-0.5">
+                  <AlertCircle size={10} />{" "}
+                  {t("newConnection.socketPathNotAbsolute")}
+                </p>
+              )}
+              {!formData.k8s_enabled &&
+                socketPathIssue === "looksLikeDirectory" && (
+                  <p className="text-[10px] text-amber-500 flex items-center gap-1 mt-0.5">
+                    <AlertCircle size={10} />{" "}
+                    {t("newConnection.socketPathDirectory")}
+                  </p>
+                )}
+              {!formData.k8s_enabled && !socketPathIssue && (
+                <p className="text-[10px] text-muted mt-0.5">
+                  {formData.ssh_enabled
+                    ? usesForwardSocket
+                      ? t("newConnection.socketPathForwardActive")
+                      : t("newConnection.socketPathForwardHint")
+                    : usesLocalSocket
+                      ? t("newConnection.socketPathActive")
+                      : t("newConnection.socketPathHint")}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* User + Password */}
           <div className="grid grid-cols-2 gap-3">
@@ -2086,7 +2159,9 @@ export const NewConnectionModal = ({
                     void loadDatabases();
                   }}
                   disabled={
-                    loadingDatabases || !formData.host || !formData.username
+                    loadingDatabases ||
+                    (!formData.host && !usesSocket) ||
+                    !formData.username
                   }
                   className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 disabled:text-muted disabled:cursor-not-allowed transition-colors"
                 >
@@ -2262,7 +2337,11 @@ export const NewConnectionModal = ({
           onClick={() => {
             void loadDatabases();
           }}
-          disabled={loadingDatabases || !formData.host || !formData.username}
+          disabled={
+            loadingDatabases ||
+            (!formData.host && !usesSocket) ||
+            !formData.username
+          }
           className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 disabled:text-muted disabled:cursor-not-allowed transition-colors shrink-0"
         >
           {loadingDatabases ? (
@@ -2824,6 +2903,7 @@ export const NewConnectionModal = ({
               </div>
             </div>
           )}
+
         </div>
       )}
     </div>

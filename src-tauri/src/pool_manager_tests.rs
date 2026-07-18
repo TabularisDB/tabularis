@@ -615,3 +615,140 @@ mod startup_script_tests {
         close_pool_with_id(&params, Some(&conn_id)).await;
     }
 }
+
+#[cfg(test)]
+mod local_unix_socket_tests {
+    use crate::models::{ConnectionParams, DatabaseSelection};
+    use crate::pool_manager::{
+        build_connection_key, build_mysql_options, build_postgres_configurations,
+        split_postgres_socket_path,
+    };
+    use sqlx::mysql::MySqlSslMode;
+    use tokio_postgres::config::Host as PgHost;
+    use tokio_postgres::config::SslMode as PgSslMode;
+
+    fn socket_params(driver: &str, socket: &str) -> ConnectionParams {
+        ConnectionParams {
+            driver: driver.to_string(),
+            host: Some("localhost".to_string()),
+            port: Some(if driver == "postgres" { 5432 } else { 3306 }),
+            username: Some("dec".to_string()),
+            password: Some("secret".to_string()),
+            database: DatabaseSelection::Single("dec".to_string()),
+            unix_socket_path: Some(socket.to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn local_socket_ignored_while_tunnel_enabled() {
+        let mut params = socket_params("mysql", "/tmp/mysql.sock");
+        params.ssh_enabled = Some(true);
+        assert_eq!(params.local_unix_socket_path(), None);
+
+        params.ssh_enabled = None;
+        params.k8s_enabled = Some(true);
+        assert_eq!(params.local_unix_socket_path(), None);
+    }
+
+    #[test]
+    fn local_socket_trims_and_ignores_blank_path() {
+        let mut params = socket_params("mysql", "  /tmp/mysql.sock  ");
+        assert_eq!(params.local_unix_socket_path(), Some("/tmp/mysql.sock"));
+
+        params.unix_socket_path = Some("   ".to_string());
+        assert_eq!(params.local_unix_socket_path(), None);
+    }
+
+    #[test]
+    fn mysql_options_use_socket_and_disable_tls() {
+        let mut params = socket_params("mysql", "/tmp/mysql.sock");
+        // Even an enforced TLS mode must be overridden: a socket peer cannot
+        // negotiate TLS and the traffic never leaves the machine.
+        params.ssl_mode = Some("required".to_string());
+
+        let options = build_mysql_options(&params, None).unwrap();
+        assert!(matches!(options.get_ssl_mode(), MySqlSslMode::Disabled));
+        let dbg = format!("{options:?}");
+        assert!(
+            dbg.contains("/tmp/mysql.sock"),
+            "expected socket path in options, got: {dbg}"
+        );
+    }
+
+    #[test]
+    fn mysql_cleartext_plugin_allowed_over_local_socket() {
+        let mut params = socket_params("mysql", "/tmp/mysql.sock");
+        params.enable_cleartext_plugin = Some(true);
+
+        assert!(build_mysql_options(&params, None).is_ok());
+    }
+
+    #[test]
+    fn postgres_config_uses_socket_dir_and_port_from_path() {
+        let params = socket_params("postgres", "/var/run/postgresql/.s.PGSQL.5433");
+        let cfg = build_postgres_configurations(&params);
+
+        assert_eq!(cfg.get_ports(), &[5433]);
+        assert_eq!(cfg.get_ssl_mode(), PgSslMode::Disable);
+        match cfg.get_hosts() {
+            [PgHost::Unix(dir)] => assert_eq!(dir.to_str(), Some("/var/run/postgresql")),
+            other => panic!("expected a single unix host, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn postgres_config_accepts_socket_directory() {
+        // A plain directory (no .s.PGSQL.<port> component) pairs with the
+        // connection's configured port.
+        let params = socket_params("postgres", "/var/run/postgresql");
+        let cfg = build_postgres_configurations(&params);
+
+        assert_eq!(cfg.get_ports(), &[5432]);
+        match cfg.get_hosts() {
+            [PgHost::Unix(dir)] => assert_eq!(dir.to_str(), Some("/var/run/postgresql")),
+            other => panic!("expected a single unix host, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn split_postgres_socket_path_variants() {
+        assert_eq!(
+            split_postgres_socket_path("/var/run/postgresql/.s.PGSQL.5432", 1111),
+            ("/var/run/postgresql".to_string(), 5432)
+        );
+        // Socket file directly under the root keeps "/" as the directory.
+        assert_eq!(
+            split_postgres_socket_path("/.s.PGSQL.5432", 1111),
+            ("/".to_string(), 5432)
+        );
+        // Non-numeric suffix is not a socket file name: treat as a directory.
+        assert_eq!(
+            split_postgres_socket_path("/var/run/.s.PGSQL.abc", 1111),
+            ("/var/run/.s.PGSQL.abc".to_string(), 1111)
+        );
+        assert_eq!(
+            split_postgres_socket_path("/var/run/postgresql", 1111),
+            ("/var/run/postgresql".to_string(), 1111)
+        );
+    }
+
+    #[test]
+    fn adhoc_pool_key_distinguishes_socket_from_tcp() {
+        let tcp = ConnectionParams {
+            unix_socket_path: None,
+            ..socket_params("mysql", "/tmp/mysql.sock")
+        };
+        let socket = socket_params("mysql", "/tmp/mysql.sock");
+        let other_socket = socket_params("mysql", "/tmp/other.sock");
+
+        assert_ne!(
+            build_connection_key(&tcp, None),
+            build_connection_key(&socket, None)
+        );
+        assert_ne!(
+            build_connection_key(&socket, None),
+            build_connection_key(&other_socket, None)
+        );
+    }
+}

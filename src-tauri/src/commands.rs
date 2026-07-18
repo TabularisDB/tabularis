@@ -214,10 +214,50 @@ fn build_tunnel_map_key(
     ssh_user: &str,
     ssh_host: &str,
     ssh_port: u16,
-    remote_host: &str,
-    remote_port: u16,
+    destination: &crate::ssh_tunnel::SshForwardDestination,
 ) -> String {
-    crate::ssh_tunnel::build_tunnel_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port)
+    crate::ssh_tunnel::build_tunnel_key(ssh_user, ssh_host, ssh_port, destination)
+}
+
+/// The SSH forward destination for a connection: the Unix socket path when one
+/// is configured (with SSH enabled it names a socket on the SSH server, just
+/// like host:port name the destination from the server's perspective),
+/// otherwise the database host:port.
+fn ssh_forward_destination(
+    params: &ConnectionParams,
+) -> crate::ssh_tunnel::SshForwardDestination {
+    match params.unix_socket_path() {
+        Some(path) => crate::ssh_tunnel::SshForwardDestination::UnixSocket {
+            path: path.to_string(),
+        },
+        None => crate::ssh_tunnel::SshForwardDestination::Tcp {
+            host: params.host.as_deref().unwrap_or("localhost").to_string(),
+            port: params.port.unwrap_or(DEFAULT_MYSQL_PORT),
+        },
+    }
+}
+
+/// Rewrite params to go through an established tunnel's local port. A socket
+/// destination also disables database TLS: the server side of a Unix socket
+/// cannot negotiate it, and the SSH tunnel already encrypts the whole path.
+fn params_through_tunnel(
+    params: &ConnectionParams,
+    local_port: u16,
+    destination: &crate::ssh_tunnel::SshForwardDestination,
+) -> ConnectionParams {
+    let mut new_params = params.clone();
+    new_params.host = Some("127.0.0.1".to_string());
+    new_params.port = Some(local_port);
+    // The tunnel owns the route: a leftover local socket path would make the
+    // drivers bypass the tunnel's local port and dial the socket instead.
+    new_params.unix_socket_path = None;
+    if matches!(
+        destination,
+        crate::ssh_tunnel::SshForwardDestination::UnixSocket { .. }
+    ) {
+        new_params.ssl_mode = Some("disable".to_string());
+    }
+    new_params
 }
 
 /// Resolve K8s tunnel params synchronously (no saved-connection lookup; uses inline fields only).
@@ -262,6 +302,9 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
             new_params.k8s_enabled = Some(false);
             new_params.host = Some("127.0.0.1".to_string());
             new_params.port = Some(tunnel.local_port);
+            // See params_through_tunnel: the socket path must not survive past
+            // tunnel resolution, or drivers would bypass the tunnel.
+            new_params.unix_socket_path = None;
             return Ok(new_params);
         }
     }
@@ -296,6 +339,7 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
     new_params.k8s_enabled = Some(false);
     new_params.host = Some("127.0.0.1".to_string());
     new_params.port = Some(local_port);
+    new_params.unix_socket_path = None;
     Ok(new_params)
 }
 
@@ -320,20 +364,16 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
     let ssh_host = params.ssh_host.as_deref().ok_or("Missing SSH Host")?;
     let ssh_port = params.ssh_port.unwrap_or(22);
     let ssh_user = params.ssh_user.as_deref().ok_or("Missing SSH User")?;
-    let remote_host = params.host.as_deref().unwrap_or("localhost");
-    let remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
+    let destination = ssh_forward_destination(params);
 
-    let map_key = build_tunnel_map_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port);
+    let map_key = build_tunnel_map_key(ssh_user, ssh_host, ssh_port, &destination);
 
     // Check for existing tunnel
     {
         let tunnels = get_tunnels().lock().unwrap();
         if let Some(tunnel) = tunnels.get(&map_key) {
             log::debug!("Reusing existing SSH tunnel on port {}", tunnel.local_port);
-            let mut new_params = params.clone();
-            new_params.host = Some("127.0.0.1".to_string());
-            new_params.port = Some(tunnel.local_port);
-            return Ok(new_params);
+            return Ok(params_through_tunnel(params, tunnel.local_port, &destination));
         }
     }
 
@@ -352,8 +392,7 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
         params.ssh_key_file.as_deref(),
         params.ssh_key_passphrase.as_deref(),
         params.ssh_allow_passphrase_prompt.unwrap_or(false),
-        remote_host,
-        remote_port,
+        &destination,
     )
     .map_err(|e| {
         eprintln!("[Connection Error] SSH Tunnel setup failed: {}", e);
@@ -368,10 +407,7 @@ pub fn resolve_connection_params(params: &ConnectionParams) -> Result<Connection
         tunnels.insert(map_key, tunnel);
     }
 
-    let mut new_params = params.clone();
-    new_params.host = Some("127.0.0.1".to_string());
-    new_params.port = Some(local_port);
-    Ok(new_params)
+    Ok(params_through_tunnel(params, local_port, &destination))
 }
 
 /// Resolve connection params and set connection_id for stable pooling
@@ -1861,6 +1897,7 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
             new_params.k8s_enabled = Some(false);
             new_params.host = Some("127.0.0.1".to_string());
             new_params.port = Some(tunnel.local_port);
+            new_params.unix_socket_path = None;
             return Ok(new_params);
         }
     }
@@ -1900,6 +1937,7 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
     new_params.k8s_enabled = Some(false);
     new_params.host = Some("127.0.0.1".to_string());
     new_params.port = Some(local_port);
+    new_params.unix_socket_path = None;
     Ok(new_params)
 }
 
@@ -1992,6 +2030,84 @@ mod tests {
             database: DatabaseSelection::Single("testdb".to_string()),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn forward_destination_defaults_to_tcp() {
+        let destination = ssh_forward_destination(&base_params());
+        assert_eq!(
+            destination,
+            crate::ssh_tunnel::SshForwardDestination::Tcp {
+                host: "localhost".to_string(),
+                port: 3306,
+            }
+        );
+    }
+
+    #[test]
+    fn forward_destination_ignores_blank_socket_path() {
+        let params = ConnectionParams {
+            unix_socket_path: Some("   ".to_string()),
+            ..base_params()
+        };
+        assert!(matches!(
+            ssh_forward_destination(&params),
+            crate::ssh_tunnel::SshForwardDestination::Tcp { .. }
+        ));
+    }
+
+    #[test]
+    fn forward_destination_uses_trimmed_socket_path() {
+        let params = ConnectionParams {
+            unix_socket_path: Some(" /var/run/mysqld/mysqld.sock ".to_string()),
+            ..base_params()
+        };
+        assert_eq!(
+            ssh_forward_destination(&params),
+            crate::ssh_tunnel::SshForwardDestination::UnixSocket {
+                path: "/var/run/mysqld/mysqld.sock".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn tunnel_params_keep_ssl_mode_for_tcp_destination() {
+        let params = ConnectionParams {
+            ssl_mode: Some("require".to_string()),
+            ..base_params()
+        };
+        let destination = ssh_forward_destination(&params);
+        let resolved = params_through_tunnel(&params, 15000, &destination);
+        assert_eq!(resolved.host.as_deref(), Some("127.0.0.1"));
+        assert_eq!(resolved.port, Some(15000));
+        assert_eq!(resolved.ssl_mode.as_deref(), Some("require"));
+    }
+
+    #[test]
+    fn tunnel_params_disable_ssl_for_socket_destination() {
+        let params = ConnectionParams {
+            ssl_mode: Some("require".to_string()),
+            unix_socket_path: Some("/tmp/db.sock".to_string()),
+            ..base_params()
+        };
+        let destination = ssh_forward_destination(&params);
+        let resolved = params_through_tunnel(&params, 15000, &destination);
+        assert_eq!(resolved.host.as_deref(), Some("127.0.0.1"));
+        assert_eq!(resolved.port, Some(15000));
+        assert_eq!(resolved.ssl_mode.as_deref(), Some("disable"));
+    }
+
+    #[test]
+    fn tunnel_params_clear_local_socket_path() {
+        // A leftover local socket path would make the drivers dial the socket
+        // instead of the tunnel's forwarded local port.
+        let params = ConnectionParams {
+            unix_socket_path: Some("/tmp/db.sock".to_string()),
+            ..base_params()
+        };
+        let destination = ssh_forward_destination(&params);
+        let resolved = params_through_tunnel(&params, 15000, &destination);
+        assert_eq!(resolved.unix_socket_path, None);
     }
 
     fn saved_conn(id: &str, password: Option<&str>, save_in_keychain: bool) -> SavedConnection {

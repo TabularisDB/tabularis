@@ -1004,6 +1004,7 @@ mod tests {
             ssh_key_file: None,
             ssh_key_passphrase: None,
             ssh_allow_passphrase_prompt: None,
+            unix_socket_path: None,
             save_in_keychain: None,
             k8s_enabled: None,
             k8s_connection_id: None,
