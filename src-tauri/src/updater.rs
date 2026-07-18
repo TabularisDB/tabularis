@@ -123,7 +123,18 @@ fn parse_version(version: &str) -> Option<(u32, u32, u32)> {
 fn is_newer_version(current: &str, latest: &str) -> bool {
     match (parse_version(current), parse_version(latest)) {
         (Some(c), Some(l)) => l > c,
-        _ => false,
+        // One side isn't a plain X.Y.Z (e.g. a nightly prerelease like
+        // `0.15.0-nightly.<ts>`). Fall back to full semver precedence so a
+        // nightly-versioned build is still offered the stable release when it
+        // is genuinely newer — this keeps the "switch back to stable" path
+        // reachable. Consistent with the plugin-updater's own comparison.
+        _ => match (
+            semver::Version::parse(current.trim_start_matches('v')),
+            semver::Version::parse(latest.trim_start_matches('v')),
+        ) {
+            (Ok(c), Ok(l)) => l > c,
+            _ => false,
+        },
     }
 }
 
@@ -442,6 +453,29 @@ mod tests {
         assert!(!is_newer_version("invalid", "0.9.0"));
         assert!(!is_newer_version("0.8.8", "invalid"));
         assert!(!is_newer_version("invalid", "invalid"));
+    }
+
+    #[test]
+    fn test_nightly_build_is_offered_stable_release() {
+        // A nightly-versioned build must be offered the current stable release
+        // so the user can return to the stable channel.
+        assert!(is_newer_version("0.15.0-nightly.20260718030512", "0.15.0"));
+        assert!(is_newer_version("0.15.0-nightly.20260718030512", "v0.15.0"));
+    }
+
+    #[test]
+    fn test_nightly_ahead_of_stable_not_offered_downgrade() {
+        // If the nightly base is already ahead of the last stable, semver keeps
+        // the user on nightly (no misleading downgrade offer).
+        assert!(!is_newer_version("0.16.0-nightly.20260718030512", "0.15.0"));
+    }
+
+    #[test]
+    fn test_newer_nightly_is_offered() {
+        assert!(is_newer_version(
+            "0.15.0-nightly.20260718030512",
+            "0.15.0-nightly.20260719040000"
+        ));
     }
 
     // Asset categorization tests
