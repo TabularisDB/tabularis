@@ -77,13 +77,20 @@ jobs:
 
           # Nightlies carry the NEXT patch version as their base, so a nightly
           # supersedes the current stable (SemVer: a prerelease sorts BELOW its
-          # own base, so `0.15.0-nightly` < `0.15.0` and would never be offered;
-          # `0.15.1-nightly` > `0.15.0` and is). Any real next stable (patch,
-          # minor, or major) is >= this base and cleanly supersedes the nightly.
-          # A stable release then "promotes" the channel by shipping that base
-          # without the `-nightly.<ts>` suffix.
+          # own base, so `0.15.0-<n>` < `0.15.0` and would never be offered;
+          # `0.15.1-<n>` > `0.15.0` and is). Any real next stable (patch, minor,
+          # or major) is >= this base and cleanly supersedes the nightly. A
+          # stable release then "promotes" the channel by shipping that base
+          # without the prerelease suffix.
+          #
+          # The prerelease identifier MUST be a SINGLE NUMERIC value: Tauri's MSI
+          # (WiX) and NSIS bundlers reject non-numeric or multi-part prerelease
+          # identifiers (tauri-apps/tauri#8038, #5286). github.run_number is
+          # monotonic and small, so `0.15.1-<run>` orders correctly across
+          # nightlies and stays bundler-safe. The human-readable date/sha lives
+          # in the tag (nightly-YYYYMMDD-sha) and the release name, not here.
           next=$(node -e "const v=require('./src-tauri/tauri.conf.json').version.split('-')[0].split('.').map(Number); v[2]++; console.log(v.join('.'))")
-          updater_version="${next}-nightly.$(date -u +%Y%m%d%H%M%S)"
+          updater_version="${next}-${{ github.run_number }}"
 
           {
             echo "should_build=true"
