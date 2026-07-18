@@ -30,7 +30,10 @@ jobs:
       should_build: ${{ steps.decide.outputs.should_build }}
       sha: ${{ steps.decide.outputs.sha }}
       tag: ${{ steps.decide.outputs.tag }}
+      updater_version: ${{ steps.decide.outputs.updater_version }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Decide whether a nightly is due
         id: decide
         env:
@@ -71,10 +74,15 @@ jobs:
 
           tag="nightly-$(date -u +%Y%m%d)-${validated_sha:0:7}"
           echo "Building $tag from $validated_sha (previous nightly: ${last_tag:-none})."
+
+          base=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          updater_version="${base}-nightly.$(date -u +%Y%m%d%H%M%S)"
+
           {
             echo "should_build=true"
             echo "sha=$validated_sha"
             echo "tag=$tag"
+            echo "updater_version=$updater_version"
           } >> "$GITHUB_OUTPUT"
 
   build:
@@ -92,3 +100,4 @@ jobs:
       release_name: "Nightly (v__VERSION__)"
       prerelease: true
       draft: false
+      updater_version: ${{ needs.gate.outputs.updater_version }}
