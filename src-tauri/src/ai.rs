@@ -93,6 +93,26 @@ struct AiModelsCache {
     models: HashMap<String, Vec<String>>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct MiniMaxEndpoint {
+    region: &'static str,
+    openai_base_url: &'static str,
+    anthropic_base_url: &'static str,
+}
+
+const MINIMAX_ENDPOINTS: [MiniMaxEndpoint; 2] = [
+    MiniMaxEndpoint {
+        region: "global",
+        openai_base_url: "https://api.minimax.io/v1",
+        anthropic_base_url: "https://api.minimax.io/anthropic",
+    },
+    MiniMaxEndpoint {
+        region: "cn_zh",
+        openai_base_url: "https://api.minimaxi.com/v1",
+        anthropic_base_url: "https://api.minimaxi.com/anthropic",
+    },
+];
+
 // --- Helper Functions ---
 
 fn load_default_models() -> HashMap<String, Vec<String>> {
@@ -213,22 +233,21 @@ async fn fetch_minimax_models(api_key: &str) -> Vec<String> {
         return Vec::new();
     }
     let client = Client::new();
-    match client
-        .get("https://api.minimax.io/v1/models")
-        .header("Authorization", format!("Bearer {}", api_key))
-        .send()
-        .await
-    {
-        Ok(res) => {
+    for endpoint in MINIMAX_ENDPOINTS {
+        if let Ok(res) = client
+            .get(format!("{}/models", endpoint.openai_base_url))
+            .header("Authorization", format!("Bearer {}", api_key))
+            .send()
+            .await
+        {
             if res.status().is_success() {
                 if let Ok(json) = res.json::<OpenAiModelList>().await {
                     return json.data.into_iter().map(|m| m.id).collect();
                 }
             }
-            Vec::new()
         }
-        Err(_) => Vec::new(),
     }
+    Vec::new()
 }
 
 async fn fetch_openrouter_models() -> Vec<String> {
@@ -1037,6 +1056,16 @@ mod tests {
 
         // Ollama is not in yaml, so it shouldn't be here yet
         assert!(!models.contains_key("ollama"));
+    }
+
+    #[test]
+    fn test_minimax_endpoint_metadata() {
+        assert_eq!(MINIMAX_ENDPOINTS[0].region, "global");
+        assert_eq!(MINIMAX_ENDPOINTS[0].openai_base_url, "https://api.minimax.io/v1");
+        assert_eq!(MINIMAX_ENDPOINTS[0].anthropic_base_url, "https://api.minimax.io/anthropic");
+        assert_eq!(MINIMAX_ENDPOINTS[1].region, "cn_zh");
+        assert_eq!(MINIMAX_ENDPOINTS[1].openai_base_url, "https://api.minimaxi.com/v1");
+        assert_eq!(MINIMAX_ENDPOINTS[1].anthropic_base_url, "https://api.minimaxi.com/anthropic");
     }
 
     #[test]
