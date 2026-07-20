@@ -208,5 +208,15 @@
     "winMatch": { "ctrlKey": true, "key": " " },
     "i18nKey": "settings.shortcuts.triggerSuggestions",
     "overridable": true
+  },
+  {
+    "id": "format_sql",
+    "category": "editor",
+    "defaultMac": "Shift+⌥+F",
+    "defaultWin": "Shift+Alt+F",
+    "macMatch": { "shiftKey": true, "altKey": true, "key": "f" },
+    "winMatch": { "shiftKey": true, "altKey": true, "key": "f" },
+    "i18nKey": "settings.shortcuts.formatSql",
+    "overridable": false
   }
 ]

@@ -713,6 +713,7 @@
       "pasteImportClipboard": "Import from Clipboard",
       "quickNavigator": "Quick Navigator",
       "triggerSuggestions": "Trigger suggestions",
+      "formatSql": "Format SQL",
       "refreshTable": "Refresh table"
     },
     "aiActivity": "AI Activity",
