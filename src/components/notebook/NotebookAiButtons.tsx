@@ -5,6 +5,8 @@ import { AiQueryModal } from "../modals/AiQueryModal";
 import { AiExplainModal } from "../modals/AiExplainModal";
 import { VisualExplainModal } from "../modals/VisualExplainModal";
 import { AiDropdownButton } from "../ui/AiDropdownButton";
+import { useDatabase } from "../../hooks/useDatabase";
+import { supportsExplain } from "../../utils/driverCapabilities";
 
 interface NotebookAiButtonsProps {
   content: string;
@@ -20,6 +22,8 @@ export function NotebookAiButtons({
   schema,
 }: NotebookAiButtonsProps) {
   const { t } = useTranslation();
+  const { activeCapabilities } = useDatabase();
+  const driverSupportsExplain = supportsExplain(activeCapabilities);
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
   const [isExplainOpen, setIsExplainOpen] = useState(false);
   const [isVisualExplainOpen, setIsVisualExplainOpen] = useState(false);
@@ -27,6 +31,7 @@ export function NotebookAiButtons({
   return (
     <>
       <div className="absolute bottom-1 right-2 z-10 flex items-center gap-1">
+        {driverSupportsExplain && (
         <button
           type="button"
           onClick={() => setIsVisualExplainOpen(true)}
@@ -37,6 +42,7 @@ export function NotebookAiButtons({
           <Network size={10} />
           {t("editor.visualExplain.buttonShort")}
         </button>
+        )}
         <AiDropdownButton
           onGenerate={() => setIsGenerateOpen(true)}
           onExplain={() => setIsExplainOpen(true)}
@@ -49,6 +55,8 @@ export function NotebookAiButtons({
       <AiQueryModal
         isOpen={isGenerateOpen}
         onClose={() => setIsGenerateOpen(false)}
+        connectionId={connectionId}
+        schema={schema}
         onInsert={(sql) => {
           onInsert(sql);
           setIsGenerateOpen(false);

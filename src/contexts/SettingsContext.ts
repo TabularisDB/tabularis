@@ -2,7 +2,7 @@ import { createContext } from "react";
 import type { AppLanguage } from "../i18n/config";
 
 export type { AppLanguage };
-export type CopyFormat = "csv" | "json" | "sql-insert";
+export type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
 export type AiProvider =
   | "openai"
   | "anthropic"
@@ -46,6 +46,8 @@ export interface Settings {
   /** Whether copied CSV output includes a header row. Default: true. */
   csvIncludeHeaders?: boolean;
   activeExternalDrivers?: string[];
+  /** Base URL of the Tabularium plugin registry. Defaults to the built-in instance when unset. */
+  tabulariumRegistryUrl?: string;
   plugins?: Record<string, PluginConfig>;
   editorTheme?: string;
   editorFontFamily?: string;
@@ -73,6 +75,21 @@ export interface Settings {
   mcpPreflightExplain?: boolean;
   mcpApprovalAlwaysOnTop?: boolean;
   mcpApprovalNotifySound?: boolean;
+  // Automatic connections backup
+  /** When backups run: "manual" (default), "interval", "onClose" or "onLaunch". */
+  backupMode?: "manual" | "interval" | "onClose" | "onLaunch";
+  /** Directory the backup files are written to. */
+  backupDirectory?: string;
+  /** Minutes between automatic backups in interval mode. Default: 1440. */
+  backupIntervalMinutes?: number;
+  /** Number of backup files kept before rotation. Default: 10. */
+  backupRetention?: number;
+  /** Backup destination: "local" (default) or "webdav". */
+  backupTarget?: "local" | "webdav";
+  /** WebDAV collection URL the backups are uploaded into. */
+  backupWebdavUrl?: string;
+  /** WebDAV username; the password lives in the OS keychain. */
+  backupWebdavUsername?: string;
 }
 
 export interface SettingsContextType {
@@ -133,4 +150,8 @@ export const DEFAULT_SETTINGS: Settings = {
   mcpPreflightExplain: true,
   mcpApprovalAlwaysOnTop: true,
   mcpApprovalNotifySound: true,
+  backupMode: "manual",
+  backupDirectory: "",
+  backupIntervalMinutes: 1440,
+  backupRetention: 10,
 };

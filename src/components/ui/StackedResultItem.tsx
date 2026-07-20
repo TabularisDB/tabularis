@@ -23,7 +23,7 @@ import type { QueryResultEntry } from "../../types/editor";
 interface StackedResultItemProps {
   entry: QueryResultEntry;
   connectionId: string | null;
-  copyFormat: "csv" | "json" | "sql-insert";
+  copyFormat: "csv" | "json" | "sql-insert" | "markdown";
   csvDelimiter: string;
   csvIncludeHeaders: boolean;
   collapsed: boolean;

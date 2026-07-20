@@ -530,6 +530,7 @@ async fn exec_on_sqlite_conn(
             affected_rows: exec_result.rows_affected(),
             truncated: false,
             pagination: None,
+            additional_results: None,
         });
     }
 
@@ -605,6 +606,7 @@ async fn exec_on_sqlite_conn(
         affected_rows: 0,
         truncated,
         pagination,
+        additional_results: None,
     })
 }
 
@@ -878,6 +880,7 @@ impl SqliteDriver {
                 default_port: None,
                 capabilities: DriverCapabilities {
                     schemas: false,
+                    single_database: false,
                     views: true,
                     materialized_views: false,
                     routines: false,
@@ -895,12 +898,15 @@ impl SqliteDriver {
                     create_foreign_keys: false,
                     no_connection_required: false,
                     manage_tables: true,
+                    explain: true,
                     readonly: false,
                     triggers: true,
                     supports_ssl: false,
                     sql_dialect: SqlDialect::Sqlite,
                 },
                 is_builtin: true,
+                engine: Some("sqlite".to_string()),
+                paradigms: vec!["sql".to_string()],
                 default_username: String::new(),
                 color: "#06b6d4".to_string(),
                 icon: "sqlite".to_string(),

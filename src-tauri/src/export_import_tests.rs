@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use crate::commands;
     use crate::models::{ExportPayload, ConnectionGroup, SavedConnection, SshConnection, ConnectionParams, DatabaseSelection};
 
     #[test]

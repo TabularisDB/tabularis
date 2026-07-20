@@ -912,6 +912,7 @@ async fn exec_on_pg_client(
             affected_rows: affected,
             truncated: false,
             pagination: None,
+            additional_results: None,
         });
     }
 
@@ -988,6 +989,7 @@ async fn exec_on_pg_client(
         affected_rows: 0,
         truncated,
         pagination,
+        additional_results: None,
     })
 }
 
@@ -1656,6 +1658,7 @@ impl PostgresDriver {
                 default_port: Some(5432),
                 capabilities: DriverCapabilities {
                     schemas: true,
+                    single_database: false,
                     views: true,
                     materialized_views: true,
                     routines: true,
@@ -1673,12 +1676,15 @@ impl PostgresDriver {
                     create_foreign_keys: true,
                     no_connection_required: false,
                     manage_tables: true,
+                    explain: true,
                     readonly: false,
                     triggers: true,
                     supports_ssl: true,
                     sql_dialect: SqlDialect::Postgres,
                 },
                 is_builtin: true,
+                engine: Some("postgres".to_string()),
+                paradigms: vec!["sql".to_string()],
                 default_username: "postgres".to_string(),
                 color: "#3b82f6".to_string(),
                 icon: "postgres".to_string(),

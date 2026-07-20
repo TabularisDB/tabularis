@@ -221,6 +221,10 @@ pub struct ConnectionParams {
     pub k8s_resource_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub k8s_port: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub k8s_kubectl_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub k8s_kubeconfig_path: Option<String>,
     /// SQL run on every new physical connection in the pool (e.g. `SET` /
     /// `set_config` for session-scoped settings such as bypassing RLS).
     /// Statements are separated by `;`. Runs per pooled connection so the
@@ -296,6 +300,10 @@ pub struct K8sConnection {
     pub resource_type: String, // "service" or "pod"
     pub resource_name: String,
     pub port: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubectl_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubeconfig_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -306,6 +314,10 @@ pub struct K8sConnectionInput {
     pub resource_type: String,
     pub resource_name: String,
     pub port: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubectl_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubeconfig_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -390,6 +402,12 @@ pub struct QueryResult {
     #[serde(default)]
     pub truncated: bool,
     pub pagination: Option<Pagination>,
+    /// Extra result sets produced by a single statement beyond the first one,
+    /// e.g. a MySQL `CALL` to a stored procedure containing multiple `SELECT`s.
+    /// The first result set stays in `columns` / `rows` so consumers unaware
+    /// of multi-result statements keep working unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub additional_results: Option<Vec<QueryResult>>,
 }
 
 /// One statement's outcome within an `execute_batch` call. Exactly one of
@@ -486,6 +504,15 @@ pub struct TableSchema {
     pub name: String,
     pub columns: Vec<TableColumn>,
     pub foreign_keys: Vec<ForeignKey>,
+}
+
+/// Bounded schema metadata prepared by a database driver for AI features.
+/// The host remains responsible for rendering this structured data into a
+/// provider-agnostic prompt.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AiSchemaContext {
+    pub tables: Vec<TableSchema>,
+    pub total_table_count: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -10,10 +10,11 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::drivers::driver_trait::{DatabaseDriver, PluginManifest};
+use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver, PluginManifest};
 use crate::models::{
-    ColumnDefinition, ConnectionParams, DataTypeInfo, ExplainPlan, ForeignKey, Index, QueryResult,
-    RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema, TriggerInfo, ViewInfo,
+    AiSchemaContext, BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo,
+    ExplainPlan, ForeignKey, Index, QueryResult, RoutineInfo, RoutineParameter, TableColumn,
+    TableInfo, TableSchema, TriggerInfo, ViewInfo,
 };
 use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse};
 
@@ -30,6 +31,7 @@ const PLUGIN_CALL_TIMEOUT: Duration = Duration::from_secs(120);
 const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Flag to create the process without a console window on Windows.
+#[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 /// Heuristic for the JSON-RPC "method not found" error (code -32601). Only
@@ -650,6 +652,57 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    async fn execute_batch(
+        &self,
+        params: &ConnectionParams,
+        queries: &[String],
+        limit: Option<u32>,
+        page: u32,
+        schema: Option<&str>,
+        on_progress: Option<&BatchProgressFn>,
+    ) -> Result<Vec<BatchStatementResult>, String> {
+        let res = self
+            .process
+            .call(
+                "execute_query_batch",
+                json!({
+                    "params": params,
+                    "queries": queries,
+                    "limit": limit,
+                    "page": page,
+                    "schema": schema
+                }),
+            )
+            .await;
+
+        match res {
+            Ok(value) => {
+                let results: Vec<BatchStatementResult> =
+                    serde_json::from_value(value).map_err(|e| e.to_string())?;
+                if let Some(cb) = on_progress {
+                    for (idx, result) in results.iter().enumerate() {
+                        cb(idx, result);
+                    }
+                }
+                Ok(results)
+            }
+            Err(e) if is_method_not_found(&e) => {
+                let mut results = Vec::with_capacity(queries.len());
+                for (idx, q) in queries.iter().enumerate() {
+                    let start = std::time::Instant::now();
+                    let outcome = self.execute_query(params, q, limit, page, schema).await;
+                    let result = BatchStatementResult::from_outcome(start, outcome);
+                    if let Some(cb) = on_progress {
+                        cb(idx, &result);
+                    }
+                    results.push(result);
+                }
+                Ok(results)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     async fn explain_query(
         &self,
         params: &ConnectionParams,
@@ -895,6 +948,32 @@ impl DatabaseDriver for RpcDriver {
         serde_json::from_value(res).map_err(|e| e.to_string())
     }
 
+    async fn get_ai_schema_context(
+        &self,
+        params: &ConnectionParams,
+        schema: Option<&str>,
+        max_tables: usize,
+    ) -> Result<AiSchemaContext, String> {
+        match self
+            .process
+            .call(
+                "get_ai_schema_context",
+                json!({
+                    "params": params,
+                    "schema": schema,
+                    "max_tables": max_tables,
+                }),
+            )
+            .await
+        {
+            Ok(value) => serde_json::from_value(value).map_err(|e| e.to_string()),
+            Err(error) if is_method_not_found(&error) => {
+                crate::ai_schema_context::load_from_driver(self, params, schema, max_tables).await
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     async fn get_all_columns_batch(
         &self,
         params: &ConnectionParams,
@@ -944,6 +1023,8 @@ mod tests {
                 ..Default::default()
             },
             is_builtin: false,
+            engine: None,
+            paradigms: Vec::new(),
             default_username: String::new(),
             color: String::new(),
             icon: String::new(),
@@ -983,6 +1064,8 @@ mod tests {
             k8s_resource_type: None,
             k8s_resource_name: None,
             k8s_port: None,
+            k8s_kubectl_path: None,
+            k8s_kubeconfig_path: None,
             startup_script: None,
             connection_id: Some("conn-1".to_string()),
         }
@@ -992,6 +1075,13 @@ mod tests {
     where
         F: FnMut(JsonRpcRequest) -> Value + Send + 'static,
     {
+        test_driver_result(move |request| Ok(handle_request(request)))
+    }
+
+    fn test_driver_result<F>(mut handle_request: F) -> RpcDriver
+    where
+        F: FnMut(JsonRpcRequest) -> Result<Value, String> + Send + 'static,
+    {
         let (tx, mut rx) = mpsc::channel::<PluginCommand>(8);
         tokio::spawn(async move {
             while let Some(command) = rx.recv().await {
@@ -999,7 +1089,8 @@ mod tests {
                     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         handle_request(request)
                     }))
-                    .map_err(|_| "request assertion failed".to_string());
+                    .map_err(|_| "request assertion failed".to_string())
+                    .and_then(|outcome| outcome);
                     let _ = response_tx.send(result);
                 }
             }
@@ -1016,6 +1107,165 @@ mod tests {
             }),
             data_types: Vec::new(),
         }
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_uses_custom_ai_schema_context_when_available() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "get_ai_schema_context");
+            assert_eq!(request.params["schema"], "public");
+            assert_eq!(request.params["max_tables"], 20);
+            json!({
+                "tables": [{
+                    "name": "users",
+                    "columns": [],
+                    "foreign_keys": []
+                }],
+                "total_table_count": 1
+            })
+        });
+
+        let context = driver
+            .get_ai_schema_context(&test_connection_params(), Some("public"), 20)
+            .await
+            .expect("get_ai_schema_context");
+
+        assert_eq!(context.tables.len(), 1);
+        assert_eq!(context.tables[0].name, "users");
+        assert_eq!(context.total_table_count, 1);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_builds_ai_schema_context_from_standard_metadata_as_fallback() {
+        let driver = test_driver_result(|request| match request.method.as_str() {
+            "get_ai_schema_context" => Err("Method not found (-32601)".to_string()),
+            "get_tables" => Ok(json!([{ "name": "users" }])),
+            "get_columns" => Ok(json!([{
+                "name": "id",
+                "data_type": "bigint",
+                "is_pk": true,
+                "is_nullable": false,
+                "is_auto_increment": true
+            }])),
+            "get_foreign_keys" => Ok(json!([])),
+            method => Err(format!("Unexpected method: {method}")),
+        });
+
+        let context = driver
+            .get_ai_schema_context(&test_connection_params(), Some("public"), 20)
+            .await
+            .expect("fallback schema context");
+
+        assert_eq!(context.tables.len(), 1);
+        assert_eq!(context.tables[0].name, "users");
+        assert_eq!(context.tables[0].columns[0].name, "id");
+        assert_eq!(context.total_table_count, 1);
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_forwards_execute_query_batch() {
+        let driver = test_driver(|request| {
+            assert_eq!(request.method, "execute_query_batch");
+            assert_eq!(request.params["params"]["driver"], "test-plugin");
+            assert_eq!(
+                request.params["queries"],
+                json!(["CREATE TEMP TABLE t(id INT)", "SELECT * FROM t"])
+            );
+            assert_eq!(request.params["limit"], 50);
+            assert_eq!(request.params["page"], 2);
+            assert_eq!(request.params["schema"], "public");
+            json!([
+                {
+                    "result": {
+                        "columns": [],
+                        "rows": [],
+                        "affected_rows": 0,
+                        "pagination": null
+                    },
+                    "error": null,
+                    "execution_time_ms": 1.5
+                },
+                {
+                    "result": null,
+                    "error": "boom",
+                    "execution_time_ms": 2.5
+                }
+            ])
+        });
+
+        let queries = vec![
+            "CREATE TEMP TABLE t(id INT)".to_string(),
+            "SELECT * FROM t".to_string(),
+        ];
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let progress_seen = Arc::clone(&seen);
+        let progress: Arc<BatchProgressFn> = Arc::new(move |idx, result| {
+            progress_seen
+                .lock()
+                .expect("progress lock")
+                .push((idx, result.result.is_some()));
+        });
+
+        let results = driver
+            .execute_batch(
+                &test_connection_params(),
+                &queries,
+                Some(50),
+                2,
+                Some("public"),
+                Some(progress.as_ref()),
+            )
+            .await
+            .expect("execute_query_batch");
+
+        assert_eq!(results.len(), 2);
+        assert!(results[0].result.is_some());
+        assert_eq!(results[1].error.as_deref(), Some("boom"));
+        assert_eq!(
+            *seen.lock().expect("progress lock"),
+            vec![(0, true), (1, false)]
+        );
+    }
+
+    #[tokio::test]
+    async fn rpc_driver_execute_batch_falls_back_when_method_missing() {
+        let call_count = Arc::new(AtomicU64::new(0));
+        let call_count_for_driver = Arc::clone(&call_count);
+        let driver = test_driver_result(move |request| {
+            let idx = call_count_for_driver.fetch_add(1, Ordering::SeqCst);
+            match idx {
+                0 => {
+                    assert_eq!(request.method, "execute_query_batch");
+                    Err("method not found: -32601".to_string())
+                }
+                1 => {
+                    assert_eq!(request.method, "execute_query");
+                    assert_eq!(request.params["query"], "SELECT 1");
+                    Ok(json!({
+                        "columns": ["one"],
+                        "rows": [[1]],
+                        "affected_rows": 0,
+                        "pagination": null
+                    }))
+                }
+                2 => {
+                    assert_eq!(request.method, "execute_query");
+                    assert_eq!(request.params["query"], "BROKEN");
+                    Err("statement failed".to_string())
+                }
+                _ => panic!("unexpected request {}", idx),
+            }
+        });
+
+        let queries = vec!["SELECT 1".to_string(), "BROKEN".to_string()];
+        let results = driver
+            .execute_batch(&test_connection_params(), &queries, None, 1, None, None)
+            .await
+            .expect("fallback execute_batch");
+
+        assert_eq!(call_count.load(Ordering::SeqCst), 3);
+        assert!(results[0].result.is_some());
+        assert_eq!(results[1].error.as_deref(), Some("statement failed"));
     }
 
     #[tokio::test]

@@ -4,6 +4,7 @@ import {
   X,
   Check,
   AlertCircle,
+  ArrowLeft,
   Loader2,
   Database,
   Settings,
@@ -12,9 +13,9 @@ import {
   CheckSquare,
   Square,
   Plug,
-  Info,
   Eye,
   EyeOff,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -28,10 +29,10 @@ import { K8sConnectionsModal } from "./K8sConnectionsModal";
 import { Select } from "../ui/Select";
 import { SlotAnchor } from "../ui/SlotAnchor";
 import { useDrivers } from "../../hooks/useDrivers";
+import { useSettings } from "../../hooks/useSettings";
 import { usePluginSlotRegistry } from "../../hooks/usePluginSlotRegistry";
 import { Modal } from "../ui/Modal";
 import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
-import type { PluginManifest } from "../../types/plugins";
 import { loadSshConnections, type SshConnection } from "../../utils/ssh";
 import {
   loadK8sConnections,
@@ -39,15 +40,44 @@ import {
   getK8sNamespaces,
   getK8sResources,
   getK8sResourcePorts,
+  type K8sCommandOptions,
   type K8sConnection,
 } from "../../utils/k8s";
+import { useK8sPathOverrides } from "../../hooks/useK8sPathOverrides";
+import { useLatestAsync } from "../../hooks/useLatestAsync";
+import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
 import { isMultiDatabaseCapable } from "../../utils/database";
+import { toErrorMessage } from "../../utils/errors";
 import { fetchConnectionWithCredentials } from "../../utils/credentials";
 import { getDriverIcon, getDriverColorStyle } from "../../utils/driverUI";
 import {
   parseConnectionString,
   toConnectionParams,
 } from "../../utils/connectionStringParser";
+import { useConnectionCatalogue } from "../../hooks/useConnectionCatalogue";
+import { ConnectionCatalogue } from "./connection/ConnectionCatalogue";
+import { DriverVersionPicker } from "./connection/DriverVersionPicker";
+import { InstallGate } from "./connection/InstallGate";
+import {
+  resolveEngineSelection,
+  type EngineGroup,
+  type CatalogueDriver,
+} from "../../utils/connectionCatalogue";
+
+// Accent colors per data paradigm, used for driver chips in the configure header.
+const PARADIGM_ACCENT: Record<string, string> = {
+  sql: "#3b82f6",
+  relational: "#3b82f6",
+  nosql: "#10b981",
+  document: "#10b981",
+  "key-value": "#14b8a6",
+  vector: "#a855f7",
+  graph: "#f59e0b",
+  timeseries: "#ec4899",
+  search: "#6366f1",
+};
+
+const paradigmAccent = (p: string): string => PARADIGM_ACCENT[p] ?? "#64748b";
 
 interface ConnectionParams {
   driver: string;
@@ -85,6 +115,8 @@ interface ConnectionParams {
   k8s_resource_type?: string;
   k8s_resource_name?: string;
   k8s_port?: number;
+  k8s_kubectl_path?: string;
+  k8s_kubeconfig_path?: string;
   // SQL run on every new connection (e.g. SET / set_config)
   startup_script?: string;
 }
@@ -102,6 +134,24 @@ interface NewConnectionModalProps {
   onClose: () => void;
   onSave?: () => void;
   initialConnection?: SavedConnection | null;
+}
+
+interface K8sDiscoveryErrors {
+  contexts: string | null;
+  namespaces: string | null;
+  resources: string | null;
+}
+
+type K8sDiscoverySource = keyof K8sDiscoveryErrors;
+
+type InlineK8sPathCheck =
+  | { allowed: true; options?: K8sCommandOptions }
+  | { allowed: false; reason: "invalid" | "applied" };
+
+function hasK8sCommandOverrides(options: K8sCommandOptions): boolean {
+  return (
+    options.kubectl_path !== undefined || options.kubeconfig_path !== undefined
+  );
 }
 
 const FieldInput = ({
@@ -167,11 +217,84 @@ export const NewConnectionModal = ({
   initialConnection,
 }: NewConnectionModalProps) => {
   const { t } = useTranslation();
-  const { drivers } = useDrivers();
+  const { drivers, refresh: refreshDrivers } = useDrivers();
+  const { settings, updateSetting } = useSettings();
+  const { invalidate: invalidateK8sAsync, run: runK8sAsync } = useLatestAsync();
+
+  // ── wizard step ──
+  const isEditing = Boolean(initialConnection);
+  const [step, setStep] = useState<"catalogue" | "form">(
+    isEditing ? "form" : "catalogue",
+  );
+  const [pendingGroup, setPendingGroup] = useState<EngineGroup | null>(null);
+  const catalogue = useConnectionCatalogue();
 
   // ── form state ──
   const [driver, setDriver] = useState<string>("mysql");
   const activeDriver = drivers.find((d) => d.id === driver) ?? drivers[0];
+
+  // ── driver install state ──
+  const [installStatus, setInstallStatus] = useState<
+    "idle" | "installing" | "error"
+  >("idle");
+  const [installError, setInstallError] = useState<string | undefined>();
+
+  const installDriver = async (
+    slug: string,
+    version: string,
+  ): Promise<boolean> => {
+    setInstallStatus("installing");
+    setInstallError(undefined);
+    try {
+      await invoke("install_plugin", { pluginId: slug, version });
+      // install_plugin hot-registers the driver, but the connection modal only
+      // surfaces external drivers that are in `activeExternalDrivers`. Installing
+      // from the catalogue is an explicit opt-in, so activate it — otherwise the
+      // freshly-installed driver is filtered out and selection falls back to a
+      // built-in (mysql).
+      await updateSetting(
+        "activeExternalDrivers",
+        Array.from(new Set([...(settings.activeExternalDrivers ?? []), slug])),
+      );
+      catalogue.refresh();
+      refreshDrivers();
+      setInstallStatus("idle");
+      return true;
+    } catch (e) {
+      setInstallStatus("error");
+      setInstallError(
+        typeof e === "string" ? e : e instanceof Error ? e.message : JSON.stringify(e),
+      );
+      return false;
+    }
+  };
+
+  const activeCatalogueDriver =
+    catalogue.groups
+      .flatMap((g) => g.drivers)
+      .find((d) => d.slug === driver) ?? null;
+  const activeDriverNotInstalled =
+    activeCatalogueDriver != null && !activeCatalogueDriver.installed;
+
+  // Accent + glyph for the active driver, preferring the registry's icon URL
+  // (the real plugin logo) and falling back to the built-in driver glyph.
+  const driverAccent =
+    activeCatalogueDriver?.color ||
+    paradigmAccent(activeCatalogueDriver?.paradigms?.[0] ?? "") ||
+    "#64748b";
+  const renderDriverGlyph = (size: number) => {
+    const icon = activeCatalogueDriver?.icon ?? activeDriver?.icon ?? "";
+    if (/^https?:\/\//.test(icon) || icon.startsWith("data:")) {
+      return (
+        <img
+          src={icon}
+          alt=""
+          className="h-full w-full rounded-[inherit] object-contain p-1.5"
+        />
+      );
+    }
+    return getDriverIcon(activeDriver, size);
+  };
   const [name, setName] = useState("");
   const [formData, setFormData] = useState<Partial<ConnectionParams>>({
     host: "localhost",
@@ -252,7 +375,6 @@ export const NewConnectionModal = ({
   const [k8sConnections, setK8sConnections] = useState<K8sConnection[]>([]);
   const [isK8sModalOpen, setIsK8sModalOpen] = useState(false);
   const [k8sMode, setK8sMode] = useState<"existing" | "inline">("existing");
-  const [isK8sPortOverridden, setIsK8sPortOverridden] = useState(false);
   const [k8sAutoPort, setK8sAutoPort] = useState<{
     context: string;
     namespace: string;
@@ -263,6 +385,21 @@ export const NewConnectionModal = ({
   const [k8sContexts, setK8sContexts] = useState<string[]>([]);
   const [k8sNamespaces, setK8sNamespaces] = useState<string[]>([]);
   const [k8sResources, setK8sResources] = useState<string[]>([]);
+  const [k8sDiscoveryErrors, setK8sDiscoveryErrors] =
+    useState<K8sDiscoveryErrors>({
+      contexts: null,
+      namespaces: null,
+      resources: null,
+    });
+  const [k8sPathActionError, setK8sPathActionError] = useState<string | null>(
+    null,
+  );
+  const [k8sSelectionError, setK8sSelectionError] = useState<string | null>(
+    null,
+  );
+  const inlineK8sActiveRef = useRef(false);
+  const inlineK8sTestActiveRef = useRef(false);
+  const inlineK8sTestSequenceRef = useRef(0);
 
   // ── databases ──
   const [availableDatabases, setAvailableDatabases] = useState<string[]>([]);
@@ -279,6 +416,32 @@ export const NewConnectionModal = ({
   const [testResult, setTestResult] = useState<"success" | "error" | null>(
     null,
   );
+  const [isActionPending, setIsActionPending] = useState(false);
+  const [isPersistencePending, setIsPersistencePending] = useState(false);
+  const actionSequenceRef = useRef(0);
+  const activeActionRef = useRef<number | null>(null);
+  const persistenceActionRef = useRef<number | null>(null);
+  const initSequenceRef = useRef(0);
+
+  const beginFormAction = useCallback((): number | null => {
+    if (
+      activeActionRef.current !== null ||
+      persistenceActionRef.current !== null
+    ) {
+      return null;
+    }
+
+    const actionId = ++actionSequenceRef.current;
+    activeActionRef.current = actionId;
+    setIsActionPending(true);
+    return actionId;
+  }, []);
+
+  const finishFormAction = useCallback((actionId: number) => {
+    if (activeActionRef.current !== actionId) return;
+    activeActionRef.current = null;
+    setIsActionPending(false);
+  }, []);
 
   // ── validation errors ──
   const [nameError, setNameError] = useState(false);
@@ -329,7 +492,12 @@ export const NewConnectionModal = ({
         : null;
 
     return () => {
-      if (wasSavedRef.current) return;
+      if (
+        wasSavedRef.current ||
+        persistenceActionRef.current !== null
+      ) {
+        return;
+      }
       // On cancel: delete EVERY path uploaded this session except the original
       // (the one the modal opened with). Handles "pick A then B then C then cancel".
       const original = originalImagePath.current;
@@ -374,6 +542,9 @@ export const NewConnectionModal = ({
       defaultValue: "e.g. mysql://user:pass@localhost:3306/db",
     });
   const isMultiDb = isMultiDatabaseCapable(activeDriver?.capabilities);
+  // Flat single-database store (e.g. Meilisearch): no database to select or name.
+  const singleDatabase =
+    activeDriver?.capabilities?.single_database === true;
 
   // ── plugin slot: connection-modal.connection_content ──
   const slotRegistry = usePluginSlotRegistry();
@@ -407,104 +578,643 @@ export const NewConnectionModal = ({
     setK8sConnections(result);
   };
 
-  const loadK8sContextsList = async () => {
-    try {
-      const result = await getK8sContexts();
-      setK8sContexts(result);
-    } catch {
-      setK8sContexts([]);
-    }
-  };
-
-  const loadK8sNamespacesList = async (context: string) => {
-    try {
-      const result = await getK8sNamespaces(context);
-      setK8sNamespaces(result);
-    } catch {
-      setK8sNamespaces([]);
-    }
-  };
-
-  const loadK8sResourcesList = async (context: string, namespace: string, resourceType: string) => {
-    try {
-      const result = await getK8sResources(context, namespace, resourceType);
-      setK8sResources(result);
-    } catch {
-      setK8sResources([]);
-    }
-  };
-
-  // ── K8s cascading dropdown loading ──
-  useEffect(() => {
-    if (formData.k8s_context) {
-      loadK8sNamespacesList(formData.k8s_context);
-    } else {
-      setK8sNamespaces([]);
-    }
-  }, [formData.k8s_context]);
-
-  useEffect(() => {
-    if (formData.k8s_context && formData.k8s_namespace && formData.k8s_resource_type) {
-      loadK8sResourcesList(
-        formData.k8s_context,
-        formData.k8s_namespace,
-        formData.k8s_resource_type,
+  const setK8sDiscoveryError = useCallback(
+    (source: K8sDiscoverySource, error: string | null) => {
+      setK8sDiscoveryErrors((previous) =>
+        previous[source] === error ? previous : { ...previous, [source]: error },
       );
-    } else {
-      setK8sResources([]);
-    }
-  }, [formData.k8s_context, formData.k8s_namespace, formData.k8s_resource_type]);
+    },
+    [],
+  );
+
+  const invalidateK8sDiscovery = useCallback(() => {
+    invalidateK8sAsync("new-k8s-contexts");
+    invalidateK8sAsync("new-k8s-namespaces");
+    invalidateK8sAsync("new-k8s-resources");
+    invalidateK8sAsync("new-k8s-ports");
+  }, [invalidateK8sAsync]);
+
+  const invalidateInlineK8sTest = useCallback(() => {
+    invalidateK8sAsync("new-k8s-test");
+    inlineK8sTestSequenceRef.current += 1;
+    if (!inlineK8sTestActiveRef.current) return;
+
+    inlineK8sTestActiveRef.current = false;
+    setStatus("idle");
+    setMessage("");
+    setTestResult(null);
+  }, [invalidateK8sAsync]);
 
   useEffect(() => {
-    const context = formData.k8s_context;
-    const namespace = formData.k8s_namespace;
-    const resourceType = formData.k8s_resource_type;
-    const resourceName = formData.k8s_resource_name;
-    if (
-      !formData.k8s_enabled ||
-      k8sMode !== "inline" ||
-      !context ||
-      !namespace ||
-      resourceType !== "service" ||
-      !resourceName ||
-      isK8sPortOverridden
-    ) {
-      return;
+    inlineK8sActiveRef.current =
+      isOpen && formData.k8s_enabled === true && k8sMode === "inline";
+  }, [formData.k8s_enabled, isOpen, k8sMode]);
+
+  const loadK8sContextsList = useCallback(
+    async (options: K8sCommandOptions) => {
+      const result = await runK8sAsync("new-k8s-contexts", () =>
+        hasK8sCommandOverrides(options)
+          ? getK8sContexts(options)
+          : getK8sContexts(),
+      );
+      if (result.status === "success") {
+        setK8sContexts(result.value);
+        setK8sDiscoveryError("contexts", null);
+      } else if (result.status === "error") {
+        setK8sContexts([]);
+        setK8sDiscoveryError("contexts", toErrorMessage(result.error));
+      }
+    },
+    [runK8sAsync, setK8sDiscoveryError],
+  );
+
+  const loadK8sNamespacesList = useCallback(
+    async (context: string, options: K8sCommandOptions) => {
+      const result = await runK8sAsync("new-k8s-namespaces", () =>
+        hasK8sCommandOverrides(options)
+          ? getK8sNamespaces(context, options)
+          : getK8sNamespaces(context),
+      );
+      if (result.status === "success") {
+        setK8sNamespaces(result.value);
+        setK8sDiscoveryError("namespaces", null);
+      } else if (result.status === "error") {
+        setK8sNamespaces([]);
+        setK8sDiscoveryError("namespaces", toErrorMessage(result.error));
+      }
+    },
+    [runK8sAsync, setK8sDiscoveryError],
+  );
+
+  const loadK8sResourcesList = useCallback(
+    async (
+      context: string,
+      namespace: string,
+      resourceType: string,
+      options: K8sCommandOptions,
+    ) => {
+      const result = await runK8sAsync("new-k8s-resources", () =>
+        hasK8sCommandOverrides(options)
+          ? getK8sResources(context, namespace, resourceType, options)
+          : getK8sResources(context, namespace, resourceType),
+      );
+      if (result.status === "success") {
+        setK8sResources(result.value);
+        setK8sDiscoveryError("resources", null);
+      } else if (result.status === "error") {
+        setK8sResources([]);
+        setK8sDiscoveryError("resources", toErrorMessage(result.error));
+      }
+    },
+    [runK8sAsync, setK8sDiscoveryError],
+  );
+
+  const loadK8sResourcePorts = useCallback(
+    async (
+      context: string,
+      namespace: string,
+      resourceType: string,
+      resourceName: string,
+      options: K8sCommandOptions,
+    ) => {
+      const result = await runK8sAsync("new-k8s-ports", () =>
+        hasK8sCommandOverrides(options)
+          ? getK8sResourcePorts(
+              context,
+              namespace,
+              resourceType,
+              resourceName,
+              options,
+            )
+          : getK8sResourcePorts(
+              context,
+              namespace,
+              resourceType,
+              resourceName,
+            ),
+      );
+      if (result.status === "success") {
+        setK8sAutoPort(
+          result.value.length === 1
+            ? {
+                context,
+                namespace,
+                resourceType,
+                resourceName,
+                port: result.value[0],
+              }
+            : null,
+        );
+      }
+    },
+    [runK8sAsync],
+  );
+
+  const handleInlinePathsApplied = useCallback(
+    (options: K8sCommandOptions) => {
+      invalidateK8sDiscovery();
+      invalidateInlineK8sTest();
+      setFormData((previous) => ({
+        ...previous,
+        k8s_kubectl_path: options.kubectl_path,
+        k8s_kubeconfig_path: options.kubeconfig_path,
+        k8s_context: undefined,
+        k8s_namespace: undefined,
+        k8s_resource_type: undefined,
+        k8s_resource_name: undefined,
+        k8s_port: undefined,
+      }));
+      setK8sAutoPort(null);
+      setK8sContexts([]);
+      setK8sNamespaces([]);
+      setK8sResources([]);
+      setK8sDiscoveryErrors({ contexts: null, namespaces: null, resources: null });
+      setK8sPathActionError(null);
+      setK8sSelectionError(null);
+      if (inlineK8sActiveRef.current) {
+        void loadK8sContextsList(options);
+      }
+    },
+    [invalidateInlineK8sTest, invalidateK8sDiscovery, loadK8sContextsList],
+  );
+
+  const pathOverrides = useK8sPathOverrides({
+    onApplied: handleInlinePathsApplied,
+    onDraftChanged: invalidateInlineK8sTest,
+  });
+  const {
+    appliedOptions: appliedK8sOptions,
+    ensureApplied: ensureK8sPathsApplied,
+    cancelPending: cancelK8sPathValidation,
+    initialize: initializeK8sPathOverrides,
+    reset: resetK8sPathOverrides,
+  } = pathOverrides;
+
+  const actionSnapshot = useMemo(
+    () => ({
+      driver,
+      name,
+      formData,
+      selectedDatabasesState,
+      detectJsonInTextColumns,
+      appearance,
+      sshMode,
+      k8sMode,
+      effectiveK8sPort,
+      isMultiDb,
+      noConnectionRequired,
+      initialConnection,
+      kubectlPath: pathOverrides.kubectlPath,
+      kubeconfigPath: pathOverrides.kubeconfigPath,
+      appliedK8sOptions,
+    }),
+    [
+      appearance,
+      appliedK8sOptions,
+      detectJsonInTextColumns,
+      driver,
+      effectiveK8sPort,
+      formData,
+      initialConnection,
+      isMultiDb,
+      k8sMode,
+      name,
+      noConnectionRequired,
+      pathOverrides.kubeconfigPath,
+      pathOverrides.kubectlPath,
+      selectedDatabasesState,
+      sshMode,
+    ],
+  );
+  const actionSnapshotRef = useRef(actionSnapshot);
+  useLayoutEffect(() => {
+    actionSnapshotRef.current = actionSnapshot;
+  }, [actionSnapshot]);
+
+  const cancelInlineK8sWork = useCallback(() => {
+    invalidateK8sDiscovery();
+    invalidateK8sAsync("new-k8s-test");
+    inlineK8sTestSequenceRef.current += 1;
+    inlineK8sTestActiveRef.current = false;
+    actionSequenceRef.current += 1;
+    activeActionRef.current = null;
+    initSequenceRef.current += 1;
+    cancelK8sPathValidation();
+  }, [cancelK8sPathValidation, invalidateK8sAsync, invalidateK8sDiscovery]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      cancelInlineK8sWork();
+      queueMicrotask(() => {
+        setIsActionPending(false);
+        if (persistenceActionRef.current === null) {
+          setIsPersistencePending(false);
+        }
+        setStatus("idle");
+        setMessage("");
+        setTestResult(null);
+      });
+    }
+  }, [cancelInlineK8sWork, isOpen]);
+
+  const handleClose = useCallback(() => {
+    if (persistenceActionRef.current !== null) return;
+    cancelInlineK8sWork();
+    setIsActionPending(false);
+    resetK8sPathOverrides();
+    onClose();
+  }, [cancelInlineK8sWork, onClose, resetK8sPathOverrides]);
+
+  const ensureInlineK8sPaths = useCallback(async (): Promise<InlineK8sPathCheck> => {
+    if (k8sMode !== "inline") {
+      return { allowed: true };
+    }
+    if (!formData.k8s_enabled) {
+      return { allowed: true, options: appliedK8sOptions };
     }
 
-    let cancelled = false;
-    void (async () => {
-      try {
-        const ports = await getK8sResourcePorts(
-          context,
-          namespace,
-          resourceType,
-          resourceName,
-        );
-        if (!cancelled) {
-          setK8sAutoPort(
-            ports.length === 1
-              ? { context, namespace, resourceType, resourceName, port: ports[0] }
-              : null,
-          );
-        }
-      } catch {
-        // Best-effort convenience only: keep the current/default port.
-      }
-    })();
+    const result = await ensureK8sPathsApplied();
+    if (result.status === "invalid") {
+      return { allowed: false, reason: "invalid" };
+    }
+    if (result.status === "applied") {
+      return { allowed: false, reason: "applied" };
+    }
 
-    return () => {
-      cancelled = true;
-    };
+    return { allowed: true, options: result.options };
   }, [
+    appliedK8sOptions,
+    ensureK8sPathsApplied,
     formData.k8s_enabled,
-    formData.k8s_context,
-    formData.k8s_namespace,
-    formData.k8s_resource_type,
-    formData.k8s_resource_name,
-    isK8sPortOverridden,
     k8sMode,
   ]);
+
+  const preflightFormAction = useCallback(async () => {
+    const actionId = beginFormAction();
+    if (actionId === null) return null;
+    const startingSnapshot = actionSnapshotRef.current;
+
+    try {
+      const inlinePaths = await ensureInlineK8sPaths();
+      if (activeActionRef.current !== actionId) {
+        finishFormAction(actionId);
+        return null;
+      }
+      if (!inlinePaths.allowed && inlinePaths.reason === "applied") {
+        setK8sPathActionError(t("k8sConnections.pathSelectionReset"));
+        finishFormAction(actionId);
+        return null;
+      }
+      if (actionSnapshotRef.current !== startingSnapshot) {
+        finishFormAction(actionId);
+        return null;
+      }
+      if (!inlinePaths.allowed) {
+        setK8sPathActionError(t("k8sConnections.pathValidationFailed"));
+        finishFormAction(actionId);
+        return null;
+      }
+
+      setK8sPathActionError(null);
+      return { actionId, startingSnapshot, inlinePaths };
+    } catch (error) {
+      finishFormAction(actionId);
+      throw error;
+    }
+  }, [beginFormAction, ensureInlineK8sPaths, finishFormAction, t]);
+
+  const withInlineK8sPaths = useCallback(
+    (
+      params: Partial<ConnectionParams>,
+      options?: K8sCommandOptions,
+    ): Partial<ConnectionParams> => {
+      const next = { ...params };
+      if (k8sMode === "inline") {
+        next.k8s_kubectl_path = options?.kubectl_path;
+        next.k8s_kubeconfig_path = options?.kubeconfig_path;
+      } else {
+        delete next.k8s_kubectl_path;
+        delete next.k8s_kubeconfig_path;
+      }
+      return next;
+    },
+    [k8sMode],
+  );
+
+  const validateInlineK8sSelection = useCallback((): boolean => {
+    if (!formData.k8s_enabled || k8sMode !== "inline") {
+      setK8sSelectionError(null);
+      return true;
+    }
+
+    let errorKey: string | null = null;
+    if (!formData.k8s_context) {
+      errorKey = "k8sConnections.errors.contextRequired";
+    } else if (!formData.k8s_namespace) {
+      errorKey = "k8sConnections.errors.namespaceRequired";
+    } else if (
+      formData.k8s_resource_type !== "service" &&
+      formData.k8s_resource_type !== "pod"
+    ) {
+      errorKey = "k8sConnections.errors.resourceTypeInvalid";
+    } else if (!formData.k8s_resource_name) {
+      errorKey = "k8sConnections.errors.resourceNameRequired";
+    } else if (
+      effectiveK8sPort == null ||
+      !Number.isInteger(effectiveK8sPort) ||
+      effectiveK8sPort < 1 ||
+      effectiveK8sPort > 65535
+    ) {
+      errorKey = "k8sConnections.errors.portInvalid";
+    }
+
+    if (errorKey) {
+      setK8sSelectionError(t(errorKey));
+      setActiveTab("k8s");
+      return false;
+    }
+
+    setK8sSelectionError(null);
+    return true;
+  }, [
+    effectiveK8sPort,
+    formData.k8s_context,
+    formData.k8s_enabled,
+    formData.k8s_namespace,
+    formData.k8s_resource_name,
+    formData.k8s_resource_type,
+    k8sMode,
+    t,
+  ]);
+
+  const handleInlineContextChange = useCallback(
+    (value: string) => {
+      invalidateK8sAsync("new-k8s-namespaces");
+      invalidateK8sAsync("new-k8s-resources");
+      invalidateK8sAsync("new-k8s-ports");
+      invalidateInlineK8sTest();
+      setK8sSelectionError(null);
+      setFormData((previous) => ({
+        ...previous,
+        k8s_context: value || undefined,
+        k8s_namespace: undefined,
+        k8s_resource_name: undefined,
+      }));
+      setK8sNamespaces([]);
+      setK8sResources([]);
+      setK8sAutoPort(null);
+      setK8sDiscoveryError("namespaces", null);
+      setK8sDiscoveryError("resources", null);
+      setK8sPathActionError(null);
+      if (value) {
+        void loadK8sNamespacesList(value, appliedK8sOptions);
+      }
+    },
+    [
+      appliedK8sOptions,
+      invalidateInlineK8sTest,
+      invalidateK8sAsync,
+      loadK8sNamespacesList,
+      setK8sDiscoveryError,
+    ],
+  );
+
+  const handleInlineNamespaceChange = useCallback(
+    (value: string) => {
+      invalidateK8sAsync("new-k8s-resources");
+      invalidateK8sAsync("new-k8s-ports");
+      invalidateInlineK8sTest();
+      setK8sSelectionError(null);
+      setFormData((previous) => ({
+        ...previous,
+        k8s_namespace: value || undefined,
+        k8s_resource_name: undefined,
+      }));
+      setK8sResources([]);
+      setK8sAutoPort(null);
+      setK8sDiscoveryError("resources", null);
+      if (formData.k8s_context && value && formData.k8s_resource_type) {
+        void loadK8sResourcesList(
+          formData.k8s_context,
+          value,
+          formData.k8s_resource_type,
+          appliedK8sOptions,
+        );
+      }
+    },
+    [
+      appliedK8sOptions,
+      formData.k8s_context,
+      formData.k8s_resource_type,
+      invalidateInlineK8sTest,
+      invalidateK8sAsync,
+      loadK8sResourcesList,
+      setK8sDiscoveryError,
+    ],
+  );
+
+  const handleInlineResourceTypeChange = useCallback(
+    (value: string) => {
+      invalidateK8sAsync("new-k8s-resources");
+      invalidateK8sAsync("new-k8s-ports");
+      invalidateInlineK8sTest();
+      setK8sSelectionError(null);
+      setFormData((previous) => ({
+        ...previous,
+        k8s_resource_type: value || undefined,
+        k8s_resource_name: undefined,
+      }));
+      setK8sResources([]);
+      setK8sAutoPort(null);
+      setK8sDiscoveryError("resources", null);
+      if (formData.k8s_context && formData.k8s_namespace && value) {
+        void loadK8sResourcesList(
+          formData.k8s_context,
+          formData.k8s_namespace,
+          value,
+          appliedK8sOptions,
+        );
+      }
+    },
+    [
+      appliedK8sOptions,
+      formData.k8s_context,
+      formData.k8s_namespace,
+      invalidateInlineK8sTest,
+      invalidateK8sAsync,
+      loadK8sResourcesList,
+      setK8sDiscoveryError,
+    ],
+  );
+
+  const handleInlineResourceNameChange = useCallback(
+    (value: string) => {
+      invalidateK8sAsync("new-k8s-ports");
+      invalidateInlineK8sTest();
+      setK8sSelectionError(null);
+      setFormData((previous) => ({
+        ...previous,
+        k8s_resource_name: value || undefined,
+      }));
+      setK8sAutoPort(null);
+      if (
+        formData.k8s_context &&
+        formData.k8s_namespace &&
+        formData.k8s_resource_type === "service" &&
+        value &&
+        formData.k8s_port == null
+      ) {
+        void loadK8sResourcePorts(
+          formData.k8s_context,
+          formData.k8s_namespace,
+          formData.k8s_resource_type,
+          value,
+          appliedK8sOptions,
+        );
+      }
+    },
+    [
+      appliedK8sOptions,
+      formData.k8s_context,
+      formData.k8s_namespace,
+      formData.k8s_port,
+      formData.k8s_resource_type,
+      invalidateInlineK8sTest,
+      invalidateK8sAsync,
+      loadK8sResourcePorts,
+    ],
+  );
+
+  const handleInlinePortChange = useCallback(
+    (value: string) => {
+      invalidateK8sAsync("new-k8s-ports");
+      invalidateInlineK8sTest();
+      setK8sSelectionError(null);
+      const isManual = value !== "";
+      setFormData((previous) => ({
+        ...previous,
+        k8s_port: isManual ? Number(value) : undefined,
+      }));
+      setK8sAutoPort(null);
+      if (
+        !isManual &&
+        formData.k8s_context &&
+        formData.k8s_namespace &&
+        formData.k8s_resource_type === "service" &&
+        formData.k8s_resource_name
+      ) {
+        void loadK8sResourcePorts(
+          formData.k8s_context,
+          formData.k8s_namespace,
+          formData.k8s_resource_type,
+          formData.k8s_resource_name,
+          appliedK8sOptions,
+        );
+      }
+    },
+    [
+      appliedK8sOptions,
+      formData.k8s_context,
+      formData.k8s_namespace,
+      formData.k8s_resource_name,
+      formData.k8s_resource_type,
+      invalidateInlineK8sTest,
+      invalidateK8sAsync,
+      loadK8sResourcePorts,
+    ],
+  );
+
+  const handleK8sModeChange = useCallback(
+    (mode: "existing" | "inline") => {
+      invalidateK8sDiscovery();
+      invalidateInlineK8sTest();
+      setK8sMode(mode);
+      setK8sContexts([]);
+      setK8sNamespaces([]);
+      setK8sResources([]);
+      setK8sAutoPort(null);
+      setK8sDiscoveryErrors({ contexts: null, namespaces: null, resources: null });
+      setK8sPathActionError(null);
+      setK8sSelectionError(null);
+
+      if (mode === "existing") {
+        resetK8sPathOverrides();
+        setFormData((previous) => ({
+          ...previous,
+          k8s_context: undefined,
+          k8s_namespace: undefined,
+          k8s_resource_type: undefined,
+          k8s_resource_name: undefined,
+          k8s_port: undefined,
+          k8s_kubectl_path: undefined,
+          k8s_kubeconfig_path: undefined,
+        }));
+        return;
+      }
+
+      const options: K8sCommandOptions = {
+        kubectl_path: formData.k8s_kubectl_path,
+        kubeconfig_path: formData.k8s_kubeconfig_path,
+      };
+      initializeK8sPathOverrides(options);
+      setFormData((previous) => ({
+        ...previous,
+        k8s_connection_id: undefined,
+      }));
+      if (isOpen && formData.k8s_enabled) {
+        void loadK8sContextsList(options);
+      }
+    },
+    [
+      formData.k8s_enabled,
+      formData.k8s_kubeconfig_path,
+      formData.k8s_kubectl_path,
+      initializeK8sPathOverrides,
+      invalidateInlineK8sTest,
+      invalidateK8sDiscovery,
+      isOpen,
+      loadK8sContextsList,
+      resetK8sPathOverrides,
+    ],
+  );
+
+  const handleK8sEnabledChange = useCallback(
+    (enabled: boolean) => {
+      setK8sSelectionError(null);
+      setFormData((previous) => ({
+        ...previous,
+        k8s_enabled: enabled,
+        ssh_enabled: enabled ? false : previous.ssh_enabled,
+      }));
+      if (!enabled) {
+        invalidateK8sDiscovery();
+        invalidateInlineK8sTest();
+        return;
+      }
+      if (isOpen && k8sMode === "inline") {
+        void loadK8sContextsList(appliedK8sOptions);
+      }
+    },
+    [
+      appliedK8sOptions,
+      invalidateInlineK8sTest,
+      invalidateK8sDiscovery,
+      isOpen,
+      k8sMode,
+      loadK8sContextsList,
+    ],
+  );
+
+  const handleSavedK8sConnectionChange = useCallback(
+    (value: string) => {
+      invalidateInlineK8sTest();
+      setFormData((previous) => ({
+        ...previous,
+        k8s_connection_id: value || undefined,
+      }));
+    },
+    [invalidateInlineK8sTest],
+  );
 
   const updateField = (
     field: keyof ConnectionParams,
@@ -513,7 +1223,10 @@ export const NewConnectionModal = ({
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const loadDatabases = async (overrides?: Partial<ConnectionParams>) => {
+  const loadDatabases = async (
+    overrides?: Partial<ConnectionParams>,
+    shouldApply: () => boolean = () => true,
+  ) => {
     const effectiveDriver = overrides?.driver ?? driver;
     const targetDriver = drivers.find((d) => d.id === effectiveDriver);
 
@@ -548,6 +1261,7 @@ export const NewConnectionModal = ({
           connection_id: initialConnection?.id,
         },
       });
+      if (!shouldApply()) return;
       setAvailableDatabases(databases);
       if (initialConnection) {
         // Pre-select databases already associated with the connection
@@ -562,6 +1276,7 @@ export const NewConnectionModal = ({
         });
       }
     } catch (err) {
+      if (!shouldApply()) return;
       const errorMsg =
         typeof err === "string"
           ? err
@@ -571,13 +1286,21 @@ export const NewConnectionModal = ({
       setDatabaseLoadError(errorMsg);
       setAvailableDatabases([]);
     } finally {
-      setLoadingDatabases(false);
+      if (shouldApply()) setLoadingDatabases(false);
     }
   };
 
   // ── init form on open ──
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      initSequenceRef.current += 1;
+      return;
+    }
+    const initSequence = ++initSequenceRef.current;
+    const isCurrentInit = () => initSequenceRef.current === initSequence;
+    queueMicrotask(() => {
+      if (isCurrentInit()) setLoadingDatabases(false);
+    });
     const init = async () => {
       // Reset common state first so it's always clean even if async calls below fail
       setStatus("idle");
@@ -593,7 +1316,21 @@ export const NewConnectionModal = ({
       setConnectionStringError(null);
       setNameError(false);
       setDatabasesTabError(false);
-      setIsK8sPortOverridden(false);
+      setPendingGroup(null);
+      setInstallStatus("idle");
+      setInstallError(undefined);
+      setStep(initialConnection ? "form" : "catalogue");
+      invalidateK8sDiscovery();
+      invalidateK8sAsync("new-k8s-test");
+      inlineK8sTestSequenceRef.current += 1;
+      inlineK8sTestActiveRef.current = false;
+      setK8sAutoPort(null);
+      setK8sContexts([]);
+      setK8sNamespaces([]);
+      setK8sResources([]);
+      setK8sDiscoveryErrors({ contexts: null, namespaces: null, resources: null });
+      setK8sPathActionError(null);
+      setK8sSelectionError(null);
 
       if (initialConnection) {
         setName(initialConnection.name);
@@ -606,27 +1343,76 @@ export const NewConnectionModal = ({
         setSshMode(
           initialConnection.params.ssh_connection_id ? "existing" : "inline",
         );
-        setK8sMode(
-          initialConnection.params.k8s_connection_id ? "existing" : "inline",
-        );
-
         let params = initialConnection.params;
         try {
           const fullConn = await fetchConnectionWithCredentials(
             initialConnection.id,
           );
-          params = fullConn.params;
+          // A response without params would blank the form, so keep the
+          // secret-less ones instead of overwriting them with nothing.
+          if (fullConn?.params) params = fullConn.params;
         } catch {
           // fallback: use params without secrets (backend will retrieve from keychain)
         }
+        if (!isCurrentInit()) return;
 
-        setIsK8sPortOverridden(params.k8s_port != null);
+        const isInlineK8s = !params.k8s_connection_id;
+        const pathOptions: K8sCommandOptions = isInlineK8s
+          ? {
+              kubectl_path: params.k8s_kubectl_path,
+              kubeconfig_path: params.k8s_kubeconfig_path,
+            }
+          : {};
+        const hasK8sPortOverride = params.k8s_port != null;
+        const paramsForForm = isInlineK8s
+          ? params
+          : {
+              ...params,
+              k8s_kubectl_path: undefined,
+              k8s_kubeconfig_path: undefined,
+            };
+        setK8sMode(isInlineK8s ? "inline" : "existing");
+        initializeK8sPathOverrides(pathOptions);
         if (Array.isArray(db)) {
           setSelectedDatabasesState(db);
-          setFormData({ ...params, database: db[0] ?? "" });
+          setFormData({ ...paramsForForm, database: db[0] ?? "" });
         } else {
           setSelectedDatabasesState([]);
-          setFormData({ ...params });
+          setFormData({ ...paramsForForm });
+        }
+
+        if (params.k8s_enabled && isInlineK8s) {
+          void loadK8sContextsList(pathOptions);
+          if (params.k8s_context) {
+            void loadK8sNamespacesList(params.k8s_context, pathOptions);
+          }
+          if (
+            params.k8s_context &&
+            params.k8s_namespace &&
+            params.k8s_resource_type
+          ) {
+            void loadK8sResourcesList(
+              params.k8s_context,
+              params.k8s_namespace,
+              params.k8s_resource_type,
+              pathOptions,
+            );
+          }
+          if (
+            !hasK8sPortOverride &&
+            params.k8s_context &&
+            params.k8s_namespace &&
+            params.k8s_resource_type === "service" &&
+            params.k8s_resource_name
+          ) {
+            void loadK8sResourcePorts(
+              params.k8s_context,
+              params.k8s_namespace,
+              params.k8s_resource_type,
+              params.k8s_resource_name,
+              pathOptions,
+            );
+          }
         }
 
         // Auto-load available databases when editing a multi-db connection
@@ -634,7 +1420,7 @@ export const NewConnectionModal = ({
           (d) => d.id === initialConnection.params.driver,
         );
         if (isMultiDatabaseCapable(editDriver?.capabilities)) {
-          loadDatabases(params);
+          void loadDatabases(params, isCurrentInit);
         }
       } else {
         setName("");
@@ -651,14 +1437,18 @@ export const NewConnectionModal = ({
         setSelectedDatabasesState([]);
         setSshMode("existing");
         setK8sMode("existing");
-        setIsK8sPortOverridden(false);
+        resetK8sPathOverrides();
         setDetectJsonInTextColumns(false);
         setAppearance({});
       }
 
-      await loadSshConnectionsList();
-      await loadK8sConnectionsList();
-      await loadK8sContextsList();
+      const nextSshConnections = await loadSshConnections();
+      if (!isCurrentInit()) return;
+      setSshConnections(nextSshConnections);
+
+      const nextK8sConnections = await loadK8sConnections();
+      if (!isCurrentInit()) return;
+      setK8sConnections(nextK8sConnections);
     };
     void init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -690,8 +1480,19 @@ export const NewConnectionModal = ({
       k8s_resource_type: undefined,
       k8s_resource_name: undefined,
       k8s_port: undefined,
+      k8s_kubectl_path: undefined,
+      k8s_kubeconfig_path: undefined,
     });
-    setIsK8sPortOverridden(false);
+    invalidateK8sDiscovery();
+    invalidateInlineK8sTest();
+    resetK8sPathOverrides();
+    setK8sAutoPort(null);
+    setK8sContexts([]);
+    setK8sNamespaces([]);
+    setK8sResources([]);
+    setK8sDiscoveryErrors({ contexts: null, namespaces: null, resources: null });
+    setK8sPathActionError(null);
+    setK8sSelectionError(null);
     setSelectedDatabasesState([]);
     setDbSearchQuery("");
     setAvailableDatabases([]);
@@ -703,89 +1504,215 @@ export const NewConnectionModal = ({
     setConnectionStringError(null);
     setNameError(false);
     setDatabasesTabError(false);
+    setInstallStatus("idle");
+    setInstallError(undefined);
+  };
+
+  const goToForm = (d: CatalogueDriver) => {
+    handleDriverChange(d.slug);
+    setPendingGroup(null);
+    setStep("form");
+    // Picking an already-installed external driver from the catalogue is an
+    // explicit intent to use it — activate it so the form resolves it instead of
+    // falling back to a built-in. (Not-installed drivers route through the
+    // InstallGate, which activates on install.)
+    if (!d.isBuiltin && d.installed) {
+      void updateSetting(
+        "activeExternalDrivers",
+        Array.from(new Set([...(settings.activeExternalDrivers ?? []), d.slug])),
+      );
+    }
+  };
+
+  const handleEngineSelect = (group: EngineGroup) => {
+    const sel = resolveEngineSelection(group);
+    if (sel.mode === "pick-driver") {
+      setPendingGroup(group);
+    } else if (sel.driver) {
+      // not-installed drivers are routed to the InstallGate by the form-step render; proceed either way
+      goToForm(sel.driver);
+    }
   };
 
   const testConnection = async () => {
-    setStatus("testing");
-    setMessage("");
-    setTestResult(null);
+    if (step === "catalogue") return false;
+    if (installStatus === "installing") return false;
+    if (activeDriverNotInstalled && activeCatalogueDriver) {
+      const ok = await installDriver(
+        activeCatalogueDriver.slug,
+        activeCatalogueDriver.latestVersion,
+      );
+      if (!ok) return false; // banner shows the error; do not proceed
+    }
+
+    const preflight = await preflightFormAction();
+    if (!preflight) return false;
+    const { actionId, startingSnapshot, inlinePaths } = preflight;
+
     try {
-      const testParams: Partial<ConnectionParams> = {
-        driver,
-        ...formData,
-        port: formData.port != null ? Number(formData.port) : undefined,
-        k8s_port: effectiveK8sPort,
-        database: isMultiDb
-          ? (selectedDatabasesState[0] ??
-            (typeof formData.database === "string" ? formData.database : ""))
-          : formData.database,
-      };
-      const result = await invoke<string>("test_connection", {
-        request: {
-          params: { ...testParams },
-          connection_id: initialConnection?.id,
-        },
-      });
-      setStatus("success");
-      setMessage(result);
-      setTestResult("success");
-      setTimeout(() => {
-        setTestResult(null);
-        setStatus("idle");
-        setMessage("");
-      }, 3000);
-      return true;
-    } catch (err) {
-      setStatus("error");
-      const msg =
-        typeof err === "string"
-          ? err
-          : err instanceof Error
-            ? err.message
-            : JSON.stringify(err);
-      setMessage(msg);
-      setTestResult("error");
-      setTimeout(() => {
-        setTestResult(null);
-        setStatus("idle");
-      }, 3000);
-      return false;
+      if (!validateInlineK8sSelection()) return false;
+
+      const usesK8s = formData.k8s_enabled === true;
+      const k8sTestSequence = usesK8s
+        ? ++inlineK8sTestSequenceRef.current
+        : undefined;
+      inlineK8sTestActiveRef.current = usesK8s;
+
+      setStatus("testing");
+      setMessage("");
+      setTestResult(null);
+      try {
+        const testParamsBase: Partial<ConnectionParams> = {
+          driver,
+          ...formData,
+          port: formData.port != null ? Number(formData.port) : undefined,
+          k8s_port: effectiveK8sPort,
+          database: isMultiDb
+            ? (selectedDatabasesState[0] ??
+              (typeof formData.database === "string" ? formData.database : ""))
+            : formData.database,
+        };
+        const testParams = withInlineK8sPaths(
+          testParamsBase,
+          inlinePaths.options,
+        );
+        const invokeTest = () =>
+          invoke<string>("test_connection", {
+            request: {
+              params: { ...testParams },
+              connection_id: initialConnection?.id,
+            },
+          });
+
+        let result: string;
+        if (usesK8s) {
+          const latestResult = await runK8sAsync("new-k8s-test", invokeTest);
+          if (latestResult.status === "stale") return false;
+          if (latestResult.status === "error") throw latestResult.error;
+          result = latestResult.value;
+        } else {
+          result = await invokeTest();
+        }
+
+        if (
+          activeActionRef.current !== actionId ||
+          actionSnapshotRef.current !== startingSnapshot
+        ) {
+          if (activeActionRef.current === actionId) {
+            inlineK8sTestActiveRef.current = false;
+            setStatus("idle");
+            setMessage("");
+            setTestResult(null);
+          }
+          return false;
+        }
+        setStatus("success");
+        setMessage(result);
+        setTestResult("success");
+        setTimeout(() => {
+          if (
+            k8sTestSequence !== undefined &&
+            inlineK8sTestSequenceRef.current !== k8sTestSequence
+          ) {
+            return;
+          }
+          inlineK8sTestActiveRef.current = false;
+          setTestResult(null);
+          setStatus("idle");
+          setMessage("");
+        }, 3000);
+        return true;
+      } catch (err) {
+        if (
+          activeActionRef.current !== actionId ||
+          actionSnapshotRef.current !== startingSnapshot
+        ) {
+          if (activeActionRef.current === actionId) {
+            inlineK8sTestActiveRef.current = false;
+            setStatus("idle");
+            setMessage("");
+            setTestResult(null);
+          }
+          return false;
+        }
+        setStatus("error");
+        const msg =
+          typeof err === "string"
+            ? err
+            : err instanceof Error
+              ? err.message
+              : JSON.stringify(err);
+        setMessage(msg);
+        setTestResult("error");
+        setTimeout(() => {
+          if (
+            k8sTestSequence !== undefined &&
+            inlineK8sTestSequenceRef.current !== k8sTestSequence
+          ) {
+            return;
+          }
+          inlineK8sTestActiveRef.current = false;
+          setTestResult(null);
+          setStatus("idle");
+        }, 3000);
+        return false;
+      }
+    } finally {
+      finishFormAction(actionId);
     }
   };
 
   const saveConnection = async () => {
-    if (!name.trim()) {
-      setStatus("error");
-      setMessage(t("newConnection.nameRequired"));
-      setTestResult("error");
-      setNameError(true);
-      nameInputRef.current?.focus();
-      return;
+    if (step === "catalogue") return;
+    if (installStatus === "installing") return;
+    if (activeDriverNotInstalled && activeCatalogueDriver) {
+      const ok = await installDriver(
+        activeCatalogueDriver.slug,
+        activeCatalogueDriver.latestVersion,
+      );
+      if (!ok) return; // banner shows the error; do not proceed
     }
-    if (isMultiDb) {
-      if (selectedDatabasesState.length === 0) {
+
+    const preflight = await preflightFormAction();
+    if (!preflight) return;
+    const { actionId, startingSnapshot, inlinePaths } = preflight;
+
+    try {
+      invalidateK8sAsync("new-k8s-test");
+      inlineK8sTestSequenceRef.current += 1;
+      inlineK8sTestActiveRef.current = false;
+
+      if (!name.trim()) {
         setStatus("error");
-        setMessage(t("newConnection.noDatabasesSelected"));
+        setMessage(t("newConnection.nameRequired"));
         setTestResult("error");
-        setActiveTab("databases");
-        setDatabasesTabError(true);
+        setNameError(true);
+        nameInputRef.current?.focus();
         return;
       }
-    } else if (
-      !noConnectionRequired &&
-      (!formData.database ||
-        (typeof formData.database === "string" && !formData.database.trim()))
-    ) {
-      setStatus("error");
-      setMessage(t("newConnection.dbNameRequired"));
-      setTestResult("error");
-      return;
-    }
-    setStatus("saving");
-    setMessage("");
-    setTestResult(null);
-    try {
-      const params: Partial<ConnectionParams> = {
+      if (isMultiDb) {
+        if (selectedDatabasesState.length === 0) {
+          setStatus("error");
+          setMessage(t("newConnection.noDatabasesSelected"));
+          setTestResult("error");
+          setActiveTab("databases");
+          setDatabasesTabError(true);
+          return;
+        }
+      } else if (
+        !noConnectionRequired &&
+        !singleDatabase &&
+        (!formData.database ||
+          (typeof formData.database === "string" && !formData.database.trim()))
+      ) {
+        setStatus("error");
+        setMessage(t("newConnection.dbNameRequired"));
+        setTestResult("error");
+        return;
+      }
+      if (!validateInlineK8sSelection()) return;
+
+      const paramsBase: Partial<ConnectionParams> = {
         driver,
         ...formData,
         port: formData.port != null ? Number(formData.port) : undefined,
@@ -794,60 +1721,123 @@ export const NewConnectionModal = ({
           ? selectedDatabasesState.length === 1
             ? selectedDatabasesState[0]
             : selectedDatabasesState
-          : formData.database,
+          : singleDatabase
+            ? typeof formData.database === "string" && formData.database.trim()
+              ? formData.database
+              : driver
+            : formData.database,
       };
+      const params = withInlineK8sPaths(paramsBase, inlinePaths.options);
       const appearancePayload =
         appearance.icon || appearance.accentColor ? appearance : undefined;
+      const finalImagePath =
+        appearance.icon?.type === "image" ? appearance.icon.path : null;
+      const uploadedPathsForAction = [...uploadedPathsRef.current];
+      const originalImagePathForAction = originalImagePath.current;
 
-      if (initialConnection) {
-        if (!params.password?.trim()) delete params.password;
-        if (!params.ssh_password?.trim()) delete params.ssh_password;
-        await invoke("update_connection", {
-          id: initialConnection.id,
-          name,
-          params,
-          detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
-        });
-        await invoke("set_connection_appearance", {
-          id: initialConnection.id,
-          appearance: appearancePayload ?? null,
-        });
-      } else {
-        const saved = await invoke<{ id: string }>("save_connection", {
-          name,
-          params,
-          detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
-        });
-        if (appearancePayload) {
-          await invoke("set_connection_appearance", {
-            id: saved.id,
-            appearance: appearancePayload,
+      if (
+        activeActionRef.current !== actionId ||
+        actionSnapshotRef.current !== startingSnapshot
+      ) {
+        return;
+      }
+      persistenceActionRef.current = actionId;
+      setIsPersistencePending(true);
+      setStatus("saving");
+      setMessage("");
+      setTestResult(null);
+      try {
+        if (initialConnection) {
+          if (!params.password?.trim()) delete params.password;
+          if (!params.ssh_password?.trim()) delete params.ssh_password;
+          await invoke("update_connection", {
+            id: initialConnection.id,
+            name,
+            params,
+            detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
           });
+          await invoke("set_connection_appearance", {
+            id: initialConnection.id,
+            appearance: appearancePayload ?? null,
+          });
+        } else {
+          const saved = await invoke<{ id: string }>("save_connection", {
+            name,
+            params,
+            detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
+          });
+          if (appearancePayload) {
+            await invoke("set_connection_appearance", {
+              id: saved.id,
+              appearance: appearancePayload,
+            });
+          }
+        }
+
+        if (
+          activeActionRef.current !== actionId ||
+          actionSnapshotRef.current !== startingSnapshot
+        ) {
+          if (activeActionRef.current === actionId) {
+            setStatus("idle");
+            setMessage("");
+            setTestResult(null);
+          }
+          return;
+        }
+
+        if (onSave) onSave();
+        wasSavedRef.current = true;
+
+        // Delete only paths owned by this save attempt. Paths uploaded by a
+        // superseding session remain tracked for that session's own cleanup.
+        const toDelete = uploadedPathsForAction.filter(
+          (path) => path !== finalImagePath,
+        );
+        if (
+          originalImagePathForAction &&
+          originalImagePathForAction !== finalImagePath &&
+          !toDelete.includes(originalImagePathForAction)
+        ) {
+          toDelete.push(originalImagePathForAction);
+        }
+        await Promise.all(
+          toDelete.map((path) =>
+            invoke("delete_connection_icon", { relativePath: path }).catch(
+              () => {},
+            ),
+          ),
+        );
+        const handledUploads = new Set(uploadedPathsForAction);
+        uploadedPathsRef.current = uploadedPathsRef.current.filter(
+          (path) => !handledUploads.has(path),
+        );
+
+        persistenceActionRef.current = null;
+        setIsPersistencePending(false);
+        handleClose();
+      } catch (err) {
+        if (
+          activeActionRef.current === actionId &&
+          actionSnapshotRef.current === startingSnapshot
+        ) {
+          setStatus("error");
+          setMessage(
+            typeof err === "string" ? err : t("newConnection.failSave"),
+          );
+          setTestResult("error");
+        } else if (activeActionRef.current === actionId) {
+          setStatus("idle");
+          setMessage("");
+          setTestResult(null);
         }
       }
-      if (onSave) onSave();
-      wasSavedRef.current = true;
-
-      // On save: delete every uploaded path EXCEPT the one currently set on the connection,
-      // and also delete the original image if the user replaced it.
-      const finalImagePath = appearanceRef.current.icon?.type === "image"
-        ? appearanceRef.current.icon.path
-        : null;
-      const toDelete = uploadedPathsRef.current.filter(p => p !== finalImagePath);
-      const original = originalImagePath.current;
-      if (original && original !== finalImagePath && !toDelete.includes(original)) {
-        toDelete.push(original);
+    } finally {
+      if (persistenceActionRef.current === actionId) {
+        persistenceActionRef.current = null;
+        setIsPersistencePending(false);
       }
-      await Promise.all(toDelete.map(p =>
-        invoke("delete_connection_icon", { relativePath: p }).catch(() => {})
-      ));
-      uploadedPathsRef.current = [];
-
-      onClose();
-    } catch (err) {
-      setStatus("error");
-      setMessage(typeof err === "string" ? err : t("newConnection.failSave"));
-      setTestResult("error");
+      finishFormAction(actionId);
     }
   };
 
@@ -918,13 +1908,27 @@ export const NewConnectionModal = ({
             context={dbFieldSlotContext}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center py-10 gap-3 text-muted">
-            <Info size={22} className="opacity-40" />
-            <p className="text-xs text-center">
-              {t("newConnection.noGeneralSettings", {
-                defaultValue: "No general settings available for this driver.",
-              })}
-            </p>
+          <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-strong bg-base/40 px-6 py-10 text-center">
+            <span
+              className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl shadow-sm"
+              style={{ backgroundColor: `${driverAccent}1f`, color: driverAccent }}
+            >
+              {renderDriverGlyph(24)}
+            </span>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-primary">
+                {t("newConnection.noConnectionDetailsTitle", {
+                  defaultValue: "No connection details needed",
+                })}
+              </p>
+              <p className="mx-auto max-w-sm text-xs leading-relaxed text-muted">
+                {t("newConnection.noConnectionDetailsBody", {
+                  driver: activeDriver?.name ?? driver,
+                  defaultValue:
+                    "{{driver}} connects without a host or port. Just give this connection a name and save it. Driver-specific options live in Settings → Plugins.",
+                })}
+              </p>
+            </div>
           </div>
         )
       ) : activeDriver?.capabilities?.file_based === true ||
@@ -1070,7 +2074,7 @@ export const NewConnectionModal = ({
           </div>
 
           {/* Database (single) — only shown for non-multi-db drivers */}
-          {!isMultiDb && (
+          {!isMultiDb && !singleDatabase && (
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
@@ -1633,13 +2637,21 @@ export const NewConnectionModal = ({
           type="checkbox"
           id="ssh-toggle"
           checked={!!formData.ssh_enabled}
-          onChange={(e) => {
-            const enabled = e.target.checked;
-            updateField("ssh_enabled", enabled);
-            if (enabled && !formData.ssh_port) updateField("ssh_port", 22);
-            // Mutual exclusion with K8s
+          onChange={(event) => {
+            const enabled = event.target.checked;
+            setFormData((previous) => ({
+              ...previous,
+              ssh_enabled: enabled,
+              ssh_port:
+                enabled && !previous.ssh_port ? 22 : previous.ssh_port,
+              k8s_enabled:
+                enabled && previous.k8s_enabled
+                  ? false
+                  : previous.k8s_enabled,
+            }));
             if (enabled && formData.k8s_enabled) {
-              updateField("k8s_enabled", false);
+              invalidateK8sDiscovery();
+              invalidateInlineK8sTest();
             }
           }}
           className="accent-blue-500 w-3.5 h-3.5 rounded"
@@ -1832,14 +2844,7 @@ export const NewConnectionModal = ({
           type="checkbox"
           id="k8s-toggle"
           checked={!!formData.k8s_enabled}
-          onChange={(e) => {
-            const enabled = e.target.checked;
-            updateField("k8s_enabled", enabled);
-            // Mutual exclusion with SSH
-            if (enabled && formData.ssh_enabled) {
-              updateField("ssh_enabled", false);
-            }
-          }}
+          onChange={(event) => handleK8sEnabledChange(event.target.checked)}
           className="accent-blue-500 w-3.5 h-3.5 rounded"
         />
         <span className="text-sm font-medium text-secondary">
@@ -1857,19 +2862,7 @@ export const NewConnectionModal = ({
               <button
                 key={mode}
                 type="button"
-                onClick={() => {
-                  setK8sMode(mode);
-                  if (mode === "existing") {
-                    updateField("k8s_context", undefined);
-                    updateField("k8s_namespace", undefined);
-                    updateField("k8s_resource_type", undefined);
-                    updateField("k8s_resource_name", undefined);
-                    updateField("k8s_port", undefined);
-                    setIsK8sPortOverridden(false);
-                  } else {
-                    updateField("k8s_connection_id", undefined);
-                  }
-                }}
+                onClick={() => handleK8sModeChange(mode)}
                 className={clsx(
                   "px-3 py-1.5 text-xs font-medium transition-colors",
                   k8sMode === mode
@@ -1908,7 +2901,7 @@ export const NewConnectionModal = ({
                         `${conn.name} (${conn.context}/${conn.namespace}/${conn.resource_name}:${conn.port})`,
                       ]),
                     )}
-                    onChange={(val) => updateField("k8s_connection_id", val)}
+                    onChange={handleSavedK8sConnectionChange}
                     searchPlaceholder={t("common.search")}
                     noResultsLabel={t("common.noResults")}
                     placeholder={
@@ -1938,6 +2931,18 @@ export const NewConnectionModal = ({
           {/* Inline K8s fields */}
           {k8sMode === "inline" && (
             <div className="space-y-3">
+              <K8sAdvancedSettings pathOverrides={pathOverrides} />
+              {k8sPathActionError && (
+                <p role="alert" className="text-xs text-red-400">
+                  {k8sPathActionError}
+                </p>
+              )}
+              {k8sSelectionError && (
+                <p role="alert" className="text-xs text-red-400">
+                  {k8sSelectionError}
+                </p>
+              )}
+
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
                   {t("newConnection.k8sContext", {
@@ -1947,21 +2952,22 @@ export const NewConnectionModal = ({
                 <Select
                   value={formData.k8s_context || null}
                   options={k8sContexts}
-                  onChange={(val) => {
-                    updateField("k8s_context", val);
-                  }}
+                  onChange={handleInlineContextChange}
                   searchPlaceholder={t("common.search")}
                   noResultsLabel={t("common.noResults")}
                   placeholder={
                     k8sContexts.length === 0
-                      ? t("newConnection.noK8sContexts", {
-                          defaultValue: "No contexts found (is kubectl installed?)",
-                        })
+                      ? t("k8sConnections.noContexts")
                       : t("newConnection.chooseContext", {
                           defaultValue: "Choose a context...",
                         })
                   }
                 />
+                {k8sDiscoveryErrors.contexts && (
+                  <p role="alert" className="text-xs text-red-400">
+                    {k8sDiscoveryErrors.contexts}
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-col gap-1">
@@ -1973,21 +2979,22 @@ export const NewConnectionModal = ({
                 <Select
                   value={formData.k8s_namespace || null}
                   options={k8sNamespaces}
-                  onChange={(val) => {
-                    updateField("k8s_namespace", val);
-                  }}
+                  onChange={handleInlineNamespaceChange}
                   searchPlaceholder={t("common.search")}
                   noResultsLabel={t("common.noResults")}
                   placeholder={
                     k8sNamespaces.length === 0
-                      ? t("newConnection.selectContextFirst", {
-                          defaultValue: "Select a context first",
-                        })
+                      ? t("k8sConnections.noNamespaces")
                       : t("newConnection.chooseNamespace", {
                           defaultValue: "Choose a namespace...",
                         })
                   }
                 />
+                {k8sDiscoveryErrors.namespaces && (
+                  <p role="alert" className="text-xs text-red-400">
+                    {k8sDiscoveryErrors.namespaces}
+                  </p>
+                )}
               </div>
 
               <div className="flex gap-3">
@@ -2008,9 +3015,7 @@ export const NewConnectionModal = ({
                         defaultValue: "Pod",
                       }),
                     }}
-                    onChange={(val) => {
-                      updateField("k8s_resource_type", val);
-                    }}
+                    onChange={handleInlineResourceTypeChange}
                     placeholder={t("newConnection.k8sSelectType", {
                       defaultValue: "Select type...",
                     })}
@@ -2027,21 +3032,22 @@ export const NewConnectionModal = ({
                   <Select
                     value={formData.k8s_resource_name || null}
                     options={k8sResources}
-                    onChange={(val) =>
-                      updateField("k8s_resource_name", val)
-                    }
+                    onChange={handleInlineResourceNameChange}
                     searchPlaceholder={t("common.search")}
                     noResultsLabel={t("common.noResults")}
                     placeholder={
                       k8sResources.length === 0
-                        ? t("newConnection.selectTypeFirst", {
-                            defaultValue: "Select context/namespace/type first",
-                          })
+                        ? t("k8sConnections.noResources")
                         : t("newConnection.chooseResource", {
                             defaultValue: "Choose a resource...",
                           })
                     }
                   />
+                  {k8sDiscoveryErrors.resources && (
+                    <p role="alert" className="text-xs text-red-400">
+                      {k8sDiscoveryErrors.resources}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -2051,11 +3057,10 @@ export const NewConnectionModal = ({
                 })}
                 value={effectiveK8sPort ?? ""}
                 type="number"
-                onChange={(v) => {
-                  setIsK8sPortOverridden(v !== "");
-                  updateField("k8s_port", v === "" ? undefined : Number(v));
-                }}
-                placeholder={k8sDefaultPort != null ? String(k8sDefaultPort) : undefined}
+                onChange={handleInlinePortChange}
+                placeholder={
+                  k8sDefaultPort != null ? String(k8sDefaultPort) : undefined
+                }
               />
             </div>
           )}
@@ -2067,106 +3072,202 @@ export const NewConnectionModal = ({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       overlayClassName="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] backdrop-blur-sm"
     >
-      <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[760px] max-h-[88vh] flex flex-col overflow-hidden">
-        {/* ── Top bar: name + close ── */}
+      <fieldset
+        disabled={isPersistencePending}
+        aria-busy={isPersistencePending}
+        className={clsx(
+          "bg-elevated border border-strong rounded-xl shadow-2xl w-[900px] max-w-[92vw] max-h-[90vh] flex flex-col overflow-hidden p-0 m-0 min-w-0",
+          isPersistencePending && "pointer-events-none",
+        )}
+      >
+        {/* ── Top bar: step-aware title / name + progress + close ── */}
         <div className="flex items-center gap-3 px-5 py-3 border-b border-default bg-base">
-          <div
-            className="w-2 h-2 rounded-full shrink-0"
-            style={getDriverColorStyle(activeDriver)}
-          />
-          <input
-            ref={nameInputRef}
-            type="text"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (nameError) setNameError(false);
-            }}
-            placeholder={t("newConnection.namePlaceholder")}
-            autoFocus
-            autoCorrect="off"
-            autoCapitalize="off"
-            autoComplete="off"
-            spellCheck={false}
-            className={clsx(
-              "flex-1 bg-transparent text-base font-semibold outline-none",
-              nameError
-                ? "text-red-400 placeholder:text-red-400/60"
-                : "text-primary placeholder:text-muted/50",
-            )}
-          />
-          <span className="text-xs text-muted bg-surface-secondary px-2 py-0.5 rounded-full font-medium capitalize">
-            {activeDriver?.name ?? driver}
-          </span>
+          {step === "form" ? (
+            <>
+              <div
+                className="w-2 h-2 rounded-full shrink-0"
+                style={getDriverColorStyle(activeDriver)}
+              />
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (nameError) setNameError(false);
+                }}
+                placeholder={t("newConnection.namePlaceholder")}
+                autoFocus
+                autoCorrect="off"
+                autoCapitalize="off"
+                autoComplete="off"
+                spellCheck={false}
+                className={clsx(
+                  "flex-1 bg-transparent text-base font-semibold outline-none",
+                  nameError
+                    ? "text-red-400 placeholder:text-red-400/60"
+                    : "text-primary placeholder:text-muted/50",
+                )}
+              />
+            </>
+          ) : (
+            <h2 className="flex-1 truncate text-base font-semibold text-primary">
+              {pendingGroup
+                ? t("newConnection.selectDriverTitle", {
+                    defaultValue: "Select a driver",
+                  })
+                : t("newConnection.chooseTitle", {
+                    defaultValue: "Choose a database",
+                  })}
+            </h2>
+          )}
+
+          {/* Progress indicator (new connection only) */}
+          {!isEditing && (
+            <div className="hidden items-center gap-2 shrink-0 sm:flex">
+              <span
+                className={clsx(
+                  "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors",
+                  step === "catalogue"
+                    ? "bg-blue-500/15 text-blue-400"
+                    : "text-secondary",
+                )}
+              >
+                <span
+                  className={clsx(
+                    "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold",
+                    step === "catalogue"
+                      ? "bg-blue-500 text-white"
+                      : "bg-green-500/80 text-white",
+                  )}
+                >
+                  {step === "catalogue" ? "1" : <Check size={10} />}
+                </span>
+                {t("newConnection.stepChoose", { defaultValue: "Choose" })}
+              </span>
+              <span className="h-px w-4 bg-default" />
+              <span
+                className={clsx(
+                  "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors",
+                  step === "form"
+                    ? "bg-blue-500/15 text-blue-400"
+                    : "text-muted",
+                )}
+              >
+                <span
+                  className={clsx(
+                    "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold",
+                    step === "form"
+                      ? "bg-blue-500 text-white"
+                      : "bg-surface-secondary text-muted",
+                  )}
+                >
+                  2
+                </span>
+                {t("newConnection.stepConfigure", { defaultValue: "Configure" })}
+              </span>
+            </div>
+          )}
+
           <button
-            onClick={onClose}
-            className="p-1.5 text-muted hover:text-primary hover:bg-surface-secondary rounded-md transition-colors"
+            onClick={handleClose}
+            className="p-1.5 text-muted hover:text-primary hover:bg-surface-secondary rounded-md transition-colors cursor-pointer"
           >
             <X size={16} />
           </button>
         </div>
 
-        {/* ── Main body: left driver list + right form ── */}
-        <div className="flex flex-1 min-h-0">
-          {/* Left: driver list */}
-          <div className="w-[160px] shrink-0 border-r border-default bg-base flex flex-col py-2 overflow-y-auto">
-            {(() => {
-              const sortedDrivers = [...drivers].sort((a, b) => {
-                const aBuiltin = a.is_builtin === true ? 0 : 1;
-                const bBuiltin = b.is_builtin === true ? 0 : 1;
-                return aBuiltin - bBuiltin;
-              });
-              const firstExternalIdx = sortedDrivers.findIndex(
-                (d) => !d.is_builtin,
-              );
-              return (
-                <>
-                  <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
-                    {t("newConnection.dbType")}
-                  </p>
-                  {sortedDrivers.map((d: PluginManifest, idx) => (
-                    <div key={d.id}>
-                      {/* Separator before first external plugin */}
-                      {idx === firstExternalIdx && (
-                        <div className="px-3 pt-2.5 pb-1">
-                          <div className="flex items-center gap-2">
-                            <div className="h-px flex-1 bg-default/60" />
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-muted/60">
-                              Plugins
-                            </span>
-                            <div className="h-px flex-1 bg-default/60" />
-                          </div>
-                        </div>
-                      )}
-                      <button
-                        onClick={() => handleDriverChange(d.id)}
-                        className={clsx(
-                          "flex items-center gap-2.5 px-3 py-2 text-sm font-medium transition-colors text-left w-full",
-                          driver === d.id
-                            ? "bg-blue-500/15 text-primary border-r-2 border-blue-500"
-                            : "text-secondary hover:bg-surface-secondary hover:text-primary border-r-2 border-transparent",
-                        )}
-                      >
-                        <span
-                          className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-white"
-                          style={getDriverColorStyle(d)}
-                        >
-                          {getDriverIcon(d)}
-                        </span>
-                        <span className="truncate capitalize">{d.name}</span>
-                      </button>
-                    </div>
+        {/* ── Main body ── */}
+        {step === "catalogue" ? (
+          pendingGroup ? (
+            <DriverVersionPicker
+              group={pendingGroup}
+              onChoose={(d) => goToForm(d)}
+              onBack={() => setPendingGroup(null)}
+            />
+          ) : (
+            <ConnectionCatalogue
+              groups={catalogue.groups}
+              facets={catalogue.facets}
+              loading={catalogue.loading}
+              registryOffline={catalogue.registryOffline}
+              onSelect={handleEngineSelect}
+            />
+          )
+        ) : activeDriverNotInstalled && activeCatalogueDriver ? (
+          /* ── install gate: selected driver isn't installed yet ── */
+          <InstallGate
+            driver={activeCatalogueDriver}
+            status={installStatus}
+            error={installError}
+            onInstall={(slug, version) => void installDriver(slug, version)}
+            onBack={() => setStep("catalogue")}
+          />
+        ) : (
+          /* ── form step: driver identity header + tabbed form ── */
+          <div className="flex flex-1 min-h-0 flex-col">
+            {/* Driver identity header */}
+            <div className="flex items-center gap-3 border-b border-default bg-base/40 px-5 py-3">
+              <span
+                className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-sm"
+                style={{ backgroundColor: `${driverAccent}1f`, color: driverAccent }}
+              >
+                {renderDriverGlyph(22)}
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="truncate text-sm font-semibold capitalize text-primary">
+                    {activeDriver?.name ?? driver}
+                  </h3>
+                  {activeCatalogueDriver?.verified && (
+                    <span className="flex items-center text-blue-400" title="Verified">
+                      <ShieldCheck size={14} />
+                      <span className="sr-only">Verified</span>
+                    </span>
+                  )}
+                  {activeDriver && activeDriver.is_builtin !== true && (
+                    <span className="rounded-full bg-surface-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted">
+                      v{activeDriver.version}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {(activeCatalogueDriver?.paradigms ?? []).map((p) => (
+                    <span
+                      key={p}
+                      className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+                      style={{
+                        backgroundColor: `${paradigmAccent(p)}1f`,
+                        color: paradigmAccent(p),
+                      }}
+                    >
+                      {p}
+                    </span>
                   ))}
-                </>
-              );
-            })()}
-          </div>
+                  {activeDriver?.description && (
+                    <span className="truncate text-[11px] text-muted">
+                      {activeDriver.description}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {!isEditing && (
+                <button
+                  type="button"
+                  onClick={() => setStep("catalogue")}
+                  className="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-strong bg-elevated px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:bg-surface-secondary hover:text-primary"
+                >
+                  <ArrowLeft size={12} />
+                  {t("newConnection.changeDatabase", {
+                    defaultValue: "Change database",
+                  })}
+                </button>
+              )}
+            </div>
 
-          {/* Right: form area */}
-          <div className="flex-1 flex flex-col min-h-0 min-w-0">
             {/* Tab bar */}
             <div className="relative">
             <div
@@ -2234,7 +3335,7 @@ export const NewConnectionModal = ({
                   data-active={activeTab === tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={clsx(
-                    "flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 -mb-px",
+                    "cursor-pointer flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 -mb-px",
                     activeTab === tab.id
                       ? "border-blue-500 text-blue-400"
                       : "border-transparent text-muted hover:text-secondary",
@@ -2294,14 +3395,16 @@ export const NewConnectionModal = ({
                           : appearanceTabContent}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* ── Footer: test status + actions ── */}
-        <div className="border-t border-default bg-base px-5 py-3 flex items-center gap-3">
+        {/* ── Footer: test status + actions (form step only) ── */}
+        {step === "form" && !activeDriverNotInstalled && <div className="border-t border-default bg-base px-5 py-3 flex items-center gap-3">
           {/* Test button */}
           <button
             onClick={testConnection}
-            disabled={status === "testing" || status === "saving"}
+            disabled={
+              isActionPending || status === "testing" || status === "saving"
+            }
             className={clsx(
               "flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors disabled:opacity-50",
               testResult === "success"
@@ -2338,14 +3441,14 @@ export const NewConnectionModal = ({
           {/* Cancel + Save */}
           <div className="flex items-center gap-2">
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="px-3 py-1.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary rounded-md border border-strong transition-colors"
             >
               {t("common.cancel")}
             </button>
             <button
               onClick={saveConnection}
-              disabled={status === "saving"}
+              disabled={isActionPending || status === "saving"}
               className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-md text-sm font-medium transition-colors"
             >
               {status === "saving" && (
@@ -2354,8 +3457,8 @@ export const NewConnectionModal = ({
               {t("newConnection.save")}
             </button>
           </div>
-        </div>
-      </div>
+        </div>}
+      </fieldset>
 
       {/* SSH Management Modal */}
       <SshConnectionsModal
