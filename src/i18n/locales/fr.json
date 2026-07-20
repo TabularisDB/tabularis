@@ -894,7 +894,7 @@
     "copyColumnNameQuoted": "Copier comme `column`",
     "copyColumnNameTable": "Copier comme table.column",
     "copyColumnValues": "Copier les valeurs de la colonne",
-    "copyColumnValuesIn": "Copier les valeurs de la colonne (clause IN)",
+    "copyColumnValuesIn": "Copier les valeurs comme liste SQL IN",
     "copyCells": "Copier {{count}} cellule(s)",
     "copyRows": "Copier {{count}} ligne(s)",
     "copied": "Copié dans le presse-papiers",

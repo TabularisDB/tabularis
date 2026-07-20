@@ -46,13 +46,52 @@ export function getSelectedRows(
   return sortedIndices.map((idx) => data[idx]);
 }
 
-export function columnValuesToText(rows: unknown[][], colIndex: number, nullLabel: string = "null"): string {
-  return rows
-    .map((row) => formatCellValue(row[colIndex], nullLabel))
-    .join("\n");
+type CopyFormat = "csv" | "json" | "sql-insert";
+
+interface ColumnCopyOptions {
+  format: CopyFormat;
+  delimiter?: string;
+  includeHeader?: boolean;
+  tableName?: string;
 }
 
-export function columnValuesToInClause(rows: unknown[][], colIndex: number): string {
+export function columnValuesForCopy(
+  rows: unknown[][],
+  columns: string[],
+  colIndex: number,
+  options: ColumnCopyOptions,
+): string {
+  const column = columns[colIndex];
+  if (column === undefined) return "";
+
+  const projectedRows = rows.map((row) => [row[colIndex]]);
+  const projectedColumns = [column];
+
+  if (options.format === "json") {
+    return rowsToJSON(projectedRows, projectedColumns);
+  }
+  if (options.format === "sql-insert") {
+    return rowsToSqlInsert(
+      projectedRows,
+      projectedColumns,
+      options.tableName ?? "table",
+    );
+  }
+  if (options.includeHeader) {
+    return rowsToCSVWithHeaders(
+      projectedRows,
+      projectedColumns,
+      "null",
+      options.delimiter,
+    );
+  }
+  return rowsToCSV(projectedRows, "null", options.delimiter);
+}
+
+export function columnValuesToInClause(
+  rows: unknown[][],
+  colIndex: number,
+): string {
   return rows.map((row) => sqlValue(row[colIndex])).join(", ");
 }
 
