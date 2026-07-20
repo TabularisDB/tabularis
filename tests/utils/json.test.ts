@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   isJsonColumn,
   isJsonContent,
+  isStructuredValue,
   formatJsonForEditor,
   validateJson,
   parseJsonEditorValue,
@@ -270,6 +271,42 @@ describe("json", () => {
       expect(isJsonContent({ a: 1 })).toBe(false);
       expect(isJsonContent([1, 2])).toBe(false);
       expect(isJsonContent(true)).toBe(false);
+    });
+  });
+
+  // Regression: #428 — a JSONB value from a query whose table name cannot be
+  // resolved arrives decoded but untyped, and used to fall through to the raw
+  // textarea as "[object Object]".
+  describe("isStructuredValue", () => {
+    it("accepts decoded objects and arrays", () => {
+      expect(isStructuredValue({ user: { name: "Ada" } })).toBe(true);
+      expect(isStructuredValue([{ id: 1 }])).toBe(true);
+      expect(isStructuredValue({})).toBe(true);
+    });
+
+    it("rejects null and undefined", () => {
+      expect(isStructuredValue(null)).toBe(false);
+      expect(isStructuredValue(undefined)).toBe(false);
+    });
+
+    it("rejects primitives, including JSON-looking strings", () => {
+      expect(isStructuredValue('{"a":1}')).toBe(false);
+      expect(isStructuredValue("hello")).toBe(false);
+      expect(isStructuredValue(42)).toBe(false);
+      expect(isStructuredValue(true)).toBe(false);
+    });
+
+    it("rejects the string forms BLOBs and dates cross the bridge as", () => {
+      expect(isStructuredValue("BLOB:1234")).toBe(false);
+      expect(isStructuredValue("2026-07-14T18:00:00Z")).toBe(false);
+    });
+
+    it("pretty-prints what it accepts, instead of coercing to [object Object]", () => {
+      const payload = { user: { name: "Ada" }, score: 42 };
+      expect(String(payload)).toBe("[object Object]");
+      expect(formatJsonForEditor(payload)).toBe(
+        JSON.stringify(payload, null, 2),
+      );
     });
   });
 });

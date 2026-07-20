@@ -3,6 +3,7 @@ import {
   isLocalDriver,
   supportsAlterColumn,
   supportsCreateForeignKeys,
+  supportsExplain,
   findDriverManifest,
   getCapabilitiesForDriver,
 } from '../../src/utils/driverCapabilities';
@@ -101,6 +102,28 @@ describe('driverCapabilities', () => {
 
     it('should return false when capabilities are undefined', () => {
       expect(supportsCreateForeignKeys(undefined)).toBe(false);
+    });
+  });
+
+  describe('supportsExplain', () => {
+    it('should return true when explain is true', () => {
+      expect(supportsExplain(makeCapabilities({ explain: true }))).toBe(true);
+    });
+
+    it('should return false when explain is false', () => {
+      expect(supportsExplain(makeCapabilities({ explain: false }))).toBe(false);
+    });
+
+    it('should return false when explain is not set (default false)', () => {
+      expect(supportsExplain(makeCapabilities())).toBe(false);
+    });
+
+    it('should return false when capabilities are null', () => {
+      expect(supportsExplain(null)).toBe(false);
+    });
+
+    it('should return false when capabilities are undefined', () => {
+      expect(supportsExplain(undefined)).toBe(false);
     });
   });
 

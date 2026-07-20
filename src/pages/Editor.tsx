@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { reconstructTableQuery } from "../utils/editor";
 import { serializePkKey, buildPkMap } from "../utils/dataGrid";
 import { isMultiDatabaseCapable } from "../utils/database";
-import { isReadonly } from "../utils/driverCapabilities";
+import { isReadonly, supportsExplain } from "../utils/driverCapabilities";
 import {
   useDangerousQueryGuard,
   DANGEROUS_QUERY_I18N,
@@ -74,9 +74,10 @@ import {
   ExportProgressModal,
   type ExportStatus,
 } from "../components/modals/ExportProgressModal";
-import { splitQueries, extractTableName, getExplainableQueries, statementLabel } from "../utils/sql";
+import { splitQueries, splitStatements, findStatementAtOffset, extractTableName, getExplainableQueries, statementLabel, type Statement } from "../utils/sql";
 import {
   createResultEntries,
+  createEntriesFromResultSets,
   updateResultEntry,
   removeResultEntry,
   removeOtherEntries,
@@ -157,6 +158,20 @@ const CHEVRON_SELECT_STYLE: React.CSSProperties = {
   backgroundPosition: "right center",
 };
 
+// Resolves the statement the cursor is currently inside (TablePlus-style
+// "run statement at cursor"), used by both the Run and Explain actions.
+function getStatementAtCursor(
+  editor: Parameters<OnMount>[0],
+  dialect: string | undefined,
+): Statement | undefined {
+  const model = editor.getModel();
+  const position = editor.getPosition();
+  if (!model || !position) return undefined;
+  const offset = model.getOffsetAt(position);
+  const statements = splitStatements(model.getValue(), dialect);
+  return findStatementAtOffset(statements, offset);
+}
+
 export const Editor = () => {
   const { t } = useTranslation();
   const {
@@ -196,6 +211,7 @@ export const Editor = () => {
   const navigate = useNavigate();
 
   const driverReadonly = isReadonly(activeCapabilities);
+  const driverSupportsExplain = supportsExplain(activeCapabilities);
   const activeDialect = activeCapabilities?.sql_dialect;
 
   const [tabContextMenu, setTabContextMenu] = useState<{
@@ -360,7 +376,7 @@ export const Editor = () => {
   const [tempPage, setTempPage] = useState("1");
   const [isCountLoading, setIsCountLoading] = useState(false);
   const [applyToAll, setApplyToAll] = useState(false);
-  const [copyFormat, setCopyFormat] = useState<"csv" | "json" | "sql-insert">(
+  const [copyFormat, setCopyFormat] = useState<"csv" | "json" | "sql-insert" | "markdown">(
     settings.copyFormat ?? "csv",
   );
   const [csvDelimiter, setCsvDelimiter] = useState(
@@ -453,11 +469,17 @@ export const Editor = () => {
   // Last executed SQL per tab — used to preserve the loaded row count across
   // pagination of the SAME query while resetting it when the query changes.
   const lastRunQueryRef = useRef<Record<string, string>>({});
+  // Bumped on every runQuery call per tab so a slower, earlier run's async
+  // fetchPkColumn response can detect it's stale (e.g. cursor-driven runs on
+  // two different statements/tables in quick succession) and skip applying
+  // its (now wrong-table) column metadata over the newer run's.
+  const queryGenerationRef = useRef<Record<string, number>>({});
   // Stable refs for functions used inside Monaco actions (which capture closures at mount time)
   const runQueryRef = useRef<typeof runQuery>(null!);
   const runMultipleQueriesRef = useRef<typeof runMultipleQueries>(null!);
   const openExplainForQueryRef = useRef<(query: string) => void>(null!);
   const activeDialectRef = useRef<typeof activeDialect>(undefined);
+  const supportsExplainRef = useRef(false);
   const tabScrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -573,9 +595,21 @@ export const Editor = () => {
   }, [tabs, updateScrollArrows]);
 
   const fetchPkColumn = useCallback(
-    async (table: string, tabId?: string, tabSchema?: string) => {
+    async (
+      table: string,
+      generation: number,
+      tabId?: string,
+      tabSchema?: string,
+    ) => {
       if (!activeConnectionId) return;
       const effectiveSchema = tabSchema ?? activeSchema;
+      const targetId = tabId || activeTabId;
+      // A newer runQuery on this tab may have started (and kicked off its own
+      // fetchPkColumn) while this call was still in flight — e.g. running two
+      // different statements/tables back to back via cursor-driven Run. If so,
+      // this response is stale and must not clobber the newer one's metadata.
+      const isStale = () =>
+        !targetId || queryGenerationRef.current[targetId] !== generation;
       try {
         const [cols, fks] = await Promise.all([
           invoke<TableColumn[]>("get_columns", {
@@ -592,6 +626,7 @@ export const Editor = () => {
             return [] as ForeignKey[];
           }),
         ]);
+        if (isStale()) return;
         const pks = cols.filter((c) => c.is_pk).map((c) => c.name);
         const autoInc = cols
           .filter((c) => c.is_auto_increment)
@@ -602,7 +637,6 @@ export const Editor = () => {
           )
           .map((c) => c.name);
         const nullable = cols.filter((c) => c.is_nullable).map((c) => c.name);
-        const targetId = tabId || activeTabId;
         if (targetId)
           updateTab(targetId, {
             pkColumns: pks.length > 0 ? pks : null,
@@ -614,8 +648,8 @@ export const Editor = () => {
           });
       } catch (e) {
         console.error("Failed to fetch PK:", e);
+        if (isStale()) return;
         // Even if PK fetch fails, set pkColumns to null to unblock the UI
-        const targetId = tabId || activeTabId;
         if (targetId)
           updateTab(targetId, {
             pkColumns: null,
@@ -669,7 +703,13 @@ export const Editor = () => {
       // (results panel, params modal) — it belongs to whatever tab is active here.
       const isDetached = detachedTabIdsRef.current.has(targetTabId);
 
-      let textToRun = sql?.trim() || targetTab?.query;
+      // Prefer the exact statement that produced the tab's current result
+      // over the raw editor buffer — the buffer can hold several statements
+      // (e.g. cursor-driven Run on one of several in the same tab), and
+      // callers like pagination/refresh that omit `sql` mean "re-run what's
+      // currently shown", not "run everything in the editor".
+      let textToRun =
+        sql?.trim() || lastRunQueryRef.current[targetTabId] || targetTab?.query;
       // For Table Tabs, reconstruct query if filter/sort are present
       if (targetTab?.type === "table" && targetTab.activeTable) {
         const effectiveSchema =
@@ -732,6 +772,9 @@ export const Editor = () => {
       const previousTotalRows =
         targetTab?.result?.pagination?.total_rows ?? null;
 
+      const generation = (queryGenerationRef.current[targetTabId] ?? 0) + 1;
+      queryGenerationRef.current[targetTabId] = generation;
+
       updateTab(targetTabId, {
         isLoading: true,
         error: "",
@@ -775,11 +818,51 @@ export const Editor = () => {
         });
         const end = performance.now();
 
-        // Fetch PK column if this is a table tab OR if the query references a table
-        const currentTab = tabsRef.current.find((t) => t.id === targetTabId);
-        let tableName = currentTab?.activeTable;
+        // A single statement can return several result sets (e.g. a MySQL
+        // CALL to a procedure with multiple SELECTs): show them as separate
+        // result tabs, reusing the multi-statement results UI. Row editing
+        // metadata (activeTable / pkColumns) is skipped — procedure output
+        // is not row-editable.
+        if (res.additional_results && res.additional_results.length > 0) {
+          const entries = createEntriesFromResultSets(
+            targetTabId,
+            textToRun,
+            res,
+            end - start,
+            t("editor.multiResult.resultSetPrefix"),
+          );
+          updateTab(targetTabId, {
+            results: entries,
+            activeResultId: entries[0].id,
+            result: null,
+            executionTime: end - start,
+            isLoading: false,
+            activeTable: null,
+            pkColumns: null,
+          });
+          if (shouldRecordHistory) {
+            addHistoryEntry(
+              textToRun,
+              end - start,
+              "success",
+              null,
+              null,
+              historyDb,
+            );
+          }
+          return;
+        }
 
-        // If not a table tab, try to extract table name from the query
+        // Fetch PK column if this is a Table Tab (activeTable is authoritative
+        // and fixed there) OR if the query references a table. A console/query
+        // tab's activeTable is just a leftover from whatever ran last on it —
+        // trusting it here would skip re-deriving the table for a *different*
+        // statement run on the same tab (e.g. cursor-driven Run on statement 2
+        // after statement 1 already set activeTable).
+        const currentTab = tabsRef.current.find((t) => t.id === targetTabId);
+        let tableName =
+          currentTab?.type === "table" ? currentTab.activeTable : undefined;
+
         if (!tableName && textToRun) {
           const extracted = extractTableName(textToRun);
           // Reject views and materialized views — they are not row-editable
@@ -809,18 +892,26 @@ export const Editor = () => {
               }
             : res;
 
-        updateTab(targetTabId, {
-          result: resultWithCount,
-          executionTime: end - start,
-          isLoading: false,
-          activeTable: tableName || null,
-        });
+        // A newer runQuery may have started on this tab while this one was
+        // in flight (e.g. cursor-driven Run on two different statements back
+        // to back). Drop this now-stale response instead of clobbering the
+        // newer one's displayed result/table.
+        const isStaleRun = queryGenerationRef.current[targetTabId] !== generation;
 
-        if (tableName) {
-          // Fetch column metadata in the background; tab updates when ready
-          fetchPkColumn(tableName, targetTabId, targetTab?.schema ?? undefined);
-        } else {
-          updateTab(targetTabId, { pkColumns: null });
+        if (!isStaleRun) {
+          updateTab(targetTabId, {
+            result: resultWithCount,
+            executionTime: end - start,
+            isLoading: false,
+            activeTable: tableName || null,
+          });
+
+          if (tableName) {
+            // Fetch column metadata in the background; tab updates when ready
+            fetchPkColumn(tableName, generation, targetTabId, targetTab?.schema ?? undefined);
+          } else {
+            updateTab(targetTabId, { pkColumns: null });
+          }
         }
 
         if (shouldRecordHistory) {
@@ -834,10 +925,12 @@ export const Editor = () => {
           );
         }
       } catch (err) {
-        updateTab(targetTabId, {
-          error: typeof err === "string" ? err : t("editor.queryFailed"),
-          isLoading: false,
-        });
+        if (queryGenerationRef.current[targetTabId] === generation) {
+          updateTab(targetTabId, {
+            error: typeof err === "string" ? err : t("editor.queryFailed"),
+            isLoading: false,
+          });
+        }
 
         if (shouldRecordHistory) {
           addHistoryEntry(
@@ -1410,6 +1503,18 @@ export const Editor = () => {
     updateTab,
   ]);
 
+  const handleRunAll = useCallback(() => {
+    if (!activeTab) return;
+    // Prefer the live editor content — activeTab.query lags behind by the
+    // onChange debounce.
+    const editor = editorsRef.current[activeTab.id];
+    const text = (editor?.getModel()?.getValue() ?? activeTab.query ?? "").trim();
+    if (!text) return;
+    const queries = splitQueries(text, activeDialect);
+    if (queries.length <= 1) runQuery(queries[0] || text, 1);
+    else runMultipleQueries(queries);
+  }, [activeTab, activeDialect, runQuery, runMultipleQueries]);
+
   const handleRunButton = useCallback(() => {
     if (!activeTab) return;
 
@@ -1429,14 +1534,12 @@ export const Editor = () => {
 
     // Monaco Editor: handle selection and multi-query
     if (!editorsRef.current[activeTab.id]) {
-      // Fallback: use saved query when editor ref is not available (e.g. after tab restore)
+      // Fallback: no cursor context available (editor ref not mounted, e.g.
+      // after tab restore) — run everything, same precedent as runAutoQuery.
       if (activeTab.query?.trim()) {
         const queries = splitQueries(activeTab.query, activeDialect);
         if (queries.length <= 1) runQuery(queries[0] || activeTab.query, 1);
-        else {
-          setSelectableQueries(queries);
-          setIsQuerySelectionModalOpen(true);
-        }
+        else runMultipleQueries(queries);
       }
       return;
     }
@@ -1456,15 +1559,11 @@ export const Editor = () => {
       return;
     }
 
-    const fullText = editor.getValue();
-    if (!fullText.trim()) return;
-
-    const queries = splitQueries(fullText, activeDialect);
-    if (queries.length <= 1) runQuery(queries[0] || fullText, 1);
-    else {
-      setSelectableQueries(queries);
-      setIsQuerySelectionModalOpen(true);
-    }
+    // No selection: run the statement the cursor is currently inside
+    // (TablePlus-style), not the whole file.
+    const statement = getStatementAtCursor(editor, activeDialect);
+    if (!statement) return;
+    runQuery(statement.text, 1);
   }, [activeTab, activeDialect, runQuery, runMultipleQueries]);
 
   const openExplainForQuery = useCallback((query: string) => {
@@ -1475,50 +1574,70 @@ export const Editor = () => {
   const handleExplainButton = useCallback(() => {
     if (!activeTab || !activeConnectionId) return;
 
-    // Get text: selection first, then full editor content, then saved query
     const editor = editorsRef.current[activeTab.id];
-    let text = "";
-    if (editor) {
-      const selection = editor.getSelection();
-      const selectedText = selection && !selection.isEmpty()
-        ? editor.getModel()?.getValueInRange(selection)
-        : undefined;
-      text = (selectedText || editor.getValue()).trim();
-    } else {
-      text = (activeTab.query ?? "").trim();
+    if (!editor) {
+      // No cursor context available (editor ref not mounted) — fall back to
+      // the saved query text, same as before.
+      const text = (activeTab.query ?? "").trim();
+      if (!text) return;
+      const explainable = getExplainableQueries(text, activeDialect);
+      if (explainable.length === 0) {
+        openExplainForQuery(text);
+      } else if (explainable.length === 1) {
+        openExplainForQuery(explainable[0].query);
+      } else {
+        setExplainSelectableQueries(explainable);
+        setIsExplainSelectionOpen(true);
+      }
+      return;
     }
 
-    if (!text) return;
-
-    const explainable = getExplainableQueries(text, activeDialect);
-    if (explainable.length === 0) {
-      // No explainable queries — open modal with full text so it shows the error
-      openExplainForQuery(text);
-    } else if (explainable.length === 1) {
-      openExplainForQuery(explainable[0].query);
-    } else {
-      setExplainSelectableQueries(explainable);
-      setIsExplainSelectionOpen(true);
+    const selection = editor.getSelection();
+    if (selection && !selection.isEmpty()) {
+      const selectedText = (editor.getModel()?.getValueInRange(selection) ?? "").trim();
+      if (!selectedText) return;
+      const explainable = getExplainableQueries(selectedText, activeDialect);
+      if (explainable.length === 0) {
+        // No explainable queries — open modal with full text so it shows the error
+        openExplainForQuery(selectedText);
+      } else if (explainable.length === 1) {
+        openExplainForQuery(explainable[0].query);
+      } else {
+        setExplainSelectableQueries(explainable);
+        setIsExplainSelectionOpen(true);
+      }
+      return;
     }
-  }, [activeTab, activeConnectionId, activeDialect, openExplainForQuery]);
+
+    // No selection: explain the statement the cursor is currently inside.
+    const statement = getStatementAtCursor(editor, activeDialect);
+    if (!statement) return;
+    if (!statement.isExplainable) {
+      showAlert(t("editor.statementNotExplainable"), { kind: "warning" });
+      return;
+    }
+    openExplainForQuery(statement.text);
+  }, [activeTab, activeConnectionId, activeDialect, openExplainForQuery, showAlert, t]);
 
   // Keep stable refs in sync for Monaco actions (closure-captured at mount time)
   runQueryRef.current = runQuery;
   runMultipleQueriesRef.current = runMultipleQueries;
   openExplainForQueryRef.current = openExplainForQuery;
   activeDialectRef.current = activeDialect;
+  supportsExplainRef.current = driverSupportsExplain;
 
-  // Global Ctrl/Command+F5 shortcut for Run
+  // Global Ctrl/Command+F5 shortcut for Run (+Shift for Run All)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "F5") {
         e.preventDefault();
-        handleRunButton();
+        if (e.shiftKey) handleRunAll();
+        else handleRunButton();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleRunButton]);
+  }, [handleRunButton, handleRunAll]);
 
   // Global Ctrl+Tab shortcut: open tab switcher and advance to next tab circularly.
   // In split mode only the focused pane (explorerConnectionId) handles the shortcut.
@@ -1569,7 +1688,7 @@ export const Editor = () => {
         );
         if (tab?.result?.pagination?.has_more) {
           e.preventDefault();
-          runQuery(tab.query, (tab.result.pagination.page ?? 1) + 1);
+          runQuery(undefined, (tab.result.pagination.page ?? 1) + 1);
         }
         return;
       }
@@ -1580,7 +1699,7 @@ export const Editor = () => {
         );
         if (tab?.result?.pagination && tab.result.pagination.page > 1) {
           e.preventDefault();
-          runQuery(tab.query, tab.result.pagination.page - 1);
+          runQuery(undefined, tab.result.pagination.page - 1);
         }
         return;
       }
@@ -1612,7 +1731,7 @@ export const Editor = () => {
       (t) => t.id === activeTabIdRef.current,
     );
     if (currentTab?.activeTable && activeConnectionId)
-      runQuery(currentTab.query, currentTab.page);
+      runQuery(undefined, currentTab.page);
   }, [activeConnectionId, runQuery]);
 
   const handleToolbarUpdate = useCallback(
@@ -2317,9 +2436,14 @@ export const Editor = () => {
           ? newPendingInsertions
           : undefined;
 
-      // Refresh query preserving remaining pending changes
+      // Refresh query preserving remaining pending changes. Passing no `sql`
+      // makes runQuery re-run the exact statement that produced the current
+      // result (tracked internally), not the raw editor buffer — activeTab.query
+      // may contain other statements too (e.g. cursor-driven Run on one of
+      // several statements in the same tab), which would re-send all of
+      // them together and fail as a single prepared statement.
       runQuery(
-        activeTab.query,
+        undefined,
         activeTab.page,
         undefined,
         undefined,
@@ -2530,6 +2654,7 @@ export const Editor = () => {
       contextMenuGroupId: "navigation",
       contextMenuOrder: 1.6,
       run: (ed) => {
+        if (!supportsExplainRef.current) return;
         const selection = ed.getSelection();
         const selectedText = selection && !selection.isEmpty()
           ? ed.getModel()?.getValueInRange(selection)
@@ -2697,7 +2822,7 @@ export const Editor = () => {
     setExportState((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
-  const handleExportCommon = async (format: "csv" | "json") => {
+  const handleExportCommon = async (format: "csv" | "json" | "markdown") => {
     if (!activeTab || !activeConnectionId) return;
 
     const effectiveSchema =
@@ -2711,9 +2836,15 @@ export const Editor = () => {
     if (!query || !query.trim()) return;
 
     try {
+      const extension = format === "markdown" ? "md" : format;
       const filePath = await save({
-        filters: [{ name: format.toUpperCase(), extensions: [format] }],
-        defaultPath: `result_${Date.now()}.${format}`,
+        filters: [
+          {
+            name: format === "markdown" ? "Markdown" : format.toUpperCase(),
+            extensions: [extension],
+          },
+        ],
+        defaultPath: `result_${Date.now()}.${extension}`,
       });
 
       if (!filePath) return;
@@ -2763,6 +2894,7 @@ export const Editor = () => {
 
   const handleExportCSV = () => handleExportCommon("csv");
   const handleExportJSON = () => handleExportCommon("json");
+  const handleExportMarkdown = () => handleExportCommon("markdown");
 
   const handleRunDropdownToggle = useCallback(() => {
     if (!isRunDropdownOpen) {
@@ -3048,6 +3180,18 @@ export const Editor = () => {
                       onClick={() => setIsRunDropdownOpen(false)}
                     />
                     <div className="absolute top-full left-0 mt-1 w-80 bg-surface-secondary border border-strong rounded shadow-xl z-50 flex flex-col py-1 max-h-80 overflow-y-auto">
+                      {dropdownQueries.length > 1 && (
+                        <button
+                          onClick={() => {
+                            handleRunAll();
+                            setIsRunDropdownOpen(false);
+                          }}
+                          className="flex items-center gap-2 text-left px-4 py-2 text-xs font-medium text-secondary hover:text-white hover:bg-surface-tertiary/50 border-b border-strong transition-colors"
+                        >
+                          <Play size={12} fill="currentColor" className="text-green-500 shrink-0" />
+                          {t("editor.runAll")} ({dropdownQueries.length})
+                        </button>
+                      )}
                       {dropdownQueries.length === 0 ? (
                         <div className="px-4 py-2 text-xs text-muted italic">
                           {t("editor.noValidQueries")}
@@ -3162,6 +3306,15 @@ export const Editor = () => {
                   <span className="flex-1">JSON</span>
                   <span className="text-xs text-muted">.json</span>
                 </button>
+                <button
+                  role="menuitem"
+                  onClick={handleExportMarkdown}
+                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
+                >
+                  <FileText size={14} className="shrink-0 opacity-80" />
+                  <span className="flex-1">Markdown</span>
+                  <span className="text-xs text-muted">.md</span>
+                </button>
               </div>
             </>
           )}
@@ -3259,10 +3412,12 @@ export const Editor = () => {
               <SqlEditorWrapper
                 height="100%"
                 initialValue={tab.query}
+                dialect={activeDialect}
                 onChange={(val) => {
                   if (isActive) updateTab(tab.id, { query: val });
                 }}
                 onRun={handleRunButton}
+                onRunAll={handleRunAll}
                 onMount={
                   isActive
                     ? (editor, monaco) =>
@@ -3279,8 +3434,8 @@ export const Editor = () => {
             {/* Editor overlay buttons — bottom-right */}
             {tab.type !== "query_builder" && (
               <div className="absolute bottom-2 right-6 z-10 flex items-center gap-1">
-                {/* Visual Explain — hidden for read-only definition tabs */}
-                {!tab.readOnly && (
+                {/* Visual Explain — hidden for read-only definition tabs and drivers without EXPLAIN support */}
+                {!tab.readOnly && driverSupportsExplain && (
                 <button
                   onClick={handleExplainButton}
                   disabled={!activeConnectionId || !tab.query?.trim()}
@@ -3552,7 +3707,7 @@ export const Editor = () => {
                             activeTab.result.pagination.page === 1 ||
                             activeTab.isLoading
                           }
-                          onClick={() => runQuery(activeTab.query, 1)}
+                          onClick={() => runQuery(undefined, 1)}
                           className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
                           title="First Page"
                         >
@@ -3565,7 +3720,7 @@ export const Editor = () => {
                           }
                           onClick={() =>
                             runQuery(
-                              activeTab.query,
+                              undefined,
                               activeTab.result!.pagination!.page - 1,
                             )
                           }
@@ -3607,7 +3762,7 @@ export const Editor = () => {
                                               .page_size,
                                         )
                                     ) {
-                                      runQuery(activeTab.query, newPage);
+                                      runQuery(undefined, newPage);
                                     }
                                   }
                                   setIsEditingPage(false);
@@ -3665,7 +3820,7 @@ export const Editor = () => {
                           }
                           onClick={() =>
                             runQuery(
-                              activeTab.query,
+                              undefined,
                               activeTab.result!.pagination!.page + 1,
                             )
                           }
@@ -3681,7 +3836,7 @@ export const Editor = () => {
                           }
                           onClick={() =>
                             runQuery(
-                              activeTab.query,
+                              undefined,
                               Math.ceil(
                                 activeTab.result!.pagination!.total_rows! /
                                   activeTab.result!.pagination!.page_size,
@@ -3733,7 +3888,7 @@ export const Editor = () => {
                       <select
                         value={copyFormat}
                         onChange={(e) =>
-                          setCopyFormat(e.target.value as "csv" | "json" | "sql-insert")
+                          setCopyFormat(e.target.value as "csv" | "json" | "sql-insert" | "markdown")
                         }
                         className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium uppercase tracking-wide"
                         title={t("settings.copyFormat")}
@@ -3742,6 +3897,7 @@ export const Editor = () => {
                         <option value="csv">CSV</option>
                         <option value="json">JSON</option>
                         <option value="sql-insert">SQL INSERT</option>
+                        <option value="markdown">Markdown</option>
                       </select>
                       {copyFormat === "csv" && (
                         <select
@@ -3765,7 +3921,7 @@ export const Editor = () => {
                           </option>
                         </select>
                       )}
-                      {copyFormat === "csv" && (
+                      {(copyFormat === "csv" || copyFormat === "markdown") && (
                         <label
                           className="flex items-center gap-1 cursor-pointer select-none text-[11px] text-secondary hover:text-primary"
                           title={t("settings.csvIncludeHeaders")}
@@ -3985,6 +4141,8 @@ export const Editor = () => {
       <AiQueryModal
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
+        connectionId={activeConnectionId ?? undefined}
+        schema={activeTab?.schema ?? activeSchema ?? undefined}
         onInsert={(q) => {
           updateActiveTab({ query: q });
           runQuery(q, 1);

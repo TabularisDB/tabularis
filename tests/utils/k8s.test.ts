@@ -7,6 +7,7 @@ import {
   getK8sNamespaces,
   getK8sResources,
   getK8sResourcePorts,
+  validateK8sPath,
   loadK8sConnections,
   saveK8sConnection,
   updateK8sConnection,
@@ -183,6 +184,23 @@ describe("k8s", () => {
       expect(result).toBe("K8s connection verified!");
     });
 
+    it("should pass optional command overrides with camelCase Tauri arguments", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      vi.mocked(invoke).mockResolvedValue("K8s connection verified!");
+
+      await testK8sConnection("my-context", "my-namespace", {
+        kubectl_path: "/opt/kubectl",
+        kubeconfig_path: "/tmp/kubeconfig",
+      });
+
+      expect(invoke).toHaveBeenCalledWith("test_k8s_connection_cmd", {
+        context: "my-context",
+        namespace: "my-namespace",
+        kubectlPath: "/opt/kubectl",
+        kubeconfigPath: "/tmp/kubeconfig",
+      });
+    });
+
     it("should propagate errors from invoke", async () => {
       const { invoke } = await import("@tauri-apps/api/core");
       vi.mocked(invoke).mockRejectedValue(new Error("Context not found"));
@@ -194,7 +212,7 @@ describe("k8s", () => {
   });
 
   describe("getK8sContexts", () => {
-    it("should return list of contexts", async () => {
+    it("should return list of contexts without changing the no-options command payload", async () => {
       const { invoke } = await import("@tauri-apps/api/core");
       vi.mocked(invoke).mockResolvedValue([
         "minikube",
@@ -205,6 +223,21 @@ describe("k8s", () => {
 
       expect(invoke).toHaveBeenCalledWith("get_k8s_contexts_cmd");
       expect(result).toEqual(["minikube", "gke_project_cluster"]);
+    });
+
+    it("should pass optional command overrides", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      vi.mocked(invoke).mockResolvedValue(["minikube"]);
+
+      await getK8sContexts({
+        kubectl_path: "/opt/kubectl",
+        kubeconfig_path: "/tmp/kubeconfig",
+      });
+
+      expect(invoke).toHaveBeenCalledWith("get_k8s_contexts_cmd", {
+        kubectlPath: "/opt/kubectl",
+        kubeconfigPath: "/tmp/kubeconfig",
+      });
     });
   });
 
@@ -219,6 +252,22 @@ describe("k8s", () => {
         context: "minikube",
       });
       expect(result).toEqual(["default", "kube-system"]);
+    });
+
+    it("should pass optional command overrides", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      vi.mocked(invoke).mockResolvedValue(["default"]);
+
+      await getK8sNamespaces("minikube", {
+        kubectl_path: "/opt/kubectl",
+        kubeconfig_path: "/tmp/kubeconfig",
+      });
+
+      expect(invoke).toHaveBeenCalledWith("get_k8s_namespaces_cmd", {
+        context: "minikube",
+        kubectlPath: "/opt/kubectl",
+        kubeconfigPath: "/tmp/kubeconfig",
+      });
     });
   });
 
@@ -239,6 +288,24 @@ describe("k8s", () => {
         resourceType: "service",
       });
       expect(result).toEqual(["mysql-svc", "postgres-svc"]);
+    });
+
+    it("should pass optional command overrides", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      vi.mocked(invoke).mockResolvedValue(["mysql-svc"]);
+
+      await getK8sResources("minikube", "database", "service", {
+        kubectl_path: "/opt/kubectl",
+        kubeconfig_path: "/tmp/kubeconfig",
+      });
+
+      expect(invoke).toHaveBeenCalledWith("get_k8s_resources_cmd", {
+        context: "minikube",
+        namespace: "database",
+        resourceType: "service",
+        kubectlPath: "/opt/kubectl",
+        kubeconfigPath: "/tmp/kubeconfig",
+      });
     });
   });
 
@@ -261,6 +328,45 @@ describe("k8s", () => {
         resourceName: "postgres-svc",
       });
       expect(result).toEqual([5432]);
+    });
+
+    it("should pass optional command overrides", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      vi.mocked(invoke).mockResolvedValue([5432]);
+
+      await getK8sResourcePorts(
+        "minikube",
+        "database",
+        "service",
+        "postgres-svc",
+        {
+          kubectl_path: "/opt/kubectl",
+          kubeconfig_path: "/tmp/kubeconfig",
+        },
+      );
+
+      expect(invoke).toHaveBeenCalledWith("get_k8s_resource_ports_cmd", {
+        context: "minikube",
+        namespace: "database",
+        resourceType: "service",
+        resourceName: "postgres-svc",
+        kubectlPath: "/opt/kubectl",
+        kubeconfigPath: "/tmp/kubeconfig",
+      });
+    });
+  });
+
+  describe("validateK8sPath", () => {
+    it("should invoke the path validator with its exact contract", async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      vi.mocked(invoke).mockResolvedValue(undefined);
+
+      await validateK8sPath("/opt/kubectl", "kubectl");
+
+      expect(invoke).toHaveBeenCalledWith("validate_k8s_path_cmd", {
+        path: "/opt/kubectl",
+        kind: "kubectl",
+      });
     });
   });
 

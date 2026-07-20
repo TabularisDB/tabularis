@@ -281,6 +281,17 @@ describe('clipboard utils', () => {
       );
     });
 
+    it('should format the selected column as Markdown', () => {
+      expect(
+        columnValuesForCopy(rows, columns, 1, {
+          format: 'markdown',
+          includeHeader: true,
+        }),
+      ).toBe(
+        '| name |\n| --- |\n| Alice |\n| O\'Brien |\n| null |',
+      );
+    });
+
     it('should return an empty string for an unknown column', () => {
       expect(
         columnValuesForCopy(rows, columns, -1, { format: 'csv' }),

@@ -12,6 +12,7 @@ import {
   FileJson,
   Shield,
   Cable,
+  Archive,
 } from "lucide-react";
 import clsx from "clsx";
 import { ConfigJsonModal } from "../components/modals/ConfigJsonModal";
@@ -23,6 +24,7 @@ import { LogsTab } from "../components/settings/LogsTab";
 import { ShortcutsTab } from "../components/settings/ShortcutsTab";
 import { PluginsTab } from "../components/settings/PluginsTab";
 import { SshTab } from "../components/settings/SshTab";
+import { BackupTab } from "../components/settings/BackupTab";
 import { AiActivityPanel } from "../components/settings/AiActivityPanel";
 import { InfoTab } from "../components/settings/InfoTab";
 import { PluginSettingsPage } from "../components/settings/PluginSettingsPage";
@@ -32,6 +34,7 @@ import { useSettings } from "../hooks/useSettings";
 type SettingsTab =
   | "general"
   | "ssh"
+  | "backup"
   | "appearance"
   | "localization"
   | "ai"
@@ -55,6 +58,7 @@ const TAB_ITEMS: Array<{
 }> = [
   { id: "general", icon: SettingsIcon, labelKey: "settings.general" },
   { id: "ssh", icon: Cable, labelKey: "sshConnections.title" },
+  { id: "backup", icon: Archive, labelKey: "settings.backup.title" },
   { id: "plugins", icon: Plug, labelKey: "settings.plugins.title" },
   { id: "appearance", icon: Palette, labelKey: "settings.appearance" },
   { id: "localization", icon: Languages, labelKey: "settings.localization" },
@@ -68,6 +72,7 @@ const TAB_ITEMS: Array<{
 const TAB_COMPONENTS: Partial<Record<SettingsTab, React.ComponentType>> = {
   general: GeneralTab,
   ssh: SshTab,
+  backup: BackupTab,
   appearance: AppearanceTab,
   localization: LocalizationTab,
   ai: AiTab,

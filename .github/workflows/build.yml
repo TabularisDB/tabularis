@@ -1,0 +1,163 @@
+name: Build
+
+# Reusable build matrix used by nightly.yml (cron). Centralises the
+# signing/notarization config in one place so callers can't drift from it.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to build (branch, tag or SHA)."
+        required: true
+        type: string
+      tag:
+        description: "Release tag to create/upload to."
+        required: true
+        type: string
+      release_name:
+        description: "Release title. Supports tauri-action's __VERSION__ placeholder."
+        required: false
+        default: "v__VERSION__"
+        type: string
+      prerelease:
+        description: "Mark the GitHub Release as a prerelease."
+        required: false
+        default: false
+        type: boolean
+      draft:
+        description: "Create the GitHub Release as a draft."
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest" # for Arm64
+            args: "--target aarch64-apple-darwin"
+          - platform: "macos-15-intel" # for Intel
+            args: "--target x86_64-apple-darwin"
+          - platform: "ubuntu-24.04"
+            args: ""
+            # Build inside an ubuntu:22.04 container (glibc 2.35) rather than
+            # on the bare ubuntu-24.04 runner (glibc 2.39), so the produced
+            # .deb/.AppImage keep running on older LTS distros. Pinned to the
+            # container image, not the runner, so it's unaffected by GitHub's
+            # eventual deprecation of the ubuntu-22.04 *runner* image.
+            container: "ubuntu:22.04"
+          - platform: "windows-latest"
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    container: ${{ matrix.container }}
+    steps:
+      # The bare ubuntu:22.04 image ships neither git nor curl, which checkout
+      # and later steps need. Runs only inside the container.
+      - name: Install container prerequisites (ubuntu container only)
+        if: matrix.container
+        run: |
+          apt-get update
+          apt-get install -y git ca-certificates curl
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: "pnpm"
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || matrix.platform == 'macos-15-intel' && 'x86_64-apple-darwin' || '' }}
+
+      - name: install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-24.04'
+        run: |
+          apt-get update
+          apt-get install -y \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libfuse2 \
+            libsoup-3.0-dev \
+            libwebkit2gtk-4.1-dev \
+            patchelf \
+            xdg-utils \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-bad \
+            fonts-noto-color-emoji \
+            pkg-config \
+            unzip
+
+      - name: install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2.9.1
+        with:
+          workspaces: src-tauri
+
+      - name: Override tauri-cli with custom AppImage format (Linux)
+        if: matrix.platform == 'ubuntu-24.04'
+        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --branch feat/truly-portable-appimage --force
+
+      # Notarization needs the App Store Connect API key on disk. The .p8 is stored
+      # base64-encoded in APPLE_API_KEY_CONTENT and decoded into a temp file (macOS only).
+      - name: Prepare Apple API key (macOS only)
+        if: startsWith(matrix.platform, 'macos')
+        shell: bash
+        run: |
+          echo "${{ secrets.APPLE_API_KEY_CONTENT }}" | base64 --decode > "$RUNNER_TEMP/apple_api_key.p8"
+          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/apple_api_key.p8" >> "$GITHUB_ENV"
+
+      - uses: tauri-apps/tauri-action@v0.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: "true"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          # macOS code signing (Developer ID Application certificate)
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # macOS notarization (App Store Connect API key)
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
+        with:
+          tagName: ${{ inputs.tag }}
+          releaseName: ${{ inputs.release_name }}
+          releaseBody: "See the assets to download this version and install."
+          releaseDraft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
+          tauriScript: ${{ matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'pnpm tauri' }}
+          args: ${{ matrix.args }}
+
+      - name: Upload portable executable (Windows only)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ inputs.tag }}".TrimStart('v')
+          $src = "src-tauri\target\release\tabularis.exe"
+          $portable = "tabularis_${version}_x64-portable.exe"
+          Copy-Item $src $portable
+          gh release upload "${{ inputs.tag }}" $portable --clobber

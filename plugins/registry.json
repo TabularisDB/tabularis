@@ -334,6 +334,47 @@
           }
         }
       ]
+    },
+    {
+      "id": "tubularis-d1",
+      "name": "Cloudflare D1 (HTTP API)",
+      "description": "Cloudflare D1 (serverless SQLite) over the D1 HTTP API — per-connection credentials, views and ER diagrams. macOS / Linux / Windows.",
+      "author": "Gabriel Malavazi Rodrigues <https://github.com/GabrielMalava>",
+      "homepage": "https://github.com/GabrielMalava/cloudflare-tabularis",
+      "latest_version": "0.3.0",
+      "releases": [
+        {
+          "version": "0.3.0",
+          "min_tabularis_version": "0.13.4",
+          "assets": {
+            "linux-x64": "https://github.com/GabrielMalava/cloudflare-tabularis/releases/download/v0.3.0/tubularis-d1-linux-x64.zip",
+            "linux-arm64": "https://github.com/GabrielMalava/cloudflare-tabularis/releases/download/v0.3.0/tubularis-d1-linux-arm64.zip",
+            "darwin-x64": "https://github.com/GabrielMalava/cloudflare-tabularis/releases/download/v0.3.0/tubularis-d1-darwin-x64.zip",
+            "darwin-arm64": "https://github.com/GabrielMalava/cloudflare-tabularis/releases/download/v0.3.0/tubularis-d1-darwin-arm64.zip",
+            "win-x64": "https://github.com/GabrielMalava/cloudflare-tabularis/releases/download/v0.3.0/tubularis-d1-win-x64.zip"
+          }
+        }
+      ]
+    },
+    {
+      "id": "elasticsearch",
+      "name": "Elasticsearch",
+      "description": "Query and inspect Elasticsearch clusters via SQL, ES|QL, and raw REST requests, with index browsing, mapping viewer, and document sampling.",
+      "author": "erwin-lovecraft <https://github.com/erwin-lovecraft>",
+      "homepage": "https://github.com/TabularisDB/tabularis-elasticsearch-plugin",
+      "latest_version": "0.1.0",
+      "releases": [
+        {
+          "version": "0.1.0",
+          "min_tabularis_version": "0.15.0",
+          "assets": {
+            "linux-x64": "https://github.com/TabularisDB/tabularis-elasticsearch-plugin/releases/download/v0.1.0/elasticsearch-plugin-linux-x64.zip",
+            "darwin-x64": "https://github.com/TabularisDB/tabularis-elasticsearch-plugin/releases/download/v0.1.0/elasticsearch-plugin-darwin-x64.zip",
+            "darwin-arm64": "https://github.com/TabularisDB/tabularis-elasticsearch-plugin/releases/download/v0.1.0/elasticsearch-plugin-darwin-arm64.zip",
+            "win-x64": "https://github.com/TabularisDB/tabularis-elasticsearch-plugin/releases/download/v0.1.0/elasticsearch-plugin-win-x64.zip"
+          }
+        }
+      ]
     }
   ]
 }

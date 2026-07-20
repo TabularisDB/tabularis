@@ -7,7 +7,7 @@ mod tests;
 
 pub use format::{parse_csv_delimiter, value_to_csv_string, ExportFormat, DEFAULT_CSV_DELIMITER};
 pub use progress::{ProgressEmitter, DEFAULT_INTERVAL as DEFAULT_PROGRESS_INTERVAL};
-pub use sink::{CsvSink, JsonSink, RowSink};
+pub use sink::{CsvSink, JsonSink, MarkdownSink, RowSink};
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -156,6 +156,11 @@ async fn run_export<R: Runtime>(
         }
         ExportFormat::Json => {
             let mut sink = JsonSink::new(writer);
+            stream_to_sink(driver, params, query, &mut sink, &mut progress).await?;
+            sink.finish()?;
+        }
+        ExportFormat::Markdown => {
+            let mut sink = MarkdownSink::new(writer);
             stream_to_sink(driver, params, query, &mut sink, &mut progress).await?;
             sink.finish()?;
         }
