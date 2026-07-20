@@ -1825,7 +1825,17 @@
       "resourceTypeInvalid": "Ang uri ng resource ay dapat na \"service\" o \"pod\"",
       "resourceNameRequired": "Kailangan ang pangalan ng resource",
       "portInvalid": "Ang port ay dapat nasa pagitan ng 1 at 65535"
-    }
+    },
+    "advancedSettings": "Mga advanced na setting ng kubectl",
+    "kubectlPath": "Path ng kubectl",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "Path ng kubeconfig",
+    "kubeconfigPathPlaceholder": "Path papunta sa kubeconfig",
+    "pathValidationFailed": "Ayusin ang mga invalid na advanced Kubernetes path field bago magpatuloy.",
+    "pathSelectionReset": "Nagbago ang mga advanced Kubernetes path. Piliin muli ang context, namespace, at resource.",
+    "noContexts": "Walang available na context",
+    "noNamespaces": "Walang available na namespace",
+    "noResources": "Walang available na resource"
   },
   "routines": {
     "menuRun": "Patakbuhin…",

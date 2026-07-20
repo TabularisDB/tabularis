@@ -68,6 +68,12 @@ pub struct DriverCapabilities {
     /// Folder-based database (e.g. CSV directory); connection points to a directory instead of a file.
     #[serde(default)]
     pub folder_based: bool,
+    /// The driver exposes a single implicit database, so there is nothing to
+    /// select or name (e.g. a flat search/document store like Meilisearch).
+    /// Skips the database tab and the database-name field in the connection
+    /// modal. Network drivers only.
+    #[serde(default)]
+    pub single_database: bool,
     /// Enables connection string import input in the connection modal.
     /// Defaults to `true` for backward compatibility.
     #[serde(default = "default_true", alias = "connectionString")]
@@ -202,6 +208,16 @@ pub struct PluginManifest {
     /// built-in entries without relying on a hardcoded ID list.
     #[serde(default)]
     pub is_builtin: bool,
+    /// Concrete database engine this driver targets (registry manifest
+    /// `engine`, e.g. `"meilisearch"`). `None` for built-ins (the frontend
+    /// supplies their engine/paradigms). Lets the connection catalogue place
+    /// locally-installed, not-yet-published plugins.
+    #[serde(default)]
+    pub engine: Option<String>,
+    /// Data-model families, primary first (registry manifest `paradigms`,
+    /// e.g. `["search", "document"]`). Empty for built-ins.
+    #[serde(default)]
+    pub paradigms: Vec<String>,
     /// Default username pre-filled in the connection modal (e.g. `"postgres"`,
     /// `"root"`). Empty string for drivers that have no default.
     #[serde(default)]

@@ -1826,7 +1826,17 @@
       "resourceTypeInvalid": "Тип ресурса должен быть \"service\" или \"pod\"",
       "resourceNameRequired": "Имя ресурса обязательно",
       "portInvalid": "Порт должен быть в диапазоне от 1 до 65535"
-    }
+    },
+    "advancedSettings": "Расширенные настройки kubectl",
+    "kubectlPath": "Путь к kubectl",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "Путь к kubeconfig",
+    "kubeconfigPathPlaceholder": "Путь к kubeconfig",
+    "pathValidationFailed": "Исправьте недопустимые поля расширенных путей Kubernetes перед продолжением.",
+    "pathSelectionReset": "Расширенные пути Kubernetes изменились. Снова выберите контекст, пространство имён и ресурс.",
+    "noContexts": "Нет доступных контекстов",
+    "noNamespaces": "Нет доступных пространств имён",
+    "noResources": "Нет доступных ресурсов"
   },
   "routines": {
     "menuRun": "Выполнить…",

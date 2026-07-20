@@ -221,6 +221,10 @@ pub struct ConnectionParams {
     pub k8s_resource_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub k8s_port: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub k8s_kubectl_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub k8s_kubeconfig_path: Option<String>,
     /// SQL run on every new physical connection in the pool (e.g. `SET` /
     /// `set_config` for session-scoped settings such as bypassing RLS).
     /// Statements are separated by `;`. Runs per pooled connection so the
@@ -296,6 +300,10 @@ pub struct K8sConnection {
     pub resource_type: String, // "service" or "pod"
     pub resource_name: String,
     pub port: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubectl_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubeconfig_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -306,6 +314,10 @@ pub struct K8sConnectionInput {
     pub resource_type: String,
     pub resource_name: String,
     pub port: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubectl_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubeconfig_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

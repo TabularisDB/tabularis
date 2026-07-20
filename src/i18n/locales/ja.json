@@ -647,7 +647,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "提供：",
+      "openHomepage": "ホームページを開く"
     },
     "shortcuts": {
       "title": "キーボードショートカット",
@@ -864,7 +866,8 @@
     "scrollTabsRight": "タブを右にスクロール",
     "useIamAuth": "AWS IAM 認証を使用する (RDS)",
     "useIamAuthHint": "パスワード欄は RDS 認証トークン (`aws rds generate-db-auth-token` の出力) として扱われます。TLS 必須。トークンの有効期限は 15 分です。",
-    "useIamAuthTlsRequired": "AWS IAM 認証を使用するには、上記で SSL モードを有効にしてください。"
+    "useIamAuthTlsRequired": "AWS IAM 認証を使用するには、上記で SSL モードを有効にしてください。",
+    "changeDatabase": "データベースを変更"
   },
   "sshConnections": {
     "title": "SSH 接続",
@@ -1770,7 +1773,17 @@
       "resourceTypeInvalid": "リソースタイプは \"service\" または \"pod\" である必要があります",
       "resourceNameRequired": "リソース名は必須です",
       "portInvalid": "ポートは 1 から 65535 の範囲で指定してください"
-    }
+    },
+    "advancedSettings": "kubectl の詳細設定",
+    "kubectlPath": "kubectl のパス",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "kubeconfig のパス",
+    "kubeconfigPathPlaceholder": "kubeconfig へのパス",
+    "pathValidationFailed": "続行する前に、Kubernetes の詳細設定にある無効なパス項目を修正してください。",
+    "pathSelectionReset": "Kubernetes の詳細パスが変更されました。コンテキスト、名前空間、リソースをもう一度選択してください。",
+    "noContexts": "利用可能なコンテキストはありません",
+    "noNamespaces": "利用可能なネームスペースはありません",
+    "noResources": "利用可能なリソースはありません"
   },
   "routines": {
     "menuRun": "実行…",
@@ -1804,5 +1817,46 @@
   "miniGrid": {
     "runningQuery": "クエリを実行中...",
     "copyAll": "すべてコピー"
+  },
+  "deepLink": {
+    "installTitle": "レジストリからプラグインをインストール",
+    "installSubtitle": "Tabularium レジストリが Tabularis にプラグインのインストールを要求しました。",
+    "plugin": "プラグイン",
+    "version": "バージョン",
+    "registry": "レジストリ",
+    "latest": "最新",
+    "installConfirm": "インストール",
+    "installing": "インストール中…",
+    "loadingPreview": "詳細を読み込み中…",
+    "usingConfigured": "設定済みレジストリ",
+    "mismatchTitle": "設定とは異なるレジストリ",
+    "mismatchBody": "設定済みのレジストリは {{configured}} です。リンクは別の場所を指しています — 続行前にご確認ください。",
+    "updateConfirm": "v{{version}} に更新",
+    "alreadyInstalled": "バージョン {{version}} は既にインストールされています。"
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "データベースを検索…",
+    "clearSearch": "検索をクリア",
+    "verified": "検証済み",
+    "installed": "インストール済み",
+    "install": "インストール",
+    "clear": "クリア",
+    "registryOffline": "レジストリに接続できません — インストール済みおよび組み込みドライバーのみ表示しています。",
+    "noMatches": "フィルターに一致するデータベースがありません。",
+    "clearFilters": "フィルターをクリア",
+    "driverCount_one": "{{count}} 個のドライバー",
+    "driverCount_other": "{{count}} 個のドライバー",
+    "connectTo": "{{name}} に接続",
+    "unavailableOnPlatform": "お使いのプラットフォームでは利用できません",
+    "backToCatalogue": "カタログに戻る",
+    "pickDriver": "複数のドライバーが {{name}} に接続します。1つ選択してください：",
+    "latestVersion": "最新 v{{version}}",
+    "continue": "続行",
+    "noReleaseTitle": "お使いのプラットフォーム向けのインストール可能なリリースはまだありません。",
+    "noReleaseBody": "このドライバーには、お使いのOS/アーキテクチャ向けのダウンロード可能なビルドがありません。更新されたリリースについてはレジストリを確認してください。",
+    "notInstalled": "このドライバーはまだインストールされていません。接続を設定するにはインストールしてください。",
+    "installVersion": "v{{version}} をインストール",
+    "installingVersion": "v{{version}} をインストール中…",
+    "retryInstall": "インストールを再試行"
   }
 }

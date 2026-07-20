@@ -658,7 +658,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "Con tecnología de",
+      "openHomepage": "Abrir página"
     },
     "shortcuts": {
       "title": "Atajos de teclado",
@@ -875,7 +877,8 @@
     "scrollTabsRight": "Desplazar pestañas a la derecha",
     "useIamAuth": "Usar autenticación AWS IAM (RDS)",
     "useIamAuthHint": "El campo de contraseña se interpreta como un token de autenticación de RDS (obtenido con `aws rds generate-db-auth-token`). Requiere TLS. Los tokens caducan cada 15 minutos.",
-    "useIamAuthTlsRequired": "Activa un modo SSL arriba para usar la autenticación AWS IAM."
+    "useIamAuthTlsRequired": "Activa un modo SSL arriba para usar la autenticación AWS IAM.",
+    "changeDatabase": "Cambiar base de datos"
   },
   "sshConnections": {
     "title": "Conexiones SSH",
@@ -1728,7 +1731,17 @@
       "resourceTypeInvalid": "El tipo de recurso debe ser \"service\" o \"pod\"",
       "resourceNameRequired": "El nombre del recurso es obligatorio",
       "portInvalid": "El puerto debe estar entre 1 y 65535"
-    }
+    },
+    "advancedSettings": "Configuración avanzada de kubectl",
+    "kubectlPath": "Ruta de kubectl",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "Ruta de kubeconfig",
+    "kubeconfigPathPlaceholder": "Ruta al kubeconfig",
+    "pathValidationFailed": "Corrige los campos de ruta avanzada de Kubernetes no válidos antes de continuar.",
+    "pathSelectionReset": "Las rutas avanzadas de Kubernetes han cambiado. Elige de nuevo el contexto, el namespace y el recurso.",
+    "noContexts": "No hay contextos disponibles",
+    "noNamespaces": "No hay namespaces disponibles",
+    "noResources": "No hay recursos disponibles"
   },
   "routines": {
     "menuRun": "Ejecutar…",
@@ -1762,5 +1775,46 @@
   "miniGrid": {
     "runningQuery": "Ejecutando consulta...",
     "copyAll": "Copiar todo"
+  },
+  "deepLink": {
+    "installTitle": "Instalar plugin desde el registro",
+    "installSubtitle": "Un registro de Tabularium pidió a Tabularis que instale un plugin.",
+    "plugin": "Plugin",
+    "version": "Versión",
+    "registry": "Registro",
+    "latest": "Última",
+    "installConfirm": "Instalar",
+    "installing": "Instalando…",
+    "loadingPreview": "Cargando detalles…",
+    "usingConfigured": "registro configurado",
+    "mismatchTitle": "Registro distinto al configurado",
+    "mismatchBody": "Tu registro configurado es {{configured}}. El enlace apunta a otro — revisa antes de continuar.",
+    "updateConfirm": "Actualizar a v{{version}}",
+    "alreadyInstalled": "La versión {{version}} ya está instalada."
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "Buscar bases de datos…",
+    "clearSearch": "Borrar búsqueda",
+    "verified": "Verificado",
+    "installed": "Instalado",
+    "install": "Instalar",
+    "clear": "Limpiar",
+    "registryOffline": "Registro no disponible: mostrando solo controladores instalados e integrados.",
+    "noMatches": "Ninguna base de datos coincide con tus filtros.",
+    "clearFilters": "Limpiar filtros",
+    "driverCount_one": "{{count}} controlador",
+    "driverCount_other": "{{count}} controladores",
+    "connectTo": "Conectar a {{name}}",
+    "unavailableOnPlatform": "No disponible en tu plataforma",
+    "backToCatalogue": "Volver al catálogo",
+    "pickDriver": "Varios controladores se conectan a {{name}}. Elige uno:",
+    "latestVersion": "Última v{{version}}",
+    "continue": "Continuar",
+    "noReleaseTitle": "Aún no hay una versión instalable para tu plataforma.",
+    "noReleaseBody": "Este controlador no tiene una compilación descargable para tu SO/arquitectura. Consulta el registro para una versión actualizada.",
+    "notInstalled": "Este controlador aún no está instalado. Instálalo para configurar una conexión.",
+    "installVersion": "Instalar v{{version}}",
+    "installingVersion": "Instalando v{{version}}…",
+    "retryInstall": "Reintentar instalación"
   }
 }

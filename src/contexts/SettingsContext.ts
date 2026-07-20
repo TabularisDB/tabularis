@@ -46,6 +46,8 @@ export interface Settings {
   /** Whether copied CSV output includes a header row. Default: true. */
   csvIncludeHeaders?: boolean;
   activeExternalDrivers?: string[];
+  /** Base URL of the Tabularium plugin registry. Defaults to the built-in instance when unset. */
+  tabulariumRegistryUrl?: string;
   plugins?: Record<string, PluginConfig>;
   editorTheme?: string;
   editorFontFamily?: string;

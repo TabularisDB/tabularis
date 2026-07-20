@@ -28,11 +28,23 @@ jobs:
             args: "--target x86_64-apple-darwin"
           - platform: "ubuntu-24.04"
             args: ""
+            # Build inside an ubuntu:22.04 container (glibc 2.35) rather than
+            # on the bare ubuntu-24.04 runner (glibc 2.39), so the produced
+            # .deb/.AppImage keep running on older LTS distros. Pinned to the
+            # container image, not the runner, so it's unaffected by GitHub's
+            # eventual deprecation of the ubuntu-22.04 *runner* image.
+            container: "ubuntu:22.04"
           - platform: "windows-latest"
             args: ""
 
     runs-on: ${{ matrix.platform }}
+    container: ${{ matrix.container }}
     steps:
+      - name: Install container prerequisites (ubuntu container only)
+        if: matrix.container
+        run: |
+          apt-get update
+          apt-get install -y git ca-certificates curl
       - name: Resolve build ref + tag
         id: meta
         shell: bash
@@ -79,8 +91,8 @@ jobs:
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-24.04'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          apt-get update
+          apt-get install -y \
             build-essential \
             curl \
             wget \

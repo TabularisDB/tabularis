@@ -178,12 +178,34 @@ pub fn run() {
     sqlx::any::install_default_drivers();
 
     tauri::Builder::default()
+        // Singleton: a second launch (typically a `tabularis://...` URL
+        // clicked while the app is already running) hands its argv to the
+        // first instance and exits. With `features = ["deep-link"]` the plugin
+        // usually auto-routes those URLs through `on_open_url`, but on
+        // Linux/Windows the URL arrives as a plain argv entry on warm launch.
+        // We scan argv for it defensively and dispatch ourselves so the
+        // install modal fires even when auto-routing doesn't.
+        //
+        // Order matters: must be the FIRST plugin in the chain so it can
+        // intercept duplicate launches before any heavy initialisation.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            log::info!("Duplicate launch detected — forwarded to existing instance");
+            if let Some(url) = argv.iter().find(|a| a.starts_with("tabularis:")) {
+                crate::plugins::deep_link::handle_url(app, url);
+            }
+            if let Some(win) = tauri::Manager::get_webview_window(app, "main") {
+                let _ = win.unminimize();
+                let _ = win.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init())
+        .manage(crate::plugins::deep_link::PendingInstall::default())
         .manage(commands::QueryCancellationState::default())
         .manage(export::ExportCancellationState::default())
         .manage(dump_commands::DumpCancellationState::default())
@@ -230,6 +252,45 @@ pub fn run() {
                 tauri::async_runtime::spawn(async move {
                     health_check::start_ping_loop(handle, interval as u64).await;
                 });
+            }
+
+            // Subscribe to `tabularis://` deep links so a registry's
+            // "Open in App" button can hand us a plugin slug + version.
+            // The handler emits a frontend event; the React side opens the
+            // install confirmation modal. See `plugins::deep_link`.
+            //
+            // On Linux/Windows the scheme is only auto-registered when the
+            // app is installed from a bundled package. Under `tauri dev`
+            // the binary lives in `target/debug/...`, so call
+            // `register("tabularis")` here — it writes the desktop / xdg-mime
+            // entry pointing at the current binary so Firefox & friends can
+            // route `tabularis://...` to us. The call is a no-op on macOS
+            // (handled by Info.plist) and idempotent across restarts.
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let handle = app.handle().clone();
+                let deep_link = app.deep_link();
+                #[cfg(any(target_os = "linux", all(debug_assertions, target_os = "windows")))]
+                if let Err(e) = deep_link.register("tabularis") {
+                    log::warn!("Failed to register tabularis:// scheme: {}", e);
+                }
+                deep_link.on_open_url({
+                    let handle = handle.clone();
+                    move |event| {
+                        for url in event.urls() {
+                            crate::plugins::deep_link::handle_url(&handle, url.as_str());
+                        }
+                    }
+                });
+                // Cold-start path: when the OS launched us *because of* a
+                // tabularis:// URL, on_open_url won't fire — the URL is
+                // already consumed by the launch handshake. Pull it out via
+                // get_current() and route it through the same handler.
+                if let Ok(Some(urls)) = deep_link.get_current() {
+                    for url in urls {
+                        crate::plugins::deep_link::handle_url(&handle, url.as_str());
+                    }
+                }
             }
 
             // Watch for pending MCP approval requests and run periodic cleanup.
@@ -321,6 +382,7 @@ pub fn run() {
             commands::get_k8s_namespaces_cmd,
             commands::get_k8s_resources_cmd,
             commands::get_k8s_resource_ports_cmd,
+            commands::validate_k8s_path_cmd,
             // Connection Groups
             commands::get_connection_groups,
             commands::get_connections_with_groups,
@@ -518,6 +580,8 @@ pub fn run() {
             plugins::commands::get_plugin_manifest,
             plugins::commands::get_plugin_dir,
             plugins::commands::read_plugin_file,
+            plugins::commands::fetch_tabularium_plugin_preview,
+            plugins::deep_link::consume_pending_deep_link_install,
             plugins::manager::get_plugin_startup_errors,
             // JSON Viewer
             json_viewer::open_json_viewer_window,

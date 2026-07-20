@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   RefreshCw,
   Loader2,
@@ -27,13 +28,14 @@ import {
   Power,
   Boxes,
   Search,
+  Home,
 } from "lucide-react";
 import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
 import { useDrivers } from "../../hooks/useDrivers";
 import { usePluginRegistry } from "../../hooks/usePluginRegistry";
 import { useDatabase } from "../../hooks/useDatabase";
-import { parseAuthor, versionGte } from "../../utils/plugins";
+import { canUpdateToLatest, parseAuthor, versionGte } from "../../utils/plugins";
 import { removePluginConfig } from "../../utils/pluginConfig";
 import { findConnectionsForDrivers } from "../../utils/connectionManager";
 import { APP_VERSION } from "../../version";
@@ -76,7 +78,14 @@ interface PluginCardProps {
   description: string;
   version?: string;
   author?: string;
+  /** Upstream homepage / repo (shown as secondary link icon when registryPageUrl is also set). */
   homepage?: string;
+  /** Registry detail page. Priority target for the name button. */
+  registryPageUrl?: string | null;
+  /** Square logo URL surfaced by the Tabularium registry. Falls back to the letter band when missing/broken. */
+  iconUrl?: string | null;
+  /** Aggregate download count — surfaces as a small badge if > 0. */
+  downloads?: number | null;
   status?: ReactNode;
   meta?: ReactNode;
   actions: ReactNode;
@@ -92,6 +101,9 @@ function PluginCard({
   version,
   author,
   homepage,
+  registryPageUrl,
+  iconUrl,
+  downloads,
   status,
   meta,
   actions,
@@ -104,45 +116,74 @@ function PluginCard({
   const parsedAuthor = author ? parseAuthor(author) : null;
   const band = BAND_PALETTES[nameBandIndex(name)];
 
+  // Name button: registry detail page wins; falls back to upstream homepage.
+  const primaryHref = registryPageUrl ?? homepage ?? null;
+  // Show a second small homepage icon when BOTH targets exist and they
+  // point at different places (so the user can still reach the repo).
+  const secondaryHomepage =
+    homepage && registryPageUrl && stripTrailingSlash(homepage) !== stripTrailingSlash(registryPageUrl)
+      ? homepage
+      : null;
+
   return (
     <div
       className={clsx(
-        "group relative flex h-full flex-col rounded-lg bg-elevated overflow-hidden",
+        "group relative flex h-full flex-col rounded-xl bg-elevated overflow-hidden",
         "transition-all duration-200 ease-out",
-        "hover:-translate-y-px",
+        "hover:-translate-y-0.5",
         !accent &&
-          "border border-default hover:border-strong hover:shadow-md",
+          "border border-default hover:border-strong hover:shadow-lg hover:shadow-black/20",
         accent === "green" && [
           "border border-default border-l-[3px] border-l-green-500/80",
-          "hover:border-strong hover:shadow-lg hover:shadow-green-900/20",
+          "hover:border-strong hover:shadow-lg hover:shadow-green-900/30",
         ],
         accent === "amber" && [
           "border border-default border-l-[3px] border-l-amber-500/80",
-          "hover:border-strong hover:shadow-lg hover:shadow-amber-900/20",
+          "hover:border-strong hover:shadow-lg hover:shadow-amber-900/30",
         ],
         accent === "blue" && [
           "border border-default border-l-[3px] border-l-blue-600/80",
-          "hover:border-strong hover:shadow-lg hover:shadow-blue-900/20",
+          "hover:border-strong hover:shadow-lg hover:shadow-blue-900/30",
         ],
         dimmed && "opacity-55",
       )}
     >
-      {/* WordPress-style plugin header band */}
+      {/* Header band with logo (Tabularium icon) or first-letter fallback. */}
       {showBand && (
         <div
           className={clsx(
-            "flex h-12 shrink-0 items-center justify-center",
+            "relative flex h-14 shrink-0 items-center justify-center overflow-hidden",
             band.bg,
           )}
         >
-          <span
-            className={clsx(
-              "select-none text-4xl font-bold leading-none",
-              band.text,
-            )}
-          >
-            {name.trim().charAt(0).toUpperCase()}
-          </span>
+          {/* Subtle radial highlight so the band reads as a "platform" surface, not a flat stripe. */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/[0.04] via-transparent to-black/20" />
+          {iconUrl ? (
+            <img
+              src={iconUrl}
+              alt=""
+              loading="lazy"
+              className="relative h-10 w-10 object-contain drop-shadow-md"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />
+          ) : (
+            <span
+              className={clsx(
+                "relative select-none text-4xl font-bold leading-none",
+                band.text,
+              )}
+            >
+              {name.trim().charAt(0).toUpperCase()}
+            </span>
+          )}
+          {!!downloads && downloads > 0 && (
+            <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-black/40 px-1.5 py-px text-[10px] font-medium text-white/80 backdrop-blur-sm">
+              <Download size={9} />
+              {formatCount(downloads)}
+            </span>
+          )}
         </div>
       )}
 
@@ -164,11 +205,12 @@ function PluginCard({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              {homepage ? (
+              {primaryHref ? (
                 <button
                   type="button"
-                  onClick={() => openUrl(homepage)}
-                  className="inline-flex min-w-0 items-center gap-1 text-left text-sm font-semibold text-primary hover:underline underline-offset-2"
+                  onClick={() => openUrl(primaryHref)}
+                  title={primaryHref}
+                  className="inline-flex min-w-0 items-center gap-1 text-left text-sm font-semibold text-primary cursor-pointer hover:underline underline-offset-2"
                 >
                   <span className="truncate">{name}</span>
                   <ExternalLink size={11} className="shrink-0 text-muted" />
@@ -178,8 +220,21 @@ function PluginCard({
                   {name}
                 </span>
               )}
+              {secondaryHomepage && (
+                <button
+                  type="button"
+                  onClick={() => openUrl(secondaryHomepage)}
+                  title={secondaryHomepage}
+                  aria-label={t("settings.plugins.openHomepage", {
+                    defaultValue: "Open homepage",
+                  })}
+                  className="text-muted hover:text-primary cursor-pointer transition-colors"
+                >
+                  <Home size={11} />
+                </button>
+              )}
               {version && (
-                <span className="shrink-0 rounded border border-default bg-base px-1.5 py-px font-mono text-[10px] text-muted">
+                <span className="shrink-0 rounded-md border border-default bg-base px-1.5 py-px font-mono text-[10px] text-muted">
                   v{version}
                 </span>
               )}
@@ -191,7 +246,7 @@ function PluginCard({
                   <button
                     type="button"
                     onClick={() => openUrl((parsedAuthor.url ?? homepage)!)}
-                    className="underline-offset-2 transition-colors hover:text-secondary hover:underline"
+                    className="cursor-pointer underline-offset-2 transition-colors hover:text-secondary hover:underline"
                   >
                     {parsedAuthor.name}
                   </button>
@@ -209,7 +264,7 @@ function PluginCard({
         </p>
 
         {meta && (
-          <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted">
+          <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted">
             {meta}
           </div>
         )}
@@ -220,6 +275,16 @@ function PluginCard({
       </div>
     </div>
   );
+}
+
+function stripTrailingSlash(s: string): string {
+  return s.replace(/\/+$/, "");
+}
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
 }
 
 /* ── Version dropdown ── */
@@ -554,6 +619,30 @@ export function PluginsTab({
     return list;
   }, [registryPlugins, activeFilter, searchQuery]);
 
+  // Refresh the catalogue + drivers when a deep-link install succeeds at
+  // app level — without this the user has to manually click Refresh after
+  // the confirm modal closes.
+  useEffect(() => {
+    let cleanup: UnlistenFn | null = null;
+    let mounted = true;
+    listen("tabularis://plugin-installed", () => {
+      if (!mounted) return;
+      refreshRegistry();
+      refreshDrivers();
+    })
+      .then((u) => {
+        if (mounted) cleanup = u;
+        else u();
+      })
+      .catch(() => {
+        /* ignore — listener is best-effort */
+      });
+    return () => {
+      mounted = false;
+      cleanup?.();
+    };
+  }, [refreshRegistry, refreshDrivers]);
+
   useEffect(() => {
     invoke<Array<{ plugin_id: string; error: string }>>(
       "get_plugin_startup_errors",
@@ -593,6 +682,16 @@ export function PluginsTab({
       setInstallingPluginId(pluginId);
       try {
         await invoke("install_plugin", { pluginId, version });
+        // The picked version is spent once installed. Keeping it would pin the
+        // card to what's now on disk, which reads as neither "up to date" (it
+        // isn't latest) nor updatable (it is installed) — and the picker hides
+        // itself once only one other release is left, leaving no way out.
+        setSelectedVersions((prev) => {
+          if (!(pluginId in prev)) return prev;
+          const next = { ...prev };
+          delete next[pluginId];
+          return next;
+        });
         await updateSettingRef.current(
           "activeExternalDrivers",
           Array.from(
@@ -888,6 +987,9 @@ export function PluginsTab({
                       const registryPlugin = registryPlugins.find(
                         (p) => p.id === driver.id,
                       );
+                      const canUpdate =
+                        !isBuiltin &&
+                        canUpdateToLatest(registryPlugin, APP_VERSION);
                       const isEnabled =
                         isBuiltin || activeExternalDrivers.includes(driver.id);
                       const accent: CardAccent = isBuiltin
@@ -941,6 +1043,28 @@ export function PluginsTab({
                                   )}
                                 >
                                   <SettingsIcon size={15} />
+                                </button>
+                              )}
+                              {canUpdate && registryPlugin && (
+                                <button
+                                  onClick={() =>
+                                    doInstall(
+                                      driver.id,
+                                      registryPlugin.latest_version,
+                                    )
+                                  }
+                                  disabled={installingPluginId === driver.id}
+                                  className="flex items-center gap-1 text-[11px] text-green-500/80 hover:text-green-400 disabled:opacity-50 transition-colors"
+                                >
+                                  {installingPluginId === driver.id ? (
+                                    <Loader2
+                                      size={11}
+                                      className="animate-spin"
+                                    />
+                                  ) : (
+                                    <RefreshCw size={11} />
+                                  )}
+                                  {`${t("settings.plugins.update")} v${registryPlugin.latest_version}`}
                                 </button>
                               )}
                               {!isBuiltin && (
@@ -1134,6 +1258,38 @@ export function PluginsTab({
                     </span>
                   ) : undefined;
 
+                  // Tags + kind chips from the Tabularium catalogue. Kind is
+                  // shown as a distinct pill since it drives admin taxonomies;
+                  // remaining tags become muted chips.
+                  const remainingTags = (plugin.tags ?? []).filter(
+                    (t) => t && t !== plugin.kind,
+                  );
+                  const tagMeta =
+                    plugin.kind || remainingTags.length > 0 ? (
+                      <>
+                        {plugin.kind && (
+                          <span className="rounded-md border border-blue-700/30 bg-blue-900/20 px-1.5 py-px text-blue-300">
+                            {plugin.kind}
+                          </span>
+                        )}
+                        {remainingTags.slice(0, 4).map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded-md border border-default bg-base px-1.5 py-px"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </>
+                    ) : undefined;
+
+                  // If we know which registry served this plugin, link the
+                  // card title to its detail page on that registry (highest
+                  // priority); the upstream homepage becomes a small icon.
+                  const registryPageUrl = plugin.registry_base_url
+                    ? `${plugin.registry_base_url.replace(/\/+$/, "")}/plugins/${plugin.id}`
+                    : null;
+
                   return (
                     <PluginCard
                       key={plugin.id}
@@ -1141,10 +1297,14 @@ export function PluginsTab({
                       description={plugin.description}
                       author={plugin.author}
                       homepage={plugin.homepage}
+                      registryPageUrl={registryPageUrl}
+                      iconUrl={plugin.icon}
+                      downloads={plugin.downloads}
                       accent={accent}
                       pulse={plugin.update_available}
                       showBand
                       status={installedBadge}
+                      meta={tagMeta}
                       actions={
                         !selectedPlatformSupported ? (
                           <span className="text-xs text-muted italic text-right">
@@ -1281,10 +1441,27 @@ export function PluginsTab({
                 )}
               </div>
             )}
+
           </>
           )}
           </div>
         </div>
+      </div>
+
+      {/* Sticky attribution — pinned to the bottom of the Settings scroll
+          area regardless of how far the user has scrolled. The negative
+          horizontal margin pulls it through the parent's p-8 padding so
+          the top border looks edge-to-edge inside the max-w-5xl. */}
+      <div className="sticky bottom-0 z-10 -mx-8 mt-6 px-8 py-2.5 bg-base/85 backdrop-blur-md border-t border-default flex items-center justify-end text-xs text-muted">
+        <span>{t("settings.plugins.poweredBy")}</span>
+        <button
+          type="button"
+          onClick={() => openUrl("https://tabularium.wiki")}
+          className="ml-1 inline-flex items-center gap-1 text-primary cursor-pointer hover:underline underline-offset-2"
+        >
+          Tabularium
+          <ExternalLink size={11} />
+        </button>
       </div>
 
       {/* Modals */}

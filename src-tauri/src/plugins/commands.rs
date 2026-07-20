@@ -4,20 +4,36 @@ use std::time::Duration;
 use crate::drivers::driver_trait::PluginManifest;
 use crate::plugins::installer::{self, InstalledPluginInfo};
 use crate::plugins::manager::ConfigManifest;
-use crate::plugins::registry::{self, RegistryPluginWithStatus, RegistryReleaseWithStatus};
+use crate::plugins::registry::{self, RegistryPlugin, RegistryPluginWithStatus, RegistryReleaseWithStatus};
 use tauri::AppHandle;
 use tokio::time::sleep;
+
+/// Resolves which Tabularium registry to talk to. Operators pin a
+/// URL via `tabularium_registry_url` in `config.json`; otherwise the
+/// built-in default applies.
+fn registry_base_url(config: &crate::config::AppConfig) -> &str {
+    config
+        .tabularium_registry_url
+        .as_deref()
+        .unwrap_or(registry::DEFAULT_TABULARIUM_URL)
+}
 
 #[tauri::command]
 pub async fn fetch_plugin_registry(
     app: AppHandle,
 ) -> Result<Vec<RegistryPluginWithStatus>, String> {
     let config = crate::config::load_config_internal(&app);
-    let remote = registry::fetch_registry(config.custom_registry_url.as_deref()).await?;
+    let base_url = registry_base_url(&config).trim_end_matches('/').to_string();
+    // COMPAT(registry-ga): merge the API with the legacy static registry.json so
+    // not-yet-migrated plugins stay visible during the transition.
+    let legacy_url = crate::plugins::compat::legacy_registry_url(&config);
     let installed = installer::list_installed()?;
+    let installed_ids: Vec<String> = installed.iter().map(|i| i.id.clone()).collect();
+    let remote =
+        crate::plugins::compat::resolve_registry(&base_url, &legacy_url, &installed_ids).await?;
     let platform = registry::get_current_platform();
 
-    let result = remote
+    let result: Vec<RegistryPluginWithStatus> = remote
         .plugins
         .into_iter()
         .map(|plugin| {
@@ -25,46 +41,114 @@ pub async fn fetch_plugin_registry(
                 .iter()
                 .find(|i| i.id == plugin.id)
                 .map(|i| i.version.clone());
+            // `registry_base_url` is stamped in resolve_registry, which still
+            // knows whether a plugin came from the API or the legacy registry.
+            to_plugin_with_status(plugin, installed_version, &platform)
+        })
+        .collect();
 
-            let update_available = installed_version
-                .as_ref()
-                .map(|iv| iv != &plugin.latest_version)
-                .unwrap_or(false);
+    Ok(result)
+}
 
-            let releases: Vec<RegistryReleaseWithStatus> = plugin
-                .releases
-                .iter()
-                .map(|r| {
-                    let platform_supported =
-                        r.assets.contains_key(&platform) || r.assets.contains_key("universal");
-                    RegistryReleaseWithStatus {
-                        version: r.version.clone(),
-                        min_tabularis_version: r.min_tabularis_version.clone(),
-                        platform_supported,
-                    }
-                })
-                .collect();
-
-            let platform_supported = releases
-                .iter()
-                .any(|r| r.version == plugin.latest_version && r.platform_supported);
-
-            RegistryPluginWithStatus {
-                id: plugin.id,
-                name: plugin.name,
-                description: plugin.description,
-                author: plugin.author,
-                homepage: plugin.homepage,
-                latest_version: plugin.latest_version,
-                releases,
-                installed_version,
-                update_available,
+/// Builds a `RegistryPluginWithStatus` from a registry plugin + the installed
+/// version (if any), computing per-release platform support and a SemVer-aware
+/// `update_available`. `install_action` is left `None` here; the deeplink
+/// preview path sets it explicitly.
+fn to_plugin_with_status(
+    plugin: RegistryPlugin,
+    installed_version: Option<String>,
+    platform: &str,
+) -> RegistryPluginWithStatus {
+    let releases: Vec<RegistryReleaseWithStatus> = plugin
+        .releases
+        .iter()
+        .map(|r| {
+            let platform_supported =
+                r.assets.contains_key(platform) || r.assets.contains_key("universal");
+            RegistryReleaseWithStatus {
+                version: r.version.clone(),
+                min_tabularis_version: r.min_tabularis_version.clone(),
                 platform_supported,
             }
         })
         .collect();
 
-    Ok(result)
+    let platform_supported = releases
+        .iter()
+        .any(|r| r.version == plugin.latest_version && r.platform_supported);
+
+    // SemVer-aware: "update" classification doubles as `update_available`.
+    let action = registry::classify_install(installed_version.as_deref(), &plugin.latest_version);
+    let update_available = matches!(action, registry::InstallAction::Update);
+
+    RegistryPluginWithStatus {
+        id: plugin.id,
+        name: plugin.name,
+        description: plugin.description,
+        author: plugin.author,
+        homepage: plugin.homepage,
+        latest_version: plugin.latest_version,
+        releases,
+        installed_version,
+        update_available,
+        platform_supported,
+        icon: plugin.icon,
+        repo_url: plugin.repo_url,
+        kind: plugin.kind,
+        tags: plugin.tags,
+        category: plugin.category,
+        downloads: plugin.downloads,
+        registry_base_url: plugin.registry_base_url,
+        engine: plugin.engine,
+        paradigms: plugin.paradigms,
+        verified: plugin.verified,
+        install_action: None,
+        signature: None,
+    }
+}
+
+/// API-path install resolution: resolves the concrete target version, confirms
+/// the platform is supported (+ sha256), and returns the registry's TRACKED
+/// download URL. Returns `(download_url, expected_sha256, target_version)`.
+async fn resolve_api_install_asset(
+    base: &str,
+    plugin_id: &str,
+    version: Option<&str>,
+    platform: &str,
+) -> Result<(String, Option<String>, String), String> {
+    let target_version = match version {
+        Some(v) => v.to_string(),
+        None => {
+            let detail = crate::plugins::tabularium::fetch_plugin_detail(base, plugin_id).await?;
+            if !detail.latest_version.is_empty() {
+                detail.latest_version
+            } else {
+                detail
+                    .releases
+                    .first()
+                    .map(|r| r.version.clone())
+                    .ok_or_else(|| {
+                        format!("Plugin '{}' has no releases on the registry", plugin_id)
+                    })?
+            }
+        }
+    };
+    // Resolve the asset for its sha256 + to confirm the platform is supported,
+    // but download via the registry's TRACKED redirect so the download counter
+    // increments. Use the dedicated `/latest` endpoint when no version was
+    // pinned, otherwise the versioned `/releases/{version}` endpoint.
+    let asset =
+        registry::resolve_tabularium_asset(base, plugin_id, &target_version, platform).await?;
+    let download_url = match version {
+        Some(_) => crate::plugins::tabularium::tracked_download_url(
+            base,
+            plugin_id,
+            &target_version,
+            platform,
+        ),
+        None => crate::plugins::tabularium::tracked_latest_download_url(base, plugin_id, platform),
+    };
+    Ok((download_url, asset.expected_sha256, target_version))
 }
 
 #[tauri::command]
@@ -80,36 +164,49 @@ pub async fn install_plugin(
     sleep(Duration::from_millis(500)).await;
 
     let config = crate::config::load_config_internal(&app);
-    let remote = registry::fetch_registry(config.custom_registry_url.as_deref()).await?;
     let platform = registry::get_current_platform();
+    let base = registry_base_url(&config);
 
-    let plugin = remote
-        .plugins
-        .iter()
-        .find(|p| p.id == plugin_id)
-        .ok_or_else(|| format!("Plugin '{}' not found in registry", plugin_id))?;
+    // Resolve the download URL + expected SHA-256 + concrete target version.
+    // Resolution order:
+    //   1. COMPAT(registry-ga): if the configured registry URL is a static
+    //      `.json` file, resolve directly from it (direct download, no sha256).
+    //   2. Otherwise use the Tabularium API + the TRACKED redirect download.
+    //   3. COMPAT(registry-ga): if the API doesn't know the plugin (it lives
+    //      only in the legacy registry, not yet migrated), fall back to the
+    //      configured legacy `registry.json`'s direct asset.
+    let (download_url, expected_sha256, target_version) =
+        if let Some(res) =
+            crate::plugins::compat::resolve_static_asset(base, &plugin_id, version.as_deref(), &platform)
+                .await
+        {
+            let asset = res?;
+            (asset.download_url, asset.expected_sha256, asset.version)
+        } else {
+            match resolve_api_install_asset(base, &plugin_id, version.as_deref(), &platform).await {
+                Ok(resolved) => resolved,
+                Err(api_err) => {
+                    // COMPAT(registry-ga): legacy-registry install fallback.
+                    let legacy_url = crate::plugins::compat::legacy_registry_url(&config);
+                    match crate::plugins::compat::fetch_static_asset(
+                        &legacy_url,
+                        &plugin_id,
+                        version.as_deref(),
+                        &platform,
+                    )
+                    .await
+                    {
+                        Ok(asset) => (asset.download_url, asset.expected_sha256, asset.version),
+                        Err(_) => return Err(api_err),
+                    }
+                }
+            }
+        };
+    installer::download_and_install(&plugin_id, &download_url, expected_sha256.as_deref()).await?;
 
-    let target_version = version.as_deref().unwrap_or(&plugin.latest_version);
-
-    let release = plugin
-        .releases
-        .iter()
-        .find(|r| r.version == target_version)
-        .ok_or_else(|| format!("No release found for version {}", target_version))?;
-
-    let download_url = release
-        .assets
-        .get(&platform)
-        .or_else(|| release.assets.get("universal"))
-        .ok_or_else(|| {
-            format!(
-                "Plugin '{}' does not support platform '{}'",
-                plugin_id, platform
-            )
-        })?;
-
-    installer::download_and_install(&plugin_id, download_url).await?;
-
+    // Verify the installed manifest matches what the registry advertised. The
+    // canonical schema uses `name` as the identity, so `installed_plugin.id`
+    // falls back to the manifest `name` when no legacy `id` is present.
     let installed_plugin = installer::read_installed_plugin(&plugin_id)?;
     if installed_plugin.id != plugin_id {
         return Err(format!(
@@ -180,27 +277,26 @@ pub async fn enable_plugin(app: AppHandle, plugin_id: String) -> Result<(), Stri
     Ok(())
 }
 
-/// Reads a plugin's manifest.json from disk and returns a PluginManifest.
+/// Reads a plugin's `.tabularium` manifest from disk and returns a PluginManifest.
 /// Useful for retrieving setting definitions for disabled plugins.
 #[tauri::command]
 pub async fn get_plugin_manifest(plugin_id: String) -> Result<PluginManifest, String> {
     let plugins_dir = installer::get_plugins_dir()?;
-    let manifest_path = plugins_dir.join(&plugin_id).join("manifest.json");
+    let plugin_dir = plugins_dir.join(&plugin_id);
 
-    let manifest_str = fs::read_to_string(&manifest_path)
+    let config: ConfigManifest = installer::read_manifest(&plugin_dir)
         .map_err(|e| format!("Failed to read manifest for '{}': {}", plugin_id, e))?;
 
-    let config: ConfigManifest = serde_json::from_str(&manifest_str)
-        .map_err(|e| format!("Failed to parse manifest for '{}': {}", plugin_id, e))?;
-
     Ok(PluginManifest {
-        id: config.id,
+        id: config.id.unwrap_or_else(|| config.name.clone()),
         name: config.name,
         version: config.version,
         description: config.description,
         default_port: config.default_port,
         capabilities: config.capabilities,
         is_builtin: false,
+        engine: config.engine,
+        paradigms: config.paradigms,
         default_username: config.default_username.unwrap_or_default(),
         color: config.color,
         icon: config.icon,
@@ -221,6 +317,57 @@ pub fn get_plugin_dir(plugin_id: String) -> Result<String, String> {
         .to_str()
         .ok_or_else(|| "Plugin path contains invalid UTF-8".to_string())
         .map(|s| s.to_string())
+}
+
+/// Fetches a rich plugin preview from a Tabularium registry, used by the
+/// `tabularis://` deep-link confirmation modal. When `registry_url` is
+/// omitted the user's configured registry (or the built-in default) is
+/// queried instead. Returns `RegistryPluginWithStatus` populated with the
+/// installed version and a resolved `install_action` so the modal can show
+/// Install / Update / "already installed".
+///
+/// NB: the deeplink *preview* talks to the Tabularium API directly (no static
+/// `registry.json` support). This is intentional — `tabularis://` links target
+/// the new registry — so there is deliberately no `COMPAT(registry-ga)` marker
+/// here. (`install_plugin` itself DOES support static registries, so the
+/// catalogue install path stays fully backwards-compatible.)
+#[tauri::command]
+pub async fn fetch_tabularium_plugin_preview(
+    app: AppHandle,
+    slug: String,
+    registry_url: Option<String>,
+    version: Option<String>,
+) -> Result<RegistryPluginWithStatus, String> {
+    let config = crate::config::load_config_internal(&app);
+    let base = registry_url
+        .as_deref()
+        .map(str::to_string)
+        .unwrap_or_else(|| registry_base_url(&config).to_string());
+    let mut plugin = crate::plugins::tabularium::fetch_plugin_detail(&base, &slug).await?;
+    plugin.registry_base_url = Some(base.trim_end_matches('/').to_string());
+
+    let installed_version = installer::list_installed()?
+        .into_iter()
+        .find(|i| i.id == slug)
+        .map(|i| i.version);
+    let platform = registry::get_current_platform();
+
+    // Target = the version the deeplink will install: the pinned version if the
+    // link specified one, otherwise the registry's latest.
+    let target = version
+        .as_deref()
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| plugin.latest_version.clone());
+    let action = registry::classify_install(installed_version.as_deref(), &target);
+
+    let mut with_status = to_plugin_with_status(plugin, installed_version, &platform);
+    with_status.install_action = Some(action);
+    // Probe the target release's signature so the confirm modal can badge it
+    // (verified / unsigned / invalid) before the user commits to installing.
+    with_status.signature =
+        Some(crate::plugins::tabularium::check_release_signature(&base, &slug, &target).await);
+    Ok(with_status)
 }
 
 /// Reads a file from an installed plugin's directory.

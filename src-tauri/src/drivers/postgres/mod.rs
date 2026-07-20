@@ -1658,6 +1658,7 @@ impl PostgresDriver {
                 default_port: Some(5432),
                 capabilities: DriverCapabilities {
                     schemas: true,
+                    single_database: false,
                     views: true,
                     materialized_views: true,
                     routines: true,
@@ -1682,6 +1683,8 @@ impl PostgresDriver {
                     sql_dialect: SqlDialect::Postgres,
                 },
                 is_builtin: true,
+                engine: Some("postgres".to_string()),
+                paradigms: vec!["sql".to_string()],
                 default_username: "postgres".to_string(),
                 color: "#3b82f6".to_string(),
                 icon: "postgres".to_string(),

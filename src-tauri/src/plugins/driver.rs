@@ -31,6 +31,7 @@ const PLUGIN_CALL_TIMEOUT: Duration = Duration::from_secs(120);
 const PLUGIN_INIT_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Flag to create the process without a console window on Windows.
+#[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 /// Heuristic for the JSON-RPC "method not found" error (code -32601). Only
@@ -1022,6 +1023,8 @@ mod tests {
                 ..Default::default()
             },
             is_builtin: false,
+            engine: None,
+            paradigms: Vec::new(),
             default_username: String::new(),
             color: String::new(),
             icon: String::new(),
@@ -1061,6 +1064,8 @@ mod tests {
             k8s_resource_type: None,
             k8s_resource_name: None,
             k8s_port: None,
+            k8s_kubectl_path: None,
+            k8s_kubeconfig_path: None,
             startup_script: None,
             connection_id: Some("conn-1".to_string()),
         }

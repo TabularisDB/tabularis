@@ -34,7 +34,7 @@ export function usePluginToast(): UsePluginToastReturn {
 
 /**
  * Read and write settings owned by a specific plugin.
- * Pass your plugin id (the one declared in manifest.json).
+ * Pass your plugin id (the one declared in the `.tabularium` manifest).
  */
 export function usePluginSetting(pluginId: string): UsePluginSettingReturn {
   return getHost().usePluginSetting(pluginId);
