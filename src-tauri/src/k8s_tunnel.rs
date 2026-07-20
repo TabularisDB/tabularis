@@ -1,7 +1,11 @@
+mod command;
+
+pub use command::{validate_k8s_path, K8sCommandOptions};
+
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::net::{TcpListener, TcpStream};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -17,9 +21,20 @@ pub struct K8sTunnel {
     child: Arc<Mutex<Child>>,
 }
 
-pub static TUNNELS: OnceLock<Mutex<HashMap<String, K8sTunnel>>> = OnceLock::new();
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct K8sTunnelKey {
+    context: String,
+    namespace: String,
+    resource_type: String,
+    resource_name: String,
+    port: u16,
+    kubectl: command::KubectlSelection,
+    kubeconfig: command::KubeconfigSelection,
+}
 
-pub fn get_tunnels() -> &'static Mutex<HashMap<String, K8sTunnel>> {
+pub static TUNNELS: OnceLock<Mutex<HashMap<K8sTunnelKey, K8sTunnel>>> = OnceLock::new();
+
+pub fn get_tunnels() -> &'static Mutex<HashMap<K8sTunnelKey, K8sTunnel>> {
     TUNNELS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -34,6 +49,7 @@ impl K8sTunnel {
         resource_type: &str,
         resource_name: &str,
         remote_port: u16,
+        options: &K8sCommandOptions,
     ) -> Result<Self, String> {
         eprintln!(
             "[K8s Tunnel] New request: context={}, namespace={}, {}/{}:{}",
@@ -41,7 +57,7 @@ impl K8sTunnel {
         );
 
         // Verify kubectl is available
-        Self::verify_kubectl()?;
+        Self::verify_kubectl(options)?;
 
         // Allocate a free local port
         let local_port = {
@@ -57,9 +73,7 @@ impl K8sTunnel {
         // Build the kubectl port-forward command
         let port_forward_spec = format!("{}:{}", local_port, remote_port);
         let resource = format!("{}/{}", resource_type, resource_name);
-
-        let mut args = Vec::with_capacity(10);
-        args.extend([
+        let args = [
             "port-forward",
             "--context",
             context,
@@ -67,20 +81,21 @@ impl K8sTunnel {
             namespace,
             &resource,
             &port_forward_spec,
-        ]);
+        ];
 
-        eprintln!("[K8s Tunnel] Executing: kubectl {:?}", args);
+        eprintln!(
+            "[K8s Tunnel] Executing: {} {:?}",
+            options.kubectl_label(),
+            args
+        );
 
-        let mut child = Command::new("kubectl")
-            .args(&args)
+        let mut child = command::kubectl_command(options)
+            .args(args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| {
-                let err = format!(
-                    "Failed to launch kubectl: {}. Ensure 'kubectl' is in PATH.",
-                    e
-                );
+            .map_err(|error| {
+                let err = command::kubectl_spawn_error(options, &error);
                 eprintln!("[K8s Tunnel Error] {}", err);
                 err
             })?;
@@ -182,37 +197,23 @@ impl K8sTunnel {
     pub fn stop(&self) {
         if let Ok(mut c) = self.child.lock() {
             let _ = c.kill();
-            eprintln!(
-                "[K8s Tunnel] Stopped tunnel on port {}",
-                self.local_port
-            );
+            eprintln!("[K8s Tunnel] Stopped tunnel on port {}", self.local_port);
         }
     }
 
-    /// Check that kubectl is available in PATH.
-    fn verify_kubectl() -> Result<(), String> {
-        let output = Command::new("kubectl")
-            .arg("version")
-            .arg("--client")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .map_err(|e| {
-                format!(
-                    "kubectl not found: {}. Please install kubectl and ensure it is in PATH.",
-                    e
-                )
-            })?;
-
-        if !output.status.success() {
-            return Err("kubectl version check failed. Please verify your kubectl installation.".to_string());
-        }
-
-        Ok(())
+    /// Check that kubectl is available.
+    fn verify_kubectl(options: &K8sCommandOptions) -> Result<(), String> {
+        command::run_kubectl(
+            &["version", "--client"],
+            options,
+            "kubectl version check failed. Please verify your kubectl installation",
+        )
+        .map(|_| ())
     }
 }
 
-/// Build a deterministic tunnel map key from K8s parameters.
+/// Build a deterministic, collision-safe tunnel map key from K8s parameters
+/// and the effective command selections.
 #[inline]
 pub fn build_tunnel_key(
     context: &str,
@@ -220,60 +221,61 @@ pub fn build_tunnel_key(
     resource_type: &str,
     resource_name: &str,
     port: u16,
-) -> String {
-    format!(
-        "{}:{}:{}/{}:{}",
-        context, namespace, resource_type, resource_name, port
-    )
+    options: &K8sCommandOptions,
+) -> K8sTunnelKey {
+    K8sTunnelKey {
+        context: context.to_string(),
+        namespace: namespace.to_string(),
+        resource_type: resource_type.to_string(),
+        resource_name: resource_name.to_string(),
+        port,
+        kubectl: options.kubectl_selection(),
+        kubeconfig: options.kubeconfig_selection(),
+    }
 }
 
 /// Test a K8s connection by verifying context and namespace reachability.
 pub fn test_k8s_connection(
     context: &str,
     namespace: &str,
+    options: &K8sCommandOptions,
 ) -> Result<String, String> {
     eprintln!(
         "[K8s Test] Testing connection: context={}, namespace={}",
         context, namespace
     );
 
-    K8sTunnel::verify_kubectl()?;
+    K8sTunnel::verify_kubectl(options)?;
 
-    let output = Command::new("kubectl")
-        .args(["--context", context, "get", "namespace", namespace, "-o", "name"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| format!("Failed to execute kubectl: {}", e))?;
+    let output = command::run_kubectl(
+        &[
+            "--context",
+            context,
+            "get",
+            "namespace",
+            namespace,
+            "-o",
+            "name",
+        ],
+        options,
+        "K8s connection test failed",
+    )?;
 
-    if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        eprintln!("[K8s Test] Connection successful: {}", stdout);
-        Ok(format!(
-            "Kubernetes connection to context '{}' namespace '{}' verified successfully!",
-            context, namespace
-        ))
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let err = format!("K8s connection test failed: {}", stderr.trim());
-        eprintln!("[K8s Test Error] {}", err);
-        Err(err)
-    }
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    eprintln!("[K8s Test] Connection successful: {}", stdout);
+    Ok(format!(
+        "Kubernetes connection to context '{}' namespace '{}' verified successfully!",
+        context, namespace
+    ))
 }
 
 /// List available kubectl contexts from kubeconfig.
-pub fn get_k8s_contexts() -> Result<Vec<String>, String> {
-    let output = Command::new("kubectl")
-        .args(["config", "get-contexts", "-o", "name"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| format!("Failed to execute kubectl: {}", e))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Failed to list K8s contexts: {}", stderr.trim()));
-    }
+pub fn get_k8s_contexts(options: &K8sCommandOptions) -> Result<Vec<String>, String> {
+    let output = command::run_kubectl(
+        &["config", "get-contexts", "-o", "name"],
+        options,
+        "Failed to list K8s contexts",
+    )?;
 
     let contexts = parse_lines(&String::from_utf8_lossy(&output.stdout));
     eprintln!("[K8s Discovery] Found {} contexts", contexts.len());
@@ -281,31 +283,18 @@ pub fn get_k8s_contexts() -> Result<Vec<String>, String> {
 }
 
 /// List namespaces in a given kubectl context.
-pub fn get_k8s_namespaces(context: &str) -> Result<Vec<String>, String> {
-    let output = Command::new("kubectl")
-        .args([
-            "--context",
-            context,
-            "get",
-            "namespaces",
-            "-o",
-            "name",
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| format!("Failed to execute kubectl: {}", e))?;
+pub fn get_k8s_namespaces(
+    context: &str,
+    options: &K8sCommandOptions,
+) -> Result<Vec<String>, String> {
+    let output = command::run_kubectl(
+        &["--context", context, "get", "namespaces", "-o", "name"],
+        options,
+        &format!("Failed to list namespaces in context '{}'", context),
+    )?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "Failed to list namespaces in context '{}': {}",
-            context,
-            stderr.trim()
-        ));
-    }
-
-    let namespaces = parse_lines_with_prefix(&String::from_utf8_lossy(&output.stdout), "namespace/");
+    let namespaces =
+        parse_lines_with_prefix(&String::from_utf8_lossy(&output.stdout), "namespace/");
     eprintln!(
         "[K8s Discovery] Found {} namespaces in context '{}'",
         namespaces.len(),
@@ -319,6 +308,7 @@ pub fn get_k8s_resources(
     context: &str,
     namespace: &str,
     resource_type: &str,
+    options: &K8sCommandOptions,
 ) -> Result<Vec<String>, String> {
     // Validate resource type
     if resource_type != "service" && resource_type != "pod" {
@@ -328,8 +318,8 @@ pub fn get_k8s_resources(
         ));
     }
 
-    let output = Command::new("kubectl")
-        .args([
+    let output = command::run_kubectl(
+        &[
             "--context",
             context,
             "--namespace",
@@ -338,22 +328,13 @@ pub fn get_k8s_resources(
             resource_type,
             "-o",
             "name",
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| format!("Failed to execute kubectl: {}", e))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "Failed to list {} in context '{}' namespace '{}': {}",
-            resource_type,
-            context,
-            namespace,
-            stderr.trim()
-        ));
-    }
+        ],
+        options,
+        &format!(
+            "Failed to list {} in context '{}' namespace '{}'",
+            resource_type, context, namespace
+        ),
+    )?;
 
     let prefix = format!("{}/", resource_type);
     let resources = parse_lines_with_prefix(&String::from_utf8_lossy(&output.stdout), &prefix);
@@ -373,6 +354,7 @@ pub fn get_k8s_resource_ports(
     namespace: &str,
     resource_type: &str,
     resource_name: &str,
+    options: &K8sCommandOptions,
 ) -> Result<Vec<u16>, String> {
     if resource_type != "service" {
         return Err(format!(
@@ -381,8 +363,8 @@ pub fn get_k8s_resource_ports(
         ));
     }
 
-    let output = Command::new("kubectl")
-        .args([
+    let output = command::run_kubectl(
+        &[
             "--context",
             context,
             "--namespace",
@@ -392,25 +374,17 @@ pub fn get_k8s_resource_ports(
             resource_name,
             "-o",
             "jsonpath={.spec.ports[*].port}",
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|e| format!("Failed to execute kubectl: {}", e))?;
+        ],
+        options,
+        &format!(
+            "Failed to list ports for {} '{}' in context '{}' namespace '{}'",
+            resource_type, resource_name, context, namespace
+        ),
+    )?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!(
-            "Failed to list ports for {} '{}' in context '{}' namespace '{}': {}",
-            resource_type,
-            resource_name,
-            context,
-            namespace,
-            stderr.trim()
-        ));
-    }
-
-    Ok(parse_resource_ports(&String::from_utf8_lossy(&output.stdout)))
+    Ok(parse_resource_ports(&String::from_utf8_lossy(
+        &output.stdout,
+    )))
 }
 
 /// Parse newline-separated output into a list of trimmed, non-empty strings.
@@ -441,145 +415,4 @@ fn parse_resource_ports(output: &str) -> Vec<u16> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    mod build_tunnel_key_tests {
-        use super::*;
-
-        #[test]
-        fn test_basic_key_format() {
-            let key = build_tunnel_key(
-                "my-cluster",
-                "default",
-                "service",
-                "my-db",
-                3306,
-            );
-            assert_eq!(key, "my-cluster:default:service/my-db:3306");
-        }
-
-        #[test]
-        fn test_pod_resource_type() {
-            let key = build_tunnel_key(
-                "prod-cluster",
-                "database",
-                "pod",
-                "mysql-0",
-                5432,
-            );
-            assert_eq!(key, "prod-cluster:database:pod/mysql-0:5432");
-        }
-
-        #[test]
-        fn test_empty_context() {
-            let key = build_tunnel_key("", "default", "service", "db", 80);
-            assert_eq!(key, ":default:service/db:80");
-        }
-
-        #[test]
-        fn test_special_characters() {
-            let key = build_tunnel_key(
-                "gke_project_us-central1_cluster",
-                "my-namespace",
-                "service",
-                "my-db-svc",
-                3306,
-            );
-            assert_eq!(
-                key,
-                "gke_project_us-central1_cluster:my-namespace:service/my-db-svc:3306"
-            );
-        }
-    }
-
-    mod parse_lines_tests {
-        use super::*;
-
-        #[test]
-        fn test_basic_lines() {
-            let output = "line1\nline2\nline3\n";
-            let result = parse_lines(output);
-            assert_eq!(result, vec!["line1", "line2", "line3"]);
-        }
-
-        #[test]
-        fn test_empty_output() {
-            let result = parse_lines("");
-            assert!(result.is_empty());
-        }
-
-        #[test]
-        fn test_whitespace_handling() {
-            let output = "  line1  \n\n  line2  \n";
-            let result = parse_lines(output);
-            assert_eq!(result, vec!["line1", "line2"]);
-        }
-    }
-
-    mod parse_lines_with_prefix_tests {
-        use super::*;
-
-        #[test]
-        fn test_namespace_prefix() {
-            let output = "namespace/default\nnamespace/kube-system\nnamespace/my-ns\n";
-            let result = parse_lines_with_prefix(output, "namespace/");
-            assert_eq!(result, vec!["default", "kube-system", "my-ns"]);
-        }
-
-        #[test]
-        fn test_service_prefix() {
-            let output = "service/my-db\nservice/api-gateway\n";
-            let result = parse_lines_with_prefix(output, "service/");
-            assert_eq!(result, vec!["my-db", "api-gateway"]);
-        }
-
-        #[test]
-        fn test_pod_prefix() {
-            let output = "pod/mysql-0\npod/mysql-1\n";
-            let result = parse_lines_with_prefix(output, "pod/");
-            assert_eq!(result, vec!["mysql-0", "mysql-1"]);
-        }
-
-        #[test]
-        fn test_no_match_returns_full_line() {
-            let output = "something/else\n";
-            let result = parse_lines_with_prefix(output, "namespace/");
-            assert_eq!(result, vec!["something/else"]);
-        }
-
-        #[test]
-        fn test_empty_output() {
-            let result = parse_lines_with_prefix("", "namespace/");
-            assert!(result.is_empty());
-        }
-    }
-
-    mod parse_resource_ports_tests {
-        use super::*;
-
-        #[test]
-        fn test_single_port() {
-            let result = parse_resource_ports("5432");
-            assert_eq!(result, vec![5432]);
-        }
-
-        #[test]
-        fn test_multiple_ports() {
-            let result = parse_resource_ports("80 443 5432");
-            assert_eq!(result, vec![80, 443, 5432]);
-        }
-
-        #[test]
-        fn test_ignores_invalid_values() {
-            let result = parse_resource_ports("abc 3306 70000 8123");
-            assert_eq!(result, vec![3306, 8123]);
-        }
-
-        #[test]
-        fn test_empty_output() {
-            let result = parse_resource_ports("");
-            assert!(result.is_empty());
-        }
-    }
-}
+mod tests;

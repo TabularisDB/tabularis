@@ -51,7 +51,18 @@ pub struct AppConfig {
     /// Whether copied CSV output includes a header row. Default: true.
     pub csv_include_headers: Option<bool>,
     pub active_external_drivers: Option<Vec<String>>,
+    /// COMPAT(registry-ga): legacy config key from before the Tabularium API
+    /// cutover. Read once by `compat::migrate_legacy_config`, then cleared.
+    #[serde(default)]
     pub custom_registry_url: Option<String>,
+    /// COMPAT(registry-ga): override URL for the legacy static `registry.json`
+    /// merged into the catalogue during migration. Defaults to the built-in
+    /// GitHub-hosted file when unset.
+    #[serde(default)]
+    pub legacy_registry_url: Option<String>,
+    /// Base URL of the Tabularium plugin registry (https://tabularium.wiki).
+    /// Defaults to the built-in instance when unset.
+    pub tabularium_registry_url: Option<String>,
     pub plugins: Option<HashMap<String, PluginConfig>>,
     pub editor_theme: Option<String>,
     pub editor_font_family: Option<String>,
@@ -109,6 +120,23 @@ pub struct AppConfig {
     /// Send a native notification and play a short sound when a new MCP
     /// approval request arrives. Default: true.
     pub mcp_approval_notify_sound: Option<bool>,
+
+    // ----- Automatic connections backup -----
+    /// When backups run: `"manual"` (default), `"interval"`, `"onClose"`
+    /// or `"onLaunch"`.
+    pub backup_mode: Option<String>,
+    /// Directory the backup files are written to.
+    pub backup_directory: Option<String>,
+    /// Minutes between automatic backups in interval mode. Default: 1440.
+    pub backup_interval_minutes: Option<u32>,
+    /// Number of backup files kept before rotation. Default: 10.
+    pub backup_retention: Option<u32>,
+    /// Backup destination: `"local"` (default) or `"webdav"`.
+    pub backup_target: Option<String>,
+    /// WebDAV collection URL the backups are uploaded into.
+    pub backup_webdav_url: Option<String>,
+    /// WebDAV username; the password lives in the OS keychain.
+    pub backup_webdav_username: Option<String>,
 
     // ----- Session restore -----
     /// Reconnect to the last active connection on startup. Default: true.
@@ -191,7 +219,8 @@ pub fn load_config_internal<R: tauri::Runtime>(app: &AppHandle<R>) -> AppConfig 
         let config_path = config_dir.join("config.json");
         if config_path.exists() {
             if let Ok(content) = fs::read_to_string(config_path) {
-                if let Ok(config) = serde_json::from_str(&content) {
+                if let Ok(mut config) = serde_json::from_str::<AppConfig>(&content) {
+                    crate::plugins::compat::migrate_legacy_config(&mut config); // COMPAT(registry-ga)
                     cache_config(&config);
                     return config;
                 }
@@ -295,6 +324,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         if config.active_external_drivers.is_some() {
             existing_config.active_external_drivers = config.active_external_drivers;
         }
+        if config.tabularium_registry_url.is_some() {
+            existing_config.tabularium_registry_url = config.tabularium_registry_url;
+        }
         if config.plugins.is_some() {
             existing_config.plugins = config.plugins;
         }
@@ -378,6 +410,27 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.mcp_approval_notify_sound.is_some() {
             existing_config.mcp_approval_notify_sound = config.mcp_approval_notify_sound;
+        }
+        if config.backup_mode.is_some() {
+            existing_config.backup_mode = config.backup_mode;
+        }
+        if config.backup_directory.is_some() {
+            existing_config.backup_directory = config.backup_directory;
+        }
+        if config.backup_interval_minutes.is_some() {
+            existing_config.backup_interval_minutes = config.backup_interval_minutes;
+        }
+        if config.backup_retention.is_some() {
+            existing_config.backup_retention = config.backup_retention;
+        }
+        if config.backup_target.is_some() {
+            existing_config.backup_target = config.backup_target;
+        }
+        if config.backup_webdav_url.is_some() {
+            existing_config.backup_webdav_url = config.backup_webdav_url;
+        }
+        if config.backup_webdav_username.is_some() {
+            existing_config.backup_webdav_username = config.backup_webdav_username;
         }
         if config.auto_connect_last_connection.is_some() {
             existing_config.auto_connect_last_connection = config.auto_connect_last_connection;

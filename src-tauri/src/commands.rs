@@ -309,8 +309,17 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
         .ok_or("Missing K8s resource name")?;
     let port = params.k8s_port.ok_or("Missing K8s port")?;
 
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(
+        params.k8s_kubectl_path.clone(),
+        params.k8s_kubeconfig_path.clone(),
+    );
     let map_key = crate::k8s_tunnel::build_tunnel_key(
-        context, namespace, resource_type, resource_name, port,
+        context,
+        namespace,
+        resource_type,
+        resource_name,
+        port,
+        &options,
     );
 
     // Check for existing tunnel
@@ -332,7 +341,12 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
     );
 
     let tunnel = crate::k8s_tunnel::K8sTunnel::new(
-        context, namespace, resource_type, resource_name, port,
+        context,
+        namespace,
+        resource_type,
+        resource_name,
+        port,
+        &options,
     )
     .map_err(|e| {
         eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);
@@ -1615,6 +1629,17 @@ pub async fn test_ssh_connection<R: Runtime>(
 // Kubernetes Connections
 // ---------------------------------------------------------------------------
 
+fn validate_k8s_connection_paths(k8s: &K8sConnectionInput) -> Result<(), String> {
+    crate::k8s_tunnel::validate_k8s_path(
+        k8s.kubectl_path.as_deref().unwrap_or_default(),
+        "kubectl",
+    )?;
+    crate::k8s_tunnel::validate_k8s_path(
+        k8s.kubeconfig_path.as_deref().unwrap_or_default(),
+        "kubeconfig",
+    )
+}
+
 /// Load K8s connections synchronously from the config file.
 fn load_k8s_connections_sync<R: Runtime>(
     app: &AppHandle<R>,
@@ -1658,6 +1683,7 @@ pub async fn save_k8s_connection<R: Runtime>(
     app: AppHandle<R>,
     k8s: K8sConnectionInput,
 ) -> Result<K8sConnection, String> {
+    validate_k8s_connection_paths(&k8s)?;
     let path = get_k8s_config_path(&app)?;
     let mut connections: Vec<K8sConnection> = if path.exists() {
         let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
@@ -1675,6 +1701,8 @@ pub async fn save_k8s_connection<R: Runtime>(
         resource_type: k8s.resource_type,
         resource_name: k8s.resource_name,
         port: k8s.port,
+        kubectl_path: k8s.kubectl_path,
+        kubeconfig_path: k8s.kubeconfig_path,
     };
 
     connections.push(connection.clone());
@@ -1691,6 +1719,7 @@ pub async fn update_k8s_connection<R: Runtime>(
     id: String,
     k8s: K8sConnectionInput,
 ) -> Result<K8sConnection, String> {
+    validate_k8s_connection_paths(&k8s)?;
     let path = get_k8s_config_path(&app)?;
     let mut connections: Vec<K8sConnection> = if path.exists() {
         let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
@@ -1712,6 +1741,8 @@ pub async fn update_k8s_connection<R: Runtime>(
         resource_type: k8s.resource_type,
         resource_name: k8s.resource_name,
         port: k8s.port,
+        kubectl_path: k8s.kubectl_path,
+        kubeconfig_path: k8s.kubeconfig_path,
     };
 
     connections[idx] = connection.clone();
@@ -1748,23 +1779,32 @@ pub async fn test_k8s_connection_cmd<R: Runtime>(
     _app: AppHandle<R>,
     context: String,
     namespace: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<String, String> {
-    crate::k8s_tunnel::test_k8s_connection(&context, &namespace)
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
+    crate::k8s_tunnel::test_k8s_connection(&context, &namespace, &options)
 }
 
 #[tauri::command]
 pub async fn get_k8s_contexts_cmd<R: Runtime>(
     _app: AppHandle<R>,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<Vec<String>, String> {
-    crate::k8s_tunnel::get_k8s_contexts()
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
+    crate::k8s_tunnel::get_k8s_contexts(&options)
 }
 
 #[tauri::command]
 pub async fn get_k8s_namespaces_cmd<R: Runtime>(
     _app: AppHandle<R>,
     context: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<Vec<String>, String> {
-    crate::k8s_tunnel::get_k8s_namespaces(&context)
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
+    crate::k8s_tunnel::get_k8s_namespaces(&context, &options)
 }
 
 #[tauri::command]
@@ -1773,8 +1813,11 @@ pub async fn get_k8s_resources_cmd<R: Runtime>(
     context: String,
     namespace: String,
     resource_type: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<Vec<String>, String> {
-    crate::k8s_tunnel::get_k8s_resources(&context, &namespace, &resource_type)
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
+    crate::k8s_tunnel::get_k8s_resources(&context, &namespace, &resource_type, &options)
 }
 
 #[tauri::command]
@@ -1784,13 +1827,26 @@ pub async fn get_k8s_resource_ports_cmd<R: Runtime>(
     namespace: String,
     resource_type: String,
     resource_name: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<Vec<u16>, String> {
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
     crate::k8s_tunnel::get_k8s_resource_ports(
         &context,
         &namespace,
         &resource_type,
         &resource_name,
+        &options,
     )
+}
+
+#[tauri::command]
+pub async fn validate_k8s_path_cmd<R: Runtime>(
+    _app: AppHandle<R>,
+    path: String,
+    kind: String,
+) -> Result<(), String> {
+    crate::k8s_tunnel::validate_k8s_path(&path, &kind)
 }
 
 /// Expand K8s connection params by loading saved config and creating/reusing a tunnel.
@@ -1810,7 +1866,7 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
     }
 
     // Resolve K8s params from saved connection if using connection_id
-    let (context, namespace, resource_type, resource_name, port) =
+    let (context, namespace, resource_type, resource_name, port, kubectl_path, kubeconfig_path) =
         if let Some(k8s_id) = &params.k8s_connection_id {
             let k8s_conn = get_k8s_connection_by_id(app, k8s_id).await?;
             (
@@ -1819,6 +1875,8 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
                 k8s_conn.resource_type,
                 k8s_conn.resource_name,
                 k8s_conn.port,
+                k8s_conn.kubectl_path,
+                k8s_conn.kubeconfig_path,
             )
         } else {
             let ctx = params
@@ -1842,18 +1900,28 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
                 .ok_or("Missing K8s resource name")?
                 .to_string();
             let p = params.k8s_port.ok_or("Missing K8s port")?;
-            (ctx, ns, rt, rn, p)
+            (
+                ctx,
+                ns,
+                rt,
+                rn,
+                p,
+                params.k8s_kubectl_path.clone(),
+                params.k8s_kubeconfig_path.clone(),
+            )
         };
 
     let _remote_host = params.host.as_deref().unwrap_or("localhost");
     let _remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
 
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
     let map_key = crate::k8s_tunnel::build_tunnel_key(
         &context,
         &namespace,
         &resource_type,
         &resource_name,
         port,
+        &options,
     );
 
     // Check for existing tunnel
@@ -1888,6 +1956,7 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
         &resource_type,
         &resource_name,
         port,
+        &options,
     )
     .map_err(|e| {
         eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);

@@ -384,8 +384,8 @@
     "delimiterSemicolon": "Point-virgule (;)",
     "delimiterTab": "Tabulation",
     "delimiterPipe": "Barre verticale (|)",
-    "csvIncludeHeaders": "Inclure les en-têtes CSV",
-    "csvIncludeHeadersDesc": "Inclure une ligne d'en-tête avec les noms des colonnes lors de la copie des lignes au format CSV.",
+    "csvIncludeHeaders": "Inclure les en-têtes de colonnes",
+    "csvIncludeHeadersDesc": "Inclure une ligne d'en-tête avec les noms des colonnes lors de la copie des lignes au format CSV ou Markdown.",
     "csvHeaders": "Exporter les noms de colonnes",
     "detectJsonInTextColumns": "Détecter le JSON dans les colonnes texte",
     "detectJsonInTextColumnsDesc": "Affiche le visualiseur JSON lorsqu'une cellule texte non typée contient un objet ou un tableau JSON. Ajoute un petit coût d'analyse par cellule.",
@@ -666,7 +666,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "Propulsé par",
+      "openHomepage": "Ouvrir la page"
     },
     "shortcuts": {
       "title": "Raccourcis clavier",
@@ -699,7 +701,55 @@
       "triggerSuggestions": "Afficher les suggestions",
       "refreshTable": "Actualiser la table"
     },
-    "aiActivity": "Activité IA"
+    "aiActivity": "Activité IA",
+    "backup": {
+      "title": "Backup",
+      "directory": "Dossier de sauvegarde",
+      "directoryDesc": "Aucun dossier sélectionné.",
+      "chooseDirectory": "Choisir un dossier",
+      "password": "Mot de passe de sauvegarde",
+      "passwordDesc": "Les sauvegardes sont toujours chiffrées. Le mot de passe est stocké dans le trousseau du système.",
+      "passwordSetDesc": "Les sauvegardes sont chiffrées avec ce mot de passe. Il est stocké dans le trousseau du système.",
+      "passwordReplaceDesc": "Saisissez un nouveau mot de passe. Les sauvegardes déjà écrites conservent l'ancien.",
+      "changePassword": "Changer le mot de passe",
+      "webdavPasswordSetDesc": "Un mot de passe est stocké dans le trousseau du système.",
+      "passwordSaved": "Mot de passe de sauvegarde enregistré.",
+      "configureFirst": "Configurez d'abord une destination et définissez un mot de passe de sauvegarde.",
+      "interval": "Fréquence",
+      "intervalDesc": "Fréquence d'écriture d'une nouvelle sauvegarde.",
+      "every6h": "6 h",
+      "every12h": "12 h",
+      "daily": "Quotidien",
+      "weekly": "Hebdomadaire",
+      "retention": "Sauvegardes conservées",
+      "retentionDesc": "Les fichiers de sauvegarde plus anciens sont supprimés automatiquement.",
+      "files": "fichiers",
+      "backupNow": "Sauvegarder maintenant",
+      "lastBackup": "Dernière sauvegarde : {{date}}",
+      "noBackupYet": "Aucune sauvegarde pour l'instant.",
+      "backupDone": "Sauvegarde écrite dans {{path}}",
+      "custom": "Personnalisé",
+      "destination": "Destination",
+      "target": "Destination des sauvegardes",
+      "targetDesc": "Où les fichiers de sauvegarde sont écrits. Un dossier synchronisé par Dropbox, OneDrive ou Syncthing vous donne une sauvegarde cloud gratuite.",
+      "targetLocal": "Dossier local",
+      "webdavUrl": "URL WebDAV",
+      "webdavUrlDesc": "URL du dossier WebDAV où les sauvegardes sont envoyées (ex. Nextcloud).",
+      "webdavUsername": "Utilisateur WebDAV",
+      "webdavUsernameDesc": "Compte utilisé pour s'authentifier auprès du serveur WebDAV.",
+      "webdavPassword": "Mot de passe WebDAV",
+      "webdavPasswordDesc": "Stocké dans le trousseau du système. Pour Nextcloud, préférez un mot de passe d'application.",
+      "webdavSaved": "Mot de passe WebDAV enregistré.",
+      "mode": "Déclenchement",
+      "modeDesc": "Quand une sauvegarde est écrite. Manuel : uniquement via le bouton ci-dessous.",
+      "modeManual": "Manuel",
+      "modeInterval": "À intervalle",
+      "modeOnClose": "À la fermeture",
+      "modeOnLaunch": "À l'ouverture",
+      "nextBackup": "Prochaine sauvegarde : {{date}}",
+      "nextBackupSoon": "Prochaine sauvegarde : au prochain contrôle",
+      "hours": "heures"
+    }
   },
   "update": {
     "newVersionAvailable": "Nouvelle version disponible",
@@ -836,7 +886,8 @@
     "scrollTabsRight": "Défiler les onglets vers la droite",
     "useIamAuth": "Utiliser l'authentification AWS IAM (RDS)",
     "useIamAuthHint": "Le champ mot de passe est traité comme un jeton d'authentification RDS (généré par `aws rds generate-db-auth-token`). Nécessite TLS. Les jetons expirent toutes les 15 minutes.",
-    "useIamAuthTlsRequired": "Activez un mode SSL ci-dessus pour utiliser l'authentification AWS IAM."
+    "useIamAuthTlsRequired": "Activez un mode SSL ci-dessus pour utiliser l'authentification AWS IAM.",
+    "changeDatabase": "Changer de base de données"
   },
   "sshConnections": {
     "title": "Connexions SSH",
@@ -1780,7 +1831,17 @@
       "resourceTypeInvalid": "Le type de ressource doit être \"service\" ou \"pod\"",
       "resourceNameRequired": "Le nom de la ressource est requis",
       "portInvalid": "Le port doit être compris entre 1 et 65535"
-    }
+    },
+    "advancedSettings": "Paramètres kubectl avancés",
+    "kubectlPath": "Chemin de kubectl",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "Chemin du kubeconfig",
+    "kubeconfigPathPlaceholder": "Chemin vers le kubeconfig",
+    "pathValidationFailed": "Corrigez les champs de chemin Kubernetes avancés non valides avant de continuer.",
+    "pathSelectionReset": "Les chemins Kubernetes avancés ont changé. Choisissez à nouveau le contexte, le namespace et la ressource.",
+    "noContexts": "Aucun contexte disponible",
+    "noNamespaces": "Aucun namespace disponible",
+    "noResources": "Aucune ressource disponible"
   },
   "routines": {
     "menuRun": "Exécuter…",
@@ -1814,5 +1875,46 @@
   "miniGrid": {
     "runningQuery": "Exécution de la requête...",
     "copyAll": "Tout copier"
+  },
+  "deepLink": {
+    "installTitle": "Installer un plugin depuis le registre",
+    "installSubtitle": "Un registre Tabularium demande à Tabularis d'installer un plugin.",
+    "plugin": "Plugin",
+    "version": "Version",
+    "registry": "Registre",
+    "latest": "Dernière",
+    "installConfirm": "Installer",
+    "installing": "Installation…",
+    "loadingPreview": "Chargement des détails…",
+    "usingConfigured": "registre configuré",
+    "mismatchTitle": "Registre différent de celui configuré",
+    "mismatchBody": "Votre registre configuré est {{configured}}. Le lien pointe ailleurs — vérifiez avant de continuer.",
+    "updateConfirm": "Mettre à jour vers v{{version}}",
+    "alreadyInstalled": "La version {{version}} est déjà installée."
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "Rechercher des bases de données…",
+    "clearSearch": "Effacer la recherche",
+    "verified": "Vérifié",
+    "installed": "Installé",
+    "install": "Installer",
+    "clear": "Effacer",
+    "registryOffline": "Registre inaccessible — affichage des pilotes installés et intégrés uniquement.",
+    "noMatches": "Aucune base de données ne correspond à vos filtres.",
+    "clearFilters": "Effacer les filtres",
+    "driverCount_one": "{{count}} pilote",
+    "driverCount_other": "{{count}} pilotes",
+    "connectTo": "Se connecter à {{name}}",
+    "unavailableOnPlatform": "Indisponible sur votre plateforme",
+    "backToCatalogue": "Retour au catalogue",
+    "pickDriver": "Plusieurs pilotes se connectent à {{name}}. Choisissez-en un :",
+    "latestVersion": "Dernière v{{version}}",
+    "continue": "Continuer",
+    "noReleaseTitle": "Pas encore de version installable pour votre plateforme.",
+    "noReleaseBody": "Ce pilote n'a pas de build téléchargeable pour votre SE/architecture. Consultez le registre pour une version mise à jour.",
+    "notInstalled": "Ce pilote n'est pas encore installé. Installez-le pour configurer une connexion.",
+    "installVersion": "Installer v{{version}}",
+    "installingVersion": "Installation de v{{version}}…",
+    "retryInstall": "Réessayer l'installation"
   }
 }

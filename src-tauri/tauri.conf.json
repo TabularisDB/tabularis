@@ -61,6 +61,11 @@
         "https://github.com/TabularisDB/tabularis/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY0NzY0QjNEQjI4QjFEQjcKUldTM0hZdXlQVXQyWkRYdmRJOEJhVEpYTit2VXRYS0drTit1bmthSHVzcWlQK09Wb2l5cVpOWXAK"
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["tabularis"]
+      }
     }
   }
 }

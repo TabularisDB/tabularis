@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tabularis.dev/schemas/tabularium-extensions.json",
+  "title": "Tabularis extensions for the Tabularium manifest",
+  "description": "JSON-Schema fragment that registers Tabularis-specific fields on top of Tabularium's core manifest. Paste this into your Tabularium admin panel under /admin/manifest as the global extension. The registry merges it with the core schema and serves the result at /manifest.schema.json, so plugin authors get autocomplete for the whole manifest from a single URL.\n\nNaming rules enforced by Tabularium:\n  * field names match /^[A-Za-z_][A-Za-z0-9_-]*$/\n  * cannot shadow a core field (name, description, kind, tags, license, icon, screenshots, readme, readmes, documentation_url, homepage, support, min_runtime_version, category)\n  * type whitelist: string | number | integer | boolean | array | object\n  * no $ref, max depth 6, max 32 properties per object\n\nFor the runtime manifest.json that ships inside the plugin zip, see plugins/manifest.schema.json.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Stable driver identifier used as `ConnectionParams.driver` and as the on-disk plugin folder name (e.g. \"duckdb\", \"firestore\"). Must match the registry slug."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+].+)?$",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "Semver of this driver release. Should match the release tag the registry indexes (`v1.4.0` → `1.4.0`)."
+    },
+    "executable": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "Relative path to the plugin executable inside the ZIP (without `.exe`; Tabularis appends it on Windows)."
+    },
+    "interpreter": {
+      "type": "string",
+      "maxLength": 100,
+      "description": "Interpreter for script-based plugins (e.g. `python3`, `node`). Omit for native binaries."
+    },
+    "default_port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "TCP port pre-filled in the connection modal. Omit for file/folder-based drivers."
+    },
+    "default_username": {
+      "type": "string",
+      "maxLength": 100,
+      "description": "Username pre-filled in the connection modal (e.g. `postgres`, `root`)."
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#[0-9A-Fa-f]{6}$",
+      "description": "Hex accent colour shown in the connection picker and sidebar (e.g. `#f97316`)."
+    },
+    "lucide_icon": {
+      "type": "string",
+      "maxLength": 60,
+      "description": "Lucide icon name used inline beside the driver entry (e.g. `database`, `network`). Distinct from the core `icon` field, which is the catalogue logo URL."
+    },
+    "capabilities": {
+      "type": "object",
+      "description": "Feature flags that decide which UI sections Tabularis shows for this driver. All flags are optional; absent flags default to `false` except `connection_string`, `alter_primary_key`, and `manage_tables` (default `true`).",
+      "properties": {
+        "schemas": {
+          "type": "boolean",
+          "description": "Database supports multiple named schemas (e.g. PostgreSQL `public`, MySQL databases). Shows the schema selector."
+        },
+        "views": {
+          "type": "boolean",
+          "description": "Enable the Views section in the database explorer."
+        },
+        "routines": {
+          "type": "boolean",
+          "description": "Stored procedures and functions surface in the explorer."
+        },
+        "triggers": {
+          "type": "boolean",
+          "description": "Enable trigger listing and management."
+        },
+        "file_based": {
+          "type": "boolean",
+          "description": "Connection points at a single file (e.g. SQLite). Replaces host/port with a file picker."
+        },
+        "folder_based": {
+          "type": "boolean",
+          "description": "Connection points at a directory (e.g. CSV folder). Replaces host/port with a folder picker."
+        },
+        "connection_string": {
+          "type": "boolean",
+          "description": "Show the connection-string import field on the connection modal. Default `true` for network drivers."
+        },
+        "connection_string_example": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Placeholder shown inside the connection-string input (e.g. `postgres://user:pass@host:5432/db`)."
+        },
+        "identifier_quote": {
+          "type": "string",
+          "maxLength": 2,
+          "description": "Character used to quote SQL identifiers — `\"` for ANSI, `` ` `` for MySQL-style."
+        },
+        "alter_primary_key": {
+          "type": "boolean",
+          "description": "Driver supports altering primary keys on existing tables via ALTER TABLE."
+        },
+        "alter_column": {
+          "type": "boolean",
+          "description": "Driver supports ALTER TABLE MODIFY/ALTER COLUMN on existing tables."
+        },
+        "create_foreign_keys": {
+          "type": "boolean",
+          "description": "Driver enforces foreign key constraints."
+        },
+        "manage_tables": {
+          "type": "boolean",
+          "description": "Driver supports CREATE/ALTER/DROP TABLE. Doesn't control index or FK operations. Default `true`."
+        },
+        "auto_increment_keyword": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Keyword appended to the column definition for auto-increment columns (e.g. `AUTO_INCREMENT` for MySQL). Empty means the driver doesn't use a keyword."
+        },
+        "serial_type": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Replacement data type for auto-increment columns (e.g. `SERIAL` for PostgreSQL). Empty means the driver doesn't use type substitution."
+        },
+        "inline_pk": {
+          "type": "boolean",
+          "description": "Primary key is declared inline in the column definition (e.g. SQLite `AUTOINCREMENT`)."
+        },
+        "no_connection_required": {
+          "type": "boolean",
+          "description": "API-based driver with no host/port/credentials. Hides the connection form entirely."
+        },
+        "readonly": {
+          "type": "boolean",
+          "description": "Disables INSERT/UPDATE/DELETE in the UI. Also hides table/column management."
+        }
+      }
+    },
+    "settings": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "User-configurable settings rendered on Settings → Plugin → <this plugin>.",
+      "items": {
+        "type": "object",
+        "required": ["key", "label", "type"],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z_][a-z0-9_]*$",
+            "maxLength": 60,
+            "description": "Setting identifier; passed to the plugin process as `settings[key]`."
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Label shown next to the input in the settings UI."
+          },
+          "type": {
+            "type": "string",
+            "maxLength": 20,
+            "description": "Input type. Tabularis renders `string`, `boolean`, `number`, `select`, `password`, `path` (and `folder` for folder pickers)."
+          },
+          "default": {
+            "description": "Default value, any JSON type matching `type`."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 280,
+            "description": "Helper text shown below the input."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Block driver startup when the setting is empty."
+          },
+          "options": {
+            "type": "array",
+            "maxItems": 32,
+            "description": "Enum values for `type: select`.",
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            }
+          }
+        }
+      }
+    },
+    "data_types": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "SQL data types this driver advertises in the column-creation UI.",
+      "items": {
+        "type": "object",
+        "required": ["name", "category", "requires_length", "requires_precision"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Type name as it appears in DDL (e.g. `VARCHAR`, `BIGINT`)."
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 20,
+            "description": "UI grouping: `numeric`, `string`, `date`, `binary`, `json`, `spatial`, or `other`."
+          },
+          "requires_length": {
+            "type": "boolean",
+            "description": "Type takes a length argument (e.g. `VARCHAR(255)`)."
+          },
+          "requires_precision": {
+            "type": "boolean",
+            "description": "Type takes a precision/scale argument (e.g. `DECIMAL(10,2)`)."
+          },
+          "default_length": {
+            "type": "string",
+            "maxLength": 20,
+            "description": "Optional default length value (e.g. `255` for `VARCHAR`)."
+          }
+        }
+      }
+    },
+    "ui_extensions": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "Slot-based UI injections. See plugins/PLUGIN_GUIDE.md §3b for available slot names.",
+      "items": {
+        "type": "object",
+        "required": ["slot", "module"],
+        "properties": {
+          "slot": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "Target slot identifier (e.g. `row-edit-modal.field.after`)."
+          },
+          "module": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Path to the JS module inside the plugin folder (e.g. `dist/index.js`)."
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Ordering weight when multiple plugins target the same slot. Lower runs first."
+          }
+        }
+      }
+    }
+  }
+}

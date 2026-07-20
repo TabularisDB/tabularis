@@ -7,6 +7,8 @@ import type { DriverCapabilities } from '../types/plugins';
 export function isMultiDatabaseCapable(capabilities: DriverCapabilities | null | undefined): boolean {
   if (!capabilities) return false;
   if (capabilities.no_connection_required) return false;
+  // A flat single-database store (e.g. Meilisearch) has nothing to select.
+  if (capabilities.single_database) return false;
   return (
     capabilities.file_based === false &&
     !capabilities.folder_based &&

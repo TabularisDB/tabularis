@@ -602,7 +602,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "技术支持：",
+      "openHomepage": "打开主页"
     },
     "shortcuts": {
       "title": "键盘快捷键",
@@ -633,7 +635,55 @@
       "triggerSuggestions": "触发建议",
       "refreshTable": "刷新表格"
     },
-    "aiActivity": "AI 活动"
+    "aiActivity": "AI 活动",
+    "backup": {
+      "title": "备份",
+      "directory": "备份文件夹",
+      "directoryDesc": "尚未选择文件夹。",
+      "chooseDirectory": "选择文件夹",
+      "password": "备份密码",
+      "passwordDesc": "备份始终加密。密码保存在系统钥匙串中。",
+      "passwordSetDesc": "备份使用此密码加密。密码保存在系统钥匙串中。",
+      "passwordReplaceDesc": "输入新密码。已写入的备份仍使用旧密码。",
+      "changePassword": "更改密码",
+      "webdavPasswordSetDesc": "系统钥匙串中已保存密码。",
+      "passwordSaved": "备份密码已保存。",
+      "configureFirst": "请先配置备份目标并设置备份密码。",
+      "interval": "频率",
+      "intervalDesc": "写入新备份的频率。",
+      "every6h": "6 小时",
+      "every12h": "12 小时",
+      "daily": "每天",
+      "weekly": "每周",
+      "retention": "保留的备份数",
+      "retentionDesc": "较旧的备份文件会被自动删除。",
+      "files": "个文件",
+      "backupNow": "立即备份",
+      "lastBackup": "上次备份：{{date}}",
+      "noBackupYet": "尚无备份。",
+      "backupDone": "备份已写入 {{path}}",
+      "custom": "自定义",
+      "destination": "目标",
+      "target": "备份目标",
+      "targetDesc": "备份文件的写入位置。使用 Dropbox、OneDrive 或 Syncthing 同步的文件夹即可免费获得云备份。",
+      "targetLocal": "本地文件夹",
+      "webdavUrl": "WebDAV 地址",
+      "webdavUrlDesc": "上传备份的 WebDAV 文件夹地址（如 Nextcloud）。",
+      "webdavUsername": "WebDAV 用户名",
+      "webdavUsernameDesc": "用于向 WebDAV 服务器进行身份验证的帐户。",
+      "webdavPassword": "WebDAV 密码",
+      "webdavPasswordDesc": "保存在系统钥匙串中。Nextcloud 建议使用应用密码。",
+      "webdavSaved": "WebDAV 密码已保存。",
+      "mode": "备份触发方式",
+      "modeDesc": "何时写入备份。手动模式仅通过下方按钮备份。",
+      "modeManual": "手动",
+      "modeInterval": "按间隔",
+      "modeOnClose": "关闭时",
+      "modeOnLaunch": "启动时",
+      "nextBackup": "下次备份：{{date}}",
+      "nextBackupSoon": "下次备份：下次检查时",
+      "hours": "小时"
+    }
   },
   "update": {
     "newVersionAvailable": "有新版本可用",
@@ -770,7 +820,8 @@
     "scrollTabsRight": "向右滚动标签页",
     "useIamAuth": "使用 AWS IAM 身份验证 (RDS)",
     "useIamAuthHint": "密码字段将被视为 RDS 身份验证令牌（由 `aws rds generate-db-auth-token` 生成）。需要 TLS。令牌每 15 分钟过期。",
-    "useIamAuthTlsRequired": "请在上方启用 SSL 模式以使用 AWS IAM 身份验证。"
+    "useIamAuthTlsRequired": "请在上方启用 SSL 模式以使用 AWS IAM 身份验证。",
+    "changeDatabase": "更换数据库"
   },
   "sshConnections": {
     "title": "SSH 连接",
@@ -1644,7 +1695,17 @@
       "resourceTypeInvalid": "资源类型必须为 \"service\" 或 \"pod\"",
       "resourceNameRequired": "资源名称为必填项",
       "portInvalid": "端口必须介于 1 和 65535 之间"
-    }
+    },
+    "advancedSettings": "kubectl 高级设置",
+    "kubectlPath": "kubectl 路径",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "kubeconfig 路径",
+    "kubeconfigPathPlaceholder": "kubeconfig 的路径",
+    "pathValidationFailed": "继续前，请修正无效的 Kubernetes 高级路径字段。",
+    "pathSelectionReset": "Kubernetes 高级路径已更改。请重新选择上下文、命名空间和资源。",
+    "noContexts": "没有可用的上下文",
+    "noNamespaces": "没有可用的命名空间",
+    "noResources": "没有可用的资源"
   },
   "routines": {
     "menuRun": "运行…",
@@ -1678,5 +1739,46 @@
   "miniGrid": {
     "runningQuery": "正在执行查询...",
     "copyAll": "全部复制"
+  },
+  "deepLink": {
+    "installTitle": "从注册表安装插件",
+    "installSubtitle": "Tabularium 注册表请求 Tabularis 安装一个插件。",
+    "plugin": "插件",
+    "version": "版本",
+    "registry": "注册表",
+    "latest": "最新",
+    "installConfirm": "安装",
+    "installing": "正在安装…",
+    "loadingPreview": "正在加载详情…",
+    "usingConfigured": "已配置的注册表",
+    "mismatchTitle": "与已配置的注册表不一致",
+    "mismatchBody": "你配置的注册表是 {{configured}}。链接指向其他位置 — 请先确认再继续。",
+    "updateConfirm": "更新到 v{{version}}",
+    "alreadyInstalled": "版本 {{version}} 已安装。"
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "搜索数据库…",
+    "clearSearch": "清除搜索",
+    "verified": "已验证",
+    "installed": "已安装",
+    "install": "安装",
+    "clear": "清除",
+    "registryOffline": "无法访问注册表 — 仅显示已安装和内置的驱动程序。",
+    "noMatches": "没有数据库符合您的筛选条件。",
+    "clearFilters": "清除筛选",
+    "driverCount_one": "{{count}} 个驱动程序",
+    "driverCount_other": "{{count}} 个驱动程序",
+    "connectTo": "连接到 {{name}}",
+    "unavailableOnPlatform": "在您的平台上不可用",
+    "backToCatalogue": "返回目录",
+    "pickDriver": "多个驱动程序可连接到 {{name}}。请选择一个：",
+    "latestVersion": "最新 v{{version}}",
+    "continue": "继续",
+    "noReleaseTitle": "尚无适用于您平台的可安装版本。",
+    "noReleaseBody": "此驱动程序没有适用于您的操作系统/架构的可下载构建。请查看注册表以获取更新版本。",
+    "notInstalled": "此驱动程序尚未安装。请安装以配置连接。",
+    "installVersion": "安装 v{{version}}",
+    "installingVersion": "正在安装 v{{version}}…",
+    "retryInstall": "重试安装"
   }
 }

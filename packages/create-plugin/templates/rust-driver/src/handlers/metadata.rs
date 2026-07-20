@@ -14,7 +14,7 @@ pub fn get_databases(id: Value, _params: &Value) -> Value {
 }
 
 pub fn get_schemas(id: Value, _params: &Value) -> Value {
-    // Only meaningful if `capabilities.schemas` is true in manifest.json.
+    // Only meaningful if `capabilities.schemas` is true in the `.tabularium` manifest.
     ok_response(id, json!([]))
 }
 

@@ -12,7 +12,7 @@ npm create @tabularis/plugin@latest my-driver
 
 A runnable Rust project with:
 
-- **`manifest.json`** aligned with the Tabularis plugin schema.
+- **`.tabularium`** bundle manifest aligned with the Tabularis plugin schema.
 - **33 JSON-RPC handlers pre-wired** — metadata methods return empty arrays (plugin loads cleanly), query/CRUD/DDL methods return `-32601` until you implement them.
 - **`test_connection` placeholder** that returns success, so your driver appears in the connection picker immediately after `just dev-install`.
 - **Working utilities**: `quote_identifier`, `paginate` — with unit tests — ready to use from your handlers.
@@ -68,12 +68,43 @@ just dev-install              # builds and installs into ~/.local/share/tabulari
 
 From there, fill in handlers in `src/handlers/metadata.rs`, then `query.rs`, then the rest. The generated `README.md` includes a feature-by-feature roadmap.
 
+## Migrating an existing plugin
+
+Plugins built before the registry cutover ship a `manifest.json`. The host now
+reads a `.tabularium` bundle manifest (the `manifest.json` path survives only as
+a deprecated fallback). To convert a project in place:
+
+```bash
+npx @tabularis/create-plugin migrate            # current directory
+npx @tabularis/create-plugin migrate ./my-driver
+```
+
+This writes `.tabularium` from your `manifest.json`, removes the old file, and
+updates the `manifest.json` references in `release.yml`, `justfile`, and
+`README.md`. It keeps a `id` that differs from `name` (the host uses it as the
+plugin identity) and refuses to run if the manifest has no semver `version`,
+which the registry requires.
+
+By default the release workflow is left as-is (only its `manifest.json`
+reference is renamed so the build keeps working). The hosted Tabularium registry
+resolves the manifest from the **release assets**, so it needs `.tabularium`
+published as a standalone asset. Add `--ci` to regenerate `release.yml` from the
+registry-ready template:
+
+```bash
+npx @tabularis/create-plugin migrate ./my-driver --ci
+```
+
+`--ci` overwrites `release.yml` (re-apply any custom CI steps) and derives the
+binary name from the manifest's `executable` field. Commit the result and
+republish.
+
 ## Layout of the generated project
 
 ```
 my-driver/
 ├── Cargo.toml
-├── manifest.json
+├── .tabularium
 ├── README.md
 ├── justfile            # just build / test / dev-install / repl / lint / fmt
 ├── rust-toolchain.toml

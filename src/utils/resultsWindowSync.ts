@@ -18,7 +18,7 @@ export const RESULTS_CLOSED_EVENT = "results-window:closed";
  * entry-based detached view. */
 export const SINGLE_RESULT_ENTRY_ID = "__single__";
 
-export type CopyFormat = "csv" | "json" | "sql-insert";
+export type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
 
 /** Display settings the detached window needs but cannot read from main-window
  * React state. */

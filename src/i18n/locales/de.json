@@ -633,7 +633,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "Bereitgestellt von",
+      "openHomepage": "Homepage öffnen"
     },
     "shortcuts": {
       "title": "Tastenkürzel",
@@ -665,7 +667,55 @@
       "triggerSuggestions": "Vorschläge anzeigen",
       "refreshTable": "Tabelle aktualisieren"
     },
-    "aiActivity": "KI-Aktivität"
+    "aiActivity": "KI-Aktivität",
+    "backup": {
+      "title": "Backup",
+      "directory": "Sicherungsordner",
+      "directoryDesc": "Noch kein Ordner ausgewählt.",
+      "chooseDirectory": "Ordner wählen",
+      "password": "Sicherungspasswort",
+      "passwordDesc": "Sicherungen sind immer verschlüsselt. Das Passwort wird im System-Schlüsselbund gespeichert.",
+      "passwordSetDesc": "Backups werden mit diesem Passwort verschlüsselt. Es wird im System-Schlüsselbund gespeichert.",
+      "passwordReplaceDesc": "Neues Passwort eingeben. Bereits erstellte Backups behalten das alte.",
+      "changePassword": "Passwort ändern",
+      "webdavPasswordSetDesc": "Ein Passwort ist im System-Schlüsselbund gespeichert.",
+      "passwordSaved": "Sicherungspasswort gespeichert.",
+      "configureFirst": "Konfigurieren Sie zuerst ein Ziel und setzen Sie ein Sicherungspasswort.",
+      "interval": "Häufigkeit",
+      "intervalDesc": "Wie oft eine neue Sicherung geschrieben wird.",
+      "every6h": "6 Std.",
+      "every12h": "12 Std.",
+      "daily": "Täglich",
+      "weekly": "Wöchentlich",
+      "retention": "Aufbewahrte Sicherungen",
+      "retentionDesc": "Ältere Sicherungsdateien werden automatisch gelöscht.",
+      "files": "Dateien",
+      "backupNow": "Jetzt sichern",
+      "lastBackup": "Letzte Sicherung: {{date}}",
+      "noBackupYet": "Noch keine Sicherung.",
+      "backupDone": "Sicherung geschrieben nach {{path}}",
+      "custom": "Benutzerdefiniert",
+      "destination": "Ziel",
+      "target": "Sicherungsziel",
+      "targetDesc": "Wohin die Sicherungsdateien geschrieben werden. Ein von Dropbox, OneDrive oder Syncthing synchronisierter Ordner ergibt kostenlos ein Cloud-Backup.",
+      "targetLocal": "Lokaler Ordner",
+      "webdavUrl": "WebDAV-URL",
+      "webdavUrlDesc": "URL des WebDAV-Ordners, in den die Sicherungen hochgeladen werden (z. B. Nextcloud).",
+      "webdavUsername": "WebDAV-Benutzername",
+      "webdavUsernameDesc": "Konto zur Authentifizierung gegenüber dem WebDAV-Server.",
+      "webdavPassword": "WebDAV-Passwort",
+      "webdavPasswordDesc": "Wird im System-Schlüsselbund gespeichert. Für Nextcloud besser ein App-Passwort verwenden.",
+      "webdavSaved": "WebDAV-Passwort gespeichert.",
+      "mode": "Auslöser",
+      "modeDesc": "Wann eine Sicherung geschrieben wird. Manuell: nur über den Button unten.",
+      "modeManual": "Manuell",
+      "modeInterval": "Im Intervall",
+      "modeOnClose": "Beim Beenden",
+      "modeOnLaunch": "Beim Start",
+      "nextBackup": "Nächste Sicherung: {{date}}",
+      "nextBackupSoon": "Nächste Sicherung: bei der nächsten Prüfung",
+      "hours": "Stunden"
+    }
   },
   "update": {
     "newVersionAvailable": "Neue Version verfügbar",
@@ -802,7 +852,8 @@
     "scrollTabsRight": "Registerkarten nach rechts blättern",
     "useIamAuth": "AWS-IAM-Authentifizierung verwenden (RDS)",
     "useIamAuthHint": "Das Passwortfeld wird als RDS-Auth-Token verwendet (aus `aws rds generate-db-auth-token`). Erfordert TLS. Tokens laufen alle 15 Minuten ab.",
-    "useIamAuthTlsRequired": "Aktiviere oben einen SSL-Modus, um die AWS-IAM-Authentifizierung zu nutzen."
+    "useIamAuthTlsRequired": "Aktiviere oben einen SSL-Modus, um die AWS-IAM-Authentifizierung zu nutzen.",
+    "changeDatabase": "Datenbank ändern"
   },
   "sshConnections": {
     "title": "SSH-Verbindungen",
@@ -1704,7 +1755,17 @@
       "resourceTypeInvalid": "Der Ressourcentyp muss \"service\" oder \"pod\" sein",
       "resourceNameRequired": "Der Ressourcenname ist erforderlich",
       "portInvalid": "Der Port muss zwischen 1 und 65535 liegen"
-    }
+    },
+    "advancedSettings": "Erweiterte kubectl-Einstellungen",
+    "kubectlPath": "kubectl-Pfad",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "Kubeconfig-Pfad",
+    "kubeconfigPathPlaceholder": "Pfad zur kubeconfig",
+    "pathValidationFailed": "Korrigiere ungültige erweiterte Kubernetes-Pfadfelder, bevor du fortfährst.",
+    "pathSelectionReset": "Die erweiterten Kubernetes-Pfade haben sich geändert. Wähle Kontext, Namespace und Ressource erneut aus.",
+    "noContexts": "Keine Kontexte verfügbar",
+    "noNamespaces": "Keine Namespaces verfügbar",
+    "noResources": "Keine Ressourcen verfügbar"
   },
   "routines": {
     "menuRun": "Ausführen…",
@@ -1738,5 +1799,46 @@
   "miniGrid": {
     "runningQuery": "Abfrage wird ausgeführt...",
     "copyAll": "Alles kopieren"
+  },
+  "deepLink": {
+    "installTitle": "Plugin aus Registry installieren",
+    "installSubtitle": "Eine Tabularium-Registry hat Tabularis gebeten, ein Plugin zu installieren.",
+    "plugin": "Plugin",
+    "version": "Version",
+    "registry": "Registry",
+    "latest": "Neueste",
+    "installConfirm": "Installieren",
+    "installing": "Installiere…",
+    "loadingPreview": "Lade Details…",
+    "usingConfigured": "konfigurierte Registry",
+    "mismatchTitle": "Abweichende Registry",
+    "mismatchBody": "Deine konfigurierte Registry ist {{configured}}. Der Link verweist auf eine andere — bitte vor dem Fortfahren prüfen.",
+    "updateConfirm": "Auf v{{version}} aktualisieren",
+    "alreadyInstalled": "Version {{version}} ist bereits installiert."
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "Datenbanken suchen…",
+    "clearSearch": "Suche löschen",
+    "verified": "Verifiziert",
+    "installed": "Installiert",
+    "install": "Installieren",
+    "clear": "Zurücksetzen",
+    "registryOffline": "Registry nicht erreichbar — es werden nur installierte und integrierte Treiber angezeigt.",
+    "noMatches": "Keine Datenbanken entsprechen deinen Filtern.",
+    "clearFilters": "Filter zurücksetzen",
+    "driverCount_one": "{{count}} Treiber",
+    "driverCount_other": "{{count}} Treiber",
+    "connectTo": "Mit {{name}} verbinden",
+    "unavailableOnPlatform": "Auf deiner Plattform nicht verfügbar",
+    "backToCatalogue": "Zurück zum Katalog",
+    "pickDriver": "Mehrere Treiber verbinden sich mit {{name}}. Wähle einen:",
+    "latestVersion": "Neueste v{{version}}",
+    "continue": "Weiter",
+    "noReleaseTitle": "Noch kein installierbares Release für deine Plattform.",
+    "noReleaseBody": "Für diesen Treiber gibt es keinen herunterladbaren Build für dein Betriebssystem/deine Architektur. Prüfe die Registry auf ein aktualisiertes Release.",
+    "notInstalled": "Dieser Treiber ist noch nicht installiert. Installiere ihn, um eine Verbindung einzurichten.",
+    "installVersion": "v{{version}} installieren",
+    "installingVersion": "v{{version}} wird installiert…",
+    "retryInstall": "Installation wiederholen"
   }
 }

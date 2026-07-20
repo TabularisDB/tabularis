@@ -68,6 +68,7 @@ import {
   rowsToCSVWithHeaders,
   rowsToJSON,
   rowsToSqlInsert,
+  rowsToMarkdown,
   getSelectedRows,
   copyTextToClipboard,
 } from "../../utils/clipboard";
@@ -112,7 +113,7 @@ interface DataGridProps {
   onDuplicateRow?: (rowData: Record<string, unknown>) => void;
   selectedRows?: Set<number>;
   onSelectionChange?: (indices: Set<number>) => void;
-  copyFormat?: "csv" | "json" | "sql-insert";
+  copyFormat?: "csv" | "json" | "sql-insert" | "markdown";
   csvDelimiter?: string;
   csvIncludeHeaders?: boolean;
   sortClause?: string;
@@ -459,6 +460,8 @@ export const DataGrid = React.memo(
           ? rowsToJSON(allRows, columns)
           : copyFormat === "sql-insert"
           ? rowsToSqlInsert(allRows, columns, tableName ?? "table")
+          : copyFormat === "markdown"
+          ? rowsToMarkdown(allRows, columns, "null", csvIncludeHeaders)
           : csvIncludeHeaders
           ? rowsToCSVWithHeaders(allRows, columns, "null", csvDelimiter)
           : rowsToCSV(allRows, "null", csvDelimiter);
@@ -1185,6 +1188,8 @@ export const DataGrid = React.memo(
         if (copyFormat === "json") return rowsToJSON(rows, columns);
         if (copyFormat === "sql-insert")
           return rowsToSqlInsert(rows, columns, tableName ?? "table");
+        if (copyFormat === "markdown")
+          return rowsToMarkdown(rows, columns, "null", withHeaders && csvIncludeHeaders);
         if (withHeaders && csvIncludeHeaders)
           return rowsToCSVWithHeaders(rows, columns, "null", csvDelimiter);
         return rowsToCSV(rows, "null", csvDelimiter);

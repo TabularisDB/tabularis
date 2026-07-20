@@ -971,6 +971,8 @@ mod tests {
                 ..Default::default()
             },
             is_builtin: false,
+            engine: None,
+            paradigms: Vec::new(),
             default_username: String::new(),
             color: String::new(),
             icon: String::new(),
@@ -1010,6 +1012,8 @@ mod tests {
             k8s_resource_type: None,
             k8s_resource_name: None,
             k8s_port: None,
+            k8s_kubectl_path: None,
+            k8s_kubeconfig_path: None,
             startup_script: None,
             use_iam_auth: None,
             connection_id: Some("conn-1".to_string()),

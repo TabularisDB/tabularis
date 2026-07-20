@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { reconstructTableQuery } from "../utils/editor";
 import { serializePkKey, buildPkMap } from "../utils/dataGrid";
 import { isMultiDatabaseCapable } from "../utils/database";
-import { isReadonly } from "../utils/driverCapabilities";
+import { isReadonly, supportsExplain } from "../utils/driverCapabilities";
 import {
   useDangerousQueryGuard,
   DANGEROUS_QUERY_I18N,
@@ -197,6 +197,7 @@ export const Editor = () => {
   const navigate = useNavigate();
 
   const driverReadonly = isReadonly(activeCapabilities);
+  const driverSupportsExplain = supportsExplain(activeCapabilities);
   const activeDialect = activeCapabilities?.sql_dialect;
 
   const [tabContextMenu, setTabContextMenu] = useState<{
@@ -361,7 +362,7 @@ export const Editor = () => {
   const [tempPage, setTempPage] = useState("1");
   const [isCountLoading, setIsCountLoading] = useState(false);
   const [applyToAll, setApplyToAll] = useState(false);
-  const [copyFormat, setCopyFormat] = useState<"csv" | "json" | "sql-insert">(
+  const [copyFormat, setCopyFormat] = useState<"csv" | "json" | "sql-insert" | "markdown">(
     settings.copyFormat ?? "csv",
   );
   const [csvDelimiter, setCsvDelimiter] = useState(
@@ -459,6 +460,7 @@ export const Editor = () => {
   const runMultipleQueriesRef = useRef<typeof runMultipleQueries>(null!);
   const openExplainForQueryRef = useRef<(query: string) => void>(null!);
   const activeDialectRef = useRef<typeof activeDialect>(undefined);
+  const supportsExplainRef = useRef(false);
   const tabScrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -1543,6 +1545,7 @@ export const Editor = () => {
   runMultipleQueriesRef.current = runMultipleQueries;
   openExplainForQueryRef.current = openExplainForQuery;
   activeDialectRef.current = activeDialect;
+  supportsExplainRef.current = driverSupportsExplain;
 
   // Global Ctrl/Command+F5 shortcut for Run
   useEffect(() => {
@@ -2566,6 +2569,7 @@ export const Editor = () => {
       contextMenuGroupId: "navigation",
       contextMenuOrder: 1.6,
       run: (ed) => {
+        if (!supportsExplainRef.current) return;
         const selection = ed.getSelection();
         const selectedText = selection && !selection.isEmpty()
           ? ed.getModel()?.getValueInRange(selection)
@@ -2733,7 +2737,7 @@ export const Editor = () => {
     setExportState((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
-  const handleExportCommon = async (format: "csv" | "json") => {
+  const handleExportCommon = async (format: "csv" | "json" | "markdown") => {
     if (!activeTab || !activeConnectionId) return;
 
     const effectiveSchema =
@@ -2747,9 +2751,15 @@ export const Editor = () => {
     if (!query || !query.trim()) return;
 
     try {
+      const extension = format === "markdown" ? "md" : format;
       const filePath = await save({
-        filters: [{ name: format.toUpperCase(), extensions: [format] }],
-        defaultPath: `result_${Date.now()}.${format}`,
+        filters: [
+          {
+            name: format === "markdown" ? "Markdown" : format.toUpperCase(),
+            extensions: [extension],
+          },
+        ],
+        defaultPath: `result_${Date.now()}.${extension}`,
       });
 
       if (!filePath) return;
@@ -2799,6 +2809,7 @@ export const Editor = () => {
 
   const handleExportCSV = () => handleExportCommon("csv");
   const handleExportJSON = () => handleExportCommon("json");
+  const handleExportMarkdown = () => handleExportCommon("markdown");
 
   const handleRunDropdownToggle = useCallback(() => {
     if (!isRunDropdownOpen) {
@@ -3198,6 +3209,15 @@ export const Editor = () => {
                   <span className="flex-1">JSON</span>
                   <span className="text-xs text-muted">.json</span>
                 </button>
+                <button
+                  role="menuitem"
+                  onClick={handleExportMarkdown}
+                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
+                >
+                  <FileText size={14} className="shrink-0 opacity-80" />
+                  <span className="flex-1">Markdown</span>
+                  <span className="text-xs text-muted">.md</span>
+                </button>
               </div>
             </>
           )}
@@ -3315,8 +3335,8 @@ export const Editor = () => {
             {/* Editor overlay buttons — bottom-right */}
             {tab.type !== "query_builder" && (
               <div className="absolute bottom-2 right-6 z-10 flex items-center gap-1">
-                {/* Visual Explain — hidden for read-only definition tabs */}
-                {!tab.readOnly && (
+                {/* Visual Explain — hidden for read-only definition tabs and drivers without EXPLAIN support */}
+                {!tab.readOnly && driverSupportsExplain && (
                 <button
                   onClick={handleExplainButton}
                   disabled={!activeConnectionId || !tab.query?.trim()}
@@ -3769,7 +3789,7 @@ export const Editor = () => {
                       <select
                         value={copyFormat}
                         onChange={(e) =>
-                          setCopyFormat(e.target.value as "csv" | "json" | "sql-insert")
+                          setCopyFormat(e.target.value as "csv" | "json" | "sql-insert" | "markdown")
                         }
                         className="bg-transparent border-none text-[11px] text-secondary hover:text-primary focus:outline-none cursor-pointer appearance-none pr-3 font-medium uppercase tracking-wide"
                         title={t("settings.copyFormat")}
@@ -3778,6 +3798,7 @@ export const Editor = () => {
                         <option value="csv">CSV</option>
                         <option value="json">JSON</option>
                         <option value="sql-insert">SQL INSERT</option>
+                        <option value="markdown">Markdown</option>
                       </select>
                       {copyFormat === "csv" && (
                         <select
@@ -3801,7 +3822,7 @@ export const Editor = () => {
                           </option>
                         </select>
                       )}
-                      {copyFormat === "csv" && (
+                      {(copyFormat === "csv" || copyFormat === "markdown") && (
                         <label
                           className="flex items-center gap-1 cursor-pointer select-none text-[11px] text-secondary hover:text-primary"
                           title={t("settings.csvIncludeHeaders")}
