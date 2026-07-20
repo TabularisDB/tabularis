@@ -208,6 +208,75 @@ fn is_empty_or_whitespace(s: &Option<String>) -> bool {
     s.as_ref().map(|p| p.trim().is_empty()).unwrap_or(true)
 }
 
+/// Reject a connection attempt under AWS IAM auth when neither the raw form
+/// payload nor the expanded params (after SSH/K8s expansion) carry an RDS
+/// auth token. Both `test_connection` and `list_databases` run this guard
+/// before any pool / driver work so the user gets an actionable message
+/// instead of the opaque "Access denied" the server returns on an empty
+/// password.
+fn require_iam_token(
+    iam_auth: bool,
+    request_password: Option<&str>,
+    expanded_password: Option<&str>,
+) -> Result<(), String> {
+    if iam_auth
+        && request_password.unwrap_or("").is_empty()
+        && expanded_password.unwrap_or("").is_empty()
+    {
+        return Err(
+            "AWS IAM authentication is enabled but the password field is empty. \
+             Paste the output of `aws rds generate-db-auth-token` into the \
+             password field and try again. Tokens expire every 15 minutes."
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod require_iam_token_tests {
+    use super::require_iam_token;
+
+    #[test]
+    fn rejects_iam_with_both_passwords_empty() {
+        // The primary case: ad-hoc connection, IAM enabled, nothing in the
+        // form and nothing from the keychain.
+        let err = require_iam_token(true, None, None).unwrap_err();
+        assert!(err.contains("AWS IAM authentication is enabled"));
+        assert!(err.contains("15 minutes"));
+    }
+
+    #[test]
+    fn rejects_iam_with_empty_string_passwords() {
+        // Empty strings (rather than None) must also fail — sqlx stamps
+        // "" as a deliberate "user pressed Enter" password.
+        let err = require_iam_token(true, Some(""), Some("")).unwrap_err();
+        assert!(err.contains("AWS IAM authentication is enabled"));
+    }
+
+    #[test]
+    fn allows_iam_when_request_password_present() {
+        // A freshly pasted RDS auth token in the form is enough; the
+        // expanded (post-SSH/K8s) value is irrelevant.
+        require_iam_token(true, Some("fake-token"), None).unwrap();
+    }
+
+    #[test]
+    fn allows_iam_when_expanded_password_present() {
+        // The expanded value can also satisfy the guard (e.g. an SSH tunnel
+        // wrapper injected it).
+        require_iam_token(true, None, Some("fake-token")).unwrap();
+    }
+
+    #[test]
+    fn non_iam_always_passes() {
+        // Without IAM, an empty password is the caller's problem; the
+        // helper must never reject on its own.
+        require_iam_token(false, None, None).unwrap();
+        require_iam_token(false, Some(""), Some("")).unwrap();
+    }
+}
+
 /// Build the SSH tunnel map key for caching tunnels.
 #[inline]
 fn build_tunnel_map_key(
@@ -424,10 +493,13 @@ pub fn find_connection_by_id<R: Runtime>(
         }
     };
 
-    // Load passwords from keychain if needed, via the in-memory cache.
-    // On a warm cache hit this is a HashMap lookup (nanoseconds); on a cold miss
-    // it calls keychain once and caches the result for all subsequent reads.
-    if conn.params.save_in_keychain.unwrap_or(false) {
+    // Load passwords from keychain via the in-memory cache (warm hit = lookup,
+    // cold miss = keychain call + cache). Skip IAM-auth connections: their
+    // 15-min tokens must come from the `password` field, never the keychain,
+    // so a stale token from an older release can't be surfaced in the modal.
+    if conn.params.save_in_keychain.unwrap_or(false)
+        && !conn.params.use_iam_auth.unwrap_or(false)
+    {
         let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
         match credential_cache::get_db_password_cached(&cache, &conn.id) {
             Ok(pwd) => conn.params.password = Some(pwd),
@@ -1001,8 +1073,11 @@ pub async fn duplicate_connection<R: Runtime>(
 
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
 
-    // Recover passwords if in keychain (via cache for fast repeat access)
-    if original.params.save_in_keychain.unwrap_or(false) {
+    // Same IAM-auth guard as `find_connection_by_id`: never copy a stale RDS
+    // auth token into a duplicated connection.
+    if original.params.save_in_keychain.unwrap_or(false)
+        && !original.params.use_iam_auth.unwrap_or(false)
+    {
         if let Ok(pwd) = credential_cache::get_db_password_cached(&cache, &original.id) {
             original.params.password = Some(pwd);
         }
@@ -1934,7 +2009,22 @@ pub async fn test_connection<R: Runtime>(
     let mut expanded_params = expand_ssh_connection_params(&app, &request.params).await?;
     expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
 
-    if request.params.password.is_none() && expanded_params.password.is_none() {
+    // AWS RDS IAM auth tokens are short-lived (15 min) and must come from the
+    // password field on every test/connect, never from the keychain. Skip the
+    // keychain fallback so a stale token can't be reused.
+    let iam_auth = expanded_params.use_iam_auth.unwrap_or(false);
+
+    // IAM auth needs an RDS auth token right now. Without this guard the
+    // builder accepts an empty password, the server replies with the opaque
+    // "Access denied (using password: YES)", and the user can't tell whether
+    // the token is missing, wrong, or expired.
+    require_iam_token(
+        iam_auth,
+        request.params.password.as_deref(),
+        expanded_params.password.as_deref(),
+    )?;
+
+    if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
         let saved_conn = match &request.connection_id {
             Some(id) => find_connection_by_id(&app, id).ok(),
             None => None,
@@ -1969,7 +2059,13 @@ pub async fn test_connection<R: Runtime>(
         }
     }
 
-    drv.test_connection(&resolved_params).await?;
+    drv.test_connection(&resolved_params).await.map_err(|e| {
+        log::warn!(
+            "Connection test failed for database {}: {e}",
+            request.params.database
+        );
+        e
+    })?;
 
     log::info!(
         "Connection test successful for database: {}",
@@ -2960,7 +3056,18 @@ pub async fn list_databases<R: Runtime>(
     let mut expanded_params = expand_ssh_connection_params(&app, &request.params).await?;
     expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
 
-    if request.params.password.is_none() && expanded_params.password.is_none() {
+    let iam_auth = expanded_params.use_iam_auth.unwrap_or(false);
+
+    // IAM auth needs an RDS auth token right now; skip the keychain fallback
+    // so a stale token can't be reused, and fail fast with an actionable
+    // message if none was supplied.
+    require_iam_token(
+        iam_auth,
+        request.params.password.as_deref(),
+        expanded_params.password.as_deref(),
+    )?;
+
+    if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
         let saved_conn = match &request.connection_id {
             Some(id) => find_connection_by_id(&app, id).ok(),
             None => None,

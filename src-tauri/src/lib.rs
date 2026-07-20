@@ -125,6 +125,22 @@ pub fn run() {
     // `askpass` module), serve the prompt and exit without booting the app.
     askpass::maybe_run_askpass_client();
 
+    // Install the rustls `ring` crypto provider as the process-wide default.
+    //
+    // Both `sqlx` (via the `tls-rustls-ring-native-roots` feature) and the
+    // workspace's direct `rustls` usage link against the same `rustls 0.23`
+    // crate, but `rustls 0.23` enables both the `ring` and the `aws-lc-rs`
+    // crypto providers when their respective feature flags are active in
+    // the dependency graph. With two providers linked, rustls refuses to
+    // pick one automatically and panics the first time someone tries a TLS
+    // handshake ("Could not automatically determine the process-level
+    // CryptoProvider"). We pin `ring` here because:
+    //   * `sqlx` is configured to use the `ring` provider.
+    //   * `ring` is pure-Rust and works on all our target platforms
+    //     (macOS, Linux, Windows) without a C toolchain at runtime.
+    // This must run before any sqlx pool is built.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // On Linux + Wayland, disable the DMA-BUF renderer in WebKitGTK to prevent
     // "Protocol error dispatching to Wayland display" crashes.
     // This targets the specific protocol causing the error while keeping GPU
