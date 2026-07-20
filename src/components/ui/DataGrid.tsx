@@ -50,7 +50,11 @@ import {
 import { useSettings } from "../../hooks/useSettings";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
-import { isJsonColumn, isJsonContent } from "../../utils/json";
+import {
+  isJsonColumn,
+  isJsonContent,
+  isStructuredValue,
+} from "../../utils/json";
 import { supportsEmptyString } from "../../utils/text";
 import {
   pickPrimaryForeignKeyByColumn,
@@ -287,8 +291,8 @@ export const DataGrid = React.memo(
     const isJsonCellTarget = useCallback(
       (colType: string | undefined, value: unknown): boolean => {
         if (colType && isJsonColumn(colType)) return true;
+        if (isStructuredValue(value)) return true;
         if (!detectJsonInTextColumns) return false;
-        if (Array.isArray(value)) return true;
         if (isJsonContent(value)) return true;
         return false;
       },

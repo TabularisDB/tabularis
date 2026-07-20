@@ -28,7 +28,7 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.10.2", features = ["protocol-asset", "devtools"] }
 tauri-plugin-log = "2"
-sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "mysql", "postgres", "tls-native-tls", "chrono", "uuid", "rust_decimal", "json"] }
+sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "mysql", "postgres", "tls-rustls-ring-native-roots", "chrono", "uuid", "rust_decimal", "json"] }
 tokio = { version = "1.49.0", features = ["full"] }
 openssl = { version = "0.10", features = ["vendored"] }
 uuid = { version = "1.20.0", features = ["v4", "serde"] }
@@ -68,10 +68,18 @@ tauri-plugin-deep-link = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tokio-postgres = { version = "0.7.13", features = ["with-chrono-0_4", "with-uuid-1", "with-serde_json-1", "array-impls"] }
 deadpool-postgres = "0.14.1"
-# rustls is used for the PostgreSQL deadpool TLS path. native-tls (used by
-# sqlx and the MySQL pool) trips macOS Secure Transport's strict EKU checks
-# on user-supplied root anchors (e.g. the AWS RDS bundle), so the Postgres
-# pool routes through rustls + the platform verifier instead.
+# sqlx uses `tls-rustls-ring-native-roots` for both the MySQL pool and the
+# SQLite/embedded paths. `tls-native-tls` is intentionally NOT enabled:
+# macOS Secure Transport (the native-tls backend on Darwin) is deprecated
+# by Apple and trips opaque errors like "One or more parameters passed to
+# a function were not valid" on real-world CA bundles (e.g. the AWS RDS
+# regional CA bundle), even when the same bundle validates fine with
+# `openssl s_client` and `mysql --ssl-mode=VERIFY_IDENTITY`. rustls has
+# no such restriction. The `ring-native-roots` flavour keeps the OS trust
+# store active (so non-IAM users who rely on a corporate CA in the macOS
+# keychain still work) instead of falling back to the bundled `webpki-roots`
+# (which would silently ignore those CAs). The PostgreSQL deadpool path
+# uses rustls + `rustls-platform-verifier` for the same reason.
 tokio-postgres-rustls = "0.13"
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 rustls-pemfile = "2"

@@ -95,6 +95,8 @@ interface ConnectionParams {
   // MySQL: force PIPES_AS_CONCAT / NO_ENGINE_SUBSTITUTION sql_mode on connect.
   // Defaults to true; disable for Vitess/PlanetScale which reject altering sql_mode.
   pipes_as_concat?: boolean;
+  // When true, the password field is an RDS auth token (mysql only).
+  use_iam_auth?: boolean;
   // SSH
   ssh_enabled?: boolean;
   ssh_connection_id?: string;
@@ -2437,9 +2439,20 @@ export const NewConnectionModal = ({
           }
           onChange={(v) => {
             updateField("ssl_mode", v);
-            // Cleartext auth must never go over an unencrypted link.
-            if (driver === "mysql" && v === "disabled") {
-              updateField("enable_cleartext_plugin", false);
+            // Cleartext auth and RDS IAM must never go over a TLS-off
+            // connection. `Preferred` is also TLS-off for our purposes
+            // (opportunistic — the backend force-upgrades it to Required
+            // for IAM, but the UI must reflect what the user picked so
+            // the persisted value matches the visible checkbox).
+            if (driver === "mysql") {
+              const effectiveSslMode = v || "required";
+              const tlsOff = !["required", "verify_ca", "verify_identity"].includes(
+                effectiveSslMode,
+              );
+              if (tlsOff) {
+                updateField("enable_cleartext_plugin", false);
+                updateField("use_iam_auth", false);
+              }
             }
           }}
           searchable={false}
@@ -2568,8 +2581,68 @@ export const NewConnectionModal = ({
               </button>
             </div>
           </div>
+
         </div>
       )}
+
+      {/* AWS RDS IAM authentication (MySQL only).
+          Rendered outside the SSL Certificate Files block so it stays
+          reachable for new connections (where formData.ssl_mode is "" and
+          the cert block is hidden), and so that switching SSL to Disabled
+          doesn't unmount it while the underlying flag is still true. */}
+      {driver === "mysql" &&
+        (() => {
+          const effectiveSslMode = formData.ssl_mode || "required";
+          // Force-upgrade mirrors the backend: Preferred is opportunistic TLS
+          // and would let the pre-signed token travel in cleartext under the
+          // mysql_clear_password plugin.
+          const tlsOff =
+            !["required", "verify_ca", "verify_identity"].includes(
+              effectiveSslMode,
+            );
+          return (
+            <div className="space-y-1.5 pt-2 border-t border-strong">
+              <label
+                className={clsx(
+                  "flex items-center gap-2.5 select-none w-fit",
+                  tlsOff
+                    ? "cursor-not-allowed opacity-50"
+                    : "cursor-pointer",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  id="iam-auth-toggle"
+                  checked={!tlsOff && !!formData.use_iam_auth}
+                  disabled={tlsOff}
+                  onChange={(e) =>
+                    updateField("use_iam_auth", e.target.checked)
+                  }
+                  className="accent-blue-500 w-3.5 h-3.5 rounded"
+                />
+                <span className="text-sm font-medium text-secondary">
+                  {t("newConnection.useIamAuth", {
+                    defaultValue: "Use AWS IAM Authentication (RDS)",
+                  })}
+                </span>
+              </label>
+              <p className="text-xs text-muted">
+                {t("newConnection.useIamAuthHint", {
+                  defaultValue:
+                    "The password field is treated as an RDS auth token (from `aws rds generate-db-auth-token`). Requires TLS. Tokens expire every 15 minutes.",
+                })}
+              </p>
+              {formData.use_iam_auth && tlsOff && (
+                <p className="text-xs text-amber-500">
+                  {t("newConnection.useIamAuthTlsRequired", {
+                    defaultValue:
+                      "Select an enforced TLS mode above (Required, Verify CA, or Verify Identity) to use AWS IAM authentication.",
+                  })}
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
       {/* Cleartext password plugin (MySQL/MariaDB only) */}
       {driver === "mysql" &&
