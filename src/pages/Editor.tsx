@@ -53,6 +53,7 @@ import {
   Minimize2,
   ExternalLink,
   CheckCircle2,
+  WrapText,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
@@ -3274,6 +3275,24 @@ export const Editor = () => {
               P
             </span>
             {t("editor.parameters")}
+          </button>
+        )}
+
+        {/* Format SQL Button */}
+        {!isTableTab && (
+          <button
+            onClick={() => {
+              const editor = editorsRef.current[activeTab.id];
+              if (editor) {
+                editor.getAction("tabularis.formatSql")?.run();
+              }
+            }}
+            disabled={!activeTab?.query?.trim()}
+            className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary hover:bg-surface text-primary rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-strong"
+            title={`${t("editor.formatSql")} (${isMac ? "Shift+⌥+F" : "Shift+Alt+F"})`}
+          >
+            <WrapText size={16} />
+            {t("editor.formatSql")}
           </button>
         )}
 

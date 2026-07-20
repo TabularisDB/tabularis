@@ -1094,6 +1094,7 @@
     "exporting": "Exporting...",
     "rowsProcessed": "Rows Processed",
     "queryParameters": "Query Parameters",
+    "formatSql": "Format SQL",
     "convertToConsole": "Convert to Console",
     "parameters": "Parameters",
     "paramValuePlaceholder": "Value (e.g. 'text' or 123)",
