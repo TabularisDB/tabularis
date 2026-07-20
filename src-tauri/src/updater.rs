@@ -60,6 +60,13 @@ const CACHE_DURATION_SECS: u64 = 43200; // 12 hours
 /// Returns the installation source: "snap", "aur", or None for direct installs.
 /// Only meaningful on Linux; always returns None on other platforms.
 fn detect_installation_source() -> Option<String> {
+    // Dev builds run outside any package sandbox, but the AUR check below
+    // inspects the system-wide pacman database and would match a
+    // tabularis-bin package installed alongside the dev environment.
+    if cfg!(debug_assertions) {
+        return None;
+    }
+
     #[cfg(target_os = "linux")]
     {
         // Snap sets the SNAP env var when running inside a snap sandbox
@@ -235,7 +242,13 @@ pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateChec
         return Err("Update checks disabled".to_string());
     }
 
-    if release_channel(&app) == "nightly" {
+    let channel = release_channel(&app);
+    log::info!(
+        "Update check started (channel: {channel}, current version: {}, forced: {force})",
+        env!("CARGO_PKG_VERSION")
+    );
+
+    if channel == "nightly" {
         let release = newest_nightly_release().await?;
         let url = nightly_latest_json_url(&release)
             .ok_or_else(|| "Nightly release is missing its updater manifest".to_string())?;
@@ -250,6 +263,12 @@ pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateChec
             .build()
             .map_err(|e| e.to_string())?;
         let has_update = updater.check().await.map_err(|e| e.to_string())?.is_some();
+
+        log::info!(
+            "Nightly channel: newest prerelease is {} (published {}), has_update: {has_update}",
+            release.tag_name,
+            release.published_at
+        );
 
         let current_version = env!("CARGO_PKG_VERSION");
         let download_urls = release
@@ -288,6 +307,11 @@ pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateChec
                             if let Some(result) = cache.last_result {
                                 // Invalidate cache if the app was updated since it was written
                                 if result.current_version == env!("CARGO_PKG_VERSION") {
+                                    log::info!(
+                                        "Stable channel: serving cached result (latest: {}, has_update: {})",
+                                        result.latest_version,
+                                        result.has_update
+                                    );
                                     return Ok(result);
                                 }
                             }
@@ -303,6 +327,13 @@ pub async fn check_for_updates(app: AppHandle, force: bool) -> Result<UpdateChec
 
     let current_version = env!("CARGO_PKG_VERSION");
     let latest_version = release.tag_name.trim_start_matches('v');
+
+    log::info!(
+        "Stable channel: latest release is {} (published {}), has_update: {}",
+        release.tag_name,
+        release.published_at,
+        is_newer_version(current_version, &release.tag_name)
+    );
 
     let download_urls = release
         .assets

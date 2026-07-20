@@ -329,6 +329,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         if config.tabularium_registry_url.is_some() {
             existing_config.tabularium_registry_url = config.tabularium_registry_url;
         }
+        if config.release_channel.is_some() {
+            existing_config.release_channel = config.release_channel;
+        }
         if config.plugins.is_some() {
             existing_config.plugins = config.plugins;
         }
