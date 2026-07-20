@@ -10,7 +10,7 @@ import type { QueryResultEntry } from "../../types/editor";
 interface ResultEntryContentProps {
   entry: QueryResultEntry;
   connectionId: string | null;
-  copyFormat: "csv" | "json" | "sql-insert";
+  copyFormat: "csv" | "json" | "sql-insert" | "markdown";
   csvDelimiter: string;
   csvIncludeHeaders: boolean;
   onPageChange: (page: number) => void;

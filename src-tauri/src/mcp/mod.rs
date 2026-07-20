@@ -215,6 +215,8 @@ async fn expand_k8s_params_for_mcp(
     expanded.k8s_resource_type = Some(k8s.resource_type);
     expanded.k8s_resource_name = Some(k8s.resource_name);
     expanded.k8s_port = Some(k8s.port);
+    expanded.k8s_kubectl_path = k8s.kubectl_path;
+    expanded.k8s_kubeconfig_path = k8s.kubeconfig_path;
 
     Ok(expanded)
 }

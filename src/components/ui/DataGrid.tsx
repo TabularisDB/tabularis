@@ -50,7 +50,11 @@ import {
 import { useSettings } from "../../hooks/useSettings";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
-import { isJsonColumn, isJsonContent } from "../../utils/json";
+import {
+  isJsonColumn,
+  isJsonContent,
+  isStructuredValue,
+} from "../../utils/json";
 import { supportsEmptyString } from "../../utils/text";
 import {
   pickPrimaryForeignKeyByColumn,
@@ -68,6 +72,7 @@ import {
   rowsToCSVWithHeaders,
   rowsToJSON,
   rowsToSqlInsert,
+  rowsToMarkdown,
   getSelectedRows,
   copyTextToClipboard,
 } from "../../utils/clipboard";
@@ -112,7 +117,7 @@ interface DataGridProps {
   onDuplicateRow?: (rowData: Record<string, unknown>) => void;
   selectedRows?: Set<number>;
   onSelectionChange?: (indices: Set<number>) => void;
-  copyFormat?: "csv" | "json" | "sql-insert";
+  copyFormat?: "csv" | "json" | "sql-insert" | "markdown";
   csvDelimiter?: string;
   csvIncludeHeaders?: boolean;
   sortClause?: string;
@@ -286,8 +291,8 @@ export const DataGrid = React.memo(
     const isJsonCellTarget = useCallback(
       (colType: string | undefined, value: unknown): boolean => {
         if (colType && isJsonColumn(colType)) return true;
+        if (isStructuredValue(value)) return true;
         if (!detectJsonInTextColumns) return false;
-        if (Array.isArray(value)) return true;
         if (isJsonContent(value)) return true;
         return false;
       },
@@ -459,6 +464,8 @@ export const DataGrid = React.memo(
           ? rowsToJSON(allRows, columns)
           : copyFormat === "sql-insert"
           ? rowsToSqlInsert(allRows, columns, tableName ?? "table")
+          : copyFormat === "markdown"
+          ? rowsToMarkdown(allRows, columns, "null", csvIncludeHeaders)
           : csvIncludeHeaders
           ? rowsToCSVWithHeaders(allRows, columns, "null", csvDelimiter)
           : rowsToCSV(allRows, "null", csvDelimiter);
@@ -1185,6 +1192,8 @@ export const DataGrid = React.memo(
         if (copyFormat === "json") return rowsToJSON(rows, columns);
         if (copyFormat === "sql-insert")
           return rowsToSqlInsert(rows, columns, tableName ?? "table");
+        if (copyFormat === "markdown")
+          return rowsToMarkdown(rows, columns, "null", withHeaders && csvIncludeHeaders);
         if (withHeaders && csvIncludeHeaders)
           return rowsToCSVWithHeaders(rows, columns, "null", csvDelimiter);
         return rowsToCSV(rows, "null", csvDelimiter);

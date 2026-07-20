@@ -5,9 +5,6 @@ on:
     tags:
       - "v*"
 
-permissions:
-  contents: write
-
 jobs:
   build:
     name: ${{ matrix.platform-label }}
@@ -44,7 +41,7 @@ jobs:
             binary-suffix: ".exe"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -63,7 +60,7 @@ jobs:
 
       - name: Setup Node
         if: steps.ui.outputs.present == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "20"
 
@@ -93,7 +90,10 @@ jobs:
           STAGE=staging
           mkdir -p "$STAGE"
           cp target/${{ matrix.target }}/release/${BIN_NAME}${{ matrix.binary-suffix }} "$STAGE/"
-          cp manifest.json "$STAGE/"
+          cp .tabularium "$STAGE/"
+          if [ -d assets ]; then
+            cp -r assets "$STAGE/"
+          fi
           if [ -f ui/dist/index.js ]; then
             mkdir -p "$STAGE/ui/dist"
             cp ui/dist/index.js "$STAGE/ui/dist/"
@@ -107,14 +107,44 @@ jobs:
           $stage = "staging"
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
           Copy-Item "target\${{ matrix.target }}\release\${BIN_NAME}${{ matrix.binary-suffix }}" $stage
-          Copy-Item "manifest.json" $stage
+          Copy-Item ".tabularium" $stage
+          if (Test-Path "assets") {
+            Copy-Item -Recurse "assets" "$stage\assets"
+          }
           if (Test-Path "ui\dist\index.js") {
             New-Item -ItemType Directory -Force -Path "$stage\ui\dist" | Out-Null
             Copy-Item "ui\dist\index.js" "$stage\ui\dist"
           }
           Compress-Archive -Path "$stage\*" -DestinationPath "${BIN_NAME}-${{ matrix.platform-label }}.zip"
 
-      - name: Upload release asset
+      - name: Stash artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${BIN_NAME}-${{ matrix.platform-label }}
+          path: ${BIN_NAME}-${{ matrix.platform-label }}.zip
+          retention-days: 1
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout (for the .tabularium manifest asset)
+        uses: actions/checkout@v5
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${BIN_NAME}-${{ matrix.platform-label }}.zip
+          # .tabularium ships as a standalone asset: the registry resolves the
+          # manifest from release assets, not the git ref.
+          files: |
+            artifacts/*.zip
+            .tabularium

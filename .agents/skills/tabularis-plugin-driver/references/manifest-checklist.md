@@ -41,6 +41,7 @@ Set these deliberately:
 - `create_foreign_keys`: true only if FK DDL is supported and enforced
 - `manage_tables`: false for read-only or inspection-only plugins
 - `readonly`: true if insert/update/delete and table management must be hidden
+- `explain`: true only if the plugin implements `explain_query` (otherwise the Visual EXPLAIN UI stays hidden)
 - `no_connection_required`: true only for API-style plugins
 
 ## Settings Guidance

@@ -1,7 +1,8 @@
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 
-import { printCreated, printError, printHelp } from "./print";
+import { migratePlugin } from "./migrate";
+import { printCreated, printError, printHelp, printMigrated } from "./print";
 import { scaffold } from "./scaffold";
 import { titleCase, validateDbType, validateName, validateQuote } from "./validate";
 
@@ -20,6 +21,7 @@ function main(argv: string[]): number {
         quote: { type: "string" },
         "with-ui": { type: "boolean", default: false },
         "no-git": { type: "boolean", default: false },
+        ci: { type: "boolean", default: false },
         dir: { type: "string" },
         version: { type: "boolean", short: "v", default: false },
         help: { type: "boolean", short: "h", default: false },
@@ -39,6 +41,10 @@ function main(argv: string[]): number {
   if (parsed.values.version) {
     console.log(PACKAGE_VERSION);
     return 0;
+  }
+
+  if (parsed.positionals[0] === "migrate") {
+    return runMigrate(parsed);
   }
 
   const rawName = parsed.positionals[0];
@@ -90,6 +96,24 @@ function main(argv: string[]): number {
 
   printCreated(slug, targetDir, Boolean(parsed.values["with-ui"]));
   return 0;
+}
+
+/**
+ * `migrate [path]` — convert a legacy `manifest.json` plugin to a `.tabularium`
+ * bundle in place. Operates on the given path, or `--dir`, or the cwd.
+ */
+function runMigrate(parsed: ReturnType<typeof parseArgs>): number {
+  const target = resolve(
+    parsed.positionals[1] ?? (parsed.values.dir as string | undefined) ?? process.cwd(),
+  );
+  try {
+    const result = migratePlugin(target, { ci: Boolean(parsed.values.ci) });
+    printMigrated(target, result);
+    return 0;
+  } catch (err) {
+    printError(err instanceof Error ? err.message : String(err));
+    return 1;
+  }
 }
 
 const exitCode = main(process.argv.slice(2));
