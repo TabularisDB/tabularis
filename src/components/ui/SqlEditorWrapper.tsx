@@ -7,6 +7,12 @@ import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { useSettings } from "../../hooks/useSettings";
 import { useKeybindings } from "../../hooks/useKeybindings";
 import { getFontCSS } from "../../utils/settings";
+import {
+  splitStatements,
+  findStatementAtOffset,
+  type Dialect,
+  type Statement,
+} from "../../utils/sqlSplitter";
 
 interface SqlEditorWrapperProps {
   initialValue: string;
@@ -16,6 +22,10 @@ interface SqlEditorWrapperProps {
   height?: string | number;
   options?: React.ComponentProps<typeof MonacoEditor>['options'];
   editorKey?: string;
+  /** When provided, highlights the statement the cursor is currently inside. */
+  dialect?: Dialect | string;
+  /** Run the whole editor content (Mod+Shift+Enter). */
+  onRunAll?: () => void;
 }
 
 // Internal component that resets when key changes
@@ -25,13 +35,23 @@ const SqlEditorInternal = ({
   onRun,
   onMount,
   height = "100%",
-  options
+  options,
+  dialect,
+  onRunAll
 }: SqlEditorWrapperProps & { editorKey: string }) => {
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
   const onRunRef = useRef(onRun);
   onRunRef.current = onRun;
+  const onRunAllRef = useRef(onRunAll);
+  onRunAllRef.current = onRunAll;
+  const dialectRef = useRef(dialect);
+  dialectRef.current = dialect;
+  const lastSplitRef = useRef<{ text: string; statements: Statement[] }>({
+    text: "",
+    statements: [],
+  });
   const editorTheme = useEditorTheme();
   const { settings } = useSettings();
   const { matchesShortcut } = useKeybindings();
@@ -145,6 +165,14 @@ const SqlEditorInternal = ({
         }
       );
 
+      // Bind Ctrl+Shift+Enter to Run All
+      editor.addCommand(
+        monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter,
+        () => {
+          onRunAllRef.current?.();
+        }
+      );
+
       // Force the suggestion widget via the user-configurable shortcut
       editor.onKeyDown((e) => {
         if (matchesShortcutRef.current(e.browserEvent, "trigger_suggestions")) {
@@ -153,6 +181,60 @@ const SqlEditorInternal = ({
           editor.trigger("keyboard", "editor.action.triggerSuggest", {});
         }
       });
+
+      // Highlight the statement the cursor is currently inside (no
+      // highlight while there's an active selection). Opt-in via the
+      // `dialect` prop so consumers that don't pass it are unaffected.
+      if (dialectRef.current !== undefined) {
+        const decorations = editor.createDecorationsCollection();
+
+        const getStatements = (text: string): Statement[] => {
+          if (lastSplitRef.current.text !== text) {
+            lastSplitRef.current = {
+              text,
+              statements: splitStatements(text, dialectRef.current),
+            };
+          }
+          return lastSplitRef.current.statements;
+        };
+
+        const updateCursorStatementHighlight = () => {
+          const selection = editor.getSelection();
+          if (selection && !selection.isEmpty()) {
+            decorations.clear();
+            return;
+          }
+          const model = editor.getModel();
+          const position = editor.getPosition();
+          if (!model || !position) {
+            decorations.clear();
+            return;
+          }
+          const offset = model.getOffsetAt(position);
+          const statement = findStatementAtOffset(getStatements(model.getValue()), offset);
+          if (!statement) {
+            decorations.clear();
+            return;
+          }
+          const startPos = model.getPositionAt(statement.range.start);
+          const endPos = model.getPositionAt(statement.range.end);
+          decorations.set([
+            {
+              range: new monaco.Range(
+                startPos.lineNumber,
+                startPos.column,
+                endPos.lineNumber,
+                endPos.column,
+              ),
+              options: { className: "cursor-statement-highlight" },
+            },
+          ]);
+        };
+
+        editor.onDidChangeCursorSelection(updateCursorStatementHighlight);
+        editor.onDidChangeModelContent(updateCursorStatementHighlight);
+        updateCursorStatementHighlight();
+      }
 
       if (onMount) onMount(editor, monaco);
     };

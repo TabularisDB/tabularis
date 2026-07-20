@@ -420,6 +420,11 @@ select option:active {
   background-color: color-mix(in srgb, var(--surface-active) 32%, transparent) !important;
 }
 
+/* Statement-at-cursor highlight (Cmd+Enter run target) */
+.cursor-statement-highlight {
+  background-color: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+}
+
 /* Sidebar slide-in animation */
 @keyframes slide-in-right {
   from {

@@ -264,3 +264,5 @@ export {
   isExplainable,
   stripLeadingComments,
 } from './classify';
+
+export { findStatementAtOffset } from './statementAt';

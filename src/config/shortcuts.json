@@ -20,6 +20,26 @@
     "overridable": false
   },
   {
+    "id": "run_all",
+    "category": "editor",
+    "defaultMac": "⌘+⇧+F5",
+    "defaultWin": "Ctrl+Shift+F5",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "F5" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "F5" },
+    "i18nKey": "settings.shortcuts.runAll",
+    "overridable": false
+  },
+  {
+    "id": "run_all_editor",
+    "category": "editor",
+    "defaultMac": "⌘+⇧+Enter",
+    "defaultWin": "Ctrl+Shift+Enter",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "Enter" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "Enter" },
+    "i18nKey": "settings.shortcuts.runAllEditor",
+    "overridable": false
+  },
+  {
     "id": "new_tab",
     "category": "editor",
     "defaultMac": "⌘+T",
