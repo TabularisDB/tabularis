@@ -58,6 +58,14 @@ export interface Settings {
   editorShowLineNumbers?: boolean;
   editorAcceptSuggestionOnEnter?: boolean;
   runStatementUnderCursor?: boolean;
+  // SQL Formatter
+  formatterKeywordCase?: "upper" | "lower" | "preserve";
+  formatterIndentStyle?: "standard" | "tabularLeft" | "tabularRight";
+  formatterTabWidth?: number;
+  formatterUseTabs?: boolean;
+  formatterFunctionCase?: "upper" | "lower" | "preserve";
+  formatterLinesBetweenQueries?: number;
+  formatterDenseOperators?: boolean;
   pingInterval?: number;
   queryHistoryMaxEntries?: number;
   showWelcome?: boolean;
@@ -138,6 +146,13 @@ export const DEFAULT_SETTINGS: Settings = {
   editorShowLineNumbers: true,
   editorAcceptSuggestionOnEnter: true,
   runStatementUnderCursor: true,
+  formatterKeywordCase: "upper",
+  formatterIndentStyle: "standard",
+  formatterTabWidth: 2,
+  formatterUseTabs: false,
+  formatterFunctionCase: "preserve",
+  formatterLinesBetweenQueries: 1,
+  formatterDenseOperators: false,
   pingInterval: 30,
   queryHistoryMaxEntries: 500,
   autoConnectLastConnection: true,

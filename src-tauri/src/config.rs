@@ -77,6 +77,14 @@ pub struct AppConfig {
     /// Default: `true` — matches the behaviour users expect from most editors.
     pub editor_accept_suggestion_on_enter: Option<bool>,
     pub run_statement_under_cursor: Option<bool>,
+    // ----- SQL Formatter -----
+    pub formatter_keyword_case: Option<String>,
+    pub formatter_indent_style: Option<String>,
+    pub formatter_tab_width: Option<u32>,
+    pub formatter_use_tabs: Option<bool>,
+    pub formatter_function_case: Option<String>,
+    pub formatter_lines_between_queries: Option<u32>,
+    pub formatter_dense_operators: Option<bool>,
     /// Connection health check interval in seconds. 0 = disabled. Default: 30.
     pub ping_interval: Option<u32>,
     /// Maximum number of query history entries per connection. Default: 500.

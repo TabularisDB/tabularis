@@ -191,11 +191,20 @@ const SqlEditorInternal = ({
           const selection = ed.getSelection();
           const hasSelection = selection && !selection.isEmpty();
           const sqlDialect = (dialectRef.current as SqlDialect) ?? undefined;
+          const formatOptions = {
+            keywordCase: settings.formatterKeywordCase ?? 'upper' as const,
+            indentStyle: settings.formatterIndentStyle ?? 'standard' as const,
+            tabWidth: settings.formatterTabWidth ?? 2,
+            useTabs: settings.formatterUseTabs ?? false,
+            functionCase: settings.formatterFunctionCase ?? 'preserve' as const,
+            linesBetweenQueries: settings.formatterLinesBetweenQueries ?? 1,
+            denseOperators: settings.formatterDenseOperators ?? false,
+          };
 
           if (hasSelection) {
             // Format only the selected text
             const selectedText = model.getValueInRange(selection);
-            const formatted = formatSql(selectedText, sqlDialect);
+            const formatted = formatSql(selectedText, sqlDialect, formatOptions);
             if (formatted !== selectedText) {
               ed.executeEdits('formatSql', [{
                 range: selection,
@@ -207,7 +216,7 @@ const SqlEditorInternal = ({
           } else {
             // Format the entire document
             const fullText = model.getValue();
-            const formatted = formatSql(fullText, sqlDialect);
+            const formatted = formatSql(fullText, sqlDialect, formatOptions);
             if (formatted !== fullText) {
               const fullRange = model.getFullModelRange();
               const position = ed.getPosition();
