@@ -699,6 +699,7 @@
       "pasteImportClipboard": "Importa dagli Appunti",
       "quickNavigator": "Navigatore rapido",
       "triggerSuggestions": "Mostra suggerimenti",
+      "formatSql": "Formatta SQL",
       "refreshTable": "Aggiorna tabella"
     },
     "aiActivity": "Attività AI",
@@ -1074,6 +1075,7 @@
     "exporting": "Esportazione in corso...",
     "rowsProcessed": "Righe processate",
     "queryParameters": "Parametri Query",
+    "formatSql": "Formatta SQL",
     "convertToConsole": "Converti in Console",
     "parameters": "Parametri",
     "paramValuePlaceholder": "Valore (es. 'testo' o 123)",

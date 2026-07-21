@@ -672,7 +672,8 @@
       "notebookRunAll": "모든 셀 실행",
       "categories_notebook": "노트북",
       "pasteImportClipboard": "클립보드에서 가져오기",
-      "quickNavigator": "빠른 탐색기"
+      "quickNavigator": "빠른 탐색기",
+      "formatSql": "SQL 포맷"
     },
     "aiActivity": "AI 활동",
     "backup": {
@@ -1050,6 +1051,7 @@
     "exporting": "내보내는 중...",
     "rowsProcessed": "처리된 행",
     "queryParameters": "쿼리 매개변수",
+    "formatSql": "SQL 포맷",
     "convertToConsole": "콘솔로 변환",
     "parameters": "매개변수",
     "paramValuePlaceholder": "값 (예: 'text' 또는 123)",

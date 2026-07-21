@@ -667,6 +667,7 @@
       "pasteImportClipboard": "Импортировать из буфера обмена",
       "quickNavigator": "Быстрый навигатор",
       "triggerSuggestions": "Показать подсказки",
+      "formatSql": "Форматировать SQL",
       "refreshTable": "Обновить таблицу"
     },
     "aiActivity": "Активность AI",
@@ -1048,6 +1049,7 @@
     "exporting": "Экспорт...",
     "rowsProcessed": "Обработано строк",
     "queryParameters": "Параметры запроса",
+    "formatSql": "Форматировать SQL",
     "convertToConsole": "Преобразовать в консоль",
     "parameters": "Параметры",
     "paramValuePlaceholder": "Значение (например, 'текст' или 123)",

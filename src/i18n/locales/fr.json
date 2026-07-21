@@ -708,6 +708,7 @@
       "pasteImportClipboard": "Importer depuis le Presse-papiers",
       "quickNavigator": "Navigateur rapide",
       "triggerSuggestions": "Afficher les suggestions",
+      "formatSql": "Formater SQL",
       "refreshTable": "Actualiser la table"
     },
     "aiActivity": "Activité IA",
@@ -1088,6 +1089,7 @@
     "exporting": "Exportation...",
     "rowsProcessed": "Lignes traitées",
     "queryParameters": "Paramètres de requête",
+    "formatSql": "Formater SQL",
     "convertToConsole": "Convertir en console",
     "parameters": "Paramètres",
     "paramValuePlaceholder": "Valeur (ex. 'texte' ou 123)",

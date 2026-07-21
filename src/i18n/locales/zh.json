@@ -639,6 +639,7 @@
       "categories_notebook": "笔记本",
       "quickNavigator": "快速导航",
       "triggerSuggestions": "触发建议",
+      "formatSql": "格式化 SQL",
       "refreshTable": "刷新表格"
     },
     "aiActivity": "AI 活动",
@@ -1018,6 +1019,7 @@
     "exporting": "导出中...",
     "rowsProcessed": "已处理行数",
     "queryParameters": "查询参数",
+    "formatSql": "格式化 SQL",
     "convertToConsole": "转换为控制台",
     "parameters": "参数",
     "paramValuePlaceholder": "值（例如 'text' 或 123）",

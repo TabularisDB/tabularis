@@ -704,7 +704,8 @@
       "notebookRunAll": "Patakbuhin ang Lahat ng Cell",
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "I-import mula sa Clipboard",
-      "quickNavigator": "Quick Navigator"
+      "quickNavigator": "Quick Navigator",
+      "formatSql": "I-format ang SQL"
     },
     "aiActivity": "AI Activity",
     "backup": {
@@ -1083,6 +1084,7 @@
     "exporting": "Nag-e-export...",
     "rowsProcessed": "Mga Row na Naproseso",
     "queryParameters": "Mga Parameter ng Query",
+    "formatSql": "I-format ang SQL",
     "convertToConsole": "I-convert sa Console",
     "parameters": "Mga Parameter",
     "paramValuePlaceholder": "Value (hal. 'text' o 123)",

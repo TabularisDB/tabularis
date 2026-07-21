@@ -688,6 +688,7 @@
       "pasteImportClipboard": "クリップボードからインポート",
       "quickNavigator": "クイックナビゲーター",
       "triggerSuggestions": "候補を表示",
+      "formatSql": "SQLをフォーマット",
       "refreshTable": "テーブルを更新"
     },
     "aiActivity": "AI アクティビティ",
@@ -1063,6 +1064,7 @@
     "exporting": "エクスポート中...",
     "rowsProcessed": "処理行数",
     "queryParameters": "クエリパラメータ",
+    "formatSql": "SQLをフォーマット",
     "convertToConsole": "コンソールに変換",
     "parameters": "パラメータ",
     "paramValuePlaceholder": "値 (例: 'text' や 123)",
