@@ -111,6 +111,18 @@ export function GeneralTab() {
 
       </SettingSection>
 
+      <SettingSection title={t("settings.queryExecution")}>
+        <SettingRow
+          label={t("settings.runStatementUnderCursor")}
+          description={t("settings.runStatementUnderCursorDesc")}
+        >
+          <SettingToggle
+            checked={settings.runStatementUnderCursor !== false}
+            onChange={(v) => updateSetting("runStatementUnderCursor", v)}
+          />
+        </SettingRow>
+      </SettingSection>
+
       <SettingSection title={t("settings.connectionHealthCheck")}>
         <SettingRow
           label={t("settings.pingInterval")}

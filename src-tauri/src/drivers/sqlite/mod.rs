@@ -880,6 +880,7 @@ impl SqliteDriver {
                 default_port: None,
                 capabilities: DriverCapabilities {
                     schemas: false,
+                    single_database: false,
                     views: true,
                     materialized_views: false,
                     routines: false,
@@ -904,6 +905,8 @@ impl SqliteDriver {
                     sql_dialect: SqlDialect::Sqlite,
                 },
                 is_builtin: true,
+                engine: Some("sqlite".to_string()),
+                paradigms: vec!["sql".to_string()],
                 default_username: String::new(),
                 color: "#06b6d4".to_string(),
                 icon: "sqlite".to_string(),

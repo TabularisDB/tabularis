@@ -95,6 +95,52 @@ vi.mock("../../../src/hooks/usePluginSlotRegistry", () => ({
   }),
 }));
 
+vi.mock("../../../src/hooks/useSettings", () => ({
+  useSettings: () => ({
+    settings: {},
+    updateSetting: vi.fn(),
+  }),
+}));
+
+vi.mock("../../../src/hooks/useConnectionCatalogue", () => ({
+  useConnectionCatalogue: () => ({
+    groups: [
+      {
+        engine: "mysql",
+        displayName: "MySQL",
+        primaryParadigm: "sql",
+        secondaryParadigms: [],
+        installed: true,
+        verified: true,
+        platformSupported: true,
+        downloads: null,
+        drivers: [
+          {
+            slug: "mysql",
+            name: "MySQL",
+            engine: "mysql",
+            paradigms: ["sql"],
+            verified: true,
+            installed: true,
+            installedVersion: "1.0.0",
+            latestVersion: "1.0.0",
+            isBuiltin: true,
+            platformSupported: true,
+            downloads: null,
+            updateAvailable: false,
+            icon: null,
+            color: null,
+          },
+        ],
+      },
+    ],
+    facets: [],
+    loading: false,
+    registryOffline: false,
+    refresh: vi.fn(),
+  }),
+}));
+
 vi.mock("../../../src/utils/ssh", () => ({
   loadSshConnections: sshMocks.loadSshConnections,
 }));
@@ -218,8 +264,17 @@ function SwitchingModalHarness({
   );
 }
 
+// A new connection opens on the catalogue step; picking an engine is what a user
+// does to reach the form.
+function pickEngineFromCatalogue() {
+  fireEvent.click(
+    screen.getByRole("button", { name: "connectionCatalogue.connectTo" }),
+  );
+}
+
 async function openInlineK8s() {
   const view = renderModal();
+  pickEngineFromCatalogue();
   fireEvent.click(screen.getByText("Kubernetes"));
   fireEvent.click(screen.getByLabelText("newConnection.useK8s"));
   fireEvent.click(screen.getByText("newConnection.createInlineK8s"));
@@ -377,6 +432,7 @@ describe("NewConnectionModal advanced inline K8s paths", () => {
       context === "ctx-a" ? firstNamespaces.promise : secondNamespaces.promise,
     );
     renderModal();
+    pickEngineFromCatalogue();
     fireEvent.click(screen.getByText("Kubernetes"));
     fireEvent.click(screen.getByLabelText("newConnection.useK8s"));
     fireEvent.click(screen.getByText("newConnection.createInlineK8s"));
@@ -590,6 +646,7 @@ describe("NewConnectionModal advanced inline K8s paths", () => {
     });
     fireEvent.click(screen.getByLabelText("modal-close"));
     fireEvent.click(screen.getByText("open-new"));
+    pickEngineFromCatalogue();
     await waitFor(() => {
       expect(
         screen.getByPlaceholderText("newConnection.namePlaceholder"),
@@ -640,6 +697,7 @@ describe("NewConnectionModal advanced inline K8s paths", () => {
       },
     ]);
     renderModal();
+    pickEngineFromCatalogue();
     fireEvent.click(screen.getByText("Kubernetes"));
     fireEvent.click(screen.getByLabelText("newConnection.useK8s"));
 
@@ -915,6 +973,7 @@ describe("NewConnectionModal advanced inline K8s paths", () => {
         onSave={onSave}
       />,
     );
+    pickEngineFromCatalogue();
     fillSaveFields();
 
     fireEvent.click(screen.getByText("newConnection.save"));

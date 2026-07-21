@@ -427,6 +427,23 @@
     "appearance_editorShowLineNumbersDesc": "Muestra los números de línea en el margen del editor.",
     "appearance_editorAcceptSuggestionOnEnter": "Aceptar Sugerencia con Intro",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Permite que Intro (además de Tab) acepte la sugerencia de autocompletado activa. Cuando está desactivado, Intro siempre inserta una nueva línea.",
+    "queryExecution": "Ejecución de consultas",
+    "runStatementUnderCursor": "Ejecutar la instrucción bajo el cursor",
+    "runStatementUnderCursorDesc": "Cuando un script tiene varias instrucciones, ejecuta la que está bajo el cursor en lugar de mostrar el selector de consultas. Selecciona texto para ejecutar un rango específico.",
+    "formatter_title": "Formateador SQL",
+    "formatter_keywordCase": "Mayúsculas en palabras clave",
+    "formatter_keywordCaseDesc": "Cómo se capitalizan las palabras clave SQL (SELECT, FROM, WHERE) después del formateo.",
+    "formatter_functionCase": "Mayúsculas en funciones",
+    "formatter_functionCaseDesc": "Cómo se capitalizan los nombres de funciones (COUNT, SUM, COALESCE) después del formateo.",
+    "formatter_indentStyle": "Estilo de indentación",
+    "formatter_indentStyleDesc": "Estándar indenta normalmente. Tabular alinea las cláusulas en columnas.",
+    "formatter_tabWidth": "Ancho de indentación",
+    "formatter_useTabs": "Usar tabulaciones",
+    "formatter_useTabsDesc": "Indentar con tabulaciones en lugar de espacios.",
+    "formatter_linesBetweenQueries": "Líneas entre consultas",
+    "formatter_linesBetweenQueriesDesc": "Número de líneas en blanco entre sentencias SQL separadas.",
+    "formatter_denseOperators": "Operadores compactos",
+    "formatter_denseOperatorsDesc": "Eliminar espacios alrededor de operadores (ej. a=1 en lugar de a = 1).",
     "editConfigJson": "Editar config.json",
     "editConfigJsonDesc": "Edita directamente el archivo de configuración en bruto. Se requiere reinicio para aplicar los cambios.",
     "configJsonModal": {
@@ -620,6 +637,10 @@
         "copy": "Copiar",
         "copied": "¡Copiado!"
       },
+      "uninstallError": {
+        "title": "Desinstalación fallida",
+        "subtitle": "Ocurrió un error al desinstalar el plugin. Consulta los detalles a continuación."
+      },
       "startError": {
         "title": "El Plugin no se pudo iniciar",
         "subtitle": "No se pudo lanzar el proceso del plugin. Revisa los detalles del error.",
@@ -658,7 +679,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "Con tecnología de",
+      "openHomepage": "Abrir página"
     },
     "shortcuts": {
       "title": "Atajos de teclado",
@@ -669,6 +692,8 @@
       },
       "runQuery": "Ejecutar consulta",
       "runQueryEditor": "Ejecutar consulta (en el editor)",
+      "runAll": "Ejecutar todas las sentencias",
+      "runAllEditor": "Ejecutar todas las sentencias (en el editor)",
       "tabSwitcher": "Cambiar pestaña",
       "copySelection": "Copiar selección",
       "toggleSidebar": "Mostrar/ocultar barra lateral",
@@ -688,6 +713,7 @@
       "pasteImportClipboard": "Importar desde Portapapeles",
       "quickNavigator": "Navegador rápido",
       "triggerSuggestions": "Mostrar sugerencias",
+      "formatSql": "Formatear SQL",
       "refreshTable": "Actualizar tabla"
     },
     "aiActivity": "Actividad IA",
@@ -875,7 +901,8 @@
     "scrollTabsRight": "Desplazar pestañas a la derecha",
     "useIamAuth": "Usar autenticación AWS IAM (RDS)",
     "useIamAuthHint": "El campo de contraseña se interpreta como un token de autenticación de RDS (obtenido con `aws rds generate-db-auth-token`). Requiere TLS. Los tokens caducan cada 15 minutos.",
-    "useIamAuthTlsRequired": "Activa un modo SSL arriba para usar la autenticación AWS IAM."
+    "useIamAuthTlsRequired": "Activa un modo SSL arriba para usar la autenticación AWS IAM.",
+    "changeDatabase": "Cambiar base de datos"
   },
   "sshConnections": {
     "title": "Conexiones SSH",
@@ -991,6 +1018,7 @@
     "noActiveSession": "No hay sesión activa. Selecciona una conexión.",
     "stop": "Detener",
     "run": "Ejecutar",
+    "runAll": "Ejecutar todo",
     "export": "Exportar",
     "connected": "Conectado",
     "disconnected": "Desconectado",
@@ -1057,6 +1085,7 @@
     "exporting": "Exportando...",
     "rowsProcessed": "Filas Procesadas",
     "queryParameters": "Parámetros de Consulta",
+    "formatSql": "Formatear SQL",
     "convertToConsole": "Convertir a Consola",
     "parameters": "Parámetros",
     "paramValuePlaceholder": "Valor (ej. 'texto' o 123)",
@@ -1772,5 +1801,46 @@
   "miniGrid": {
     "runningQuery": "Ejecutando consulta...",
     "copyAll": "Copiar todo"
+  },
+  "deepLink": {
+    "installTitle": "Instalar plugin desde el registro",
+    "installSubtitle": "Un registro de Tabularium pidió a Tabularis que instale un plugin.",
+    "plugin": "Plugin",
+    "version": "Versión",
+    "registry": "Registro",
+    "latest": "Última",
+    "installConfirm": "Instalar",
+    "installing": "Instalando…",
+    "loadingPreview": "Cargando detalles…",
+    "usingConfigured": "registro configurado",
+    "mismatchTitle": "Registro distinto al configurado",
+    "mismatchBody": "Tu registro configurado es {{configured}}. El enlace apunta a otro — revisa antes de continuar.",
+    "updateConfirm": "Actualizar a v{{version}}",
+    "alreadyInstalled": "La versión {{version}} ya está instalada."
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "Buscar bases de datos…",
+    "clearSearch": "Borrar búsqueda",
+    "verified": "Verificado",
+    "installed": "Instalado",
+    "install": "Instalar",
+    "clear": "Limpiar",
+    "registryOffline": "Registro no disponible: mostrando solo controladores instalados e integrados.",
+    "noMatches": "Ninguna base de datos coincide con tus filtros.",
+    "clearFilters": "Limpiar filtros",
+    "driverCount_one": "{{count}} controlador",
+    "driverCount_other": "{{count}} controladores",
+    "connectTo": "Conectar a {{name}}",
+    "unavailableOnPlatform": "No disponible en tu plataforma",
+    "backToCatalogue": "Volver al catálogo",
+    "pickDriver": "Varios controladores se conectan a {{name}}. Elige uno:",
+    "latestVersion": "Última v{{version}}",
+    "continue": "Continuar",
+    "noReleaseTitle": "Aún no hay una versión instalable para tu plataforma.",
+    "noReleaseBody": "Este controlador no tiene una compilación descargable para tu SO/arquitectura. Consulta el registro para una versión actualizada.",
+    "notInstalled": "Este controlador aún no está instalado. Instálalo para configurar una conexión.",
+    "installVersion": "Instalar v{{version}}",
+    "installingVersion": "Instalando v{{version}}…",
+    "retryInstall": "Reintentar instalación"
   }
 }

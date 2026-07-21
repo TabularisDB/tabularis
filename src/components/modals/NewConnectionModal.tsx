@@ -4,6 +4,7 @@ import {
   X,
   Check,
   AlertCircle,
+  ArrowLeft,
   Loader2,
   Database,
   Settings,
@@ -12,9 +13,9 @@ import {
   CheckSquare,
   Square,
   Plug,
-  Info,
   Eye,
   EyeOff,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -28,10 +29,10 @@ import { K8sConnectionsModal } from "./K8sConnectionsModal";
 import { Select } from "../ui/Select";
 import { SlotAnchor } from "../ui/SlotAnchor";
 import { useDrivers } from "../../hooks/useDrivers";
+import { useSettings } from "../../hooks/useSettings";
 import { usePluginSlotRegistry } from "../../hooks/usePluginSlotRegistry";
 import { Modal } from "../ui/Modal";
 import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
-import type { PluginManifest } from "../../types/plugins";
 import { loadSshConnections, type SshConnection } from "../../utils/ssh";
 import {
   loadK8sConnections,
@@ -53,6 +54,30 @@ import {
   parseConnectionString,
   toConnectionParams,
 } from "../../utils/connectionStringParser";
+import { useConnectionCatalogue } from "../../hooks/useConnectionCatalogue";
+import { ConnectionCatalogue } from "./connection/ConnectionCatalogue";
+import { DriverVersionPicker } from "./connection/DriverVersionPicker";
+import { InstallGate } from "./connection/InstallGate";
+import {
+  resolveEngineSelection,
+  type EngineGroup,
+  type CatalogueDriver,
+} from "../../utils/connectionCatalogue";
+
+// Accent colors per data paradigm, used for driver chips in the configure header.
+const PARADIGM_ACCENT: Record<string, string> = {
+  sql: "#3b82f6",
+  relational: "#3b82f6",
+  nosql: "#10b981",
+  document: "#10b981",
+  "key-value": "#14b8a6",
+  vector: "#a855f7",
+  graph: "#f59e0b",
+  timeseries: "#ec4899",
+  search: "#6366f1",
+};
+
+const paradigmAccent = (p: string): string => PARADIGM_ACCENT[p] ?? "#64748b";
 
 interface ConnectionParams {
   driver: string;
@@ -70,6 +95,8 @@ interface ConnectionParams {
   // MySQL: force PIPES_AS_CONCAT / NO_ENGINE_SUBSTITUTION sql_mode on connect.
   // Defaults to true; disable for Vitess/PlanetScale which reject altering sql_mode.
   pipes_as_concat?: boolean;
+  // When true, the password field is an RDS auth token (mysql only).
+  use_iam_auth?: boolean;
   // SSH
   ssh_enabled?: boolean;
   ssh_connection_id?: string;
@@ -192,12 +219,84 @@ export const NewConnectionModal = ({
   initialConnection,
 }: NewConnectionModalProps) => {
   const { t } = useTranslation();
-  const { drivers } = useDrivers();
+  const { drivers, refresh: refreshDrivers } = useDrivers();
+  const { settings, updateSetting } = useSettings();
   const { invalidate: invalidateK8sAsync, run: runK8sAsync } = useLatestAsync();
+
+  // ── wizard step ──
+  const isEditing = Boolean(initialConnection);
+  const [step, setStep] = useState<"catalogue" | "form">(
+    isEditing ? "form" : "catalogue",
+  );
+  const [pendingGroup, setPendingGroup] = useState<EngineGroup | null>(null);
+  const catalogue = useConnectionCatalogue();
 
   // ── form state ──
   const [driver, setDriver] = useState<string>("mysql");
   const activeDriver = drivers.find((d) => d.id === driver) ?? drivers[0];
+
+  // ── driver install state ──
+  const [installStatus, setInstallStatus] = useState<
+    "idle" | "installing" | "error"
+  >("idle");
+  const [installError, setInstallError] = useState<string | undefined>();
+
+  const installDriver = async (
+    slug: string,
+    version: string,
+  ): Promise<boolean> => {
+    setInstallStatus("installing");
+    setInstallError(undefined);
+    try {
+      await invoke("install_plugin", { pluginId: slug, version });
+      // install_plugin hot-registers the driver, but the connection modal only
+      // surfaces external drivers that are in `activeExternalDrivers`. Installing
+      // from the catalogue is an explicit opt-in, so activate it — otherwise the
+      // freshly-installed driver is filtered out and selection falls back to a
+      // built-in (mysql).
+      await updateSetting(
+        "activeExternalDrivers",
+        Array.from(new Set([...(settings.activeExternalDrivers ?? []), slug])),
+      );
+      catalogue.refresh();
+      refreshDrivers();
+      setInstallStatus("idle");
+      return true;
+    } catch (e) {
+      setInstallStatus("error");
+      setInstallError(
+        typeof e === "string" ? e : e instanceof Error ? e.message : JSON.stringify(e),
+      );
+      return false;
+    }
+  };
+
+  const activeCatalogueDriver =
+    catalogue.groups
+      .flatMap((g) => g.drivers)
+      .find((d) => d.slug === driver) ?? null;
+  const activeDriverNotInstalled =
+    activeCatalogueDriver != null && !activeCatalogueDriver.installed;
+
+  // Accent + glyph for the active driver, preferring the registry's icon URL
+  // (the real plugin logo) and falling back to the built-in driver glyph.
+  const driverAccent =
+    activeCatalogueDriver?.color ||
+    paradigmAccent(activeCatalogueDriver?.paradigms?.[0] ?? "") ||
+    "#64748b";
+  const renderDriverGlyph = (size: number) => {
+    const icon = activeCatalogueDriver?.icon ?? activeDriver?.icon ?? "";
+    if (/^https?:\/\//.test(icon) || icon.startsWith("data:")) {
+      return (
+        <img
+          src={icon}
+          alt=""
+          className="h-full w-full rounded-[inherit] object-contain p-1.5"
+        />
+      );
+    }
+    return getDriverIcon(activeDriver, size);
+  };
   const [name, setName] = useState("");
   const [formData, setFormData] = useState<Partial<ConnectionParams>>({
     host: "localhost",
@@ -445,6 +544,9 @@ export const NewConnectionModal = ({
       defaultValue: "e.g. mysql://user:pass@localhost:3306/db",
     });
   const isMultiDb = isMultiDatabaseCapable(activeDriver?.capabilities);
+  // Flat single-database store (e.g. Meilisearch): no database to select or name.
+  const singleDatabase =
+    activeDriver?.capabilities?.single_database === true;
 
   // ── plugin slot: connection-modal.connection_content ──
   const slotRegistry = usePluginSlotRegistry();
@@ -1216,6 +1318,10 @@ export const NewConnectionModal = ({
       setConnectionStringError(null);
       setNameError(false);
       setDatabasesTabError(false);
+      setPendingGroup(null);
+      setInstallStatus("idle");
+      setInstallError(undefined);
+      setStep(initialConnection ? "form" : "catalogue");
       invalidateK8sDiscovery();
       invalidateK8sAsync("new-k8s-test");
       inlineK8sTestSequenceRef.current += 1;
@@ -1244,7 +1350,9 @@ export const NewConnectionModal = ({
           const fullConn = await fetchConnectionWithCredentials(
             initialConnection.id,
           );
-          params = fullConn.params;
+          // A response without params would blank the form, so keep the
+          // secret-less ones instead of overwriting them with nothing.
+          if (fullConn?.params) params = fullConn.params;
         } catch {
           // fallback: use params without secrets (backend will retrieve from keychain)
         }
@@ -1398,9 +1506,47 @@ export const NewConnectionModal = ({
     setConnectionStringError(null);
     setNameError(false);
     setDatabasesTabError(false);
+    setInstallStatus("idle");
+    setInstallError(undefined);
+  };
+
+  const goToForm = (d: CatalogueDriver) => {
+    handleDriverChange(d.slug);
+    setPendingGroup(null);
+    setStep("form");
+    // Picking an already-installed external driver from the catalogue is an
+    // explicit intent to use it — activate it so the form resolves it instead of
+    // falling back to a built-in. (Not-installed drivers route through the
+    // InstallGate, which activates on install.)
+    if (!d.isBuiltin && d.installed) {
+      void updateSetting(
+        "activeExternalDrivers",
+        Array.from(new Set([...(settings.activeExternalDrivers ?? []), d.slug])),
+      );
+    }
+  };
+
+  const handleEngineSelect = (group: EngineGroup) => {
+    const sel = resolveEngineSelection(group);
+    if (sel.mode === "pick-driver") {
+      setPendingGroup(group);
+    } else if (sel.driver) {
+      // not-installed drivers are routed to the InstallGate by the form-step render; proceed either way
+      goToForm(sel.driver);
+    }
   };
 
   const testConnection = async () => {
+    if (step === "catalogue") return false;
+    if (installStatus === "installing") return false;
+    if (activeDriverNotInstalled && activeCatalogueDriver) {
+      const ok = await installDriver(
+        activeCatalogueDriver.slug,
+        activeCatalogueDriver.latestVersion,
+      );
+      if (!ok) return false; // banner shows the error; do not proceed
+    }
+
     const preflight = await preflightFormAction();
     if (!preflight) return false;
     const { actionId, startingSnapshot, inlinePaths } = preflight;
@@ -1519,6 +1665,16 @@ export const NewConnectionModal = ({
   };
 
   const saveConnection = async () => {
+    if (step === "catalogue") return;
+    if (installStatus === "installing") return;
+    if (activeDriverNotInstalled && activeCatalogueDriver) {
+      const ok = await installDriver(
+        activeCatalogueDriver.slug,
+        activeCatalogueDriver.latestVersion,
+      );
+      if (!ok) return; // banner shows the error; do not proceed
+    }
+
     const preflight = await preflightFormAction();
     if (!preflight) return;
     const { actionId, startingSnapshot, inlinePaths } = preflight;
@@ -1547,6 +1703,7 @@ export const NewConnectionModal = ({
         }
       } else if (
         !noConnectionRequired &&
+        !singleDatabase &&
         (!formData.database ||
           (typeof formData.database === "string" && !formData.database.trim()))
       ) {
@@ -1566,7 +1723,11 @@ export const NewConnectionModal = ({
           ? selectedDatabasesState.length === 1
             ? selectedDatabasesState[0]
             : selectedDatabasesState
-          : formData.database,
+          : singleDatabase
+            ? typeof formData.database === "string" && formData.database.trim()
+              ? formData.database
+              : driver
+            : formData.database,
       };
       const params = withInlineK8sPaths(paramsBase, inlinePaths.options);
       const appearancePayload =
@@ -1749,13 +1910,27 @@ export const NewConnectionModal = ({
             context={dbFieldSlotContext}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center py-10 gap-3 text-muted">
-            <Info size={22} className="opacity-40" />
-            <p className="text-xs text-center">
-              {t("newConnection.noGeneralSettings", {
-                defaultValue: "No general settings available for this driver.",
-              })}
-            </p>
+          <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-strong bg-base/40 px-6 py-10 text-center">
+            <span
+              className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl shadow-sm"
+              style={{ backgroundColor: `${driverAccent}1f`, color: driverAccent }}
+            >
+              {renderDriverGlyph(24)}
+            </span>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-primary">
+                {t("newConnection.noConnectionDetailsTitle", {
+                  defaultValue: "No connection details needed",
+                })}
+              </p>
+              <p className="mx-auto max-w-sm text-xs leading-relaxed text-muted">
+                {t("newConnection.noConnectionDetailsBody", {
+                  driver: activeDriver?.name ?? driver,
+                  defaultValue:
+                    "{{driver}} connects without a host or port. Just give this connection a name and save it. Driver-specific options live in Settings → Plugins.",
+                })}
+              </p>
+            </div>
           </div>
         )
       ) : activeDriver?.capabilities?.file_based === true ||
@@ -1901,7 +2076,7 @@ export const NewConnectionModal = ({
           </div>
 
           {/* Database (single) — only shown for non-multi-db drivers */}
-          {!isMultiDb && (
+          {!isMultiDb && !singleDatabase && (
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
@@ -2264,9 +2439,20 @@ export const NewConnectionModal = ({
           }
           onChange={(v) => {
             updateField("ssl_mode", v);
-            // Cleartext auth must never go over an unencrypted link.
-            if (driver === "mysql" && v === "disabled") {
-              updateField("enable_cleartext_plugin", false);
+            // Cleartext auth and RDS IAM must never go over a TLS-off
+            // connection. `Preferred` is also TLS-off for our purposes
+            // (opportunistic — the backend force-upgrades it to Required
+            // for IAM, but the UI must reflect what the user picked so
+            // the persisted value matches the visible checkbox).
+            if (driver === "mysql") {
+              const effectiveSslMode = v || "required";
+              const tlsOff = !["required", "verify_ca", "verify_identity"].includes(
+                effectiveSslMode,
+              );
+              if (tlsOff) {
+                updateField("enable_cleartext_plugin", false);
+                updateField("use_iam_auth", false);
+              }
             }
           }}
           searchable={false}
@@ -2395,8 +2581,68 @@ export const NewConnectionModal = ({
               </button>
             </div>
           </div>
+
         </div>
       )}
+
+      {/* AWS RDS IAM authentication (MySQL only).
+          Rendered outside the SSL Certificate Files block so it stays
+          reachable for new connections (where formData.ssl_mode is "" and
+          the cert block is hidden), and so that switching SSL to Disabled
+          doesn't unmount it while the underlying flag is still true. */}
+      {driver === "mysql" &&
+        (() => {
+          const effectiveSslMode = formData.ssl_mode || "required";
+          // Force-upgrade mirrors the backend: Preferred is opportunistic TLS
+          // and would let the pre-signed token travel in cleartext under the
+          // mysql_clear_password plugin.
+          const tlsOff =
+            !["required", "verify_ca", "verify_identity"].includes(
+              effectiveSslMode,
+            );
+          return (
+            <div className="space-y-1.5 pt-2 border-t border-strong">
+              <label
+                className={clsx(
+                  "flex items-center gap-2.5 select-none w-fit",
+                  tlsOff
+                    ? "cursor-not-allowed opacity-50"
+                    : "cursor-pointer",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  id="iam-auth-toggle"
+                  checked={!tlsOff && !!formData.use_iam_auth}
+                  disabled={tlsOff}
+                  onChange={(e) =>
+                    updateField("use_iam_auth", e.target.checked)
+                  }
+                  className="accent-blue-500 w-3.5 h-3.5 rounded"
+                />
+                <span className="text-sm font-medium text-secondary">
+                  {t("newConnection.useIamAuth", {
+                    defaultValue: "Use AWS IAM Authentication (RDS)",
+                  })}
+                </span>
+              </label>
+              <p className="text-xs text-muted">
+                {t("newConnection.useIamAuthHint", {
+                  defaultValue:
+                    "The password field is treated as an RDS auth token (from `aws rds generate-db-auth-token`). Requires TLS. Tokens expire every 15 minutes.",
+                })}
+              </p>
+              {formData.use_iam_auth && tlsOff && (
+                <p className="text-xs text-amber-500">
+                  {t("newConnection.useIamAuthTlsRequired", {
+                    defaultValue:
+                      "Select an enforced TLS mode above (Required, Verify CA, or Verify Identity) to use AWS IAM authentication.",
+                  })}
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
       {/* Cleartext password plugin (MySQL/MariaDB only) */}
       {driver === "mysql" &&
@@ -2906,106 +3152,195 @@ export const NewConnectionModal = ({
         disabled={isPersistencePending}
         aria-busy={isPersistencePending}
         className={clsx(
-          "bg-elevated border border-strong rounded-xl shadow-2xl w-[760px] max-h-[88vh] flex flex-col overflow-hidden p-0 m-0 min-w-0",
+          "bg-elevated border border-strong rounded-xl shadow-2xl w-[900px] max-w-[92vw] max-h-[90vh] flex flex-col overflow-hidden p-0 m-0 min-w-0",
           isPersistencePending && "pointer-events-none",
         )}
       >
-        {/* ── Top bar: name + close ── */}
+        {/* ── Top bar: step-aware title / name + progress + close ── */}
         <div className="flex items-center gap-3 px-5 py-3 border-b border-default bg-base">
-          <div
-            className="w-2 h-2 rounded-full shrink-0"
-            style={getDriverColorStyle(activeDriver)}
-          />
-          <input
-            ref={nameInputRef}
-            type="text"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (nameError) setNameError(false);
-            }}
-            placeholder={t("newConnection.namePlaceholder")}
-            autoFocus
-            autoCorrect="off"
-            autoCapitalize="off"
-            autoComplete="off"
-            spellCheck={false}
-            className={clsx(
-              "flex-1 bg-transparent text-base font-semibold outline-none",
-              nameError
-                ? "text-red-400 placeholder:text-red-400/60"
-                : "text-primary placeholder:text-muted/50",
-            )}
-          />
-          <span className="text-xs text-muted bg-surface-secondary px-2 py-0.5 rounded-full font-medium capitalize">
-            {activeDriver?.name ?? driver}
-          </span>
+          {step === "form" ? (
+            <>
+              <div
+                className="w-2 h-2 rounded-full shrink-0"
+                style={getDriverColorStyle(activeDriver)}
+              />
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (nameError) setNameError(false);
+                }}
+                placeholder={t("newConnection.namePlaceholder")}
+                autoFocus
+                autoCorrect="off"
+                autoCapitalize="off"
+                autoComplete="off"
+                spellCheck={false}
+                className={clsx(
+                  "flex-1 bg-transparent text-base font-semibold outline-none",
+                  nameError
+                    ? "text-red-400 placeholder:text-red-400/60"
+                    : "text-primary placeholder:text-muted/50",
+                )}
+              />
+            </>
+          ) : (
+            <h2 className="flex-1 truncate text-base font-semibold text-primary">
+              {pendingGroup
+                ? t("newConnection.selectDriverTitle", {
+                    defaultValue: "Select a driver",
+                  })
+                : t("newConnection.chooseTitle", {
+                    defaultValue: "Choose a database",
+                  })}
+            </h2>
+          )}
+
+          {/* Progress indicator (new connection only) */}
+          {!isEditing && (
+            <div className="hidden items-center gap-2 shrink-0 sm:flex">
+              <span
+                className={clsx(
+                  "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors",
+                  step === "catalogue"
+                    ? "bg-blue-500/15 text-blue-400"
+                    : "text-secondary",
+                )}
+              >
+                <span
+                  className={clsx(
+                    "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold",
+                    step === "catalogue"
+                      ? "bg-blue-500 text-white"
+                      : "bg-green-500/80 text-white",
+                  )}
+                >
+                  {step === "catalogue" ? "1" : <Check size={10} />}
+                </span>
+                {t("newConnection.stepChoose", { defaultValue: "Choose" })}
+              </span>
+              <span className="h-px w-4 bg-default" />
+              <span
+                className={clsx(
+                  "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors",
+                  step === "form"
+                    ? "bg-blue-500/15 text-blue-400"
+                    : "text-muted",
+                )}
+              >
+                <span
+                  className={clsx(
+                    "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold",
+                    step === "form"
+                      ? "bg-blue-500 text-white"
+                      : "bg-surface-secondary text-muted",
+                  )}
+                >
+                  2
+                </span>
+                {t("newConnection.stepConfigure", { defaultValue: "Configure" })}
+              </span>
+            </div>
+          )}
+
           <button
             onClick={handleClose}
-            className="p-1.5 text-muted hover:text-primary hover:bg-surface-secondary rounded-md transition-colors"
+            className="p-1.5 text-muted hover:text-primary hover:bg-surface-secondary rounded-md transition-colors cursor-pointer"
           >
             <X size={16} />
           </button>
         </div>
 
-        {/* ── Main body: left driver list + right form ── */}
-        <div className="flex flex-1 min-h-0">
-          {/* Left: driver list */}
-          <div className="w-[160px] shrink-0 border-r border-default bg-base flex flex-col py-2 overflow-y-auto">
-            {(() => {
-              const sortedDrivers = [...drivers].sort((a, b) => {
-                const aBuiltin = a.is_builtin === true ? 0 : 1;
-                const bBuiltin = b.is_builtin === true ? 0 : 1;
-                return aBuiltin - bBuiltin;
-              });
-              const firstExternalIdx = sortedDrivers.findIndex(
-                (d) => !d.is_builtin,
-              );
-              return (
-                <>
-                  <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
-                    {t("newConnection.dbType")}
-                  </p>
-                  {sortedDrivers.map((d: PluginManifest, idx) => (
-                    <div key={d.id}>
-                      {/* Separator before first external plugin */}
-                      {idx === firstExternalIdx && (
-                        <div className="px-3 pt-2.5 pb-1">
-                          <div className="flex items-center gap-2">
-                            <div className="h-px flex-1 bg-default/60" />
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-muted/60">
-                              Plugins
-                            </span>
-                            <div className="h-px flex-1 bg-default/60" />
-                          </div>
-                        </div>
-                      )}
-                      <button
-                        onClick={() => handleDriverChange(d.id)}
-                        className={clsx(
-                          "flex items-center gap-2.5 px-3 py-2 text-sm font-medium transition-colors text-left w-full",
-                          driver === d.id
-                            ? "bg-blue-500/15 text-primary border-r-2 border-blue-500"
-                            : "text-secondary hover:bg-surface-secondary hover:text-primary border-r-2 border-transparent",
-                        )}
-                      >
-                        <span
-                          className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center text-white"
-                          style={getDriverColorStyle(d)}
-                        >
-                          {getDriverIcon(d)}
-                        </span>
-                        <span className="truncate capitalize">{d.name}</span>
-                      </button>
-                    </div>
+        {/* ── Main body ── */}
+        {step === "catalogue" ? (
+          pendingGroup ? (
+            <DriverVersionPicker
+              group={pendingGroup}
+              onChoose={(d) => goToForm(d)}
+              onBack={() => setPendingGroup(null)}
+            />
+          ) : (
+            <ConnectionCatalogue
+              groups={catalogue.groups}
+              facets={catalogue.facets}
+              loading={catalogue.loading}
+              registryOffline={catalogue.registryOffline}
+              onSelect={handleEngineSelect}
+            />
+          )
+        ) : activeDriverNotInstalled && activeCatalogueDriver ? (
+          /* ── install gate: selected driver isn't installed yet ── */
+          <InstallGate
+            driver={activeCatalogueDriver}
+            status={installStatus}
+            error={installError}
+            onInstall={(slug, version) => void installDriver(slug, version)}
+            onBack={() => setStep("catalogue")}
+          />
+        ) : (
+          /* ── form step: driver identity header + tabbed form ── */
+          <div className="flex flex-1 min-h-0 flex-col">
+            {/* Driver identity header */}
+            <div className="flex items-center gap-3 border-b border-default bg-base/40 px-5 py-3">
+              <span
+                className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl shadow-sm"
+                style={{ backgroundColor: `${driverAccent}1f`, color: driverAccent }}
+              >
+                {renderDriverGlyph(22)}
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="truncate text-sm font-semibold capitalize text-primary">
+                    {activeDriver?.name ?? driver}
+                  </h3>
+                  {activeCatalogueDriver?.verified && (
+                    <span className="flex items-center text-blue-400" title="Verified">
+                      <ShieldCheck size={14} />
+                      <span className="sr-only">Verified</span>
+                    </span>
+                  )}
+                  {activeDriver && activeDriver.is_builtin !== true && (
+                    <span className="rounded-full bg-surface-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted">
+                      v{activeDriver.version}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {(activeCatalogueDriver?.paradigms ?? []).map((p) => (
+                    <span
+                      key={p}
+                      className="rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+                      style={{
+                        backgroundColor: `${paradigmAccent(p)}1f`,
+                        color: paradigmAccent(p),
+                      }}
+                    >
+                      {p}
+                    </span>
                   ))}
-                </>
-              );
-            })()}
-          </div>
+                  {activeDriver?.description && (
+                    <span className="truncate text-[11px] text-muted">
+                      {activeDriver.description}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {!isEditing && (
+                <button
+                  type="button"
+                  onClick={() => setStep("catalogue")}
+                  className="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-strong bg-elevated px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:bg-surface-secondary hover:text-primary"
+                >
+                  <ArrowLeft size={12} />
+                  {t("newConnection.changeDatabase", {
+                    defaultValue: "Change database",
+                  })}
+                </button>
+              )}
+            </div>
 
-          {/* Right: form area */}
-          <div className="flex-1 flex flex-col min-h-0 min-w-0">
             {/* Tab bar */}
             <div className="relative">
             <div
@@ -3073,7 +3408,7 @@ export const NewConnectionModal = ({
                   data-active={activeTab === tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={clsx(
-                    "flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 -mb-px",
+                    "cursor-pointer flex-shrink-0 whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-colors border-b-2 -mb-px",
                     activeTab === tab.id
                       ? "border-blue-500 text-blue-400"
                       : "border-transparent text-muted hover:text-secondary",
@@ -3133,10 +3468,10 @@ export const NewConnectionModal = ({
                           : appearanceTabContent}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* ── Footer: test status + actions ── */}
-        <div className="border-t border-default bg-base px-5 py-3 flex items-center gap-3">
+        {/* ── Footer: test status + actions (form step only) ── */}
+        {step === "form" && !activeDriverNotInstalled && <div className="border-t border-default bg-base px-5 py-3 flex items-center gap-3">
           {/* Test button */}
           <button
             onClick={testConnection}
@@ -3195,7 +3530,7 @@ export const NewConnectionModal = ({
               {t("newConnection.save")}
             </button>
           </div>
-        </div>
+        </div>}
       </fieldset>
 
       {/* SSH Management Modal */}

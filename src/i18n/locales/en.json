@@ -437,6 +437,23 @@
     "appearance_editorShowLineNumbersDesc": "Display line numbers in the editor gutter.",
     "appearance_editorAcceptSuggestionOnEnter": "Accept Suggestion with Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Allow Enter (in addition to Tab) to accept the active autocomplete suggestion. When off, Enter always inserts a newline.",
+    "queryExecution": "Query Execution",
+    "runStatementUnderCursor": "Run statement under cursor",
+    "runStatementUnderCursorDesc": "When a script has multiple statements, run the one under the cursor instead of showing the query picker. Select text to run a specific range.",
+    "formatter_title": "SQL Formatter",
+    "formatter_keywordCase": "Keyword Case",
+    "formatter_keywordCaseDesc": "How SQL keywords (SELECT, FROM, WHERE) are capitalized after formatting.",
+    "formatter_functionCase": "Function Case",
+    "formatter_functionCaseDesc": "How function names (COUNT, SUM, COALESCE) are capitalized after formatting.",
+    "formatter_indentStyle": "Indent Style",
+    "formatter_indentStyleDesc": "Standard indents normally. Tabular aligns clauses into columns.",
+    "formatter_tabWidth": "Indent Width",
+    "formatter_useTabs": "Use Tabs",
+    "formatter_useTabsDesc": "Indent with tabs instead of spaces.",
+    "formatter_linesBetweenQueries": "Lines Between Queries",
+    "formatter_linesBetweenQueriesDesc": "Number of blank lines inserted between separate SQL statements.",
+    "formatter_denseOperators": "Dense Operators",
+    "formatter_denseOperatorsDesc": "Remove spaces around operators (e.g. a=1 instead of a = 1).",
     "editConfigJson": "Edit config.json",
     "editConfigJsonDesc": "Directly edit the raw configuration file. A restart is required to apply changes.",
     "configJsonModal": {
@@ -633,6 +650,10 @@
         "copy": "Copy",
         "copied": "Copied!"
       },
+      "uninstallError": {
+        "title": "Uninstallation failed",
+        "subtitle": "An error occurred while uninstalling the plugin. See the details below."
+      },
       "startError": {
         "title": "Plugin Failed to Start",
         "subtitle": "The plugin process could not be launched. Check the error details below.",
@@ -671,7 +692,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "Powered by",
+      "openHomepage": "Open homepage"
     },
     "shortcuts": {
       "title": "Keyboard Shortcuts",
@@ -682,6 +705,8 @@
       },
       "runQuery": "Run query",
       "runQueryEditor": "Run query (in editor)",
+      "runAll": "Run all statements",
+      "runAllEditor": "Run all statements (in editor)",
       "tabSwitcher": "Switch tab",
       "copySelection": "Copy selection",
       "toggleSidebar": "Toggle sidebar",
@@ -702,6 +727,7 @@
       "pasteImportClipboard": "Import from Clipboard",
       "quickNavigator": "Quick Navigator",
       "triggerSuggestions": "Trigger suggestions",
+      "formatSql": "Format SQL",
       "refreshTable": "Refresh table"
     },
     "aiActivity": "AI Activity",
@@ -889,7 +915,8 @@
     "scrollTabsRight": "Scroll tabs right",
     "useIamAuth": "Use AWS IAM Authentication (RDS)",
     "useIamAuthHint": "The password field is treated as an RDS auth token (from `aws rds generate-db-auth-token`). Requires TLS. Tokens expire every 15 minutes.",
-    "useIamAuthTlsRequired": "Enable an SSL mode above to use AWS IAM authentication."
+    "useIamAuthTlsRequired": "Enable an SSL mode above to use AWS IAM authentication.",
+    "changeDatabase": "Change database"
   },
   "sshConnections": {
     "title": "SSH Connections",
@@ -946,6 +973,8 @@
     "copyColumnName": "Copy column name",
     "copyColumnNameQuoted": "Copy as `column`",
     "copyColumnNameTable": "Copy as table.column",
+    "copyColumnValues": "Copy column values",
+    "copyColumnValuesIn": "Copy column values as SQL IN",
     "copyCells": "Copy {{count}} Cells",
     "copyRows": "Copy {{count}} Rows",
     "copied": "Copied to clipboard",
@@ -993,6 +1022,7 @@
     "noActiveSession": "No active session. Please select a connection.",
     "stop": "Stop",
     "run": "Run",
+    "runAll": "Run All",
     "export": "Export",
     "connected": "Connected",
     "disconnected": "Disconnected",
@@ -1080,11 +1110,13 @@
     "exporting": "Exporting...",
     "rowsProcessed": "Rows Processed",
     "queryParameters": "Query Parameters",
+    "formatSql": "Format SQL",
     "convertToConsole": "Convert to Console",
     "parameters": "Parameters",
     "paramValuePlaceholder": "Value (e.g. 'text' or 123)",
     "failedCreateRow": "Failed to create new row: ",
     "failedProcessInsertions": "Failed to process insertions: ",
+    "statementNotExplainable": "This statement type can't be explained.",
     "fieldRequired": "This field is required",
     "newNotebook": "New Notebook",
     "visualExplain": {
@@ -1877,5 +1909,46 @@
   "miniGrid": {
     "runningQuery": "Running query...",
     "copyAll": "Copy all"
+  },
+  "deepLink": {
+    "installTitle": "Install plugin from registry",
+    "installSubtitle": "A Tabularium registry asked Tabularis to install a plugin.",
+    "plugin": "Plugin",
+    "version": "Version",
+    "registry": "Registry",
+    "latest": "Latest",
+    "installConfirm": "Install",
+    "installing": "Installing…",
+    "loadingPreview": "Loading details…",
+    "usingConfigured": "using configured registry",
+    "mismatchTitle": "Different registry than your configured one",
+    "mismatchBody": "Your configured registry is {{configured}}. The link points elsewhere; review before continuing.",
+    "updateConfirm": "Update to v{{version}}",
+    "alreadyInstalled": "Version {{version}} is already installed."
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "Search databases…",
+    "clearSearch": "Clear search",
+    "verified": "Verified",
+    "installed": "Installed",
+    "install": "Install",
+    "clear": "Clear",
+    "registryOffline": "Registry unreachable — showing installed and built-in drivers only.",
+    "noMatches": "No databases match your filters.",
+    "clearFilters": "Clear filters",
+    "driverCount_one": "{{count}} driver",
+    "driverCount_other": "{{count}} drivers",
+    "connectTo": "Connect to {{name}}",
+    "unavailableOnPlatform": "Unavailable on your platform",
+    "backToCatalogue": "Back to catalogue",
+    "pickDriver": "Multiple drivers connect to {{name}}. Pick one:",
+    "latestVersion": "Latest v{{version}}",
+    "continue": "Continue",
+    "noReleaseTitle": "No installable release for your platform yet.",
+    "noReleaseBody": "This driver has no downloadable build for your OS/architecture. Check the registry for an updated release.",
+    "notInstalled": "This driver isn't installed yet. Install it to configure a connection.",
+    "installVersion": "Install v{{version}}",
+    "installingVersion": "Installing v{{version}}…",
+    "retryInstall": "Retry install"
   }
 }

@@ -34,6 +34,10 @@ describe('isMultiDatabaseCapable', () => {
     expect(isMultiDatabaseCapable({ ...baseCapabilities, folder_based: true })).toBe(false);
   });
 
+  it('returns false for a single_database store (Meilisearch)', () => {
+    expect(isMultiDatabaseCapable({ ...baseCapabilities, single_database: true })).toBe(false);
+  });
+
   it('returns false when both schemas and file_based are true', () => {
     expect(isMultiDatabaseCapable({ ...baseCapabilities, schemas: true, file_based: true })).toBe(false);
   });

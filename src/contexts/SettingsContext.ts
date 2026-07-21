@@ -46,6 +46,8 @@ export interface Settings {
   /** Whether copied CSV output includes a header row. Default: true. */
   csvIncludeHeaders?: boolean;
   activeExternalDrivers?: string[];
+  /** Base URL of the Tabularium plugin registry. Defaults to the built-in instance when unset. */
+  tabulariumRegistryUrl?: string;
   plugins?: Record<string, PluginConfig>;
   editorTheme?: string;
   editorFontFamily?: string;
@@ -55,6 +57,15 @@ export interface Settings {
   editorWordWrap?: boolean;
   editorShowLineNumbers?: boolean;
   editorAcceptSuggestionOnEnter?: boolean;
+  runStatementUnderCursor?: boolean;
+  // SQL Formatter
+  formatterKeywordCase?: "upper" | "lower" | "preserve";
+  formatterIndentStyle?: "standard" | "tabularLeft" | "tabularRight";
+  formatterTabWidth?: number;
+  formatterUseTabs?: boolean;
+  formatterFunctionCase?: "upper" | "lower" | "preserve";
+  formatterLinesBetweenQueries?: number;
+  formatterDenseOperators?: boolean;
   pingInterval?: number;
   queryHistoryMaxEntries?: number;
   showWelcome?: boolean;
@@ -134,6 +145,14 @@ export const DEFAULT_SETTINGS: Settings = {
   editorWordWrap: true,
   editorShowLineNumbers: true,
   editorAcceptSuggestionOnEnter: true,
+  runStatementUnderCursor: true,
+  formatterKeywordCase: "upper",
+  formatterIndentStyle: "standard",
+  formatterTabWidth: 2,
+  formatterUseTabs: false,
+  formatterFunctionCase: "preserve",
+  formatterLinesBetweenQueries: 1,
+  formatterDenseOperators: false,
   pingInterval: 30,
   queryHistoryMaxEntries: 500,
   autoConnectLastConnection: true,

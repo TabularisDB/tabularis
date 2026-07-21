@@ -25,6 +25,7 @@
     "notification:default",
     "opener:default",
     "clipboard-manager:allow-read-text",
-    "clipboard-manager:allow-write-text"
+    "clipboard-manager:allow-write-text",
+    "deep-link:default"
   ]
 }

@@ -432,6 +432,23 @@
     "appearance_editorShowLineNumbersDesc": "Ipakita ang mga line number sa editor gutter.",
     "appearance_editorAcceptSuggestionOnEnter": "Tanggapin ang Suggestion gamit ang Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Payagan ang Enter (bukod sa Tab) para tanggapin ang aktibong autocomplete suggestion. Kapag off, laging nag-i-insert ng newline ang Enter.",
+    "queryExecution": "Pagpapatakbo ng Query",
+    "runStatementUnderCursor": "Patakbuhin ang statement sa ilalim ng cursor",
+    "runStatementUnderCursorDesc": "Kapag maraming statement ang isang script, patakbuhin ang nasa ilalim ng cursor sa halip na ipakita ang query picker. Pumili ng teksto para patakbuhin ang isang partikular na saklaw.",
+    "formatter_title": "SQL Formatter",
+    "formatter_keywordCase": "Case ng Keyword",
+    "formatter_keywordCaseDesc": "Paano icapitalize ang SQL keywords (SELECT, FROM, WHERE) pagkatapos i-format.",
+    "formatter_functionCase": "Case ng Function",
+    "formatter_functionCaseDesc": "Paano icapitalize ang function names (COUNT, SUM, COALESCE) pagkatapos i-format.",
+    "formatter_indentStyle": "Estilo ng Indent",
+    "formatter_indentStyleDesc": "Standard ay normal na indent. Tabular ay nag-aalign ng mga clause sa columns.",
+    "formatter_tabWidth": "Lapad ng Indent",
+    "formatter_useTabs": "Gumamit ng Tabs",
+    "formatter_useTabsDesc": "Mag-indent gamit ang tabs sa halip na spaces.",
+    "formatter_linesBetweenQueries": "Mga Linya sa Pagitan ng Query",
+    "formatter_linesBetweenQueriesDesc": "Bilang ng blank lines sa pagitan ng SQL statements.",
+    "formatter_denseOperators": "Siksik na Operators",
+    "formatter_denseOperatorsDesc": "Alisin ang spaces sa paligid ng operators (hal. a=1 sa halip na a = 1).",
     "editConfigJson": "I-edit ang config.json",
     "editConfigJsonDesc": "Direktang i-edit ang raw configuration file. Kailangan ng restart para mailapat ang mga pagbabago.",
     "configJsonModal": {
@@ -628,6 +645,10 @@
         "copy": "Kopyahin",
         "copied": "Nakopya!"
       },
+      "uninstallError": {
+        "title": "Nabigo ang Pag-uninstall",
+        "subtitle": "May error habang ina-uninstall ang plugin. Tingnan ang mga detalye sa ibaba."
+      },
       "startError": {
         "title": "Nabigo ang Pagsisimula ng Plugin",
         "subtitle": "Hindi ma-launch ang plugin process. Tingnan ang mga detalye ng error sa ibaba.",
@@ -677,6 +698,8 @@
       },
       "runQuery": "Patakbuhin ang query",
       "runQueryEditor": "Patakbuhin ang query (sa editor)",
+      "runAll": "Patakbuhin ang lahat ng statement",
+      "runAllEditor": "Patakbuhin ang lahat ng statement (sa editor)",
       "tabSwitcher": "Lumipat ng tab",
       "copySelection": "Kopyahin ang selection",
       "toggleSidebar": "I-toggle ang sidebar",
@@ -695,7 +718,8 @@
       "notebookRunAll": "Patakbuhin ang Lahat ng Cell",
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "I-import mula sa Clipboard",
-      "quickNavigator": "Quick Navigator"
+      "quickNavigator": "Quick Navigator",
+      "formatSql": "I-format ang SQL"
     },
     "aiActivity": "AI Activity",
     "backup": {
@@ -986,6 +1010,7 @@
     "noActiveSession": "Walang aktibong session. Pumili ng connection.",
     "stop": "Itigil",
     "run": "Patakbuhin",
+    "runAll": "Patakbuhin lahat",
     "export": "I-export",
     "connected": "Nakakonekta",
     "disconnected": "Nakadiskonekta",
@@ -1073,6 +1098,7 @@
     "exporting": "Nag-e-export...",
     "rowsProcessed": "Mga Row na Naproseso",
     "queryParameters": "Mga Parameter ng Query",
+    "formatSql": "I-format ang SQL",
     "convertToConsole": "I-convert sa Console",
     "parameters": "Mga Parameter",
     "paramValuePlaceholder": "Value (hal. 'text' o 123)",

@@ -427,6 +427,23 @@
     "appearance_editorShowLineNumbersDesc": "Visualizza i numeri di riga nel margine dell'editor.",
     "appearance_editorAcceptSuggestionOnEnter": "Accetta Suggerimento con Invio",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Permetti al tasto Invio (oltre a Tab) di accettare il suggerimento di autocompletamento attivo. Quando disattivato, Invio inserisce sempre una nuova riga.",
+    "queryExecution": "Esecuzione query",
+    "runStatementUnderCursor": "Esegui l'istruzione sotto il cursore",
+    "runStatementUnderCursorDesc": "Quando uno script contiene più istruzioni, esegue quella sotto il cursore invece di mostrare il selettore di query. Seleziona il testo per eseguire un intervallo specifico.",
+    "formatter_title": "Formattatore SQL",
+    "formatter_keywordCase": "Maiuscole parole chiave",
+    "formatter_keywordCaseDesc": "Come vengono capitalizzate le parole chiave SQL (SELECT, FROM, WHERE) dopo la formattazione.",
+    "formatter_functionCase": "Maiuscole funzioni",
+    "formatter_functionCaseDesc": "Come vengono capitalizzati i nomi delle funzioni (COUNT, SUM, COALESCE) dopo la formattazione.",
+    "formatter_indentStyle": "Stile indentazione",
+    "formatter_indentStyleDesc": "Standard indenta normalmente. Tabulare allinea le clausole in colonne.",
+    "formatter_tabWidth": "Larghezza indentazione",
+    "formatter_useTabs": "Usa tabulazioni",
+    "formatter_useTabsDesc": "Indenta con tabulazioni invece di spazi.",
+    "formatter_linesBetweenQueries": "Righe tra query",
+    "formatter_linesBetweenQueriesDesc": "Numero di righe vuote tra istruzioni SQL separate.",
+    "formatter_denseOperators": "Operatori compatti",
+    "formatter_denseOperatorsDesc": "Rimuovi spazi intorno agli operatori (es. a=1 invece di a = 1).",
     "editConfigJson": "Modifica config.json",
     "editConfigJsonDesc": "Modifica direttamente il file di configurazione grezzo. È necessario un riavvio per applicare le modifiche.",
     "configJsonModal": {
@@ -620,6 +637,10 @@
         "copy": "Copia",
         "copied": "Copiato!"
       },
+      "uninstallError": {
+        "title": "Disinstallazione fallita",
+        "subtitle": "Si è verificato un errore durante la disinstallazione del plugin. Vedi i dettagli qui sotto."
+      },
       "startError": {
         "title": "Plugin non avviato",
         "subtitle": "Impossibile avviare il processo del plugin. Controlla i dettagli dell'errore.",
@@ -658,7 +679,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "Powered by",
+      "openHomepage": "Apri homepage"
     },
     "shortcuts": {
       "title": "Scorciatoie da tastiera",
@@ -669,6 +692,8 @@
       },
       "runQuery": "Esegui query",
       "runQueryEditor": "Esegui query (nell'editor)",
+      "runAll": "Esegui tutte le istruzioni",
+      "runAllEditor": "Esegui tutte le istruzioni (nell'editor)",
       "tabSwitcher": "Cambia tab",
       "copySelection": "Copia selezione",
       "toggleSidebar": "Mostra/nascondi sidebar",
@@ -688,6 +713,7 @@
       "pasteImportClipboard": "Importa dagli Appunti",
       "quickNavigator": "Navigatore rapido",
       "triggerSuggestions": "Mostra suggerimenti",
+      "formatSql": "Formatta SQL",
       "refreshTable": "Aggiorna tabella"
     },
     "aiActivity": "Attività AI",
@@ -875,7 +901,8 @@
     "scrollTabsRight": "Scorri schede a destra",
     "useIamAuth": "Usa autenticazione AWS IAM (RDS)",
     "useIamAuthHint": "Il campo password è trattato come un token di autenticazione RDS (da `aws rds generate-db-auth-token`). Richiede TLS. I token scadono ogni 15 minuti.",
-    "useIamAuthTlsRequired": "Attiva una modalità SSL qui sopra per usare l'autenticazione AWS IAM."
+    "useIamAuthTlsRequired": "Attiva una modalità SSL qui sopra per usare l'autenticazione AWS IAM.",
+    "changeDatabase": "Cambia database"
   },
   "sshConnections": {
     "title": "Connessioni SSH",
@@ -975,6 +1002,7 @@
     "noActiveSession": "Nessuna sessione attiva. Seleziona una connessione.",
     "stop": "Stop",
     "run": "Esegui",
+    "runAll": "Esegui tutto",
     "export": "Esporta",
     "connected": "Connesso",
     "disconnected": "Disconnesso",
@@ -1061,6 +1089,7 @@
     "exporting": "Esportazione in corso...",
     "rowsProcessed": "Righe processate",
     "queryParameters": "Parametri Query",
+    "formatSql": "Formatta SQL",
     "convertToConsole": "Converti in Console",
     "parameters": "Parametri",
     "paramValuePlaceholder": "Valore (es. 'testo' o 123)",
@@ -1798,5 +1827,46 @@
   "miniGrid": {
     "runningQuery": "Esecuzione query...",
     "copyAll": "Copia tutto"
+  },
+  "deepLink": {
+    "installTitle": "Installa plugin dal registro",
+    "installSubtitle": "Un registro Tabularium ha chiesto a Tabularis di installare un plugin.",
+    "plugin": "Plugin",
+    "version": "Versione",
+    "registry": "Registro",
+    "latest": "Ultima",
+    "installConfirm": "Installa",
+    "installing": "Installazione…",
+    "loadingPreview": "Caricamento dettagli…",
+    "usingConfigured": "registro configurato",
+    "mismatchTitle": "Registro diverso da quello configurato",
+    "mismatchBody": "Il tuo registro configurato è {{configured}}. Il link punta altrove — controlla prima di continuare.",
+    "updateConfirm": "Aggiorna a v{{version}}",
+    "alreadyInstalled": "La versione {{version}} è già installata."
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "Cerca database…",
+    "clearSearch": "Cancella ricerca",
+    "verified": "Verificato",
+    "installed": "Installato",
+    "install": "Installa",
+    "clear": "Cancella",
+    "registryOffline": "Registro non raggiungibile — vengono mostrati solo i driver installati e integrati.",
+    "noMatches": "Nessun database corrisponde ai tuoi filtri.",
+    "clearFilters": "Cancella filtri",
+    "driverCount_one": "{{count}} driver",
+    "driverCount_other": "{{count}} driver",
+    "connectTo": "Connetti a {{name}}",
+    "unavailableOnPlatform": "Non disponibile sulla tua piattaforma",
+    "backToCatalogue": "Torna al catalogo",
+    "pickDriver": "Più driver si connettono a {{name}}. Scegline uno:",
+    "latestVersion": "Ultima v{{version}}",
+    "continue": "Continua",
+    "noReleaseTitle": "Ancora nessuna versione installabile per la tua piattaforma.",
+    "noReleaseBody": "Questo driver non ha una build scaricabile per il tuo SO/architettura. Controlla il registro per una versione aggiornata.",
+    "notInstalled": "Questo driver non è ancora installato. Installalo per configurare una connessione.",
+    "installVersion": "Installa v{{version}}",
+    "installingVersion": "Installazione di v{{version}}…",
+    "retryInstall": "Riprova installazione"
   }
 }

@@ -7,15 +7,19 @@
 // See the full slot list at:
 // https://github.com/TabularisDB/tabularis/blob/main/plugins/PLUGIN_GUIDE.md#available-slots
 
-import { defineSlot, usePluginToast } from "@tabularis/plugin-api";
+import {
+  defineSlot,
+  usePluginToast,
+  usePluginTranslation,
+} from "@tabularis/plugin-api";
 
 const Toolbar = defineSlot("data-grid.toolbar.actions", ({ context }) => {
   const { showInfo } = usePluginToast();
+  // Strings come from `locales/<lang>.json` at the plugin root.
+  const t = usePluginTranslation("${ID}");
 
   const handleClick = () => {
-    showInfo(
-      "Hello from ${DISPLAY_NAME}! Active table: " + (context.tableName ?? "(none)"),
-    );
+    showInfo(t("toolbar.greeting", { table: context.tableName ?? "(none)" }));
   };
 
   return (
@@ -32,7 +36,7 @@ const Toolbar = defineSlot("data-grid.toolbar.actions", ({ context }) => {
         cursor: "pointer",
       }}
     >
-      ${DISPLAY_NAME}
+      {t("toolbar.label")}
     </button>
   );
 });

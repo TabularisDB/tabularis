@@ -402,6 +402,23 @@
     "appearance_editorShowLineNumbersDesc": "Zeigt Zeilennummern im Rand des Editors an.",
     "appearance_editorAcceptSuggestionOnEnter": "Vorschlag mit Eingabetaste übernehmen",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Erlaubt der Eingabetaste (zusätzlich zu Tab), den aktiven Autovervollständigungsvorschlag zu übernehmen. Bei deaktivierter Option fügt Enter immer einen Zeilenumbruch ein.",
+    "queryExecution": "Abfrageausführung",
+    "runStatementUnderCursor": "Anweisung unter dem Cursor ausführen",
+    "runStatementUnderCursorDesc": "Wenn ein Skript mehrere Anweisungen enthält, wird die Anweisung unter dem Cursor ausgeführt, statt die Abfrageauswahl anzuzeigen. Markiere Text, um einen bestimmten Bereich auszuführen.",
+    "formatter_title": "SQL-Formatierung",
+    "formatter_keywordCase": "Schlüsselwort-Schreibweise",
+    "formatter_keywordCaseDesc": "Groß-/Kleinschreibung von SQL-Schlüsselwörtern (SELECT, FROM, WHERE) nach der Formatierung.",
+    "formatter_functionCase": "Funktions-Schreibweise",
+    "formatter_functionCaseDesc": "Groß-/Kleinschreibung von Funktionsnamen (COUNT, SUM, COALESCE) nach der Formatierung.",
+    "formatter_indentStyle": "Einrückungsstil",
+    "formatter_indentStyleDesc": "Standard rückt normal ein. Tabellarisch richtet Klauseln in Spalten aus.",
+    "formatter_tabWidth": "Einrückungsbreite",
+    "formatter_useTabs": "Tabs verwenden",
+    "formatter_useTabsDesc": "Mit Tabs statt Leerzeichen einrücken.",
+    "formatter_linesBetweenQueries": "Zeilen zwischen Abfragen",
+    "formatter_linesBetweenQueriesDesc": "Anzahl der Leerzeilen zwischen separaten SQL-Anweisungen.",
+    "formatter_denseOperators": "Kompakte Operatoren",
+    "formatter_denseOperatorsDesc": "Leerzeichen um Operatoren entfernen (z.B. a=1 statt a = 1).",
     "editConfigJson": "config.json bearbeiten",
     "editConfigJsonDesc": "Bearbeite die rohe Konfigurationsdatei direkt. Ein Neustart ist erforderlich, um Änderungen anzuwenden.",
     "configJsonModal": {
@@ -595,6 +612,10 @@
         "copy": "Kopieren",
         "copied": "Kopiert!"
       },
+      "uninstallError": {
+        "title": "Deinstallation fehlgeschlagen",
+        "subtitle": "Bei der Deinstallation des Plugins ist ein Fehler aufgetreten. Siehe Details unten."
+      },
       "startError": {
         "title": "Plugin konnte nicht gestartet werden",
         "subtitle": "Der Plugin-Prozess konnte nicht gestartet werden. Prüfe die Fehlerdetails unten.",
@@ -633,7 +654,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "Bereitgestellt von",
+      "openHomepage": "Homepage öffnen"
     },
     "shortcuts": {
       "title": "Tastenkürzel",
@@ -644,6 +667,8 @@
       },
       "runQuery": "Abfrage ausführen",
       "runQueryEditor": "Abfrage ausführen (im Editor)",
+      "runAll": "Alle Anweisungen ausführen",
+      "runAllEditor": "Alle Anweisungen ausführen (im Editor)",
       "tabSwitcher": "Tab wechseln",
       "copySelection": "Auswahl kopieren",
       "toggleSidebar": "Seitenleiste umschalten",
@@ -663,6 +688,7 @@
       "pasteImportClipboard": "Aus Zwischenablage importieren",
       "quickNavigator": "Schnellnavigation",
       "triggerSuggestions": "Vorschläge anzeigen",
+      "formatSql": "SQL formatieren",
       "refreshTable": "Tabelle aktualisieren"
     },
     "aiActivity": "KI-Aktivität",
@@ -850,7 +876,8 @@
     "scrollTabsRight": "Registerkarten nach rechts blättern",
     "useIamAuth": "AWS-IAM-Authentifizierung verwenden (RDS)",
     "useIamAuthHint": "Das Passwortfeld wird als RDS-Auth-Token verwendet (aus `aws rds generate-db-auth-token`). Erfordert TLS. Tokens laufen alle 15 Minuten ab.",
-    "useIamAuthTlsRequired": "Aktiviere oben einen SSL-Modus, um die AWS-IAM-Authentifizierung zu nutzen."
+    "useIamAuthTlsRequired": "Aktiviere oben einen SSL-Modus, um die AWS-IAM-Authentifizierung zu nutzen.",
+    "changeDatabase": "Datenbank ändern"
   },
   "sshConnections": {
     "title": "SSH-Verbindungen",
@@ -972,6 +999,7 @@
     "noActiveSession": "Keine aktive Sitzung. Bitte wähle eine Verbindung aus.",
     "stop": "Stopp",
     "run": "Ausführen",
+    "runAll": "Alle ausführen",
     "export": "Exportieren",
     "connected": "Verbunden",
     "disconnected": "Getrennt",
@@ -1039,6 +1067,7 @@
     "exporting": "Wird exportiert...",
     "rowsProcessed": "Verarbeitete Zeilen",
     "queryParameters": "Abfrageparameter",
+    "formatSql": "SQL formatieren",
     "convertToConsole": "In Konsole umwandeln",
     "parameters": "Parameter",
     "paramValuePlaceholder": "Wert (z. B. 'Text' oder 123)",
@@ -1796,5 +1825,46 @@
   "miniGrid": {
     "runningQuery": "Abfrage wird ausgeführt...",
     "copyAll": "Alles kopieren"
+  },
+  "deepLink": {
+    "installTitle": "Plugin aus Registry installieren",
+    "installSubtitle": "Eine Tabularium-Registry hat Tabularis gebeten, ein Plugin zu installieren.",
+    "plugin": "Plugin",
+    "version": "Version",
+    "registry": "Registry",
+    "latest": "Neueste",
+    "installConfirm": "Installieren",
+    "installing": "Installiere…",
+    "loadingPreview": "Lade Details…",
+    "usingConfigured": "konfigurierte Registry",
+    "mismatchTitle": "Abweichende Registry",
+    "mismatchBody": "Deine konfigurierte Registry ist {{configured}}. Der Link verweist auf eine andere — bitte vor dem Fortfahren prüfen.",
+    "updateConfirm": "Auf v{{version}} aktualisieren",
+    "alreadyInstalled": "Version {{version}} ist bereits installiert."
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "Datenbanken suchen…",
+    "clearSearch": "Suche löschen",
+    "verified": "Verifiziert",
+    "installed": "Installiert",
+    "install": "Installieren",
+    "clear": "Zurücksetzen",
+    "registryOffline": "Registry nicht erreichbar — es werden nur installierte und integrierte Treiber angezeigt.",
+    "noMatches": "Keine Datenbanken entsprechen deinen Filtern.",
+    "clearFilters": "Filter zurücksetzen",
+    "driverCount_one": "{{count}} Treiber",
+    "driverCount_other": "{{count}} Treiber",
+    "connectTo": "Mit {{name}} verbinden",
+    "unavailableOnPlatform": "Auf deiner Plattform nicht verfügbar",
+    "backToCatalogue": "Zurück zum Katalog",
+    "pickDriver": "Mehrere Treiber verbinden sich mit {{name}}. Wähle einen:",
+    "latestVersion": "Neueste v{{version}}",
+    "continue": "Weiter",
+    "noReleaseTitle": "Noch kein installierbares Release für deine Plattform.",
+    "noReleaseBody": "Für diesen Treiber gibt es keinen herunterladbaren Build für dein Betriebssystem/deine Architektur. Prüfe die Registry auf ein aktualisiertes Release.",
+    "notInstalled": "Dieser Treiber ist noch nicht installiert. Installiere ihn, um eine Verbindung einzurichten.",
+    "installVersion": "v{{version}} installieren",
+    "installingVersion": "v{{version}} wird installiert…",
+    "retryInstall": "Installation wiederholen"
   }
 }

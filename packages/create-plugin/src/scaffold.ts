@@ -124,6 +124,9 @@ export function scaffold(opts: ScaffoldOptions): void {
 
   if (opts.withUi) {
     copyTemplate("ui-extension", join(opts.targetDir, "ui"), vars);
+    // i18n strings live at the plugin root (`<root>/locales/<lang>.json`), not
+    // under `ui/` — that's where the host loads them from.
+    copyTemplate("ui-extension-locales", opts.targetDir, vars);
   }
 
   if (opts.gitInit) {

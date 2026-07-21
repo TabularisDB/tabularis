@@ -62,6 +62,63 @@ export function getSelectedRows(
   return sortedIndices.map((idx) => data[idx]);
 }
 
+type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
+
+interface ColumnCopyOptions {
+  format: CopyFormat;
+  delimiter?: string;
+  includeHeader?: boolean;
+  tableName?: string;
+}
+
+export function columnValuesForCopy(
+  rows: unknown[][],
+  columns: string[],
+  colIndex: number,
+  options: ColumnCopyOptions,
+): string {
+  const column = columns[colIndex];
+  if (column === undefined) return "";
+
+  const projectedRows = rows.map((row) => [row[colIndex]]);
+  const projectedColumns = [column];
+
+  if (options.format === "json") {
+    return rowsToJSON(projectedRows, projectedColumns);
+  }
+  if (options.format === "sql-insert") {
+    return rowsToSqlInsert(
+      projectedRows,
+      projectedColumns,
+      options.tableName ?? "table",
+    );
+  }
+  if (options.format === "markdown") {
+    return rowsToMarkdown(
+      projectedRows,
+      projectedColumns,
+      "null",
+      options.includeHeader,
+    );
+  }
+  if (options.includeHeader) {
+    return rowsToCSVWithHeaders(
+      projectedRows,
+      projectedColumns,
+      "null",
+      options.delimiter,
+    );
+  }
+  return rowsToCSV(projectedRows, "null", options.delimiter);
+}
+
+export function columnValuesToInClause(
+  rows: unknown[][],
+  colIndex: number,
+): string {
+  return rows.map((row) => sqlValue(row[colIndex])).join(", ");
+}
+
 function sqlValue(cell: unknown): string {
   if (cell === null || cell === undefined) return "NULL";
   if (typeof cell === "boolean") return cell ? "TRUE" : "FALSE";
