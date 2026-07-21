@@ -73,6 +73,8 @@ import {
   rowsToJSON,
   rowsToSqlInsert,
   rowsToMarkdown,
+  columnValuesForCopy,
+  columnValuesToInClause,
   getSelectedRows,
   copyTextToClipboard,
 } from "../../utils/clipboard";
@@ -1238,6 +1240,47 @@ export const DataGrid = React.memo(
       );
     }, [selectedRowIndices, data, formatRows, copyToClipboard]);
 
+    // Copies one column for the selected rows, or every visible row when
+    // nothing is selected, using the same export format as other copy actions.
+    const copyColumnValues = useCallback(
+      async (colIndex: number) => {
+        if (colIndex < 0) return;
+        const rows =
+          selectedRowIndices.size > 0
+            ? getSelectedRows(data, selectedRowIndices)
+            : data;
+        const text = columnValuesForCopy(rows, columns, colIndex, {
+          format: copyFormat ?? "csv",
+          delimiter: csvDelimiter,
+          includeHeader: csvIncludeHeaders,
+          tableName: tableName ?? "table",
+        });
+        await copyToClipboard(text);
+      },
+      [
+        selectedRowIndices,
+        data,
+        columns,
+        copyFormat,
+        csvDelimiter,
+        csvIncludeHeaders,
+        tableName,
+        copyToClipboard,
+      ],
+    );
+
+    const copyColumnValuesAsInClause = useCallback(
+      async (colIndex: number) => {
+        if (colIndex < 0) return;
+        const rows =
+          selectedRowIndices.size > 0
+            ? getSelectedRows(data, selectedRowIndices)
+            : data;
+        await copyToClipboard(columnValuesToInClause(rows, colIndex));
+      },
+      [selectedRowIndices, data, copyToClipboard],
+    );
+
     const copyCellValue = useCallback(
       async (rowIndex: number, colIndex: number) => {
         const mergedRow = mergedRows[rowIndex];
@@ -1628,6 +1671,24 @@ export const DataGrid = React.memo(
                 action: copySelectedOrContextRow,
               });
 
+              menuItems.push({
+                label: t("dataGrid.copyColumnValues"),
+                icon: Copy,
+                action: async () => {
+                  await copyColumnValues(contextMenu.colIndex);
+                  setContextMenu(null);
+                },
+              });
+
+              menuItems.push({
+                label: t("dataGrid.copyColumnValuesIn"),
+                icon: Copy,
+                action: async () => {
+                  await copyColumnValuesAsInClause(contextMenu.colIndex);
+                  setContextMenu(null);
+                },
+              });
+
               if (!readonlyProp) {
                 menuItems.push(
                   {
@@ -1703,6 +1764,26 @@ export const DataGrid = React.memo(
                   label: t("dataGrid.copyColumnNameTable"),
                   icon: Copy,
                   action: copyHeaderNameTable,
+                },
+                {
+                  label: t("dataGrid.copyColumnValues"),
+                  icon: Copy,
+                  action: async () => {
+                    await copyColumnValues(
+                      columns.indexOf(headerContextMenu.colName),
+                    );
+                    setHeaderContextMenu(null);
+                  },
+                },
+                {
+                  label: t("dataGrid.copyColumnValuesIn"),
+                  icon: Copy,
+                  action: async () => {
+                    await copyColumnValuesAsInClause(
+                      columns.indexOf(headerContextMenu.colName),
+                    );
+                    setHeaderContextMenu(null);
+                  },
                 },
               ]}
             />
