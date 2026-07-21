@@ -386,6 +386,13 @@
     "delimiterPipe": "Pipe (|)",
     "csvIncludeHeaders": "Include column headers",
     "csvIncludeHeadersDesc": "Include a header row with column names when copying rows as CSV or Markdown.",
+    "rowEditorFollowSelection": "Row editor follows selection",
+    "rowEditorFollowSelectionDesc": "When the row editor sidebar is open, automatically update it to show the newly selected row.",
+    "cellDoubleClickAction": "Cell double-click action",
+    "cellDoubleClickActionDesc": "Choose what happens when you double-click a data cell.",
+    "cellDoubleClickInline": "Inline edit",
+    "cellDoubleClickSidebar": "Open in sidebar",
+    "cellDoubleClickBoth": "Both",
     "csvHeaders": "Export column names",
     "detectJsonInTextColumns": "Detect JSON in text columns",
     "detectJsonInTextColumnsDesc": "Show the JSON viewer affordance when a non-typed text cell contains a JSON object or array. Adds a small per-cell parse cost.",
@@ -710,6 +717,7 @@
       "tabSwitcher": "Switch tab",
       "copySelection": "Copy selection",
       "toggleSidebar": "Toggle sidebar",
+      "toggleRightSidebar": "Toggle right sidebar",
       "focusTableFilter": "Focus table filter",
       "openConnections": "Open connections",
       "newConnection": "New connection",
@@ -1573,7 +1581,14 @@
     "subtitle": "Row #{{row}}",
     "save": "Save Changes",
     "cancel": "Cancel",
-    "enterValue": "Enter value..."
+    "enterValue": "Enter value...",
+    "pin": "Pin to row",
+    "unpin": "Unpin from row"
+  },
+  "rightSidebar": {
+    "resize": "Resize sidebar",
+    "collapse": "Collapse right sidebar",
+    "expand": "Expand right sidebar"
   },
   "contextMenu": {
     "openSidebar": "Open Sidebar Editor",

@@ -371,6 +371,13 @@
     "csvHeaders": "Spaltennamen exportieren",
     "detectJsonInTextColumns": "JSON in Text-Spalten erkennen",
     "detectJsonInTextColumnsDesc": "Zeigt JSON-Viewer-Bedienelemente, wenn eine nicht typisierte Text-Zelle ein JSON-Objekt oder -Array enthält. Verursacht kleine Parse-Kosten pro Zelle.",
+    "rowEditorFollowSelection": "Zeileneditor folgt der Auswahl",
+    "rowEditorFollowSelectionDesc": "Wenn die Zeileneditor-Seitenleiste geöffnet ist, wird sie automatisch aktualisiert, um die neu ausgewählte Zeile anzuzeigen.",
+    "cellDoubleClickAction": "Doppelklick-Aktion für Zellen",
+    "cellDoubleClickActionDesc": "Wählen Sie, was beim Doppelklick auf eine Datenzelle passiert.",
+    "cellDoubleClickInline": "Inline-Bearbeitung",
+    "cellDoubleClickSidebar": "In Seitenleiste öffnen",
+    "cellDoubleClickBoth": "Beides",
     "appearance": "Darstellung",
     "localization": "Lokalisierung",
     "themeSelection": "Themaauswahl",
@@ -672,6 +679,7 @@
       "tabSwitcher": "Tab wechseln",
       "copySelection": "Auswahl kopieren",
       "toggleSidebar": "Seitenleiste umschalten",
+      "toggleRightSidebar": "Rechte Seitenleiste umschalten",
       "focusTableFilter": "Tabellenfilter fokussieren",
       "openConnections": "Verbindungen öffnen",
       "newConnection": "Neue Verbindung",
@@ -1489,7 +1497,14 @@
     "subtitle": "Zeile #{{row}}",
     "save": "Änderungen speichern",
     "cancel": "Abbrechen",
-    "enterValue": "Wert eingeben..."
+    "enterValue": "Wert eingeben...",
+    "pin": "An Zeile anheften",
+    "unpin": "Von Zeile lösen"
+  },
+  "rightSidebar": {
+    "resize": "Seitenleiste skalieren",
+    "collapse": "Rechte Seitenleiste einklappen",
+    "expand": "Rechte Seitenleiste ausklappen"
   },
   "contextMenu": {
     "openSidebar": "Seitenleisten-Editor öffnen",

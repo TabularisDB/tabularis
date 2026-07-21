@@ -386,6 +386,13 @@
     "delimiterPipe": "Pipe (|)",
     "csvIncludeHeaders": "Isama ang CSV headers",
     "csvIncludeHeadersDesc": "Isama ang header row na may mga pangalan ng column kapag kinokopya ang mga row bilang CSV.",
+    "rowEditorFollowSelection": "Ang row editor ay sumusunod sa pinili",
+    "rowEditorFollowSelectionDesc": "Kapag bukas ang sidebar ng row editor, awtomatiko itong mag-a-update upang ipakita ang bagong napiling row.",
+    "cellDoubleClickAction": "Aksyon sa double-click ng cell",
+    "cellDoubleClickActionDesc": "Piliin kung ano ang mangyayari kapag nag-double-click sa isang data cell.",
+    "cellDoubleClickInline": "Inline na pag-edit",
+    "cellDoubleClickSidebar": "Buksan sa sidebar",
+    "cellDoubleClickBoth": "Pareho",
     "csvHeaders": "I-export ang mga pangalan ng column",
     "detectJsonInTextColumns": "I-detect ang JSON sa text column",
     "detectJsonInTextColumnsDesc": "Ipakita ang JSON viewer affordance kapag ang non-typed text cell ay may JSON object o array. May maliit na per-cell parse cost.",
@@ -703,6 +710,7 @@
       "tabSwitcher": "Lumipat ng tab",
       "copySelection": "Kopyahin ang selection",
       "toggleSidebar": "I-toggle ang sidebar",
+      "toggleRightSidebar": "I-toggle ang kanang sidebar",
       "focusTableFilter": "Tumuon sa table filter",
       "openConnections": "Buksan ang mga koneksyon",
       "newConnection": "Bagong koneksyon",
@@ -1559,7 +1567,14 @@
     "subtitle": "Row #{{row}}",
     "save": "I-save ang mga Pagbabago",
     "cancel": "Kanselahin",
-    "enterValue": "Maglagay ng halaga..."
+    "enterValue": "Maglagay ng halaga...",
+    "pin": "I-pin",
+    "unpin": "I-unpin"
+  },
+  "rightSidebar": {
+    "resize": "Baguhin ang laki",
+    "collapse": "I-collapse",
+    "expand": "I-expand"
   },
   "contextMenu": {
     "openSidebar": "Buksan ang Sidebar Editor",

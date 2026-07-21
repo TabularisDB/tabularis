@@ -130,6 +130,16 @@
     "overridable": true
   },
   {
+    "id": "toggle_right_sidebar",
+    "category": "navigation",
+    "defaultMac": "⌘+Shift+B",
+    "defaultWin": "Ctrl+Shift+B",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "b" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "b" },
+    "i18nKey": "settings.shortcuts.toggleRightSidebar",
+    "overridable": true
+  },
+  {
     "id": "focus_table_filter",
     "category": "navigation",
     "defaultMac": "⌘+Shift+F",

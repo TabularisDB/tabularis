@@ -381,6 +381,13 @@
     "delimiterPipe": "パイプ (|)",
     "csvIncludeHeaders": "CSVヘッダーを含める",
     "csvIncludeHeadersDesc": "行をCSVとしてコピーするときに、列名のヘッダー行を含めます。",
+    "rowEditorFollowSelection": "行エディターが選択に追従",
+    "rowEditorFollowSelectionDesc": "行エディターのサイドバーが開いているとき、新しく選択された行を自動的に表示します。",
+    "cellDoubleClickAction": "セルのダブルクリック動作",
+    "cellDoubleClickActionDesc": "データセルをダブルクリックしたときの動作を選択します。",
+    "cellDoubleClickInline": "インライン編集",
+    "cellDoubleClickSidebar": "サイドバーで開く",
+    "cellDoubleClickBoth": "両方",
     "csvHeaders": "列名をエクスポート",
     "appearance": "外観",
     "localization": "ローカライズ",
@@ -686,6 +693,7 @@
       "tabSwitcher": "タブを切り替え",
       "copySelection": "選択範囲をコピー",
       "toggleSidebar": "サイドバーを切り替え",
+      "toggleRightSidebar": "右サイドバーの切り替え",
       "focusTableFilter": "テーブルフィルターにフォーカス",
       "openConnections": "接続を開く",
       "newConnection": "新規接続",
@@ -1508,7 +1516,14 @@
     "subtitle": "行 #{{row}}",
     "save": "変更を保存",
     "cancel": "キャンセル",
-    "enterValue": "値を入力..."
+    "enterValue": "値を入力...",
+    "pin": "ピン留め",
+    "unpin": "ピン留め解除"
+  },
+  "rightSidebar": {
+    "resize": "サイズ変更",
+    "collapse": "折りたたむ",
+    "expand": "展開する"
   },
   "contextMenu": {
     "openSidebar": "サイドバーエディタで開く"

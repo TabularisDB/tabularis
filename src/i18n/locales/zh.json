@@ -367,6 +367,13 @@
     "delimiterPipe": "管道符 (|)",
     "csvIncludeHeaders": "包含 CSV 表头",
     "csvIncludeHeadersDesc": "以 CSV 格式复制行时包含含有列名的表头行。",
+    "rowEditorFollowSelection": "行编辑器跟随选择",
+    "rowEditorFollowSelectionDesc": "当行编辑器侧边栏打开时，自动更新以显示新选择的行。",
+    "cellDoubleClickAction": "单元格双击操作",
+    "cellDoubleClickActionDesc": "选择双击数据单元格时执行的操作。",
+    "cellDoubleClickInline": "内联编辑",
+    "cellDoubleClickSidebar": "在侧边栏中打开",
+    "cellDoubleClickBoth": "两者",
     "csvHeaders": "导出列名",
     "detectJsonInTextColumns": "在文本列中检测 JSON",
     "detectJsonInTextColumnsDesc": "当未带类型的文本单元格包含 JSON 对象或数组时显示 JSON 查看器入口。每单元格会增加少量解析开销。",
@@ -638,6 +645,7 @@
       "tabSwitcher": "切换标签",
       "copySelection": "复制选区",
       "toggleSidebar": "切换侧边栏",
+      "toggleRightSidebar": "切换右侧边栏",
       "focusTableFilter": "聚焦表格筛选",
       "openConnections": "打开连接",
       "newConnection": "新建连接",
@@ -1433,7 +1441,14 @@
     "subtitle": "行 #{{row}}",
     "save": "保存更改",
     "cancel": "取消",
-    "enterValue": "输入值..."
+    "enterValue": "输入值...",
+    "pin": "固定",
+    "unpin": "取消固定"
+  },
+  "rightSidebar": {
+    "resize": "调整大小",
+    "collapse": "折叠",
+    "expand": "展开"
   },
   "contextMenu": {
     "openSidebar": "打开侧边栏编辑器",

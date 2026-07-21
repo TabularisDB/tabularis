@@ -393,6 +393,13 @@
     "delimiterPipe": "Pipe (|)",
     "csvIncludeHeaders": "Incluir encabezados CSV",
     "csvIncludeHeadersDesc": "Incluir una fila de encabezado con los nombres de las columnas al copiar filas como CSV.",
+    "rowEditorFollowSelection": "El editor de filas sigue la selección",
+    "rowEditorFollowSelectionDesc": "Cuando la barra lateral del editor de filas está abierta, se actualiza automáticamente para mostrar la fila recién seleccionada.",
+    "cellDoubleClickAction": "Acción de doble clic en celda",
+    "cellDoubleClickActionDesc": "Elija qué sucede al hacer doble clic en una celda de datos.",
+    "cellDoubleClickInline": "Edición en línea",
+    "cellDoubleClickSidebar": "Abrir en barra lateral",
+    "cellDoubleClickBoth": "Ambos",
     "csvHeaders": "Exportar nombres de columnas",
     "detectJsonInTextColumns": "Detectar JSON en columnas de texto",
     "detectJsonInTextColumnsDesc": "Muestra el visor de JSON cuando una celda de texto sin tipar contiene un objeto o array JSON. Añade un pequeño coste de análisis por celda.",
@@ -697,6 +704,7 @@
       "tabSwitcher": "Cambiar pestaña",
       "copySelection": "Copiar selección",
       "toggleSidebar": "Mostrar/ocultar barra lateral",
+      "toggleRightSidebar": "Alternar barra lateral derecha",
       "focusTableFilter": "Enfocar el filtro de tablas",
       "openConnections": "Abrir conexiones",
       "newConnection": "Nueva conexión",
@@ -1485,7 +1493,14 @@
     "subtitle": "Fila #{{row}}",
     "save": "Guardar Cambios",
     "cancel": "Cancelar",
-    "enterValue": "Ingresar valor..."
+    "enterValue": "Ingresar valor...",
+    "pin": "Fijar",
+    "unpin": "Desfijar"
+  },
+  "rightSidebar": {
+    "resize": "Redimensionar",
+    "collapse": "Contraer",
+    "expand": "Expandir"
   },
   "contextMenu": {
     "openSidebar": "Abrir Barra Lateral",

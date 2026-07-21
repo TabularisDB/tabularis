@@ -65,7 +65,7 @@ import {
   parseDateTime,
   formatDateTime,
 } from "../../utils/dateInput";
-import { RowEditorSidebar } from "./RowEditorSidebar";
+import { useRightSidebar } from "../../hooks/useRightSidebar";
 import { useDatabase } from "../../hooks/useDatabase";
 import {
   rowsToCSV,
@@ -166,6 +166,7 @@ export const DataGrid = React.memo(
     const { activeSchema, connections } = useDatabase();
     const { showAlert } = useAlert();
     const { settings } = useSettings();
+    const rightSidebar = useRightSidebar();
     const colorByType = settings.resultColorByType ?? false;
     const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
 
@@ -201,12 +202,6 @@ export const DataGrid = React.memo(
       colIndex: number;
       value: unknown;
       isRawSql?: boolean;
-    } | null>(null);
-    const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [sidebarRowData, setSidebarRowData] = useState<{
-      data: Record<string, unknown>;
-      rowIndex: number;
-      focusField?: string;
     } | null>(null);
     const [expandedCell, setExpandedCell] = useState<{
       rowIndex: number;
@@ -511,6 +506,139 @@ export const DataGrid = React.memo(
       [columns, pkIndexMaps, pkColumns, pendingChanges],
     );
 
+    // Unified handler for opening a row in the right sidebar
+    const openInSidebar = useCallback(
+      (rowIndex: number, focusField?: string) => {
+        const mergedRow = mergedRows[rowIndex];
+        if (!mergedRow) return;
+        const isInsertion = mergedRow.type === "insertion";
+        const rowData = buildRowDataWithPending(mergedRow.rowData, isInsertion);
+        const originalRowData = !isInsertion
+          ? columns.reduce<Record<string, unknown>>((acc, col, idx) => {
+              acc[col] = mergedRow.rowData[idx];
+              return acc;
+            }, {})
+          : undefined;
+
+        const colsMeta = columns.map((colName) => {
+          const meta = columnMetadata?.find((c) => c.name === colName);
+          return {
+            name: colName,
+            type: meta?.data_type,
+            characterMaximumLength: meta?.character_maximum_length,
+          };
+        });
+
+        const onChange = (colName: string, value: unknown) => {
+          const mr = mergedRows[rowIndex];
+          if (!mr) return;
+          const isIns = mr.type === "insertion";
+          if (isIns && onPendingInsertionChange && mr.tempId) {
+            onPendingInsertionChange(mr.tempId, colName, value);
+          } else if (!isIns && onPendingChange && pkColumns && pkIndexMaps.length > 0) {
+            const pkMapVal = buildPkMap(pkColumns, mr.rowData, pkIndexMaps);
+            onPendingChange(pkMapVal, colName, value);
+          }
+        };
+
+        rightSidebar.openRowEditor({
+          rowData,
+          originalRowData,
+          rowIndex,
+          focusField,
+          isInsertion,
+          columns: colsMeta,
+          autoIncrementColumns,
+          defaultValueColumns,
+          nullableColumns,
+          onChange,
+          detectJsonInTextColumns,
+          connectionId,
+          tableName,
+          pkColumns,
+          schema: activeSchema,
+        });
+      },
+      [
+        mergedRows,
+        buildRowDataWithPending,
+        columns,
+        columnMetadata,
+        autoIncrementColumns,
+        defaultValueColumns,
+        nullableColumns,
+        onPendingInsertionChange,
+        onPendingChange,
+        pkColumns,
+        pkIndexMaps,
+        detectJsonInTextColumns,
+        connectionId,
+        tableName,
+        activeSchema,
+        rightSidebar,
+      ],
+    );
+
+    // Follow row selection: update sidebar when a single row is selected
+    useEffect(() => {
+      if (!rightSidebar.isOpen || rightSidebar.activePanel !== "row-editor") return;
+      if (rightSidebar.isPinned) return;
+      if (settings.rowEditorFollowSelection === false) return;
+      if (selectedRowIndices.size !== 1) return;
+
+      const rowIndex = selectedRowIndices.values().next().value as number;
+      const mergedRow = mergedRows[rowIndex];
+      if (!mergedRow) return;
+
+      // Don't update if it's the same row already showing
+      if (rightSidebar.rowEditorData?.rowIndex === rowIndex) return;
+
+      const isInsertion = mergedRow.type === "insertion";
+      const rowData = buildRowDataWithPending(mergedRow.rowData, isInsertion);
+      const originalRowData = !isInsertion
+        ? columns.reduce<Record<string, unknown>>((acc, col, idx) => {
+            acc[col] = mergedRow.rowData[idx];
+            return acc;
+          }, {})
+        : undefined;
+
+      const onChange = (colName: string, value: unknown) => {
+        const mr = mergedRows[rowIndex];
+        if (!mr) return;
+        const isIns = mr.type === "insertion";
+        if (isIns && onPendingInsertionChange && mr.tempId) {
+          onPendingInsertionChange(mr.tempId, colName, value);
+        } else if (!isIns && onPendingChange && pkColumns && pkIndexMaps.length > 0) {
+          const pkMapVal = buildPkMap(pkColumns, mr.rowData, pkIndexMaps);
+          onPendingChange(pkMapVal, colName, value);
+        }
+      };
+
+      rightSidebar.updateRowEditorData({
+        rowData,
+        originalRowData,
+        rowIndex,
+        isInsertion,
+        focusField: undefined,
+        onChange,
+      });
+    }, [
+      selectedRowIndices,
+      rightSidebar.isOpen,
+      rightSidebar.activePanel,
+      rightSidebar.isPinned,
+      rightSidebar.rowEditorData?.rowIndex,
+      settings.rowEditorFollowSelection,
+      mergedRows,
+      buildRowDataWithPending,
+      columns,
+      onPendingInsertionChange,
+      onPendingChange,
+      pkColumns,
+      pkIndexMaps,
+      rightSidebar,
+    ]);
+
     const handleCellDoubleClick = useCallback(
       (rowIndex: number, colIndex: number, value: unknown) => {
       if (!tableName || readonlyProp) return;
@@ -577,15 +705,7 @@ export const DataGrid = React.memo(
         (isBlobColumn(colType, columnLengthMap?.get(colName)) ||
           isBlobWireFormat(value))
       ) {
-        setSidebarRowData({
-          data: buildRowDataWithPending(
-            mergedRow.rowData,
-            mergedRow.type === "insertion",
-          ),
-          rowIndex,
-          focusField: colName,
-        });
-        setSidebarOpen(true);
+        openInSidebar(rowIndex, colName);
         return;
       }
 
@@ -614,7 +734,17 @@ export const DataGrid = React.memo(
         editValue = formatGeometricValue(value);
       }
 
-      setEditingCell({ rowIndex, colIndex, value: editValue });
+      const doubleClickAction = settings.cellDoubleClickAction ?? "inline";
+
+      if (doubleClickAction === "sidebar") {
+        openInSidebar(rowIndex, colName);
+      } else if (doubleClickAction === "both") {
+        setEditingCell({ rowIndex, colIndex, value: editValue });
+        openInSidebar(rowIndex, colName);
+      } else {
+        // "inline" — default current behavior
+        setEditingCell({ rowIndex, colIndex, value: editValue });
+      }
     },
       [
         tableName,
@@ -625,10 +755,11 @@ export const DataGrid = React.memo(
         columnTypeMap,
         columnLengthMap,
         columnMetadata,
-        buildRowDataWithPending,
+        openInSidebar,
         openJsonViewerWindow,
         showAlert,
         t,
+        settings.cellDoubleClickAction,
       ],
     );
 
@@ -1083,14 +1214,9 @@ export const DataGrid = React.memo(
 
     const openSidebarEditor = useCallback(() => {
       if (!contextMenu) return;
-      const isInsertion = contextMenu.mergedRow?.type === "insertion";
-      setSidebarRowData({
-        data: buildRowDataWithPending(contextMenu.row, isInsertion ?? false),
-        rowIndex: contextMenu.rowIndex,
-      });
-      setSidebarOpen(true);
+      openInSidebar(contextMenu.rowIndex);
       setContextMenu(null);
-    }, [contextMenu, buildRowDataWithPending]);
+    }, [contextMenu, openInSidebar]);
 
     const openJsonEditor = useCallback(() => {
       if (!contextMenu) return;
@@ -1355,8 +1481,7 @@ export const DataGrid = React.memo(
         setFocusedCell,
         setExpandedCell,
         setEditingCell,
-        setSidebarRowData,
-        setSidebarOpen,
+        openInSidebar,
         handleRowClick,
         handleCellDoubleClick,
         handleContextMenu,
@@ -1393,8 +1518,7 @@ export const DataGrid = React.memo(
         setFocusedCell,
         setExpandedCell,
         setEditingCell,
-        setSidebarRowData,
-        setSidebarOpen,
+        openInSidebar,
         handleRowClick,
         handleCellDoubleClick,
         handleContextMenu,
@@ -1791,87 +1915,7 @@ export const DataGrid = React.memo(
             />
           )}
 
-          {/* Row Editor Sidebar */}
-          {sidebarOpen &&
-            sidebarRowData &&
-            (() => {
-              const mergedRow = mergedRows[sidebarRowData.rowIndex];
-              const isInsertion = mergedRow?.type === "insertion";
-              const originalRowData =
-                mergedRow && mergedRow.type === "existing"
-                  ? columns.reduce<Record<string, unknown>>((acc, col, idx) => {
-                      acc[col] = mergedRow.rowData[idx];
-                      return acc;
-                    }, {})
-                  : undefined;
-
-              return (
-                <RowEditorSidebar
-                  isOpen={sidebarOpen}
-                  onClose={() => {
-                    setSidebarOpen(false);
-                    setSidebarRowData(null);
-                  }}
-                  rowData={sidebarRowData.data}
-                  originalRowData={originalRowData}
-                  detectJsonInTextColumns={detectJsonInTextColumns}
-                  rowIndex={sidebarRowData.rowIndex}
-                  isInsertion={isInsertion}
-                  columns={columns.map((colName) => {
-                    const meta = columnMetadata?.find(
-                      (c) => c.name === colName,
-                    );
-                    return {
-                      name: colName,
-                      type: meta?.data_type,
-                      characterMaximumLength:
-                        meta?.character_maximum_length,
-                    };
-                  })}
-                  autoIncrementColumns={autoIncrementColumns}
-                  defaultValueColumns={defaultValueColumns}
-                  nullableColumns={nullableColumns}
-                  focusField={sidebarRowData.focusField}
-                  connectionId={connectionId}
-                  tableName={tableName}
-                  pkColumns={pkColumns}
-                  schema={activeSchema}
-                  onChange={(colName, value) => {
-                    // Get the merged row to determine if it's an insertion or existing row
-                    const mergedRow = mergedRows[sidebarRowData.rowIndex];
-                    if (!mergedRow) return;
-
-                    const isInsertion = mergedRow.type === "insertion";
-
-                    // Apply change immediately
-                    if (
-                      isInsertion &&
-                      onPendingInsertionChange &&
-                      mergedRow.tempId
-                    ) {
-                      // Handle insertion row updates
-                      onPendingInsertionChange(
-                        mergedRow.tempId,
-                        colName,
-                        value,
-                      );
-                    } else if (
-                      !isInsertion &&
-                      onPendingChange &&
-                      pkColumns &&
-                      pkIndexMaps.length > 0
-                    ) {
-                      // Handle existing row updates
-                      const rowData = mergedRow.rowData;
-                      if (rowData) {
-                        const pkMapVal = buildPkMap(pkColumns, rowData, pkIndexMaps);
-                        onPendingChange(pkMapVal, colName, value);
-                      }
-                    }
-                  }}
-                />
-              );
-            })()}
+          {/* Row Editor Sidebar is now rendered in the RightSidebar layout component */}
         </div>
       </>
     );

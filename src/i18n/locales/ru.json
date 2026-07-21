@@ -363,6 +363,13 @@
     "delimiterPipe": "Вертикальная черта (|)",
     "csvIncludeHeaders": "Включать заголовки CSV",
     "csvIncludeHeadersDesc": "Добавлять строку заголовка с именами столбцов при копировании строк в формате CSV.",
+    "rowEditorFollowSelection": "Редактор строки следует за выделением",
+    "rowEditorFollowSelectionDesc": "Когда боковая панель редактора строки открыта, она автоматически обновляется, показывая вновь выбранную строку.",
+    "cellDoubleClickAction": "Действие при двойном щелчке по ячейке",
+    "cellDoubleClickActionDesc": "Выберите, что происходит при двойном щелчке по ячейке данных.",
+    "cellDoubleClickInline": "Редактирование на месте",
+    "cellDoubleClickSidebar": "Открыть в боковой панели",
+    "cellDoubleClickBoth": "Оба",
     "csvHeaders": "Экспортировать имена столбцов",
     "detectJsonInTextColumns": "Определять JSON в текстовых столбцах",
     "detectJsonInTextColumnsDesc": "Показывать просмотрщик JSON, когда нетипизированная текстовая ячейка содержит объект или массив JSON. Создаёт небольшие издержки на разбор каждой ячейки.",
@@ -665,6 +672,7 @@
       "tabSwitcher": "Переключить вкладку",
       "copySelection": "Копировать выделение",
       "toggleSidebar": "Показать/скрыть боковую панель",
+      "toggleRightSidebar": "Переключить правую боковую панель",
       "focusTableFilter": "Фокус на фильтре таблиц",
       "openConnections": "Открыть подключения",
       "newConnection": "Новое подключение",
@@ -1534,7 +1542,14 @@
     "subtitle": "Строка #{{row}}",
     "save": "Сохранить изменения",
     "cancel": "Отменить",
-    "enterValue": "Введите значение..."
+    "enterValue": "Введите значение...",
+    "pin": "Закрепить",
+    "unpin": "Открепить"
+  },
+  "rightSidebar": {
+    "resize": "Изменить размер",
+    "collapse": "Свернуть",
+    "expand": "Развернуть"
   },
   "contextMenu": {
     "openSidebar": "Открыть в боковом редакторе",

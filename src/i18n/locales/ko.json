@@ -354,6 +354,13 @@
     "delimiterPipe": "파이프 (|)",
     "csvIncludeHeaders": "CSV 헤더 포함",
     "csvIncludeHeadersDesc": "행을 CSV로 복사할 때 컬럼 이름이 담긴 헤더 행을 포함합니다.",
+    "rowEditorFollowSelection": "행 편집기가 선택을 따라감",
+    "rowEditorFollowSelectionDesc": "행 편집기 사이드바가 열려 있을 때 새로 선택한 행을 자동으로 표시합니다.",
+    "cellDoubleClickAction": "셀 더블클릭 동작",
+    "cellDoubleClickActionDesc": "데이터 셀을 더블클릭할 때 수행할 동작을 선택합니다.",
+    "cellDoubleClickInline": "인라인 편집",
+    "cellDoubleClickSidebar": "사이드바에서 열기",
+    "cellDoubleClickBoth": "둘 다",
     "csvHeaders": "컬럼 이름 내보내기",
     "detectJsonInTextColumns": "텍스트 컬럼에서 JSON 감지",
     "detectJsonInTextColumnsDesc": "타입이 지정되지 않은 텍스트 셀에 JSON 객체나 배열이 있으면 JSON 뷰어 버튼을 표시합니다. 셀마다 약간의 파싱 비용이 추가됩니다.",
@@ -671,6 +678,7 @@
       "tabSwitcher": "탭 전환",
       "copySelection": "선택 영역 복사",
       "toggleSidebar": "사이드바 토글",
+      "toggleRightSidebar": "오른쪽 사이드바 전환",
       "focusTableFilter": "테이블 필터에 포커스",
       "openConnections": "연결 열기",
       "newConnection": "새 연결",
@@ -1526,7 +1534,14 @@
     "subtitle": "행 #{{row}}",
     "save": "변경 사항 저장",
     "cancel": "취소",
-    "enterValue": "값 입력..."
+    "enterValue": "값 입력...",
+    "pin": "고정",
+    "unpin": "고정 해제"
+  },
+  "rightSidebar": {
+    "resize": "크기 조정",
+    "collapse": "접기",
+    "expand": "펼치기"
   },
   "contextMenu": {
     "openSidebar": "사이드바 에디터에서 열기",
