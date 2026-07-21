@@ -556,6 +556,7 @@ export function PluginsTab({
   const [pluginInstallError, setPluginInstallError] = useState<{
     pluginId: string;
     error: string;
+    operation: "install" | "uninstall";
   } | null>(null);
   const [pluginStartError, setPluginStartError] = useState<{
     pluginId: string;
@@ -709,7 +710,11 @@ export function PluginsTab({
           pluginId;
         onPluginsChanged?.({ type: "install", pluginId, pluginName });
       } catch (err) {
-        setPluginInstallError({ pluginId, error: String(err) });
+        setPluginInstallError({
+          pluginId,
+          error: String(err),
+          operation: "install",
+        });
       } finally {
         setInstallingPluginId(null);
       }
@@ -749,7 +754,11 @@ export function PluginsTab({
             refreshRegistry();
             onPluginsChanged?.({ type: "remove", pluginId });
           } catch (err) {
-            setPluginInstallError({ pluginId, error: String(err) });
+            setPluginInstallError({
+              pluginId,
+              error: String(err),
+              operation: "uninstall",
+            });
           } finally {
             setUninstallingPluginId(null);
           }
@@ -1470,6 +1479,7 @@ export function PluginsTab({
         onClose={() => setPluginInstallError(null)}
         pluginId={pluginInstallError?.pluginId ?? ""}
         error={pluginInstallError?.error ?? ""}
+        operation={pluginInstallError?.operation ?? "install"}
       />
       <PluginRemoveModal
         isOpen={pluginRemoveConfirm !== null}

@@ -432,6 +432,9 @@
     "appearance_editorShowLineNumbersDesc": "Ipakita ang mga line number sa editor gutter.",
     "appearance_editorAcceptSuggestionOnEnter": "Tanggapin ang Suggestion gamit ang Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Payagan ang Enter (bukod sa Tab) para tanggapin ang aktibong autocomplete suggestion. Kapag off, laging nag-i-insert ng newline ang Enter.",
+    "queryExecution": "Pagpapatakbo ng Query",
+    "runStatementUnderCursor": "Patakbuhin ang statement sa ilalim ng cursor",
+    "runStatementUnderCursorDesc": "Kapag maraming statement ang isang script, patakbuhin ang nasa ilalim ng cursor sa halip na ipakita ang query picker. Pumili ng teksto para patakbuhin ang isang partikular na saklaw.",
     "editConfigJson": "I-edit ang config.json",
     "editConfigJsonDesc": "Direktang i-edit ang raw configuration file. Kailangan ng restart para mailapat ang mga pagbabago.",
     "configJsonModal": {
@@ -628,6 +631,10 @@
         "copy": "Kopyahin",
         "copied": "Nakopya!"
       },
+      "uninstallError": {
+        "title": "Nabigo ang Pag-uninstall",
+        "subtitle": "May error habang ina-uninstall ang plugin. Tingnan ang mga detalye sa ibaba."
+      },
       "startError": {
         "title": "Nabigo ang Pagsisimula ng Plugin",
         "subtitle": "Hindi ma-launch ang plugin process. Tingnan ang mga detalye ng error sa ibaba.",
@@ -697,7 +704,8 @@
       "notebookRunAll": "Patakbuhin ang Lahat ng Cell",
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "I-import mula sa Clipboard",
-      "quickNavigator": "Quick Navigator"
+      "quickNavigator": "Quick Navigator",
+      "formatSql": "I-format ang SQL"
     },
     "aiActivity": "AI Activity",
     "backup": {
@@ -1076,6 +1084,7 @@
     "exporting": "Nag-e-export...",
     "rowsProcessed": "Mga Row na Naproseso",
     "queryParameters": "Mga Parameter ng Query",
+    "formatSql": "I-format ang SQL",
     "convertToConsole": "I-convert sa Console",
     "parameters": "Mga Parameter",
     "paramValuePlaceholder": "Value (hal. 'text' o 123)",

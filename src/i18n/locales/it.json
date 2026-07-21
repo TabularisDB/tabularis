@@ -427,6 +427,9 @@
     "appearance_editorShowLineNumbersDesc": "Visualizza i numeri di riga nel margine dell'editor.",
     "appearance_editorAcceptSuggestionOnEnter": "Accetta Suggerimento con Invio",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Permetti al tasto Invio (oltre a Tab) di accettare il suggerimento di autocompletamento attivo. Quando disattivato, Invio inserisce sempre una nuova riga.",
+    "queryExecution": "Esecuzione query",
+    "runStatementUnderCursor": "Esegui l'istruzione sotto il cursore",
+    "runStatementUnderCursorDesc": "Quando uno script contiene più istruzioni, esegue quella sotto il cursore invece di mostrare il selettore di query. Seleziona il testo per eseguire un intervallo specifico.",
     "editConfigJson": "Modifica config.json",
     "editConfigJsonDesc": "Modifica direttamente il file di configurazione grezzo. È necessario un riavvio per applicare le modifiche.",
     "configJsonModal": {
@@ -620,6 +623,10 @@
         "copy": "Copia",
         "copied": "Copiato!"
       },
+      "uninstallError": {
+        "title": "Disinstallazione fallita",
+        "subtitle": "Si è verificato un errore durante la disinstallazione del plugin. Vedi i dettagli qui sotto."
+      },
       "startError": {
         "title": "Plugin non avviato",
         "subtitle": "Impossibile avviare il processo del plugin. Controlla i dettagli dell'errore.",
@@ -692,6 +699,7 @@
       "pasteImportClipboard": "Importa dagli Appunti",
       "quickNavigator": "Navigatore rapido",
       "triggerSuggestions": "Mostra suggerimenti",
+      "formatSql": "Formatta SQL",
       "refreshTable": "Aggiorna tabella"
     },
     "aiActivity": "Attività AI",
@@ -1067,6 +1075,7 @@
     "exporting": "Esportazione in corso...",
     "rowsProcessed": "Righe processate",
     "queryParameters": "Parametri Query",
+    "formatSql": "Formatta SQL",
     "convertToConsole": "Converti in Console",
     "parameters": "Parametri",
     "paramValuePlaceholder": "Valore (es. 'testo' o 123)",

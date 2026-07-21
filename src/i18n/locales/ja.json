@@ -413,6 +413,9 @@
     "appearance_editorShowLineNumbersDesc": "エディタの左端に行番号を表示します。",
     "appearance_editorAcceptSuggestionOnEnter": "Enter で候補を確定",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Tab に加えて Enter でもオートコンプリートの候補を確定できるようにします。オフの場合、Enter は常に改行を挿入します。",
+    "queryExecution": "クエリの実行",
+    "runStatementUnderCursor": "カーソル位置のステートメントを実行",
+    "runStatementUnderCursorDesc": "スクリプトに複数のステートメントがある場合、クエリ選択画面を表示せずにカーソル位置のステートメントを実行します。特定の範囲を実行するにはテキストを選択してください。",
     "editConfigJson": "config.json を編集",
     "editConfigJsonDesc": "生の設定ファイルを直接編集します。変更を反映するには再起動が必要です。",
     "configJsonModal": {
@@ -609,6 +612,10 @@
         "copy": "コピー",
         "copied": "コピーしました！"
       },
+      "uninstallError": {
+        "title": "アンインストール失敗",
+        "subtitle": "プラグインのアンインストール中にエラーが発生しました。詳細は下記を参照してください。"
+      },
       "startError": {
         "title": "プラグインの起動に失敗",
         "subtitle": "プラグインプロセスを起動できませんでした。下記のエラー詳細を確認してください。",
@@ -681,6 +688,7 @@
       "pasteImportClipboard": "クリップボードからインポート",
       "quickNavigator": "クイックナビゲーター",
       "triggerSuggestions": "候補を表示",
+      "formatSql": "SQLをフォーマット",
       "refreshTable": "テーブルを更新"
     },
     "aiActivity": "AI アクティビティ",
@@ -1056,6 +1064,7 @@
     "exporting": "エクスポート中...",
     "rowsProcessed": "処理行数",
     "queryParameters": "クエリパラメータ",
+    "formatSql": "SQLをフォーマット",
     "convertToConsole": "コンソールに変換",
     "parameters": "パラメータ",
     "paramValuePlaceholder": "値 (例: 'text' や 123)",

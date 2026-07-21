@@ -13,6 +13,8 @@ import {
   type Dialect,
   type Statement,
 } from "../../utils/sqlSplitter";
+import { formatSql } from "../../utils/sqlFormat";
+import type { SqlDialect } from "../../utils/sql";
 
 interface SqlEditorWrapperProps {
   initialValue: string;
@@ -172,6 +174,62 @@ const SqlEditorInternal = ({
           onRunAllRef.current?.();
         }
       );
+
+      // Format SQL action (Shift+Alt+F) — uses the existing formatSql utility
+      editor.addAction({
+        id: 'tabularis.formatSql',
+        label: 'Format SQL',
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.5,
+        keybindings: [
+          monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,
+        ],
+        run: (ed) => {
+          const model = ed.getModel();
+          if (!model) return;
+
+          const selection = ed.getSelection();
+          const hasSelection = selection && !selection.isEmpty();
+          const sqlDialect = (dialectRef.current as SqlDialect) ?? undefined;
+
+          if (hasSelection) {
+            // Format only the selected text
+            const selectedText = model.getValueInRange(selection);
+            const formatted = formatSql(selectedText, sqlDialect);
+            if (formatted !== selectedText) {
+              ed.executeEdits('formatSql', [{
+                range: selection,
+                text: formatted,
+                forceMoveMarkers: true,
+              }]);
+              ed.pushUndoStop();
+            }
+          } else {
+            // Format the entire document
+            const fullText = model.getValue();
+            const formatted = formatSql(fullText, sqlDialect);
+            if (formatted !== fullText) {
+              const fullRange = model.getFullModelRange();
+              const position = ed.getPosition();
+              ed.executeEdits('formatSql', [{
+                range: fullRange,
+                text: formatted,
+                forceMoveMarkers: true,
+              }]);
+              ed.pushUndoStop();
+              // Restore cursor position (clamped to new content)
+              if (position) {
+                const newLineCount = model.getLineCount();
+                const safePos = {
+                  lineNumber: Math.min(position.lineNumber, newLineCount),
+                  column: position.column,
+                };
+                ed.setPosition(safePos);
+              }
+            }
+          }
+        },
+      });
 
       // Force the suggestion widget via the user-configurable shortcut
       editor.onKeyDown((e) => {

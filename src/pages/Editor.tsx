@@ -53,6 +53,7 @@ import {
   Minimize2,
   ExternalLink,
   CheckCircle2,
+  WrapText,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
@@ -1559,12 +1560,20 @@ export const Editor = () => {
       return;
     }
 
-    // No selection: run the statement the cursor is currently inside
-    // (TablePlus-style), not the whole file.
-    const statement = getStatementAtCursor(editor, activeDialect);
-    if (!statement) return;
-    runQuery(statement.text, 1);
-  }, [activeTab, activeDialect, runQuery, runMultipleQueries]);
+    const fullText = editor.getValue();
+    if (!fullText.trim()) return;
+
+    const queries = splitQueries(fullText, activeDialect);
+    if (queries.length <= 1) {
+      runQuery(queries[0] || fullText, 1);
+    } else if (settings.runStatementUnderCursor !== false) {
+      const statement = getStatementAtCursor(editor, activeDialect);
+      runQuery(statement?.text || queries[0] || fullText, 1);
+    } else {
+      setSelectableQueries(queries);
+      setIsQuerySelectionModalOpen(true);
+    }
+  }, [activeTab, activeDialect, runQuery, runMultipleQueries, settings.runStatementUnderCursor]);
 
   const openExplainForQuery = useCallback((query: string) => {
     setVisualExplainQuery(query);
@@ -1609,15 +1618,29 @@ export const Editor = () => {
       return;
     }
 
-    // No selection: explain the statement the cursor is currently inside.
-    const statement = getStatementAtCursor(editor, activeDialect);
-    if (!statement) return;
-    if (!statement.isExplainable) {
-      showAlert(t("editor.statementNotExplainable"), { kind: "warning" });
+    if (settings.runStatementUnderCursor !== false) {
+      const statement = getStatementAtCursor(editor, activeDialect);
+      if (!statement) return;
+      if (!statement.isExplainable) {
+        showAlert(t("editor.statementNotExplainable"), { kind: "warning" });
+        return;
+      }
+      openExplainForQuery(statement.text);
       return;
     }
-    openExplainForQuery(statement.text);
-  }, [activeTab, activeConnectionId, activeDialect, openExplainForQuery, showAlert, t]);
+
+    const fullText = editor.getValue();
+    if (!fullText.trim()) return;
+    const explainable = getExplainableQueries(fullText, activeDialect);
+    if (explainable.length === 0) {
+      openExplainForQuery(fullText);
+    } else if (explainable.length === 1) {
+      openExplainForQuery(explainable[0].query);
+    } else {
+      setExplainSelectableQueries(explainable);
+      setIsExplainSelectionOpen(true);
+    }
+  }, [activeTab, activeConnectionId, activeDialect, openExplainForQuery, showAlert, t, settings.runStatementUnderCursor]);
 
   // Keep stable refs in sync for Monaco actions (closure-captured at mount time)
   runQueryRef.current = runQuery;
@@ -3252,6 +3275,24 @@ export const Editor = () => {
               P
             </span>
             {t("editor.parameters")}
+          </button>
+        )}
+
+        {/* Format SQL Button */}
+        {!isTableTab && (
+          <button
+            onClick={() => {
+              const editor = editorsRef.current[activeTab.id];
+              if (editor) {
+                editor.getAction("tabularis.formatSql")?.run();
+              }
+            }}
+            disabled={!activeTab?.query?.trim()}
+            className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary hover:bg-surface text-primary rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-strong"
+            title={`${t("editor.formatSql")} (${isMac ? "Shift+⌥+F" : "Shift+Alt+F"})`}
+          >
+            <WrapText size={16} />
+            {t("editor.formatSql")}
           </button>
         )}
 

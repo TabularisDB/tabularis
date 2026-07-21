@@ -160,6 +160,10 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             finalSettings.aiEnabled = false;
           }
 
+          if (typeof config.runStatementUnderCursor !== "boolean") {
+            finalSettings.runStatementUnderCursor = true;
+          }
+
           // Ensure resultPageSize has a valid default
           if (!finalSettings.resultPageSize || finalSettings.resultPageSize < 0) {
             finalSettings.resultPageSize = DEFAULT_SETTINGS.resultPageSize;

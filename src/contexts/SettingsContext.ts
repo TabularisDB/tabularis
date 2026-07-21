@@ -57,6 +57,7 @@ export interface Settings {
   editorWordWrap?: boolean;
   editorShowLineNumbers?: boolean;
   editorAcceptSuggestionOnEnter?: boolean;
+  runStatementUnderCursor?: boolean;
   pingInterval?: number;
   queryHistoryMaxEntries?: number;
   showWelcome?: boolean;
@@ -136,6 +137,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editorWordWrap: true,
   editorShowLineNumbers: true,
   editorAcceptSuggestionOnEnter: true,
+  runStatementUnderCursor: true,
   pingInterval: 30,
   queryHistoryMaxEntries: 500,
   autoConnectLastConnection: true,

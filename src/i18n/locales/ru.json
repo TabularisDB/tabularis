@@ -397,6 +397,9 @@
     "appearance_editorShowLineNumbersDesc": "Отображать номера строк на полях редактора.",
     "appearance_editorAcceptSuggestionOnEnter": "Принимать подсказку по Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Разрешить Enter (в дополнение к Tab) для принятия активной подсказки автодополнения. При отключении Enter всегда вставляет новую строку.",
+    "queryExecution": "Выполнение запросов",
+    "runStatementUnderCursor": "Выполнять запрос под курсором",
+    "runStatementUnderCursorDesc": "Если скрипт содержит несколько запросов, выполняется тот, что под курсором, вместо показа списка запросов. Выделите текст, чтобы выполнить определённый фрагмент.",
     "editConfigJson": "Изменить config.json",
     "editConfigJsonDesc": "Прямое редактирование файла конфигурации. Изменения вступят в силу после перезапуска.",
     "configJsonModal": {
@@ -590,6 +593,10 @@
         "copy": "Копировать",
         "copied": "Скопировано!"
       },
+      "uninstallError": {
+        "title": "Ошибка удаления",
+        "subtitle": "При удалении плагина произошла ошибка. Подробности ниже."
+      },
       "startError": {
         "title": "Плагин не запустился",
         "subtitle": "Процесс плагина не удалось запустить. Подробности ниже.",
@@ -660,6 +667,7 @@
       "pasteImportClipboard": "Импортировать из буфера обмена",
       "quickNavigator": "Быстрый навигатор",
       "triggerSuggestions": "Показать подсказки",
+      "formatSql": "Форматировать SQL",
       "refreshTable": "Обновить таблицу"
     },
     "aiActivity": "Активность AI",
@@ -1041,6 +1049,7 @@
     "exporting": "Экспорт...",
     "rowsProcessed": "Обработано строк",
     "queryParameters": "Параметры запроса",
+    "formatSql": "Форматировать SQL",
     "convertToConsole": "Преобразовать в консоль",
     "parameters": "Параметры",
     "paramValuePlaceholder": "Значение (например, 'текст' или 123)",

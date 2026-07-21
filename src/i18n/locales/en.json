@@ -437,6 +437,9 @@
     "appearance_editorShowLineNumbersDesc": "Display line numbers in the editor gutter.",
     "appearance_editorAcceptSuggestionOnEnter": "Accept Suggestion with Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Allow Enter (in addition to Tab) to accept the active autocomplete suggestion. When off, Enter always inserts a newline.",
+    "queryExecution": "Query Execution",
+    "runStatementUnderCursor": "Run statement under cursor",
+    "runStatementUnderCursorDesc": "When a script has multiple statements, run the one under the cursor instead of showing the query picker. Select text to run a specific range.",
     "editConfigJson": "Edit config.json",
     "editConfigJsonDesc": "Directly edit the raw configuration file. A restart is required to apply changes.",
     "configJsonModal": {
@@ -633,6 +636,10 @@
         "copy": "Copy",
         "copied": "Copied!"
       },
+      "uninstallError": {
+        "title": "Uninstallation failed",
+        "subtitle": "An error occurred while uninstalling the plugin. See the details below."
+      },
       "startError": {
         "title": "Plugin Failed to Start",
         "subtitle": "The plugin process could not be launched. Check the error details below.",
@@ -706,6 +713,7 @@
       "pasteImportClipboard": "Import from Clipboard",
       "quickNavigator": "Quick Navigator",
       "triggerSuggestions": "Trigger suggestions",
+      "formatSql": "Format SQL",
       "refreshTable": "Refresh table"
     },
     "aiActivity": "AI Activity",
@@ -1088,6 +1096,7 @@
     "exporting": "Exporting...",
     "rowsProcessed": "Rows Processed",
     "queryParameters": "Query Parameters",
+    "formatSql": "Format SQL",
     "convertToConsole": "Convert to Console",
     "parameters": "Parameters",
     "paramValuePlaceholder": "Value (e.g. 'text' or 123)",
