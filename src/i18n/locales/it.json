@@ -623,6 +623,10 @@
         "copy": "Copia",
         "copied": "Copiato!"
       },
+      "uninstallError": {
+        "title": "Disinstallazione fallita",
+        "subtitle": "Si è verificato un errore durante la disinstallazione del plugin. Vedi i dettagli qui sotto."
+      },
       "startError": {
         "title": "Plugin non avviato",
         "subtitle": "Impossibile avviare il processo del plugin. Controlla i dettagli dell'errore.",

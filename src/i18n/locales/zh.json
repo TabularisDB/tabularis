@@ -564,6 +564,10 @@
         "copy": "复制",
         "copied": "已复制！"
       },
+      "uninstallError": {
+        "title": "卸载失败",
+        "subtitle": "卸载插件时发生错误。请参阅下面的详细信息。"
+      },
       "startError": {
         "title": "插件启动失败",
         "subtitle": "无法启动插件进程。请参阅下面的错误详细信息。",

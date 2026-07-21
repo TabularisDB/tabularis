@@ -631,6 +631,10 @@
         "copy": "Copier",
         "copied": "Copié !"
       },
+      "uninstallError": {
+        "title": "Échec de la désinstallation",
+        "subtitle": "Une erreur s’est produite lors de la désinstallation du plugin. Voir les détails ci-dessous."
+      },
       "startError": {
         "title": "Échec de démarrage du plugin",
         "subtitle": "Le processus du plugin n’a pas pu être lancé. Vérifiez les détails de l’erreur ci-dessous.",

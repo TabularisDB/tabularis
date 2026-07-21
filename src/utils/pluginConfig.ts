@@ -29,10 +29,14 @@ export function getDisplayInterpreter(config: PluginConfig | undefined): string 
  * keep an unnecessary plugins object around.
  */
 export function removePluginConfig(
-  plugins: Record<string, PluginConfig> | undefined,
+  plugins: Record<string, PluginConfig> | null | undefined,
   pluginId: string,
 ): Record<string, PluginConfig> | undefined {
-  if (plugins === undefined || !Object.prototype.hasOwnProperty.call(plugins, pluginId)) {
+  if (plugins == null) {
+    return undefined;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(plugins, pluginId)) {
     return plugins;
   }
 

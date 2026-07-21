@@ -84,6 +84,7 @@
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.26",
+    "gitnexus": "^1.6.9",
     "globals": "^16.5.0",
     "jsdom": "^28.1.0",
     "postcss": "^8.5.8",
