@@ -1,5 +1,5 @@
 use super::binding::{
-    PgValueOptions, bind_pg_boolean_string, bind_pg_enum_string, bind_pg_number,
+    BoundValue, PgValueOptions, bind_pg_boolean_string, bind_pg_enum_string, bind_pg_number,
     bind_pg_numeric_string, bind_pg_temporal_string, bind_pg_value, build_pk_map_predicate,
     build_pk_predicate,
 };
@@ -1068,5 +1068,66 @@ mod routine_management {
             drop_routine_sql("sp", "PROCEDURE", "", None),
             "DROP PROCEDURE \"sp\"()"
         );
+    }
+}
+
+mod pg_vector_binding_tests {
+    use super::*;
+
+    fn bind_vector(value: &str, column_type: &str) -> BoundValue {
+        bind_pg_value(
+            serde_json::json!(value),
+            1,
+            PgValueOptions {
+                column_type: Some(column_type),
+                enum_type: None,
+                max_blob_size: u64::MAX,
+                allow_default: false,
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn vector_value_is_inlined_as_typed_literal() {
+        let bound = bind_vector("[1,2,3]", "vector");
+        assert_eq!(bound.sql, "'[1,2,3]'::vector");
+        assert!(bound.param.is_none());
+    }
+
+    #[test]
+    fn halfvec_and_sparsevec_are_inlined_with_their_own_type() {
+        let halfvec = bind_vector("[1,2,3]", "halfvec");
+        assert_eq!(halfvec.sql, "'[1,2,3]'::halfvec");
+        assert!(halfvec.param.is_none());
+
+        let sparsevec = bind_vector("{1:1,3:2}/5", "sparsevec");
+        assert_eq!(sparsevec.sql, "'{1:1,3:2}/5'::sparsevec");
+        assert!(sparsevec.param.is_none());
+    }
+
+    #[test]
+    fn surrounding_whitespace_is_trimmed_before_inlining() {
+        let bound = bind_vector("  [1,2,3]  ", "vector");
+        assert_eq!(bound.sql, "'[1,2,3]'::vector");
+    }
+
+    #[test]
+    fn non_numeric_vector_value_is_rejected() {
+        let result = bind_pg_value(
+            serde_json::json!("[1,2,3]); DROP TABLE t"),
+            1,
+            PgValueOptions {
+                column_type: Some("vector"),
+                enum_type: None,
+                max_blob_size: u64::MAX,
+                allow_default: false,
+            },
+        );
+        let err = match result {
+            Ok(_) => panic!("expected non-numeric vector value to be rejected"),
+            Err(err) => err,
+        };
+        assert!(err.contains("Invalid vector value"), "{err}");
     }
 }

@@ -519,9 +519,18 @@ LIMIT 1",
     .await?;
 
     Ok(rows.first().map(|row| {
-        row.try_get::<_, String>("data_type")
-            .or_else(|_| row.try_get::<_, String>("udt_name"))
-            .unwrap_or_else(|_| "unknown".to_string())
+        // information_schema reports extension/composite/enum types as the
+        // literal 'USER-DEFINED'; fall back to udt_name for the real type name
+        // (e.g. pgvector's 'vector', 'halfvec', 'sparsevec') so the write path
+        // (update_record/insert_record) resolves the same type as get_columns.
+        let data_type = row
+            .try_get::<_, String>("data_type")
+            .unwrap_or_else(|_| "unknown".to_string());
+        if data_type == "USER-DEFINED" {
+            row.try_get::<_, String>("udt_name").unwrap_or(data_type)
+        } else {
+            data_type
+        }
     }))
 }
 
@@ -1178,7 +1187,13 @@ pub async fn get_view_columns(
     let query = r#"
         SELECT
             c.column_name,
-            c.data_type,
+            -- information_schema reports extension/composite/enum types as the
+            -- literal 'USER-DEFINED'; fall back to udt_name for the real type name
+            -- (e.g. pgvector's 'vector', 'halfvec', 'sparsevec').
+            CASE
+                WHEN c.data_type = 'USER-DEFINED' THEN c.udt_name::text
+                ELSE c.data_type::text
+            END AS data_type,
             c.is_nullable,
             c.column_default,
             c.is_identity,
