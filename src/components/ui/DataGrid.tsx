@@ -506,6 +506,36 @@ export const DataGrid = React.memo(
       [columns, pkIndexMaps, pkColumns, pendingChanges],
     );
 
+    // Keep the sidebar's onChangeRef always pointing at the latest logic.
+    // This avoids storing stale closures in context state.
+    useEffect(() => {
+      if (!rightSidebar.isOpen || rightSidebar.activePanel !== "row-editor") return;
+      const currentRowIndex = rightSidebar.rowEditorData?.rowIndex;
+      if (currentRowIndex == null) return;
+
+      rightSidebar.onChangeRef.current = (colName: string, value: unknown) => {
+        const mr = mergedRows[currentRowIndex];
+        if (!mr) return;
+        const isIns = mr.type === "insertion";
+        if (isIns && onPendingInsertionChange && mr.tempId) {
+          onPendingInsertionChange(mr.tempId, colName, value);
+        } else if (!isIns && onPendingChange && pkColumns && pkIndexMaps.length > 0) {
+          const pkMapVal = buildPkMap(pkColumns, mr.rowData, pkIndexMaps);
+          onPendingChange(pkMapVal, colName, value);
+        }
+      };
+    });
+
+    // Close sidebar when this DataGrid unmounts (route change, tab switch)
+    useEffect(() => {
+      return () => {
+        if (rightSidebar.isOpen && rightSidebar.activePanel === "row-editor") {
+          rightSidebar.close();
+        }
+      };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     // Unified handler for opening a row in the right sidebar
     const openInSidebar = useCallback(
       (rowIndex: number, focusField?: string) => {
@@ -529,18 +559,6 @@ export const DataGrid = React.memo(
           };
         });
 
-        const onChange = (colName: string, value: unknown) => {
-          const mr = mergedRows[rowIndex];
-          if (!mr) return;
-          const isIns = mr.type === "insertion";
-          if (isIns && onPendingInsertionChange && mr.tempId) {
-            onPendingInsertionChange(mr.tempId, colName, value);
-          } else if (!isIns && onPendingChange && pkColumns && pkIndexMaps.length > 0) {
-            const pkMapVal = buildPkMap(pkColumns, mr.rowData, pkIndexMaps);
-            onPendingChange(pkMapVal, colName, value);
-          }
-        };
-
         rightSidebar.openRowEditor({
           rowData,
           originalRowData,
@@ -551,7 +569,6 @@ export const DataGrid = React.memo(
           autoIncrementColumns,
           defaultValueColumns,
           nullableColumns,
-          onChange,
           detectJsonInTextColumns,
           connectionId,
           tableName,
@@ -559,6 +576,7 @@ export const DataGrid = React.memo(
           schema: activeSchema,
         });
       },
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       [
         mergedRows,
         buildRowDataWithPending,
@@ -567,15 +585,12 @@ export const DataGrid = React.memo(
         autoIncrementColumns,
         defaultValueColumns,
         nullableColumns,
-        onPendingInsertionChange,
-        onPendingChange,
-        pkColumns,
-        pkIndexMaps,
         detectJsonInTextColumns,
         connectionId,
         tableName,
+        pkColumns,
         activeSchema,
-        rightSidebar,
+        rightSidebar.openRowEditor,
       ],
     );
 
@@ -602,41 +617,25 @@ export const DataGrid = React.memo(
           }, {})
         : undefined;
 
-      const onChange = (colName: string, value: unknown) => {
-        const mr = mergedRows[rowIndex];
-        if (!mr) return;
-        const isIns = mr.type === "insertion";
-        if (isIns && onPendingInsertionChange && mr.tempId) {
-          onPendingInsertionChange(mr.tempId, colName, value);
-        } else if (!isIns && onPendingChange && pkColumns && pkIndexMaps.length > 0) {
-          const pkMapVal = buildPkMap(pkColumns, mr.rowData, pkIndexMaps);
-          onPendingChange(pkMapVal, colName, value);
-        }
-      };
-
       rightSidebar.updateRowEditorData({
         rowData,
         originalRowData,
         rowIndex,
         isInsertion,
         focusField: undefined,
-        onChange,
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
       selectedRowIndices,
       rightSidebar.isOpen,
       rightSidebar.activePanel,
       rightSidebar.isPinned,
       rightSidebar.rowEditorData?.rowIndex,
+      rightSidebar.updateRowEditorData,
       settings.rowEditorFollowSelection,
       mergedRows,
       buildRowDataWithPending,
       columns,
-      onPendingInsertionChange,
-      onPendingChange,
-      pkColumns,
-      pkIndexMaps,
-      rightSidebar,
     ]);
 
     const handleCellDoubleClick = useCallback(
@@ -1494,7 +1493,6 @@ export const DataGrid = React.memo(
         onPendingChange,
         onPendingInsertionChange,
         openJsonViewerWindow,
-        buildRowDataWithPending,
         editInputRef,
       }),
       [
@@ -1531,7 +1529,6 @@ export const DataGrid = React.memo(
         onPendingChange,
         onPendingInsertionChange,
         openJsonViewerWindow,
-        buildRowDataWithPending,
         editInputRef,
       ],
     );

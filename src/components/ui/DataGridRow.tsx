@@ -117,10 +117,6 @@ export interface RowCtx {
     tempId: string | undefined,
     readOnly: boolean,
   ) => void;
-  buildRowDataWithPending: (
-    rowArray: unknown[],
-    isInsertion: boolean,
-  ) => Record<string, unknown>;
   editInputRef: React.RefObject<HTMLInputElement | null>;
 }
 
@@ -233,7 +229,9 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
             handleRowClick(rowIndex, e);
           }}
           onDoubleClick={() => {
-            openInSidebar(rowIndex);
+            if (!readonlyProp) {
+              openInSidebar(rowIndex);
+            }
           }}
           className={`px-2 py-1.5 text-xs text-center border-b border-r border-default sticky left-0 z-10 cursor-pointer select-none w-[50px] min-w-[50px] ${
             isInsertion

@@ -3,6 +3,7 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import {
@@ -18,6 +19,12 @@ export const RightSidebarProvider = ({ children }: { children: ReactNode }) => {
 		null,
 	);
 	const [isPinned, setIsPinned] = useState(false);
+
+	// Ref for the onChange handler — set by DataGrid, called by RowEditorPanel.
+	// This avoids storing closures in state (which go stale).
+	const onChangeRef = useRef<((colName: string, value: unknown) => void) | null>(
+		null,
+	);
 
 	const openRowEditor = useCallback((data: RowEditorPanelData) => {
 		setRowEditorData(data);
@@ -37,6 +44,9 @@ export const RightSidebarProvider = ({ children }: { children: ReactNode }) => {
 
 	const close = useCallback(() => {
 		setIsOpen(false);
+		setActivePanel(null);
+		setRowEditorData(null);
+		onChangeRef.current = null;
 	}, []);
 
 	const toggle = useCallback(() => {
@@ -70,6 +80,7 @@ export const RightSidebarProvider = ({ children }: { children: ReactNode }) => {
 			toggle,
 			setActivePanel,
 			togglePin,
+			onChangeRef,
 		}),
 		[
 			isOpen,

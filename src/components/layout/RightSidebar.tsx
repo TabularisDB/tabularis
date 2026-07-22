@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useRightSidebar } from "../../hooks/useRightSidebar";
 import { useRightSidebarResize } from "../../hooks/useRightSidebarResize";
@@ -5,9 +6,17 @@ import { RowEditorPanel } from "../ui/RowEditorPanel";
 
 export const RightSidebar = () => {
 	const { t } = useTranslation();
-	const { isOpen, activePanel, rowEditorData, isPinned, close, togglePin } =
+	const { isOpen, activePanel, rowEditorData, isPinned, close, togglePin, onChangeRef } =
 		useRightSidebar();
 	const { width, startResize } = useRightSidebarResize();
+
+	// Stable onChange that delegates to the ref (always calls the latest handler)
+	const handleChange = useCallback(
+		(colName: string, value: unknown) => {
+			onChangeRef.current?.(colName, value);
+		},
+		[onChangeRef],
+	);
 
 	if (!isOpen || !activePanel) return null;
 
@@ -43,7 +52,7 @@ export const RightSidebar = () => {
 					autoIncrementColumns={rowEditorData.autoIncrementColumns}
 					defaultValueColumns={rowEditorData.defaultValueColumns}
 					nullableColumns={rowEditorData.nullableColumns}
-					onChange={rowEditorData.onChange}
+					onChange={handleChange}
 					focusField={rowEditorData.focusField}
 					detectJsonInTextColumns={rowEditorData.detectJsonInTextColumns}
 					connectionId={rowEditorData.connectionId}
