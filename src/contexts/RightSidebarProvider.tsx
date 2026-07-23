@@ -1,7 +1,6 @@
 import {
 	type ReactNode,
 	useCallback,
-	useEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -55,17 +54,6 @@ export const RightSidebarProvider = ({ children }: { children: ReactNode }) => {
 
 	const togglePin = useCallback(() => {
 		setIsPinned((prev) => !prev);
-	}, []);
-
-	// Listen for keyboard shortcut custom event
-	useEffect(() => {
-		const handler = () => {
-			setIsOpen((prev) => !prev);
-		};
-		window.addEventListener("tabularis:toggle-right-sidebar", handler);
-		return () => {
-			window.removeEventListener("tabularis:toggle-right-sidebar", handler);
-		};
 	}, []);
 
 	const value = useMemo(

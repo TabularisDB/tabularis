@@ -638,6 +638,28 @@ export const DataGrid = React.memo(
       columns,
     ]);
 
+    // Handle keyboard shortcut toggle: if sidebar is open, close it.
+    // If closed and a row is selected, open with that row's data.
+    useEffect(() => {
+      const handler = () => {
+        if (rightSidebar.isOpen) {
+          rightSidebar.close();
+          return;
+        }
+        // Don't open if readonly or no table context
+        if (readonlyProp || !tableName) return;
+        // Find the single selected row to open
+        if (selectedRowIndices.size === 1) {
+          const rowIndex = selectedRowIndices.values().next().value as number;
+          openInSidebar(rowIndex);
+        }
+      };
+      window.addEventListener("tabularis:toggle-right-sidebar", handler);
+      return () => {
+        window.removeEventListener("tabularis:toggle-right-sidebar", handler);
+      };
+    }, [rightSidebar, selectedRowIndices, openInSidebar, readonlyProp, tableName]);
+
     const handleCellDoubleClick = useCallback(
       (rowIndex: number, colIndex: number, value: unknown) => {
       if (!tableName || readonlyProp) return;
