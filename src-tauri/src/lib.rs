@@ -73,6 +73,9 @@ pub mod saved_queries;
 #[cfg(test)]
 pub mod saved_queries_tests;
 pub mod ssh_tunnel;
+pub mod sqlite_database;
+#[cfg(test)]
+pub mod sqlite_database_tests;
 pub mod task_manager;
 pub mod theme_commands;
 pub mod theme_models;
@@ -371,6 +374,7 @@ pub fn run() {
             commands::test_connection,
             commands::list_databases,
             commands::save_connection,
+            sqlite_database::create_sqlite_database,
             commands::delete_connection,
             commands::update_connection,
             commands::duplicate_connection,
