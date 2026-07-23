@@ -857,6 +857,7 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "Mag-browse ng file",
+    "createSqliteFile": "Bago",
     "browseFolder": "Mag-browse ng folder",
     "useSsh": "Gumamit ng SSH Tunnel",
     "sshHost": "SSH Host",

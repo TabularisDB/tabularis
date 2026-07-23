@@ -841,6 +841,7 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "ファイルを参照",
+    "createSqliteFile": "新規",
     "browseFolder": "フォルダを参照",
     "useSsh": "SSH トンネルを使用",
     "sshHost": "SSH ホスト",

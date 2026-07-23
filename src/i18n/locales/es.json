@@ -852,6 +852,7 @@
     "filePathPlaceholder": "/ruta/absoluta/db.sqlite",
     "folderPathPlaceholder": "/ruta/absoluta/carpeta",
     "browseFile": "Explorar archivo",
+    "createSqliteFile": "Nuevo",
     "browseFolder": "Explorar carpeta",
     "useSsh": "Usar Túnel SSH",
     "sshHost": "Host SSH",

@@ -827,6 +827,7 @@
     "filePathPlaceholder": "/absoluter/pfad/zu/db.sqlite",
     "folderPathPlaceholder": "/absoluter/pfad/zum/ordner",
     "browseFile": "Datei auswählen",
+    "createSqliteFile": "Neu",
     "browseFolder": "Ordner auswählen",
     "useSsh": "SSH-Tunnel verwenden",
     "sshHost": "SSH-Host",

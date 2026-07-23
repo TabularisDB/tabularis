@@ -825,6 +825,7 @@
     "filePathPlaceholder": "/절대/경로/db.sqlite",
     "folderPathPlaceholder": "/절대/경로/폴더",
     "browseFile": "파일 찾아보기",
+    "createSqliteFile": "새로 만들기",
     "browseFolder": "폴더 찾아보기",
     "useSsh": "SSH 터널 사용",
     "sshHost": "SSH 호스트",

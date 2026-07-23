@@ -795,6 +795,7 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "浏览文件",
+    "createSqliteFile": "新建",
     "browseFolder": "浏览文件夹",
     "useSsh": "使用 SSH 隧道",
     "sshHost": "SSH 主机",
