@@ -7,6 +7,8 @@ export interface RowEditorPanelData {
 	originalRowData?: Record<string, unknown>;
 	rowIndex: number;
 	focusField?: string;
+	/** Incremented to re-trigger focus even when focusField value is the same */
+	focusTrigger?: number;
 	isInsertion: boolean;
 	columns: Array<{
 		name: string;

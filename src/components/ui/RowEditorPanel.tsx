@@ -21,6 +21,8 @@ interface RowEditorPanelProps {
 	nullableColumns?: string[];
 	onChange: (colName: string, value: unknown) => void;
 	focusField?: string;
+	/** Incremented to re-trigger focus even when focusField value is the same */
+	focusTrigger?: number;
 	detectJsonInTextColumns?: boolean;
 	connectionId?: string | null;
 	tableName?: string | null;
@@ -42,6 +44,7 @@ export const RowEditorPanel = ({
 	nullableColumns,
 	onChange,
 	focusField,
+	focusTrigger,
 	detectJsonInTextColumns = false,
 	connectionId,
 	tableName,
@@ -67,7 +70,7 @@ export const RowEditorPanel = ({
 	// Refs to track field containers for scrolling
 	const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-	// Scroll to and focus the specified field when focusField changes
+	// Scroll to and focus the specified field when focusField/focusTrigger changes
 	useEffect(() => {
 		if (focusField && fieldRefs.current[focusField]) {
 			// Wait for any animation to complete
@@ -87,7 +90,7 @@ export const RowEditorPanel = ({
 				}
 			}, 150);
 		}
-	}, [focusField]);
+	}, [focusField, focusTrigger]);
 
 	return (
 		<div className="flex flex-col h-full">

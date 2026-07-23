@@ -54,6 +54,7 @@ export const RightSidebar = () => {
 					nullableColumns={rowEditorData.nullableColumns}
 					onChange={handleChange}
 					focusField={rowEditorData.focusField}
+					focusTrigger={rowEditorData.focusTrigger}
 					detectJsonInTextColumns={rowEditorData.detectJsonInTextColumns}
 					connectionId={rowEditorData.connectionId}
 					tableName={rowEditorData.tableName}

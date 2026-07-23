@@ -223,6 +223,7 @@ export const DataGrid = React.memo(
       colIndex: number;
     } | null>(null);
     const editInputRef = useRef<HTMLInputElement>(null);
+    const focusTriggerRef = useRef(0);
     // Mirror of editingCell so the commit/keydown callbacks can read the latest
     // value without listing editingCell in their deps — keeps their identity
     // stable so the memoized rows don't re-render on every keystroke/scroll.
@@ -564,6 +565,7 @@ export const DataGrid = React.memo(
           originalRowData,
           rowIndex,
           focusField,
+          focusTrigger: focusField ? ++focusTriggerRef.current : undefined,
           isInsertion,
           columns: colsMeta,
           autoIncrementColumns,
@@ -761,7 +763,8 @@ export const DataGrid = React.memo(
         openInSidebar(rowIndex, colName);
       } else if (doubleClickAction === "both") {
         setEditingCell({ rowIndex, colIndex, value: editValue });
-        openInSidebar(rowIndex, colName);
+        // Don't pass focusField — inline edit keeps focus, sidebar just scrolls
+        openInSidebar(rowIndex);
       } else {
         // "inline" — default current behavior
         setEditingCell({ rowIndex, colIndex, value: editValue });

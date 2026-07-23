@@ -14,6 +14,22 @@ vi.mock("../../../src/hooks/useSettings", () => ({
   useSettings: () => ({ settings: {} }),
 }));
 
+vi.mock("../../../src/hooks/useRightSidebar", () => ({
+  useRightSidebar: () => ({
+    isOpen: false,
+    activePanel: null,
+    rowEditorData: null,
+    isPinned: false,
+    openRowEditor: vi.fn(),
+    updateRowEditorData: vi.fn(),
+    close: vi.fn(),
+    toggle: vi.fn(),
+    setActivePanel: vi.fn(),
+    togglePin: vi.fn(),
+    onChangeRef: { current: null },
+  }),
+}));
+
 vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn().mockResolvedValue(vi.fn()),
 }));
