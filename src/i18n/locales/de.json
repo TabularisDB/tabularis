@@ -184,7 +184,10 @@
       "delete": "Löschen",
       "deleteConfirm": "Notebook \"{{title}}\" löschen? Dies kann nicht rückgängig gemacht werden.",
       "renamePlaceholder": "Notebook-Name"
-    }
+    },
+    "addToSplitGroup": "Zur geteilten Gruppe hinzufügen",
+    "removeFromSplitGroup": "Aus der Gruppe entfernen",
+    "movePanel": "Panel verschieben"
   },
   "mcp": {
     "title": "MCP-Server-Integration",
@@ -1071,6 +1074,9 @@
     "submitChanges": "Änderungen übernehmen",
     "rollbackChanges": "Änderungen zurückrollen",
     "applyToAll": "Auf alle anwenden",
+    "submit": "Übernehmen",
+    "rollback": "Zurückrollen",
+    "pendingCount": "{{count}} ausstehend",
     "executingQuery": "Abfrage wird ausgeführt...",
     "exporting": "Wird exportiert...",
     "rowsProcessed": "Verarbeitete Zeilen",
@@ -1449,7 +1455,6 @@
     "errorNoTables": "Bitte wähle mindestens eine Tabelle",
     "importStarted": "Import gestartet...",
     "importSuccess": "SQL-Datei erfolgreich ausgeführt",
-    "importFailure": "Import fehlgeschlagen: ",
     "importCancelled": "Import abgebrochen",
     "importFailed": "Import fehlgeschlagen",
     "importingFrom": "Importiere aus",

@@ -197,7 +197,10 @@
       "delete": "Delete",
       "deleteConfirm": "Delete notebook \"{{title}}\"? This cannot be undone.",
       "renamePlaceholder": "Notebook name"
-    }
+    },
+    "addToSplitGroup": "Add to Split Group",
+    "removeFromSplitGroup": "Remove from Group",
+    "movePanel": "Move panel"
   },
   "mcp": {
     "title": "MCP Server Integration",
@@ -1114,6 +1117,9 @@
     "submitChanges": "Submit Changes",
     "rollbackChanges": "Rollback Changes",
     "applyToAll": "Apply to all",
+    "submit": "Submit",
+    "rollback": "Rollback",
+    "pendingCount": "{{count}} pending",
     "executingQuery": "Executing query...",
     "exporting": "Exporting...",
     "rowsProcessed": "Rows Processed",
@@ -1521,7 +1527,6 @@
     "errorNoTables": "Please select at least one table",
     "importStarted": "Import started...",
     "importSuccess": "SQL file executed successfully",
-    "importFailure": "Import failed: ",
     "importCancelled": "Import cancelled",
     "importFailed": "Import failed",
     "importingFrom": "Importing from",

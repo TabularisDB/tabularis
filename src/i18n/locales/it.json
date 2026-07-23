@@ -184,7 +184,10 @@
       "delete": "Elimina",
       "deleteConfirm": "Eliminare il notebook \"{{title}}\"? L'operazione non è reversibile.",
       "renamePlaceholder": "Nome del notebook"
-    }
+    },
+    "addToSplitGroup": "Aggiungi al Gruppo Split",
+    "removeFromSplitGroup": "Rimuovi dal Gruppo",
+    "movePanel": "Sposta pannello"
   },
   "groups": {
     "title": "Gruppi",
@@ -1093,6 +1096,9 @@
     "submitChanges": "Invia Modifiche",
     "rollbackChanges": "Annulla Modifiche",
     "applyToAll": "Applica a tutto",
+    "submit": "Invia",
+    "rollback": "Annulla",
+    "pendingCount": "{{count}} in sospeso",
     "executingQuery": "Esecuzione query...",
     "exporting": "Esportazione in corso...",
     "rowsProcessed": "Righe processate",
@@ -1471,7 +1477,6 @@
     "errorNoTables": "Seleziona almeno una tabella",
     "importStarted": "Importazione avviata...",
     "importSuccess": "File SQL eseguito con successo",
-    "importFailure": "Importazione fallita: ",
     "importCancelled": "Importazione annullata",
     "importFailed": "Importazione fallita",
     "importingFrom": "Importazione da",

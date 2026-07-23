@@ -184,7 +184,10 @@
       "delete": "Eliminar",
       "deleteConfirm": "¿Eliminar el notebook \"{{title}}\"? Esta acción no se puede deshacer.",
       "renamePlaceholder": "Nombre del notebook"
-    }
+    },
+    "addToSplitGroup": "Añadir al Grupo Dividido",
+    "removeFromSplitGroup": "Quitar del Grupo",
+    "movePanel": "Mover panel"
   },
   "groups": {
     "title": "Grupos",
@@ -1089,6 +1092,9 @@
     "submitChanges": "Enviar Cambios",
     "rollbackChanges": "Revertir Cambios",
     "applyToAll": "Aplicar a todo",
+    "submit": "Enviar",
+    "rollback": "Revertir",
+    "pendingCount": "{{count}} pendientes",
     "executingQuery": "Ejecutando consulta...",
     "exporting": "Exportando...",
     "rowsProcessed": "Filas Procesadas",
@@ -1445,7 +1451,6 @@
     "errorNoTables": "Selecciona al menos una tabla",
     "importStarted": "Importación iniciada...",
     "importSuccess": "Archivo SQL ejecutado correctamente",
-    "importFailure": "Error en la importación: ",
     "importCancelled": "Importación cancelada",
     "importFailed": "Importación fallida",
     "importingFrom": "Importando desde",

@@ -101,7 +101,7 @@ export function StackedResultItem({
       {/* Header — clickable collapse + label + actions */}
       <div
         className={clsx(
-          "flex items-center gap-2 px-3 py-1.5 text-xs select-none group cursor-pointer",
+          "@container flex items-center gap-2 px-3 py-1.5 text-xs select-none group cursor-pointer",
           "bg-elevated hover:bg-surface-secondary transition-colors",
           collapsed && "border-b-0",
         )}
@@ -222,16 +222,16 @@ export function StackedResultItem({
 
         {/* Inline summary when collapsed or always */}
         {hasResult && (
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
             {entry.result!.pagination?.has_more && (
-              <span className="px-1.5 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50">
+              <span className="px-1.5 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50 whitespace-nowrap shrink-0">
                 {t("editor.autoPaginated")}
               </span>
             )}
-            <span className="text-muted text-[11px]">
+            <span className="text-muted text-[11px] truncate whitespace-nowrap">
               {t("editor.rowsRetrieved", { count: entry.result!.rows.length })}
               {entry.executionTime !== null && (
-                <span className="font-mono ml-1">
+                <span className="hidden @[400px]:inline font-mono ml-1">
                   ({formatDuration(entry.executionTime)})
                 </span>
               )}

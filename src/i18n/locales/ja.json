@@ -197,7 +197,10 @@
       "delete": "削除",
       "deleteConfirm": "ノートブック「{{title}}」を削除しますか？この操作は元に戻せません。",
       "renamePlaceholder": "ノートブック名"
-    }
+    },
+    "addToSplitGroup": "分割グループに追加",
+    "removeFromSplitGroup": "グループから削除",
+    "movePanel": "パネルを移動"
   },
   "mcp": {
     "title": "MCP サーバー連携",
@@ -1082,6 +1085,9 @@
     "submitChanges": "変更を送信",
     "rollbackChanges": "変更をロールバック",
     "applyToAll": "すべてに適用",
+    "submit": "送信",
+    "rollback": "ロールバック",
+    "pendingCount": "保留中 {{count}}件",
     "executingQuery": "クエリを実行中...",
     "exporting": "エクスポート中...",
     "rowsProcessed": "処理行数",
@@ -1488,7 +1494,6 @@
     "errorNoTables": "少なくとも 1 つのテーブルを選択してください",
     "importStarted": "インポートを開始しました...",
     "importSuccess": "SQL ファイルを正常に実行しました",
-    "importFailure": "インポートに失敗しました: ",
     "importCancelled": "インポートをキャンセルしました",
     "importFailed": "インポートに失敗しました",
     "importingFrom": "インポート元",

@@ -5,6 +5,7 @@ import { reconstructTableQuery } from "../utils/editor";
 import { serializePkKey, buildPkMap } from "../utils/dataGrid";
 import { isMultiDatabaseCapable } from "../utils/database";
 import { isReadonly, supportsExplain } from "../utils/driverCapabilities";
+import { useClickOutside } from "../hooks/useClickOutside";
 import {
   useDangerousQueryGuard,
   DANGEROUS_QUERY_I18N,
@@ -341,6 +342,9 @@ export const Editor = () => {
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [editorHeight, setEditorHeight] = useState(300);
   const editorHeightRef = useRef(300);
+  // Root of this editor instance: the resize logic must stay scoped to it,
+  // in split view every pane mounts its own Editor
+  const editorRootRef = useRef<HTMLDivElement>(null);
   const [isResultsCollapsed, setIsResultsCollapsed] = useState(false);
   // Ids of tabs whose results are detached into their own separate windows (one
   // window per tab). Each window keeps showing its tab even when the user
@@ -367,6 +371,27 @@ export const Editor = () => {
   const [isTabSwitcherOpen, setIsTabSwitcherOpen] = useState(false);
   const [isRunDropdownOpen, setIsRunDropdownOpen] = useState(false);
   const [isDbDropdownOpen, setIsDbDropdownOpen] = useState(false);
+  // Toolbar dropdowns close on outside mousedown instead of a fixed backdrop:
+  // the toolbar is a CSS size container (@container), which would scope a
+  // `fixed inset-0` backdrop to the toolbar itself.
+  const runDropdownRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const dbDropdownRef = useRef<HTMLDivElement>(null);
+  useClickOutside(
+    runDropdownRef,
+    () => setIsRunDropdownOpen(false),
+    isRunDropdownOpen,
+  );
+  useClickOutside(
+    exportMenuRef,
+    () => setExportMenuOpen(false),
+    exportMenuOpen,
+  );
+  useClickOutside(
+    dbDropdownRef,
+    () => setIsDbDropdownOpen(false),
+    isDbDropdownOpen,
+  );
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isAiExplainModalOpen, setIsAiExplainModalOpen] = useState(false);
   const [isVisualExplainOpen, setIsVisualExplainOpen] = useState(false);
@@ -2800,12 +2825,22 @@ export const Editor = () => {
       "position:fixed;inset:0;z-index:9999;cursor:row-resize";
     document.body.appendChild(overlay);
 
-    const panels = document.querySelectorAll<HTMLElement>("[data-editor-panel]");
+    const root = editorRootRef.current;
+    const panels = root
+      ? root.querySelectorAll<HTMLElement>("[data-editor-panel]")
+      : document.querySelectorAll<HTMLElement>("[data-editor-panel]");
+
+    // Measure against this pane, not the window: in split view the editor
+    // can start well below the titlebar and its height is the pane's
+    const visiblePanel = Array.from(panels).find((el) => el.offsetParent !== null);
+    const panelTop = visiblePanel?.getBoundingClientRect().top ?? 50;
+    const paneBottom = root?.getBoundingClientRect().bottom ?? window.innerHeight;
+    const maxHeight = paneBottom - panelTop - 150;
 
     const handleResize = (e: MouseEvent) => {
       if (!isDragging.current) return;
-      const newHeight = e.clientY - 50;
-      if (newHeight > 100 && newHeight < window.innerHeight - 150) {
+      const newHeight = e.clientY - panelTop;
+      if (newHeight > 100 && newHeight < maxHeight) {
         editorHeightRef.current = newHeight;
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
         rafRef.current = requestAnimationFrame(() => {
@@ -2981,7 +3016,7 @@ export const Editor = () => {
   const tabAccentColor = tabBarAccent ?? "#3b82f6";
 
   return (
-    <div className="flex flex-col h-full bg-base">
+    <div ref={editorRootRef} className="flex flex-col h-full bg-base">
       {/* Tab Bar — tinted with the active connection's accent color */}
       <div
         className="flex items-center bg-elevated border-b border-default h-9 shrink-0"
@@ -3161,17 +3196,21 @@ export const Editor = () => {
         </button>
       </div>
 
-      {/* Toolbar — hidden for notebook tabs */}
-      {!isNotebookTab && <div className="flex items-center py-2 pl-2 pr-3 border-b border-default bg-elevated gap-2 h-[50px]">
+      {/* Toolbar — hidden for notebook tabs. A size container so buttons can
+          collapse to icon-only in narrow split panes; the explicit z-index
+          keeps its dropdowns above the editor and the table toolbar (z-30):
+          the container creates a stacking context that would otherwise paint
+          below later siblings. */}
+      {!isNotebookTab && <div className="@container relative z-40 flex items-center py-2 pl-2 pr-3 border-b border-default bg-elevated gap-1.5 @[560px]:gap-2 h-[50px]">
         {!activeTab.readOnly && activeTab.isLoading ? (
           <button
             onClick={stopQuery}
-            className="flex items-center gap-2 px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-sm font-medium"
+            className="flex items-center gap-2 px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-sm font-medium shrink-0 whitespace-nowrap"
           >
             <Square size={16} fill="currentColor" /> {t("editor.stop")}
           </button>
         ) : !activeTab.readOnly ? (
-          <div className="flex items-center rounded bg-green-700 relative">
+          <div ref={runDropdownRef} className="flex items-center rounded bg-green-700 relative shrink-0">
             <button
               onClick={handleRunButton}
               disabled={!activeConnectionId}
@@ -3197,63 +3236,57 @@ export const Editor = () => {
                 </button>
 
                 {isRunDropdownOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setIsRunDropdownOpen(false)}
-                    />
-                    <div className="absolute top-full left-0 mt-1 w-80 bg-surface-secondary border border-strong rounded shadow-xl z-50 flex flex-col py-1 max-h-80 overflow-y-auto">
-                      {dropdownQueries.length > 1 && (
-                        <button
-                          onClick={() => {
-                            handleRunAll();
-                            setIsRunDropdownOpen(false);
-                          }}
-                          className="flex items-center gap-2 text-left px-4 py-2 text-xs font-medium text-secondary hover:text-white hover:bg-surface-tertiary/50 border-b border-strong transition-colors"
+                  <div className="absolute top-full left-0 mt-1 w-80 max-w-[calc(100cqw-1rem)] bg-surface-secondary border border-strong rounded shadow-xl z-50 flex flex-col py-1 max-h-80 overflow-y-auto">
+                    {dropdownQueries.length > 1 && (
+                      <button
+                        onClick={() => {
+                          handleRunAll();
+                          setIsRunDropdownOpen(false);
+                        }}
+                        className="flex items-center gap-2 text-left px-4 py-2 text-xs font-medium text-secondary hover:text-white hover:bg-surface-tertiary/50 border-b border-strong transition-colors"
+                      >
+                        <Play size={12} fill="currentColor" className="text-green-500 shrink-0" />
+                        {t("editor.runAll")} ({dropdownQueries.length})
+                      </button>
+                    )}
+                    {dropdownQueries.length === 0 ? (
+                      <div className="px-4 py-2 text-xs text-muted italic">
+                        {t("editor.noValidQueries")}
+                      </div>
+                    ) : (
+                      dropdownQueries.map((q, i) => {
+                        const label = statementLabel(q);
+                        return (
+                        <div
+                          key={i}
+                          className="flex items-center border-b border-strong/50 last:border-0 hover:bg-surface-tertiary/50 transition-colors group"
                         >
-                          <Play size={12} fill="currentColor" className="text-green-500 shrink-0" />
-                          {t("editor.runAll")} ({dropdownQueries.length})
-                        </button>
-                      )}
-                      {dropdownQueries.length === 0 ? (
-                        <div className="px-4 py-2 text-xs text-muted italic">
-                          {t("editor.noValidQueries")}
-                        </div>
-                      ) : (
-                        dropdownQueries.map((q, i) => {
-                          const label = statementLabel(q);
-                          return (
-                          <div
-                            key={i}
-                            className="flex items-center border-b border-strong/50 last:border-0 hover:bg-surface-tertiary/50 transition-colors group"
+                          <button
+                            onClick={() => {
+                              runQuery(q, 1);
+                              setIsRunDropdownOpen(false);
+                            }}
+                            className="text-left px-4 py-2 text-xs font-mono text-secondary hover:text-white flex-1 truncate"
+                            title={q}
                           >
-                            <button
-                              onClick={() => {
-                                runQuery(q, 1);
-                                setIsRunDropdownOpen(false);
-                              }}
-                              className="text-left px-4 py-2 text-xs font-mono text-secondary hover:text-white flex-1 truncate"
-                              title={q}
-                            >
-                              {label}
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setIsRunDropdownOpen(false);
-                                setSaveQueryModal({ isOpen: true, sql: q });
-                              }}
-                              className="p-2 text-muted hover:text-white hover:bg-surface transition-colors mr-1 rounded shrink-0 opacity-0 group-hover:opacity-100"
-                              title={t("editor.saveThisQuery")}
-                            >
-                              <Save size={14} />
-                            </button>
-                          </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </>
+                            {label}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsRunDropdownOpen(false);
+                              setSaveQueryModal({ isOpen: true, sql: q });
+                            }}
+                            className="p-2 text-muted hover:text-white hover:bg-surface transition-colors mr-1 rounded shrink-0 opacity-0 group-hover:opacity-100"
+                            title={t("editor.saveThisQuery")}
+                          >
+                            <Save size={14} />
+                          </button>
+                        </div>
+                        );
+                      })
+                    )}
+                  </div>
                 )}
               </>
             )}
@@ -3268,13 +3301,15 @@ export const Editor = () => {
               !activeTab?.query ||
               extractQueryParams(activeTab.query).length === 0
             }
-            className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary hover:bg-surface text-primary rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-strong"
+            className="flex items-center gap-2 px-2 @[640px]:px-3 py-1.5 bg-surface-secondary hover:bg-surface text-primary rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-strong shrink-0"
             title={t("editor.queryParameters")}
           >
             <span className="font-mono text-xs font-bold border border-muted text-secondary rounded px-1.5 py-0.5">
               P
             </span>
-            {t("editor.parameters")}
+            <span className="hidden @[640px]:inline whitespace-nowrap">
+              {t("editor.parameters")}
+            </span>
           </button>
         )}
 
@@ -3288,29 +3323,34 @@ export const Editor = () => {
               }
             }}
             disabled={!activeTab?.query?.trim()}
-            className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary hover:bg-surface text-primary rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-strong"
+            className="flex items-center gap-2 px-2 @[640px]:px-3 py-1.5 bg-surface-secondary hover:bg-surface text-primary rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-strong shrink-0"
             title={`${t("editor.formatSql")} (${isMac ? "Shift+⌥+F" : "Shift+Alt+F"})`}
           >
             <WrapText size={16} />
-            {t("editor.formatSql")}
+            <span className="hidden @[640px]:inline whitespace-nowrap">
+              {t("editor.formatSql")}
+            </span>
           </button>
         )}
 
-        <div className="relative ml-auto">
+        <div ref={exportMenuRef} className="relative ml-auto shrink-0">
           <button
             onClick={() => setExportMenuOpen(!exportMenuOpen)}
             disabled={!activeTab.result || activeTab.result.rows.length === 0}
             aria-haspopup="menu"
             aria-expanded={exportMenuOpen}
+            title={t("editor.export")}
             className={clsx(
-              "flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+              "flex items-center gap-2 px-2 @[640px]:px-3 py-1.5 rounded text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
               exportMenuOpen
                 ? "bg-blue-500/15 border-blue-500/40 text-blue-400"
                 : "bg-surface-secondary enabled:hover:bg-blue-500/15 enabled:hover:border-blue-500/40 enabled:hover:text-blue-400 text-primary border-strong",
             )}
           >
             <Download size={16} />
-            {t("editor.export")}
+            <span className="hidden @[640px]:inline whitespace-nowrap">
+              {t("editor.export")}
+            </span>
             <ChevronDown
               size={14}
               className={clsx(
@@ -3320,94 +3360,76 @@ export const Editor = () => {
             />
           </button>
           {exportMenuOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setExportMenuOpen(false)}
-              />
-              <div
-                role="menu"
-                className="absolute top-full right-0 mt-1 w-44 bg-elevated border border-strong rounded-md shadow-xl z-50 flex flex-col py-1 overflow-hidden"
+            <div
+              role="menu"
+              className="absolute top-full right-0 mt-1 w-44 max-w-[calc(100cqw-1rem)] bg-elevated border border-strong rounded-md shadow-xl z-50 flex flex-col py-1 overflow-hidden"
+            >
+              <button
+                role="menuitem"
+                onClick={handleExportCSV}
+                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
               >
-                <button
-                  role="menuitem"
-                  onClick={handleExportCSV}
-                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
-                >
-                  <FileText size={14} className="shrink-0 opacity-80" />
-                  <span className="flex-1">CSV</span>
-                  <span className="text-xs text-muted">.csv</span>
-                </button>
-                <button
-                  role="menuitem"
-                  onClick={handleExportJSON}
-                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
-                >
-                  <FileJson size={14} className="shrink-0 opacity-80" />
-                  <span className="flex-1">JSON</span>
-                  <span className="text-xs text-muted">.json</span>
-                </button>
-                <button
-                  role="menuitem"
-                  onClick={handleExportMarkdown}
-                  className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
-                >
-                  <FileText size={14} className="shrink-0 opacity-80" />
-                  <span className="flex-1">Markdown</span>
-                  <span className="text-xs text-muted">.md</span>
-                </button>
-              </div>
-            </>
+                <FileText size={14} className="shrink-0 opacity-80" />
+                <span className="flex-1">CSV</span>
+                <span className="text-xs text-muted">.csv</span>
+              </button>
+              <button
+                role="menuitem"
+                onClick={handleExportJSON}
+                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
+              >
+                <FileJson size={14} className="shrink-0 opacity-80" />
+                <span className="flex-1">JSON</span>
+                <span className="text-xs text-muted">.json</span>
+              </button>
+              <button
+                role="menuitem"
+                onClick={handleExportMarkdown}
+                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
+              >
+                <FileText size={14} className="shrink-0 opacity-80" />
+                <span className="flex-1">Markdown</span>
+                <span className="text-xs text-muted">.md</span>
+              </button>
+            </div>
           )}
         </div>
-        {!isTableTab && isMultiDb && activeTab.type !== "query_builder" ? (
-          <div className="relative ml-2">
+        {!isTableTab && isMultiDb && activeTab.type !== "query_builder" && (
+          <div ref={dbDropdownRef} className="relative ml-1 @[560px]:ml-2 shrink-0">
             <button
               onClick={() => setIsDbDropdownOpen((v) => !v)}
               className="flex items-center gap-1.5 px-2 py-1 bg-surface-secondary border border-strong rounded text-xs text-primary hover:bg-surface transition-colors h-[30px]"
               title={t("editor.activeDatabase")}
             >
               <Database size={12} className="text-muted shrink-0" />
-              <span className="max-w-[120px] truncate">
+              <span className="max-w-[72px] @[640px]:max-w-[120px] truncate">
                 {activeTab.schema || selectedDatabases[0]}
               </span>
               <ChevronDown size={12} className="text-muted shrink-0" />
             </button>
             {isDbDropdownOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setIsDbDropdownOpen(false)}
-                />
-                <div className="absolute top-full right-0 mt-1 min-w-[140px] max-h-[280px] overflow-y-auto bg-surface-secondary border border-strong rounded shadow-xl z-50 flex flex-col py-1">
-                  {selectedDatabases.map((db) => (
-                    <button
-                      key={db}
-                      onClick={() => {
-                        updateActiveTab({ schema: db });
-                        setIsDbDropdownOpen(false);
-                      }}
-                      className={clsx(
-                        "text-left px-3 py-1.5 text-xs hover:bg-surface transition-colors flex items-center gap-2",
-                        (activeTab.schema || selectedDatabases[0]) === db
-                          ? "text-white font-medium"
-                          : "text-secondary",
-                      )}
-                    >
-                      <Database size={11} className="text-muted shrink-0" />
-                      {db}
-                    </button>
-                  ))}
-                </div>
-              </>
+              <div className="absolute top-full right-0 mt-1 min-w-[140px] max-w-[calc(100cqw-1rem)] max-h-[280px] overflow-y-auto bg-surface-secondary border border-strong rounded shadow-xl z-50 flex flex-col py-1">
+                {selectedDatabases.map((db) => (
+                  <button
+                    key={db}
+                    onClick={() => {
+                      updateActiveTab({ schema: db });
+                      setIsDbDropdownOpen(false);
+                    }}
+                    className={clsx(
+                      "text-left px-3 py-1.5 text-xs hover:bg-surface transition-colors flex items-center gap-2",
+                      (activeTab.schema || selectedDatabases[0]) === db
+                        ? "text-white font-medium"
+                        : "text-secondary",
+                    )}
+                  >
+                    <Database size={11} className="text-muted shrink-0" />
+                    <span className="truncate">{db}</span>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
-        ) : (
-          <span className="text-xs text-muted ml-2">
-            {activeConnectionId
-              ? t("editor.connected")
-              : t("editor.disconnected")}
-          </span>
         )}
       </div>}
 
@@ -3442,10 +3464,13 @@ export const Editor = () => {
             key={tab.id}
             data-editor-panel
             style={{
-              height: isResultsCollapsed ? "calc(100vh - 109px)" : editorHeight,
+              // With collapsed results the editor takes the remaining pane
+              // space (flex-1); a viewport-based height would overflow the
+              // pane in split view
+              height: isResultsCollapsed ? undefined : editorHeight,
               display: isVisible ? "block" : "none",
             }}
-            className="relative"
+            className={clsx("relative", isResultsCollapsed && "flex-1 min-h-0")}
           >
             {tab.type === "query_builder" ? (
               <VisualQueryBuilder />
@@ -3720,21 +3745,21 @@ export const Editor = () => {
                 Object.keys(activeTab.pendingInsertions).length > 0) ? (
               <div className="flex-1 min-h-0 flex flex-col">
                 {activeTab.result && (
-                  <div className="p-2 bg-elevated text-xs text-secondary border-b border-default flex justify-between items-center shrink-0">
-                    <div className="flex items-center gap-4">
-                      <span>
+                  <div className="@container p-2 bg-elevated text-xs text-secondary border-b border-default flex justify-between items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 @[480px]:gap-4 min-w-0">
+                      <span className="truncate whitespace-nowrap">
                         {t("editor.rowsRetrieved", {
                           count: activeTab.result.rows.length,
                         })}{" "}
                         {activeTab.executionTime !== null && (
-                          <span className="text-muted ml-2 font-mono">
+                          <span className="hidden @[400px]:inline text-muted ml-2 font-mono">
                             ({formatDuration(activeTab.executionTime)})
                           </span>
                         )}
                       </span>
 
                       {activeTab.result.pagination?.has_more && (
-                        <span className="px-2 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50">
+                        <span className="px-2 py-0.5 bg-accent-warning/15 text-accent-warning rounded text-[10px] font-semibold uppercase tracking-wide border border-accent-warning/50 whitespace-nowrap shrink-0">
                           {t("editor.autoPaginated")}
                         </span>
                       )}
@@ -3742,14 +3767,14 @@ export const Editor = () => {
 
                     {/* Pagination Controls */}
                     {activeTab.result.pagination && (
-                      <div className="flex items-center gap-1 bg-surface-secondary rounded border border-strong">
+                      <div className="flex items-center gap-1 bg-surface-secondary rounded border border-strong shrink-0">
                         <button
                           disabled={
                             activeTab.result.pagination.page === 1 ||
                             activeTab.isLoading
                           }
                           onClick={() => runQuery(undefined, 1)}
-                          className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                          className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
                           title="First Page"
                         >
                           <ChevronsLeft size={14} />
@@ -3765,14 +3790,14 @@ export const Editor = () => {
                               activeTab.result!.pagination!.page - 1,
                             )
                           }
-                          className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
+                          className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed @[420px]:border-l border-strong"
                           title="Previous Page"
                         >
                           <ChevronLeft size={14} />
                         </button>
 
                         <div
-                          className="px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[80px] text-center py-1"
+                          className="px-2 @[480px]:px-3 text-secondary text-xs font-medium cursor-pointer hover:bg-surface-tertiary transition-colors min-w-[48px] @[480px]:min-w-[80px] text-center py-1 whitespace-nowrap"
                           onClick={() => {
                             setIsEditingPage(true);
                             setTempPage(
@@ -3846,7 +3871,7 @@ export const Editor = () => {
                             )}
                           </button>
                         ) : (
-                          <span className="px-2 py-1 text-secondary text-xs font-medium border-l border-strong whitespace-nowrap">
+                          <span className="hidden @[440px]:inline px-2 py-1 text-secondary text-xs font-medium border-l border-strong whitespace-nowrap">
                             {t("editor.rowCount", {
                               total:
                                 activeTab.result.pagination.total_rows.toLocaleString(),
@@ -3884,7 +3909,7 @@ export const Editor = () => {
                               ),
                             )
                           }
-                          className="p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
+                          className="hidden @[420px]:block p-1 hover:bg-surface-tertiary text-secondary hover:text-white disabled:opacity-30 disabled:cursor-not-allowed border-l border-strong"
                           title="Last Page"
                         >
                           <ChevronsRight size={14} />
@@ -3896,7 +3921,7 @@ export const Editor = () => {
 
                 {/* Data Manipulation Toolbar (Below Header) */}
                 {activeTab.activeTable && activeTab.result && (
-                  <div className="p-1 px-2 bg-elevated border-b border-default flex items-center gap-2">
+                  <div className="@container p-1 px-2 bg-elevated border-b border-default flex items-center gap-2 flex-wrap">
                     {!driverReadonly && (
                       <div className="flex items-center gap-1">
                         <button
@@ -3975,7 +4000,7 @@ export const Editor = () => {
                             }
                             className="w-3 h-3 cursor-pointer accent-blue-500"
                           />
-                          <span className="font-medium tracking-wide">
+                          <span className="hidden @[440px]:inline font-medium tracking-wide whitespace-nowrap">
                             {t("settings.csvHeaders")}
                           </span>
                         </label>
@@ -3989,14 +4014,14 @@ export const Editor = () => {
 
                     {hasPendingChanges && (
                       <div className="ml-auto flex items-center my-1 bg-surface-secondary/30 border border-default rounded-xl overflow-hidden cursor-pointer">
-                        <label className="flex items-center gap-2 px-4 py-2 cursor-pointer select-none group hover:bg-surface-secondary transition-colors">
+                        <label className="flex items-center gap-2 px-2.5 @[560px]:px-4 py-2 cursor-pointer select-none group hover:bg-surface-secondary transition-colors">
                           <input
                             type="checkbox"
                             checked={applyToAll}
                             onChange={(e) => setApplyToAll(e.target.checked)}
                             className="w-4 h-4 cursor-pointer accent-primary"
                           />
-                          <span className="text-sm text-primary font-medium">
+                          <span className="text-sm text-primary font-medium whitespace-nowrap">
                             {t("editor.applyToAll")}
                           </span>
                         </label>
@@ -4004,30 +4029,37 @@ export const Editor = () => {
                         <button
                           onClick={handleSubmitChanges}
                           disabled={!applyToAll && !selectionHasPending}
-                          className="flex items-center gap-1.5 px-4 py-2 text-accent-success hover:bg-surface-secondary transition-colors text-sm font-medium disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
+                          className="flex items-center gap-1.5 px-2.5 @[560px]:px-4 py-2 text-accent-success hover:bg-surface-secondary transition-colors text-sm font-medium disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
                           title={t("editor.submitChanges")}
                         >
                           <Check size={15} />
-                          <span>Submit</span>
+                          <span className="hidden @[480px]:inline">
+                            {t("editor.submit")}
+                          </span>
                         </button>
                         <div className="w-px self-stretch bg-default"></div>
                         <button
                           onClick={handleRollbackChanges}
                           disabled={!applyToAll && !selectionHasPending}
-                          className="flex items-center gap-1.5 px-4 py-2 text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-sm font-medium disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
+                          className="flex items-center gap-1.5 px-2.5 @[560px]:px-4 py-2 text-secondary hover:text-primary hover:bg-surface-secondary transition-colors text-sm font-medium disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed cursor-pointer"
                           title={t("editor.rollbackChanges")}
                         >
                           <ArrowLeftToLine size={15} />
-                          <span>Rollback</span>
+                          <span className="hidden @[480px]:inline">
+                            {t("editor.rollback")}
+                          </span>
                         </button>
                         <div className="w-px self-stretch bg-default"></div>
-                        <span className="px-4 py-2 text-sm font-medium text-accent-primary select-none hover:bg-surface-secondary transition-colors">
-                          {Object.keys(activeTab.pendingChanges || {}).length +
-                            Object.keys(activeTab.pendingDeletions || {})
-                              .length +
-                            Object.keys(activeTab.pendingInsertions || {})
-                              .length}{" "}
-                          pending
+                        <span className="px-2.5 @[560px]:px-4 py-2 text-sm font-medium text-accent-primary select-none hover:bg-surface-secondary transition-colors whitespace-nowrap">
+                          {t("editor.pendingCount", {
+                            count:
+                              Object.keys(activeTab.pendingChanges || {})
+                                .length +
+                              Object.keys(activeTab.pendingDeletions || {})
+                                .length +
+                              Object.keys(activeTab.pendingInsertions || {})
+                                .length,
+                          })}
                         </span>
                       </div>
                     )}

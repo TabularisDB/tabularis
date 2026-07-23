@@ -197,7 +197,10 @@
       "delete": "삭제",
       "deleteConfirm": "\"{{title}}\" 노트북을 삭제할까요? 되돌릴 수 없습니다.",
       "renamePlaceholder": "노트북 이름"
-    }
+    },
+    "addToSplitGroup": "분할 그룹에 추가",
+    "removeFromSplitGroup": "그룹에서 제거",
+    "movePanel": "패널 이동"
   },
   "mcp": {
     "title": "MCP 서버 연동",
@@ -1069,6 +1072,9 @@
     "submitChanges": "변경 사항 제출",
     "rollbackChanges": "변경 사항 롤백",
     "applyToAll": "전체에 적용",
+    "submit": "제출",
+    "rollback": "롤백",
+    "pendingCount": "대기 중 {{count}}건",
     "executingQuery": "쿼리를 실행하는 중...",
     "exporting": "내보내는 중...",
     "rowsProcessed": "처리된 행",
@@ -1474,7 +1480,6 @@
     "errorNoTables": "테이블을 하나 이상 선택하세요",
     "importStarted": "가져오기를 시작합니다...",
     "importSuccess": "SQL 파일이 성공적으로 실행되었습니다",
-    "importFailure": "가져오기에 실패했습니다: ",
     "importCancelled": "가져오기가 취소되었습니다",
     "importFailed": "가져오기 실패",
     "importingFrom": "가져오는 중",
