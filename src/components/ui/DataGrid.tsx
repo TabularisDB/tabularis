@@ -528,13 +528,14 @@ export const DataGrid = React.memo(
     });
 
     // Close sidebar when this DataGrid unmounts (route change, tab switch)
+    const rightSidebarRef = useRef(rightSidebar);
+    rightSidebarRef.current = rightSidebar;
     useEffect(() => {
       return () => {
-        if (rightSidebar.isOpen && rightSidebar.activePanel === "row-editor") {
-          rightSidebar.close();
+        if (rightSidebarRef.current.isOpen && rightSidebarRef.current.activePanel === "row-editor") {
+          rightSidebarRef.current.close();
         }
       };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Unified handler for opening a row in the right sidebar
