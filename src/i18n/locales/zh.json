@@ -237,6 +237,12 @@
   "connections": {
     "title": "连接",
     "addConnection": "添加连接",
+    "newSqliteDatabase": {
+      "menuLabel": "新建 SQLite 数据库…",
+      "dialogTitle": "新建 SQLite 数据库",
+      "fileType": "SQLite 数据库",
+      "error": "无法创建 SQLite 数据库"
+    },
     "noConnections": "无活动连接",
     "createFirst": "创建您的第一个连接",
     "active": "活动",

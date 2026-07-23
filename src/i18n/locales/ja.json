@@ -251,6 +251,12 @@
   "connections": {
     "title": "接続",
     "addConnection": "接続を追加",
+    "newSqliteDatabase": {
+      "menuLabel": "新しい SQLite データベース…",
+      "dialogTitle": "新しい SQLite データベース",
+      "fileType": "SQLite データベース",
+      "error": "SQLite データベースを作成できませんでした"
+    },
     "noConnections": "アクティブな接続はありません",
     "createFirst": "最初の接続を作成",
     "active": "アクティブ",

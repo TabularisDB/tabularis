@@ -251,6 +251,12 @@
   "connections": {
     "title": "Mga Koneksyon",
     "addConnection": "Magdagdag ng Koneksyon",
+    "newSqliteDatabase": {
+      "menuLabel": "Bagong SQLite Database…",
+      "dialogTitle": "Bagong SQLite Database",
+      "fileType": "SQLite database",
+      "error": "Hindi nagawa ang SQLite database"
+    },
     "noConnections": "Walang aktibong koneksyon",
     "createFirst": "Gumawa ng iyong unang koneksyon",
     "active": "Aktibo",

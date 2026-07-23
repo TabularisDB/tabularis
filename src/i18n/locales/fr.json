@@ -251,6 +251,12 @@
   "connections": {
     "title": "Connexions",
     "addConnection": "Ajouter une connexion",
+    "newSqliteDatabase": {
+      "menuLabel": "Nouvelle base de données SQLite…",
+      "dialogTitle": "Nouvelle base de données SQLite",
+      "fileType": "Base de données SQLite",
+      "error": "Impossible de créer la base de données SQLite"
+    },
     "noConnections": "Aucune connexion active",
     "createFirst": "Créez votre première connexion",
     "active": "Active",
