@@ -85,18 +85,23 @@ pub(crate) async fn initialize_sqlite_file(path: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn create_sqlite_file(path: String) -> Result<String, String> {
+    let path = normalize_sqlite_path(&path)?;
+    initialize_sqlite_file(&path).await?;
+
+    path.to_str()
+        .map(str::to_owned)
+        .ok_or_else(|| "The selected SQLite database path is not valid UTF-8.".to_string())
+}
+
+#[tauri::command]
 pub async fn create_sqlite_database<R: Runtime>(
     app: AppHandle<R>,
     path: String,
 ) -> Result<SavedConnection, String> {
-    let path = normalize_sqlite_path(&path)?;
+    let database_path = create_sqlite_file(path).await?;
+    let path = PathBuf::from(&database_path);
     let name = connection_name(&path)?;
-    initialize_sqlite_file(&path).await?;
-
-    let database_path = path
-        .to_str()
-        .ok_or_else(|| "The selected SQLite database path is not valid UTF-8.".to_string())?
-        .to_owned();
     let params = ConnectionParams {
         driver: "sqlite".to_string(),
         database: DatabaseSelection::Single(database_path),

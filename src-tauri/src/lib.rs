@@ -374,6 +374,7 @@ pub fn run() {
             commands::test_connection,
             commands::list_databases,
             commands::save_connection,
+            sqlite_database::create_sqlite_file,
             sqlite_database::create_sqlite_database,
             commands::delete_connection,
             commands::update_connection,

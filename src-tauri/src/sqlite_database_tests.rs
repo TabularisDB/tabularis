@@ -1,4 +1,4 @@
-use crate::sqlite_database::normalize_sqlite_path;
+use crate::sqlite_database::{create_sqlite_file, normalize_sqlite_path};
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::{Connection, SqliteConnection};
 use std::fs;
@@ -42,6 +42,22 @@ async fn creates_an_openable_empty_sqlite_database() {
             .await
             .unwrap();
     assert_eq!(table_count.0, 0);
+}
+
+#[tokio::test]
+async fn create_file_returns_the_normalized_path() {
+    let directory = tempfile::tempdir().unwrap();
+    let requested_path = directory.path().join("new-database");
+
+    let created_path = create_sqlite_file(requested_path.to_string_lossy().into_owned())
+        .await
+        .unwrap();
+
+    assert_eq!(
+        created_path,
+        requested_path.with_extension("db").to_string_lossy()
+    );
+    assert!(requested_path.with_extension("db").is_file());
 }
 
 #[tokio::test]
