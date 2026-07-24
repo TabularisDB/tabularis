@@ -569,6 +569,7 @@ pub fn run() {
             updater::get_installation_source,
             // Logs
             log_commands::get_logs,
+            log_commands::log_frontend_event,
             log_commands::clear_logs,
             log_commands::get_log_settings,
             log_commands::set_log_enabled,

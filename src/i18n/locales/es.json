@@ -150,6 +150,8 @@
     "noTablesMatch": "No hay tablas que coincidan",
     "filterDatabases": "Filtrar bases de datos...",
     "manageDatabases": "Gestionar Bases de Datos",
+    "databaseSelectionUpdated": "Selección de bases de datos actualizada",
+    "droppedDatabasesRemoved": "Se eliminaron porque ya no existen en el servidor: {{names}}",
     "structure": "Estructura",
     "favorites": "Favoritos",
     "queryHistory": "Historial",

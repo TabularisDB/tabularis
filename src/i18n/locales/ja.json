@@ -163,6 +163,8 @@
     "noTablesMatch": "一致するテーブルがありません",
     "filterDatabases": "データベースをフィルター...",
     "manageDatabases": "データベースを管理",
+    "databaseSelectionUpdated": "データベースの選択を更新しました",
+    "droppedDatabasesRemoved": "サーバーに存在しないため削除されました: {{names}}",
     "structure": "構造",
     "favorites": "お気に入り",
     "queryHistory": "履歴",

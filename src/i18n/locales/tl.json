@@ -163,6 +163,8 @@
     "noTablesMatch": "Walang table na tumugma",
     "filterDatabases": "I-filter ang mga database...",
     "manageDatabases": "Pamahalaan ang mga Database",
+    "databaseSelectionUpdated": "Na-update ang pagpili ng database",
+    "droppedDatabasesRemoved": "Inalis dahil wala na sa server: {{names}}",
     "structure": "Istruktura",
     "favorites": "Mga Paborito",
     "queryHistory": "Kasaysayan",
