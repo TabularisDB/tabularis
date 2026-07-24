@@ -189,7 +189,9 @@
     },
     "addToSplitGroup": "Zur geteilten Gruppe hinzufügen",
     "removeFromSplitGroup": "Aus der Gruppe entfernen",
-    "movePanel": "Panel verschieben"
+    "movePanel": "Panel verschieben",
+    "refreshDatabaseList": "Datenbankliste aktualisieren",
+    "databaseListUpToDate": "Datenbankliste ist aktuell"
   },
   "mcp": {
     "title": "MCP-Server-Integration",

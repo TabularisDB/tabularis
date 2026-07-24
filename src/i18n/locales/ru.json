@@ -202,7 +202,9 @@
     },
     "addToSplitGroup": "Добавить в группу разделения",
     "removeFromSplitGroup": "Убрать из группы",
-    "movePanel": "Переместить панель"
+    "movePanel": "Переместить панель",
+    "refreshDatabaseList": "Обновить список баз данных",
+    "databaseListUpToDate": "Список баз данных актуален"
   },
   "mcp": {
     "title": "Интеграция MCP-сервера",

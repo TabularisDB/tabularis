@@ -202,7 +202,9 @@
     },
     "addToSplitGroup": "Add to Split Group",
     "removeFromSplitGroup": "Remove from Group",
-    "movePanel": "Move panel"
+    "movePanel": "Move panel",
+    "refreshDatabaseList": "Refresh database list",
+    "databaseListUpToDate": "Database list is up to date"
   },
   "mcp": {
     "title": "MCP Server Integration",

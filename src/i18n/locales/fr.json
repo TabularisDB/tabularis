@@ -202,7 +202,9 @@
     },
     "addToSplitGroup": "Ajouter au groupe divisé",
     "removeFromSplitGroup": "Retirer du groupe",
-    "movePanel": "Déplacer le panneau"
+    "movePanel": "Déplacer le panneau",
+    "refreshDatabaseList": "Actualiser la liste des bases",
+    "databaseListUpToDate": "La liste des bases de données est à jour"
   },
   "mcp": {
     "title": "Intégration du serveur MCP",

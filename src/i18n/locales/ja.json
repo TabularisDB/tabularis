@@ -202,7 +202,9 @@
     },
     "addToSplitGroup": "分割グループに追加",
     "removeFromSplitGroup": "グループから削除",
-    "movePanel": "パネルを移動"
+    "movePanel": "パネルを移動",
+    "refreshDatabaseList": "データベース一覧を更新",
+    "databaseListUpToDate": "データベース一覧は最新です"
   },
   "mcp": {
     "title": "MCP サーバー連携",

@@ -202,7 +202,9 @@
     },
     "addToSplitGroup": "Idagdag sa Split Group",
     "removeFromSplitGroup": "Alisin sa Grupo",
-    "movePanel": "Ilipat ang panel"
+    "movePanel": "Ilipat ang panel",
+    "refreshDatabaseList": "I-refresh ang listahan ng database",
+    "databaseListUpToDate": "Up to date na ang listahan ng database"
   },
   "mcp": {
     "title": "Integrasyon ng MCP Server",

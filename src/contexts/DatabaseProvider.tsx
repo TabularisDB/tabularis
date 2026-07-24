@@ -133,6 +133,56 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }));
   }, []);
 
+  // Manually re-runs the same reconciliation that happens on connect (#518),
+  // for a connection that's already open. Lets a user recover from a database
+  // dropped mid-session without having to disconnect and reconnect.
+  const refreshDatabaseSelection = useCallback(async (connectionId: string) => {
+    const conn = connections.find(c => c.id === connectionId);
+    const current = connectionDataMap[connectionId]?.selectedDatabases ?? [];
+    if (!conn || current.length === 0) return;
+
+    try {
+      const available = await invoke<string[]>('get_available_databases', { connectionId });
+
+      // Same guard as the connect-time reconciliation: an incomplete server
+      // list (e.g. restricted privileges) must not be mistaken for missing
+      // databases.
+      if (!available.includes(current[0])) {
+        console.warn('Skipping database selection reconciliation: server list does not include the primary database');
+        return;
+      }
+
+      const { selection, removed } = reconcileDatabaseSelection(current, available);
+      if (removed.length > 0) {
+        // NOTE: if this shrinks the selection down to a single database, the
+        // sidebar correctly switches to the single-database layout (it derives
+        // that from selectedDatabases.length), but the remaining database's
+        // table list is not re-loaded through the single-db code path the way
+        // connect() does it. Same gap as connect-time reconciliation would
+        // have if triggered outside of connect() - flagging rather than
+        // guessing at a fix here.
+        updateConnectionData(connectionId, { selectedDatabases: selection });
+        invoke('set_selected_databases', {
+          connectionId,
+          databases: selection,
+        }).catch(e => console.error('Failed to persist reconciled database selection:', e));
+        showToast(t('sidebar.droppedDatabasesRemoved', { names: removed.join(', ') }), {
+          title: t('sidebar.databaseSelectionUpdated'),
+          kind: 'warning',
+        });
+        invoke('log_frontend_event', {
+          level: 'warn',
+          message: `Connection "${conn.name}": removed ${removed.join(', ')} from the database selection (no longer on the server)`,
+        }).catch(() => {});
+      } else {
+        showToast(t('sidebar.databaseListUpToDate'), { kind: 'info' });
+      }
+    } catch (e) {
+      console.error('Failed to refresh database selection:', e);
+      showToast(String(e), { kind: 'error' });
+    }
+  }, [connections, connectionDataMap, updateConnectionData, showToast, t]);
+
   const refreshTables = async (targetConnectionId?: string) => {
     const connId = targetConnectionId ?? activeConnectionId;
     if (!connId) return;
@@ -1097,6 +1147,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       loadDatabaseData,
       refreshDatabaseData,
       setSelectedDatabases,
+      refreshDatabaseSelection,
       getConnectionData,
       isConnectionOpen,
       isConnectionOpenAnywhere,

@@ -188,7 +188,9 @@
     },
     "addToSplitGroup": "添加到拆分组",
     "removeFromSplitGroup": "从组中移除",
-    "movePanel": "移动面板"
+    "movePanel": "移动面板",
+    "refreshDatabaseList": "刷新数据库列表",
+    "databaseListUpToDate": "数据库列表已是最新"
   },
   "mcp": {
     "title": "MCP 服务器集成",

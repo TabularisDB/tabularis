@@ -189,7 +189,9 @@
     },
     "addToSplitGroup": "Aggiungi al Gruppo Split",
     "removeFromSplitGroup": "Rimuovi dal Gruppo",
-    "movePanel": "Sposta pannello"
+    "movePanel": "Sposta pannello",
+    "refreshDatabaseList": "Aggiorna elenco database",
+    "databaseListUpToDate": "L'elenco dei database è aggiornato"
   },
   "groups": {
     "title": "Gruppi",

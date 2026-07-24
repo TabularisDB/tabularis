@@ -202,7 +202,9 @@
     },
     "addToSplitGroup": "분할 그룹에 추가",
     "removeFromSplitGroup": "그룹에서 제거",
-    "movePanel": "패널 이동"
+    "movePanel": "패널 이동",
+    "refreshDatabaseList": "데이터베이스 목록 새로고침",
+    "databaseListUpToDate": "데이터베이스 목록이 최신 상태입니다"
   },
   "mcp": {
     "title": "MCP 서버 연동",
