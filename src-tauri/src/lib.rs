@@ -425,6 +425,7 @@ pub fn run() {
             connection_import_commands::apply_tabularis_import,
             commands::get_schemas,
             commands::get_available_databases,
+            commands::set_selected_databases,
             commands::get_tables,
             commands::get_columns,
             commands::get_foreign_keys,

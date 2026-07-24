@@ -85,7 +85,7 @@ import { groupRoutinesByType } from "../../utils/routines";
 import { formatObjectCount } from "../../utils/schema";
 import { groupByDate, formatHistoryTime } from "../../utils/dateGroups";
 import { SqlHighlight } from "../ui/SqlHighlight";
-import { isMultiDatabaseCapable } from "../../utils/database";
+import { isMultiDatabaseCapable, reconcileDatabaseSelection } from "../../utils/database";
 import { supportsManageTables } from "../../utils/driverCapabilities";
 import { newConsoleForDatabase, newConsoleForTable } from "../../utils/newConsole";
 import {
@@ -1212,6 +1212,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             try {
                               const all = await invoke<string[]>("get_available_databases", { connectionId: activeConnectionId });
                               setAllAvailableDatabases(all);
+                              // A database dropped on the server has no row to
+                              // untick: drop it from the pending set too (#518).
+                              setPendingDbSelection(new Set(reconcileDatabaseSelection(selectedDatabases, all).selection));
                             } catch (e) {
                               console.error("Failed to load available databases:", e);
                             } finally {

@@ -620,6 +620,40 @@ pub async fn get_available_databases<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn set_selected_databases<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    databases: Vec<String>,
+) -> Result<(), String> {
+    if databases.is_empty() {
+        return Err("Database selection cannot be empty".to_string());
+    }
+
+    log::info!(
+        "Persisting database selection for connection {}: {} database(s)",
+        connection_id,
+        databases.len()
+    );
+
+    let path = get_config_path(&app)?;
+    let mut conn_file = persistence::load_connections_file(&path)?;
+
+    let conn = conn_file
+        .connections
+        .iter_mut()
+        .find(|c| c.id == connection_id)
+        .ok_or("Connection not found")?;
+
+    conn.params.database = if databases.len() == 1 {
+        crate::models::DatabaseSelection::Single(databases.into_iter().next().unwrap_or_default())
+    } else {
+        crate::models::DatabaseSelection::Multiple(databases)
+    };
+
+    save_connections_and_invalidate(&app, &path, &conn_file)
+}
+
+#[tauri::command]
 pub async fn get_routines<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,

@@ -4,6 +4,7 @@ import {
   isMultiDatabaseSelection,
   getDatabaseList,
   getEffectiveDatabase,
+  reconcileDatabaseSelection,
 } from '../../src/utils/database';
 import type { DriverCapabilities } from '../../src/types/plugins';
 
@@ -92,6 +93,58 @@ describe('getDatabaseList', () => {
 
   it('returns single-element array for single-element array input', () => {
     expect(getDatabaseList(['only'])).toEqual(['only']);
+  });
+});
+
+describe('reconcileDatabaseSelection', () => {
+  it('keeps the selection unchanged when every database exists', () => {
+    expect(reconcileDatabaseSelection(['a', 'b'], ['a', 'b', 'c'])).toEqual({
+      selection: ['a', 'b'],
+      removed: [],
+    });
+  });
+
+  it('removes databases that no longer exist on the server', () => {
+    expect(reconcileDatabaseSelection(['a', 'vins', 'b'], ['a', 'b', 'c'])).toEqual({
+      selection: ['a', 'b'],
+      removed: ['vins'],
+    });
+  });
+
+  it('preserves the saved order of the surviving selection', () => {
+    expect(reconcileDatabaseSelection(['z', 'a', 'm'], ['a', 'm', 'z']).selection).toEqual([
+      'z',
+      'a',
+      'm',
+    ]);
+  });
+
+  it('reports everything as removed when the server list is empty', () => {
+    expect(reconcileDatabaseSelection(['a', 'b'], [])).toEqual({
+      selection: [],
+      removed: ['a', 'b'],
+    });
+  });
+
+  it('returns empty results for an empty saved selection', () => {
+    expect(reconcileDatabaseSelection([], ['a', 'b'])).toEqual({
+      selection: [],
+      removed: [],
+    });
+  });
+
+  it('matches database names case-sensitively', () => {
+    expect(reconcileDatabaseSelection(['Vins'], ['vins'])).toEqual({
+      selection: [],
+      removed: ['Vins'],
+    });
+  });
+
+  it('keeps duplicate saved entries that exist on the server', () => {
+    expect(reconcileDatabaseSelection(['a', 'a'], ['a'])).toEqual({
+      selection: ['a', 'a'],
+      removed: [],
+    });
   });
 });
 

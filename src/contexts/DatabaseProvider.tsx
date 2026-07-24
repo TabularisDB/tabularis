@@ -18,7 +18,7 @@ import { clearAutocompleteCache } from '../utils/autocomplete';
 import { toErrorMessage } from '../utils/errors';
 import { useSettings } from '../hooks/useSettings';
 import { findConnectionsForDrivers } from '../utils/connectionManager';
-import { isMultiDatabaseCapable, getEffectiveDatabase, getDatabaseList } from '../utils/database';
+import { isMultiDatabaseCapable, getEffectiveDatabase, getDatabaseList, reconcileDatabaseSelection } from '../utils/database';
 
 const createEmptyConnectionData = (driver: string = '', name: string = '', dbName: string = ''): ConnectionData => ({
   driver,
@@ -458,7 +458,22 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const currentData = connectionDataMap[connId];
     if (!currentData) return;
 
-    updateConnectionData(connId, { selectedDatabases: newDatabases });
+    // Drop cached data for databases that left the selection.
+    const prunedDataMap = Object.fromEntries(
+      Object.entries(currentData.databaseDataMap).filter(([db]) => newDatabases.includes(db))
+    );
+
+    updateConnectionData(connId, {
+      selectedDatabases: newDatabases,
+      databaseDataMap: prunedDataMap,
+    });
+
+    if (newDatabases.length > 0) {
+      invoke('set_selected_databases', {
+        connectionId: connId,
+        databases: newDatabases,
+      }).catch(e => console.error('Failed to persist selected databases:', e));
+    }
 
     for (const db of newDatabases) {
       const existing = currentData.databaseDataMap[db];
@@ -544,10 +559,31 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       // Register for health-check pinging.
       await invoke('register_active_connection', { connectionId });
 
-      const isMultiDb = isMultiDatabaseCapable(capabilities) && Array.isArray(dbParam) && dbParam.length > 1;
+      let isMultiDb = isMultiDatabaseCapable(capabilities) && Array.isArray(dbParam) && dbParam.length > 1;
+      let dbList = isMultiDb ? getDatabaseList(dbParam) : [];
 
       if (isMultiDb) {
-        const dbList = getDatabaseList(dbParam);
+        // Reconcile the saved selection against the server so databases
+        // dropped outside the app don't linger in the sidebar (#518).
+        try {
+          const available = await invoke<string[]>('get_available_databases', { connectionId });
+          const { selection, removed } = reconcileDatabaseSelection(dbList, available);
+          if (removed.length > 0 && selection.length > 0) {
+            console.warn(`Pruning dropped database(s) from selection: ${removed.join(', ')}`);
+            dbList = selection;
+            isMultiDb = selection.length > 1;
+            invoke('set_selected_databases', {
+              connectionId,
+              databases: selection,
+            }).catch(e => console.error('Failed to persist reconciled database selection:', e));
+          }
+        } catch (e) {
+          // Server list unavailable: keep the saved selection.
+          console.error('Failed to reconcile database selection:', e);
+        }
+      }
+
+      if (isMultiDb) {
         const firstDb = dbList[0] ?? '';
 
         // Pre-load first database inline
