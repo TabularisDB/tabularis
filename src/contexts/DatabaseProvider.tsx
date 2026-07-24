@@ -571,22 +571,30 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         // dropped outside the app don't linger in the sidebar (#518).
         try {
           const available = await invoke<string[]>('get_available_databases', { connectionId });
-          const { selection, removed } = reconcileDatabaseSelection(dbList, available);
-          if (removed.length > 0 && selection.length > 0) {
-            dbList = selection;
-            isMultiDb = selection.length > 1;
-            invoke('set_selected_databases', {
-              connectionId,
-              databases: selection,
-            }).catch(e => console.error('Failed to persist reconciled database selection:', e));
-            showToast(t('sidebar.droppedDatabasesRemoved', { names: removed.join(', ') }), {
-              title: t('sidebar.databaseSelectionUpdated'),
-              kind: 'warning',
-            });
-            invoke('log_frontend_event', {
-              level: 'warn',
-              message: `Connection "${conn.name}": removed ${removed.join(', ')} from the database selection (no longer on the server)`,
-            }).catch(() => {});
+          // The primary database must exist while this connection is open: if
+          // the server list doesn't include it, the list is unreliable (e.g.
+          // filtered by privileges) and pruning from it would drop valid
+          // entries. This also guarantees the selection never ends up empty.
+          if (available.includes(dbList[0])) {
+            const { selection, removed } = reconcileDatabaseSelection(dbList, available);
+            if (removed.length > 0) {
+              dbList = selection;
+              isMultiDb = selection.length > 1;
+              invoke('set_selected_databases', {
+                connectionId,
+                databases: selection,
+              }).catch(e => console.error('Failed to persist reconciled database selection:', e));
+              showToast(t('sidebar.droppedDatabasesRemoved', { names: removed.join(', ') }), {
+                title: t('sidebar.databaseSelectionUpdated'),
+                kind: 'warning',
+              });
+              invoke('log_frontend_event', {
+                level: 'warn',
+                message: `Connection "${conn.name}": removed ${removed.join(', ')} from the database selection (no longer on the server)`,
+              }).catch(() => {});
+            }
+          } else {
+            console.warn('Skipping database selection reconciliation: server list does not include the primary database');
           }
         } catch (e) {
           // Server list unavailable: keep the saved selection.

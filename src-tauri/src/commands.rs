@@ -623,10 +623,13 @@ pub async fn get_available_databases<R: Runtime>(
 pub async fn set_selected_databases<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
-    databases: Vec<String>,
+    mut databases: Vec<String>,
 ) -> Result<(), String> {
     if databases.is_empty() {
         return Err("Database selection cannot be empty".to_string());
+    }
+    if databases.iter().any(|db| db.trim().is_empty()) {
+        return Err("Database names cannot be empty".to_string());
     }
 
     log::info!(
@@ -645,7 +648,7 @@ pub async fn set_selected_databases<R: Runtime>(
         .ok_or("Connection not found")?;
 
     conn.params.database = if databases.len() == 1 {
-        crate::models::DatabaseSelection::Single(databases.into_iter().next().unwrap_or_default())
+        crate::models::DatabaseSelection::Single(databases.remove(0))
     } else {
         crate::models::DatabaseSelection::Multiple(databases)
     };
