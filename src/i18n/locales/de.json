@@ -184,7 +184,10 @@
       "delete": "Löschen",
       "deleteConfirm": "Notebook \"{{title}}\" löschen? Dies kann nicht rückgängig gemacht werden.",
       "renamePlaceholder": "Notebook-Name"
-    }
+    },
+    "addToSplitGroup": "Zur geteilten Gruppe hinzufügen",
+    "removeFromSplitGroup": "Aus der Gruppe entfernen",
+    "movePanel": "Panel verschieben"
   },
   "mcp": {
     "title": "MCP-Server-Integration",
@@ -371,6 +374,13 @@
     "csvHeaders": "Spaltennamen exportieren",
     "detectJsonInTextColumns": "JSON in Text-Spalten erkennen",
     "detectJsonInTextColumnsDesc": "Zeigt JSON-Viewer-Bedienelemente, wenn eine nicht typisierte Text-Zelle ein JSON-Objekt oder -Array enthält. Verursacht kleine Parse-Kosten pro Zelle.",
+    "rowEditorFollowSelection": "Zeileneditor folgt der Auswahl",
+    "rowEditorFollowSelectionDesc": "Wenn die Zeileneditor-Seitenleiste geöffnet ist, wird sie automatisch aktualisiert, um die neu ausgewählte Zeile anzuzeigen.",
+    "cellDoubleClickAction": "Doppelklick-Aktion für Zellen",
+    "cellDoubleClickActionDesc": "Wählen Sie, was beim Doppelklick auf eine Datenzelle passiert.",
+    "cellDoubleClickInline": "Inline-Bearbeitung",
+    "cellDoubleClickSidebar": "In Seitenleiste öffnen",
+    "cellDoubleClickBoth": "Beides",
     "appearance": "Darstellung",
     "localization": "Lokalisierung",
     "themeSelection": "Themaauswahl",
@@ -402,6 +412,23 @@
     "appearance_editorShowLineNumbersDesc": "Zeigt Zeilennummern im Rand des Editors an.",
     "appearance_editorAcceptSuggestionOnEnter": "Vorschlag mit Eingabetaste übernehmen",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Erlaubt der Eingabetaste (zusätzlich zu Tab), den aktiven Autovervollständigungsvorschlag zu übernehmen. Bei deaktivierter Option fügt Enter immer einen Zeilenumbruch ein.",
+    "queryExecution": "Abfrageausführung",
+    "runStatementUnderCursor": "Anweisung unter dem Cursor ausführen",
+    "runStatementUnderCursorDesc": "Wenn ein Skript mehrere Anweisungen enthält, wird die Anweisung unter dem Cursor ausgeführt, statt die Abfrageauswahl anzuzeigen. Markiere Text, um einen bestimmten Bereich auszuführen.",
+    "formatter_title": "SQL-Formatierung",
+    "formatter_keywordCase": "Schlüsselwort-Schreibweise",
+    "formatter_keywordCaseDesc": "Groß-/Kleinschreibung von SQL-Schlüsselwörtern (SELECT, FROM, WHERE) nach der Formatierung.",
+    "formatter_functionCase": "Funktions-Schreibweise",
+    "formatter_functionCaseDesc": "Groß-/Kleinschreibung von Funktionsnamen (COUNT, SUM, COALESCE) nach der Formatierung.",
+    "formatter_indentStyle": "Einrückungsstil",
+    "formatter_indentStyleDesc": "Standard rückt normal ein. Tabellarisch richtet Klauseln in Spalten aus.",
+    "formatter_tabWidth": "Einrückungsbreite",
+    "formatter_useTabs": "Tabs verwenden",
+    "formatter_useTabsDesc": "Mit Tabs statt Leerzeichen einrücken.",
+    "formatter_linesBetweenQueries": "Zeilen zwischen Abfragen",
+    "formatter_linesBetweenQueriesDesc": "Anzahl der Leerzeilen zwischen separaten SQL-Anweisungen.",
+    "formatter_denseOperators": "Kompakte Operatoren",
+    "formatter_denseOperatorsDesc": "Leerzeichen um Operatoren entfernen (z.B. a=1 statt a = 1).",
     "editConfigJson": "config.json bearbeiten",
     "editConfigJsonDesc": "Bearbeite die rohe Konfigurationsdatei direkt. Ein Neustart ist erforderlich, um Änderungen anzuwenden.",
     "configJsonModal": {
@@ -595,6 +622,10 @@
         "copy": "Kopieren",
         "copied": "Kopiert!"
       },
+      "uninstallError": {
+        "title": "Deinstallation fehlgeschlagen",
+        "subtitle": "Bei der Deinstallation des Plugins ist ein Fehler aufgetreten. Siehe Details unten."
+      },
       "startError": {
         "title": "Plugin konnte nicht gestartet werden",
         "subtitle": "Der Plugin-Prozess konnte nicht gestartet werden. Prüfe die Fehlerdetails unten.",
@@ -646,9 +677,12 @@
       },
       "runQuery": "Abfrage ausführen",
       "runQueryEditor": "Abfrage ausführen (im Editor)",
+      "runAll": "Alle Anweisungen ausführen",
+      "runAllEditor": "Alle Anweisungen ausführen (im Editor)",
       "tabSwitcher": "Tab wechseln",
       "copySelection": "Auswahl kopieren",
       "toggleSidebar": "Seitenleiste umschalten",
+      "toggleRightSidebar": "Rechte Seitenleiste umschalten",
       "focusTableFilter": "Tabellenfilter fokussieren",
       "openConnections": "Verbindungen öffnen",
       "newConnection": "Neue Verbindung",
@@ -665,6 +699,7 @@
       "pasteImportClipboard": "Aus Zwischenablage importieren",
       "quickNavigator": "Schnellnavigation",
       "triggerSuggestions": "Vorschläge anzeigen",
+      "formatSql": "SQL formatieren",
       "refreshTable": "Tabelle aktualisieren"
     },
     "aiActivity": "KI-Aktivität",
@@ -975,6 +1010,7 @@
     "noActiveSession": "Keine aktive Sitzung. Bitte wähle eine Verbindung aus.",
     "stop": "Stopp",
     "run": "Ausführen",
+    "runAll": "Alle ausführen",
     "export": "Exportieren",
     "connected": "Verbunden",
     "disconnected": "Getrennt",
@@ -1038,10 +1074,14 @@
     "submitChanges": "Änderungen übernehmen",
     "rollbackChanges": "Änderungen zurückrollen",
     "applyToAll": "Auf alle anwenden",
+    "submit": "Übernehmen",
+    "rollback": "Zurückrollen",
+    "pendingCount": "{{count}} ausstehend",
     "executingQuery": "Abfrage wird ausgeführt...",
     "exporting": "Wird exportiert...",
     "rowsProcessed": "Verarbeitete Zeilen",
     "queryParameters": "Abfrageparameter",
+    "formatSql": "SQL formatieren",
     "convertToConsole": "In Konsole umwandeln",
     "parameters": "Parameter",
     "paramValuePlaceholder": "Wert (z. B. 'Text' oder 123)",
@@ -1415,7 +1455,6 @@
     "errorNoTables": "Bitte wähle mindestens eine Tabelle",
     "importStarted": "Import gestartet...",
     "importSuccess": "SQL-Datei erfolgreich ausgeführt",
-    "importFailure": "Import fehlgeschlagen: ",
     "importCancelled": "Import abgebrochen",
     "importFailed": "Import fehlgeschlagen",
     "importingFrom": "Importiere aus",
@@ -1463,7 +1502,14 @@
     "subtitle": "Zeile #{{row}}",
     "save": "Änderungen speichern",
     "cancel": "Abbrechen",
-    "enterValue": "Wert eingeben..."
+    "enterValue": "Wert eingeben...",
+    "pin": "An Zeile anheften",
+    "unpin": "Von Zeile lösen"
+  },
+  "rightSidebar": {
+    "resize": "Seitenleiste skalieren",
+    "collapse": "Rechte Seitenleiste einklappen",
+    "expand": "Rechte Seitenleiste ausklappen"
   },
   "contextMenu": {
     "openSidebar": "Seitenleisten-Editor öffnen",

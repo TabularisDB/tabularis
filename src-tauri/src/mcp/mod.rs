@@ -245,8 +245,11 @@ async fn resolve_db_params(
 ) -> Result<(crate::models::SavedConnection, ConnectionParams), JsonRpcError> {
     let mut conn = find_connection(conn_id)?;
 
-    // Load DB password from keychain if it isn't stored inline
-    if conn.params.save_in_keychain.unwrap_or(false) {
+    // Load DB password from keychain unless the connection uses IAM auth,
+    // whose 15-min tokens must come from the `password` field on every
+    // connect — never from the keychain, where a stale token would survive.
+    let iam_auth = conn.params.use_iam_auth.unwrap_or(false);
+    if !iam_auth && conn.params.save_in_keychain.unwrap_or(false) {
         let cache = std::sync::Arc::new(credential_cache::CredentialCache::default());
         let id = conn.id.clone();
         let pwd = tokio::task::spawn_blocking(move || {
@@ -264,6 +267,12 @@ async fn resolve_db_params(
                 conn.params.password = Some(p);
             }
         }
+    } else if iam_auth && conn.params.save_in_keychain.unwrap_or(false) {
+        log::warn!(
+            "MCP: connection {} has use_iam_auth=true; ignoring any password stored in the keychain. A fresh RDS auth token must be supplied on every connect.",
+            conn_id
+        );
+        conn.params.password = None;
     }
 
     let expanded = expand_ssh_params_for_mcp(&conn.params).await?;

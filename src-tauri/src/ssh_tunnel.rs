@@ -88,6 +88,7 @@ pub fn get_tunnels() -> &'static Mutex<HashMap<String, SshTunnel>> {
 }
 
 fn create_ssh_command() -> Command {
+    #[cfg_attr(not(windows), allow(unused_mut))]
     let mut cmd = Command::new("ssh");
     #[cfg(windows)]
     {

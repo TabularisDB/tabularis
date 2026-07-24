@@ -20,6 +20,26 @@
     "overridable": false
   },
   {
+    "id": "run_all",
+    "category": "editor",
+    "defaultMac": "⌘+⇧+F5",
+    "defaultWin": "Ctrl+Shift+F5",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "F5" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "F5" },
+    "i18nKey": "settings.shortcuts.runAll",
+    "overridable": false
+  },
+  {
+    "id": "run_all_editor",
+    "category": "editor",
+    "defaultMac": "⌘+⇧+Enter",
+    "defaultWin": "Ctrl+Shift+Enter",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "Enter" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "Enter" },
+    "i18nKey": "settings.shortcuts.runAllEditor",
+    "overridable": false
+  },
+  {
     "id": "new_tab",
     "category": "editor",
     "defaultMac": "⌘+T",
@@ -110,6 +130,16 @@
     "overridable": true
   },
   {
+    "id": "toggle_right_sidebar",
+    "category": "navigation",
+    "defaultMac": "⌘+Shift+B",
+    "defaultWin": "Ctrl+Shift+B",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "b" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "b" },
+    "i18nKey": "settings.shortcuts.toggleRightSidebar",
+    "overridable": true
+  },
+  {
     "id": "focus_table_filter",
     "category": "navigation",
     "defaultMac": "⌘+Shift+F",
@@ -183,10 +213,20 @@
     "id": "trigger_suggestions",
     "category": "editor",
     "defaultMac": "⌘+I",
-    "defaultWin": "Ctrl+I",
+    "defaultWin": "Ctrl+Space",
     "macMatch": { "metaKey": true, "key": "i" },
-    "winMatch": { "ctrlKey": true, "key": "i" },
+    "winMatch": { "ctrlKey": true, "key": " " },
     "i18nKey": "settings.shortcuts.triggerSuggestions",
     "overridable": true
+  },
+  {
+    "id": "format_sql",
+    "category": "editor",
+    "defaultMac": "Shift+⌥+F",
+    "defaultWin": "Shift+Alt+F",
+    "macMatch": { "shiftKey": true, "altKey": true, "key": "f" },
+    "winMatch": { "shiftKey": true, "altKey": true, "key": "f" },
+    "i18nKey": "settings.shortcuts.formatSql",
+    "overridable": false
   }
 ]

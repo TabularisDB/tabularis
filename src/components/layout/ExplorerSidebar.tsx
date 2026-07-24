@@ -2561,6 +2561,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           onClose={() => setImportModal(null)}
           connectionId={activeConnectionId}
           databaseName={importModal.database || activeDatabaseName || "Database"}
+          targetDatabase={importModal.database || activeDatabaseName || undefined}
           filePath={importModal.filePath}
           onSuccess={() => {
             if (refreshTables) refreshTables();

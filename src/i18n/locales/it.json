@@ -184,7 +184,10 @@
       "delete": "Elimina",
       "deleteConfirm": "Eliminare il notebook \"{{title}}\"? L'operazione non è reversibile.",
       "renamePlaceholder": "Nome del notebook"
-    }
+    },
+    "addToSplitGroup": "Aggiungi al Gruppo Split",
+    "removeFromSplitGroup": "Rimuovi dal Gruppo",
+    "movePanel": "Sposta pannello"
   },
   "groups": {
     "title": "Gruppi",
@@ -393,6 +396,13 @@
     "delimiterPipe": "Pipe (|)",
     "csvIncludeHeaders": "Includi intestazioni CSV",
     "csvIncludeHeadersDesc": "Includi una riga di intestazione con i nomi delle colonne quando copi le righe come CSV.",
+    "rowEditorFollowSelection": "L'editor di riga segue la selezione",
+    "rowEditorFollowSelectionDesc": "Quando la barra laterale dell'editor di riga è aperta, si aggiorna automaticamente per mostrare la riga appena selezionata.",
+    "cellDoubleClickAction": "Azione doppio clic sulla cella",
+    "cellDoubleClickActionDesc": "Scegli cosa succede quando fai doppio clic su una cella di dati.",
+    "cellDoubleClickInline": "Modifica in linea",
+    "cellDoubleClickSidebar": "Apri nella barra laterale",
+    "cellDoubleClickBoth": "Entrambi",
     "csvHeaders": "Esporta nomi colonne",
     "detectJsonInTextColumns": "Rileva JSON nelle colonne di testo",
     "detectJsonInTextColumnsDesc": "Mostra il visualizzatore JSON quando una cella di testo non tipizzata contiene un oggetto o un array JSON. Aggiunge un piccolo costo di analisi per cella.",
@@ -427,6 +437,23 @@
     "appearance_editorShowLineNumbersDesc": "Visualizza i numeri di riga nel margine dell'editor.",
     "appearance_editorAcceptSuggestionOnEnter": "Accetta Suggerimento con Invio",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Permetti al tasto Invio (oltre a Tab) di accettare il suggerimento di autocompletamento attivo. Quando disattivato, Invio inserisce sempre una nuova riga.",
+    "queryExecution": "Esecuzione query",
+    "runStatementUnderCursor": "Esegui l'istruzione sotto il cursore",
+    "runStatementUnderCursorDesc": "Quando uno script contiene più istruzioni, esegue quella sotto il cursore invece di mostrare il selettore di query. Seleziona il testo per eseguire un intervallo specifico.",
+    "formatter_title": "Formattatore SQL",
+    "formatter_keywordCase": "Maiuscole parole chiave",
+    "formatter_keywordCaseDesc": "Come vengono capitalizzate le parole chiave SQL (SELECT, FROM, WHERE) dopo la formattazione.",
+    "formatter_functionCase": "Maiuscole funzioni",
+    "formatter_functionCaseDesc": "Come vengono capitalizzati i nomi delle funzioni (COUNT, SUM, COALESCE) dopo la formattazione.",
+    "formatter_indentStyle": "Stile indentazione",
+    "formatter_indentStyleDesc": "Standard indenta normalmente. Tabulare allinea le clausole in colonne.",
+    "formatter_tabWidth": "Larghezza indentazione",
+    "formatter_useTabs": "Usa tabulazioni",
+    "formatter_useTabsDesc": "Indenta con tabulazioni invece di spazi.",
+    "formatter_linesBetweenQueries": "Righe tra query",
+    "formatter_linesBetweenQueriesDesc": "Numero di righe vuote tra istruzioni SQL separate.",
+    "formatter_denseOperators": "Operatori compatti",
+    "formatter_denseOperatorsDesc": "Rimuovi spazi intorno agli operatori (es. a=1 invece di a = 1).",
     "editConfigJson": "Modifica config.json",
     "editConfigJsonDesc": "Modifica direttamente il file di configurazione grezzo. È necessario un riavvio per applicare le modifiche.",
     "configJsonModal": {
@@ -620,6 +647,10 @@
         "copy": "Copia",
         "copied": "Copiato!"
       },
+      "uninstallError": {
+        "title": "Disinstallazione fallita",
+        "subtitle": "Si è verificato un errore durante la disinstallazione del plugin. Vedi i dettagli qui sotto."
+      },
       "startError": {
         "title": "Plugin non avviato",
         "subtitle": "Impossibile avviare il processo del plugin. Controlla i dettagli dell'errore.",
@@ -671,9 +702,12 @@
       },
       "runQuery": "Esegui query",
       "runQueryEditor": "Esegui query (nell'editor)",
+      "runAll": "Esegui tutte le istruzioni",
+      "runAllEditor": "Esegui tutte le istruzioni (nell'editor)",
       "tabSwitcher": "Cambia tab",
       "copySelection": "Copia selezione",
       "toggleSidebar": "Mostra/nascondi sidebar",
+      "toggleRightSidebar": "Attiva/disattiva barra laterale destra",
       "focusTableFilter": "Focalizza il filtro tabelle",
       "openConnections": "Apri connessioni",
       "newConnection": "Nuova connessione",
@@ -690,6 +724,7 @@
       "pasteImportClipboard": "Importa dagli Appunti",
       "quickNavigator": "Navigatore rapido",
       "triggerSuggestions": "Mostra suggerimenti",
+      "formatSql": "Formatta SQL",
       "refreshTable": "Aggiorna tabella"
     },
     "aiActivity": "Attività AI",
@@ -978,6 +1013,7 @@
     "noActiveSession": "Nessuna sessione attiva. Seleziona una connessione.",
     "stop": "Stop",
     "run": "Esegui",
+    "runAll": "Esegui tutto",
     "export": "Esporta",
     "connected": "Connesso",
     "disconnected": "Disconnesso",
@@ -1060,10 +1096,14 @@
     "submitChanges": "Invia Modifiche",
     "rollbackChanges": "Annulla Modifiche",
     "applyToAll": "Applica a tutto",
+    "submit": "Invia",
+    "rollback": "Annulla",
+    "pendingCount": "{{count}} in sospeso",
     "executingQuery": "Esecuzione query...",
     "exporting": "Esportazione in corso...",
     "rowsProcessed": "Righe processate",
     "queryParameters": "Parametri Query",
+    "formatSql": "Formatta SQL",
     "convertToConsole": "Converti in Console",
     "parameters": "Parametri",
     "paramValuePlaceholder": "Valore (es. 'testo' o 123)",
@@ -1437,7 +1477,6 @@
     "errorNoTables": "Seleziona almeno una tabella",
     "importStarted": "Importazione avviata...",
     "importSuccess": "File SQL eseguito con successo",
-    "importFailure": "Importazione fallita: ",
     "importCancelled": "Importazione annullata",
     "importFailed": "Importazione fallita",
     "importingFrom": "Importazione da",
@@ -1485,7 +1524,14 @@
     "subtitle": "Riga #{{row}}",
     "save": "Salva Modifiche",
     "cancel": "Annulla",
-    "enterValue": "Inserisci valore..."
+    "enterValue": "Inserisci valore...",
+    "pin": "Fissa",
+    "unpin": "Sgancia"
+  },
+  "rightSidebar": {
+    "resize": "Ridimensiona",
+    "collapse": "Comprimi",
+    "expand": "Espandi"
   },
   "contextMenu": {
     "openSidebar": "Apri Barra Laterale",

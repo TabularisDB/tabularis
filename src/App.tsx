@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { MainLayout } from "./components/layout/MainLayout";
 import { ConnectionLayoutProvider } from "./contexts/ConnectionLayoutProvider";
+import { RightSidebarProvider } from "./contexts/RightSidebarProvider";
 import { KeybindingsProvider } from "./contexts/KeybindingsProvider";
 import { PluginSlotProvider } from "./contexts/PluginSlotProvider";
 import { PluginModalProvider } from "./contexts/PluginModalProvider";
@@ -118,6 +119,7 @@ export function App() {
             <PluginSlotProvider>
               <PluginModalProvider>
                 <ConnectionLayoutProvider>
+                  <RightSidebarProvider>
                   <Routes>
                     <Route path="/" element={<MainLayout />}>
                       <Route
@@ -148,6 +150,7 @@ export function App() {
                       element={<ResultsWindowPage />}
                     />
                   </Routes>
+                  </RightSidebarProvider>
                 </ConnectionLayoutProvider>
               </PluginModalProvider>
             </PluginSlotProvider>

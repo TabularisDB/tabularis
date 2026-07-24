@@ -15,7 +15,11 @@ import {
 } from "../../utils/columnTypes";
 import { EnumSetInput } from "./EnumSetInput";
 import { isBlobColumn } from "../../utils/blob";
-import { isJsonColumn, isJsonContent } from "../../utils/json";
+import {
+  isJsonColumn,
+  isJsonContent,
+  isStructuredValue,
+} from "../../utils/json";
 import {
   isLongTextValue,
   isTextColumn,
@@ -74,11 +78,10 @@ export const FieldEditor = ({
   const detectedJson =
     !isBlob &&
     !isGeometric &&
-    detectJsonInTextColumns &&
-    (Array.isArray(value) ||
-      Array.isArray(originalValue) ||
-      isJsonContent(value) ||
-      isJsonContent(originalValue));
+    (isStructuredValue(value) ||
+      isStructuredValue(originalValue) ||
+      (detectJsonInTextColumns &&
+        (isJsonContent(value) || isJsonContent(originalValue))));
   const isJson = isJsonByType || detectedJson;
   const dateMode = !isJson && type ? getDateInputMode(type) : null;
   const isEnum =

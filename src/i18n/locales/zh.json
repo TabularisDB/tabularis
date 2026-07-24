@@ -183,7 +183,10 @@
       "delete": "删除",
       "deleteConfirm": "删除笔记本“{{title}}”？此操作无法撤销。",
       "renamePlaceholder": "笔记本名称"
-    }
+    },
+    "addToSplitGroup": "添加到拆分组",
+    "removeFromSplitGroup": "从组中移除",
+    "movePanel": "移动面板"
   },
   "mcp": {
     "title": "MCP 服务器集成",
@@ -367,6 +370,13 @@
     "delimiterPipe": "管道符 (|)",
     "csvIncludeHeaders": "包含 CSV 表头",
     "csvIncludeHeadersDesc": "以 CSV 格式复制行时包含含有列名的表头行。",
+    "rowEditorFollowSelection": "行编辑器跟随选择",
+    "rowEditorFollowSelectionDesc": "当行编辑器侧边栏打开时，自动更新以显示新选择的行。",
+    "cellDoubleClickAction": "单元格双击操作",
+    "cellDoubleClickActionDesc": "选择双击数据单元格时执行的操作。",
+    "cellDoubleClickInline": "内联编辑",
+    "cellDoubleClickSidebar": "在侧边栏中打开",
+    "cellDoubleClickBoth": "两者",
     "csvHeaders": "导出列名",
     "detectJsonInTextColumns": "在文本列中检测 JSON",
     "detectJsonInTextColumnsDesc": "当未带类型的文本单元格包含 JSON 对象或数组时显示 JSON 查看器入口。每单元格会增加少量解析开销。",
@@ -392,6 +402,20 @@
     "english": "English",
     "italian": "Italiano",
     "spanish": "Español",
+    "formatter_title": "SQL 格式化",
+    "formatter_keywordCase": "关键字大小写",
+    "formatter_keywordCaseDesc": "格式化后 SQL 关键字（SELECT、FROM、WHERE）的大小写处理。",
+    "formatter_functionCase": "函数大小写",
+    "formatter_functionCaseDesc": "格式化后函数名（COUNT、SUM、COALESCE）的大小写处理。",
+    "formatter_indentStyle": "缩进风格",
+    "formatter_indentStyleDesc": "标准为普通缩进。表格式将子句对齐为列。",
+    "formatter_tabWidth": "缩进宽度",
+    "formatter_useTabs": "使用制表符",
+    "formatter_useTabsDesc": "使用制表符而非空格缩进。",
+    "formatter_linesBetweenQueries": "查询间空行数",
+    "formatter_linesBetweenQueriesDesc": "SQL 语句之间插入的空行数。",
+    "formatter_denseOperators": "紧凑运算符",
+    "formatter_denseOperatorsDesc": "移除运算符周围的空格（例如 a=1 而非 a = 1）。",
     "projectStatus": "项目状态",
     "roadmapDesc": "此项目是正在进行的工作 (WIP)。核心功能已稳定，但我们有更大的计划。",
     "support": "支持开发",
@@ -564,6 +588,10 @@
         "copy": "复制",
         "copied": "已复制！"
       },
+      "uninstallError": {
+        "title": "卸载失败",
+        "subtitle": "卸载插件时发生错误。请参阅下面的详细信息。"
+      },
       "startError": {
         "title": "插件启动失败",
         "subtitle": "无法启动插件进程。请参阅下面的错误详细信息。",
@@ -615,9 +643,12 @@
       },
       "runQuery": "运行查询",
       "runQueryEditor": "运行查询（编辑器中）",
+      "runAll": "运行所有语句",
+      "runAllEditor": "运行所有语句（编辑器中）",
       "tabSwitcher": "切换标签",
       "copySelection": "复制选区",
       "toggleSidebar": "切换侧边栏",
+      "toggleRightSidebar": "切换右侧边栏",
       "focusTableFilter": "聚焦表格筛选",
       "openConnections": "打开连接",
       "newConnection": "新建连接",
@@ -633,6 +664,7 @@
       "categories_notebook": "笔记本",
       "quickNavigator": "快速导航",
       "triggerSuggestions": "触发建议",
+      "formatSql": "格式化 SQL",
       "refreshTable": "刷新表格"
     },
     "aiActivity": "AI 活动",
@@ -683,7 +715,10 @@
       "nextBackup": "下次备份：{{date}}",
       "nextBackupSoon": "下次备份：下次检查时",
       "hours": "小时"
-    }
+    },
+    "queryExecution": "查询执行",
+    "runStatementUnderCursor": "执行光标所在的语句",
+    "runStatementUnderCursorDesc": "当脚本包含多条语句时，执行光标所在的语句，而不显示查询选择器。选中文本可执行指定范围。"
   },
   "update": {
     "newVersionAvailable": "有新版本可用",
@@ -942,6 +977,7 @@
     "noActiveSession": "无活动会话。请选择一个连接。",
     "stop": "停止",
     "run": "运行",
+    "runAll": "全部运行",
     "export": "导出",
     "connected": "已连接",
     "disconnected": "已断开",
@@ -1004,10 +1040,14 @@
     "submitChanges": "提交更改",
     "rollbackChanges": "回滚更改",
     "applyToAll": "应用到全部",
+    "submit": "提交",
+    "rollback": "回滚",
+    "pendingCount": "{{count}} 待处理",
     "executingQuery": "执行查询中...",
     "exporting": "导出中...",
     "rowsProcessed": "已处理行数",
     "queryParameters": "查询参数",
+    "formatSql": "格式化 SQL",
     "convertToConsole": "转换为控制台",
     "parameters": "参数",
     "paramValuePlaceholder": "值（例如 'text' 或 123）",
@@ -1359,7 +1399,6 @@
     "errorNoTables": "请至少选择一个表",
     "importStarted": "导入开始...",
     "importSuccess": "SQL 文件执行成功",
-    "importFailure": "导入失败：",
     "importCancelled": "导入已取消",
     "importFailed": "导入失败",
     "importingFrom": "从以下文件导入",
@@ -1407,7 +1446,14 @@
     "subtitle": "行 #{{row}}",
     "save": "保存更改",
     "cancel": "取消",
-    "enterValue": "输入值..."
+    "enterValue": "输入值...",
+    "pin": "固定",
+    "unpin": "取消固定"
+  },
+  "rightSidebar": {
+    "resize": "调整大小",
+    "collapse": "折叠",
+    "expand": "展开"
   },
   "contextMenu": {
     "openSidebar": "打开侧边栏编辑器",

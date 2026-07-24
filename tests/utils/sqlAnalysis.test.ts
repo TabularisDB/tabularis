@@ -3,10 +3,53 @@ import { parseTablesFromQuery, getCurrentStatement, isDestructiveWithoutWhere, c
 
 describe('sqlAnalysis utils', () => {
   describe('parseTablesFromQuery', () => {
-    it('should return null for empty or non-FROM queries', () => {
+    it('should return null for empty queries or queries without table references', () => {
       expect(parseTablesFromQuery('')).toBeNull();
       expect(parseTablesFromQuery('SELECT 1')).toBeNull();
-      expect(parseTablesFromQuery('UPDATE t SET c=1')).toBeNull(); // Currently only looks for FROM/JOIN
+    });
+
+    it('should extract the INSERT target table', () => {
+      const result = parseTablesFromQuery('INSERT INTO orders (');
+      expect(result?.get('orders')?.name).toBe('orders');
+    });
+
+    it('should extract INSERT variants: without INTO, IGNORE, REPLACE', () => {
+      expect(parseTablesFromQuery('INSERT orders VALUES (1)')?.get('orders')?.name).toBe('orders');
+      expect(parseTablesFromQuery('INSERT IGNORE INTO orders (')?.get('orders')?.name).toBe('orders');
+      expect(parseTablesFromQuery('REPLACE INTO orders (')?.get('orders')?.name).toBe('orders');
+    });
+
+    it('should extract a schema-qualified INSERT target', () => {
+      const ref = parseTablesFromQuery('INSERT INTO blog_demo.posts (')?.get('posts');
+      expect(ref?.name).toBe('posts');
+      expect(ref?.schema).toBe('blog_demo');
+    });
+
+    it('should extract a quoted INSERT target', () => {
+      expect(parseTablesFromQuery('INSERT INTO "AccountEventLog" (')?.get('AccountEventLog')?.name).toBe('AccountEventLog');
+      expect(parseTablesFromQuery('INSERT INTO `orders` (')?.get('orders')?.name).toBe('orders');
+    });
+
+    it('should extract the UPDATE target table, with and without alias', () => {
+      expect(parseTablesFromQuery('UPDATE t SET c=1')?.get('t')?.name).toBe('t');
+      expect(parseTablesFromQuery('UPDATE users SET ')?.get('users')?.name).toBe('users');
+      expect(parseTablesFromQuery('UPDATE users u SET ')?.get('u')?.name).toBe('users');
+    });
+
+    it('should combine UPDATE target with FROM tables (postgres UPDATE ... FROM)', () => {
+      const result = parseTablesFromQuery('UPDATE users u SET name = o.name FROM orders o WHERE o.user_id = u.id');
+      expect(result?.get('u')?.name).toBe('users');
+      expect(result?.get('o')?.name).toBe('orders');
+    });
+
+    it('should not treat FOR UPDATE or ON DUPLICATE KEY UPDATE as targets', () => {
+      const forUpdate = parseTablesFromQuery('SELECT * FROM orders FOR UPDATE OF orders');
+      expect(forUpdate?.size).toBe(1);
+      expect(forUpdate?.get('orders')?.name).toBe('orders');
+
+      const dupKey = parseTablesFromQuery('INSERT INTO orders (id) VALUES (1) ON DUPLICATE KEY UPDATE total = 0');
+      expect(dupKey?.get('orders')?.name).toBe('orders');
+      expect(dupKey?.has('total')).toBe(false);
     });
 
     it('should extract simple table name', () => {

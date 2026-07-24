@@ -109,7 +109,7 @@
 
   --border-subtle: #1e293b;
   --border-default: #334155;
-  --border-strong: #475569;
+  --border-strong: #5b6b82;
   --border-focus: #3b82f6;
   
   --semantic-string: #f87171;
@@ -128,6 +128,15 @@
   --radius-base: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
@@ -159,6 +168,16 @@ code {
 }
 
 @layer utilities {
+  .overflow-auto {
+    overscroll-behavior: none;
+  }
+  .overflow-y-auto {
+    overscroll-behavior-y: none;
+  }
+  .overflow-x-auto {
+    overscroll-behavior-x: none;
+  }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -418,6 +437,11 @@ select option:active {
 
 .monaco-editor .view-overlays .selected-text {
   background-color: color-mix(in srgb, var(--surface-active) 32%, transparent) !important;
+}
+
+/* Statement-at-cursor highlight (Cmd+Enter run target) */
+.cursor-statement-highlight {
+  background-color: color-mix(in srgb, var(--accent-primary) 10%, transparent);
 }
 
 /* Sidebar slide-in animation */
