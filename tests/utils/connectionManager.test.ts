@@ -188,20 +188,21 @@ describe('connectionManager', () => {
   describe('getConnectionItemClass', () => {
     it('should return active classes when isActive is true', () => {
       const result = getConnectionItemClass(true);
-      expect(result).toContain('bg-blue-500/20');
       expect(result).toContain('text-blue-400');
-      expect(result).toContain('ring-1');
+      // Active state must not paint a button background: it is conveyed by
+      // the enlarged driver badge + rail indicator
+      expect(result).not.toContain('bg-');
     });
 
     it('should return inactive classes when isActive is false', () => {
       const result = getConnectionItemClass(false);
       expect(result).toContain('text-secondary');
-      expect(result).toContain('hover:bg-surface-secondary');
+      expect(result).toContain('hover:text-primary');
     });
 
     it('should not return active classes when isActive is false', () => {
       const result = getConnectionItemClass(false);
-      expect(result).not.toContain('bg-blue-500/20');
+      expect(result).not.toContain('text-blue-400');
     });
   });
 

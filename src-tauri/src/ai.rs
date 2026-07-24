@@ -98,7 +98,7 @@ struct AiModelsCache {
 fn load_default_models() -> HashMap<String, Vec<String>> {
     let yaml_content = include_str!("ai_models.yaml");
     serde_yaml::from_str(yaml_content).unwrap_or_else(|e| {
-        println!("Failed to parse models.yaml: {}", e);
+        eprintln!("Failed to parse models.yaml: {}", e);
         HashMap::new() // Fallback to empty map on critical error (should be caught by tests)
     })
 }

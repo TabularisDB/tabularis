@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -19,7 +19,10 @@ interface ImportDatabaseModalProps {
   isOpen: boolean;
   onClose: () => void;
   connectionId: string;
+  /** Display label only — may fall back to a generic string. */
   databaseName: string;
+  /** Actual database to scope the import to. Undefined when unknown. */
+  targetDatabase?: string;
   filePath: string;
   onSuccess?: () => void;
 }
@@ -29,6 +32,7 @@ export const ImportDatabaseModal = ({
   onClose,
   connectionId,
   databaseName,
+  targetDatabase,
   filePath,
   onSuccess,
 }: ImportDatabaseModalProps) => {
@@ -41,6 +45,10 @@ export const ImportDatabaseModal = ({
   const [success, setSuccess] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0); // in seconds
   const [startTime, setStartTime] = useState<number | null>(null);
+  // Guards against the effect firing the import twice: React strict-mode double
+  // mounts, and startImport being recreated when its deps change, both re-run the
+  // effect. Without this the whole dump is executed twice against the database.
+  const hasStartedRef = useRef(false);
 
   const startImport = useCallback(async () => {
     setIsImporting(true);
@@ -54,6 +62,7 @@ export const ImportDatabaseModal = ({
         connectionId,
         filePath,
         ...(activeSchema ? { schema: activeSchema } : {}),
+        ...(targetDatabase ? { database: targetDatabase } : {}),
       });
 
       setSuccess(true);
@@ -62,23 +71,12 @@ export const ImportDatabaseModal = ({
       if (onSuccess) {
         onSuccess();
       }
-
-      // Auto-close after 2 seconds on success
-      setTimeout(() => {
-        onClose();
-      }, 2000);
     } catch (e) {
-      const errorMsg = String(e);
-      setError(errorMsg);
+      // The error is rendered inside this modal — no extra alert dialog.
+      setError(String(e));
       setIsImporting(false);
-
-      if (!errorMsg.includes("cancelled")) {
-        showAlert(t("dump.importFailure") + ": " + errorMsg, {
-          kind: "error",
-        });
-      }
     }
-  }, [connectionId, filePath, activeSchema, onSuccess, onClose, t, showAlert]);
+  }, [connectionId, filePath, activeSchema, targetDatabase, onSuccess]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -90,13 +88,25 @@ export const ImportDatabaseModal = ({
       setSuccess(false);
       setElapsedTime(0);
       setStartTime(null);
+      hasStartedRef.current = false;
       return;
     }
 
-    // Start import automatically when modal opens
+    // Start import automatically when the modal opens — but only once per opening.
+    if (hasStartedRef.current) {
+      return;
+    }
+    hasStartedRef.current = true;
     startImport();
+  }, [isOpen, startImport]);
 
-    // Listen to progress events
+  // The progress listener lives in its own effect: if it shared the starter
+  // effect above, any re-run (strict-mode double mount, startImport changing
+  // identity mid-import) would clean up the subscription and then hit the
+  // run-once guard, leaving the rest of the import without progress updates.
+  useEffect(() => {
+    if (!isOpen) return;
+
     const unlisten = listen<ImportProgress>("import_progress", (event) => {
       setProgress(event.payload);
     });
@@ -104,7 +114,7 @@ export const ImportDatabaseModal = ({
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [isOpen, startImport]);
+  }, [isOpen]);
 
   // Timer for elapsed time
   useEffect(() => {
@@ -144,7 +154,6 @@ export const ImportDatabaseModal = ({
           <button
             onClick={handleCancel}
             className="text-muted hover:text-primary text-xl leading-none"
-            disabled={success}
           >
             &times;
           </button>
@@ -239,10 +248,17 @@ export const ImportDatabaseModal = ({
 
           {/* Error Message */}
           {error && !isImporting && (
-            <div className="text-center text-red-500 text-sm">
-              {error.includes("cancelled")
-                ? t("dump.importCancelled")
-                : t("dump.importFailed")}
+            <div className="space-y-2">
+              <div className="text-center text-red-500 text-sm font-medium">
+                {error.includes("cancelled")
+                  ? t("dump.importCancelled")
+                  : t("dump.importFailed")}
+              </div>
+              {!error.includes("cancelled") && (
+                <div className="max-h-40 overflow-y-auto bg-red-900/10 border border-red-900/40 rounded-lg p-3 text-xs text-red-400 font-mono whitespace-pre-wrap break-words text-left">
+                  {error}
+                </div>
+              )}
             </div>
           )}
 
@@ -266,7 +282,7 @@ export const ImportDatabaseModal = ({
               onClick={onClose}
               className="px-4 py-2 rounded hover:bg-surface-secondary transition-colors"
             >
-              {success ? t("common.close") : t("common.cancel")}
+              {success || error ? t("common.close") : t("common.cancel")}
             </button>
           )}
         </div>

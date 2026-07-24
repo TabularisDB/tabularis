@@ -1,0 +1,94 @@
+name: Nightly
+
+# Signed nightly builds of main. Each nightly gets its OWN tag
+# (nightly-<date>-<sha>) rather than one rolling release, so a follow-up PR can
+# surface them as a selectable "nightly" release channel in the updater.
+#
+# A build happens only when BOTH hold:
+#   * a commit on main passed the `CI` workflow, and
+#   * that green commit hasn't already been shipped as a nightly.
+# We build the last GREEN commit (not necessarily main's tip), so a failing or
+# still-running CI never produces a nightly, and a day with no new tested code
+# produces no release. The prerelease flag keeps nightlies out of
+# AUR/Snap/Winget (those gate on !prerelease).
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC daily
+  workflow_dispatch: {} # manual "build a nightly now"
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      should_build: ${{ steps.decide.outputs.should_build }}
+      sha: ${{ steps.decide.outputs.sha }}
+      tag: ${{ steps.decide.outputs.tag }}
+    steps:
+      - name: Decide whether a nightly is due
+        id: decide
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Last commit on main whose CI run concluded success. Path filters mean
+          # not every main commit runs CI, so this is the newest *tested* commit,
+          # which is exactly what we want to ship.
+          validated_sha=$(gh api \
+            "repos/$GH_REPO/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // ""')
+
+          if [ -z "$validated_sha" ]; then
+            echo "No successful CI run on main — nothing to ship."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Commit shipped by the most recent existing nightly, if any. The old
+          # rolling `nightly` tag has no dash, so `nightly-` never matches it.
+          last_tag=$(gh release list --limit 100 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("nightly-"))]
+                  | sort_by(.createdAt) | last | .tagName // ""')
+          last_sha=""
+          if [ -n "$last_tag" ]; then
+            last_sha=$(gh api "repos/$GH_REPO/commits/$last_tag" --jq '.sha // ""' || echo "")
+          fi
+
+          if [ "$validated_sha" = "$last_sha" ]; then
+            echo "Latest green commit $validated_sha already shipped as $last_tag."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          tag="nightly-$(date -u +%Y%m%d)-${validated_sha:0:7}"
+          echo "Building $tag from $validated_sha (previous nightly: ${last_tag:-none})."
+          {
+            echo "should_build=true"
+            echo "sha=$validated_sha"
+            echo "tag=$tag"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: gate
+    if: needs.gate.outputs.should_build == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+    with:
+      # Pin to the exact commit CI validated, so the tag can't drift to a
+      # newer, untested main tip between the gate and the build.
+      ref: ${{ needs.gate.outputs.sha }}
+      tag: ${{ needs.gate.outputs.tag }}
+      release_name: "Nightly (v__VERSION__)"
+      prerelease: true
+      draft: false

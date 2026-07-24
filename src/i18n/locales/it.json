@@ -150,6 +150,8 @@
     "noTablesMatch": "Nessuna tabella trovata",
     "filterDatabases": "Filtra database...",
     "manageDatabases": "Gestisci Database",
+    "databaseSelectionUpdated": "Selezione database aggiornata",
+    "droppedDatabasesRemoved": "Rimossi perché non più presenti sul server: {{names}}",
     "structure": "Struttura",
     "favorites": "Preferiti",
     "queryHistory": "Cronologia",
@@ -184,7 +186,10 @@
       "delete": "Elimina",
       "deleteConfirm": "Eliminare il notebook \"{{title}}\"? L'operazione non è reversibile.",
       "renamePlaceholder": "Nome del notebook"
-    }
+    },
+    "addToSplitGroup": "Aggiungi al Gruppo Split",
+    "removeFromSplitGroup": "Rimuovi dal Gruppo",
+    "movePanel": "Sposta pannello"
   },
   "groups": {
     "title": "Gruppi",
@@ -393,6 +398,13 @@
     "delimiterPipe": "Pipe (|)",
     "csvIncludeHeaders": "Includi intestazioni CSV",
     "csvIncludeHeadersDesc": "Includi una riga di intestazione con i nomi delle colonne quando copi le righe come CSV.",
+    "rowEditorFollowSelection": "L'editor di riga segue la selezione",
+    "rowEditorFollowSelectionDesc": "Quando la barra laterale dell'editor di riga è aperta, si aggiorna automaticamente per mostrare la riga appena selezionata.",
+    "cellDoubleClickAction": "Azione doppio clic sulla cella",
+    "cellDoubleClickActionDesc": "Scegli cosa succede quando fai doppio clic su una cella di dati.",
+    "cellDoubleClickInline": "Modifica in linea",
+    "cellDoubleClickSidebar": "Apri nella barra laterale",
+    "cellDoubleClickBoth": "Entrambi",
     "csvHeaders": "Esporta nomi colonne",
     "detectJsonInTextColumns": "Rileva JSON nelle colonne di testo",
     "detectJsonInTextColumnsDesc": "Mostra il visualizzatore JSON quando una cella di testo non tipizzata contiene un oggetto o un array JSON. Aggiunge un piccolo costo di analisi per cella.",
@@ -427,6 +439,23 @@
     "appearance_editorShowLineNumbersDesc": "Visualizza i numeri di riga nel margine dell'editor.",
     "appearance_editorAcceptSuggestionOnEnter": "Accetta Suggerimento con Invio",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Permetti al tasto Invio (oltre a Tab) di accettare il suggerimento di autocompletamento attivo. Quando disattivato, Invio inserisce sempre una nuova riga.",
+    "queryExecution": "Esecuzione query",
+    "runStatementUnderCursor": "Esegui l'istruzione sotto il cursore",
+    "runStatementUnderCursorDesc": "Quando uno script contiene più istruzioni, esegue quella sotto il cursore invece di mostrare il selettore di query. Seleziona il testo per eseguire un intervallo specifico.",
+    "formatter_title": "Formattatore SQL",
+    "formatter_keywordCase": "Maiuscole parole chiave",
+    "formatter_keywordCaseDesc": "Come vengono capitalizzate le parole chiave SQL (SELECT, FROM, WHERE) dopo la formattazione.",
+    "formatter_functionCase": "Maiuscole funzioni",
+    "formatter_functionCaseDesc": "Come vengono capitalizzati i nomi delle funzioni (COUNT, SUM, COALESCE) dopo la formattazione.",
+    "formatter_indentStyle": "Stile indentazione",
+    "formatter_indentStyleDesc": "Standard indenta normalmente. Tabulare allinea le clausole in colonne.",
+    "formatter_tabWidth": "Larghezza indentazione",
+    "formatter_useTabs": "Usa tabulazioni",
+    "formatter_useTabsDesc": "Indenta con tabulazioni invece di spazi.",
+    "formatter_linesBetweenQueries": "Righe tra query",
+    "formatter_linesBetweenQueriesDesc": "Numero di righe vuote tra istruzioni SQL separate.",
+    "formatter_denseOperators": "Operatori compatti",
+    "formatter_denseOperatorsDesc": "Rimuovi spazi intorno agli operatori (es. a=1 invece di a = 1).",
     "editConfigJson": "Modifica config.json",
     "editConfigJsonDesc": "Modifica direttamente il file di configurazione grezzo. È necessario un riavvio per applicare le modifiche.",
     "configJsonModal": {
@@ -620,6 +649,10 @@
         "copy": "Copia",
         "copied": "Copiato!"
       },
+      "uninstallError": {
+        "title": "Disinstallazione fallita",
+        "subtitle": "Si è verificato un errore durante la disinstallazione del plugin. Vedi i dettagli qui sotto."
+      },
       "startError": {
         "title": "Plugin non avviato",
         "subtitle": "Impossibile avviare il processo del plugin. Controlla i dettagli dell'errore.",
@@ -658,7 +691,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "Powered by",
+      "openHomepage": "Apri homepage"
     },
     "shortcuts": {
       "title": "Scorciatoie da tastiera",
@@ -669,9 +704,12 @@
       },
       "runQuery": "Esegui query",
       "runQueryEditor": "Esegui query (nell'editor)",
+      "runAll": "Esegui tutte le istruzioni",
+      "runAllEditor": "Esegui tutte le istruzioni (nell'editor)",
       "tabSwitcher": "Cambia tab",
       "copySelection": "Copia selezione",
       "toggleSidebar": "Mostra/nascondi sidebar",
+      "toggleRightSidebar": "Attiva/disattiva barra laterale destra",
       "focusTableFilter": "Focalizza il filtro tabelle",
       "openConnections": "Apri connessioni",
       "newConnection": "Nuova connessione",
@@ -688,9 +726,58 @@
       "pasteImportClipboard": "Importa dagli Appunti",
       "quickNavigator": "Navigatore rapido",
       "triggerSuggestions": "Mostra suggerimenti",
+      "formatSql": "Formatta SQL",
       "refreshTable": "Aggiorna tabella"
     },
-    "aiActivity": "Attività AI"
+    "aiActivity": "Attività AI",
+    "backup": {
+      "title": "Backup",
+      "directory": "Cartella di backup",
+      "directoryDesc": "Nessuna cartella selezionata.",
+      "chooseDirectory": "Scegli cartella",
+      "password": "Password di backup",
+      "passwordDesc": "I backup sono sempre cifrati. La password è salvata nel portachiavi di sistema.",
+      "passwordSetDesc": "I backup sono cifrati con questa password. È salvata nel portachiavi di sistema.",
+      "passwordReplaceDesc": "Inserisci una nuova password. I backup già scritti mantengono quella precedente.",
+      "changePassword": "Cambia password",
+      "webdavPasswordSetDesc": "Una password è salvata nel portachiavi di sistema.",
+      "passwordSaved": "Password di backup salvata.",
+      "configureFirst": "Configura prima una destinazione e imposta una password di backup.",
+      "interval": "Frequenza",
+      "intervalDesc": "Ogni quanto viene scritto un nuovo backup.",
+      "every6h": "6 h",
+      "every12h": "12 h",
+      "daily": "Giornaliero",
+      "weekly": "Settimanale",
+      "retention": "Backup conservati",
+      "retentionDesc": "I file di backup più vecchi vengono eliminati automaticamente.",
+      "files": "file",
+      "backupNow": "Esegui backup ora",
+      "lastBackup": "Ultimo backup: {{date}}",
+      "noBackupYet": "Nessun backup finora.",
+      "backupDone": "Backup scritto in {{path}}",
+      "custom": "Personalizzata",
+      "destination": "Destinazione",
+      "target": "Destinazione dei backup",
+      "targetDesc": "Dove vengono scritti i file di backup. Una cartella sincronizzata da Dropbox, OneDrive o Syncthing ti dà un backup cloud gratis.",
+      "targetLocal": "Cartella locale",
+      "webdavUrl": "URL WebDAV",
+      "webdavUrlDesc": "URL della cartella WebDAV in cui vengono caricati i backup (es. Nextcloud).",
+      "webdavUsername": "Utente WebDAV",
+      "webdavUsernameDesc": "Account usato per autenticarsi sul server WebDAV.",
+      "webdavPassword": "Password WebDAV",
+      "webdavPasswordDesc": "Salvata nel portachiavi di sistema. Per Nextcloud, meglio una password per app.",
+      "webdavSaved": "Password WebDAV salvata.",
+      "mode": "Attivazione",
+      "modeDesc": "Quando viene scritto un backup. Manuale: solo tramite il pulsante qui sotto.",
+      "modeManual": "Manuale",
+      "modeInterval": "A intervalli",
+      "modeOnClose": "Alla chiusura",
+      "modeOnLaunch": "All'avvio",
+      "nextBackup": "Prossimo backup: {{date}}",
+      "nextBackupSoon": "Prossimo backup: al prossimo controllo",
+      "hours": "ore"
+    }
   },
   "update": {
     "newVersionAvailable": "Nuova Versione Disponibile",
@@ -827,7 +914,8 @@
     "scrollTabsRight": "Scorri schede a destra",
     "useIamAuth": "Usa autenticazione AWS IAM (RDS)",
     "useIamAuthHint": "Il campo password è trattato come un token di autenticazione RDS (da `aws rds generate-db-auth-token`). Richiede TLS. I token scadono ogni 15 minuti.",
-    "useIamAuthTlsRequired": "Attiva una modalità SSL qui sopra per usare l'autenticazione AWS IAM."
+    "useIamAuthTlsRequired": "Attiva una modalità SSL qui sopra per usare l'autenticazione AWS IAM.",
+    "changeDatabase": "Cambia database"
   },
   "sshConnections": {
     "title": "Connessioni SSH",
@@ -927,6 +1015,7 @@
     "noActiveSession": "Nessuna sessione attiva. Seleziona una connessione.",
     "stop": "Stop",
     "run": "Esegui",
+    "runAll": "Esegui tutto",
     "export": "Esporta",
     "connected": "Connesso",
     "disconnected": "Disconnesso",
@@ -1009,10 +1098,14 @@
     "submitChanges": "Invia Modifiche",
     "rollbackChanges": "Annulla Modifiche",
     "applyToAll": "Applica a tutto",
+    "submit": "Invia",
+    "rollback": "Annulla",
+    "pendingCount": "{{count}} in sospeso",
     "executingQuery": "Esecuzione query...",
     "exporting": "Esportazione in corso...",
     "rowsProcessed": "Righe processate",
     "queryParameters": "Parametri Query",
+    "formatSql": "Formatta SQL",
     "convertToConsole": "Converti in Console",
     "parameters": "Parametri",
     "paramValuePlaceholder": "Valore (es. 'testo' o 123)",
@@ -1386,7 +1479,6 @@
     "errorNoTables": "Seleziona almeno una tabella",
     "importStarted": "Importazione avviata...",
     "importSuccess": "File SQL eseguito con successo",
-    "importFailure": "Importazione fallita: ",
     "importCancelled": "Importazione annullata",
     "importFailed": "Importazione fallita",
     "importingFrom": "Importazione da",
@@ -1434,7 +1526,14 @@
     "subtitle": "Riga #{{row}}",
     "save": "Salva Modifiche",
     "cancel": "Annulla",
-    "enterValue": "Inserisci valore..."
+    "enterValue": "Inserisci valore...",
+    "pin": "Fissa",
+    "unpin": "Sgancia"
+  },
+  "rightSidebar": {
+    "resize": "Ridimensiona",
+    "collapse": "Comprimi",
+    "expand": "Espandi"
   },
   "contextMenu": {
     "openSidebar": "Apri Barra Laterale",
@@ -1706,7 +1805,17 @@
       "resourceTypeInvalid": "Il tipo di risorsa deve essere \"service\" o \"pod\"",
       "resourceNameRequired": "Il nome della risorsa è obbligatorio",
       "portInvalid": "La porta deve essere compresa tra 1 e 65535"
-    }
+    },
+    "advancedSettings": "Impostazioni kubectl avanzate",
+    "kubectlPath": "Percorso kubectl",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "Percorso kubeconfig",
+    "kubeconfigPathPlaceholder": "Percorso del kubeconfig",
+    "pathValidationFailed": "Correggi i campi percorso Kubernetes avanzati non validi prima di continuare.",
+    "pathSelectionReset": "I percorsi Kubernetes avanzati sono cambiati. Scegli di nuovo contesto, namespace e risorsa.",
+    "noContexts": "Nessun contesto disponibile",
+    "noNamespaces": "Nessun namespace disponibile",
+    "noResources": "Nessuna risorsa disponibile"
   },
   "routines": {
     "menuRun": "Esegui…",
@@ -1740,5 +1849,46 @@
   "miniGrid": {
     "runningQuery": "Esecuzione query...",
     "copyAll": "Copia tutto"
+  },
+  "deepLink": {
+    "installTitle": "Installa plugin dal registro",
+    "installSubtitle": "Un registro Tabularium ha chiesto a Tabularis di installare un plugin.",
+    "plugin": "Plugin",
+    "version": "Versione",
+    "registry": "Registro",
+    "latest": "Ultima",
+    "installConfirm": "Installa",
+    "installing": "Installazione…",
+    "loadingPreview": "Caricamento dettagli…",
+    "usingConfigured": "registro configurato",
+    "mismatchTitle": "Registro diverso da quello configurato",
+    "mismatchBody": "Il tuo registro configurato è {{configured}}. Il link punta altrove — controlla prima di continuare.",
+    "updateConfirm": "Aggiorna a v{{version}}",
+    "alreadyInstalled": "La versione {{version}} è già installata."
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "Cerca database…",
+    "clearSearch": "Cancella ricerca",
+    "verified": "Verificato",
+    "installed": "Installato",
+    "install": "Installa",
+    "clear": "Cancella",
+    "registryOffline": "Registro non raggiungibile — vengono mostrati solo i driver installati e integrati.",
+    "noMatches": "Nessun database corrisponde ai tuoi filtri.",
+    "clearFilters": "Cancella filtri",
+    "driverCount_one": "{{count}} driver",
+    "driverCount_other": "{{count}} driver",
+    "connectTo": "Connetti a {{name}}",
+    "unavailableOnPlatform": "Non disponibile sulla tua piattaforma",
+    "backToCatalogue": "Torna al catalogo",
+    "pickDriver": "Più driver si connettono a {{name}}. Scegline uno:",
+    "latestVersion": "Ultima v{{version}}",
+    "continue": "Continua",
+    "noReleaseTitle": "Ancora nessuna versione installabile per la tua piattaforma.",
+    "noReleaseBody": "Questo driver non ha una build scaricabile per il tuo SO/architettura. Controlla il registro per una versione aggiornata.",
+    "notInstalled": "Questo driver non è ancora installato. Installalo per configurare una connessione.",
+    "installVersion": "Installa v{{version}}",
+    "installingVersion": "Installazione di v{{version}}…",
+    "retryInstall": "Riprova installazione"
   }
 }

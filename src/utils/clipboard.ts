@@ -38,12 +38,85 @@ export function rowsToJSON(rows: unknown[][], columns: string[]): string {
   );
 }
 
+function markdownCell(cell: unknown, nullLabel: string = "null"): string {
+  return formatCellValue(cell, nullLabel)
+    .replace(/\|/g, "\\|")
+    .replace(/\r?\n/g, "<br>");
+}
+
+export function rowsToMarkdown(rows: unknown[][], columns: string[], nullLabel: string = "null", includeHeaders: boolean = true): string {
+  const body = rows.map(
+    (row) => `| ${row.map((cell) => markdownCell(cell, nullLabel)).join(" | ")} |`,
+  );
+  if (!includeHeaders) return body.join("\n");
+  const header = `| ${columns.map((c) => markdownCell(c)).join(" | ")} |`;
+  const separator = `| ${columns.map(() => "---").join(" | ")} |`;
+  return [header, separator, ...body].join("\n");
+}
+
 export function getSelectedRows(
   data: unknown[][],
   selectedIndices: Set<number>
 ): unknown[][] {
   const sortedIndices = Array.from(selectedIndices).sort((a, b) => a - b);
   return sortedIndices.map((idx) => data[idx]);
+}
+
+type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
+
+interface ColumnCopyOptions {
+  format: CopyFormat;
+  delimiter?: string;
+  includeHeader?: boolean;
+  tableName?: string;
+}
+
+export function columnValuesForCopy(
+  rows: unknown[][],
+  columns: string[],
+  colIndex: number,
+  options: ColumnCopyOptions,
+): string {
+  const column = columns[colIndex];
+  if (column === undefined) return "";
+
+  const projectedRows = rows.map((row) => [row[colIndex]]);
+  const projectedColumns = [column];
+
+  if (options.format === "json") {
+    return rowsToJSON(projectedRows, projectedColumns);
+  }
+  if (options.format === "sql-insert") {
+    return rowsToSqlInsert(
+      projectedRows,
+      projectedColumns,
+      options.tableName ?? "table",
+    );
+  }
+  if (options.format === "markdown") {
+    return rowsToMarkdown(
+      projectedRows,
+      projectedColumns,
+      "null",
+      options.includeHeader,
+    );
+  }
+  if (options.includeHeader) {
+    return rowsToCSVWithHeaders(
+      projectedRows,
+      projectedColumns,
+      "null",
+      options.delimiter,
+    );
+  }
+  return rowsToCSV(projectedRows, "null", options.delimiter);
+}
+
+export function columnValuesToInClause(
+  rows: unknown[][],
+  colIndex: number,
+): string {
+  return rows.map((row) => sqlValue(row[colIndex])).join(", ");
 }
 
 function sqlValue(cell: unknown): string {

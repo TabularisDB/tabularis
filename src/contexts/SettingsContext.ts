@@ -2,7 +2,7 @@ import { createContext } from "react";
 import type { AppLanguage } from "../i18n/config";
 
 export type { AppLanguage };
-export type CopyFormat = "csv" | "json" | "sql-insert";
+export type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
 export type AiProvider =
   | "openai"
   | "anthropic"
@@ -45,7 +45,13 @@ export interface Settings {
   csvDelimiter?: string;
   /** Whether copied CSV output includes a header row. Default: true. */
   csvIncludeHeaders?: boolean;
+  /** Whether the row editor sidebar follows row selection. Default: true. */
+  rowEditorFollowSelection?: boolean;
+  /** What happens on double-click of a data cell: "inline" (edit in place), "sidebar" (open in row editor), "both" (inline + update sidebar). Default: "inline". */
+  cellDoubleClickAction?: "inline" | "sidebar" | "both";
   activeExternalDrivers?: string[];
+  /** Base URL of the Tabularium plugin registry. Defaults to the built-in instance when unset. */
+  tabulariumRegistryUrl?: string;
   plugins?: Record<string, PluginConfig>;
   editorTheme?: string;
   editorFontFamily?: string;
@@ -55,6 +61,15 @@ export interface Settings {
   editorWordWrap?: boolean;
   editorShowLineNumbers?: boolean;
   editorAcceptSuggestionOnEnter?: boolean;
+  runStatementUnderCursor?: boolean;
+  // SQL Formatter
+  formatterKeywordCase?: "upper" | "lower" | "preserve";
+  formatterIndentStyle?: "standard" | "tabularLeft" | "tabularRight";
+  formatterTabWidth?: number;
+  formatterUseTabs?: boolean;
+  formatterFunctionCase?: "upper" | "lower" | "preserve";
+  formatterLinesBetweenQueries?: number;
+  formatterDenseOperators?: boolean;
   pingInterval?: number;
   queryHistoryMaxEntries?: number;
   showWelcome?: boolean;
@@ -73,6 +88,21 @@ export interface Settings {
   mcpPreflightExplain?: boolean;
   mcpApprovalAlwaysOnTop?: boolean;
   mcpApprovalNotifySound?: boolean;
+  // Automatic connections backup
+  /** When backups run: "manual" (default), "interval", "onClose" or "onLaunch". */
+  backupMode?: "manual" | "interval" | "onClose" | "onLaunch";
+  /** Directory the backup files are written to. */
+  backupDirectory?: string;
+  /** Minutes between automatic backups in interval mode. Default: 1440. */
+  backupIntervalMinutes?: number;
+  /** Number of backup files kept before rotation. Default: 10. */
+  backupRetention?: number;
+  /** Backup destination: "local" (default) or "webdav". */
+  backupTarget?: "local" | "webdav";
+  /** WebDAV collection URL the backups are uploaded into. */
+  backupWebdavUrl?: string;
+  /** WebDAV username; the password lives in the OS keychain. */
+  backupWebdavUsername?: string;
 }
 
 export interface SettingsContextType {
@@ -119,6 +149,14 @@ export const DEFAULT_SETTINGS: Settings = {
   editorWordWrap: true,
   editorShowLineNumbers: true,
   editorAcceptSuggestionOnEnter: true,
+  runStatementUnderCursor: true,
+  formatterKeywordCase: "upper",
+  formatterIndentStyle: "standard",
+  formatterTabWidth: 2,
+  formatterUseTabs: false,
+  formatterFunctionCase: "preserve",
+  formatterLinesBetweenQueries: 1,
+  formatterDenseOperators: false,
   pingInterval: 30,
   queryHistoryMaxEntries: 500,
   autoConnectLastConnection: true,
@@ -133,4 +171,8 @@ export const DEFAULT_SETTINGS: Settings = {
   mcpPreflightExplain: true,
   mcpApprovalAlwaysOnTop: true,
   mcpApprovalNotifySound: true,
+  backupMode: "manual",
+  backupDirectory: "",
+  backupIntervalMinutes: 1440,
+  backupRetention: 10,
 };

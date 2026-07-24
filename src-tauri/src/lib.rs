@@ -14,6 +14,7 @@ pub mod ai_schema_context;
 #[cfg(test)]
 pub mod ai_schema_context_tests;
 pub mod askpass;
+pub mod backup;
 pub mod cli;
 pub mod clipboard_import;
 pub mod commands;
@@ -124,6 +125,22 @@ pub fn run() {
     // `askpass` module), serve the prompt and exit without booting the app.
     askpass::maybe_run_askpass_client();
 
+    // Install the rustls `ring` crypto provider as the process-wide default.
+    //
+    // Both `sqlx` (via the `tls-rustls-ring-native-roots` feature) and the
+    // workspace's direct `rustls` usage link against the same `rustls 0.23`
+    // crate, but `rustls 0.23` enables both the `ring` and the `aws-lc-rs`
+    // crypto providers when their respective feature flags are active in
+    // the dependency graph. With two providers linked, rustls refuses to
+    // pick one automatically and panics the first time someone tries a TLS
+    // handshake ("Could not automatically determine the process-level
+    // CryptoProvider"). We pin `ring` here because:
+    //   * `sqlx` is configured to use the `ring` provider.
+    //   * `ring` is pure-Rust and works on all our target platforms
+    //     (macOS, Linux, Windows) without a C toolchain at runtime.
+    // This must run before any sqlx pool is built.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // On Linux + Wayland, disable the DMA-BUF renderer in WebKitGTK to prevent
     // "Protocol error dispatching to Wayland display" crashes.
     // This targets the specific protocol causing the error while keeping GPU
@@ -177,12 +194,34 @@ pub fn run() {
     sqlx::any::install_default_drivers();
 
     tauri::Builder::default()
+        // Singleton: a second launch (typically a `tabularis://...` URL
+        // clicked while the app is already running) hands its argv to the
+        // first instance and exits. With `features = ["deep-link"]` the plugin
+        // usually auto-routes those URLs through `on_open_url`, but on
+        // Linux/Windows the URL arrives as a plain argv entry on warm launch.
+        // We scan argv for it defensively and dispatch ourselves so the
+        // install modal fires even when auto-routing doesn't.
+        //
+        // Order matters: must be the FIRST plugin in the chain so it can
+        // intercept duplicate launches before any heavy initialisation.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            log::info!("Duplicate launch detected — forwarded to existing instance");
+            if let Some(url) = argv.iter().find(|a| a.starts_with("tabularis:")) {
+                crate::plugins::deep_link::handle_url(app, url);
+            }
+            if let Some(win) = tauri::Manager::get_webview_window(app, "main") {
+                let _ = win.unminimize();
+                let _ = win.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_deep_link::init())
+        .manage(crate::plugins::deep_link::PendingInstall::default())
         .manage(commands::QueryCancellationState::default())
         .manage(export::ExportCancellationState::default())
         .manage(dump_commands::DumpCancellationState::default())
@@ -231,8 +270,50 @@ pub fn run() {
                 });
             }
 
+            // Subscribe to `tabularis://` deep links so a registry's
+            // "Open in App" button can hand us a plugin slug + version.
+            // The handler emits a frontend event; the React side opens the
+            // install confirmation modal. See `plugins::deep_link`.
+            //
+            // On Linux/Windows the scheme is only auto-registered when the
+            // app is installed from a bundled package. Under `tauri dev`
+            // the binary lives in `target/debug/...`, so call
+            // `register("tabularis")` here — it writes the desktop / xdg-mime
+            // entry pointing at the current binary so Firefox & friends can
+            // route `tabularis://...` to us. The call is a no-op on macOS
+            // (handled by Info.plist) and idempotent across restarts.
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let handle = app.handle().clone();
+                let deep_link = app.deep_link();
+                #[cfg(any(target_os = "linux", all(debug_assertions, target_os = "windows")))]
+                if let Err(e) = deep_link.register("tabularis") {
+                    log::warn!("Failed to register tabularis:// scheme: {}", e);
+                }
+                deep_link.on_open_url({
+                    let handle = handle.clone();
+                    move |event| {
+                        for url in event.urls() {
+                            crate::plugins::deep_link::handle_url(&handle, url.as_str());
+                        }
+                    }
+                });
+                // Cold-start path: when the OS launched us *because of* a
+                // tabularis:// URL, on_open_url won't fire — the URL is
+                // already consumed by the launch handshake. Pull it out via
+                // get_current() and route it through the same handler.
+                if let Ok(Some(urls)) = deep_link.get_current() {
+                    for url in urls {
+                        crate::plugins::deep_link::handle_url(&handle, url.as_str());
+                    }
+                }
+            }
+
             // Watch for pending MCP approval requests and run periodic cleanup.
             ai_approval_watcher::spawn(app.handle().clone());
+
+            // Periodic encrypted backup of the connections, when enabled.
+            backup::spawn_scheduler(app.handle().clone());
 
             // Refresh the GUI heartbeat so the MCP subprocess can detect
             // when Tabularis is closed and fail fast on approval-gated
@@ -317,6 +398,7 @@ pub fn run() {
             commands::get_k8s_namespaces_cmd,
             commands::get_k8s_resources_cmd,
             commands::get_k8s_resource_ports_cmd,
+            commands::validate_k8s_path_cmd,
             // Connection Groups
             commands::get_connection_groups,
             commands::get_connections_with_groups,
@@ -330,6 +412,10 @@ pub fn run() {
             commands::reorder_connections_in_group,
             commands::export_connections_payload,
             commands::encrypt_export_payload,
+            backup::get_connections_backup_status,
+            backup::set_connections_backup_password,
+            backup::set_connections_backup_target_password,
+            backup::run_connections_backup,
             commands::decrypt_export_payload,
             commands::import_connections_payload,
             connection_import_commands::list_connection_import_sources,
@@ -339,6 +425,7 @@ pub fn run() {
             connection_import_commands::apply_tabularis_import,
             commands::get_schemas,
             commands::get_available_databases,
+            commands::set_selected_databases,
             commands::get_tables,
             commands::get_columns,
             commands::get_foreign_keys,
@@ -482,6 +569,7 @@ pub fn run() {
             updater::get_installation_source,
             // Logs
             log_commands::get_logs,
+            log_commands::log_frontend_event,
             log_commands::clear_logs,
             log_commands::get_log_settings,
             log_commands::set_log_enabled,
@@ -510,6 +598,8 @@ pub fn run() {
             plugins::commands::get_plugin_manifest,
             plugins::commands::get_plugin_dir,
             plugins::commands::read_plugin_file,
+            plugins::commands::fetch_tabularium_plugin_preview,
+            plugins::deep_link::consume_pending_deep_link_install,
             plugins::manager::get_plugin_startup_errors,
             // JSON Viewer
             json_viewer::open_json_viewer_window,
@@ -533,8 +623,11 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app_handle, event| {
+        .run(|app_handle, event| {
             if let tauri::RunEvent::Exit = event {
+                // Back up the freshest state before the process ends (no-op
+                // unless backups are enabled and due).
+                backup::run_exit_backup(app_handle);
                 log::info!("Application exiting, stopping all active SSH tunnels...");
                 crate::ssh_tunnel::stop_all_tunnels();
             }

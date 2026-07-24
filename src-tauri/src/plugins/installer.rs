@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InstalledPluginInfo {
@@ -15,8 +16,12 @@ pub struct InstalledPluginInfo {
 
 #[derive(Deserialize)]
 struct InstalledPluginManifest {
-    id: String,
+    /// Legacy manifests carried an explicit `id`; the canonical schema uses
+    /// `name` as the slug/identity, so this is optional and falls back to `name`.
+    #[serde(default)]
+    id: Option<String>,
     name: String,
+    /// The registry guarantees `version` in the manifest (`.tabularium`).
     version: String,
     description: String,
 }
@@ -32,16 +37,44 @@ pub fn get_plugins_dir() -> Result<PathBuf, String> {
     Ok(plugins_dir)
 }
 
-pub(crate) fn read_plugin_info_from_dir(path: &Path) -> Result<InstalledPluginInfo, String> {
-    let manifest_path = path.join("manifest.json");
-    let manifest_str = fs::read_to_string(&manifest_path)
-        .map_err(|e| format!("Failed to read plugin manifest {:?}: {}", manifest_path, e))?;
+/// Canonical plugin bundle manifest. JSON content. The preferred manifest; the
+/// only fallback is the removable `manifest.json` legacy path in `read_manifest`
+/// (see `COMPAT(registry-ga)`), which goes away once all plugins republish.
+const MANIFEST_FILE: &str = ".tabularium";
 
-    let manifest: InstalledPluginManifest = serde_json::from_str(&manifest_str)
-        .map_err(|e| format!("Failed to parse plugin manifest {:?}: {}", manifest_path, e))?;
+/// Whether a directory contains a bundle manifest `read_manifest` can read —
+/// including the legacy `manifest.json` fallback, so callers gating on this
+/// don't reject bundles the read path would happily accept.
+pub fn has_manifest(dir: &Path) -> bool {
+    dir.join(MANIFEST_FILE).exists() || crate::plugins::compat::has_legacy_manifest(dir)
+}
+
+/// Reads and deserialises a plugin bundle's `.tabularium` manifest (JSON).
+pub fn read_manifest<T: serde::de::DeserializeOwned>(dir: &Path) -> Result<T, String> {
+    let path = dir.join(MANIFEST_FILE);
+    if !path.exists() {
+        // COMPAT(registry-ga): fall back to legacy manifest.json.
+        if let Some(legacy) = crate::plugins::compat::read_legacy_manifest::<T>(dir) {
+            log::warn!("Using legacy manifest.json in {:?} — republish as .tabularium", dir);
+            return legacy;
+        }
+        return Err(format!(
+            "No .tabularium manifest in {:?} — this plugin bundle must ship a .tabularium (JSON)",
+            dir
+        ));
+    }
+    let manifest_str = fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read plugin manifest {:?}: {}", path, e))?;
+    serde_json::from_str(&manifest_str)
+        .map_err(|e| format!("Failed to parse plugin manifest {:?}: {}", path, e))
+}
+
+pub(crate) fn read_plugin_info_from_dir(path: &Path) -> Result<InstalledPluginInfo, String> {
+    let manifest: InstalledPluginManifest = read_manifest(path)?;
+    let id = manifest.id.unwrap_or_else(|| manifest.name.clone());
 
     Ok(InstalledPluginInfo {
-        id: manifest.id,
+        id,
         name: manifest.name,
         version: manifest.version,
         description: manifest.description,
@@ -53,7 +86,11 @@ pub fn read_installed_plugin(plugin_id: &str) -> Result<InstalledPluginInfo, Str
     read_plugin_info_from_dir(&plugins_dir.join(plugin_id))
 }
 
-pub async fn download_and_install(plugin_id: &str, download_url: &str) -> Result<(), String> {
+pub async fn download_and_install(
+    plugin_id: &str,
+    download_url: &str,
+    expected_sha256: Option<&str>,
+) -> Result<(), String> {
     let plugins_dir = get_plugins_dir()?;
     let tmp_dir = plugins_dir.join(format!(".tmp-{}", plugin_id));
     let final_dir = plugins_dir.join(plugin_id);
@@ -110,6 +147,31 @@ pub async fn download_and_install(plugin_id: &str, download_url: &str) -> Result
         bytes.len(),
         content_type
     );
+
+    // Verify SHA-256 if the registry advertised one. The Tabularium
+    // registry signs releases with a sha256 in the integrity envelope
+    // (see https://tabularium.wiki/docs/#/consuming) — refusing to install
+    // on mismatch is what protects users from a tampered upstream asset.
+    // The legacy GitHub-hosted registry doesn't publish hashes, so this
+    // check is opt-in per call.
+    if let Some(expected) = expected_sha256 {
+        let mut hasher = Sha256::new();
+        hasher.update(&bytes);
+        let actual = format!("{:x}", hasher.finalize());
+        if !actual.eq_ignore_ascii_case(expected) {
+            log::error!(
+                "Plugin '{}' SHA-256 mismatch: expected {}, got {}",
+                plugin_id,
+                expected,
+                actual
+            );
+            return Err(format!(
+                "SHA-256 mismatch for plugin '{}': expected {}, got {} — asset may be tampered or corrupted",
+                plugin_id, expected, actual
+            ));
+        }
+        log::info!("Plugin '{}' SHA-256 verified ({})", plugin_id, actual);
+    }
 
     // Extract to temp dir
     fs::create_dir_all(&tmp_dir).map_err(|e| format!("Failed to create temp directory: {}", e))?;
@@ -168,20 +230,17 @@ pub async fn download_and_install(plugin_id: &str, download_url: &str) -> Result
         }
     }
 
-    // Validate manifest.json exists
-    let manifest_path = tmp_dir.join("manifest.json");
-    if !manifest_path.exists() {
+    // Validate the bundle ships a manifest and that it deserialises into a
+    // well-formed one with the required fields (notably `version` — the
+    // strict-mode drift catch).
+    if !has_manifest(&tmp_dir) {
         fs::remove_dir_all(&tmp_dir).ok();
-        return Err("Plugin archive does not contain manifest.json".to_string());
+        return Err("Plugin archive does not contain a .tabularium manifest".to_string());
     }
-
-    // Validate manifest.json parses correctly
-    let manifest_str = fs::read_to_string(&manifest_path)
-        .map_err(|e| format!("Failed to read manifest.json: {}", e))?;
-    serde_json::from_str::<serde_json::Value>(&manifest_str).map_err(|e| {
+    if let Err(e) = read_manifest::<InstalledPluginManifest>(&tmp_dir) {
         fs::remove_dir_all(&tmp_dir).ok();
-        format!("Invalid manifest.json: {}", e)
-    })?;
+        return Err(format!("Invalid plugin manifest: {}", e));
+    }
 
     // Remove existing plugin dir if present
     if final_dir.exists() {
@@ -234,8 +293,7 @@ pub fn list_installed() -> Result<Vec<InstalledPluginInfo>, String> {
             }
         }
 
-        let manifest_path = path.join("manifest.json");
-        if !manifest_path.exists() {
+        if !has_manifest(&path) {
             continue;
         }
 

@@ -150,6 +150,8 @@
     "noTablesMatch": "Keine passende Tabelle",
     "filterDatabases": "Datenbanken filtern...",
     "manageDatabases": "Datenbanken verwalten",
+    "databaseSelectionUpdated": "Datenbankauswahl aktualisiert",
+    "droppedDatabasesRemoved": "Entfernt, da nicht mehr auf dem Server vorhanden: {{names}}",
     "structure": "Struktur",
     "favorites": "Favoriten",
     "queryHistory": "Verlauf",
@@ -184,7 +186,10 @@
       "delete": "Löschen",
       "deleteConfirm": "Notebook \"{{title}}\" löschen? Dies kann nicht rückgängig gemacht werden.",
       "renamePlaceholder": "Notebook-Name"
-    }
+    },
+    "addToSplitGroup": "Zur geteilten Gruppe hinzufügen",
+    "removeFromSplitGroup": "Aus der Gruppe entfernen",
+    "movePanel": "Panel verschieben"
   },
   "mcp": {
     "title": "MCP-Server-Integration",
@@ -371,6 +376,13 @@
     "csvHeaders": "Spaltennamen exportieren",
     "detectJsonInTextColumns": "JSON in Text-Spalten erkennen",
     "detectJsonInTextColumnsDesc": "Zeigt JSON-Viewer-Bedienelemente, wenn eine nicht typisierte Text-Zelle ein JSON-Objekt oder -Array enthält. Verursacht kleine Parse-Kosten pro Zelle.",
+    "rowEditorFollowSelection": "Zeileneditor folgt der Auswahl",
+    "rowEditorFollowSelectionDesc": "Wenn die Zeileneditor-Seitenleiste geöffnet ist, wird sie automatisch aktualisiert, um die neu ausgewählte Zeile anzuzeigen.",
+    "cellDoubleClickAction": "Doppelklick-Aktion für Zellen",
+    "cellDoubleClickActionDesc": "Wählen Sie, was beim Doppelklick auf eine Datenzelle passiert.",
+    "cellDoubleClickInline": "Inline-Bearbeitung",
+    "cellDoubleClickSidebar": "In Seitenleiste öffnen",
+    "cellDoubleClickBoth": "Beides",
     "appearance": "Darstellung",
     "localization": "Lokalisierung",
     "themeSelection": "Themaauswahl",
@@ -402,6 +414,23 @@
     "appearance_editorShowLineNumbersDesc": "Zeigt Zeilennummern im Rand des Editors an.",
     "appearance_editorAcceptSuggestionOnEnter": "Vorschlag mit Eingabetaste übernehmen",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Erlaubt der Eingabetaste (zusätzlich zu Tab), den aktiven Autovervollständigungsvorschlag zu übernehmen. Bei deaktivierter Option fügt Enter immer einen Zeilenumbruch ein.",
+    "queryExecution": "Abfrageausführung",
+    "runStatementUnderCursor": "Anweisung unter dem Cursor ausführen",
+    "runStatementUnderCursorDesc": "Wenn ein Skript mehrere Anweisungen enthält, wird die Anweisung unter dem Cursor ausgeführt, statt die Abfrageauswahl anzuzeigen. Markiere Text, um einen bestimmten Bereich auszuführen.",
+    "formatter_title": "SQL-Formatierung",
+    "formatter_keywordCase": "Schlüsselwort-Schreibweise",
+    "formatter_keywordCaseDesc": "Groß-/Kleinschreibung von SQL-Schlüsselwörtern (SELECT, FROM, WHERE) nach der Formatierung.",
+    "formatter_functionCase": "Funktions-Schreibweise",
+    "formatter_functionCaseDesc": "Groß-/Kleinschreibung von Funktionsnamen (COUNT, SUM, COALESCE) nach der Formatierung.",
+    "formatter_indentStyle": "Einrückungsstil",
+    "formatter_indentStyleDesc": "Standard rückt normal ein. Tabellarisch richtet Klauseln in Spalten aus.",
+    "formatter_tabWidth": "Einrückungsbreite",
+    "formatter_useTabs": "Tabs verwenden",
+    "formatter_useTabsDesc": "Mit Tabs statt Leerzeichen einrücken.",
+    "formatter_linesBetweenQueries": "Zeilen zwischen Abfragen",
+    "formatter_linesBetweenQueriesDesc": "Anzahl der Leerzeilen zwischen separaten SQL-Anweisungen.",
+    "formatter_denseOperators": "Kompakte Operatoren",
+    "formatter_denseOperatorsDesc": "Leerzeichen um Operatoren entfernen (z.B. a=1 statt a = 1).",
     "editConfigJson": "config.json bearbeiten",
     "editConfigJsonDesc": "Bearbeite die rohe Konfigurationsdatei direkt. Ein Neustart ist erforderlich, um Änderungen anzuwenden.",
     "configJsonModal": {
@@ -595,6 +624,10 @@
         "copy": "Kopieren",
         "copied": "Kopiert!"
       },
+      "uninstallError": {
+        "title": "Deinstallation fehlgeschlagen",
+        "subtitle": "Bei der Deinstallation des Plugins ist ein Fehler aufgetreten. Siehe Details unten."
+      },
       "startError": {
         "title": "Plugin konnte nicht gestartet werden",
         "subtitle": "Der Plugin-Prozess konnte nicht gestartet werden. Prüfe die Fehlerdetails unten.",
@@ -633,7 +666,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "Bereitgestellt von",
+      "openHomepage": "Homepage öffnen"
     },
     "shortcuts": {
       "title": "Tastenkürzel",
@@ -644,9 +679,12 @@
       },
       "runQuery": "Abfrage ausführen",
       "runQueryEditor": "Abfrage ausführen (im Editor)",
+      "runAll": "Alle Anweisungen ausführen",
+      "runAllEditor": "Alle Anweisungen ausführen (im Editor)",
       "tabSwitcher": "Tab wechseln",
       "copySelection": "Auswahl kopieren",
       "toggleSidebar": "Seitenleiste umschalten",
+      "toggleRightSidebar": "Rechte Seitenleiste umschalten",
       "focusTableFilter": "Tabellenfilter fokussieren",
       "openConnections": "Verbindungen öffnen",
       "newConnection": "Neue Verbindung",
@@ -663,9 +701,58 @@
       "pasteImportClipboard": "Aus Zwischenablage importieren",
       "quickNavigator": "Schnellnavigation",
       "triggerSuggestions": "Vorschläge anzeigen",
+      "formatSql": "SQL formatieren",
       "refreshTable": "Tabelle aktualisieren"
     },
-    "aiActivity": "KI-Aktivität"
+    "aiActivity": "KI-Aktivität",
+    "backup": {
+      "title": "Backup",
+      "directory": "Sicherungsordner",
+      "directoryDesc": "Noch kein Ordner ausgewählt.",
+      "chooseDirectory": "Ordner wählen",
+      "password": "Sicherungspasswort",
+      "passwordDesc": "Sicherungen sind immer verschlüsselt. Das Passwort wird im System-Schlüsselbund gespeichert.",
+      "passwordSetDesc": "Backups werden mit diesem Passwort verschlüsselt. Es wird im System-Schlüsselbund gespeichert.",
+      "passwordReplaceDesc": "Neues Passwort eingeben. Bereits erstellte Backups behalten das alte.",
+      "changePassword": "Passwort ändern",
+      "webdavPasswordSetDesc": "Ein Passwort ist im System-Schlüsselbund gespeichert.",
+      "passwordSaved": "Sicherungspasswort gespeichert.",
+      "configureFirst": "Konfigurieren Sie zuerst ein Ziel und setzen Sie ein Sicherungspasswort.",
+      "interval": "Häufigkeit",
+      "intervalDesc": "Wie oft eine neue Sicherung geschrieben wird.",
+      "every6h": "6 Std.",
+      "every12h": "12 Std.",
+      "daily": "Täglich",
+      "weekly": "Wöchentlich",
+      "retention": "Aufbewahrte Sicherungen",
+      "retentionDesc": "Ältere Sicherungsdateien werden automatisch gelöscht.",
+      "files": "Dateien",
+      "backupNow": "Jetzt sichern",
+      "lastBackup": "Letzte Sicherung: {{date}}",
+      "noBackupYet": "Noch keine Sicherung.",
+      "backupDone": "Sicherung geschrieben nach {{path}}",
+      "custom": "Benutzerdefiniert",
+      "destination": "Ziel",
+      "target": "Sicherungsziel",
+      "targetDesc": "Wohin die Sicherungsdateien geschrieben werden. Ein von Dropbox, OneDrive oder Syncthing synchronisierter Ordner ergibt kostenlos ein Cloud-Backup.",
+      "targetLocal": "Lokaler Ordner",
+      "webdavUrl": "WebDAV-URL",
+      "webdavUrlDesc": "URL des WebDAV-Ordners, in den die Sicherungen hochgeladen werden (z. B. Nextcloud).",
+      "webdavUsername": "WebDAV-Benutzername",
+      "webdavUsernameDesc": "Konto zur Authentifizierung gegenüber dem WebDAV-Server.",
+      "webdavPassword": "WebDAV-Passwort",
+      "webdavPasswordDesc": "Wird im System-Schlüsselbund gespeichert. Für Nextcloud besser ein App-Passwort verwenden.",
+      "webdavSaved": "WebDAV-Passwort gespeichert.",
+      "mode": "Auslöser",
+      "modeDesc": "Wann eine Sicherung geschrieben wird. Manuell: nur über den Button unten.",
+      "modeManual": "Manuell",
+      "modeInterval": "Im Intervall",
+      "modeOnClose": "Beim Beenden",
+      "modeOnLaunch": "Beim Start",
+      "nextBackup": "Nächste Sicherung: {{date}}",
+      "nextBackupSoon": "Nächste Sicherung: bei der nächsten Prüfung",
+      "hours": "Stunden"
+    }
   },
   "update": {
     "newVersionAvailable": "Neue Version verfügbar",
@@ -802,7 +889,8 @@
     "scrollTabsRight": "Registerkarten nach rechts blättern",
     "useIamAuth": "AWS-IAM-Authentifizierung verwenden (RDS)",
     "useIamAuthHint": "Das Passwortfeld wird als RDS-Auth-Token verwendet (aus `aws rds generate-db-auth-token`). Erfordert TLS. Tokens laufen alle 15 Minuten ab.",
-    "useIamAuthTlsRequired": "Aktiviere oben einen SSL-Modus, um die AWS-IAM-Authentifizierung zu nutzen."
+    "useIamAuthTlsRequired": "Aktiviere oben einen SSL-Modus, um die AWS-IAM-Authentifizierung zu nutzen.",
+    "changeDatabase": "Datenbank ändern"
   },
   "sshConnections": {
     "title": "SSH-Verbindungen",
@@ -924,6 +1012,7 @@
     "noActiveSession": "Keine aktive Sitzung. Bitte wähle eine Verbindung aus.",
     "stop": "Stopp",
     "run": "Ausführen",
+    "runAll": "Alle ausführen",
     "export": "Exportieren",
     "connected": "Verbunden",
     "disconnected": "Getrennt",
@@ -987,10 +1076,14 @@
     "submitChanges": "Änderungen übernehmen",
     "rollbackChanges": "Änderungen zurückrollen",
     "applyToAll": "Auf alle anwenden",
+    "submit": "Übernehmen",
+    "rollback": "Zurückrollen",
+    "pendingCount": "{{count}} ausstehend",
     "executingQuery": "Abfrage wird ausgeführt...",
     "exporting": "Wird exportiert...",
     "rowsProcessed": "Verarbeitete Zeilen",
     "queryParameters": "Abfrageparameter",
+    "formatSql": "SQL formatieren",
     "convertToConsole": "In Konsole umwandeln",
     "parameters": "Parameter",
     "paramValuePlaceholder": "Wert (z. B. 'Text' oder 123)",
@@ -1364,7 +1457,6 @@
     "errorNoTables": "Bitte wähle mindestens eine Tabelle",
     "importStarted": "Import gestartet...",
     "importSuccess": "SQL-Datei erfolgreich ausgeführt",
-    "importFailure": "Import fehlgeschlagen: ",
     "importCancelled": "Import abgebrochen",
     "importFailed": "Import fehlgeschlagen",
     "importingFrom": "Importiere aus",
@@ -1412,7 +1504,14 @@
     "subtitle": "Zeile #{{row}}",
     "save": "Änderungen speichern",
     "cancel": "Abbrechen",
-    "enterValue": "Wert eingeben..."
+    "enterValue": "Wert eingeben...",
+    "pin": "An Zeile anheften",
+    "unpin": "Von Zeile lösen"
+  },
+  "rightSidebar": {
+    "resize": "Seitenleiste skalieren",
+    "collapse": "Rechte Seitenleiste einklappen",
+    "expand": "Rechte Seitenleiste ausklappen"
   },
   "contextMenu": {
     "openSidebar": "Seitenleisten-Editor öffnen",
@@ -1704,7 +1803,17 @@
       "resourceTypeInvalid": "Der Ressourcentyp muss \"service\" oder \"pod\" sein",
       "resourceNameRequired": "Der Ressourcenname ist erforderlich",
       "portInvalid": "Der Port muss zwischen 1 und 65535 liegen"
-    }
+    },
+    "advancedSettings": "Erweiterte kubectl-Einstellungen",
+    "kubectlPath": "kubectl-Pfad",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "Kubeconfig-Pfad",
+    "kubeconfigPathPlaceholder": "Pfad zur kubeconfig",
+    "pathValidationFailed": "Korrigiere ungültige erweiterte Kubernetes-Pfadfelder, bevor du fortfährst.",
+    "pathSelectionReset": "Die erweiterten Kubernetes-Pfade haben sich geändert. Wähle Kontext, Namespace und Ressource erneut aus.",
+    "noContexts": "Keine Kontexte verfügbar",
+    "noNamespaces": "Keine Namespaces verfügbar",
+    "noResources": "Keine Ressourcen verfügbar"
   },
   "routines": {
     "menuRun": "Ausführen…",
@@ -1738,5 +1847,46 @@
   "miniGrid": {
     "runningQuery": "Abfrage wird ausgeführt...",
     "copyAll": "Alles kopieren"
+  },
+  "deepLink": {
+    "installTitle": "Plugin aus Registry installieren",
+    "installSubtitle": "Eine Tabularium-Registry hat Tabularis gebeten, ein Plugin zu installieren.",
+    "plugin": "Plugin",
+    "version": "Version",
+    "registry": "Registry",
+    "latest": "Neueste",
+    "installConfirm": "Installieren",
+    "installing": "Installiere…",
+    "loadingPreview": "Lade Details…",
+    "usingConfigured": "konfigurierte Registry",
+    "mismatchTitle": "Abweichende Registry",
+    "mismatchBody": "Deine konfigurierte Registry ist {{configured}}. Der Link verweist auf eine andere — bitte vor dem Fortfahren prüfen.",
+    "updateConfirm": "Auf v{{version}} aktualisieren",
+    "alreadyInstalled": "Version {{version}} ist bereits installiert."
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "Datenbanken suchen…",
+    "clearSearch": "Suche löschen",
+    "verified": "Verifiziert",
+    "installed": "Installiert",
+    "install": "Installieren",
+    "clear": "Zurücksetzen",
+    "registryOffline": "Registry nicht erreichbar — es werden nur installierte und integrierte Treiber angezeigt.",
+    "noMatches": "Keine Datenbanken entsprechen deinen Filtern.",
+    "clearFilters": "Filter zurücksetzen",
+    "driverCount_one": "{{count}} Treiber",
+    "driverCount_other": "{{count}} Treiber",
+    "connectTo": "Mit {{name}} verbinden",
+    "unavailableOnPlatform": "Auf deiner Plattform nicht verfügbar",
+    "backToCatalogue": "Zurück zum Katalog",
+    "pickDriver": "Mehrere Treiber verbinden sich mit {{name}}. Wähle einen:",
+    "latestVersion": "Neueste v{{version}}",
+    "continue": "Weiter",
+    "noReleaseTitle": "Noch kein installierbares Release für deine Plattform.",
+    "noReleaseBody": "Für diesen Treiber gibt es keinen herunterladbaren Build für dein Betriebssystem/deine Architektur. Prüfe die Registry auf ein aktualisiertes Release.",
+    "notInstalled": "Dieser Treiber ist noch nicht installiert. Installiere ihn, um eine Verbindung einzurichten.",
+    "installVersion": "v{{version}} installieren",
+    "installingVersion": "v{{version}} wird installiert…",
+    "retryInstall": "Installation wiederholen"
   }
 }

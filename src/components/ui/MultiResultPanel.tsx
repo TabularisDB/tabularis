@@ -44,7 +44,7 @@ interface MultiResultPanelProps {
   activeResultId: string | undefined;
   tabId: string;
   connectionId: string | null;
-  copyFormat: "csv" | "json" | "sql-insert";
+  copyFormat: "csv" | "json" | "sql-insert" | "markdown";
   csvDelimiter: string;
   csvIncludeHeaders: boolean;
   onSelectResult: (entryId: string) => void;

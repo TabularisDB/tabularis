@@ -163,6 +163,8 @@
     "noTablesMatch": "一致するテーブルがありません",
     "filterDatabases": "データベースをフィルター...",
     "manageDatabases": "データベースを管理",
+    "databaseSelectionUpdated": "データベースの選択を更新しました",
+    "droppedDatabasesRemoved": "サーバーに存在しないため削除されました: {{names}}",
     "structure": "構造",
     "favorites": "お気に入り",
     "queryHistory": "履歴",
@@ -197,7 +199,10 @@
       "delete": "削除",
       "deleteConfirm": "ノートブック「{{title}}」を削除しますか？この操作は元に戻せません。",
       "renamePlaceholder": "ノートブック名"
-    }
+    },
+    "addToSplitGroup": "分割グループに追加",
+    "removeFromSplitGroup": "グループから削除",
+    "movePanel": "パネルを移動"
   },
   "mcp": {
     "title": "MCP サーバー連携",
@@ -381,6 +386,13 @@
     "delimiterPipe": "パイプ (|)",
     "csvIncludeHeaders": "CSVヘッダーを含める",
     "csvIncludeHeadersDesc": "行をCSVとしてコピーするときに、列名のヘッダー行を含めます。",
+    "rowEditorFollowSelection": "行エディターが選択に追従",
+    "rowEditorFollowSelectionDesc": "行エディターのサイドバーが開いているとき、新しく選択された行を自動的に表示します。",
+    "cellDoubleClickAction": "セルのダブルクリック動作",
+    "cellDoubleClickActionDesc": "データセルをダブルクリックしたときの動作を選択します。",
+    "cellDoubleClickInline": "インライン編集",
+    "cellDoubleClickSidebar": "サイドバーで開く",
+    "cellDoubleClickBoth": "両方",
     "csvHeaders": "列名をエクスポート",
     "appearance": "外観",
     "localization": "ローカライズ",
@@ -413,6 +425,23 @@
     "appearance_editorShowLineNumbersDesc": "エディタの左端に行番号を表示します。",
     "appearance_editorAcceptSuggestionOnEnter": "Enter で候補を確定",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Tab に加えて Enter でもオートコンプリートの候補を確定できるようにします。オフの場合、Enter は常に改行を挿入します。",
+    "queryExecution": "クエリの実行",
+    "runStatementUnderCursor": "カーソル位置のステートメントを実行",
+    "runStatementUnderCursorDesc": "スクリプトに複数のステートメントがある場合、クエリ選択画面を表示せずにカーソル位置のステートメントを実行します。特定の範囲を実行するにはテキストを選択してください。",
+    "formatter_title": "SQLフォーマッター",
+    "formatter_keywordCase": "キーワードの大文字/小文字",
+    "formatter_keywordCaseDesc": "フォーマット後のSQLキーワード（SELECT、FROM、WHERE）の大文字/小文字。",
+    "formatter_functionCase": "関数の大文字/小文字",
+    "formatter_functionCaseDesc": "フォーマット後の関数名（COUNT、SUM、COALESCE）の大文字/小文字。",
+    "formatter_indentStyle": "インデントスタイル",
+    "formatter_indentStyleDesc": "標準は通常のインデント。タブラーは句を列に揃えます。",
+    "formatter_tabWidth": "インデント幅",
+    "formatter_useTabs": "タブを使用",
+    "formatter_useTabsDesc": "スペースの代わりにタブでインデント。",
+    "formatter_linesBetweenQueries": "クエリ間の行数",
+    "formatter_linesBetweenQueriesDesc": "SQL文間に挿入する空行の数。",
+    "formatter_denseOperators": "演算子を詰める",
+    "formatter_denseOperatorsDesc": "演算子の周りのスペースを削除（例：a = 1 → a=1）。",
     "editConfigJson": "config.json を編集",
     "editConfigJsonDesc": "生の設定ファイルを直接編集します。変更を反映するには再起動が必要です。",
     "configJsonModal": {
@@ -609,6 +638,10 @@
         "copy": "コピー",
         "copied": "コピーしました！"
       },
+      "uninstallError": {
+        "title": "アンインストール失敗",
+        "subtitle": "プラグインのアンインストール中にエラーが発生しました。詳細は下記を参照してください。"
+      },
       "startError": {
         "title": "プラグインの起動に失敗",
         "subtitle": "プラグインプロセスを起動できませんでした。下記のエラー詳細を確認してください。",
@@ -647,7 +680,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "提供：",
+      "openHomepage": "ホームページを開く"
     },
     "shortcuts": {
       "title": "キーボードショートカット",
@@ -658,9 +693,12 @@
       },
       "runQuery": "クエリを実行",
       "runQueryEditor": "クエリを実行 (エディタ内)",
+      "runAll": "すべてのステートメントを実行",
+      "runAllEditor": "すべてのステートメントを実行 (エディタ内)",
       "tabSwitcher": "タブを切り替え",
       "copySelection": "選択範囲をコピー",
       "toggleSidebar": "サイドバーを切り替え",
+      "toggleRightSidebar": "右サイドバーの切り替え",
       "focusTableFilter": "テーブルフィルターにフォーカス",
       "openConnections": "接続を開く",
       "newConnection": "新規接続",
@@ -677,9 +715,58 @@
       "pasteImportClipboard": "クリップボードからインポート",
       "quickNavigator": "クイックナビゲーター",
       "triggerSuggestions": "候補を表示",
+      "formatSql": "SQLをフォーマット",
       "refreshTable": "テーブルを更新"
     },
-    "aiActivity": "AI アクティビティ"
+    "aiActivity": "AI アクティビティ",
+    "backup": {
+      "title": "バックアップ",
+      "directory": "バックアップフォルダー",
+      "directoryDesc": "フォルダーが選択されていません。",
+      "chooseDirectory": "フォルダーを選択",
+      "password": "バックアップパスワード",
+      "passwordDesc": "バックアップは常に暗号化されます。パスワードはシステムのキーチェーンに保存されます。",
+      "passwordSetDesc": "バックアップはこのパスワードで暗号化されます。パスワードはシステムのキーチェーンに保存されます。",
+      "passwordReplaceDesc": "新しいパスワードを入力してください。既存のバックアップは古いパスワードのままです。",
+      "changePassword": "パスワードを変更",
+      "webdavPasswordSetDesc": "パスワードはシステムのキーチェーンに保存されています。",
+      "passwordSaved": "バックアップパスワードを保存しました。",
+      "configureFirst": "先に保存先を設定し、バックアップパスワードを設定してください。",
+      "interval": "頻度",
+      "intervalDesc": "新しいバックアップを書き込む頻度。",
+      "every6h": "6時間",
+      "every12h": "12時間",
+      "daily": "毎日",
+      "weekly": "毎週",
+      "retention": "保持するバックアップ数",
+      "retentionDesc": "古いバックアップファイルは自動的に削除されます。",
+      "files": "件",
+      "backupNow": "今すぐバックアップ",
+      "lastBackup": "最終バックアップ: {{date}}",
+      "noBackupYet": "バックアップはまだありません。",
+      "backupDone": "バックアップを {{path}} に書き込みました",
+      "custom": "カスタム",
+      "destination": "保存先",
+      "target": "バックアップの保存先",
+      "targetDesc": "バックアップファイルの書き込み先。Dropbox・OneDrive・Syncthing で同期されたフォルダーなら無料でクラウドバックアップになります。",
+      "targetLocal": "ローカルフォルダー",
+      "webdavUrl": "WebDAV URL",
+      "webdavUrlDesc": "バックアップをアップロードする WebDAV フォルダーの URL（例：Nextcloud）。",
+      "webdavUsername": "WebDAV ユーザー名",
+      "webdavUsernameDesc": "WebDAV サーバーの認証に使うアカウント。",
+      "webdavPassword": "WebDAV パスワード",
+      "webdavPasswordDesc": "システムのキーチェーンに保存されます。Nextcloud ではアプリパスワードを推奨します。",
+      "webdavSaved": "WebDAV パスワードを保存しました。",
+      "mode": "バックアップのタイミング",
+      "modeDesc": "バックアップを書き込むタイミング。手動では下のボタンからのみ実行します。",
+      "modeManual": "手動",
+      "modeInterval": "一定間隔",
+      "modeOnClose": "終了時",
+      "modeOnLaunch": "起動時",
+      "nextBackup": "次のバックアップ: {{date}}",
+      "nextBackupSoon": "次のバックアップ: 次回チェック時",
+      "hours": "時間"
+    }
   },
   "update": {
     "newVersionAvailable": "新しいバージョンが利用可能",
@@ -816,7 +903,8 @@
     "scrollTabsRight": "タブを右にスクロール",
     "useIamAuth": "AWS IAM 認証を使用する (RDS)",
     "useIamAuthHint": "パスワード欄は RDS 認証トークン (`aws rds generate-db-auth-token` の出力) として扱われます。TLS 必須。トークンの有効期限は 15 分です。",
-    "useIamAuthTlsRequired": "AWS IAM 認証を使用するには、上記で SSL モードを有効にしてください。"
+    "useIamAuthTlsRequired": "AWS IAM 認証を使用するには、上記で SSL モードを有効にしてください。",
+    "changeDatabase": "データベースを変更"
   },
   "sshConnections": {
     "title": "SSH 接続",
@@ -936,6 +1024,7 @@
     "noActiveSession": "アクティブなセッションがありません。接続を選択してください。",
     "stop": "停止",
     "run": "実行",
+    "runAll": "すべて実行",
     "export": "エクスポート",
     "connected": "接続済み",
     "disconnected": "切断済み",
@@ -998,10 +1087,14 @@
     "submitChanges": "変更を送信",
     "rollbackChanges": "変更をロールバック",
     "applyToAll": "すべてに適用",
+    "submit": "送信",
+    "rollback": "ロールバック",
+    "pendingCount": "保留中 {{count}}件",
     "executingQuery": "クエリを実行中...",
     "exporting": "エクスポート中...",
     "rowsProcessed": "処理行数",
     "queryParameters": "クエリパラメータ",
+    "formatSql": "SQLをフォーマット",
     "convertToConsole": "コンソールに変換",
     "parameters": "パラメータ",
     "paramValuePlaceholder": "値 (例: 'text' や 123)",
@@ -1403,7 +1496,6 @@
     "errorNoTables": "少なくとも 1 つのテーブルを選択してください",
     "importStarted": "インポートを開始しました...",
     "importSuccess": "SQL ファイルを正常に実行しました",
-    "importFailure": "インポートに失敗しました: ",
     "importCancelled": "インポートをキャンセルしました",
     "importFailed": "インポートに失敗しました",
     "importingFrom": "インポート元",
@@ -1431,7 +1523,14 @@
     "subtitle": "行 #{{row}}",
     "save": "変更を保存",
     "cancel": "キャンセル",
-    "enterValue": "値を入力..."
+    "enterValue": "値を入力...",
+    "pin": "ピン留め",
+    "unpin": "ピン留め解除"
+  },
+  "rightSidebar": {
+    "resize": "サイズ変更",
+    "collapse": "折りたたむ",
+    "expand": "展開する"
   },
   "contextMenu": {
     "openSidebar": "サイドバーエディタで開く"
@@ -1722,7 +1821,17 @@
       "resourceTypeInvalid": "リソースタイプは \"service\" または \"pod\" である必要があります",
       "resourceNameRequired": "リソース名は必須です",
       "portInvalid": "ポートは 1 から 65535 の範囲で指定してください"
-    }
+    },
+    "advancedSettings": "kubectl の詳細設定",
+    "kubectlPath": "kubectl のパス",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "kubeconfig のパス",
+    "kubeconfigPathPlaceholder": "kubeconfig へのパス",
+    "pathValidationFailed": "続行する前に、Kubernetes の詳細設定にある無効なパス項目を修正してください。",
+    "pathSelectionReset": "Kubernetes の詳細パスが変更されました。コンテキスト、名前空間、リソースをもう一度選択してください。",
+    "noContexts": "利用可能なコンテキストはありません",
+    "noNamespaces": "利用可能なネームスペースはありません",
+    "noResources": "利用可能なリソースはありません"
   },
   "routines": {
     "menuRun": "実行…",
@@ -1756,5 +1865,46 @@
   "miniGrid": {
     "runningQuery": "クエリを実行中...",
     "copyAll": "すべてコピー"
+  },
+  "deepLink": {
+    "installTitle": "レジストリからプラグインをインストール",
+    "installSubtitle": "Tabularium レジストリが Tabularis にプラグインのインストールを要求しました。",
+    "plugin": "プラグイン",
+    "version": "バージョン",
+    "registry": "レジストリ",
+    "latest": "最新",
+    "installConfirm": "インストール",
+    "installing": "インストール中…",
+    "loadingPreview": "詳細を読み込み中…",
+    "usingConfigured": "設定済みレジストリ",
+    "mismatchTitle": "設定とは異なるレジストリ",
+    "mismatchBody": "設定済みのレジストリは {{configured}} です。リンクは別の場所を指しています — 続行前にご確認ください。",
+    "updateConfirm": "v{{version}} に更新",
+    "alreadyInstalled": "バージョン {{version}} は既にインストールされています。"
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "データベースを検索…",
+    "clearSearch": "検索をクリア",
+    "verified": "検証済み",
+    "installed": "インストール済み",
+    "install": "インストール",
+    "clear": "クリア",
+    "registryOffline": "レジストリに接続できません — インストール済みおよび組み込みドライバーのみ表示しています。",
+    "noMatches": "フィルターに一致するデータベースがありません。",
+    "clearFilters": "フィルターをクリア",
+    "driverCount_one": "{{count}} 個のドライバー",
+    "driverCount_other": "{{count}} 個のドライバー",
+    "connectTo": "{{name}} に接続",
+    "unavailableOnPlatform": "お使いのプラットフォームでは利用できません",
+    "backToCatalogue": "カタログに戻る",
+    "pickDriver": "複数のドライバーが {{name}} に接続します。1つ選択してください：",
+    "latestVersion": "最新 v{{version}}",
+    "continue": "続行",
+    "noReleaseTitle": "お使いのプラットフォーム向けのインストール可能なリリースはまだありません。",
+    "noReleaseBody": "このドライバーには、お使いのOS/アーキテクチャ向けのダウンロード可能なビルドがありません。更新されたリリースについてはレジストリを確認してください。",
+    "notInstalled": "このドライバーはまだインストールされていません。接続を設定するにはインストールしてください。",
+    "installVersion": "v{{version}} をインストール",
+    "installingVersion": "v{{version}} をインストール中…",
+    "retryInstall": "インストールを再試行"
   }
 }

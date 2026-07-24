@@ -7,6 +7,8 @@ import type { DriverCapabilities } from '../types/plugins';
 export function isMultiDatabaseCapable(capabilities: DriverCapabilities | null | undefined): boolean {
   if (!capabilities) return false;
   if (capabilities.no_connection_required) return false;
+  // A flat single-database store (e.g. Meilisearch) has nothing to select.
+  if (capabilities.single_database) return false;
   return (
     capabilities.file_based === false &&
     !capabilities.folder_based &&
@@ -41,4 +43,26 @@ export function getEffectiveDatabase(db: string | string[]): string {
     return db[0] ?? '';
   }
   return db;
+}
+
+/**
+ * Reconciles a saved database selection against the databases that actually
+ * exist on the server. Preserves the saved order; entries that no longer
+ * exist are reported in `removed` so callers can persist the pruned list.
+ */
+export function reconcileDatabaseSelection(
+  saved: string[],
+  available: string[],
+): { selection: string[]; removed: string[] } {
+  const availableSet = new Set(available);
+  const selection: string[] = [];
+  const removed: string[] = [];
+  for (const db of saved) {
+    if (availableSet.has(db)) {
+      selection.push(db);
+    } else {
+      removed.push(db);
+    }
+  }
+  return { selection, removed };
 }

@@ -1,13 +1,15 @@
 import {
   type Dialect,
+  type Statement,
   splitStatements,
   stripLeadingComments,
   isExplainable,
 } from './sqlSplitter';
 
 export type SqlDialect = Dialect;
+export type { Statement };
 
-export { splitQueries } from './sqlSplitter';
+export { splitQueries, splitStatements, findStatementAtOffset } from './sqlSplitter';
 
 export const stripLeadingSqlComments = stripLeadingComments;
 

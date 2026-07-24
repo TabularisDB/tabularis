@@ -20,6 +20,12 @@ export function supportsCreateForeignKeys(
   return capabilities?.create_foreign_keys === true;
 }
 
+export function supportsExplain(
+  capabilities?: DriverCapabilities | null,
+): boolean {
+  return capabilities?.explain === true;
+}
+
 export function findDriverManifest(
   driverId: string,
   drivers: PluginManifest[],

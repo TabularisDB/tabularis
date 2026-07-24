@@ -33,14 +33,42 @@ const extractFromSection = (sql: string): string => {
     .replace(/\busing\s*\([^)]*\)/gi, ' ');
 };
 
-// Returns alias → ParsedTableRef. Handles quoted identifiers, schema.table, and comma-separated FROM.
+// Captures the target table of statements that have no FROM section:
+// INSERT [IGNORE] [INTO] t, REPLACE [INTO] t, UPDATE t [alias]. Without this,
+// column suggestions inside `INSERT INTO t (...)` or `UPDATE t SET ...` would
+// have no table to resolve against. `FOR UPDATE` locking clauses and
+// `ON DUPLICATE KEY UPDATE` assignment lists are excluded.
+const targetTablePattern =
+  /(?<!\b(?:for|key)\s+)\b(?:insert(?:\s+ignore)?(?:\s+into)?|replace(?:\s+into)?|update)\s+("(?:[^"]|"")*"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*)(?:\.("(?:[^"]|"")*"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*))?(?:\s+(?:as\s+)?("(?:[^"]|"")*"|`[^`]+`|(?!(?:set|where|values?|select|partition|left|right|inner|outer|cross|natural|full|join|using|order|group|limit|returning)\b)[a-zA-Z_][a-zA-Z0-9_]*))?/gi;
+
+const collectTargetTables = (sql: string, tableMap: Map<string, ParsedTableRef>): void => {
+  let match;
+  let matchCount = 0;
+  const MAX_MATCHES = 5;
+  targetTablePattern.lastIndex = 0;
+
+  while ((match = targetTablePattern.exec(sql)) !== null && matchCount++ < MAX_MATCHES) {
+    const schemaToken = match[2] ? match[1] : undefined;
+    const tableToken = match[2] ?? match[1];
+    if (!tableToken) continue;
+
+    const tableName = stripIdentifierQuotes(tableToken);
+    const schema = schemaToken ? stripIdentifierQuotes(schemaToken) : undefined;
+    const alias = match[3] ? stripIdentifierQuotes(match[3]) : tableName;
+    tableMap.set(alias, { name: tableName, schema });
+  }
+};
+
+// Returns alias → ParsedTableRef. Handles quoted identifiers, schema.table,
+// comma-separated FROM, and the target tables of INSERT/REPLACE/UPDATE.
 export const parseTablesFromQuery = (sql: string): Map<string, ParsedTableRef> | null => {
   if (!sql || sql.length === 0) return null;
 
-  const fromSection = extractFromSection(sql);
-  if (!fromSection) return null;
-
   const tableMap = new Map<string, ParsedTableRef>();
+  collectTargetTables(sql, tableMap);
+
+  const fromSection = extractFromSection(sql);
+  if (!fromSection) return tableMap.size > 0 ? tableMap : null;
   const fromPattern =
     /(?:from|join|,)\s+("(?:[^"]|"")*"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*)(?:\.("(?:[^"]|"")*"|`[^`]+`|[a-zA-Z_][a-zA-Z0-9_]*))?(?:\s+(?:as\s+)?("(?:[^"]|"")*"|`[^`]+`|(?!(?:join|left|right|inner|outer|cross|natural|full|on|using|where|group|order|having|limit|offset|union|intersect|except|for|fetch|window|lateral|tablesample|qualify|straight_join)\b)[a-zA-Z_][a-zA-Z0-9_]*))?/gi;
 

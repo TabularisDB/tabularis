@@ -49,6 +49,56 @@ impl<W: Write> RowSink for CsvSink<W> {
     }
 }
 
+/// Streaming Markdown-table sink. Emits the header row and `---` separator
+/// lazily on the first row, then one `| a | b |` line per row. Pipes are
+/// escaped as `\|` and newlines become `<br>` so cell content cannot break
+/// the table structure — mirroring the frontend copy-as-Markdown behavior.
+pub struct MarkdownSink<W: Write> {
+    writer: W,
+    headers_written: bool,
+}
+
+impl<W: Write> MarkdownSink<W> {
+    pub fn new(writer: W) -> Self {
+        Self {
+            writer,
+            headers_written: false,
+        }
+    }
+
+    fn escape_cell(raw: &str) -> String {
+        raw.replace('|', "\\|")
+            .replace("\r\n", "<br>")
+            .replace(['\r', '\n'], "<br>")
+    }
+
+    fn write_line(&mut self, cells: &[String]) -> Result<(), String> {
+        writeln!(self.writer, "| {} |", cells.join(" | ")).map_err(|e| e.to_string())
+    }
+}
+
+impl<W: Write> RowSink for MarkdownSink<W> {
+    fn write_row(&mut self, headers: &[String], values: &[Value]) -> Result<(), String> {
+        if !self.headers_written {
+            let header_cells: Vec<String> =
+                headers.iter().map(|h| Self::escape_cell(h)).collect();
+            self.write_line(&header_cells)?;
+            let separator: Vec<String> = headers.iter().map(|_| "---".to_string()).collect();
+            self.write_line(&separator)?;
+            self.headers_written = true;
+        }
+        let cells: Vec<String> = values
+            .iter()
+            .map(|v| Self::escape_cell(&value_to_csv_string(v)))
+            .collect();
+        self.write_line(&cells)
+    }
+
+    fn finish(&mut self) -> Result<(), String> {
+        self.writer.flush().map_err(|e| e.to_string())
+    }
+}
+
 /// Streaming JSON-array sink. Delegates the `[`, `,`, `]` punctuation to
 /// `serde_json::ser::CompactFormatter` so we never reinvent JSON framing.
 pub struct JsonSink<W: Write> {

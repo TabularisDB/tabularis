@@ -8,6 +8,7 @@ interface PluginInstallErrorModalProps {
   onClose: () => void;
   pluginId: string;
   error: string;
+  operation: "install" | "uninstall";
 }
 
 export const PluginInstallErrorModal = ({
@@ -15,6 +16,7 @@ export const PluginInstallErrorModal = ({
   onClose,
   pluginId,
   error,
+  operation,
 }: PluginInstallErrorModalProps) => {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -37,7 +39,7 @@ export const PluginInstallErrorModal = ({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-primary">
-                {t("settings.plugins.installError.title")}
+                {t(`settings.plugins.${operation}Error.title`)}
               </h2>
               <p className="text-xs text-secondary font-mono">{pluginId}</p>
             </div>
@@ -50,7 +52,7 @@ export const PluginInstallErrorModal = ({
         {/* Content */}
         <div className="p-6 space-y-4 overflow-y-auto">
           <p className="text-sm text-secondary">
-            {t("settings.plugins.installError.subtitle")}
+            {t(`settings.plugins.${operation}Error.subtitle`)}
           </p>
 
           <div>

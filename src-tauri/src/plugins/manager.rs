@@ -30,8 +30,11 @@ pub fn get_plugin_startup_errors() -> Vec<PluginLoadError> {
 
 #[derive(Serialize, Deserialize)]
 pub struct ConfigManifest {
-    pub id: String,
+    /// Legacy field; the canonical schema uses `name` as the identity/slug.
+    #[serde(default)]
+    pub id: Option<String>,
     pub name: String,
+    /// The registry guarantees `version` in the manifest (`.tabularium`).
     pub version: String,
     pub description: String,
     #[serde(default)]
@@ -49,6 +52,13 @@ pub struct ConfigManifest {
     pub color: String,
     #[serde(default)]
     pub icon: String,
+    /// Registry manifest `engine` — surfaced so the connection catalogue can
+    /// group locally-installed plugins.
+    #[serde(default)]
+    pub engine: Option<String>,
+    /// Registry manifest `paradigms`, primary first.
+    #[serde(default)]
+    pub paradigms: Vec<String>,
     #[serde(default)]
     pub interpreter: Option<String>,
     #[serde(default)]
@@ -145,37 +155,31 @@ pub async fn load_plugin_from_dir(
     interpreter_override: Option<String>,
     settings: HashMap<String, serde_json::Value>,
 ) -> Result<(), String> {
-    let manifest_path = path.join("manifest.json");
-    if !manifest_path.exists() {
-        return Err(format!("manifest.json not found in {:?}", path));
-    }
-
-    let manifest_str = fs::read_to_string(&manifest_path)
-        .map_err(|e| format!("Failed to read plugin manifest {:?}: {}", manifest_path, e))?;
-
-    let config: ConfigManifest = serde_json::from_str(&manifest_str)
-        .map_err(|e| format!("Failed to parse plugin manifest {:?}: {}", manifest_path, e))?;
+    let config: ConfigManifest = crate::plugins::installer::read_manifest(path)?;
 
     // Refuse plugins that claim a built-in driver id. Registration is a plain
     // insert keyed by id, so otherwise a plugin with id "mysql"/"postgres"/
     // "sqlite" would shadow the built-in driver and receive existing
     // connections' resolved credentials.
+    let plugin_id = config.id.clone().unwrap_or_else(|| config.name.clone());
     const BUILTIN_DRIVER_IDS: [&str; 3] = ["mysql", "postgres", "sqlite"];
-    if BUILTIN_DRIVER_IDS.contains(&config.id.as_str()) {
+    if BUILTIN_DRIVER_IDS.contains(&plugin_id.as_str()) {
         return Err(format!(
             "Plugin id '{}' collides with a built-in driver and was refused",
-            config.id
+            plugin_id
         ));
     }
 
     let manifest = PluginManifest {
-        id: config.id,
+        id: plugin_id,
         name: config.name,
         version: config.version,
         description: config.description,
         default_port: config.default_port,
         capabilities: config.capabilities,
         is_builtin: false,
+        engine: config.engine,
+        paradigms: config.paradigms,
         default_username: config.default_username.unwrap_or_default(),
         color: config.color,
         icon: config.icon,

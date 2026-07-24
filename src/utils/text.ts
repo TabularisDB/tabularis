@@ -14,6 +14,11 @@ const TEXT_TYPES = [
   "STRING",
 ];
 
+// pgvector extension types. Their values arrive as long textual literals
+// (e.g. "[-0.0038,-0.0132,…]"), so for preview/editing purposes they behave
+// like long text even though they are not character types.
+const VECTOR_TYPES = ["VECTOR", "HALFVEC", "SPARSEVEC"];
+
 export const LONG_TEXT_THRESHOLD = 80;
 
 /**
@@ -71,6 +76,15 @@ export function supportsEmptyString(dataType: string | undefined): boolean {
   return isTextColumn(dataType);
 }
 
+// pgvector columns (vector / halfvec / sparsevec) whose values are rendered
+// as long textual literals and benefit from the same preview/editor affordances
+// as long text. Matches the base name so "vector(1536)" still resolves.
+export function isVectorColumn(dataType: string | undefined): boolean {
+  if (!dataType) return false;
+  const normalized = dataType.toUpperCase();
+  return VECTOR_TYPES.some((type) => normalized.includes(type));
+}
+
 export function isLongTextValue(value: unknown): boolean {
   if (typeof value !== "string") return false;
   if (value.length > LONG_TEXT_THRESHOLD) return true;
@@ -81,7 +95,7 @@ export function isLongTextCellTarget(
   colType: string | undefined,
   value: unknown,
 ): boolean {
-  if (!isTextColumn(colType)) return false;
+  if (!isTextColumn(colType) && !isVectorColumn(colType)) return false;
   return isLongTextValue(value);
 }
 

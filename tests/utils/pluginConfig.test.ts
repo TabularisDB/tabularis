@@ -116,6 +116,7 @@ describe("removePluginConfig", () => {
 
   it("returns undefined when there is no plugin config map", () => {
     expect(removePluginConfig(undefined, "alpha")).toBeUndefined();
+    expect(removePluginConfig(null, "alpha")).toBeUndefined();
   });
 });
 

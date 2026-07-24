@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { MainLayout } from "./components/layout/MainLayout";
 import { ConnectionLayoutProvider } from "./contexts/ConnectionLayoutProvider";
+import { RightSidebarProvider } from "./contexts/RightSidebarProvider";
 import { KeybindingsProvider } from "./contexts/KeybindingsProvider";
 import { PluginSlotProvider } from "./contexts/PluginSlotProvider";
 import { PluginModalProvider } from "./contexts/PluginModalProvider";
@@ -22,10 +23,12 @@ import { UpdateNotificationModal } from "./components/modals/UpdateNotificationM
 import { CommunityModal } from "./components/modals/CommunityModal";
 import { WhatsNewModal } from "./components/modals/WhatsNewModal";
 import { AiApprovalGate } from "./components/modals/AiApprovalGate";
+import { PluginInstallConfirmModal } from "./components/modals/PluginInstallConfirmModal";
 import { SshAskpassGate } from "./components/modals/SshAskpassGate";
 import { useUpdate } from "./hooks/useUpdate";
 import { useChangelog } from "./hooks/useChangelog";
 import { useSettings } from "./hooks/useSettings";
+import { useDeepLinkInstall } from "./hooks/useDeepLinkInstall";
 import { useResultTypeColors } from "./hooks/useResultTypeColors";
 import { APP_VERSION } from "./version";
 import { isVersionAtMost, isVersionNewer } from "./utils/versionCompare";
@@ -44,6 +47,7 @@ export function App() {
   const { settings, updateSetting, isLoading: isSettingsLoading } = useSettings();
   useResultTypeColors();
   const [isDebugMode, setIsDebugMode] = useState(false);
+  const deepLinkInstall = useDeepLinkInstall();
   const [isCommunityModalDismissed, setIsCommunityModalDismissed] = useState(false);
 
   const lastSeenVersion = localStorage.getItem(WHATS_NEW_VERSION_KEY);
@@ -115,6 +119,7 @@ export function App() {
             <PluginSlotProvider>
               <PluginModalProvider>
                 <ConnectionLayoutProvider>
+                  <RightSidebarProvider>
                   <Routes>
                     <Route path="/" element={<MainLayout />}>
                       <Route
@@ -145,6 +150,7 @@ export function App() {
                       element={<ResultsWindowPage />}
                     />
                   </Routes>
+                  </RightSidebarProvider>
                 </ConnectionLayoutProvider>
               </PluginModalProvider>
             </PluginSlotProvider>
@@ -176,6 +182,23 @@ export function App() {
 
       <AiApprovalGate />
       <SshAskpassGate />
+
+      <PluginInstallConfirmModal
+        key={
+          deepLinkInstall.pending
+            ? `${deepLinkInstall.pending.slug}@${deepLinkInstall.pending.version ?? ""}@${deepLinkInstall.pending.registry ?? ""}`
+            : "idle"
+        }
+        request={deepLinkInstall.pending}
+        busy={deepLinkInstall.busy}
+        error={deepLinkInstall.error}
+        onConfirm={() => {
+          void deepLinkInstall.confirm();
+        }}
+        onCancel={deepLinkInstall.cancel}
+        configuredRegistry={settings.tabulariumRegistryUrl ?? null}
+      />
+
     </>
   );
 }

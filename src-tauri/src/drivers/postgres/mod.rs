@@ -98,7 +98,13 @@ pub async fn get_columns(
     let query = r#"
         SELECT
             c.column_name::text,
-            c.data_type::text,
+            -- information_schema reports extension/composite/enum types as the
+            -- literal 'USER-DEFINED'; fall back to udt_name for the real type name
+            -- (e.g. pgvector's 'vector', 'halfvec', 'sparsevec').
+            CASE
+                WHEN c.data_type = 'USER-DEFINED' THEN c.udt_name::text
+                ELSE c.data_type::text
+            END AS data_type,
             c.is_nullable::text,
             c.column_default::text,
             c.is_identity::text,
@@ -243,7 +249,12 @@ pub async fn get_all_columns_batch(
         SELECT
             c.table_name,
             c.column_name,
-            c.data_type,
+            -- See get_columns: map extension/composite/enum types (reported as
+            -- 'USER-DEFINED') back to their real udt_name (e.g. pgvector 'vector').
+            CASE
+                WHEN c.data_type = 'USER-DEFINED' THEN c.udt_name::text
+                ELSE c.data_type::text
+            END AS data_type,
             c.is_nullable,
             c.column_default,
             c.is_identity,
@@ -508,9 +519,18 @@ LIMIT 1",
     .await?;
 
     Ok(rows.first().map(|row| {
-        row.try_get::<_, String>("data_type")
-            .or_else(|_| row.try_get::<_, String>("udt_name"))
-            .unwrap_or_else(|_| "unknown".to_string())
+        // information_schema reports extension/composite/enum types as the
+        // literal 'USER-DEFINED'; fall back to udt_name for the real type name
+        // (e.g. pgvector's 'vector', 'halfvec', 'sparsevec') so the write path
+        // (update_record/insert_record) resolves the same type as get_columns.
+        let data_type = row
+            .try_get::<_, String>("data_type")
+            .unwrap_or_else(|_| "unknown".to_string());
+        if data_type == "USER-DEFINED" {
+            row.try_get::<_, String>("udt_name").unwrap_or(data_type)
+        } else {
+            data_type
+        }
     }))
 }
 
@@ -1167,7 +1187,13 @@ pub async fn get_view_columns(
     let query = r#"
         SELECT
             c.column_name,
-            c.data_type,
+            -- information_schema reports extension/composite/enum types as the
+            -- literal 'USER-DEFINED'; fall back to udt_name for the real type name
+            -- (e.g. pgvector's 'vector', 'halfvec', 'sparsevec').
+            CASE
+                WHEN c.data_type = 'USER-DEFINED' THEN c.udt_name::text
+                ELSE c.data_type::text
+            END AS data_type,
             c.is_nullable,
             c.column_default,
             c.is_identity,
@@ -1658,6 +1684,7 @@ impl PostgresDriver {
                 default_port: Some(5432),
                 capabilities: DriverCapabilities {
                     schemas: true,
+                    single_database: false,
                     views: true,
                     materialized_views: true,
                     routines: true,
@@ -1675,12 +1702,15 @@ impl PostgresDriver {
                     create_foreign_keys: true,
                     no_connection_required: false,
                     manage_tables: true,
+                    explain: true,
                     readonly: false,
                     triggers: true,
                     supports_ssl: true,
                     sql_dialect: SqlDialect::Postgres,
                 },
                 is_builtin: true,
+                engine: Some("postgres".to_string()),
+                paradigms: vec!["sql".to_string()],
                 default_username: "postgres".to_string(),
                 color: "#3b82f6".to_string(),
                 icon: "postgres".to_string(),

@@ -5,7 +5,7 @@
 # tabularis
 
 <p align="center">
-  <strong>Tabularis는 PostgreSQL, MySQL/MariaDB, SQLite 및 DuckDB, ClickHouse, Redis, Firestore 등 13종 이상의 데이터베이스를 지원하는 오픈소스 데스크톱 SQL 워크스페이스입니다.<br />
+  <strong>Tabularis는 PostgreSQL, MySQL/MariaDB, SQLite 및 DuckDB, ClickHouse, Redis, Firestore 등 15종 이상의 데이터베이스를 지원하는 오픈소스 데스크톱 SQL 워크스페이스입니다.<br />
   내장 MCP 서버를 통해 Claude, Cursor, Devin(구 Windsurf)이 여러분이 이미 사용하는 앱에서 스키마를 읽고 쿼리를 실행할 수 있습니다.</strong>
 </p>
 
@@ -59,7 +59,7 @@ sudo snap install tabularis                                      # Linux
 
 또는 설치 프로그램을 직접 받으세요:
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis-0.13.1-1.x86_64.rpm)
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis-0.16.0-1.x86_64.rpm)
 
 앱 UI는 영어, 이탈리아어, 스페인어, 중국어(간체), 프랑스어, 독일어, 일본어, 러시아어, 타갈로그어, 한국어로 제공됩니다.
 
@@ -73,7 +73,7 @@ sudo snap install tabularis                                      # Linux
 | **모든 언어**로 작성 가능한 플러그인 (stdio 기반 JSON-RPC) | ✅ | Java/Eclipse 플러그인 | JavaScript 플러그인 | ❌ |
 | **로컬 모델**(Ollama)을 사용하는 AI text-to-SQL | ✅ | 클라우드 기반 AI 어시스턴트 | ❌ | ❌ |
 | 인터랙티브 플랜 그래프가 있는 Visual EXPLAIN | ✅ | ✅ | ❌ | ❌ |
-| 기본 제공 데이터베이스 | 내장 3종 + 공식 플러그인 13종 | 100종 이상 | 20종 이상 | 약 10종 |
+| 기본 제공 데이터베이스 | 내장 3종 + 공식 플러그인 15종 | 100종 이상 | 20종 이상 | 약 10종 |
 
 > 2026년 6월 기준 비교이며, 다른 도구의 기능은 이후 변경되었을 수 있습니다. 수십 종의 드라이버가 필요하다면 DBeaver를 사용하세요 — tabularis는 소수의 데이터베이스를 제대로 지원하는 데 집중합니다.
 
