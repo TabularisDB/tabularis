@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import {
@@ -17,8 +18,9 @@ import type { PluginManifest } from '../types/plugins';
 import { clearAutocompleteCache } from '../utils/autocomplete';
 import { toErrorMessage } from '../utils/errors';
 import { useSettings } from '../hooks/useSettings';
+import { useToast } from '../hooks/useToast';
 import { findConnectionsForDrivers } from '../utils/connectionManager';
-import { isMultiDatabaseCapable, getEffectiveDatabase, getDatabaseList } from '../utils/database';
+import { isMultiDatabaseCapable, getEffectiveDatabase, getDatabaseList, reconcileDatabaseSelection } from '../utils/database';
 
 const createEmptyConnectionData = (driver: string = '', name: string = '', dbName: string = ''): ConnectionData => ({
   driver,
@@ -47,6 +49,8 @@ const createEmptyConnectionData = (driver: string = '', name: string = '', dbNam
 
 export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const { settings } = useSettings();
+  const { showToast } = useToast();
+  const { t } = useTranslation();
   const [activeConnectionId, setActiveConnectionId] = useState<string | null>(null);
   const [openConnectionIds, setOpenConnectionIds] = useState<string[]>([]);
   const [connectionDataMap, setConnectionDataMap] = useState<Record<string, ConnectionData>>({});
@@ -458,7 +462,22 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const currentData = connectionDataMap[connId];
     if (!currentData) return;
 
-    updateConnectionData(connId, { selectedDatabases: newDatabases });
+    // Drop cached data for databases that left the selection.
+    const prunedDataMap = Object.fromEntries(
+      Object.entries(currentData.databaseDataMap).filter(([db]) => newDatabases.includes(db))
+    );
+
+    updateConnectionData(connId, {
+      selectedDatabases: newDatabases,
+      databaseDataMap: prunedDataMap,
+    });
+
+    if (newDatabases.length > 0) {
+      invoke('set_selected_databases', {
+        connectionId: connId,
+        databases: newDatabases,
+      }).catch(e => console.error('Failed to persist selected databases:', e));
+    }
 
     for (const db of newDatabases) {
       const existing = currentData.databaseDataMap[db];
@@ -544,10 +563,46 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       // Register for health-check pinging.
       await invoke('register_active_connection', { connectionId });
 
-      const isMultiDb = isMultiDatabaseCapable(capabilities) && Array.isArray(dbParam) && dbParam.length > 1;
+      let isMultiDb = isMultiDatabaseCapable(capabilities) && Array.isArray(dbParam) && dbParam.length > 1;
+      let dbList = isMultiDb ? getDatabaseList(dbParam) : [];
 
       if (isMultiDb) {
-        const dbList = getDatabaseList(dbParam);
+        // Reconcile the saved selection against the server so databases
+        // dropped outside the app don't linger in the sidebar (#518).
+        try {
+          const available = await invoke<string[]>('get_available_databases', { connectionId });
+          // The primary database must exist while this connection is open: if
+          // the server list doesn't include it, the list is unreliable (e.g.
+          // filtered by privileges) and pruning from it would drop valid
+          // entries. This also guarantees the selection never ends up empty.
+          if (available.includes(dbList[0])) {
+            const { selection, removed } = reconcileDatabaseSelection(dbList, available);
+            if (removed.length > 0) {
+              dbList = selection;
+              isMultiDb = selection.length > 1;
+              invoke('set_selected_databases', {
+                connectionId,
+                databases: selection,
+              }).catch(e => console.error('Failed to persist reconciled database selection:', e));
+              showToast(t('sidebar.droppedDatabasesRemoved', { names: removed.join(', ') }), {
+                title: t('sidebar.databaseSelectionUpdated'),
+                kind: 'warning',
+              });
+              invoke('log_frontend_event', {
+                level: 'warn',
+                message: `Connection "${conn.name}": removed ${removed.join(', ')} from the database selection (no longer on the server)`,
+              }).catch(() => {});
+            }
+          } else {
+            console.warn('Skipping database selection reconciliation: server list does not include the primary database');
+          }
+        } catch (e) {
+          // Server list unavailable: keep the saved selection.
+          console.error('Failed to reconcile database selection:', e);
+        }
+      }
+
+      if (isMultiDb) {
         const firstDb = dbList[0] ?? '';
 
         // Pre-load first database inline

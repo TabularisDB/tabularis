@@ -163,6 +163,8 @@
     "noTablesMatch": "Таблицы не найдены",
     "filterDatabases": "Фильтр баз данных...",
     "manageDatabases": "Управление базами данных",
+    "databaseSelectionUpdated": "Выбор баз данных обновлён",
+    "droppedDatabasesRemoved": "Удалены, так как больше не существуют на сервере: {{names}}",
     "structure": "Структура",
     "favorites": "Избранное",
     "queryHistory": "История",
