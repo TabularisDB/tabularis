@@ -149,6 +149,8 @@
     "noTablesMatch": "无匹配的表",
     "filterDatabases": "筛选数据库...",
     "manageDatabases": "管理数据库",
+    "databaseSelectionUpdated": "数据库选择已更新",
+    "droppedDatabasesRemoved": "已移除服务器上不再存在的数据库：{{names}}",
     "structure": "结构",
     "favorites": "收藏",
     "queryHistory": "历史",

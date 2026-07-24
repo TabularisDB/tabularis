@@ -163,6 +163,8 @@
     "noTablesMatch": "No tables match",
     "filterDatabases": "Filter databases...",
     "manageDatabases": "Manage Databases",
+    "databaseSelectionUpdated": "Database selection updated",
+    "droppedDatabasesRemoved": "Removed because no longer on the server: {{names}}",
     "structure": "Structure",
     "favorites": "Favorites",
     "queryHistory": "History",

@@ -150,6 +150,8 @@
     "noTablesMatch": "Keine passende Tabelle",
     "filterDatabases": "Datenbanken filtern...",
     "manageDatabases": "Datenbanken verwalten",
+    "databaseSelectionUpdated": "Datenbankauswahl aktualisiert",
+    "droppedDatabasesRemoved": "Entfernt, da nicht mehr auf dem Server vorhanden: {{names}}",
     "structure": "Struktur",
     "favorites": "Favoriten",
     "queryHistory": "Verlauf",

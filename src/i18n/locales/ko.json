@@ -163,6 +163,8 @@
     "noTablesMatch": "일치하는 테이블이 없습니다",
     "filterDatabases": "데이터베이스 필터...",
     "manageDatabases": "데이터베이스 관리",
+    "databaseSelectionUpdated": "데이터베이스 선택이 업데이트되었습니다",
+    "droppedDatabasesRemoved": "서버에 더 이상 존재하지 않아 제거되었습니다: {{names}}",
     "structure": "구조",
     "favorites": "즐겨찾기",
     "queryHistory": "기록",
