@@ -1071,6 +1071,43 @@ mod routine_management {
     }
 }
 
+mod build_connection_url_tests {
+    use super::super::PostgresDriver;
+    use crate::drivers::driver_trait::DatabaseDriver;
+    use crate::models::{ConnectionParams, DatabaseSelection};
+
+    fn params_with_ssl_mode(ssl_mode: Option<&str>) -> ConnectionParams {
+        ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some("127.0.0.1".to_string()),
+            port: Some(5432),
+            username: Some("postgres".to_string()),
+            password: Some("secret".to_string()),
+            database: DatabaseSelection::Single("app".to_string()),
+            ssl_mode: ssl_mode.map(|s| s.to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn includes_disabled_ssl_mode() {
+        let driver = PostgresDriver::new();
+        let url = driver
+            .build_connection_url(&params_with_ssl_mode(Some("disable")))
+            .unwrap();
+        assert!(url.contains("sslmode=disable"), "url was: {url}");
+    }
+
+    #[test]
+    fn defaults_to_prefer_when_unset() {
+        let driver = PostgresDriver::new();
+        let url = driver
+            .build_connection_url(&params_with_ssl_mode(None))
+            .unwrap();
+        assert!(url.contains("sslmode=prefer"), "url was: {url}");
+    }
+}
+
 mod pg_vector_binding_tests {
     use super::*;
 

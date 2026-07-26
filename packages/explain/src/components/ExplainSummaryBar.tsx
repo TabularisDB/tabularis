@@ -1,10 +1,23 @@
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
-import { FileText, Sparkles, TableProperties, Network } from "lucide-react";
-import type { ExplainPlan } from "../../../types/explain";
-import { formatTime, formatCost, getMaxCost } from "../../../utils/explainPlan";
+import {
+  BarChart3,
+  FileText,
+  PieChart,
+  Sparkles,
+  TableProperties,
+  Network,
+} from "lucide-react";
+import type { ExplainPlan } from "../types";
+import { formatTime, formatCost, getMaxCost } from "../plan";
 
-export type ExplainViewMode = "graph" | "table" | "raw" | "ai";
+export type ExplainViewMode =
+  | "graph"
+  | "diagram"
+  | "table"
+  | "stats"
+  | "raw"
+  | "ai";
 
 interface ExplainSummaryBarProps {
   plan: ExplainPlan | null;
@@ -76,11 +89,25 @@ export const ExplainSummaryBar = memo(
             {t("editor.visualExplain.graphView")}
           </button>
           <button
+            onClick={() => onViewModeChange("diagram")}
+            className={toggleButtonClass("diagram")}
+          >
+            <BarChart3 size={12} />
+            {t("editor.visualExplain.diagramView")}
+          </button>
+          <button
             onClick={() => onViewModeChange("table")}
             className={toggleButtonClass("table")}
           >
             <TableProperties size={12} />
             {t("editor.visualExplain.tableView")}
+          </button>
+          <button
+            onClick={() => onViewModeChange("stats")}
+            className={toggleButtonClass("stats")}
+          >
+            <PieChart size={12} />
+            {t("editor.visualExplain.statsView")}
           </button>
           <button
             onClick={() => onViewModeChange("raw")}

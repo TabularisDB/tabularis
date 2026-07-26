@@ -1994,7 +1994,7 @@ impl DatabaseDriver for MysqlDriver {
         query: &str,
         analyze: bool,
         schema: Option<&str>,
-    ) -> Result<crate::models::ExplainPlan, String> {
+    ) -> Result<crate::models::ExplainQueryOutput, String> {
         explain_query(params, query, analyze, schema).await
     }
 

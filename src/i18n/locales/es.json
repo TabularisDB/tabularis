@@ -189,7 +189,9 @@
     },
     "addToSplitGroup": "Añadir al Grupo Dividido",
     "removeFromSplitGroup": "Quitar del Grupo",
-    "movePanel": "Mover panel"
+    "movePanel": "Mover panel",
+    "refreshDatabaseList": "Actualizar lista de bases de datos",
+    "databaseListUpToDate": "La lista de bases de datos está actualizada"
   },
   "groups": {
     "title": "Grupos",

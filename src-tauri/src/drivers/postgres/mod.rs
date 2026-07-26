@@ -1750,13 +1750,23 @@ impl DatabaseDriver for PostgresDriver {
         use urlencoding::encode;
         let user = encode(params.username.as_deref().unwrap_or_default());
         let pass = encode(params.password.as_deref().unwrap_or_default());
+        let sslmode = match params.ssl_mode.as_deref() {
+            Some("disable") => "disable",
+            Some("allow") => "allow",
+            Some("prefer") => "prefer",
+            Some("require") => "require",
+            Some("verify-ca") => "verify-ca",
+            Some("verify-full") => "verify-full",
+            _ => "prefer",
+        };
         Ok(format!(
-            "postgres://{}:{}@{}:{}/{}",
+            "postgres://{}:{}@{}:{}/{}?sslmode={}",
             user,
             pass,
             params.host.as_deref().unwrap_or("localhost"),
             params.port.unwrap_or(5432),
-            params.database
+            params.database,
+            sslmode
         ))
     }
 
@@ -2057,7 +2067,7 @@ impl DatabaseDriver for PostgresDriver {
         query: &str,
         analyze: bool,
         schema: Option<&str>,
-    ) -> Result<crate::models::ExplainPlan, String> {
+    ) -> Result<crate::models::ExplainQueryOutput, String> {
         explain_query(params, query, analyze, schema).await
     }
 
