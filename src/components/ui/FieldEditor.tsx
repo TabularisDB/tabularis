@@ -23,6 +23,7 @@ import {
 import {
   isLongTextValue,
   isTextColumn,
+  isVectorColumn,
   supportsEmptyString,
 } from "../../utils/text";
 import { getDateInputMode } from "../../utils/dateInput";
@@ -101,7 +102,7 @@ export const FieldEditor = ({
     !dateMode &&
     !isEnum &&
     !isSet &&
-    isTextColumn(type) &&
+    (isTextColumn(type) || isVectorColumn(type)) &&
     (isLongTextValue(value) || isLongTextValue(originalValue));
 
   const defaultPlaceholder = placeholder || t("rowEditor.enterValue");

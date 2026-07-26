@@ -2,6 +2,8 @@ import { memo } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 import type { ExplainNode } from "../../types/explain";
+import type { ExplainNodeMetrics } from "../../utils/explainMetrics";
+import type { ExplainDiagnostic } from "../../utils/explainDiagnostics";
 import {
   getNodeCostStyle,
   formatCost,
@@ -10,12 +12,17 @@ import {
   formatTime,
   formatRows,
 } from "../../utils/explainPlan";
+import { ExplainDiagnosticChips } from "./ExplainDiagnosticChips";
 import clsx from "clsx";
 
 export interface ExplainPlanNodeData extends Record<string, unknown> {
   node: ExplainNode;
-  maxCost: number;
-  maxTime: number;
+  metrics: ExplainNodeMetrics | null;
+  /** Largest exclusive cost in the plan, used to scale the heat colour. */
+  maxExclusiveCost: number;
+  /** Largest exclusive time in the plan, used to scale the heat colour. */
+  maxExclusiveTimeMs: number;
+  diagnostics: ExplainDiagnostic[];
   hasAnalyzeData: boolean;
   isSelected: boolean;
 }
@@ -25,8 +32,24 @@ export type ExplainPlanNodeType = Node<ExplainPlanNodeData, "explainPlan">;
 export const ExplainPlanNodeComponent = memo(
   ({ data }: NodeProps<ExplainPlanNodeType>) => {
     const { t } = useTranslation();
-    const { node, maxCost, hasAnalyzeData, isSelected } = data;
-    const costStyle = getNodeCostStyle(node.total_cost ?? 0, maxCost);
+    const {
+      node,
+      metrics,
+      maxExclusiveCost,
+      maxExclusiveTimeMs,
+      diagnostics,
+      hasAnalyzeData,
+      isSelected,
+    } = data;
+
+    // Colour by measured self time when the plan was run with ANALYZE, and by
+    // self cost otherwise. Both are exclusive, so the heat points at the step
+    // doing the work instead of at the plan root.
+    const useTimeHeat = hasAnalyzeData && maxExclusiveTimeMs > 0;
+    const costStyle = useTimeHeat
+      ? getNodeCostStyle(metrics?.exclusiveTimeMs ?? 0, maxExclusiveTimeMs)
+      : getNodeCostStyle(metrics?.exclusiveCost ?? 0, maxExclusiveCost);
+
     const rowRatio = getRowEstimateRatio(node);
     const mismatch =
       rowRatio != null && (rowRatio >= 4 || rowRatio <= 0.25)
@@ -52,7 +75,14 @@ export const ExplainPlanNodeComponent = memo(
       >
         {/* Header */}
         <div className={clsx("px-3 py-2 border-b border-default", costStyle.headerBg)}>
-          <div className="text-sm font-bold text-primary">{node.node_type}</div>
+          <div className="flex items-center gap-2">
+            {metrics && (
+              <span className="shrink-0 rounded bg-surface-secondary/70 px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                #{metrics.index}
+              </span>
+            )}
+            <div className="text-sm font-bold text-primary">{node.node_type}</div>
+          </div>
           {node.relation && (
             <div className="text-xs text-muted mt-0.5">
               {t("editor.visualExplain.relation")}: {node.relation}
@@ -71,13 +101,13 @@ export const ExplainPlanNodeComponent = memo(
             </span>
           </div>
 
-          {node.total_cost != null && (
+          {metrics?.exclusiveCost != null && (
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">
-                {t("editor.visualExplain.cost")}
+                {t("editor.visualExplain.selfCost")}
               </span>
               <span className="text-secondary font-mono">
-                {formatCost(node.total_cost)}
+                {formatCost(metrics.exclusiveCost)}
               </span>
             </div>
           )}
@@ -104,13 +134,29 @@ export const ExplainPlanNodeComponent = memo(
             </div>
           )}
 
-          {hasAnalyzeData && node.actual_time_ms != null && (
+          {hasAnalyzeData && metrics?.exclusiveTimeMs != null && (
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted">
-                {t("editor.visualExplain.time")}
+                {t("editor.visualExplain.selfTime")}
               </span>
               <span className="text-primary font-mono font-semibold">
-                {formatTime(node.actual_time_ms)}
+                {formatTime(metrics.exclusiveTimeMs)}
+                {metrics.timeShare != null && (
+                  <span className="ml-1 text-muted font-normal">
+                    ({Math.round(metrics.timeShare * 100)}%)
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {hasAnalyzeData && metrics?.inclusiveTimeMs != null && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted">
+                {t("editor.visualExplain.totalTime")}
+              </span>
+              <span className="text-secondary font-mono">
+                {formatTime(metrics.inclusiveTimeMs)}
               </span>
             </div>
           )}
@@ -126,6 +172,13 @@ export const ExplainPlanNodeComponent = memo(
             </div>
           )}
 
+          {diagnostics.length > 0 && (
+            <ExplainDiagnosticChips
+              diagnostics={diagnostics}
+              className="border-t border-default/50 pt-1.5"
+            />
+          )}
+
           {node.filter && (
             <div className="text-[10px] text-muted mt-1 font-mono truncate border-t border-default/50 pt-1">
               {t("editor.visualExplain.filter")}: {node.filter}
@@ -135,12 +188,6 @@ export const ExplainPlanNodeComponent = memo(
           {node.index_condition && (
             <div className="text-[10px] text-muted font-mono truncate">
               {t("editor.visualExplain.indexCondition")}: {node.index_condition}
-            </div>
-          )}
-
-          {mismatch && (
-            <div className="text-[10px] text-amber-300 font-mono truncate">
-              {mismatch.label}
             </div>
           )}
         </div>

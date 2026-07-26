@@ -11,6 +11,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { ExplainPlan } from "../../../types/explain";
+import type { ExplainMetrics } from "../../../utils/explainMetrics";
+import type { ExplainDiagnostic } from "../../../utils/explainDiagnostics";
 import { explainPlanToFlow } from "../../../utils/explainPlan";
 import { ExplainPlanNodeComponent } from "../../ui/ExplainPlanNode";
 
@@ -20,20 +22,24 @@ const nodeTypes = {
 
 interface ExplainGraphInnerProps {
   plan: ExplainPlan;
+  metrics: ExplainMetrics;
+  diagnostics: Map<string, ExplainDiagnostic[]>;
   selectedNodeId: string | null;
   onSelectNode: (nodeId: string) => void;
 }
 
 function ExplainGraphInner({
   plan,
+  metrics,
+  diagnostics,
   selectedNodeId,
   onSelectNode,
 }: ExplainGraphInnerProps) {
   const { fitView } = useReactFlow();
 
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => explainPlanToFlow(plan, selectedNodeId),
-    [plan, selectedNodeId],
+    () => explainPlanToFlow(plan, selectedNodeId, metrics, diagnostics),
+    [plan, selectedNodeId, metrics, diagnostics],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -76,12 +82,16 @@ function ExplainGraphInner({
 
 interface ExplainGraphProps {
   plan: ExplainPlan;
+  metrics: ExplainMetrics;
+  diagnostics: Map<string, ExplainDiagnostic[]>;
   selectedNodeId: string | null;
   onSelectNode: (nodeId: string) => void;
 }
 
 export const ExplainGraph = ({
   plan,
+  metrics,
+  diagnostics,
   selectedNodeId,
   onSelectNode,
 }: ExplainGraphProps) => {
@@ -90,6 +100,8 @@ export const ExplainGraph = ({
       <ReactFlowProvider>
         <ExplainGraphInner
           plan={plan}
+          metrics={metrics}
+          diagnostics={diagnostics}
           selectedNodeId={selectedNodeId}
           onSelectNode={onSelectNode}
         />

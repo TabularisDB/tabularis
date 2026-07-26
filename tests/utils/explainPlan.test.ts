@@ -10,11 +10,13 @@ import {
   formatRows,
   getExplainDriverLegend,
   getExplainPlanSummary,
+  getHeatBarClass,
   getMaxCost,
   getMaxTime,
   getRowEstimateRatio,
   isDataModifyingQuery,
 } from "../../src/utils/explainPlan";
+import type { ExplainDiagnostic } from "../../src/utils/explainDiagnostics";
 import type { ExplainNode, ExplainPlan } from "../../src/types/explain";
 
 // ---------------------------------------------------------------------------
@@ -130,6 +132,32 @@ describe("explainPlan", () => {
 
       expect(selectedNode?.data.isSelected).toBe(true);
       expect(unselectedNode?.data.isSelected).toBe(false);
+    });
+
+    it("should take diagnostics from the supplied map", () => {
+      const child = makeNode({ id: "node_1" });
+      const root = makeNode({ id: "node_0", children: [child] });
+      const plan = makePlan({ root });
+      const diagnostic: ExplainDiagnostic = {
+        kind: "hotspot",
+        severity: "critical",
+        labelKey: "editor.visualExplain.diagnostics.hotspot.label",
+        descriptionKey: "editor.visualExplain.diagnostics.hotspot.description",
+      };
+
+      const { nodes } = explainPlanToFlow(
+        plan,
+        null,
+        undefined,
+        new Map([["node_1", [diagnostic]]]),
+      );
+
+      expect(nodes.find((node) => node.id === "node_1")?.data.diagnostics).toEqual([
+        diagnostic,
+      ]);
+      expect(nodes.find((node) => node.id === "node_0")?.data.diagnostics).toEqual(
+        [],
+      );
     });
   });
 
@@ -366,6 +394,50 @@ describe("explainPlan", () => {
       expect(summary.largestRowMismatchNode?.nodeId).toBe("node_1");
       expect(summary.sequentialScans).toBe(1);
       expect(summary.tempOperations).toBe(1);
+    });
+
+    it("should rank cost and time on each node's own contribution", () => {
+      // The root's reported figures cover the whole subtree, so ranking on them
+      // would always crown the root. The child does the actual work here.
+      const child = makeNode({
+        id: "node_1",
+        node_type: "Sort",
+        total_cost: 900,
+        actual_time_ms: 90,
+      });
+      const root = makeNode({
+        id: "node_0",
+        node_type: "Limit",
+        total_cost: 1000,
+        actual_time_ms: 100,
+        children: [child],
+      });
+      const plan = makePlan({ root, has_analyze_data: true });
+
+      const summary = getExplainPlanSummary(plan);
+
+      expect(summary.highestCostNode?.nodeId).toBe("node_1");
+      expect(summary.highestCostNode?.value).toBe(900);
+      expect(summary.slowestNode?.nodeId).toBe("node_1");
+      expect(summary.slowestNode?.value).toBe(90);
+    });
+  });
+
+  describe("getHeatBarClass", () => {
+    it("should return green for a small share", () => {
+      expect(getHeatBarClass(10, 100)).toBe("bg-green-500/70");
+    });
+
+    it("should return yellow for a middling share", () => {
+      expect(getHeatBarClass(40, 100)).toBe("bg-yellow-500/70");
+    });
+
+    it("should return red for a dominant share", () => {
+      expect(getHeatBarClass(80, 100)).toBe("bg-red-500/70");
+    });
+
+    it("should handle a zero maximum", () => {
+      expect(getHeatBarClass(0, 0)).toBe("bg-green-500/70");
     });
   });
 

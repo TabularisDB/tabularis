@@ -159,6 +159,17 @@ pub fn extract_or_null(ty: &Type, buf: &[u8]) -> JsonValue {
             JsonValue::from(from_sql_or_none::<advanced_types::PgMcvList>(ty, buf))
         }
 
+        // pgvector extension types (dynamic OIDs, matched by name)
+        ref ty if ty.name() == "vector" => {
+            JsonValue::from(from_sql_or_none::<advanced_types::PgVector>(ty, buf))
+        }
+        ref ty if ty.name() == "halfvec" => {
+            JsonValue::from(from_sql_or_none::<advanced_types::PgHalfVector>(ty, buf))
+        }
+        ref ty if ty.name() == "sparsevec" => {
+            JsonValue::from(from_sql_or_none::<advanced_types::PgSparseVector>(ty, buf))
+        }
+
         _ => JsonValue::Null,
     }
 }
@@ -1027,6 +1038,69 @@ mod tests {
         assert_eq!(
             extract_or_null(&Type::INTERVAL, &buf),
             JsonValue::String("1 year 2 months 3 days 04:05:06.7".to_string())
+        );
+    }
+
+    fn pgvector_type(name: &str, oid: u32) -> Type {
+        Type::new(name.to_string(), oid, Kind::Simple, "public".to_string())
+    }
+
+    #[test]
+    fn test_pgvector_vector() {
+        // vector [1, 2, 3.5]: int16 dim, int16 unused, then dim x float4 (big-endian)
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&3u16.to_be_bytes()); // dim
+        buf.extend_from_slice(&0u16.to_be_bytes()); // unused
+        buf.extend_from_slice(&1.0f32.to_be_bytes());
+        buf.extend_from_slice(&2.0f32.to_be_bytes());
+        buf.extend_from_slice(&3.5f32.to_be_bytes());
+        assert_eq!(
+            extract_or_null(&pgvector_type("vector", 20000), &buf),
+            JsonValue::String("[1,2,3.5]".to_string())
+        );
+    }
+
+    #[test]
+    fn test_pgvector_vector_empty() {
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&0u16.to_be_bytes()); // dim
+        buf.extend_from_slice(&0u16.to_be_bytes()); // unused
+        assert_eq!(
+            extract_or_null(&pgvector_type("vector", 20000), &buf),
+            JsonValue::String("[]".to_string())
+        );
+    }
+
+    #[test]
+    fn test_pgvector_halfvec() {
+        // halfvec [1, 2]: int16 dim, int16 unused, then dim x float2 (half-precision)
+        // 1.0 = 0x3C00, 2.0 = 0x4000
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&2u16.to_be_bytes()); // dim
+        buf.extend_from_slice(&0u16.to_be_bytes()); // unused
+        buf.extend_from_slice(&0x3C00u16.to_be_bytes()); // 1.0
+        buf.extend_from_slice(&0x4000u16.to_be_bytes()); // 2.0
+        assert_eq!(
+            extract_or_null(&pgvector_type("halfvec", 20001), &buf),
+            JsonValue::String("[1,2]".to_string())
+        );
+    }
+
+    #[test]
+    fn test_pgvector_sparsevec() {
+        // sparsevec {1:1.5,3:2}/5: int32 dim, int32 nnz, int32 unused,
+        // then nnz x int32 indices (0-based), then nnz x float4 values.
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&5i32.to_be_bytes()); // dim
+        buf.extend_from_slice(&2i32.to_be_bytes()); // nnz
+        buf.extend_from_slice(&0i32.to_be_bytes()); // unused
+        buf.extend_from_slice(&0i32.to_be_bytes()); // index 0 (-> printed as 1)
+        buf.extend_from_slice(&2i32.to_be_bytes()); // index 2 (-> printed as 3)
+        buf.extend_from_slice(&1.5f32.to_be_bytes());
+        buf.extend_from_slice(&2.0f32.to_be_bytes());
+        assert_eq!(
+            extract_or_null(&pgvector_type("sparsevec", 20002), &buf),
+            JsonValue::String("{1:1.5,3:2}/5".to_string())
         );
     }
 

@@ -1,5 +1,5 @@
 use super::binding::{
-    PgValueOptions, bind_pg_boolean_string, bind_pg_enum_string, bind_pg_number,
+    BoundValue, PgValueOptions, bind_pg_boolean_string, bind_pg_enum_string, bind_pg_number,
     bind_pg_numeric_string, bind_pg_temporal_string, bind_pg_value, build_pk_map_predicate,
     build_pk_predicate,
 };
@@ -1068,5 +1068,103 @@ mod routine_management {
             drop_routine_sql("sp", "PROCEDURE", "", None),
             "DROP PROCEDURE \"sp\"()"
         );
+    }
+}
+
+mod build_connection_url_tests {
+    use super::super::PostgresDriver;
+    use crate::drivers::driver_trait::DatabaseDriver;
+    use crate::models::{ConnectionParams, DatabaseSelection};
+
+    fn params_with_ssl_mode(ssl_mode: Option<&str>) -> ConnectionParams {
+        ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some("127.0.0.1".to_string()),
+            port: Some(5432),
+            username: Some("postgres".to_string()),
+            password: Some("secret".to_string()),
+            database: DatabaseSelection::Single("app".to_string()),
+            ssl_mode: ssl_mode.map(|s| s.to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn includes_disabled_ssl_mode() {
+        let driver = PostgresDriver::new();
+        let url = driver
+            .build_connection_url(&params_with_ssl_mode(Some("disable")))
+            .unwrap();
+        assert!(url.contains("sslmode=disable"), "url was: {url}");
+    }
+
+    #[test]
+    fn defaults_to_prefer_when_unset() {
+        let driver = PostgresDriver::new();
+        let url = driver
+            .build_connection_url(&params_with_ssl_mode(None))
+            .unwrap();
+        assert!(url.contains("sslmode=prefer"), "url was: {url}");
+    }
+}
+
+mod pg_vector_binding_tests {
+    use super::*;
+
+    fn bind_vector(value: &str, column_type: &str) -> BoundValue {
+        bind_pg_value(
+            serde_json::json!(value),
+            1,
+            PgValueOptions {
+                column_type: Some(column_type),
+                enum_type: None,
+                max_blob_size: u64::MAX,
+                allow_default: false,
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn vector_value_is_inlined_as_typed_literal() {
+        let bound = bind_vector("[1,2,3]", "vector");
+        assert_eq!(bound.sql, "'[1,2,3]'::vector");
+        assert!(bound.param.is_none());
+    }
+
+    #[test]
+    fn halfvec_and_sparsevec_are_inlined_with_their_own_type() {
+        let halfvec = bind_vector("[1,2,3]", "halfvec");
+        assert_eq!(halfvec.sql, "'[1,2,3]'::halfvec");
+        assert!(halfvec.param.is_none());
+
+        let sparsevec = bind_vector("{1:1,3:2}/5", "sparsevec");
+        assert_eq!(sparsevec.sql, "'{1:1,3:2}/5'::sparsevec");
+        assert!(sparsevec.param.is_none());
+    }
+
+    #[test]
+    fn surrounding_whitespace_is_trimmed_before_inlining() {
+        let bound = bind_vector("  [1,2,3]  ", "vector");
+        assert_eq!(bound.sql, "'[1,2,3]'::vector");
+    }
+
+    #[test]
+    fn non_numeric_vector_value_is_rejected() {
+        let result = bind_pg_value(
+            serde_json::json!("[1,2,3]); DROP TABLE t"),
+            1,
+            PgValueOptions {
+                column_type: Some("vector"),
+                enum_type: None,
+                max_blob_size: u64::MAX,
+                allow_default: false,
+            },
+        );
+        let err = match result {
+            Ok(_) => panic!("expected non-numeric vector value to be rejected"),
+            Err(err) => err,
+        };
+        assert!(err.contains("Invalid vector value"), "{err}");
     }
 }

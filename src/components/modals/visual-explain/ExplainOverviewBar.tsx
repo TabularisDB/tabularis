@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import type { ExplainPlan } from "../../../types/explain";
+import type { ExplainMetrics } from "../../../utils/explainMetrics";
 import {
   formatCost,
   formatRatio,
@@ -23,22 +24,27 @@ import {
 
 interface ExplainOverviewBarProps {
   plan: ExplainPlan;
+  metrics: ExplainMetrics;
   onSelectNode: (nodeId: string) => void;
 }
 
 export function ExplainOverviewBar({
   plan,
+  metrics,
   onSelectNode,
 }: ExplainOverviewBarProps) {
   const { t } = useTranslation();
-  const summary = useMemo(() => getExplainPlanSummary(plan), [plan]);
+  const summary = useMemo(
+    () => getExplainPlanSummary(plan, metrics),
+    [plan, metrics],
+  );
   const legend = useMemo(() => getExplainDriverLegend(plan), [plan]);
   const [overviewExpanded, setOverviewExpanded] = useState(true);
 
   const findings = [
     summary.highestCostNode && {
       key: "highest-cost",
-      label: t("editor.visualExplain.highestCost"),
+      label: t("editor.visualExplain.highestSelfCost"),
       value: formatCost(summary.highestCostNode.value),
       description: formatNodeLabel(
         summary.highestCostNode.nodeType,
@@ -50,7 +56,7 @@ export function ExplainOverviewBar({
     },
     summary.slowestNode && {
       key: "slowest-step",
-      label: t("editor.visualExplain.slowestStep"),
+      label: t("editor.visualExplain.slowestSelfStep"),
       value: formatTime(summary.slowestNode.value),
       description: formatNodeLabel(
         summary.slowestNode.nodeType,

@@ -1,4 +1,5 @@
 import { splitInto } from './splitter';
+import { collectNonCodeSpans } from './nonCodeSpans';
 
 export type Dialect =
   | 'postgres'
@@ -26,6 +27,15 @@ export type Dialect =
  * need byte positions (e.g. a Rust backend) must re-encode.
  */
 export interface StatementRange {
+  readonly start: number;
+  readonly end: number;
+}
+
+/**
+ * String-index span (same coordinate system as `StatementRange`) of a
+ * single string literal or comment in the source.
+ */
+export interface NonCodeSpan {
   readonly start: number;
   readonly end: number;
 }
@@ -75,6 +85,13 @@ export interface DialectOptions {
   readonly lineComments: boolean;
   readonly blockComments: boolean;
   /**
+   * MySQL/MariaDB `#` line comments (run to end of line, from any
+   * position outside a string, no whitespace requirement). Kept off
+   * for dialects where `#` is a valid identifier character (e.g.
+   * Oracle's `emp#`).
+   */
+  readonly hashComments: boolean;
+  /**
    * Treat MySQL/MariaDB conditional comments (the ones opening with
    * `/*!`) as meaningful statements instead of noop comments. The
    * server evaluates them when the embedded version directive
@@ -115,6 +132,7 @@ const POSTGRES: DialectOptions = {
   qQuoting: false,
   lineComments: true,
   blockComments: true,
+  hashComments: false,
   executableComments: false,
   nestedBlockComments: true,
   lineCommentRequiresSpace: false,
@@ -135,6 +153,7 @@ const MYSQL: DialectOptions = {
   qQuoting: false,
   lineComments: true,
   blockComments: true,
+  hashComments: true,
   executableComments: true,
   nestedBlockComments: false,
   lineCommentRequiresSpace: true,
@@ -145,6 +164,10 @@ const MSSQL: DialectOptions = {
     { open: "'", close: "'", doubleClose: true },
     // T-SQL: `]]` inside `[...]` is the literal `]` escape.
     { open: '[', close: ']', doubleClose: true },
+    // Double quotes delimit identifiers under the default
+    // QUOTED_IDENTIFIER ON (and strings when it is OFF) — non-code
+    // either way.
+    { open: '"', close: '"', doubleClose: true },
   ],
   eString: false,
   dollarQuoting: false,
@@ -155,8 +178,10 @@ const MSSQL: DialectOptions = {
   qQuoting: false,
   lineComments: true,
   blockComments: true,
+  hashComments: false,
   executableComments: false,
-  nestedBlockComments: false,
+  // T-SQL block comments nest (documented behavior).
+  nestedBlockComments: true,
   lineCommentRequiresSpace: false,
 };
 
@@ -176,6 +201,7 @@ const SQLITE: DialectOptions = {
   qQuoting: false,
   lineComments: true,
   blockComments: true,
+  hashComments: false,
   executableComments: false,
   nestedBlockComments: false,
   lineCommentRequiresSpace: false,
@@ -192,6 +218,7 @@ const ORACLE: DialectOptions = {
   qQuoting: true,
   lineComments: true,
   blockComments: true,
+  hashComments: false,
   executableComments: false,
   nestedBlockComments: false,
   lineCommentRequiresSpace: false,
@@ -208,6 +235,7 @@ const GENERIC: DialectOptions = {
   qQuoting: false,
   lineComments: true,
   blockComments: true,
+  hashComments: false,
   executableComments: false,
   nestedBlockComments: false,
   lineCommentRequiresSpace: false,
@@ -235,7 +263,11 @@ export function dialectOptions(dialect: Dialect): DialectOptions {
 
 function normalizeDialect(dialect: Dialect | string | undefined): Dialect {
   if (dialect === undefined) return 'postgres';
-  return dialect in DIALECT_TABLE ? (dialect as Dialect) : 'generic';
+  // Own-property check: `in` would also accept prototype members such
+  // as '__proto__' or 'toString' and return a non-DialectOptions value.
+  return Object.hasOwn(DIALECT_TABLE, dialect)
+    ? (dialect as Dialect)
+    : 'generic';
 }
 
 /**
@@ -256,6 +288,31 @@ export function splitQueries(
   dialect?: Dialect | string,
 ): string[] {
   return splitStatements(sql, dialect).map((s) => s.text);
+}
+
+/**
+ * Spans of every string literal and comment in `sql` — the regions
+ * where a `:name` is data, not a potential bind parameter.
+ *
+ * When `dialect` is undefined or unknown this returns `[]` (nothing is
+ * treated as non-code) instead of guessing a dialect: lexing with the
+ * wrong quote rules can hide real SQL — e.g. the generic rules read
+ * MySQL's `'a\'b'` as an unterminated string and would swallow every
+ * parameter after it — so degrading to "no spans" keeps callers exactly
+ * as accurate as they were before they knew about dialects. Pass an
+ * explicit `'generic'` to scan with the ANSI-ish fallback rules.
+ */
+export function scanNonCodeSpans(
+  sql: string,
+  dialect?: Dialect | string,
+): NonCodeSpan[] {
+  // Own-property check: `in` would also accept prototype members such
+  // as '__proto__' or 'toString' and hand a non-DialectOptions value to
+  // the scanner.
+  if (dialect === undefined || !Object.hasOwn(DIALECT_TABLE, dialect)) {
+    return [];
+  }
+  return collectNonCodeSpans(sql, DIALECT_TABLE[dialect as Dialect]);
 }
 
 export {

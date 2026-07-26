@@ -5,6 +5,8 @@ import MonacoEditor from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
 import type { ExplainPlan } from "../../types/explain";
 import { findExplainNode } from "../../utils/explainPlan";
+import { computeExplainMetrics } from "../../utils/explainMetrics";
+import { getPlanDiagnostics } from "../../utils/explainDiagnostics";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 import {
@@ -13,6 +15,8 @@ import {
 } from "../modals/visual-explain/ExplainSummaryBar";
 import { ExplainGraph } from "../modals/visual-explain/ExplainGraph";
 import { ExplainTableView } from "../modals/visual-explain/ExplainTableView";
+import { ExplainDiagramView } from "../modals/visual-explain/ExplainDiagramView";
+import { ExplainStatsView } from "../modals/visual-explain/ExplainStatsView";
 import { ExplainAiAnalysis } from "../modals/visual-explain/ExplainAiAnalysis";
 import { ExplainNodeDetails } from "../modals/visual-explain/ExplainNodeDetails";
 import { ExplainOverviewBar } from "../modals/visual-explain/ExplainOverviewBar";
@@ -45,6 +49,18 @@ export const VisualExplainView = ({
   const { t } = useTranslation();
   const editorTheme = useEditorTheme();
 
+  // Computed once per plan and shared by every view, so switching views does not
+  // walk the tree again.
+  const metrics = useMemo(
+    () => (plan ? computeExplainMetrics(plan) : null),
+    [plan],
+  );
+
+  const diagnostics = useMemo(
+    () => (plan && metrics ? getPlanDiagnostics(plan, metrics) : null),
+    [plan, metrics],
+  );
+
   const selectedNode = useMemo(
     () => (plan ? findExplainNode(plan.root, selectedNodeId) : null),
     [plan, selectedNodeId],
@@ -73,8 +89,12 @@ export const VisualExplainView = ({
         onViewModeChange={onViewModeChange}
         aiEnabled={aiEnabled}
       />
-      {plan && (
-        <ExplainOverviewBar plan={plan} onSelectNode={onSelectNode} />
+      {plan && metrics && (
+        <ExplainOverviewBar
+          plan={plan}
+          metrics={metrics}
+          onSelectNode={onSelectNode}
+        />
       )}
 
       <div className="flex-1 overflow-hidden min-h-0">
@@ -91,7 +111,7 @@ export const VisualExplainView = ({
               {error}
             </div>
           </div>
-        ) : plan ? (
+        ) : plan && metrics && diagnostics ? (
           viewMode === "raw" && plan.raw_output ? (
             <MonacoEditor
               height="100%"
@@ -112,14 +132,28 @@ export const VisualExplainView = ({
           ) : viewMode === "table" ? (
             <ExplainTableView
               plan={plan}
+              metrics={metrics}
+              diagnostics={diagnostics}
               selectedId={selectedNodeId}
               onSelect={onSelectNode}
             />
+          ) : viewMode === "diagram" ? (
+            <ExplainDiagramView
+              plan={plan}
+              metrics={metrics}
+              diagnostics={diagnostics}
+              selectedId={selectedNodeId}
+              onSelect={onSelectNode}
+            />
+          ) : viewMode === "stats" ? (
+            <ExplainStatsView plan={plan} metrics={metrics} />
           ) : (
             <div className="flex h-full">
               <div className="flex-1 min-w-0 border-r border-default">
                 <ExplainGraph
                   plan={plan}
+                  metrics={metrics}
+                  diagnostics={diagnostics}
                   selectedNodeId={selectedNodeId}
                   onSelectNode={onSelectNode}
                 />
@@ -128,6 +162,12 @@ export const VisualExplainView = ({
                 <ExplainNodeDetails
                   node={selectedNode}
                   hasAnalyzeData={plan.has_analyze_data}
+                  metrics={
+                    selectedNode ? metrics.byId.get(selectedNode.id) ?? null : null
+                  }
+                  diagnostics={
+                    selectedNode ? diagnostics.get(selectedNode.id) ?? [] : []
+                  }
                 />
               </div>
             </div>
