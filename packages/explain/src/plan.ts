@@ -1,97 +1,11 @@
-import type { Node, Edge } from "@xyflow/react";
-import type { ExplainNode, ExplainPlan } from "../types/explain";
-import type { ExplainPlanNodeData } from "../components/ui/ExplainPlanNode";
-import dagre from "dagre";
-
-// ---------------------------------------------------------------------------
-// Tree → ReactFlow conversion
-// ---------------------------------------------------------------------------
-
-export function explainPlanToFlow(
-  plan: ExplainPlan,
-  selectedNodeId?: string | null,
-): {
-  nodes: Node[];
-  edges: Edge[];
-} {
-  const maxCost = getMaxCost(plan.root);
-  const maxTime = getMaxTime(plan.root);
-  const rawNodes: Node[] = [];
-  const edges: Edge[] = [];
-
-  function walk(node: ExplainNode) {
-    const data: ExplainPlanNodeData = {
-      node,
-      maxCost,
-      maxTime,
-      hasAnalyzeData: plan.has_analyze_data,
-      isSelected: selectedNodeId === node.id,
-    };
-
-    rawNodes.push({
-      id: node.id,
-      type: "explainPlan",
-      position: { x: 0, y: 0 },
-      data,
-    });
-
-    for (const child of node.children) {
-      edges.push({
-        id: `${node.id}-${child.id}`,
-        source: node.id,
-        target: child.id,
-        animated: true,
-        style: { stroke: "#6366f1" },
-      });
-      walk(child);
-    }
-  }
-
-  walk(plan.root);
-
-  return layoutExplainNodes(rawNodes, edges);
-}
-
-// ---------------------------------------------------------------------------
-// Dagre layout
-// ---------------------------------------------------------------------------
-
-export function layoutExplainNodes(
-  nodes: Node[],
-  edges: Edge[],
-): { nodes: Node[]; edges: Edge[] } {
-  const g = new dagre.graphlib.Graph();
-  g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: "TB", ranksep: 80, nodesep: 40 });
-
-  const NODE_WIDTH = 280;
-
-  for (const node of nodes) {
-    const data = node.data as ExplainPlanNodeData;
-    const lines = 3 + (data.hasAnalyzeData ? 1 : 0) + (data.node.filter ? 1 : 0);
-    const height = 28 + lines * 22;
-    g.setNode(node.id, { width: NODE_WIDTH, height });
-  }
-
-  for (const edge of edges) {
-    g.setEdge(edge.source, edge.target);
-  }
-
-  dagre.layout(g);
-
-  const layoutedNodes = nodes.map((node) => {
-    const pos = g.node(node.id);
-    return {
-      ...node,
-      position: {
-        x: pos.x - NODE_WIDTH / 2,
-        y: pos.y - pos.height / 2,
-      },
-    };
-  });
-
-  return { nodes: layoutedNodes, edges };
-}
+/**
+ * Plan analysis primitives: tree traversal, formatters, heat colours and the
+ * headline summary. No rendering library and no notion of the statement that
+ * produced the plan.
+ */
+import type { ExplainNode, ExplainPlan } from "./types";
+import type { ExplainMetrics } from "./metrics";
+import { computeExplainMetrics } from "./metrics";
 
 // ---------------------------------------------------------------------------
 // Color helpers
@@ -111,19 +25,38 @@ export interface ExplainMetricNode {
 }
 
 export interface ExplainPlanSummary {
+  /** Node with the highest cost of its own, children excluded. */
   highestCostNode: ExplainMetricNode | null;
+  /** Node that spent the most time in itself, children excluded. */
   slowestNode: ExplainMetricNode | null;
   largestRowMismatchNode: ExplainMetricNode | null;
   sequentialScans: number;
   tempOperations: number;
 }
 
+/**
+ * Heat colour for one node, given the largest value in the plan. Callers pass
+ * *exclusive* values: an inclusive one would paint the plan root red in every
+ * plan and hide the actual bottleneck.
+ */
 export function getNodeCostStyle(cost: number, maxCost: number): NodeCostStyle {
   if (maxCost <= 0) return { border: "border-l-green-500", headerBg: "bg-green-950/30" };
   const ratio = cost / maxCost;
   if (ratio < 0.2) return { border: "border-l-green-500", headerBg: "bg-green-950/30" };
   if (ratio < 0.6) return { border: "border-l-yellow-500", headerBg: "bg-yellow-950/30" };
   return { border: "border-l-red-500", headerBg: "bg-red-950/30" };
+}
+
+/**
+ * Fill colour for a proportional bar, on the same yellow-to-red scale as the
+ * graph nodes. Callers pass exclusive values, as for {@link getNodeCostStyle}.
+ */
+export function getHeatBarClass(value: number, max: number): string {
+  if (max <= 0) return "bg-green-500/70";
+  const ratio = value / max;
+  if (ratio < 0.2) return "bg-green-500/70";
+  if (ratio < 0.6) return "bg-yellow-500/70";
+  return "bg-red-500/70";
 }
 
 // ---------------------------------------------------------------------------
@@ -268,8 +201,17 @@ function isTempOperation(node: ExplainNode): boolean {
   );
 }
 
-export function getExplainPlanSummary(plan: ExplainPlan): ExplainPlanSummary {
+/**
+ * Headline findings for the overview bar. Cost and time are ranked on each
+ * node's own contribution, so the winner is the step to look at rather than
+ * whichever node happens to sit closest to the plan root.
+ */
+export function getExplainPlanSummary(
+  plan: ExplainPlan,
+  metrics?: ExplainMetrics,
+): ExplainPlanSummary {
   const nodes = flattenExplainNodes(plan.root);
+  const planMetrics = metrics ?? computeExplainMetrics(plan);
 
   let highestCostNode: ExplainMetricNode | null = null;
   let slowestNode: ExplainMetricNode | null = null;
@@ -278,27 +220,31 @@ export function getExplainPlanSummary(plan: ExplainPlan): ExplainPlanSummary {
   let tempOperations = 0;
 
   for (const node of nodes) {
+    const nodeMetrics = planMetrics.byId.get(node.id);
+    const exclusiveCost = nodeMetrics?.exclusiveCost ?? null;
+    const exclusiveTimeMs = nodeMetrics?.exclusiveTimeMs ?? null;
+
     if (
-      node.total_cost != null &&
-      (highestCostNode == null || node.total_cost > highestCostNode.value)
+      exclusiveCost != null &&
+      (highestCostNode == null || exclusiveCost > highestCostNode.value)
     ) {
       highestCostNode = {
         nodeId: node.id,
         nodeType: node.node_type,
         relation: node.relation,
-        value: node.total_cost,
+        value: exclusiveCost,
       };
     }
 
     if (
-      node.actual_time_ms != null &&
-      (slowestNode == null || node.actual_time_ms > slowestNode.value)
+      exclusiveTimeMs != null &&
+      (slowestNode == null || exclusiveTimeMs > slowestNode.value)
     ) {
       slowestNode = {
         nodeId: node.id,
         nodeType: node.node_type,
         relation: node.relation,
-        value: node.actual_time_ms,
+        value: exclusiveTimeMs,
       };
     }
 
@@ -366,20 +312,4 @@ export function getExplainDriverLegend(plan: ExplainPlan): string[] {
     default:
       return [];
   }
-}
-
-// ---------------------------------------------------------------------------
-// Query type detection
-// ---------------------------------------------------------------------------
-
-export function isDataModifyingQuery(query: string): boolean {
-  const trimmed = query.trim().toUpperCase();
-  return (
-    trimmed.startsWith("INSERT") ||
-    trimmed.startsWith("UPDATE") ||
-    trimmed.startsWith("DELETE") ||
-    trimmed.startsWith("DROP") ||
-    trimmed.startsWith("ALTER") ||
-    trimmed.startsWith("TRUNCATE")
-  );
 }

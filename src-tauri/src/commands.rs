@@ -11,7 +11,7 @@ use crate::credential_cache;
 use crate::keychain_utils;
 use crate::models::{
     BatchStatementResult, ColumnDefinition, ConnectionGroup, ConnectionParams, ConnectionsFile,
-    ExplainPlan, ExportPayload, ForeignKey, Index, K8sConnection, K8sConnectionInput, QueryResult,
+    ExplainQueryOutput, ExportPayload, ForeignKey, Index, K8sConnection, K8sConnectionInput, QueryResult,
     RoutineInfo, RoutineParameter, SavedConnection, SshConnection, SshConnectionInput, SshTestParams,
     TableColumn, TableInfo, TestConnectionRequest, TriggerInfo,
 };
@@ -3730,7 +3730,7 @@ pub async fn explain_query_plan<R: Runtime>(
     query: String,
     analyze: bool,
     schema: Option<String>,
-) -> Result<ExplainPlan, String> {
+) -> Result<ExplainQueryOutput, String> {
     log::info!(
         "Explaining query on connection: {} | analyze: {} | Query: {}",
         connection_id,
