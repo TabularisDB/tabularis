@@ -69,6 +69,7 @@ pub mod preferences;
 pub mod query_history;
 #[cfg(test)]
 pub mod query_history_tests;
+pub mod sql_database_statements;
 pub mod saved_queries;
 #[cfg(test)]
 pub mod saved_queries_tests;

@@ -159,7 +159,10 @@ export interface DatabaseContextType {
   loadDatabaseData: (database: string, connectionId?: string) => Promise<void>;
   refreshDatabaseData: (database: string, connectionId?: string) => Promise<void>;
   setSelectedDatabases: (databases: string[], connectionId?: string) => void;
-  refreshDatabaseSelection: (connectionId: string) => Promise<void>;
+  refreshDatabaseSelection: (
+    connectionId: string,
+    options?: { notifyWhenUnchanged?: boolean },
+  ) => Promise<void>;
   getConnectionData: (connectionId: string) => ConnectionData | undefined;
   isConnectionOpen: (connectionId: string) => boolean;
   /** Connection ids open in ANY window (shared backend registry). */

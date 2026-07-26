@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   DatabaseContext,
   type TableInfo,
@@ -21,6 +22,9 @@ import { useSettings } from '../hooks/useSettings';
 import { useToast } from '../hooks/useToast';
 import { findConnectionsForDrivers } from '../utils/connectionManager';
 import { isMultiDatabaseCapable, getEffectiveDatabase, getDatabaseList, reconcileDatabaseSelection } from '../utils/database';
+
+/** Label of the main window; Tauri defaults to this when none is configured. */
+const MAIN_WINDOW_LABEL = 'main';
 
 const createEmptyConnectionData = (driver: string = '', name: string = '', dbName: string = ''): ConnectionData => ({
   driver,
@@ -133,10 +137,18 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }));
   }, []);
 
-  // Manually re-runs the same reconciliation that happens on connect (#518),
-  // for a connection that's already open. Lets a user recover from a database
-  // dropped mid-session without having to disconnect and reconnect.
-  const refreshDatabaseSelection = useCallback(async (connectionId: string) => {
+  // Re-runs the same reconciliation that happens on connect (#518), for a
+  // connection that's already open. Lets a user recover from a database dropped
+  // mid-session without having to disconnect and reconnect.
+  //
+  // `notifyWhenUnchanged` tells the user the list was already up to date. That
+  // closes the loop for someone who pressed refresh, but it is noise when the
+  // reconciliation was triggered automatically (#525) — nobody asked, so
+  // silence is the right answer when there is nothing to report.
+  const refreshDatabaseSelection = useCallback(async (
+    connectionId: string,
+    { notifyWhenUnchanged = true }: { notifyWhenUnchanged?: boolean } = {},
+  ) => {
     const conn = connections.find(c => c.id === connectionId);
     const current = connectionDataMap[connectionId]?.selectedDatabases ?? [];
     if (!conn || current.length === 0) return;
@@ -175,13 +187,22 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
           message: `Connection "${conn.name}": removed ${removed.join(', ')} from the database selection (no longer on the server)`,
         }).catch(() => {});
       } else {
-        showToast(t('sidebar.databaseListUpToDate'), { kind: 'info' });
+        if (notifyWhenUnchanged) {
+          showToast(t('sidebar.databaseListUpToDate'), { kind: 'info' });
+        }
       }
     } catch (e) {
       console.error('Failed to refresh database selection:', e);
       showToast(String(e), { kind: 'error' });
     }
   }, [connections, connectionDataMap, updateConnectionData, showToast, t]);
+
+  // Lets the listener below subscribe once: `refreshDatabaseSelection` is
+  // recreated whenever connection state changes, so depending on it directly
+  // would tear the subscription down and rebuild it constantly, with a window
+  // in between where an event would be missed.
+  const refreshDatabaseSelectionRef = useRef(refreshDatabaseSelection);
+  refreshDatabaseSelectionRef.current = refreshDatabaseSelection;
 
   const refreshTables = async (targetConnectionId?: string) => {
     const connId = targetConnectionId ?? activeConnectionId;
@@ -989,6 +1010,30 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const unlisten = listen<string[]>('connections:active-changed', (event) => {
       setGloballyOpenConnectionIds(event.payload);
     });
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
+
+  // A `DROP DATABASE` that succeeded inside the app leaves the stored selection
+  // stale; the backend now says so instead of making the user press refresh
+  // (#525).
+  //
+  // Only the main window acts on it. `emit` broadcasts to every window and each
+  // one mounts its own provider, but reconciling persists through
+  // `set_selected_databases`, which reloads and rewrites the whole connections
+  // file — so letting several windows react risks one overwriting another's
+  // changes. The main window is the stable anchor: dedicated connection windows
+  // close with their connection. Other windows pick the change up on their next
+  // refresh.
+  useEffect(() => {
+    if (getCurrentWindow().label !== MAIN_WINDOW_LABEL) return;
+    const unlisten = listen<{ connectionId: string; database: string }>(
+      'database-dropped',
+      (event) => {
+        void refreshDatabaseSelectionRef.current(event.payload.connectionId, {
+          notifyWhenUnchanged: false,
+        });
+      },
+    );
     return () => { unlisten.then(fn => fn()); };
   }, []);
 
