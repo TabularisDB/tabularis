@@ -140,7 +140,8 @@ jobs:
           v='${{ inputs.updater_version }}'
           node -e "const f='src-tauri/tauri.conf.json';const c=require('./'+f);const fs=require('fs');c.version=process.argv[1];fs.writeFileSync(f, JSON.stringify(c, null, 2)+'\n');" "$v"
           # First version key in Cargo.toml is the [package] version.
-          sed -i "0,/^version = \".*\"/s//version = \"$v\"/" src-tauri/Cargo.toml
+          # sed -i.bak keeps it portable across GNU and macOS BSD sed.
+          sed -i.bak "0,/^version = \".*\"/s//version = \"$v\"/" src-tauri/Cargo.toml && rm -f src-tauri/Cargo.toml.bak
           echo "Patched version to $v"
 
       - uses: tauri-apps/tauri-action@v0.6.1

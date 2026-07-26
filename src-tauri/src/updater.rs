@@ -60,13 +60,6 @@ const CACHE_DURATION_SECS: u64 = 43200; // 12 hours
 /// Returns the installation source: "snap", "aur", or None for direct installs.
 /// Only meaningful on Linux; always returns None on other platforms.
 fn detect_installation_source() -> Option<String> {
-    // Dev builds run outside any package sandbox, but the AUR check below
-    // inspects the system-wide pacman database and would match a
-    // tabularis-bin package installed alongside the dev environment.
-    if cfg!(debug_assertions) {
-        return None;
-    }
-
     #[cfg(target_os = "linux")]
     {
         // Snap sets the SNAP env var when running inside a snap sandbox
@@ -79,15 +72,19 @@ fn detect_installation_source() -> Option<String> {
             return Some("flatpak".to_string());
         }
 
-        // AUR: check if pacman's local database has a tabularis-bin entry
-        if let Ok(entries) = std::fs::read_dir("/var/lib/pacman/local") {
-            let is_aur = entries.filter_map(|e| e.ok()).any(|e| {
-                e.file_name()
-                    .to_string_lossy()
-                    .starts_with("tabularis-bin-")
-            });
-            if is_aur {
-                return Some("aur".to_string());
+        // AUR: check if pacman's local database has a tabularis-bin entry.
+        // Skipped in dev builds — a tabularis-bin package installed alongside
+        // the dev environment would otherwise be misdetected as the source.
+        if !cfg!(debug_assertions) {
+            if let Ok(entries) = std::fs::read_dir("/var/lib/pacman/local") {
+                let is_aur = entries.filter_map(|e| e.ok()).any(|e| {
+                    e.file_name()
+                        .to_string_lossy()
+                        .starts_with("tabularis-bin-")
+                });
+                if is_aur {
+                    return Some("aur".to_string());
+                }
             }
         }
     }
