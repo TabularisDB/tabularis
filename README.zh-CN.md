@@ -5,7 +5,7 @@
 # tabularis
 
 <p align="center">
-  <strong>Tabularis 是一款开源的桌面 SQL 工作台，支持 PostgreSQL、MySQL/MariaDB、SQLite 以及 DuckDB、ClickHouse、Redis 和 Firestore 等 12+ 种数据库。<br />
+  <strong>Tabularis 是一款开源的桌面 SQL 工作台，支持 PostgreSQL、MySQL/MariaDB、SQLite 以及 DuckDB、ClickHouse、Redis 和 Firestore 等 15+ 种数据库。<br />
   其内置的 MCP 服务器可让 Claude、Cursor 和 Devin（原 Windsurf）在你日常使用的同一款应用中读取数据库结构并执行查询。</strong>
 </p>
 
@@ -59,7 +59,7 @@ sudo snap install tabularis                                      # Linux
 
 或直接下载安装包：
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis-0.13.1-1.x86_64.rpm)
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis-0.16.0-1.x86_64.rpm)
 
 应用界面支持英语、意大利语、西班牙语、简体中文、法语、德语、日语、俄语和他加禄语。
 
@@ -73,7 +73,7 @@ sudo snap install tabularis                                      # Linux
 | 支持**任意语言**编写插件（基于 stdio 的 JSON-RPC） | ✅ | Java/Eclipse 插件 | JavaScript 插件 | ❌ |
 | 支持**本地模型**（Ollama）的 AI text-to-SQL | ✅ | 基于云端的 AI 助手 | ❌ | ❌ |
 | 带交互式计划图的可视化 EXPLAIN | ✅ | ✅ | ❌ | ❌ |
-| 开箱即用支持的数据库 | 3 种内置 + 12 个官方插件 | 100+ | 20+ | 约 10 种 |
+| 开箱即用支持的数据库 | 3 种内置 + 15 个官方插件 | 100+ | 20+ | 约 10 种 |
 
 > 对比数据截至 2026 年 6 月，其他工具的功能此后可能已有变化。如果你需要几十种驱动，请使用 DBeaver——tabularis 专注于把少数几种数据库做好。
 

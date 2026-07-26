@@ -11,6 +11,7 @@ import {
   SettingToggle,
   SettingButtonGroup,
   SettingSlider,
+  SettingNumberInput,
 } from "./SettingControls";
 import { FontPicker } from "./FontPicker";
 import { ThemePicker } from "./ThemePicker";
@@ -224,6 +225,100 @@ export function AppearanceTab() {
                 onChange={(v) =>
                   updateSetting("editorAcceptSuggestionOnEnter", v)
                 }
+              />
+            </SettingRow>
+          </SettingSection>
+
+          <SettingSection title={t("settings.formatter_title")}>
+            <SettingRow
+              label={t("settings.formatter_keywordCase")}
+              description={t("settings.formatter_keywordCaseDesc")}
+            >
+              <SettingButtonGroup
+                value={settings.formatterKeywordCase ?? "upper"}
+                onChange={(v) => updateSetting("formatterKeywordCase", v)}
+                options={[
+                  { value: "upper", label: "UPPER" },
+                  { value: "lower", label: "lower" },
+                  { value: "preserve", label: "Preserve" },
+                ]}
+                mono
+              />
+            </SettingRow>
+
+            <SettingRow
+              label={t("settings.formatter_functionCase")}
+              description={t("settings.formatter_functionCaseDesc")}
+            >
+              <SettingButtonGroup
+                value={settings.formatterFunctionCase ?? "preserve"}
+                onChange={(v) => updateSetting("formatterFunctionCase", v)}
+                options={[
+                  { value: "upper", label: "UPPER" },
+                  { value: "lower", label: "lower" },
+                  { value: "preserve", label: "Preserve" },
+                ]}
+                mono
+              />
+            </SettingRow>
+
+            <SettingRow
+              label={t("settings.formatter_indentStyle")}
+              description={t("settings.formatter_indentStyleDesc")}
+            >
+              <SettingButtonGroup
+                value={settings.formatterIndentStyle ?? "standard"}
+                onChange={(v) => updateSetting("formatterIndentStyle", v)}
+                options={[
+                  { value: "standard", label: "Standard" },
+                  { value: "tabularLeft", label: "Tabular Left" },
+                  { value: "tabularRight", label: "Tabular Right" },
+                ]}
+              />
+            </SettingRow>
+
+            <SettingRow label={t("settings.formatter_tabWidth")}>
+              <SettingButtonGroup
+                value={settings.formatterTabWidth ?? 2}
+                onChange={(v) => updateSetting("formatterTabWidth", v)}
+                options={[
+                  { value: 2, label: "2" },
+                  { value: 4, label: "4" },
+                ]}
+                mono
+              />
+            </SettingRow>
+
+            <SettingRow
+              label={t("settings.formatter_useTabs")}
+              description={t("settings.formatter_useTabsDesc")}
+            >
+              <SettingToggle
+                checked={settings.formatterUseTabs ?? false}
+                onChange={(v) => updateSetting("formatterUseTabs", v)}
+              />
+            </SettingRow>
+
+            <SettingRow
+              label={t("settings.formatter_linesBetweenQueries")}
+              description={t("settings.formatter_linesBetweenQueriesDesc")}
+            >
+              <SettingNumberInput
+                value={settings.formatterLinesBetweenQueries ?? 1}
+                onChange={(v) => updateSetting("formatterLinesBetweenQueries", v)}
+                min={0}
+                max={5}
+                step={1}
+              />
+            </SettingRow>
+
+            <SettingRow
+              label={t("settings.formatter_denseOperators")}
+              description={t("settings.formatter_denseOperatorsDesc")}
+            >
+              <SettingToggle
+                checked={settings.formatterDenseOperators ?? false}
+                onChange={(v) => updateSetting("formatterDenseOperators", v)}
               />
             </SettingRow>
           </SettingSection>

@@ -3,7 +3,7 @@ import MonacoEditor, { type OnMount, type BeforeMount } from "@monaco-editor/rea
 import type * as Monaco from "monaco-editor";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
-import { readText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { useSettings } from "../../hooks/useSettings";
 import { useKeybindings } from "../../hooks/useKeybindings";
 import { getFontCSS } from "../../utils/settings";
@@ -13,6 +13,8 @@ import {
   type Dialect,
   type Statement,
 } from "../../utils/sqlSplitter";
+import { formatSql } from "../../utils/sqlFormat";
+import type { SqlDialect } from "../../utils/sql";
 
 interface SqlEditorWrapperProps {
   initialValue: string;
@@ -130,11 +132,79 @@ const SqlEditorInternal = ({
       }
     };
 
+    const getSelectedText = (ed: Monaco.editor.ICodeEditor): string => {
+      const model = ed.getModel();
+      const selections = ed.getSelections();
+      if (!model || !selections || selections.length === 0) return '';
+      const nonEmpty = selections.filter((sel) => !sel.isEmpty());
+      // With no selection, Monaco's copy/cut act on the whole current line.
+      if (nonEmpty.length === 0) {
+        const line = ed.getPosition()?.lineNumber;
+        return line ? model.getLineContent(line) + '\n' : '';
+      }
+      return nonEmpty.map((sel) => model.getValueInRange(sel)).join('\n');
+    };
+
+    const tauriCopy = async (ed: Monaco.editor.ICodeEditor) => {
+      try {
+        const text = getSelectedText(ed);
+        if (text) await writeText(text);
+      } catch (err) {
+        console.error('Failed to write clipboard:', err);
+      }
+    };
+
+    const tauriCut = async (ed: Monaco.editor.ICodeEditor) => {
+      try {
+        const text = getSelectedText(ed);
+        if (!text) return;
+        await writeText(text);
+        const model = ed.getModel();
+        const selections = ed.getSelections();
+        if (!model || !selections) return;
+        const nonEmpty = selections.filter((sel) => !sel.isEmpty());
+        if (nonEmpty.length > 0) {
+          ed.executeEdits('cut', nonEmpty.map((sel) => ({ range: sel, text: '' })));
+        } else {
+          const line = ed.getPosition()?.lineNumber;
+          if (line) {
+            const range = new monacoRef.current!.Range(
+              line, 1, line + 1, 1,
+            );
+            ed.executeEdits('cut', [{ range, text: '' }]);
+          }
+        }
+        ed.pushUndoStop();
+      } catch (err) {
+        console.error('Failed to cut to clipboard:', err);
+      }
+    };
+
     const handleEditorMount: OnMount = (editor, monaco) => {
       editorRef.current = editor;
       monacoRef.current = monaco;
 
-      // Register custom Paste action using Tauri clipboard API
+      // Register custom Cut/Copy/Paste actions using the Tauri clipboard API.
+      // Monaco's built-ins rely on document.execCommand, which silently fails
+      // inside the WebView on some Linux setups.
+      editor.addAction({
+        id: 'tauri.clipboardCut',
+        label: 'Cut',
+        contextMenuGroupId: '9_cutcopypaste',
+        contextMenuOrder: 0,
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyX],
+        run: tauriCut,
+      });
+
+      editor.addAction({
+        id: 'tauri.clipboardCopy',
+        label: 'Copy',
+        contextMenuGroupId: '9_cutcopypaste',
+        contextMenuOrder: 1,
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyC],
+        run: tauriCopy,
+      });
+
       editor.addAction({
         id: 'tauri.clipboardPaste',
         label: 'Paste',
@@ -144,7 +214,7 @@ const SqlEditorInternal = ({
         run: tauriPaste,
       });
 
-      // Remove the built-in Paste from context menu (doesn't work in Tauri)
+      // Remove the built-in Cut/Copy/Paste from the context menu (they don't work in Tauri)
       const contextMenuContrib = editor.getContribution('editor.contrib.contextmenu');
       if (contextMenuContrib) {
         const contrib = contextMenuContrib as unknown as Record<string, unknown>;
@@ -152,7 +222,12 @@ const SqlEditorInternal = ({
         if (typeof orig === 'function') {
           contrib._getMenuActions = function (...args: unknown[]) {
             const actions: { id?: string }[] = (orig as (...a: unknown[]) => { id?: string }[]).apply(this, args);
-            return actions.filter((a) => a.id !== 'editor.action.clipboardPasteAction');
+            const builtIns = new Set([
+              'editor.action.clipboardCutAction',
+              'editor.action.clipboardCopyAction',
+              'editor.action.clipboardPasteAction',
+            ]);
+            return actions.filter((a) => !a.id || !builtIns.has(a.id));
           };
         }
       }
@@ -172,6 +247,71 @@ const SqlEditorInternal = ({
           onRunAllRef.current?.();
         }
       );
+
+      // Format SQL action (Shift+Alt+F) — uses the existing formatSql utility
+      editor.addAction({
+        id: 'tabularis.formatSql',
+        label: 'Format SQL',
+        contextMenuGroupId: '1_modification',
+        contextMenuOrder: 1.5,
+        keybindings: [
+          monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,
+        ],
+        run: (ed) => {
+          const model = ed.getModel();
+          if (!model) return;
+
+          const selection = ed.getSelection();
+          const hasSelection = selection && !selection.isEmpty();
+          const sqlDialect = (dialectRef.current as SqlDialect) ?? undefined;
+          const formatOptions = {
+            keywordCase: settings.formatterKeywordCase ?? 'upper' as const,
+            indentStyle: settings.formatterIndentStyle ?? 'standard' as const,
+            tabWidth: settings.formatterTabWidth ?? 2,
+            useTabs: settings.formatterUseTabs ?? false,
+            functionCase: settings.formatterFunctionCase ?? 'preserve' as const,
+            linesBetweenQueries: settings.formatterLinesBetweenQueries ?? 1,
+            denseOperators: settings.formatterDenseOperators ?? false,
+          };
+
+          if (hasSelection) {
+            // Format only the selected text
+            const selectedText = model.getValueInRange(selection);
+            const formatted = formatSql(selectedText, sqlDialect, formatOptions);
+            if (formatted !== selectedText) {
+              ed.executeEdits('formatSql', [{
+                range: selection,
+                text: formatted,
+                forceMoveMarkers: true,
+              }]);
+              ed.pushUndoStop();
+            }
+          } else {
+            // Format the entire document
+            const fullText = model.getValue();
+            const formatted = formatSql(fullText, sqlDialect, formatOptions);
+            if (formatted !== fullText) {
+              const fullRange = model.getFullModelRange();
+              const position = ed.getPosition();
+              ed.executeEdits('formatSql', [{
+                range: fullRange,
+                text: formatted,
+                forceMoveMarkers: true,
+              }]);
+              ed.pushUndoStop();
+              // Restore cursor position (clamped to new content)
+              if (position) {
+                const newLineCount = model.getLineCount();
+                const safePos = {
+                  lineNumber: Math.min(position.lineNumber, newLineCount),
+                  column: position.column,
+                };
+                ed.setPosition(safePos);
+              }
+            }
+          }
+        },
+      });
 
       // Force the suggestion widget via the user-configurable shortcut
       editor.onKeyDown((e) => {

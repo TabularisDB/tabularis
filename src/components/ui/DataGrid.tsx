@@ -65,7 +65,7 @@ import {
   parseDateTime,
   formatDateTime,
 } from "../../utils/dateInput";
-import { RowEditorSidebar } from "./RowEditorSidebar";
+import { useRightSidebar } from "../../hooks/useRightSidebar";
 import { useDatabase } from "../../hooks/useDatabase";
 import {
   rowsToCSV,
@@ -73,6 +73,8 @@ import {
   rowsToJSON,
   rowsToSqlInsert,
   rowsToMarkdown,
+  columnValuesForCopy,
+  columnValuesToInClause,
   getSelectedRows,
   copyTextToClipboard,
 } from "../../utils/clipboard";
@@ -164,6 +166,7 @@ export const DataGrid = React.memo(
     const { activeSchema, connections } = useDatabase();
     const { showAlert } = useAlert();
     const { settings } = useSettings();
+    const rightSidebar = useRightSidebar();
     const colorByType = settings.resultColorByType ?? false;
     const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
 
@@ -200,12 +203,6 @@ export const DataGrid = React.memo(
       value: unknown;
       isRawSql?: boolean;
     } | null>(null);
-    const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [sidebarRowData, setSidebarRowData] = useState<{
-      data: Record<string, unknown>;
-      rowIndex: number;
-      focusField?: string;
-    } | null>(null);
     const [expandedCell, setExpandedCell] = useState<{
       rowIndex: number;
       colIndex: number;
@@ -226,6 +223,7 @@ export const DataGrid = React.memo(
       colIndex: number;
     } | null>(null);
     const editInputRef = useRef<HTMLInputElement>(null);
+    const focusTriggerRef = useRef(0);
     // Mirror of editingCell so the commit/keydown callbacks can read the latest
     // value without listing editingCell in their deps — keeps their identity
     // stable so the memoized rows don't re-render on every keystroke/scroll.
@@ -509,6 +507,162 @@ export const DataGrid = React.memo(
       [columns, pkIndexMaps, pkColumns, pendingChanges],
     );
 
+    // Keep the sidebar's onChangeRef always pointing at the latest logic.
+    // This avoids storing stale closures in context state.
+    useEffect(() => {
+      if (!rightSidebar.isOpen || rightSidebar.activePanel !== "row-editor") return;
+      const currentRowIndex = rightSidebar.rowEditorData?.rowIndex;
+      if (currentRowIndex == null) return;
+
+      rightSidebar.onChangeRef.current = (colName: string, value: unknown) => {
+        const mr = mergedRows[currentRowIndex];
+        if (!mr) return;
+        const isIns = mr.type === "insertion";
+        if (isIns && onPendingInsertionChange && mr.tempId) {
+          onPendingInsertionChange(mr.tempId, colName, value);
+        } else if (!isIns && onPendingChange && pkColumns && pkIndexMaps.length > 0) {
+          const pkMapVal = buildPkMap(pkColumns, mr.rowData, pkIndexMaps);
+          onPendingChange(pkMapVal, colName, value);
+        }
+      };
+    });
+
+    // Close sidebar when this DataGrid unmounts (route change, tab switch)
+    const rightSidebarRef = useRef(rightSidebar);
+    rightSidebarRef.current = rightSidebar;
+    useEffect(() => {
+      return () => {
+        if (rightSidebarRef.current.isOpen && rightSidebarRef.current.activePanel === "row-editor") {
+          rightSidebarRef.current.close();
+        }
+      };
+    }, []);
+
+    // Unified handler for opening a row in the right sidebar
+    const openInSidebar = useCallback(
+      (rowIndex: number, focusField?: string) => {
+        const mergedRow = mergedRows[rowIndex];
+        if (!mergedRow) return;
+        const isInsertion = mergedRow.type === "insertion";
+        const rowData = buildRowDataWithPending(mergedRow.rowData, isInsertion);
+        const originalRowData = !isInsertion
+          ? columns.reduce<Record<string, unknown>>((acc, col, idx) => {
+              acc[col] = mergedRow.rowData[idx];
+              return acc;
+            }, {})
+          : undefined;
+
+        const colsMeta = columns.map((colName) => {
+          const meta = columnMetadata?.find((c) => c.name === colName);
+          return {
+            name: colName,
+            type: meta?.data_type,
+            characterMaximumLength: meta?.character_maximum_length,
+          };
+        });
+
+        rightSidebar.openRowEditor({
+          rowData,
+          originalRowData,
+          rowIndex,
+          focusField,
+          focusTrigger: focusField ? ++focusTriggerRef.current : undefined,
+          isInsertion,
+          columns: colsMeta,
+          autoIncrementColumns,
+          defaultValueColumns,
+          nullableColumns,
+          detectJsonInTextColumns,
+          connectionId,
+          tableName,
+          pkColumns,
+          schema: activeSchema,
+        });
+      },
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [
+        mergedRows,
+        buildRowDataWithPending,
+        columns,
+        columnMetadata,
+        autoIncrementColumns,
+        defaultValueColumns,
+        nullableColumns,
+        detectJsonInTextColumns,
+        connectionId,
+        tableName,
+        pkColumns,
+        activeSchema,
+        rightSidebar.openRowEditor,
+      ],
+    );
+
+    // Follow row selection: update sidebar when a single row is selected
+    useEffect(() => {
+      if (!rightSidebar.isOpen || rightSidebar.activePanel !== "row-editor") return;
+      if (rightSidebar.isPinned) return;
+      if (settings.rowEditorFollowSelection === false) return;
+      if (selectedRowIndices.size !== 1) return;
+
+      const rowIndex = selectedRowIndices.values().next().value as number;
+      const mergedRow = mergedRows[rowIndex];
+      if (!mergedRow) return;
+
+      // Don't update if it's the same row already showing
+      if (rightSidebar.rowEditorData?.rowIndex === rowIndex) return;
+
+      const isInsertion = mergedRow.type === "insertion";
+      const rowData = buildRowDataWithPending(mergedRow.rowData, isInsertion);
+      const originalRowData = !isInsertion
+        ? columns.reduce<Record<string, unknown>>((acc, col, idx) => {
+            acc[col] = mergedRow.rowData[idx];
+            return acc;
+          }, {})
+        : undefined;
+
+      rightSidebar.updateRowEditorData({
+        rowData,
+        originalRowData,
+        rowIndex,
+        isInsertion,
+        focusField: undefined,
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+      selectedRowIndices,
+      rightSidebar.isOpen,
+      rightSidebar.activePanel,
+      rightSidebar.isPinned,
+      rightSidebar.rowEditorData?.rowIndex,
+      rightSidebar.updateRowEditorData,
+      settings.rowEditorFollowSelection,
+      mergedRows,
+      buildRowDataWithPending,
+      columns,
+    ]);
+
+    // Handle keyboard shortcut toggle: if sidebar is open, close it.
+    // If closed and a row is selected, open with that row's data.
+    useEffect(() => {
+      const handler = () => {
+        if (rightSidebar.isOpen) {
+          rightSidebar.close();
+          return;
+        }
+        // Don't open if readonly or no table context
+        if (readonlyProp || !tableName) return;
+        // Find the single selected row to open
+        if (selectedRowIndices.size === 1) {
+          const rowIndex = selectedRowIndices.values().next().value as number;
+          openInSidebar(rowIndex);
+        }
+      };
+      window.addEventListener("tabularis:toggle-right-sidebar", handler);
+      return () => {
+        window.removeEventListener("tabularis:toggle-right-sidebar", handler);
+      };
+    }, [rightSidebar, selectedRowIndices, openInSidebar, readonlyProp, tableName]);
+
     const handleCellDoubleClick = useCallback(
       (rowIndex: number, colIndex: number, value: unknown) => {
       if (!tableName || readonlyProp) return;
@@ -575,15 +729,7 @@ export const DataGrid = React.memo(
         (isBlobColumn(colType, columnLengthMap?.get(colName)) ||
           isBlobWireFormat(value))
       ) {
-        setSidebarRowData({
-          data: buildRowDataWithPending(
-            mergedRow.rowData,
-            mergedRow.type === "insertion",
-          ),
-          rowIndex,
-          focusField: colName,
-        });
-        setSidebarOpen(true);
+        openInSidebar(rowIndex, colName);
         return;
       }
 
@@ -612,7 +758,18 @@ export const DataGrid = React.memo(
         editValue = formatGeometricValue(value);
       }
 
-      setEditingCell({ rowIndex, colIndex, value: editValue });
+      const doubleClickAction = settings.cellDoubleClickAction ?? "inline";
+
+      if (doubleClickAction === "sidebar") {
+        openInSidebar(rowIndex, colName);
+      } else if (doubleClickAction === "both") {
+        setEditingCell({ rowIndex, colIndex, value: editValue });
+        // Don't pass focusField — inline edit keeps focus, sidebar just scrolls
+        openInSidebar(rowIndex);
+      } else {
+        // "inline" — default current behavior
+        setEditingCell({ rowIndex, colIndex, value: editValue });
+      }
     },
       [
         tableName,
@@ -623,10 +780,11 @@ export const DataGrid = React.memo(
         columnTypeMap,
         columnLengthMap,
         columnMetadata,
-        buildRowDataWithPending,
+        openInSidebar,
         openJsonViewerWindow,
         showAlert,
         t,
+        settings.cellDoubleClickAction,
       ],
     );
 
@@ -824,6 +982,8 @@ export const DataGrid = React.memo(
               // Only populated when column metadata is present (i.e. table
               // browse), not for arbitrary query results.
               const colType = columnTypeMap?.get(colName);
+              const tooltipAlignment =
+                index === columns.length - 1 ? "right-0" : "left-0";
 
               return (
                 <div
@@ -873,7 +1033,7 @@ export const DataGrid = React.memo(
                   {colType && (
                     <span
                       role="tooltip"
-                      className="pointer-events-none absolute left-0 top-full z-20 mt-1 whitespace-nowrap rounded-lg border border-strong bg-tooltip px-2 py-1 text-xs font-normal normal-case tracking-normal text-secondary opacity-0 shadow-xl transition-opacity duration-100 group-hover/header:opacity-100"
+                      className={`pointer-events-none absolute ${tooltipAlignment} top-full z-20 mt-1 hidden whitespace-nowrap rounded-lg border border-strong bg-tooltip px-2 py-1 text-xs font-normal normal-case tracking-normal text-secondary shadow-xl group-hover/header:block`}
                     >
                       <span className="text-primary">{colName}</span>: {colType}
                     </span>
@@ -1079,14 +1239,9 @@ export const DataGrid = React.memo(
 
     const openSidebarEditor = useCallback(() => {
       if (!contextMenu) return;
-      const isInsertion = contextMenu.mergedRow?.type === "insertion";
-      setSidebarRowData({
-        data: buildRowDataWithPending(contextMenu.row, isInsertion ?? false),
-        rowIndex: contextMenu.rowIndex,
-      });
-      setSidebarOpen(true);
+      openInSidebar(contextMenu.rowIndex);
       setContextMenu(null);
-    }, [contextMenu, buildRowDataWithPending]);
+    }, [contextMenu, openInSidebar]);
 
     const openJsonEditor = useCallback(() => {
       if (!contextMenu) return;
@@ -1238,6 +1393,47 @@ export const DataGrid = React.memo(
       );
     }, [selectedRowIndices, data, formatRows, copyToClipboard]);
 
+    // Copies one column for the selected rows, or every visible row when
+    // nothing is selected, using the same export format as other copy actions.
+    const copyColumnValues = useCallback(
+      async (colIndex: number) => {
+        if (colIndex < 0) return;
+        const rows =
+          selectedRowIndices.size > 0
+            ? getSelectedRows(data, selectedRowIndices)
+            : data;
+        const text = columnValuesForCopy(rows, columns, colIndex, {
+          format: copyFormat ?? "csv",
+          delimiter: csvDelimiter,
+          includeHeader: csvIncludeHeaders,
+          tableName: tableName ?? "table",
+        });
+        await copyToClipboard(text);
+      },
+      [
+        selectedRowIndices,
+        data,
+        columns,
+        copyFormat,
+        csvDelimiter,
+        csvIncludeHeaders,
+        tableName,
+        copyToClipboard,
+      ],
+    );
+
+    const copyColumnValuesAsInClause = useCallback(
+      async (colIndex: number) => {
+        if (colIndex < 0) return;
+        const rows =
+          selectedRowIndices.size > 0
+            ? getSelectedRows(data, selectedRowIndices)
+            : data;
+        await copyToClipboard(columnValuesToInClause(rows, colIndex));
+      },
+      [selectedRowIndices, data, copyToClipboard],
+    );
+
     const copyCellValue = useCallback(
       async (rowIndex: number, colIndex: number) => {
         const mergedRow = mergedRows[rowIndex];
@@ -1310,8 +1506,7 @@ export const DataGrid = React.memo(
         setFocusedCell,
         setExpandedCell,
         setEditingCell,
-        setSidebarRowData,
-        setSidebarOpen,
+        openInSidebar,
         handleRowClick,
         handleCellDoubleClick,
         handleContextMenu,
@@ -1324,7 +1519,6 @@ export const DataGrid = React.memo(
         onPendingChange,
         onPendingInsertionChange,
         openJsonViewerWindow,
-        buildRowDataWithPending,
         editInputRef,
       }),
       [
@@ -1348,8 +1542,7 @@ export const DataGrid = React.memo(
         setFocusedCell,
         setExpandedCell,
         setEditingCell,
-        setSidebarRowData,
-        setSidebarOpen,
+        openInSidebar,
         handleRowClick,
         handleCellDoubleClick,
         handleContextMenu,
@@ -1362,7 +1555,6 @@ export const DataGrid = React.memo(
         onPendingChange,
         onPendingInsertionChange,
         openJsonViewerWindow,
-        buildRowDataWithPending,
         editInputRef,
       ],
     );
@@ -1628,6 +1820,24 @@ export const DataGrid = React.memo(
                 action: copySelectedOrContextRow,
               });
 
+              menuItems.push({
+                label: t("dataGrid.copyColumnValues"),
+                icon: Copy,
+                action: async () => {
+                  await copyColumnValues(contextMenu.colIndex);
+                  setContextMenu(null);
+                },
+              });
+
+              menuItems.push({
+                label: t("dataGrid.copyColumnValuesIn"),
+                icon: Copy,
+                action: async () => {
+                  await copyColumnValuesAsInClause(contextMenu.colIndex);
+                  setContextMenu(null);
+                },
+              });
+
               if (!readonlyProp) {
                 menuItems.push(
                   {
@@ -1704,91 +1914,31 @@ export const DataGrid = React.memo(
                   icon: Copy,
                   action: copyHeaderNameTable,
                 },
+                {
+                  label: t("dataGrid.copyColumnValues"),
+                  icon: Copy,
+                  action: async () => {
+                    await copyColumnValues(
+                      columns.indexOf(headerContextMenu.colName),
+                    );
+                    setHeaderContextMenu(null);
+                  },
+                },
+                {
+                  label: t("dataGrid.copyColumnValuesIn"),
+                  icon: Copy,
+                  action: async () => {
+                    await copyColumnValuesAsInClause(
+                      columns.indexOf(headerContextMenu.colName),
+                    );
+                    setHeaderContextMenu(null);
+                  },
+                },
               ]}
             />
           )}
 
-          {/* Row Editor Sidebar */}
-          {sidebarOpen &&
-            sidebarRowData &&
-            (() => {
-              const mergedRow = mergedRows[sidebarRowData.rowIndex];
-              const isInsertion = mergedRow?.type === "insertion";
-              const originalRowData =
-                mergedRow && mergedRow.type === "existing"
-                  ? columns.reduce<Record<string, unknown>>((acc, col, idx) => {
-                      acc[col] = mergedRow.rowData[idx];
-                      return acc;
-                    }, {})
-                  : undefined;
-
-              return (
-                <RowEditorSidebar
-                  isOpen={sidebarOpen}
-                  onClose={() => {
-                    setSidebarOpen(false);
-                    setSidebarRowData(null);
-                  }}
-                  rowData={sidebarRowData.data}
-                  originalRowData={originalRowData}
-                  detectJsonInTextColumns={detectJsonInTextColumns}
-                  rowIndex={sidebarRowData.rowIndex}
-                  isInsertion={isInsertion}
-                  columns={columns.map((colName) => {
-                    const meta = columnMetadata?.find(
-                      (c) => c.name === colName,
-                    );
-                    return {
-                      name: colName,
-                      type: meta?.data_type,
-                      characterMaximumLength:
-                        meta?.character_maximum_length,
-                    };
-                  })}
-                  autoIncrementColumns={autoIncrementColumns}
-                  defaultValueColumns={defaultValueColumns}
-                  nullableColumns={nullableColumns}
-                  focusField={sidebarRowData.focusField}
-                  connectionId={connectionId}
-                  tableName={tableName}
-                  pkColumns={pkColumns}
-                  schema={activeSchema}
-                  onChange={(colName, value) => {
-                    // Get the merged row to determine if it's an insertion or existing row
-                    const mergedRow = mergedRows[sidebarRowData.rowIndex];
-                    if (!mergedRow) return;
-
-                    const isInsertion = mergedRow.type === "insertion";
-
-                    // Apply change immediately
-                    if (
-                      isInsertion &&
-                      onPendingInsertionChange &&
-                      mergedRow.tempId
-                    ) {
-                      // Handle insertion row updates
-                      onPendingInsertionChange(
-                        mergedRow.tempId,
-                        colName,
-                        value,
-                      );
-                    } else if (
-                      !isInsertion &&
-                      onPendingChange &&
-                      pkColumns &&
-                      pkIndexMaps.length > 0
-                    ) {
-                      // Handle existing row updates
-                      const rowData = mergedRow.rowData;
-                      if (rowData) {
-                        const pkMapVal = buildPkMap(pkColumns, rowData, pkIndexMaps);
-                        onPendingChange(pkMapVal, colName, value);
-                      }
-                    }
-                  }}
-                />
-              );
-            })()}
+          {/* Row Editor Sidebar is now rendered in the RightSidebar layout component */}
         </div>
       </>
     );

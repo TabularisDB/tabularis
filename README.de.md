@@ -5,7 +5,7 @@
 # tabularis
 
 <p align="center">
-  <strong>Tabularis ist ein quelloffener Desktop-SQL-Workspace für PostgreSQL, MySQL/MariaDB, SQLite und über 12 weitere Datenbanken wie DuckDB, ClickHouse, Redis und Firestore.<br />
+  <strong>Tabularis ist ein quelloffener Desktop-SQL-Workspace für PostgreSQL, MySQL/MariaDB, SQLite und über 15 weitere Datenbanken wie DuckDB, ClickHouse, Redis und Firestore.<br />
   Dank des integrierten MCP-Servers können Claude, Cursor und Devin (vormals Windsurf) dein Schema lesen und Abfragen ausführen — direkt in der App, die du ohnehin schon nutzt.</strong>
 </p>
 
@@ -59,7 +59,7 @@ sudo snap install tabularis                                      # Linux
 
 Oder lade direkt einen Installer herunter:
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis-0.13.1-1.x86_64.rpm)
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis-0.16.0-1.x86_64.rpm)
 
 Die Benutzeroberfläche der App ist auf Englisch, Italienisch, Spanisch, Chinesisch (vereinfacht), Französisch, Deutsch, Japanisch, Russisch und Tagalog verfügbar.
 
@@ -73,7 +73,7 @@ Die Benutzeroberfläche der App ist auf Englisch, Italienisch, Spanisch, Chinesi
 | Plugins in **jeder Sprache** (JSON-RPC über stdio) | ✅ | Java-/Eclipse-Plugins | JavaScript-Plugins | ❌ |
 | KI-Text-to-SQL mit **lokalen Modellen** (Ollama) | ✅ | Cloud-basierter KI-Assistent | ❌ | ❌ |
 | Visual EXPLAIN mit interaktiven Plan-Graphen | ✅ | ✅ | ❌ | ❌ |
-| Datenbanken ab Werk | 3 integriert + 12 offizielle Plugins | 100+ | 20+ | ~10 |
+| Datenbanken ab Werk | 3 integriert + 15 offizielle Plugins | 100+ | 20+ | ~10 |
 
 > Vergleich mit Stand Juni 2026; die Funktionen anderer Tools können sich seitdem geändert haben. Wer Dutzende Treiber braucht, ist mit DBeaver besser bedient — tabularis konzentriert sich darauf, wenige Datenbanken gut zu unterstützen.
 

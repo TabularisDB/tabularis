@@ -1167,7 +1167,7 @@ impl DatabaseDriver for SqliteDriver {
         query: &str,
         _analyze: bool,
         _schema: Option<&str>,
-    ) -> Result<crate::models::ExplainPlan, String> {
+    ) -> Result<crate::models::ExplainQueryOutput, String> {
         explain_query(params, query).await
     }
 

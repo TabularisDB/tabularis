@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitQueries, extractTableName, extractEditableViewDefinition, isExplainableQuery, stripLeadingSqlComments, getExplainableQueries } from '../../src/utils/sql';
+import { splitQueries, extractTableName, extractEditableViewDefinition, isExplainableQuery, isDataModifyingQuery, stripLeadingSqlComments, getExplainableQueries } from '../../src/utils/sql';
 
 describe('sql utils', () => {
   describe('splitQueries', () => {
@@ -263,6 +263,48 @@ describe('sql utils', () => {
       },
     ])('$name', ({ sql, expected }) => {
       expect(extractEditableViewDefinition(sql)).toBe(expected);
+    });
+  });
+
+  describe("isDataModifyingQuery", () => {
+    it("should detect INSERT", () => {
+      expect(isDataModifyingQuery("INSERT INTO t VALUES (1)")).toBe(true);
+    });
+
+    it("should detect UPDATE", () => {
+      expect(isDataModifyingQuery("UPDATE t SET a = 1")).toBe(true);
+    });
+
+    it("should detect DELETE", () => {
+      expect(isDataModifyingQuery("DELETE FROM t WHERE id = 1")).toBe(true);
+    });
+
+    it("should detect DROP", () => {
+      expect(isDataModifyingQuery("DROP TABLE t")).toBe(true);
+    });
+
+    it("should detect ALTER", () => {
+      expect(isDataModifyingQuery("ALTER TABLE t ADD col INT")).toBe(true);
+    });
+
+    it("should detect TRUNCATE", () => {
+      expect(isDataModifyingQuery("TRUNCATE TABLE t")).toBe(true);
+    });
+
+    it("should not flag SELECT", () => {
+      expect(isDataModifyingQuery("SELECT * FROM t")).toBe(false);
+    });
+
+    it("should be case-insensitive", () => {
+      expect(isDataModifyingQuery("insert into t values (1)")).toBe(true);
+    });
+
+    it("should handle leading whitespace", () => {
+      expect(isDataModifyingQuery("  DELETE FROM t")).toBe(true);
+    });
+
+    it("should not flag WITH queries", () => {
+      expect(isDataModifyingQuery("WITH cte AS (SELECT 1) SELECT * FROM cte")).toBe(false);
     });
   });
 });

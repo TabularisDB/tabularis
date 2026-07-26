@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync, readdirSync } from "fs";
 import { resolve } from "path";
 
 // File paths
@@ -7,8 +7,12 @@ const paths = {
   tauri: resolve("src-tauri/tauri.conf.json"),
   cargo: resolve("src-tauri/Cargo.toml"),
   appVersion: resolve("src/version.ts"),
-  readme: resolve("README.md"),
 };
+
+// All README files in the repo root, including translations (README.it.md, README.zh-CN.md, ...)
+const readmeFiles = readdirSync(resolve("."))
+  .filter((name) => /^README(\..+)?\.md$/.test(name))
+  .map((name) => resolve(name));
 
 // 1. Read the new version from package.json (already updated by npm version)
 const pkg = JSON.parse(readFileSync(paths.package, "utf-8"));
@@ -36,18 +40,26 @@ const versionContent = `export const APP_VERSION = "${newVersion}";\n`;
 writeFileSync(paths.appVersion, versionContent);
 console.log("✅ Updated src/version.ts");
 
-let readme = readFileSync(paths.readme, "utf-8");
+// 5. Update download links in every README (all languages)
+for (const readmePath of readmeFiles) {
+  let readme = readFileSync(readmePath, "utf-8");
 
-// Update download links in README
-readme = readme.replace(
-  /releases\/download\/v.*?\//g,
-  `releases/download/v${newVersion}/`,
-);
+  readme = readme.replace(
+    /releases\/download\/v.*?\//g,
+    `releases/download/v${newVersion}/`,
+  );
 
-readme = readme.replace(
-  /tabularis_\d+\.\d+\.\d+_/g,
-  `tabularis_${newVersion}_`,
-);
+  readme = readme.replace(
+    /tabularis_\d+\.\d+\.\d+_/g,
+    `tabularis_${newVersion}_`,
+  );
 
-writeFileSync(paths.readme, readme);
-console.log("✅ Updated README.md");
+  // .rpm assets use dashes: tabularis-X.Y.Z-1.x86_64.rpm
+  readme = readme.replace(
+    /tabularis-\d+\.\d+\.\d+-/g,
+    `tabularis-${newVersion}-`,
+  );
+
+  writeFileSync(readmePath, readme);
+  console.log(`✅ Updated ${readmePath.split("/").pop()}`);
+}

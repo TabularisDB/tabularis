@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { TableInfo } from "../contexts/DatabaseContext";
 import { formatSqlIdentifier, getQuoteChar, quoteIdentifier } from "./identifiers";
 import { getCurrentStatement, parseTablesFromQuery, type ParsedTableRef } from "./sqlAnalysis";
+import { analyzeSqlContext, findStatementScopeEnd, getKeywordRelevance, getSuggestionKinds } from "./sqlContext";
 
 // Lightweight column cache with TTL and size limits
 interface CachedColumns {
@@ -185,9 +186,38 @@ export const registerSqlAutocomplete = (
         endColumn: position.column,
       });
 
-      // Get current statement context
+      // Clause-aware context: figure out where the cursor sits so only the
+      // relevant suggestion kinds are offered (and nothing inside strings or
+      // comments).
+      const fullTextUntilPosition = model.getValueInRange({
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: position.lineNumber,
+        endColumn: position.column,
+      });
+      const sqlContext = analyzeSqlContext(fullTextUntilPosition);
+      if (sqlContext.inString || sqlContext.inComment) {
+        return { suggestions: [] };
+      }
+      const suggestionKinds = getSuggestionKinds(sqlContext.clause);
+
+      // Get current statement context. When the cursor sits inside a
+      // subquery/CTE body, context columns must come from that scope's own
+      // FROM list, so the scoped refs are parsed separately. Outer refs stay
+      // resolvable through the merged map so correlated references
+      // (`WHERE o.user_id = u.id`) keep completing via the dot trigger.
       const currentStatement = getCurrentStatement(model, position);
-      const tableAliases = parseTablesFromQuery(currentStatement);
+      const outerAliases = parseTablesFromQuery(currentStatement);
+      let scopedAliases = outerAliases;
+      if (sqlContext.statementStart > 0) {
+        const fullText = model.getValue();
+        const scopeEnd = findStatementScopeEnd(fullText, fullTextUntilPosition.length);
+        scopedAliases = parseTablesFromQuery(fullText.slice(sqlContext.statementStart, scopeEnd));
+      }
+      const tableAliases =
+        scopedAliases === outerAliases
+          ? outerAliases
+          : new Map([...(outerAliases ?? []), ...(scopedAliases ?? [])]);
 
 
       // ============================================
@@ -265,10 +295,10 @@ export const registerSqlAutocomplete = (
         filterText?: string;
       }> = [];
       
-      if (tableAliases && tableAliases.size > 0) {
+      if (suggestionKinds.columns && scopedAliases && scopedAliases.size > 0) {
         // Deduplicate parsed refs by (schema, name) — multiple aliases can point to the same table
         const seenRefs = new Set<string>();
-        const uniqueRefs = Array.from(tableAliases.values()).filter(ref => {
+        const uniqueRefs = Array.from(scopedAliases.values()).filter(ref => {
           const key = `${ref.schema ?? ''}:${ref.name}`;
           return seenRefs.has(key) ? false : (seenRefs.add(key), true);
         });
@@ -307,7 +337,7 @@ export const registerSqlAutocomplete = (
 
               // Find alias for this table (if any)
               let aliasHint = "";
-              for (const [alias, ref] of tableAliases.entries()) {
+              for (const [alias, ref] of scopedAliases.entries()) {
                 if (ref.name.toLowerCase() === table.name.toLowerCase() && alias !== table.name.toLowerCase()) {
                   aliasHint = ` (${alias})`;
                   break;
@@ -329,27 +359,37 @@ export const registerSqlAutocomplete = (
       // ============================================
       // 3. KEYWORD SUGGESTIONS
       // ============================================
+      // Keywords irrelevant in the current clause are dropped (WHEN outside
+      // CASE, ...); likely continuations get a higher rank (`2_0_`) so a
+      // short prefix + Enter picks the right one (e.g. "wh" after FROM →
+      // WHERE, not WHEN).
       const colLabels = new Set(contextColumnSuggestions.map(s => s.label.toUpperCase()));
-      const keywordSuggestions = SQL_KEYWORDS
-        .filter(kw => !colLabels.has(kw))
-        .map((kw) => ({
-          label: kw,
-          kind: monaco.languages.CompletionItemKind.Keyword,
-          insertText: kw,
-          range,
-          sortText: `2_${kw}`
-        }));
+      const keywordSuggestions = suggestionKinds.keywords
+        ? SQL_KEYWORDS
+            .filter(kw => !colLabels.has(kw))
+            .map((kw) => ({ kw, relevance: getKeywordRelevance(sqlContext.clause, kw) }))
+            .filter(({ relevance }) => relevance !== 'hidden')
+            .map(({ kw, relevance }) => ({
+              label: kw,
+              kind: monaco.languages.CompletionItemKind.Keyword,
+              insertText: kw,
+              range,
+              sortText: relevance === 'high' ? `2_0_${kw}` : `2_1_${kw}`
+            }))
+        : [];
 
       // ============================================
       // 4. TABLE SUGGESTIONS
       // ============================================
-      const tableSuggestions = tables.map((t) => ({
-        label: t.name,
-        kind: monaco.languages.CompletionItemKind.Class,
-        detail: "Table",
-        ...buildIdentifierInsert(t.name, range),
-        sortText: `1_${t.name}`
-      }));
+      const tableSuggestions = suggestionKinds.tables
+        ? tables.map((t) => ({
+            label: t.name,
+            kind: monaco.languages.CompletionItemKind.Class,
+            detail: "Table",
+            ...buildIdentifierInsert(t.name, range),
+            sortText: `1_${t.name}`
+          }))
+        : [];
 
       return {
         suggestions: [

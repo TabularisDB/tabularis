@@ -5,7 +5,7 @@
 # tabularis
 
 <p align="center">
-  <strong>Ang Tabularis ay isang open-source na desktop SQL workspace para sa PostgreSQL, MySQL/MariaDB, SQLite at 12+ pang database tulad ng DuckDB, ClickHouse, Redis at Firestore.<br />
+  <strong>Ang Tabularis ay isang open-source na desktop SQL workspace para sa PostgreSQL, MySQL/MariaDB, SQLite at 15+ pang database tulad ng DuckDB, ClickHouse, Redis at Firestore.<br />
   Pinapayagan ng built-in na MCP server nito ang Claude, Cursor at Devin (dating Windsurf) na basahin ang iyong schema at magpatakbo ng mga query sa parehong app na ginagamit mo na.</strong>
 </p>
 
@@ -59,7 +59,7 @@ sudo snap install tabularis                                      # Linux
 
 O kumuha ng installer nang direkta:
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis_0.14.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.14.0/tabularis-0.13.1-1.x86_64.rpm)
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis-0.16.0-1.x86_64.rpm)
 
 Sinusuportahan ng UI ng app ang Ingles, Italyano, Espanyol, Tsino (Simplified), Pranses, Aleman, Hapones, Ruso, at Tagalog.
 
@@ -73,7 +73,7 @@ Sinusuportahan ng UI ng app ang Ingles, Italyano, Espanyol, Tsino (Simplified), 
 | Mga plugin sa **anumang wika** (JSON-RPC sa stdio) | ✅ | Java/Eclipse plugins | JavaScript plugins | ❌ |
 | AI text-to-SQL gamit ang **lokal na modelo** (Ollama) | ✅ | Cloud AI assistant | ❌ | ❌ |
 | Visual EXPLAIN na may interactive plan graphs | ✅ | ✅ | ❌ | ❌ |
-| Mga database out of the box | 3 built-in + 12 opisyal na plugin | 100+ | 20+ | ~10 |
+| Mga database out of the box | 3 built-in + 15 opisyal na plugin | 100+ | 20+ | ~10 |
 
 > Paghahambing noong Hunyo 2026; maaaring nagbago ang mga feature ng ibang tool mula noon. Kung kailangan mo ng dose-dosenang driver, gamitin ang DBeaver — nakatuon ang tabularis sa paggawa nang maayos ang ilang database.
 

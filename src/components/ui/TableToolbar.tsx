@@ -402,7 +402,11 @@ const TableToolbarInternal = ({
   // ── render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="relative">
+    // Size container so controls collapse in narrow split panes. The explicit
+    // z-index keeps the autocomplete/filter overlays above the grid below (a
+    // container creates a stacking context that would otherwise paint under
+    // later siblings).
+    <div className="@container relative z-30">
       {/* Always-visible toolbar */}
       <div className="h-10 bg-elevated border-y border-default flex items-center px-2 gap-2">
         {/* Filters button */}
@@ -418,7 +422,7 @@ const TableToolbarInternal = ({
             }`}
           >
             <SlidersHorizontal size={12} />
-            <span>{t("toolbar.filters")}</span>
+            <span className="hidden @[520px]:inline">{t("toolbar.filters")}</span>
             {activeFilterCount > 0 && (
               <span className="px-1 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[10px] font-semibold bg-blue-500/30 text-blue-300 leading-none">
                 {activeFilterCount}
@@ -431,7 +435,7 @@ const TableToolbarInternal = ({
         {!panelOpen && (
           <div className="flex items-center gap-2 flex-1 bg-base border border-default rounded px-2 py-1 focus-within:border-blue-500/50 transition-colors relative">
             <Filter size={14} className="text-muted shrink-0" />
-            <span className="text-xs text-blue-400 font-mono shrink-0">WHERE</span>
+            <span className="hidden @[440px]:inline text-xs text-blue-400 font-mono shrink-0">WHERE</span>
             <input
               ref={filterInputRef}
               type="text"
@@ -486,7 +490,7 @@ const TableToolbarInternal = ({
         {/* ORDER BY */}
         <div className="relative flex items-center gap-1.5 flex-1 bg-base border border-default rounded px-2 py-1 focus-within:border-blue-500/50 transition-colors">
           <ArrowUpDown size={14} className="text-muted shrink-0" />
-          <span className="text-xs text-blue-400 font-mono shrink-0">ORDER BY</span>
+          <span className="hidden @[440px]:inline text-xs text-blue-400 font-mono shrink-0">ORDER BY</span>
           <input
             ref={sortInputRef}
             type="text"
@@ -526,9 +530,9 @@ const TableToolbarInternal = ({
         </div>
 
         {/* LIMIT */}
-        <div className="flex items-center gap-1.5 w-32 bg-base border border-default rounded px-2 py-1 focus-within:border-blue-500/50 transition-colors">
+        <div className="flex items-center gap-1.5 w-20 @[560px]:w-32 bg-base border border-default rounded px-2 py-1 focus-within:border-blue-500/50 transition-colors shrink-0">
           <ListFilter size={14} className="text-muted shrink-0" />
-          <span className="text-xs text-blue-400 font-mono shrink-0">LIMIT</span>
+          <span className="hidden @[440px]:inline text-xs text-blue-400 font-mono shrink-0">LIMIT</span>
           <input
             type="number"
             value={limitInput}
@@ -553,7 +557,7 @@ const TableToolbarInternal = ({
         <div
           ref={panelRef}
           onKeyDown={handlePanelKeyDown}
-          className="absolute top-full left-0 z-50 mt-1 w-full min-w-[560px] max-w-4xl bg-elevated border border-default/80 rounded-lg overflow-hidden"
+          className="absolute top-full left-0 z-50 mt-1 w-full min-w-[min(560px,100cqw)] max-w-4xl bg-elevated border border-default/80 rounded-lg overflow-hidden"
           style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3)" }}
         >
           {/* Header */}
@@ -576,8 +580,8 @@ const TableToolbarInternal = ({
             </button>
           </div>
 
-          {/* Filter rows */}
-          <div className="divide-y divide-default/30">
+          {/* Filter rows — scroll horizontally when the pane is narrower than a row */}
+          <div className="divide-y divide-default/30 overflow-x-auto">
             {structuredFilters.length === 0 ? (
               <div className="flex items-center gap-2 px-3 py-3">
                 <span className="text-xs text-muted">{t("toolbar.noFilters")}</span>

@@ -5,7 +5,7 @@
 # tabularis
 
 <p align="center">
-  <strong>Tabularis は、PostgreSQL、MySQL/MariaDB、SQLite に加え、DuckDB、ClickHouse、Redis、Firestore など 12 以上のデータベースに対応するオープンソースのデスクトップ SQL ワークスペースです。<br />
+  <strong>Tabularis は、PostgreSQL、MySQL/MariaDB、SQLite に加え、DuckDB、ClickHouse、Redis、Firestore など 15 以上のデータベースに対応するオープンソースのデスクトップ SQL ワークスペースです。<br />
   組み込みの MCP サーバーにより、Claude、Cursor、Devin（旧 Windsurf）が、あなたが普段使っているアプリの中でスキーマを読み取り、クエリを実行できます。</strong>
 </p>
 
@@ -59,7 +59,7 @@ sudo snap install tabularis                                      # Linux
 
 または、インストーラーを直接ダウンロードしてください。
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis_0.13.1_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.1/tabularis-0.13.1-1.x86_64.rpm)
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis-0.16.0-1.x86_64.rpm)
 
 アプリの UI は英語、イタリア語、スペイン語、中国語（簡体字）、フランス語、ドイツ語、日本語、ロシア語、タガログ語に対応しています。
 
@@ -73,7 +73,7 @@ sudo snap install tabularis                                      # Linux
 | **任意の言語**でプラグイン開発（stdio 経由の JSON-RPC） | ✅ | Java/Eclipse プラグイン | JavaScript プラグイン | ❌ |
 | **ローカルモデル**（Ollama）対応の AI テキストから SQL 変換 | ✅ | クラウドベースの AI アシスタント | ❌ | ❌ |
 | インタラクティブなプラングラフ付き Visual EXPLAIN | ✅ | ✅ | ❌ | ❌ |
-| 標準対応データベース数 | 標準搭載 3 + 公式プラグイン 12 | 100+ | 20+ | 約 10 |
+| 標準対応データベース数 | 標準搭載 3 + 公式プラグイン 15 | 100+ | 20+ | 約 10 |
 
 > 比較は 2026 年 6 月時点のものです。他ツールの機能はその後変わっている可能性があります。数十のドライバーが必要な場合は DBeaver を使ってください。tabularis は、少数のデータベースをしっかりサポートすることに注力しています。
 
