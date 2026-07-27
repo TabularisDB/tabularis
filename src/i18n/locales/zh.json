@@ -402,6 +402,7 @@
     "fontPreviewText": "The quick brown fox jumps over the lazy dog",
     "language": "语言",
     "languageDesc": "选择您的首选语言。自动\"将使用您的系统语言。",
+    "languageSearch": "搜索语言...",
     "auto": "自动（系统）",
     "english": "English",
     "italian": "Italiano",

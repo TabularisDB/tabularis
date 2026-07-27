@@ -476,6 +476,7 @@
     },
     "language": "Wika",
     "languageDesc": "Piliin ang iyong gustong wika. Ang 'Auto' ay gagamit ng wika ng iyong system.",
+    "languageSearch": "Maghanap ng wika...",
     "auto": "Auto (System)",
     "timezone": "Timezone",
     "timezoneDesc": "Timezone na ginagamit para ipakita ang mga timestamp at export. Ang 'Auto' ay sumusunod sa timezone ng iyong system.",

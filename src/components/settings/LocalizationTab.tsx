@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useSettings } from "../../hooks/useSettings";
 import { SUPPORTED_LANGUAGES, type AppLanguage } from "../../i18n/config";
-import { SettingSection, SettingRow, SettingButtonGroup } from "./SettingControls";
+import { SettingSection, SettingRow } from "./SettingControls";
 import { Select } from "../ui/Select";
 
 /** All IANA timezone names supported by the runtime, or [] if unavailable. */
@@ -31,13 +31,28 @@ function zoneOffset(zone: string, at: Date): string {
 }
 
 export function LocalizationTab() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { settings, updateSetting } = useSettings();
 
-  const options: Array<{ value: AppLanguage; label: string }> = [
-    { value: "auto", label: t("settings.auto") },
-    ...SUPPORTED_LANGUAGES.map(({ id, label }) => ({ value: id, label })),
-  ];
+  const langOptions = useMemo(() => ["auto", ...SUPPORTED_LANGUAGES.map((l) => l.id)], []);
+  // Native name first, plus the name in the current UI language so both are searchable.
+  const langLabels = useMemo(() => {
+    let displayNames: Intl.DisplayNames | undefined;
+    try {
+      displayNames = new Intl.DisplayNames([i18n.language], { type: "language" });
+    } catch {
+      displayNames = undefined;
+    }
+    const labels: Record<string, string> = { auto: t("settings.auto") };
+    for (const { id, label } of SUPPORTED_LANGUAGES) {
+      const localized = displayNames?.of(id);
+      labels[id] =
+        localized && localized.toLowerCase() !== label.toLowerCase()
+          ? `${label} (${localized})`
+          : label;
+    }
+    return labels;
+  }, [t, i18n.language]);
 
   const zones = useMemo(() => supportedTimezones(), []);
   const tzOptions = useMemo(() => ["auto", ...zones], [zones]);
@@ -67,10 +82,13 @@ export function LocalizationTab() {
           description={t("settings.languageDesc")}
           vertical
         >
-          <SettingButtonGroup
+          <Select
             value={settings.language ?? "auto"}
-            onChange={(v) => updateSetting("language", v)}
-            options={options}
+            options={langOptions}
+            labels={langLabels}
+            onChange={(v) => updateSetting("language", v as AppLanguage)}
+            searchable
+            searchPlaceholder={t("settings.languageSearch")}
           />
         </SettingRow>
         <SettingRow

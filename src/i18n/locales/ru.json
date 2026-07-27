@@ -441,6 +441,7 @@
     },
     "language": "Язык",
     "languageDesc": "Выберите язык интерфейса. «Авто» использует язык системы.",
+    "languageSearch": "Поиск языка...",
     "auto": "Авто (системный)",
     "english": "English",
     "italian": "Italiano",

@@ -476,6 +476,7 @@
     },
     "language": "Langue",
     "languageDesc": "Choisissez votre langue préférée. \"Auto\" utilisera la langue de votre système.",
+    "languageSearch": "Rechercher une langue...",
     "auto": "Auto (Système)",
     "timezone": "Fuseau horaire",
     "timezoneDesc": "Fuseau horaire utilisé pour afficher les horodatages et les exports. « Auto » suit le fuseau horaire de votre système.",

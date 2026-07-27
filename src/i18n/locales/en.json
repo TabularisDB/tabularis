@@ -481,6 +481,7 @@
     },
     "language": "Language",
     "languageDesc": "Choose your preferred language. 'Auto' will use your system language.",
+    "languageSearch": "Search languages...",
     "auto": "Auto (System)",
     "timezone": "Timezone",
     "timezoneDesc": "Timezone used to display timestamps and exports. 'Auto' follows your system timezone.",
