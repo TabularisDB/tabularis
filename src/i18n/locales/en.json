@@ -481,6 +481,7 @@
     },
     "language": "Language",
     "languageDesc": "Choose your preferred language. 'Auto' will use your system language.",
+    "languageSearch": "Search languages...",
     "auto": "Auto (System)",
     "timezone": "Timezone",
     "timezoneDesc": "Timezone used to display timestamps and exports. 'Auto' follows your system timezone.",
@@ -577,6 +578,10 @@
       "npm": "npm ecosystem",
       "cargo": "Cargo ecosystem"
     },
+    "releaseChannel": "Release channel",
+    "releaseChannelDesc": "Stable ships tested releases. Nightly builds from the latest main branch — newer, but may be unstable.",
+    "channelStable": "Stable",
+    "channelNightly": "Nightly",
     "autoCheckUpdates": "Check for updates on startup",
     "autoCheckUpdatesDesc": "Automatically check for new versions when the app launches",
     "checkNow": "Check for Updates Now",
@@ -814,7 +819,8 @@
     "error": "Update Error",
     "currentVersion": "Current version",
     "managedByPackageManager": "Updates managed by {{source}}",
-    "managedByPackageManagerDesc": "Use your package manager to update Tabularis."
+    "managedByPackageManagerDesc": "Use your package manager to update Tabularis.",
+    "nightlyWarning": "Nightly builds are unstable pre-releases. Only assets built for the nightly channel are installed."
   },
   "ai": {
     "assist": "AI Assist",

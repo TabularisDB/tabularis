@@ -63,6 +63,8 @@ pub struct AppConfig {
     /// Base URL of the Tabularium plugin registry (https://tabularium.wiki).
     /// Defaults to the built-in instance when unset.
     pub tabularium_registry_url: Option<String>,
+    /// Update channel: "stable" (default) or "nightly". None ⇒ stable.
+    pub release_channel: Option<String>,
     pub plugins: Option<HashMap<String, PluginConfig>>,
     pub editor_theme: Option<String>,
     pub editor_font_family: Option<String>,
@@ -335,6 +337,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.tabularium_registry_url.is_some() {
             existing_config.tabularium_registry_url = config.tabularium_registry_url;
+        }
+        if config.release_channel.is_some() {
+            existing_config.release_channel = config.release_channel;
         }
         if config.plugins.is_some() {
             existing_config.plugins = config.plugins;

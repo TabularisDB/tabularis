@@ -446,6 +446,7 @@
     },
     "language": "Sprache",
     "languageDesc": "Wähle deine bevorzugte Sprache. \"Auto\" verwendet die Systemsprache.",
+    "languageSearch": "Sprachen durchsuchen...",
     "auto": "Auto (System)",
     "english": "Englisch",
     "italian": "Italienisch",

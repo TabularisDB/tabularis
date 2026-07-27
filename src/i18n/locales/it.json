@@ -471,6 +471,7 @@
     },
     "language": "Lingua",
     "languageDesc": "Scegli la tua lingua preferita. 'Auto' userà la lingua di sistema.",
+    "languageSearch": "Cerca lingue...",
     "auto": "Auto (Sistema)",
     "english": "Inglese",
     "italian": "Italiano",
