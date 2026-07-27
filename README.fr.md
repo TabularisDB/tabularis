@@ -20,7 +20,8 @@
   <a href="./README.ja.md">日本語</a> |
   <a href="./README.ru.md">Русский</a> |
   <a href="./README.tl.md">Tagalog</a> |
-  <a href="./README.ko.md">한국어</a>
+  <a href="./README.ko.md">한국어</a> |
+  <a href="./README.pt-BR.md">Português (Brasil)</a>
 </p>
 
 <p align="center">
@@ -61,7 +62,7 @@ Ou téléchargez directement un installateur :
 
 [![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis_0.16.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.16.0/tabularis-0.16.0-1.x86_64.rpm)
 
-L’interface de l’application est disponible en anglais, italien, espagnol, chinois (simplifié), français, allemand, japonais, russe et tagalog.
+L’interface de l’application est disponible en anglais, italien, espagnol, chinois (simplifié), français, allemand, japonais, russe, tagalog et portugais (brésilien).
 
 ## Pourquoi tabularis ?
 

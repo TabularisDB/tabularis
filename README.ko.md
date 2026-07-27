@@ -20,7 +20,8 @@
   <a href="./README.ja.md">日本語</a> |
   <a href="./README.ru.md">Русский</a> |
   <a href="./README.tl.md">Tagalog</a> |
-  <a href="./README.ko.md">한국어</a>
+  <a href="./README.ko.md">한국어</a> |
+  <a href="./README.pt-BR.md">Português (Brasil)</a>
 </p>
 
 <p align="center">
