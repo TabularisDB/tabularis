@@ -39,6 +39,8 @@ export function getProviderLabel(id: AiProvider): string {
       return 'OpenAI Compatible';
     case 'minimax':
       return 'MiniMax';
+    case 'atlascloud':
+      return 'Atlas Cloud';
     default:
       return String(id).charAt(0).toUpperCase() + String(id).slice(1);
   }

@@ -631,6 +631,7 @@ pub fn get_ai_api_key(app: &AppHandle, provider: &str) -> Result<String, String>
         "openrouter" => "OPENROUTER_API_KEY",
         "custom-openai" => "CUSTOM_OPENAI_API_KEY",
         "minimax" => "MINIMAX_API_KEY",
+        "atlascloud" => "ATLASCLOUD_API_KEY",
         _ => "",
     };
 
@@ -667,6 +668,7 @@ pub fn get_ai_api_key_status(app: &AppHandle, provider: &str) -> AiKeyStatus {
         "openrouter" => "OPENROUTER_API_KEY",
         "custom-openai" => "CUSTOM_OPENAI_API_KEY",
         "minimax" => "MINIMAX_API_KEY",
+        "atlascloud" => "ATLASCLOUD_API_KEY",
         _ => "",
     };
 

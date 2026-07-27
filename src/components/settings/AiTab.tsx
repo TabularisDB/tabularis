@@ -54,6 +54,11 @@ const PROVIDERS: Array<{
     icon: <MiniMaxIcon size={18} className="text-[#6c6cff]" />,
   },
   {
+    id: "atlascloud",
+    label: "Atlas Cloud",
+    icon: <OpenAIIcon size={18} className="text-blue-400" />,
+  },
+  {
     id: "openrouter",
     label: "OpenRouter",
     icon: <OpenRouterIcon size={18} className="text-[#9b6dff]" />,
@@ -132,6 +137,9 @@ export function AiTab() {
       const minimax = await invoke<AiKeyStatus>("check_ai_key_status", {
         provider: "minimax",
       });
+      const atlascloud = await invoke<AiKeyStatus>("check_ai_key_status", {
+        provider: "atlascloud",
+      });
       const customOpenai = await invoke<AiKeyStatus>("check_ai_key_status", {
         provider: "custom-openai",
       });
@@ -141,6 +149,7 @@ export function AiTab() {
         anthropic,
         openrouter,
         minimax,
+        atlascloud,
         "custom-openai": customOpenai,
         ollama,
       });

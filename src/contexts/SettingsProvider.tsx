@@ -5,6 +5,7 @@ import {
   SettingsContext,
   DEFAULT_SETTINGS,
   type Settings,
+  type AiProvider,
 } from "./SettingsContext";
 import { getFontCSS } from "../utils/settings";
 
@@ -181,29 +182,21 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
           (!finalSettings.aiProvider || !finalSettings.aiModel)
         ) {
           // First, detect which provider has an API key
-          let detectedProvider: string | null = null;
-          const hasOpenAI = await invoke<boolean>("check_ai_key", {
-            provider: "openai",
-          });
-          if (hasOpenAI) {
-            detectedProvider = "openai";
-          } else {
-            const hasAnthropic = await invoke<boolean>("check_ai_key", {
-              provider: "anthropic",
+          let detectedProvider: AiProvider | null = null;
+          const providers: AiProvider[] = [
+            "openai",
+            "anthropic",
+            "openrouter",
+            "minimax",
+            "atlascloud",
+          ];
+          for (const provider of providers) {
+            const hasKey = await invoke<boolean>("check_ai_key", {
+              provider,
             });
-            if (hasAnthropic) {
-              detectedProvider = "anthropic";
-            } else {
-              const hasOpenRouter = await invoke<boolean>("check_ai_key", {
-                provider: "openrouter",
-              });
-              if (hasOpenRouter) detectedProvider = "openrouter";
-            else {
-              const hasMiniMax = await invoke<boolean>("check_ai_key", {
-                provider: "minimax",
-              });
-              if (hasMiniMax) detectedProvider = "minimax";
-            }
+            if (hasKey) {
+              detectedProvider = provider;
+              break;
             }
           }
 
@@ -216,7 +209,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
             // Only set provider if not already set
             if (!finalSettings.aiProvider) {
-              finalSettings.aiProvider = detectedProvider as "openai" | "anthropic" | "openrouter" | "minimax";
+              finalSettings.aiProvider = detectedProvider;
             }
             // Only set model if not already set AND we have a model available
             if (!finalSettings.aiModel && firstModel) {

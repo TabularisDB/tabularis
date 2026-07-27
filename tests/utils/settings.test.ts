@@ -328,6 +328,24 @@ describe('settings', () => {
       expect(result.model).toBe('MiniMax-M3');
     });
 
+    it('should detect Atlas Cloud when higher-priority providers are unavailable', () => {
+      const keyStatus = {
+        openai: false,
+        anthropic: false,
+        openrouter: false,
+        minimax: false,
+        atlascloud: true,
+      } as Record<AiProvider, boolean>;
+      const models: Record<string, string[]> = {
+        atlascloud: ['deepseek-ai/deepseek-v4-pro'],
+      };
+
+      const result = detectAIProviderFromKeys(keyStatus, models);
+
+      expect(result.provider).toBe('atlascloud');
+      expect(result.model).toBe('deepseek-ai/deepseek-v4-pro');
+    });
+
     it('should return null when no keys available', () => {
       const keyStatus: Record<AiProvider, boolean> = {
         openai: false,

@@ -9,7 +9,8 @@ export type AiProvider =
   | "openrouter"
   | "ollama"
   | "custom-openai"
-  | "minimax";
+  | "minimax"
+  | "atlascloud";
 export type ERDiagramLayout = "LR" | "TB";
 
 export interface PluginConfig {

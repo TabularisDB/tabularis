@@ -7,6 +7,8 @@ use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
+const ATLAS_CLOUD_BASE_URL: &str = "https://api.atlascloud.ai/v1";
+
 // --- Data Structures ---
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -271,7 +273,7 @@ fn build_api_url(base_url: &str, endpoint: &str) -> String {
     format!("{trimmed}{endpoint}")
 }
 
-async fn fetch_custom_openai_models(base_url: &str, api_key: &str) -> Vec<String> {
+async fn fetch_openai_compatible_models(base_url: &str, api_key: &str) -> Vec<String> {
     if base_url.is_empty() || api_key.is_empty() {
         return Vec::new();
     }
@@ -345,7 +347,8 @@ pub async fn get_ai_models(
                     config::get_ai_api_key(&app, "custom-openai"),
                 ) {
                     if !base_url.is_empty() && !api_key.is_empty() {
-                        let custom_models = fetch_custom_openai_models(&base_url, &api_key).await;
+                        let custom_models =
+                            fetch_openai_compatible_models(&base_url, &api_key).await;
                         if !custom_models.is_empty() {
                             cached_models.insert("custom-openai".to_string(), custom_models);
                         } else {
@@ -367,6 +370,15 @@ pub async fn get_ai_models(
                     let minimax_models = fetch_minimax_models(&key).await;
                     if !minimax_models.is_empty() {
                         cached_models.insert("minimax".to_string(), minimax_models);
+                    }
+                }
+
+                // Always refresh Atlas Cloud if an API key is present
+                if let Ok(key) = config::get_ai_api_key(&app, "atlascloud") {
+                    let atlas_models =
+                        fetch_openai_compatible_models(ATLAS_CLOUD_BASE_URL, &key).await;
+                    if !atlas_models.is_empty() {
+                        cached_models.insert("atlascloud".to_string(), atlas_models);
                     }
                 }
 
@@ -422,7 +434,20 @@ pub async fn get_ai_models(
         }
     }
 
-    // 5. OpenRouter (Dynamic public)
+    // 5. Atlas Cloud (Dynamic if key exists)
+    if let Ok(key) = config::get_ai_api_key(&app, "atlascloud") {
+        let remote_models = fetch_openai_compatible_models(ATLAS_CLOUD_BASE_URL, &key).await;
+        if !remote_models.is_empty() {
+            if let Some(static_list) = models.get_mut("atlascloud") {
+                let mut set: HashSet<String> = static_list.iter().cloned().collect();
+                set.extend(remote_models);
+                *static_list = set.into_iter().collect();
+                static_list.sort();
+            }
+        }
+    }
+
+    // 6. OpenRouter (Dynamic public)
     let openrouter_models = fetch_openrouter_models().await;
     if !openrouter_models.is_empty() {
         if let Some(static_list) = models.get_mut("openrouter") {
@@ -438,13 +463,13 @@ pub async fn get_ai_models(
         }
     }
 
-    // 6. Custom OpenAI (Dynamic if configured)
+    // 7. Custom OpenAI (Dynamic if configured)
     if let (Some(base_url), Ok(api_key)) = (
         app_config.ai_custom_openai_url,
         config::get_ai_api_key(&app, "custom-openai"),
     ) {
         if !base_url.is_empty() && !api_key.is_empty() {
-            let custom_models = fetch_custom_openai_models(&base_url, &api_key).await;
+            let custom_models = fetch_openai_compatible_models(&base_url, &api_key).await;
             if !custom_models.is_empty() {
                 models.insert("custom-openai".to_string(), custom_models);
             } else {
@@ -547,9 +572,28 @@ async fn dispatch_provider(
                 .as_ref()
                 .filter(|u| !u.is_empty())
                 .ok_or("Custom OpenAI URL not configured.")?;
-            generate_custom_openai(&client, &api_key, gen_req, system_prompt, base_url).await
+            generate_openai_compatible(
+                &client,
+                &api_key,
+                gen_req,
+                system_prompt,
+                base_url,
+                "Custom OpenAI",
+            )
+            .await
         }
         "minimax" => generate_minimax(&client, &api_key, gen_req, system_prompt).await,
+        "atlascloud" => {
+            generate_openai_compatible(
+                &client,
+                &api_key,
+                gen_req,
+                system_prompt,
+                ATLAS_CLOUD_BASE_URL,
+                "Atlas Cloud",
+            )
+            .await
+        }
         _ => Err(format!("Unsupported provider: {}", gen_req.provider)),
     }
 }
@@ -793,12 +837,13 @@ async fn generate_openai(
     Ok(clean_response(content))
 }
 
-async fn generate_custom_openai(
+async fn generate_openai_compatible(
     client: &Client,
     api_key: &str,
     req: &AiGenerateRequest,
     system_prompt: &str,
     base_url: &str,
+    provider_label: &str,
 ) -> Result<String, String> {
     let body = json!({
         "model": req.model,
@@ -823,13 +868,18 @@ async fn generate_custom_openai(
 
     if !res.status().is_success() {
         let error_text = res.text().await.unwrap_or_default();
-        return Err(format!("Custom OpenAI Error: {}", error_text));
+        return Err(format!("{} Error: {}", provider_label, error_text));
     }
 
     let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
     let content = json["choices"][0]["message"]["content"]
         .as_str()
-        .ok_or("Invalid response format from custom OpenAI-compatible provider")?;
+        .ok_or_else(|| {
+            format!(
+                "Invalid response format from {} OpenAI-compatible provider",
+                provider_label
+            )
+        })?;
 
     Ok(clean_response(content))
 }
@@ -1015,6 +1065,7 @@ mod tests {
         assert!(models.contains_key("anthropic"));
         assert!(models.contains_key("openrouter"));
         assert!(models.contains_key("minimax"));
+        assert!(models.contains_key("atlascloud"));
 
         // Check for new futuristic models from yaml
         let openai = models.get("openai").unwrap();
@@ -1035,8 +1086,26 @@ mod tests {
         // M3 should be listed first so it is selected as the default model
         assert_eq!(minimax.first().map(String::as_str), Some("MiniMax-M3"));
 
+        let atlascloud = models.get("atlascloud").unwrap();
+        assert_eq!(
+            atlascloud.first().map(String::as_str),
+            Some("deepseek-ai/deepseek-v4-pro")
+        );
+
         // Ollama is not in yaml, so it shouldn't be here yet
         assert!(!models.contains_key("ollama"));
+    }
+
+    #[test]
+    fn test_atlas_cloud_api_urls() {
+        assert_eq!(
+            build_api_url(ATLAS_CLOUD_BASE_URL, "/models"),
+            "https://api.atlascloud.ai/v1/models"
+        );
+        assert_eq!(
+            build_api_url(ATLAS_CLOUD_BASE_URL, "/chat/completions"),
+            "https://api.atlascloud.ai/v1/chat/completions"
+        );
     }
 
     #[test]

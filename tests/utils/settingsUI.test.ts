@@ -56,6 +56,10 @@ describe('settingsUI', () => {
       expect(getProviderLabel('minimax' as AiProvider)).toBe('MiniMax');
     });
 
+    it('should return correct label for Atlas Cloud', () => {
+      expect(getProviderLabel('atlascloud' as AiProvider)).toBe('Atlas Cloud');
+    });
+
     it('should capitalize unknown providers', () => {
       expect(getProviderLabel('custom' as AiProvider)).toBe('Custom');
       expect(getProviderLabel('test' as AiProvider)).toBe('Test');
