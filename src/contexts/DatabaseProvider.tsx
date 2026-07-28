@@ -634,7 +634,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       // Register for health-check pinging.
       await invoke('register_active_connection', { connectionId });
 
-      let isMultiDb = isMultiDatabaseCapable(capabilities) && Array.isArray(dbParam) && dbParam.length > 1;
+      const isMultiDb = isMultiDatabaseCapable(capabilities);
       let dbList = isMultiDb ? getDatabaseList(dbParam) : [];
 
       if (isMultiDb) {
@@ -650,7 +650,6 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
             const { selection, removed } = reconcileDatabaseSelection(dbList, available);
             if (removed.length > 0) {
               dbList = selection;
-              isMultiDb = selection.length > 1;
               invoke('set_selected_databases', {
                 connectionId,
                 databases: selection,

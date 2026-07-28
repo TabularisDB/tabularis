@@ -525,7 +525,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     }
   };
 
-  const isMultiDb = isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1;
+  const isMultiDb = isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length >= 1;
 
   useEffect(() => {
     if (!activeTable) return;
@@ -1202,7 +1202,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     </>
                   )}
                 </div>
-              ) : isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1 ? (
+              ) : isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length >= 1 ? (
                 /* Multi-database MySQL layout */
                 <div>
                   {/* Database header: label + manage button */}
