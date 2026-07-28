@@ -1444,6 +1444,8 @@
     "noConnectionDesc": "연결 ID 없이는 다이어그램을 표시할 수 없습니다.",
     "switchToVertical": "세로 레이아웃으로 전환",
     "switchToHorizontal": "가로 레이아웃으로 전환",
+    "lockNodes": "노드 위치 고정",
+    "unlockNodes": "노드 잠금 해제하여 이동",
     "vertical": "세로",
     "horizontal": "가로",
     "showAllTables": "모든 테이블 표시",

@@ -1496,6 +1496,8 @@
     "noConnectionDesc": "Cannot display diagram without a connection ID.",
     "switchToVertical": "Switch to Vertical Layout",
     "switchToHorizontal": "Switch to Horizontal Layout",
+    "lockNodes": "Lock node positions",
+    "unlockNodes": "Unlock nodes to move them",
     "vertical": "Vertical",
     "horizontal": "Horizontal",
     "showAllTables": "Show All Tables",

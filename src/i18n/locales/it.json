@@ -1469,6 +1469,8 @@
     "noConnectionDesc": "Impossibile visualizzare il diagramma senza un ID connessione.",
     "switchToVertical": "Passa a Layout Verticale",
     "switchToHorizontal": "Passa a Layout Orizzontale",
+    "lockNodes": "Blocca le posizioni dei nodi",
+    "unlockNodes": "Sblocca i nodi per spostarli",
     "vertical": "Verticale",
     "horizontal": "Orizzontale",
     "showAllTables": "Mostra Tutte le Tabelle",

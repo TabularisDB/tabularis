@@ -1458,6 +1458,8 @@
     "noConnectionDesc": "接続 ID がないため、図を表示できません。",
     "switchToVertical": "垂直レイアウトに切り替え",
     "switchToHorizontal": "水平レイアウトに切り替え",
+    "lockNodes": "ノードの位置を固定",
+    "unlockNodes": "ロックを解除してノードを移動",
     "vertical": "垂直",
     "horizontal": "水平",
     "showAllTables": "すべてのテーブルを表示",

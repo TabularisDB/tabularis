@@ -1488,6 +1488,8 @@
     "noConnectionDesc": "Não é possível exibir o diagrama sem um ID de conexão.",
     "switchToVertical": "Alternar para Layout Vertical",
     "switchToHorizontal": "Alternar para Layout Horizontal",
+    "lockNodes": "Bloquear posições dos nós",
+    "unlockNodes": "Desbloquear nós para movê-los",
     "vertical": "Vertical",
     "horizontal": "Horizontal",
     "showAllTables": "Mostrar Todas as Tabelas",

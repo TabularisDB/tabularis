@@ -1485,6 +1485,8 @@
     "noConnectionDesc": "Impossible d’afficher le diagramme sans ID de connexion.",
     "switchToVertical": "Passer en disposition verticale",
     "switchToHorizontal": "Passer en disposition horizontale",
+    "lockNodes": "Verrouiller la position des nœuds",
+    "unlockNodes": "Déverrouiller les nœuds pour les déplacer",
     "vertical": "Verticale",
     "horizontal": "Horizontale",
     "showAllTables": "Afficher toutes les tables",
