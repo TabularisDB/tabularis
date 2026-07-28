@@ -30,7 +30,10 @@ jobs:
       should_build: ${{ steps.decide.outputs.should_build }}
       sha: ${{ steps.decide.outputs.sha }}
       tag: ${{ steps.decide.outputs.tag }}
+      updater_version: ${{ steps.decide.outputs.updater_version }}
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
       - name: Decide whether a nightly is due
         id: decide
         env:
@@ -71,10 +74,29 @@ jobs:
 
           tag="nightly-$(date -u +%Y%m%d)-${validated_sha:0:7}"
           echo "Building $tag from $validated_sha (previous nightly: ${last_tag:-none})."
+
+          # Nightlies carry the NEXT patch version as their base, so a nightly
+          # supersedes the current stable (SemVer: a prerelease sorts BELOW its
+          # own base, so `0.15.0-<n>` < `0.15.0` and would never be offered;
+          # `0.15.1-<n>` > `0.15.0` and is). Any real next stable (patch, minor,
+          # or major) is >= this base and cleanly supersedes the nightly. A
+          # stable release then "promotes" the channel by shipping that base
+          # without the prerelease suffix.
+          #
+          # The prerelease identifier MUST be a SINGLE NUMERIC value: Tauri's MSI
+          # (WiX) and NSIS bundlers reject non-numeric or multi-part prerelease
+          # identifiers (tauri-apps/tauri#8038, #5286). github.run_number is
+          # monotonic and small, so `0.15.1-<run>` orders correctly across
+          # nightlies and stays bundler-safe. The human-readable date/sha lives
+          # in the tag (nightly-YYYYMMDD-sha) and the release name, not here.
+          next=$(node -e "const v=require('./src-tauri/tauri.conf.json').version.split('-')[0].split('.').map(Number); v[2]++; console.log(v.join('.'))")
+          updater_version="${next}-${{ github.run_number }}"
+
           {
             echo "should_build=true"
             echo "sha=$validated_sha"
             echo "tag=$tag"
+            echo "updater_version=$updater_version"
           } >> "$GITHUB_OUTPUT"
 
   build:
@@ -92,3 +114,4 @@ jobs:
       release_name: "Nightly (v__VERSION__)"
       prerelease: true
       draft: false
+      updater_version: ${{ needs.gate.outputs.updater_version }}

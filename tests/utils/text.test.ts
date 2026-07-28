@@ -6,6 +6,7 @@ import {
   isLongTextCellTarget,
   isLongTextValue,
   isTextColumn,
+  isVectorColumn,
   supportsEmptyString,
   truncateCellPreview,
 } from "../../src/utils/text";
@@ -124,10 +125,38 @@ describe("text", () => {
       expect(isLongTextCellTarget(undefined, "x".repeat(200))).toBe(false);
     });
 
+    it("treats pgvector columns as long-text targets", () => {
+      const embedding = `[${Array(1536).fill("0.0123").join(",")}]`;
+      expect(isLongTextCellTarget("vector", embedding)).toBe(true);
+      expect(isLongTextCellTarget("vector(1536)", embedding)).toBe(true);
+      expect(isLongTextCellTarget("halfvec", embedding)).toBe(true);
+      expect(isLongTextCellTarget("sparsevec", "{1:1.5,3:2}/5".repeat(10))).toBe(
+        true,
+      );
+      // short vectors don't need the expander and render inline
+      expect(isLongTextCellTarget("vector", "[1,2,3]")).toBe(false);
+    });
+
     it("returns false for null / non-string values regardless of column", () => {
       expect(isLongTextCellTarget("TEXT", null)).toBe(false);
       expect(isLongTextCellTarget("TEXT", undefined)).toBe(false);
       expect(isLongTextCellTarget("TEXT", 12345)).toBe(false);
+    });
+  });
+
+  describe("isVectorColumn", () => {
+    it("recognizes pgvector types (with and without typmod)", () => {
+      expect(isVectorColumn("vector")).toBe(true);
+      expect(isVectorColumn("VECTOR(1536)")).toBe(true);
+      expect(isVectorColumn("halfvec")).toBe(true);
+      expect(isVectorColumn("sparsevec")).toBe(true);
+    });
+
+    it("returns false for non-vector types and missing type", () => {
+      expect(isVectorColumn("TEXT")).toBe(false);
+      expect(isVectorColumn("INTEGER")).toBe(false);
+      expect(isVectorColumn(undefined)).toBe(false);
+      expect(isVectorColumn("")).toBe(false);
     });
   });
 

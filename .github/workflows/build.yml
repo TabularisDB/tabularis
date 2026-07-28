@@ -28,6 +28,11 @@ on:
         required: false
         default: false
         type: boolean
+      updater_version:
+        description: "Override the app version baked into the build + latest.json (nightly uses a prerelease semver). Empty = leave as-is."
+        required: false
+        type: string
+        default: ""
 
 jobs:
   publish-tauri:
@@ -63,21 +68,21 @@ jobs:
           apt-get update
           apt-get install -y git ca-certificates curl
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.ref }}
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .node-version
           cache: "pnpm"
 
       - name: install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
           # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || matrix.platform == 'macos-15-intel' && 'x86_64-apple-darwin' || '' }}
@@ -110,7 +115,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Cache Rust dependencies
-        uses: swatinem/rust-cache@v2.9.1
+        uses: swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           workspaces: src-tauri
 
@@ -127,7 +132,19 @@ jobs:
           echo "${{ secrets.APPLE_API_KEY_CONTENT }}" | base64 --decode > "$RUNNER_TEMP/apple_api_key.p8"
           echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/apple_api_key.p8" >> "$GITHUB_ENV"
 
-      - uses: tauri-apps/tauri-action@v0.6.1
+      - name: Override app version (nightly channel)
+        if: inputs.updater_version != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          v='${{ inputs.updater_version }}'
+          node -e "const f='src-tauri/tauri.conf.json';const c=require('./'+f);const fs=require('fs');c.version=process.argv[1];fs.writeFileSync(f, JSON.stringify(c, null, 2)+'\n');" "$v"
+          # First version key in Cargo.toml is the [package] version.
+          # sed -i.bak keeps it portable across GNU and macOS BSD sed.
+          sed -i.bak "0,/^version = \".*\"/s//version = \"$v\"/" src-tauri/Cargo.toml && rm -f src-tauri/Cargo.toml.bak
+          echo "Patched version to $v"
+
+      - uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa # v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: "true"

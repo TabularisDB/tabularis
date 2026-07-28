@@ -11,7 +11,7 @@ use crate::credential_cache;
 use crate::keychain_utils;
 use crate::models::{
     BatchStatementResult, ColumnDefinition, ConnectionGroup, ConnectionParams, ConnectionsFile,
-    ExplainPlan, ExportPayload, ForeignKey, Index, K8sConnection, K8sConnectionInput, QueryResult,
+    ExplainQueryOutput, ExportPayload, ForeignKey, Index, K8sConnection, K8sConnectionInput, QueryResult,
     RoutineInfo, RoutineParameter, SavedConnection, SshConnection, SshConnectionInput, SshTestParams,
     TableColumn, TableInfo, TestConnectionRequest, TriggerInfo,
 };
@@ -617,6 +617,43 @@ pub async fn get_available_databases<R: Runtime>(
 
     let drv = driver_for(&saved_conn.params.driver).await?;
     drv.get_databases(&params).await
+}
+
+#[tauri::command]
+pub async fn set_selected_databases<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    mut databases: Vec<String>,
+) -> Result<(), String> {
+    if databases.is_empty() {
+        return Err("Database selection cannot be empty".to_string());
+    }
+    if databases.iter().any(|db| db.trim().is_empty()) {
+        return Err("Database names cannot be empty".to_string());
+    }
+
+    log::info!(
+        "Persisting database selection for connection {}: {} database(s)",
+        connection_id,
+        databases.len()
+    );
+
+    let path = get_config_path(&app)?;
+    let mut conn_file = persistence::load_connections_file(&path)?;
+
+    let conn = conn_file
+        .connections
+        .iter_mut()
+        .find(|c| c.id == connection_id)
+        .ok_or("Connection not found")?;
+
+    conn.params.database = if databases.len() == 1 {
+        crate::models::DatabaseSelection::Single(databases.remove(0))
+    } else {
+        crate::models::DatabaseSelection::Multiple(databases)
+    };
+
+    save_connections_and_invalidate(&app, &path, &conn_file)
 }
 
 #[tauri::command]
@@ -3511,6 +3548,40 @@ pub async fn cancel_query(
     cancel_query_impl(&state, &connection_id)
 }
 
+/// Payload for the `database-dropped` event, emitted after a `DROP DATABASE`
+/// statement succeeds so a listener can reconcile the connection's database
+/// selection instead of leaving the dropped database in the sidebar until the
+/// next reconnect (#525).
+// `connectionId` rather than `connection_id`: the `connection-health-failed`
+// event already carries this same field in camelCase, and matching the field
+// name for the same concept matters more than matching the neighbouring
+// `batch-statement-complete` payload, which happens to use snake_case.
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct DatabaseDroppedEvent<'a> {
+    connection_id: &'a str,
+    database: &'a str,
+}
+
+/// Announces that `database` no longer exists on the server behind
+/// `connection_id`. Emitting is best-effort: a listener that missed the event
+/// only means the sidebar stays stale until the next manual refresh, which is
+/// the pre-#525 behaviour, so a failed emit must not fail the query.
+fn emit_database_dropped<R: Runtime>(app: &AppHandle<R>, connection_id: &str, database: &str) {
+    log::info!(
+        "DROP DATABASE detected on connection {}: '{}'",
+        connection_id,
+        database
+    );
+    let _ = app.emit(
+        "database-dropped",
+        DatabaseDroppedEvent {
+            connection_id,
+            database,
+        },
+    );
+}
+
 #[tauri::command]
 pub async fn execute_query<R: Runtime>(
     app: AppHandle<R>,
@@ -3533,6 +3604,10 @@ pub async fn execute_query<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    // Detected before the spawn, which takes ownership of `sanitized_query`.
+    // Cheap: only allocates when the statement really is a DROP DATABASE.
+    let dropped = crate::sql_database_statements::dropped_database(&sanitized_query);
 
     let drv = driver_for(&saved_conn.params.driver).await?;
     let task = tokio::spawn(async move {
@@ -3559,6 +3634,9 @@ pub async fn execute_query<R: Runtime>(
                 "Query executed successfully, returned {} rows",
                 query_result.rows.len()
             );
+            if let Some(database) = &dropped {
+                emit_database_dropped(&app, &connection_id, database);
+            }
             Ok(query_result)
         }
         Ok(Err(e)) => {
@@ -3616,6 +3694,14 @@ pub async fn execute_query_batch<R: Runtime>(
 
     let sanitized_queries: Vec<String> = queries.iter().map(|q| sanitize_user_query(q)).collect();
 
+    // One entry per statement, computed before the spawn takes ownership of
+    // `sanitized_queries`. Index-aligned with the results returned below, the
+    // same assumption the `batch-statement-complete` event already relies on.
+    let dropped_per_statement: Vec<Option<String>> = sanitized_queries
+        .iter()
+        .map(|q| crate::sql_database_statements::dropped_database(q))
+        .collect();
+
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
@@ -3670,6 +3756,16 @@ pub async fn execute_query_batch<R: Runtime>(
                 batch_results.len() - success_count,
                 batch_results.len()
             );
+            // A batch reports per-statement outcomes, so only announce drops
+            // whose own statement succeeded; a failed DROP leaves the database
+            // in place.
+            for (dropped, statement) in dropped_per_statement.iter().zip(&batch_results) {
+                if let Some(database) = dropped {
+                    if statement.result.is_some() {
+                        emit_database_dropped(&app, &connection_id, database);
+                    }
+                }
+            }
             Ok(batch_results)
         }
         Ok(Err(e)) => {
@@ -3693,7 +3789,7 @@ pub async fn explain_query_plan<R: Runtime>(
     query: String,
     analyze: bool,
     schema: Option<String>,
-) -> Result<ExplainPlan, String> {
+) -> Result<ExplainQueryOutput, String> {
     log::info!(
         "Explaining query on connection: {} | analyze: {} | Query: {}",
         connection_id,

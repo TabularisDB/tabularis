@@ -44,3 +44,25 @@ export function getEffectiveDatabase(db: string | string[]): string {
   }
   return db;
 }
+
+/**
+ * Reconciles a saved database selection against the databases that actually
+ * exist on the server. Preserves the saved order; entries that no longer
+ * exist are reported in `removed` so callers can persist the pruned list.
+ */
+export function reconcileDatabaseSelection(
+  saved: string[],
+  available: string[],
+): { selection: string[]; removed: string[] } {
+  const availableSet = new Set(available);
+  const selection: string[] = [];
+  const removed: string[] = [];
+  for (const db of saved) {
+    if (availableSet.has(db)) {
+      selection.push(db);
+    } else {
+      removed.push(db);
+    }
+  }
+  return { selection, removed };
+}

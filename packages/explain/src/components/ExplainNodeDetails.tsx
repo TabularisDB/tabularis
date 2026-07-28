@@ -1,15 +1,23 @@
 import { useTranslation } from "react-i18next";
-import type { ExplainNode } from "../../../types/explain";
-import { formatCost, formatRows, formatTime } from "../../../utils/explainPlan";
+import type { ExplainNode } from "../types";
+import type { ExplainNodeMetrics } from "../metrics";
+import type { ExplainDiagnostic } from "../diagnostics";
+import { formatCost, formatRows, formatTime } from "../plan";
+import { ExplainDiagnosticList } from "./ExplainDiagnosticChips";
 
 interface ExplainNodeDetailsProps {
   node: ExplainNode | null;
   hasAnalyzeData: boolean;
+  /** Derived exclusive metrics for `node`, when the caller has them. */
+  metrics?: ExplainNodeMetrics | null;
+  diagnostics?: ExplainDiagnostic[];
 }
 
 export function ExplainNodeDetails({
   node,
   hasAnalyzeData,
+  metrics = null,
+  diagnostics = [],
 }: ExplainNodeDetailsProps) {
   const { t } = useTranslation();
 
@@ -36,6 +44,14 @@ export function ExplainNodeDetails({
       : node.total_cost != null
         ? [[t("editor.visualExplain.cost"), formatCost(node.total_cost)] as [string, string]]
         : []),
+    ...(metrics?.exclusiveCost != null
+      ? [
+          [
+            t("editor.visualExplain.selfCost"),
+            formatCost(metrics.exclusiveCost),
+          ] as [string, string],
+        ]
+      : []),
     ...(node.plan_rows != null
       ? [[t("editor.visualExplain.estRows"), formatRows(node.plan_rows)] as [string, string]]
       : []),
@@ -58,8 +74,41 @@ export function ExplainNodeDetails({
         ...(node.actual_rows != null
           ? [[t("editor.visualExplain.actualRows"), formatRows(node.actual_rows)] as [string, string]]
           : []),
+        ...(metrics?.totalRows != null &&
+        node.actual_loops != null &&
+        node.actual_loops > 1
+          ? [
+              [
+                t("editor.visualExplain.rowsAllLoops"),
+                formatRows(metrics.totalRows),
+              ] as [string, string],
+            ]
+          : []),
+        ...(metrics?.exclusiveTimeMs != null
+          ? [
+              [
+                t("editor.visualExplain.selfTime"),
+                metrics.timeShare != null
+                  ? `${formatTime(metrics.exclusiveTimeMs)} (${Math.round(metrics.timeShare * 100)}%)`
+                  : formatTime(metrics.exclusiveTimeMs),
+              ] as [string, string],
+            ]
+          : []),
+        ...(metrics?.inclusiveTimeMs != null
+          ? [
+              [
+                t("editor.visualExplain.totalTime"),
+                formatTime(metrics.inclusiveTimeMs),
+              ] as [string, string],
+            ]
+          : []),
         ...(node.actual_time_ms != null
-          ? [[t("editor.visualExplain.time"), formatTime(node.actual_time_ms)] as [string, string]]
+          ? [
+              [
+                t("editor.visualExplain.timePerLoop"),
+                formatTime(node.actual_time_ms),
+              ] as [string, string],
+            ]
           : []),
         ...(node.actual_loops != null
           ? [[t("editor.visualExplain.loops"), String(node.actual_loops)] as [string, string]]
@@ -79,6 +128,14 @@ export function ExplainNodeDetails({
 
   return (
     <div className="text-xs">
+      {diagnostics.length > 0 && (
+        <div className="border-b border-default/60">
+          <div className="bg-base/60 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            {t("editor.visualExplain.diagnostics.title")}
+          </div>
+          <ExplainDiagnosticList diagnostics={diagnostics} />
+        </div>
+      )}
       <DetailSection
         title={t("editor.visualExplain.general")}
         entries={generalEntries}
