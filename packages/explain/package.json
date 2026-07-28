@@ -85,5 +85,8 @@
     "react-i18next": "^16.6.6",
     "tsup": "^8.3.5",
     "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.10.1"
   }
 }

@@ -271,6 +271,38 @@ pub fn query_can_be_paginated(query: &str) -> bool {
     statements.len() == 1 && statement_can_be_paginated(&statements[0])
 }
 
+/// Whether `@@ROWCOUNT` is meaningful for the final statement in a batch.
+/// DDL must not receive an appended sentinel: SQL Server requires module
+/// creation statements to own their batch.
+pub fn query_reports_affected_rows(query: &str) -> bool {
+    top_level_statements(&code_mask(query))
+        .last()
+        .map(|statement| {
+            let words = top_level_words(statement);
+            let operation = if words.first().map(String::as_str) == Some("WITH") {
+                words.iter().skip(1).find(|word| {
+                    matches!(
+                        word.as_str(),
+                        "SELECT"
+                            | "VALUES"
+                            | "EXEC"
+                            | "EXECUTE"
+                            | "INSERT"
+                            | "UPDATE"
+                            | "DELETE"
+                            | "MERGE"
+                    )
+                })
+            } else {
+                words.first()
+            };
+            operation.is_some_and(|word| {
+                matches!(word.as_str(), "INSERT" | "UPDATE" | "DELETE" | "MERGE")
+            })
+        })
+        .unwrap_or(false)
+}
+
 pub fn build_paginated_query(query: &str, page_size: u32, page: u32) -> String {
     let normalized = query.trim().trim_end_matches(';').trim_end();
     let offset = page.saturating_sub(1).saturating_mul(page_size);

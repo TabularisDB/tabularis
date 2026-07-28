@@ -26,6 +26,7 @@ export {
 } from "./parsers/source";
 
 export { parsePostgresJson, parsePostgresText } from "./parsers/postgres";
+export { parseSqlServerShowplanXml } from "./parsers/sqlserver";
 export type { MysqlTabularRow } from "./parsers/mysql";
 export {
   parseMysqlJson,

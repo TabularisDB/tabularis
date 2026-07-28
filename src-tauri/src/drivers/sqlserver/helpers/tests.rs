@@ -327,6 +327,18 @@ fn result_set_classification_ignores_literals_comments_and_identifiers() {
 }
 
 #[test]
+fn affected_rows_are_only_reported_for_final_dml_statement() {
+    assert!(query_reports_affected_rows("UPDATE users SET active = 1"));
+    assert!(query_reports_affected_rows(
+        "SET NOCOUNT ON; WITH target AS (SELECT id FROM users) DELETE FROM target"
+    ));
+    assert!(!query_reports_affected_rows(
+        "CREATE PROCEDURE dbo.p AS SELECT 1"
+    ));
+    assert!(!query_reports_affected_rows("DROP TABLE dbo.items"));
+}
+
+#[test]
 fn paginated_query_adds_order_when_missing() {
     assert_eq!(
         build_paginated_query("SELECT * FROM [users];", 25, 2),

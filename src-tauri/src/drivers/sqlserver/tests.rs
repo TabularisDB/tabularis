@@ -43,14 +43,10 @@ fn manifest_has_phase2_capabilities() {
         m.capabilities.manage_tables,
         "SQL Server table creation must be enabled"
     );
-    assert!(
-        !m.capabilities.alter_column,
-        "ALTER COLUMN is not implemented"
-    );
-    assert!(
-        !m.capabilities.create_foreign_keys,
-        "foreign-key creation is not implemented"
-    );
+    assert!(m.capabilities.alter_column);
+    assert!(m.capabilities.create_foreign_keys);
+    assert!(m.capabilities.triggers);
+    assert!(m.capabilities.routine_management);
     assert!(m.capabilities.schemas);
     assert!(m.capabilities.views);
     assert!(m.capabilities.routines);

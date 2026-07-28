@@ -12,9 +12,10 @@
 import type { ExplainPlan } from "../types";
 import { parseMysqlJson, parseMysqlText } from "./mysql";
 import { parsePostgresJson, parsePostgresText } from "./postgres";
+import { parseSqlServerShowplanXml } from "./sqlserver";
 
 /** The engine that produced an EXPLAIN payload, when the caller knows it. */
-export type ExplainEngine = "postgres" | "mysql" | "sqlite";
+export type ExplainEngine = "postgres" | "mysql" | "sqlite" | "sqlserver";
 
 /** Supported source formats that a host may hand to `parseExplainFor`. */
 export type ExplainSourceFormat =
@@ -31,7 +32,9 @@ export type ExplainSourceFormat =
    */
   | "mysql-json"
   /** MySQL `EXPLAIN ANALYZE` / MariaDB `ANALYZE FORMAT=TEXT` indented tree. */
-  | "mysql-text";
+  | "mysql-text"
+  /** SQL Server SHOWPLAN_XML document. */
+  | "sqlserver-showplan-xml";
 
 /**
  * A parser for one serialised EXPLAIN payload format.
@@ -51,6 +54,11 @@ const SOURCE_PARSERS: readonly ExplainSourceParser[] = [
   { engine: "postgres", format: "postgres-text", parse: parsePostgresText },
   { engine: "mysql", format: "mysql-json", parse: parseMysqlJson },
   { engine: "mysql", format: "mysql-text", parse: parseMysqlText },
+  {
+    engine: "sqlserver",
+    format: "sqlserver-showplan-xml",
+    parse: parseSqlServerShowplanXml,
+  },
 ];
 
 function parserFor(format: ExplainSourceFormat): ExplainSourceParser {
@@ -81,6 +89,9 @@ export function explainEngineFromDriverName(name: string): ExplainEngine | null 
     case "sqlite":
     case "sqlite3":
       return "sqlite";
+    case "sqlserver":
+    case "mssql":
+      return "sqlserver";
     default:
       return null;
   }
@@ -116,6 +127,11 @@ export function detectFormatFor(
       if (looksLikePostgresText(raw)) return "postgres-text";
       throw new Error(
         "Unsupported EXPLAIN file format: expected Postgres JSON or text output",
+      );
+    case "sqlserver":
+      if (raw.includes("<ShowPlanXML")) return "sqlserver-showplan-xml";
+      throw new Error(
+        "Unsupported EXPLAIN file format: expected SQL Server SHOWPLAN_XML",
       );
     case "mysql":
       if (looksLikeJson(raw)) return "mysql-json";

@@ -1,13 +1,17 @@
 //! Microsoft SQL Server driver (built-in).
 //!
 //! Editing is enabled for single/composite primary keys and IDENTITY tables.
-//! Table creation and view management are supported; ALTER COLUMN, foreign-key
-//! creation, triggers, routine management, and visual EXPLAIN remain disabled.
+//! The driver supports schema introspection, table/view DDL, foreign keys,
+//! triggers, and stored-routine management.
 
+pub mod ddl;
+pub mod explain;
 pub mod extract;
 pub mod helpers;
 pub mod introspection;
 pub mod pool;
+pub mod routines;
+pub mod triggers;
 pub mod types;
 pub mod version;
 
@@ -23,9 +27,9 @@ use crate::drivers::sqlserver::helpers::{
     bracket_quote, build_delete_composite_sql, build_update_composite_sql, qualify,
 };
 use crate::models::{
-    BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo, ForeignKey, Index,
-    Pagination, QueryResult, RoutineInfo, RoutineParameter, TableColumn, TableInfo, TableSchema,
-    ViewInfo,
+    BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo, ExplainQueryOutput,
+    ForeignKey, Index, Pagination, QueryResult, RoutineCallArg, RoutineInfo, RoutineParameter,
+    TableColumn, TableInfo, TableSchema, TriggerInfo, ViewInfo,
 };
 use crate::pool_manager::get_sqlserver_pool;
 use tiberius::ToSql;
@@ -60,15 +64,15 @@ impl SqlServerDriver {
                     auto_increment_keyword: "IDENTITY(1,1)".into(),
                     serial_type: String::new(),
                     inline_pk: false,
-                    alter_column: false,
-                    create_foreign_keys: false,
+                    alter_column: true,
+                    create_foreign_keys: true,
                     no_connection_required: false,
                     manage_tables: true,
                     readonly: false,
-                    triggers: false,
-                    routine_management: false,
+                    triggers: true,
+                    routine_management: true,
                     supports_ssl: true,
-                    explain: false,
+                    explain: true,
                     sql_dialect: crate::drivers::driver_trait::SqlDialect::Mssql,
                 },
                 is_builtin: true,
@@ -152,7 +156,7 @@ async fn collect_query_results(
     Ok(results)
 }
 
-async fn execute_session_statement(
+async fn execute_result_bearing_dml(
     conn: &mut pool::BridgeConnection,
     query: &str,
 ) -> Result<QueryResult, String> {
@@ -170,7 +174,9 @@ async fn execute_session_statement(
         .and_then(|row| row.first())
         .and_then(serde_json::Value::as_i64)
         .and_then(|value| u64::try_from(value).ok())
-        .ok_or_else(|| "SQL Server did not return the batch affected-row sentinel".to_string())?;
+        .ok_or_else(|| {
+            "SQL Server did not return affected rows for result-bearing DML".to_string()
+        })?;
     results.pop();
 
     let mut first = if results.is_empty() {
@@ -190,25 +196,35 @@ async fn execute_on_connection(
     query: &str,
     limit: Option<u32>,
     page: u32,
-    preserve_session_scope: bool,
 ) -> Result<QueryResult, String> {
-    if !helpers::query_returns_result_set(query) {
-        if preserve_session_scope {
-            return execute_session_statement(conn, query).await;
+    let returns_result_set = helpers::query_returns_result_set(query);
+    if returns_result_set && helpers::query_reports_affected_rows(query) {
+        return execute_result_bearing_dml(conn, query).await;
+    }
+    if !returns_result_set {
+        if helpers::query_reports_affected_rows(query) {
+            let affected_rows = conn
+                .execute(query, &[])
+                .await
+                .map_err(|error| error.to_string())?
+                .total();
+            return Ok(QueryResult {
+                columns: Vec::new(),
+                rows: Vec::new(),
+                affected_rows,
+                truncated: false,
+                pagination: None,
+                additional_results: None,
+            });
         }
-        let affected_rows = conn
-            .execute(query, &[])
+
+        conn.simple_query(query)
             .await
             .map_err(|error| error.to_string())?
-            .total();
-        return Ok(QueryResult {
-            columns: Vec::new(),
-            rows: Vec::new(),
-            affected_rows,
-            truncated: false,
-            pagination: None,
-            additional_results: None,
-        });
+            .into_results()
+            .await
+            .map_err(|error| error.to_string())?;
+        return Ok(empty_query_result(Vec::new()));
     }
 
     let pagination_limit = limit.filter(|_| helpers::query_can_be_paginated(query));
@@ -511,6 +527,72 @@ impl DatabaseDriver for SqlServerDriver {
         introspection::get_module_definition(&mut conn, routine_name, schema).await
     }
 
+    async fn build_routine_call_sql(
+        &self,
+        params: &ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        args: &[RoutineCallArg],
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        let parameters = if args.iter().any(|arg| {
+            arg.mode.eq_ignore_ascii_case("OUT") || arg.mode.eq_ignore_ascii_case("INOUT")
+        }) {
+            self.get_routine_parameters(params, routine_name, schema)
+                .await?
+        } else {
+            Vec::new()
+        };
+        let is_table_valued = if routine_type.eq_ignore_ascii_case("FUNCTION") {
+            let mut conn = acquire(params).await?;
+            introspection::is_table_valued_function(&mut conn, routine_name, schema).await?
+        } else {
+            false
+        };
+        routines::routine_call_sql(
+            routine_name,
+            routine_type,
+            args,
+            &parameters,
+            is_table_valued,
+            schema,
+        )
+    }
+
+    async fn routine_create_template(
+        &self,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        Ok(routines::routine_create_template(routine_type, schema))
+    }
+
+    async fn get_routine_edit_script(
+        &self,
+        params: &ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        let definition = self
+            .get_routine_definition(params, routine_name, routine_type, schema)
+            .await?;
+        routines::routine_edit_script(&definition)
+    }
+
+    async fn drop_routine(
+        &self,
+        params: &ConnectionParams,
+        routine_name: &str,
+        routine_type: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        let sql = routines::drop_routine_sql(routine_name, routine_type, schema);
+        self.execute_query(params, &sql, None, 1, schema)
+            .await
+            .map(|_| ())
+    }
+
     // --- Query execution ---------------------------------------------------
 
     async fn execute_query(
@@ -522,7 +604,7 @@ impl DatabaseDriver for SqlServerDriver {
         _schema: Option<&str>,
     ) -> Result<QueryResult, String> {
         let mut conn = acquire(params).await?;
-        execute_on_connection(&mut conn, query, limit, page, false).await
+        execute_on_connection(&mut conn, query, limit, page).await
     }
 
     async fn execute_batch(
@@ -538,7 +620,7 @@ impl DatabaseDriver for SqlServerDriver {
         let mut results = Vec::with_capacity(queries.len());
         for (index, query) in queries.iter().enumerate() {
             let start = std::time::Instant::now();
-            let outcome = execute_on_connection(&mut conn, query, limit, page, true).await;
+            let outcome = execute_on_connection(&mut conn, query, limit, page).await;
             let result = BatchStatementResult::from_outcome(start, outcome);
             if let Some(callback) = on_progress {
                 callback(index, &result);
@@ -546,6 +628,17 @@ impl DatabaseDriver for SqlServerDriver {
             results.push(result);
         }
         Ok(results)
+    }
+
+    async fn explain_query(
+        &self,
+        params: &ConnectionParams,
+        query: &str,
+        analyze: bool,
+        _schema: Option<&str>,
+    ) -> Result<ExplainQueryOutput, String> {
+        let mut conn = acquire(params).await?;
+        explain::explain_query(&mut conn, query, analyze).await
     }
 
     // --- CRUD ----------------------------------------------------------------
@@ -717,6 +810,16 @@ impl DatabaseDriver for SqlServerDriver {
         )])
     }
 
+    async fn get_alter_column_sql(
+        &self,
+        table: &str,
+        old_column: ColumnDefinition,
+        new_column: ColumnDefinition,
+        schema: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        ddl::alter_column_sql(table, &old_column, &new_column, schema)
+    }
+
     async fn get_create_index_sql(
         &self,
         table: &str,
@@ -739,6 +842,22 @@ impl DatabaseDriver for SqlServerDriver {
             bracket_quote(index_name),
             qualify(schema, table),
         )])
+    }
+
+    async fn get_create_foreign_key_sql(
+        &self,
+        table: &str,
+        fk_name: &str,
+        column: &str,
+        ref_table: &str,
+        ref_column: &str,
+        on_delete: Option<&str>,
+        on_update: Option<&str>,
+        schema: Option<&str>,
+    ) -> Result<Vec<String>, String> {
+        ddl::create_foreign_key_sql(
+            table, fk_name, column, ref_table, ref_column, on_delete, on_update, schema,
+        )
     }
 
     async fn drop_index(
@@ -777,6 +896,52 @@ impl DatabaseDriver for SqlServerDriver {
             .await
             .map_err(|error| error.to_string())?;
         Ok(())
+    }
+
+    // --- Triggers -----------------------------------------------------------
+
+    async fn get_triggers(
+        &self,
+        params: &ConnectionParams,
+        schema: Option<&str>,
+    ) -> Result<Vec<TriggerInfo>, String> {
+        let mut conn = acquire(params).await?;
+        triggers::get_triggers(&mut conn, schema).await
+    }
+
+    async fn get_trigger_definition(
+        &self,
+        params: &ConnectionParams,
+        trigger_name: &str,
+        _table_name: &str,
+        schema: Option<&str>,
+    ) -> Result<String, String> {
+        let mut conn = acquire(params).await?;
+        introspection::get_module_definition(&mut conn, trigger_name, schema).await
+    }
+
+    async fn create_trigger(
+        &self,
+        params: &ConnectionParams,
+        trigger_sql: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        self.execute_query(params, trigger_sql, None, 1, schema)
+            .await
+            .map(|_| ())
+    }
+
+    async fn drop_trigger(
+        &self,
+        params: &ConnectionParams,
+        trigger_name: &str,
+        _table_name: &str,
+        schema: Option<&str>,
+    ) -> Result<(), String> {
+        let sql = triggers::drop_trigger_sql(trigger_name, schema);
+        self.execute_query(params, &sql, None, 1, schema)
+            .await
+            .map(|_| ())
     }
 
     // --- ER diagram batch ---------------------------------------------------

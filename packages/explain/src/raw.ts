@@ -16,6 +16,7 @@ import { parseMysqlJson, parseMysqlText, parseMysqlTabularRows } from "./parsers
 import type { MysqlTabularRow } from "./parsers/mysql";
 import { parsePostgresJson } from "./parsers/postgres";
 import { parseSqliteEqpRows } from "./parsers/sqlite";
+import { parseSqlServerShowplanXml } from "./parsers/sqlserver";
 import type { SqliteEqpRow } from "./parsers/sqlite";
 
 /** Wire formats a built-in driver can hand over. */
@@ -24,7 +25,8 @@ export type RawExplainFormat =
   | "mysql-json"
   | "mysql-analyze-text"
   | "mysql-tabular-rows"
-  | "sqlite-eqp-rows";
+  | "sqlite-eqp-rows"
+  | "sqlserver-showplan-xml";
 
 /** Raw EXPLAIN output produced by a built-in driver, parsed on this side. */
 export interface RawExplainOutput {
@@ -71,6 +73,8 @@ function parseRawPayload(raw: RawExplainOutput): ExplainPlan {
       return parseMysqlTabularRows(parseJsonRows<MysqlTabularRow>(raw));
     case "sqlite-eqp-rows":
       return parseSqliteEqpRows(parseJsonRows<SqliteEqpRow>(raw));
+    case "sqlserver-showplan-xml":
+      return parseSqlServerShowplanXml(raw.payload);
   }
 }
 

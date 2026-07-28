@@ -45,6 +45,12 @@ async fn sqlserver_live_driver_workflow() {
     let driver = SqlServerDriver::new();
     let table = format!("tabularis_driver_test_{}", std::process::id());
     let view = format!("{table}_view");
+    let parent = format!("{table}_parent");
+    let child = format!("{table}_child");
+    let audit = format!("{table}_audit");
+    let trigger = format!("{table}_trigger");
+    let procedure = format!("{table}_procedure");
+    let table_function = format!("{table}_function");
     let qualified = format!("[dbo].[{table}]");
 
     driver
@@ -272,6 +278,7 @@ async fn sqlserver_live_driver_workflow() {
             )
             .await?;
         if output_result.rows != vec![vec![serde_json::json!(2)]]
+            || output_result.affected_rows != 1
             || output_result.pagination.is_some()
         {
             return Err("DML OUTPUT result set was lost or paginated".to_string());
@@ -355,7 +362,7 @@ async fn sqlserver_live_driver_workflow() {
                 &params,
                 &[
                     "CREATE TABLE #tabularis_batch ([value] INT NOT NULL)".into(),
-                    "INSERT INTO #tabularis_batch ([value]) VALUES (42) -- trailing comment".into(),
+                    "INSERT INTO #tabularis_batch ([value]) VALUES (42); INSERT INTO #tabularis_batch ([value]) VALUES (43) -- trailing comment".into(),
                     "SELECT [value] FROM #tabularis_batch".into(),
                     "BEGIN TRANSACTION".into(),
                     format!(
@@ -376,8 +383,12 @@ async fn sqlserver_live_driver_workflow() {
             .get(1)
             .and_then(|item| item.result.as_ref())
             .map(|result| result.affected_rows);
-        if batch_rows != Some(&vec![vec![serde_json::json!(42)]])
-            || batch_insert_affected != Some(1)
+        if batch_rows
+            != Some(&vec![
+                vec![serde_json::json!(42)],
+                vec![serde_json::json!(43)],
+            ])
+            || batch_insert_affected != Some(2)
         {
             return Err(format!(
                 "batch did not preserve session state or affected rows: {batch:?}"
@@ -479,6 +490,283 @@ async fn sqlserver_live_driver_workflow() {
             ));
         }
 
+        driver
+            .execute_query(
+                &params,
+                &format!(
+                    "CREATE TABLE [dbo].[{parent}] ([id] INT NOT NULL PRIMARY KEY); \
+                     CREATE TABLE [dbo].[{child}] ([id] INT NOT NULL PRIMARY KEY, [parent_id] INT NULL, [label] VARCHAR(20) NOT NULL)"
+                ),
+                None,
+                1,
+                Some("dbo"),
+            )
+            .await?;
+        for sql in driver
+            .get_create_foreign_key_sql(
+                &child,
+                "fk_tabularis_parent",
+                "parent_id",
+                &parent,
+                "id",
+                Some("CASCADE"),
+                None,
+                Some("dbo"),
+            )
+            .await?
+        {
+            driver
+                .execute_query(&params, &sql, None, 1, Some("dbo"))
+                .await?;
+        }
+        if driver
+            .get_foreign_keys(&params, &child, Some("dbo"))
+            .await?
+            .iter()
+            .all(|fk| fk.name != "fk_tabularis_parent")
+        {
+            return Err("created foreign key was not introspected".into());
+        }
+
+        let old_column = tabularis_lib::models::ColumnDefinition {
+            name: "label".into(),
+            data_type: "VARCHAR(20)".into(),
+            is_nullable: false,
+            is_pk: false,
+            is_auto_increment: false,
+            default_value: None,
+        };
+        let new_column = tabularis_lib::models::ColumnDefinition {
+            name: "display_label".into(),
+            data_type: "VARCHAR(40)".into(),
+            is_nullable: true,
+            is_pk: false,
+            is_auto_increment: false,
+            default_value: Some("N'unknown'".into()),
+        };
+        for sql in driver
+            .get_alter_column_sql(&child, old_column, new_column, Some("dbo"))
+            .await?
+        {
+            driver
+                .execute_query(&params, &sql, None, 1, Some("dbo"))
+                .await?;
+        }
+        if driver
+            .get_columns(&params, &child, Some("dbo"))
+            .await?
+            .iter()
+            .all(|column| {
+                column.name != "display_label"
+                    || !column.is_nullable
+                    || !column.data_type.eq_ignore_ascii_case("varchar(40)")
+            })
+        {
+            return Err("ALTER COLUMN type/nullability was not introspected".into());
+        }
+        let old_pk = tabularis_lib::models::ColumnDefinition {
+            name: "id".into(),
+            data_type: "INT".into(),
+            is_nullable: false,
+            is_pk: true,
+            is_auto_increment: false,
+            default_value: None,
+        };
+        let mut new_pk = old_pk.clone();
+        new_pk.name = "child_id".into();
+        for sql in driver
+            .get_alter_column_sql(&child, old_pk, new_pk, Some("dbo"))
+            .await?
+        {
+            driver
+                .execute_query(&params, &sql, None, 1, Some("dbo"))
+                .await?;
+        }
+        if driver
+            .get_columns(&params, &child, Some("dbo"))
+            .await?
+            .iter()
+            .all(|column| column.name != "child_id" || !column.is_pk)
+        {
+            return Err("primary key was not rebuilt after column rename".into());
+        }
+
+        driver
+            .execute_query(
+                &params,
+                &format!("CREATE TABLE [dbo].[{audit}] ([value] INT NOT NULL)"),
+                None,
+                1,
+                Some("dbo"),
+            )
+            .await?;
+        driver
+            .create_trigger(
+                &params,
+                &format!(
+                    "CREATE TRIGGER [dbo].[{trigger}] ON {qualified} AFTER INSERT AS BEGIN SET NOCOUNT ON; INSERT INTO [dbo].[{audit}] ([value]) SELECT [id] FROM inserted; END"
+                ),
+                Some("dbo"),
+            )
+            .await
+            .map_err(|error| format!("create trigger: {error}"))?;
+        if driver
+            .get_triggers(&params, Some("dbo"))
+            .await?
+            .iter()
+            .all(|item| item.name != trigger)
+        {
+            return Err("created trigger was not listed".into());
+        }
+        let trigger_definition = driver
+            .get_trigger_definition(&params, &trigger, &table, Some("dbo"))
+            .await?;
+        if !trigger_definition.contains("AFTER INSERT") {
+            return Err("trigger definition was not returned".into());
+        }
+        driver
+            .execute_query(
+                &params,
+                &format!("INSERT INTO {qualified} ([tenant_id], [name]) VALUES (9, N'triggered')"),
+                None,
+                1,
+                Some("dbo"),
+            )
+            .await?;
+        let audit_rows = driver
+            .execute_query(
+                &params,
+                &format!("SELECT COUNT(*) AS [count] FROM [dbo].[{audit}]"),
+                None,
+                1,
+                Some("dbo"),
+            )
+            .await?;
+        if audit_rows.rows != vec![vec![serde_json::json!(1)]] {
+            return Err("trigger did not execute".into());
+        }
+
+        driver
+            .execute_query(
+                &params,
+                &format!(
+                    "CREATE PROCEDURE [dbo].[{procedure}] @output INT OUTPUT AS BEGIN SET NOCOUNT ON; SET @output = 123; SELECT 123 AS [value]; END"
+                ),
+                None,
+                1,
+                Some("dbo"),
+            )
+            .await?;
+        if driver
+            .get_routines(&params, Some("dbo"))
+            .await?
+            .iter()
+            .all(|routine| routine.name != procedure)
+        {
+            return Err("created procedure was not listed".into());
+        }
+        let call = driver
+            .build_routine_call_sql(
+                &params,
+                &procedure,
+                "PROCEDURE",
+                &[tabularis_lib::models::RoutineCallArg {
+                    name: "@output".into(),
+                    mode: "OUT".into(),
+                    value: None,
+                    is_raw: false,
+                }],
+                Some("dbo"),
+            )
+            .await?;
+        let procedure_result = driver
+            .execute_query(&params, &call, None, 1, Some("dbo"))
+            .await?;
+        if procedure_result.rows != vec![vec![serde_json::json!(123)]]
+            || procedure_result
+                .additional_results
+                .as_ref()
+                .and_then(|results| results.first())
+                .map(|result| &result.rows)
+                != Some(&vec![vec![serde_json::json!(123)]])
+        {
+            return Err("procedure invocation did not return result and OUT value".into());
+        }
+        driver
+            .execute_query(
+                &params,
+                &format!(
+                    "CREATE FUNCTION [dbo].[{table_function}] () RETURNS TABLE AS RETURN (SELECT CAST(456 AS INT) AS [value])"
+                ),
+                None,
+                1,
+                Some("dbo"),
+            )
+            .await?;
+        let function_call = driver
+            .build_routine_call_sql(
+                &params,
+                &table_function,
+                "FUNCTION",
+                &[],
+                Some("dbo"),
+            )
+            .await?;
+        if !function_call.starts_with("SELECT * FROM")
+            || driver
+                .execute_query(&params, &function_call, None, 1, Some("dbo"))
+                .await?
+                .rows
+                != vec![vec![serde_json::json!(456)]]
+        {
+            return Err("table-valued function invocation failed".into());
+        }
+        driver
+            .drop_routine(&params, &table_function, "FUNCTION", Some("dbo"))
+            .await?;
+
+        if !driver
+            .get_routine_edit_script(&params, &procedure, "PROCEDURE", Some("dbo"))
+            .await?
+            .starts_with("ALTER PROCEDURE")
+        {
+            return Err("routine edit script was not converted to ALTER".into());
+        }
+
+        let plan = driver
+            .explain_query(
+                &params,
+                &format!("SELECT [id] FROM {qualified} WHERE [tenant_id] = 7"),
+                false,
+                Some("dbo"),
+            )
+            .await?;
+        match plan {
+            tabularis_lib::models::ExplainQueryOutput::Raw { raw }
+                if raw.format == "sqlserver-showplan-xml"
+                    && raw.payload.contains("ShowPlanXML") => {}
+            _ => return Err("SHOWPLAN_XML was not returned".into()),
+        }
+        let analyzed_plan = driver
+            .explain_query(
+                &params,
+                &format!("SELECT [id] FROM {qualified} WHERE [tenant_id] = 7"),
+                true,
+                Some("dbo"),
+            )
+            .await?;
+        match analyzed_plan {
+            tabularis_lib::models::ExplainQueryOutput::Raw { raw }
+                if raw.payload.contains("RunTimeCountersPerThread") => {}
+            _ => return Err("STATISTICS XML runtime plan was not returned".into()),
+        }
+
+        driver
+            .drop_trigger(&params, &trigger, &table, Some("dbo"))
+            .await?;
+        driver
+            .drop_routine(&params, &procedure, "PROCEDURE", Some("dbo"))
+            .await?;
         driver.drop_view(&params, &view, Some("dbo")).await?;
         Ok::<(), String>(())
     }
@@ -488,7 +776,15 @@ async fn sqlserver_live_driver_workflow() {
     let cleanup = driver
         .execute_query(
             &params,
-            &format!("DROP TABLE IF EXISTS {qualified}"),
+            &format!(
+                "DROP TRIGGER IF EXISTS [dbo].[{trigger}]; \
+                 DROP PROCEDURE IF EXISTS [dbo].[{procedure}]; \
+                 DROP FUNCTION IF EXISTS [dbo].[{table_function}]; \
+                 DROP TABLE IF EXISTS [dbo].[{child}]; \
+                 DROP TABLE IF EXISTS [dbo].[{parent}]; \
+                 DROP TABLE IF EXISTS [dbo].[{audit}]; \
+                 DROP TABLE IF EXISTS {qualified}"
+            ),
             None,
             1,
             Some("dbo"),

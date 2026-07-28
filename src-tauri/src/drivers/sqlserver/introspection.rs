@@ -27,7 +27,16 @@ ORDER BY t.name";
 pub const Q_GET_COLUMNS: &str = "\
 SELECT \
     c.name AS name, \
-    ty.name AS data_type, \
+    CASE \
+        WHEN ty.name IN ('varchar', 'char', 'varbinary', 'binary') AND c.max_length = -1 THEN ty.name + '(max)' \
+        WHEN ty.name IN ('varchar', 'char', 'varbinary', 'binary') THEN ty.name + '(' + CAST(c.max_length AS varchar(10)) + ')' \
+        WHEN ty.name IN ('nvarchar', 'nchar') AND c.max_length = -1 THEN ty.name + '(max)' \
+        WHEN ty.name IN ('nvarchar', 'nchar') THEN ty.name + '(' + CAST(c.max_length / 2 AS varchar(10)) + ')' \
+        WHEN ty.name IN ('decimal', 'numeric') THEN ty.name + '(' + CAST(c.precision AS varchar(10)) + ',' + CAST(c.scale AS varchar(10)) + ')' \
+        WHEN ty.name IN ('datetime2', 'datetimeoffset', 'time') THEN ty.name + '(' + CAST(c.scale AS varchar(10)) + ')' \
+        WHEN ty.name = 'float' THEN ty.name + '(' + CAST(c.precision AS varchar(10)) + ')' \
+        ELSE ty.name \
+    END AS data_type, \
     c.is_nullable AS is_nullable, \
     c.is_identity AS is_identity, \
     CAST(c.max_length AS INT) AS max_length, \
@@ -142,7 +151,22 @@ ORDER BY ROUTINE_TYPE, ROUTINE_NAME";
 pub const Q_GET_ROUTINE_PARAMETERS: &str = "\
 SELECT \
     PARAMETER_NAME AS name, \
-    DATA_TYPE AS data_type, \
+    CASE \
+        WHEN DATA_TYPE IN ('char', 'varchar', 'nchar', 'nvarchar', 'binary', 'varbinary') \
+             AND CHARACTER_MAXIMUM_LENGTH = -1 THEN DATA_TYPE + '(MAX)' \
+        WHEN DATA_TYPE IN ('char', 'varchar', 'nchar', 'nvarchar', 'binary', 'varbinary') \
+             AND CHARACTER_MAXIMUM_LENGTH IS NOT NULL \
+            THEN DATA_TYPE + '(' + CAST(CHARACTER_MAXIMUM_LENGTH AS varchar(10)) + ')' \
+        WHEN DATA_TYPE IN ('decimal', 'numeric') \
+            THEN DATA_TYPE + '(' + CAST(NUMERIC_PRECISION AS varchar(10)) + ',' \
+                 + CAST(NUMERIC_SCALE AS varchar(10)) + ')' \
+        WHEN DATA_TYPE IN ('datetime2', 'datetimeoffset', 'time') \
+             AND DATETIME_PRECISION IS NOT NULL \
+            THEN DATA_TYPE + '(' + CAST(DATETIME_PRECISION AS varchar(10)) + ')' \
+        WHEN DATA_TYPE = 'float' AND NUMERIC_PRECISION IS NOT NULL \
+            THEN DATA_TYPE + '(' + CAST(NUMERIC_PRECISION AS varchar(10)) + ')' \
+        ELSE DATA_TYPE \
+    END AS data_type, \
     PARAMETER_MODE AS mode, \
     CAST(ORDINAL_POSITION AS INT) AS ordinal_position \
 FROM INFORMATION_SCHEMA.PARAMETERS \
@@ -157,7 +181,16 @@ pub const Q_GET_ALL_COLUMNS_BATCH: &str = "\
 SELECT \
     t.name AS table_name, \
     c.name AS name, \
-    ty.name AS data_type, \
+    CASE \
+        WHEN ty.name IN ('varchar', 'char', 'varbinary', 'binary') AND c.max_length = -1 THEN ty.name + '(max)' \
+        WHEN ty.name IN ('varchar', 'char', 'varbinary', 'binary') THEN ty.name + '(' + CAST(c.max_length AS varchar(10)) + ')' \
+        WHEN ty.name IN ('nvarchar', 'nchar') AND c.max_length = -1 THEN ty.name + '(max)' \
+        WHEN ty.name IN ('nvarchar', 'nchar') THEN ty.name + '(' + CAST(c.max_length / 2 AS varchar(10)) + ')' \
+        WHEN ty.name IN ('decimal', 'numeric') THEN ty.name + '(' + CAST(c.precision AS varchar(10)) + ',' + CAST(c.scale AS varchar(10)) + ')' \
+        WHEN ty.name IN ('datetime2', 'datetimeoffset', 'time') THEN ty.name + '(' + CAST(c.scale AS varchar(10)) + ')' \
+        WHEN ty.name = 'float' THEN ty.name + '(' + CAST(c.precision AS varchar(10)) + ')' \
+        ELSE ty.name \
+    END AS data_type, \
     c.is_nullable AS is_nullable, \
     c.is_identity AS is_identity, \
     CAST(c.max_length AS INT) AS max_length, \
@@ -281,7 +314,8 @@ pub fn character_length_from_sys_columns(data_type: &str, max_length_bytes: i32)
         return None;
     }
     let lower = data_type.to_ascii_lowercase();
-    match lower.as_str() {
+    let base_type = lower.split('(').next().unwrap_or(lower.as_str());
+    match base_type {
         // Double-byte encodings: divide by 2 to get char count.
         "nchar" | "nvarchar" | "ntext" => Some((max_length_bytes as u64) / 2),
         // Single-byte character or raw binary types: bytes == chars.
@@ -740,6 +774,28 @@ pub async fn get_routines(
         })
         .filter(|r| !r.name.is_empty())
         .collect())
+}
+
+pub async fn is_table_valued_function(
+    conn: &mut BridgeConnection,
+    routine_name: &str,
+    schema: Option<&str>,
+) -> Result<bool, String> {
+    let qualified = qualify(schema, routine_name);
+    let rows = conn
+        .query(
+            "SELECT CAST(CASE WHEN [type] IN (N'IF', N'TF', N'FT') THEN 1 ELSE 0 END AS bit) FROM sys.objects WHERE [object_id] = OBJECT_ID(@P1)",
+            &[&qualified],
+        )
+        .await
+        .map_err(|error| error.to_string())?
+        .into_first_result()
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(rows
+        .first()
+        .and_then(|row| row.get::<bool, _>(0))
+        .unwrap_or(false))
 }
 
 pub async fn get_routine_parameters(

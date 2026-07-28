@@ -24,22 +24,33 @@ interface TriggerEditorModalProps {
 const TIMING_OPTIONS = ["BEFORE", "AFTER", "INSTEAD OF"];
 const EVENT_OPTIONS = ["INSERT", "UPDATE", "DELETE"];
 
-function parseTriggerSql(sql: string): { timing: string | null; events: string[] | null; body: string | null } {
-  // Restrict header to the part before FOR EACH ROW to avoid matching keywords in the body
-  const forEachRowMatch = sql.match(/\bFOR\s+EACH\s+ROW\b/i);
-  const header = forEachRowMatch?.index !== undefined ? sql.slice(0, forEachRowMatch.index) : sql;
-
+function parseTriggerSql(
+  sql: string,
+  driver?: string,
+): { timing: string | null; events: string[] | null; body: string | null } {
+  const bodyMarker = driver === "sqlserver"
+    ? sql.match(
+        /\b(?:AFTER|FOR|INSTEAD\s+OF)\s+(?:INSERT|UPDATE|DELETE)(?:\s*,\s*(?:INSERT|UPDATE|DELETE))*\s+AS\b/i,
+      )
+    : sql.match(/\bFOR\s+EACH\s+ROW\b/i);
+  const markerOffset = bodyMarker?.index !== undefined
+    ? driver === "sqlserver"
+      ? bodyMarker.index + bodyMarker[0].search(/\bAS\b\s*$/i)
+      : bodyMarker.index
+    : undefined;
+  const header = markerOffset !== undefined ? sql.slice(0, markerOffset) : sql;
   const timingMatch = header.match(/\b(INSTEAD\s+OF|BEFORE|AFTER)\b/i);
-  const timing = timingMatch ? timingMatch[1].toUpperCase().replace(/\s+/, " ") : null;
-
-  const eventMatch = header.match(/\b(INSERT|UPDATE|DELETE)\b/i);
-  const events = eventMatch ? [eventMatch[1].toUpperCase()] : null;
-
-  const body = forEachRowMatch?.index !== undefined
-    ? sql.slice(forEachRowMatch.index + forEachRowMatch[0].length).trim()
+  const timing = timingMatch
+    ? timingMatch[1].toUpperCase().replace(/\s+/, " ")
+    : driver === "sqlserver" && /\bFOR\b/i.test(header)
+      ? "AFTER"
+      : null;
+  const events = [...header.matchAll(/\b(INSERT|UPDATE|DELETE)\b/gi)]
+    .map((match) => match[1].toUpperCase());
+  const body = markerOffset !== undefined
+    ? sql.slice(markerOffset + (driver === "sqlserver" ? 2 : bodyMarker?.[0].length ?? 0)).trim()
     : null;
-
-  return { timing, events, body };
+  return { timing, events: events.length > 0 ? events : null, body };
 }
 
 export const TriggerEditorModal = ({
@@ -82,7 +93,7 @@ export const TriggerEditorModal = ({
       setRawSql(def);
 
       // Populate guided mode fields so switching tabs shows real values
-      const parsed = parseTriggerSql(def);
+      const parsed = parseTriggerSql(def, driver);
       if (parsed.timing && TIMING_OPTIONS.includes(parsed.timing)) {
         setTiming(parsed.timing);
       }
@@ -97,39 +108,57 @@ export const TriggerEditorModal = ({
     } finally {
       setLoading(false);
     }
-  }, [connectionId, t, resolvedSchema]);
+  }, [connectionId, t, resolvedSchema, driver]);
 
   useEffect(() => {
     if (isOpen) {
       if (isNewTrigger) {
         setName("");
         setTableName(initialTableName ?? "");
-        setTiming("BEFORE");
+        setTiming(driver === "sqlserver" ? "AFTER" : "BEFORE");
         setEvents(["INSERT"]);
         setBody("BEGIN\n  -- trigger body\nEND");
         setRawSql("");
         setUseRawSql(false);
         setError(null);
       } else if (triggerName && initialTableName) {
+        // SQL Server trigger headers can carry options (EXECUTE AS,
+        // replication flags, etc.) that guided mode cannot represent.
+        setUseRawSql(driver === "sqlserver");
+        setTiming(driver === "sqlserver" ? "AFTER" : "BEFORE");
         setName(triggerName);
         setTableName(initialTableName);
         loadTriggerDefinition(triggerName, initialTableName);
       }
     }
-  }, [isOpen, triggerName, initialTableName, isNewTrigger, loadTriggerDefinition]);
+  }, [isOpen, triggerName, initialTableName, isNewTrigger, loadTriggerDefinition, driver]);
 
   const buildTriggerSql = (): string => {
-    if (useRawSql) return rawSql;
+    if (useRawSql) {
+      return driver === "sqlserver"
+        ? rawSql.replace(
+            /^\s*(?:CREATE(?:\s+OR\s+ALTER)?|ALTER)\s+TRIGGER/i,
+            `${isNewTrigger ? "CREATE" : "ALTER"} TRIGGER`,
+          )
+        : rawSql;
+    }
     const q = (id: string) => quoteIdentifier(id, driver ?? "postgres");
-    // MySQL handles schema via the connection — including it in the ON clause causes error 1435
     const isMysql = driver === "mysql";
     const schemaPrefix = (!isMysql && resolvedSchema) ? `${q(resolvedSchema)}.` : "";
-    const eventStr = events.join(" OR ");
+    if (driver === "sqlserver") {
+      return [
+        `${isNewTrigger ? "CREATE" : "ALTER"} TRIGGER ${schemaPrefix}${q(name)}`,
+        `ON ${schemaPrefix}${q(tableName)}`,
+        `${timing} ${events.join(", ")}`,
+        "AS",
+        body,
+      ].join("\n");
+    }
     return [
       `CREATE TRIGGER ${q(name)}`,
-      `${timing} ${eventStr}`,
+      `${timing} ${events.join(" OR ")}`,
       `ON ${schemaPrefix}${q(tableName)}`,
-      `FOR EACH ROW`,
+      "FOR EACH ROW",
       body,
     ].join("\n");
   };
@@ -147,7 +176,7 @@ export const TriggerEditorModal = ({
       return;
     }
 
-    if (!isNewTrigger) {
+    if (!isNewTrigger && driver !== "sqlserver") {
       const confirmed = await ask(
         t("triggers.confirmRecreate", { trigger: name }),
         { title: t("triggers.recreateTrigger"), kind: "warning" }
@@ -305,7 +334,9 @@ export const TriggerEditorModal = ({
                     {t("triggers.timing")}
                   </label>
                   <div className="flex gap-2">
-                    {TIMING_OPTIONS.map((opt) => (
+                    {TIMING_OPTIONS
+                      .filter((opt) => driver !== "sqlserver" || opt !== "BEFORE")
+                      .map((opt) => (
                       <button
                         key={opt}
                         onClick={() => setTiming(opt)}
