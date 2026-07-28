@@ -9,7 +9,12 @@ import { isLocalDriver } from "./driverCapabilities";
 
 export type DatabaseDriver = string;
 
-export const BUILTIN_DRIVER_IDS = ["postgres", "mysql", "sqlite"] as const;
+export const BUILTIN_DRIVER_IDS = [
+  "postgres",
+  "mysql",
+  "sqlite",
+  "sqlserver",
+] as const;
 export type BuiltinDriverId = (typeof BUILTIN_DRIVER_IDS)[number];
 
 export interface ConnectionParams {

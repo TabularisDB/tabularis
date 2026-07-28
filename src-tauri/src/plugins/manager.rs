@@ -158,11 +158,10 @@ pub async fn load_plugin_from_dir(
     let config: ConfigManifest = crate::plugins::installer::read_manifest(path)?;
 
     // Refuse plugins that claim a built-in driver id. Registration is a plain
-    // insert keyed by id, so otherwise a plugin with id "mysql"/"postgres"/
-    // "sqlite" would shadow the built-in driver and receive existing
-    // connections' resolved credentials.
+    // insert keyed by id, so otherwise a plugin using a built-in id would
+    // shadow that driver and receive existing connections' resolved credentials.
     let plugin_id = config.id.clone().unwrap_or_else(|| config.name.clone());
-    const BUILTIN_DRIVER_IDS: [&str; 3] = ["mysql", "postgres", "sqlite"];
+    const BUILTIN_DRIVER_IDS: [&str; 4] = ["mysql", "postgres", "sqlite", "sqlserver"];
     if BUILTIN_DRIVER_IDS.contains(&plugin_id.as_str()) {
         return Err(format!(
             "Plugin id '{}' collides with a built-in driver and was refused",

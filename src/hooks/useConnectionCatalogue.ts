@@ -16,6 +16,7 @@ const BUILTIN_META: Record<string, { engine: string; paradigms: string[] }> = {
   postgres: { engine: 'postgres', paradigms: ['sql'] },
   mysql: { engine: 'mysql', paradigms: ['sql'] },
   sqlite: { engine: 'sqlite', paradigms: ['sql'] },
+  sqlserver: { engine: 'sqlserver', paradigms: ['sql'] },
 };
 
 export interface ConnectionCatalogue {

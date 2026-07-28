@@ -14,6 +14,7 @@ mod tests {
             port: Some(match driver {
                 "postgres" => 5432,
                 "mysql" => 3306,
+                "sqlserver" => 1433,
                 _ => 0,
             }),
             username: Some("dec".to_string()),
@@ -93,6 +94,17 @@ mod tests {
         assert_ne!(
             build_connection_key(&required, Some("conn-1")),
             build_connection_key(&disabled, Some("conn-1"))
+        );
+    }
+
+    #[test]
+    fn sqlserver_pool_key_changes_when_ssl_mode_changes() {
+        let verified = connection_params("sqlserver", Some("verify-full"));
+        let trusted = connection_params("sqlserver", Some("prefer"));
+
+        assert_ne!(
+            build_connection_key(&verified, Some("conn-1")),
+            build_connection_key(&trusted, Some("conn-1"))
         );
     }
 

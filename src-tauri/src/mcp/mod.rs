@@ -9,7 +9,7 @@ use crate::config::{
 use crate::credential_cache;
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::drivers::registry as driver_registry;
-use crate::drivers::{mysql, postgres, sqlite};
+use crate::drivers::{mysql, postgres, sqlite, sqlserver};
 use crate::heartbeat;
 use crate::models::{ConnectionParams, K8sConnection, SshConnection};
 use crate::paths;
@@ -285,15 +285,16 @@ async fn resolve_db_params(
     Ok((conn, db_params))
 }
 
-/// Populate the driver registry for the standalone MCP subprocess: the three
+/// Populate the driver registry for the standalone MCP subprocess: all
 /// built-in drivers plus any installed plugin drivers, honoring the user's
 /// `active_external_drivers` preference. Without this, MCP can only reach
-/// mysql/postgres/sqlite connections — every other driver fails with
+/// built-in connections — unavailable external drivers fail with
 /// "Unsupported driver".
 async fn register_drivers_for_mcp() {
     driver_registry::register_driver(mysql::MysqlDriver::new()).await;
     driver_registry::register_driver(postgres::PostgresDriver::new()).await;
     driver_registry::register_driver(sqlite::SqliteDriver::new()).await;
+    driver_registry::register_driver(sqlserver::SqlServerDriver::new()).await;
 
     let app_config = config::load_config_from_disk();
     let plugin_configs = app_config.plugins.unwrap_or_default();

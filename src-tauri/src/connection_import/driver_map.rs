@@ -1,6 +1,6 @@
 //! Maps a foreign app's database label to a Tabularis driver id.
 //!
-//! Built-in drivers are `postgres`, `mysql`, `sqlite` (see
+//! Built-in drivers are `postgres`, `mysql`, `sqlite`, and `sqlserver` (see
 //! `src/utils/connections.ts`). MariaDB rides the MySQL driver. Anything else
 //! is only importable when a plugin driver with the same id is registered; the
 //! analyzer flags the rest with a "driver not installed" warning but still lets
@@ -22,7 +22,7 @@ pub fn canonical_id(label: &str) -> String {
         "postgresql" | "postgres" | "postgre" => "postgres".to_string(),
         "mysql" | "mariadb" => "mysql".to_string(),
         "sqlite" | "sqlite3" => "sqlite".to_string(),
-        "sql server" | "sqlserver" | "mssql" | "jtds" => "mssql".to_string(),
+        "sql server" | "sqlserver" | "mssql" | "jtds" => "sqlserver".to_string(),
         "mongodb" | "mongo" => "mongodb".to_string(),
         "redis" => "redis".to_string(),
         "oracle" => "oracle".to_string(),
@@ -44,7 +44,7 @@ pub fn default_port(driver_id: &str) -> u16 {
         "postgres" | "redshift" => 5432,
         "mysql" => 3306,
         "cockroachdb" => 26257,
-        "mssql" => 1433,
+        "sqlserver" | "mssql" => 1433,
         "oracle" => 1521,
         "mongodb" => 27017,
         "redis" => 6379,
@@ -69,7 +69,7 @@ mod tests {
     #[test]
     fn maps_plugin_labels_lowercased() {
         assert_eq!(canonical_id("MongoDB"), "mongodb");
-        assert_eq!(canonical_id("SQL Server"), "mssql");
+        assert_eq!(canonical_id("SQL Server"), "sqlserver");
         assert_eq!(canonical_id("ClickHouse"), "clickhouse");
     }
 
@@ -91,6 +91,7 @@ mod tests {
         assert_eq!(default_port("postgres"), 5432);
         assert_eq!(default_port("mysql"), 3306);
         assert_eq!(default_port("sqlite"), 0);
+        assert_eq!(default_port("sqlserver"), 1433);
         assert_eq!(default_port("mssql"), 1433);
     }
 }

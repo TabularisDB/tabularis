@@ -68,6 +68,10 @@ tauri-plugin-deep-link = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tokio-postgres = { version = "0.7.13", features = ["with-chrono-0_4", "with-uuid-1", "with-serde_json-1", "array-impls"] }
 deadpool-postgres = "0.14.1"
+# SQL Server driver — stable Tiberius client pooled with deadpool.
+tiberius = { version = "0.12", default-features = false, features = ["rustls", "tds73", "chrono", "rust_decimal", "sql-browser-tokio"] }
+tokio-util = { version = "0.7", features = ["compat"] }
+deadpool = "0.12"
 # sqlx uses `tls-rustls-ring-native-roots` for both the MySQL pool and the
 # SQLite/embedded paths. `tls-native-tls` is intentionally NOT enabled:
 # macOS Secure Transport (the native-tls backend on Darwin) is deprecated
