@@ -248,7 +248,7 @@ Join our [Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with th
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/notebooks)
 
 - **Multi-Cell Workspace:** Combine SQL and Markdown cells in a single document, with inline results and bar/line/pie charts.
-- **Cross-Cell Variables:** Reference results from other cells with `{{cellName.columnName}}`, plus global `{{$paramName}}` parameters.
+- **Cross-Cell Variables:** Reference another cell's full result as a table with `{{cell_N}}` (expanded to a CTE at run time), plus global `@paramName` parameters.
 - **Run All:** Sequential execution with stop-on-error option and completion summary.
 - **Persistence & Export:** Auto-saved as `.tabularis-notebook` files; export as HTML, CSV, or JSON.
 - Outline panel, drag & drop cell reordering, and AI-generated cell names.
