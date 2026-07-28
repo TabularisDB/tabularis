@@ -255,6 +255,12 @@
   "connections": {
     "title": "연결",
     "addConnection": "연결 추가",
+    "newSqliteDatabase": {
+      "menuLabel": "새 SQLite 데이터베이스…",
+      "dialogTitle": "새 SQLite 데이터베이스",
+      "fileType": "SQLite 데이터베이스",
+      "error": "SQLite 데이터베이스를 만들 수 없습니다"
+    },
     "noConnections": "활성 연결이 없습니다",
     "createFirst": "첫 연결 만들기",
     "active": "활성",
@@ -824,6 +830,7 @@
     "filePathPlaceholder": "/절대/경로/db.sqlite",
     "folderPathPlaceholder": "/절대/경로/폴더",
     "browseFile": "파일 찾아보기",
+    "createSqliteFile": "새로 만들기",
     "browseFolder": "폴더 찾아보기",
     "useSsh": "SSH 터널 사용",
     "sshHost": "SSH 호스트",

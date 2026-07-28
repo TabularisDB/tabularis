@@ -255,6 +255,12 @@
   "connections": {
     "title": "Connections",
     "addConnection": "Add Connection",
+    "newSqliteDatabase": {
+      "menuLabel": "New SQLite Database…",
+      "dialogTitle": "New SQLite Database",
+      "fileType": "SQLite database",
+      "error": "Failed to create SQLite database"
+    },
     "noConnections": "No active connections",
     "createFirst": "Create your first connection",
     "active": "Active",
@@ -870,6 +876,7 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "Browse file",
+    "createSqliteFile": "New",
     "browseFolder": "Browse folder",
     "useSsh": "Use SSH Tunnel",
     "sshHost": "SSH Host",

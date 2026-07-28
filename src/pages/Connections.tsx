@@ -28,6 +28,7 @@ import {
   FolderTree,
   ChevronDown,
   AppWindow,
+  Loader2,
 } from "lucide-react";
 import { useDatabase } from "../hooks/useDatabase";
 import { useDrivers } from "../hooks/useDrivers";
@@ -44,6 +45,7 @@ import { ConnectionCard } from "../components/connections/ConnectionCard";
 import { ConnectionListItem } from "../components/connections/ConnectionListItem";
 import { ConnectionErrorBanner } from "../components/ConnectionErrorBanner";
 import { BetaBadge } from "../components/ui/BetaBadge";
+import { useCreateSqliteDatabase } from "../hooks/useCreateSqliteDatabase";
 
 let autoConnectAttempted = false;
 
@@ -71,6 +73,8 @@ export const Connections = () => {
   } = useDatabase();
   const { drivers, allDrivers } = useDrivers();
   const openConnectionInNewWindow = useOpenConnectionInNewWindow();
+  const { createSqliteDatabase, isCreating: isCreatingSqliteDatabase } =
+    useCreateSqliteDatabase();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportAppModalOpen, setIsImportAppModalOpen] = useState(false);
   const [isImportMenuOpen, setIsImportMenuOpen] = useState(false);
@@ -464,6 +468,22 @@ export const Connections = () => {
       );
     } finally {
       setConnectingId(null);
+    }
+  };
+
+  const handleCreateSqliteDatabase = async () => {
+    setIsImportMenuOpen(false);
+    setError(null);
+    try {
+      const connection = await createSqliteDatabase();
+      if (!connection) return;
+
+      await loadConnections();
+      await handleConnect(connection);
+    } catch (e) {
+      setError(
+        `${t("connections.newSqliteDatabase.error")}\n\nError: ${toErrorMessage(e)}`,
+      );
     }
   };
 
@@ -899,7 +919,7 @@ export const Connections = () => {
             ref={importMenuBtnRef}
             onClick={toggleImportMenu}
             className="flex items-center bg-blue-600 hover:bg-blue-500 text-white px-2 rounded-r-xl border-l border-blue-400/40 transition-colors duration-150"
-            title={t("connections.importFromApp.title")}
+            title={t("connections.addConnection")}
             aria-haspopup="menu"
             aria-expanded={isImportMenuOpen}
           >
@@ -919,6 +939,21 @@ export const Connections = () => {
                   style={{ top: importMenuPos.top, right: importMenuPos.right }}
                   className="fixed z-[201] w-60 bg-elevated border border-strong rounded-xl shadow-2xl py-1 overflow-hidden"
                 >
+                  <button
+                    onClick={() => void handleCreateSqliteDatabase()}
+                    disabled={isCreatingSqliteDatabase}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-secondary hover:text-primary hover:bg-surface-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
+                  >
+                    {isCreatingSqliteDatabase ? (
+                      <Loader2 size={15} className="shrink-0 text-blue-400 animate-spin" />
+                    ) : (
+                      <Database size={15} className="shrink-0 text-blue-400" />
+                    )}
+                    <span className="flex-1">
+                      {t("connections.newSqliteDatabase.menuLabel")}
+                    </span>
+                  </button>
+                  <div className="h-px bg-default mx-2" />
                   <button
                     onClick={() => {
                       setIsImportMenuOpen(false);
@@ -1009,7 +1044,7 @@ export const Connections = () => {
             <p className="text-sm text-muted mb-6 max-w-xs leading-relaxed">
               {t("connections.noConnectionsHint")}
             </p>
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
               <button
                 onClick={() => {
                   setEditingConnection(null);
@@ -1019,6 +1054,18 @@ export const Connections = () => {
               >
                 <Plus size={14} />
                 {t("connections.createFirst")}
+              </button>
+              <button
+                onClick={() => void handleCreateSqliteDatabase()}
+                disabled={isCreatingSqliteDatabase}
+                className="flex items-center gap-2 bg-elevated border border-strong hover:border-blue-500/50 text-secondary hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2.5 rounded-xl font-semibold text-sm transition-all hover:-translate-y-px"
+              >
+                {isCreatingSqliteDatabase ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Database size={14} />
+                )}
+                {t("connections.newSqliteDatabase.menuLabel")}
               </button>
               <button
                 onClick={() => setIsImportAppModalOpen(true)}

@@ -242,6 +242,12 @@
   "connections": {
     "title": "Verbindungen",
     "addConnection": "Verbindung hinzufügen",
+    "newSqliteDatabase": {
+      "menuLabel": "Neue SQLite-Datenbank…",
+      "dialogTitle": "Neue SQLite-Datenbank",
+      "fileType": "SQLite-Datenbank",
+      "error": "SQLite-Datenbank konnte nicht erstellt werden"
+    },
     "noConnections": "Keine aktiven Verbindungen",
     "createFirst": "Erstelle deine erste Verbindung",
     "active": "Aktiv",
@@ -826,6 +832,7 @@
     "filePathPlaceholder": "/absoluter/pfad/zu/db.sqlite",
     "folderPathPlaceholder": "/absoluter/pfad/zum/ordner",
     "browseFile": "Datei auswählen",
+    "createSqliteFile": "Neu",
     "browseFolder": "Ordner auswählen",
     "useSsh": "SSH-Tunnel verwenden",
     "sshHost": "SSH-Host",

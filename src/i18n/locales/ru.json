@@ -255,6 +255,12 @@
   "connections": {
     "title": "Подключения",
     "addConnection": "Добавить подключение",
+    "newSqliteDatabase": {
+      "menuLabel": "Новая база данных SQLite…",
+      "dialogTitle": "Новая база данных SQLite",
+      "fileType": "База данных SQLite",
+      "error": "Не удалось создать базу данных SQLite"
+    },
     "noConnections": "Нет активных подключений",
     "createFirst": "Создайте первое подключение",
     "active": "Активно",
@@ -818,6 +824,7 @@
     "filePathPlaceholder": "/абсолютный/путь/к/db.sqlite",
     "folderPathPlaceholder": "/абсолютный/путь/к/папке",
     "browseFile": "Выбрать файл",
+    "createSqliteFile": "Создать",
     "browseFolder": "Выбрать папку",
     "useSsh": "Использовать SSH-туннель",
     "sshHost": "SSH-хост",
