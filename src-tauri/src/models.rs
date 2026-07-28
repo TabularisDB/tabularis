@@ -452,56 +452,34 @@ impl BatchStatementResult {
     }
 }
 
-/// A single node in a query execution plan tree.
+/// Raw EXPLAIN output produced by a built-in driver.
+///
+/// Parsing lives in the `@tabularis/explain` TypeScript package
+/// (`parseRawExplain`): a driver's job ends at handing over the payload it
+/// obtained — text, a JSON document, or decoded rows re-serialised as a JSON
+/// array — plus the format tag naming what it is.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ExplainNode {
-    pub id: String,
-    pub node_type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub relation: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub startup_cost: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_cost: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub plan_rows: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub actual_rows: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub actual_time_ms: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub actual_loops: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub buffers_hit: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub buffers_read: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub filter: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub index_condition: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub join_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hash_condition: Option<String>,
-    #[serde(default)]
-    pub extra: HashMap<String, serde_json::Value>,
-    #[serde(default)]
-    pub children: Vec<ExplainNode>,
+pub struct RawExplainOutput {
+    /// Driver id of the engine that produced the payload ("postgres", …).
+    pub engine: String,
+    /// Wire format tag understood by `@tabularis/explain`:
+    /// `postgres-json`, `mysql-json`, `mysql-analyze-text`,
+    /// `mysql-tabular-rows` or `sqlite-eqp-rows`.
+    pub format: String,
+    /// The untouched payload: text, a JSON document, or rows as a JSON array.
+    pub payload: String,
+    pub original_query: String,
 }
 
-/// The complete result of an EXPLAIN query, including the plan tree and metadata.
+/// What `explain_query` hands to the frontend: a raw payload from a built-in
+/// driver, or a plan a plugin driver already parsed. Plugins know engines the
+/// core parsers do not, so their JSON-RPC `explain_query` result passes
+/// through untouched.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ExplainPlan {
-    pub root: ExplainNode,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub planning_time_ms: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub execution_time_ms: Option<f64>,
-    pub original_query: String,
-    pub driver: String,
-    pub has_analyze_data: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub raw_output: Option<String>,
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum ExplainQueryOutput {
+    Raw { raw: RawExplainOutput },
+    Plan { plan: serde_json::Value },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

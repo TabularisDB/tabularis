@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { getExplainPlanStats } from "../../src/utils/explainStats";
-import { computeExplainMetrics } from "../../src/utils/explainMetrics";
-import type { ExplainNode, ExplainPlan } from "../../src/types/explain";
+import { getExplainPlanStats } from "../src/stats";
+import { computeExplainMetrics } from "../src/metrics";
+import type { ExplainNode, ExplainPlan } from "../src/types";
 
 function makeNode(overrides: Partial<ExplainNode> = {}): ExplainNode {
   return {

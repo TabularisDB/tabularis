@@ -2,12 +2,12 @@ import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import clsx from "clsx";
-import type { ExplainNode, ExplainPlan } from "../../../types/explain";
+import type { ExplainNode, ExplainPlan } from "../types";
 import type {
   ExplainMetrics,
   ExplainNodeMetrics,
-} from "../../../utils/explainMetrics";
-import type { ExplainDiagnostic } from "../../../utils/explainDiagnostics";
+} from "../metrics";
+import type { ExplainDiagnostic } from "../diagnostics";
 import {
   findExplainNode,
   formatCost,
@@ -15,8 +15,8 @@ import {
   formatRows,
   formatTime,
   getRowEstimateRatio,
-} from "../../../utils/explainPlan";
-import { ExplainDiagnosticChips } from "../../ui/ExplainDiagnosticChips";
+} from "../plan";
+import { ExplainDiagnosticChips } from "./ExplainDiagnosticChips";
 import { ExplainNodeDetails } from "./ExplainNodeDetails";
 
 interface ExplainTableViewProps {

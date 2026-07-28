@@ -1,6 +1,6 @@
-import type { ExplainNode, ExplainPlan } from "../types/explain";
-import type { ExplainMetrics, ExplainNodeMetrics } from "./explainMetrics";
-import { flattenExplainNodes, formatRatio, formatRows } from "./explainPlan";
+import type { ExplainNode, ExplainPlan } from "./types";
+import type { ExplainMetrics, ExplainNodeMetrics } from "./metrics";
+import { flattenExplainNodes, formatRatio, formatRows } from "./plan";
 
 export type ExplainDiagnosticKind =
   | "hotspot"

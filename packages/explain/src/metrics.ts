@@ -1,4 +1,4 @@
-import type { ExplainNode, ExplainPlan } from "../types/explain";
+import type { ExplainNode, ExplainPlan } from "./types";
 
 /**
  * Per-node metrics derived from a plan tree.

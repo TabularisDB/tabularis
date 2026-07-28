@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
-import type { ExplainNode, ExplainPlan } from "../../../types/explain";
-import type { ExplainDiagnostic } from "../../../utils/explainDiagnostics";
+import type { ExplainNode, ExplainPlan } from "../types";
+import type { ExplainDiagnostic } from "../diagnostics";
 import {
   getAvailableMetricKinds,
   getDefaultMetricKind,
@@ -10,7 +10,7 @@ import {
   getMetricValue,
   type ExplainMetricKind,
   type ExplainMetrics,
-} from "../../../utils/explainMetrics";
+} from "../metrics";
 import {
   findExplainNode,
   flattenExplainNodes,
@@ -18,8 +18,8 @@ import {
   formatRows,
   formatTime,
   getHeatBarClass,
-} from "../../../utils/explainPlan";
-import { ExplainDiagnosticChips } from "../../ui/ExplainDiagnosticChips";
+} from "../plan";
+import { ExplainDiagnosticChips } from "./ExplainDiagnosticChips";
 import { ExplainNodeDetails } from "./ExplainNodeDetails";
 
 interface ExplainDiagramViewProps {

@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
-import type { ExplainNode } from "../../../types/explain";
-import type { ExplainNodeMetrics } from "../../../utils/explainMetrics";
-import type { ExplainDiagnostic } from "../../../utils/explainDiagnostics";
-import { formatCost, formatRows, formatTime } from "../../../utils/explainPlan";
-import { ExplainDiagnosticList } from "../../ui/ExplainDiagnosticChips";
+import type { ExplainNode } from "../types";
+import type { ExplainNodeMetrics } from "../metrics";
+import type { ExplainDiagnostic } from "../diagnostics";
+import { formatCost, formatRows, formatTime } from "../plan";
+import { ExplainDiagnosticList } from "./ExplainDiagnosticChips";
 
 interface ExplainNodeDetailsProps {
   node: ExplainNode | null;

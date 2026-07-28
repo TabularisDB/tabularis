@@ -7,8 +7,8 @@ import {
   getMetricValue,
   getNodeMetrics,
   isMetricAvailable,
-} from "../../src/utils/explainMetrics";
-import type { ExplainNode, ExplainPlan } from "../../src/types/explain";
+} from "../src/metrics";
+import type { ExplainNode, ExplainPlan } from "../src/types";
 
 function makeNode(overrides: Partial<ExplainNode> = {}): ExplainNode {
   return {

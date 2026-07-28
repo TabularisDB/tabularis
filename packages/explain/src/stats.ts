@@ -1,6 +1,6 @@
-import type { ExplainNode, ExplainPlan } from "../types/explain";
-import type { ExplainMetrics } from "./explainMetrics";
-import { flattenExplainNodes } from "./explainPlan";
+import type { ExplainNode, ExplainPlan } from "./types";
+import type { ExplainMetrics } from "./metrics";
+import { flattenExplainNodes } from "./plan";
 
 export interface ExplainNodeTypeStat {
   nodeType: string;

@@ -482,7 +482,7 @@ fn has_complete_end_before_terminal_statement(upper_sql: &str) -> bool {
 /// string-literal, comment, and quoted-identifier bytes with whitespace, so
 /// any `;` that survives here is a real statement terminator under the
 /// escaping interpretation used to produce `stripped`.
-fn has_trailing_statements(stripped: &str) -> bool {
+pub(crate) fn has_trailing_statements(stripped: &str) -> bool {
     let mut found_semi = false;
     for c in stripped.chars() {
         if found_semi && !c.is_whitespace() {

@@ -3,23 +3,25 @@ import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import MonacoEditor from "@monaco-editor/react";
 import type * as monaco from "monaco-editor";
-import type { ExplainPlan } from "../../types/explain";
-import { findExplainNode } from "../../utils/explainPlan";
-import { computeExplainMetrics } from "../../utils/explainMetrics";
-import { getPlanDiagnostics } from "../../utils/explainDiagnostics";
+import type { ExplainPlan } from "@tabularis/explain";
+import {
+  computeExplainMetrics,
+  findExplainNode,
+  getPlanDiagnostics,
+} from "@tabularis/explain";
+import {
+  ExplainDiagramView,
+  ExplainGraph,
+  ExplainNodeDetails,
+  ExplainOverviewBar,
+  ExplainStatsView,
+  ExplainSummaryBar,
+  ExplainTableView,
+  type ExplainViewMode,
+} from "@tabularis/explain/react";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
-import {
-  ExplainSummaryBar,
-  type ExplainViewMode,
-} from "../modals/visual-explain/ExplainSummaryBar";
-import { ExplainGraph } from "../modals/visual-explain/ExplainGraph";
-import { ExplainTableView } from "../modals/visual-explain/ExplainTableView";
-import { ExplainDiagramView } from "../modals/visual-explain/ExplainDiagramView";
-import { ExplainStatsView } from "../modals/visual-explain/ExplainStatsView";
 import { ExplainAiAnalysis } from "../modals/visual-explain/ExplainAiAnalysis";
-import { ExplainNodeDetails } from "../modals/visual-explain/ExplainNodeDetails";
-import { ExplainOverviewBar } from "../modals/visual-explain/ExplainOverviewBar";
 
 export interface VisualExplainViewProps {
   plan: ExplainPlan | null;

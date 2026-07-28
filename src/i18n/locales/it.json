@@ -189,7 +189,9 @@
     },
     "addToSplitGroup": "Aggiungi al Gruppo Split",
     "removeFromSplitGroup": "Rimuovi dal Gruppo",
-    "movePanel": "Sposta pannello"
+    "movePanel": "Sposta pannello",
+    "refreshDatabaseList": "Aggiorna elenco database",
+    "databaseListUpToDate": "L'elenco dei database è aggiornato"
   },
   "groups": {
     "title": "Gruppi",
@@ -260,6 +262,12 @@
   "connections": {
     "title": "Connessioni",
     "addConnection": "Aggiungi Connessione",
+    "newSqliteDatabase": {
+      "menuLabel": "Nuovo database SQLite…",
+      "dialogTitle": "Nuovo database SQLite",
+      "fileType": "Database SQLite",
+      "error": "Impossibile creare il database SQLite"
+    },
     "noConnections": "Nessuna connessione attiva",
     "createFirst": "Crea la tua prima connessione",
     "active": "Attiva",
@@ -469,6 +477,7 @@
     },
     "language": "Lingua",
     "languageDesc": "Scegli la tua lingua preferita. 'Auto' userà la lingua di sistema.",
+    "languageSearch": "Cerca lingue...",
     "auto": "Auto (Sistema)",
     "english": "Inglese",
     "italian": "Italiano",
@@ -848,6 +857,7 @@
     "filePathPlaceholder": "/percorso/assoluto/db.sqlite",
     "folderPathPlaceholder": "/percorso/assoluto/cartella",
     "browseFile": "Sfoglia file",
+    "createSqliteFile": "Nuovo",
     "browseFolder": "Sfoglia cartella",
     "useSsh": "Usa Tunnel SSH",
     "sshHost": "Host SSH",

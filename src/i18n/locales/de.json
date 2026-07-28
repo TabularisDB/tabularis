@@ -189,7 +189,9 @@
     },
     "addToSplitGroup": "Zur geteilten Gruppe hinzufügen",
     "removeFromSplitGroup": "Aus der Gruppe entfernen",
-    "movePanel": "Panel verschieben"
+    "movePanel": "Panel verschieben",
+    "refreshDatabaseList": "Datenbankliste aktualisieren",
+    "databaseListUpToDate": "Datenbankliste ist aktuell"
   },
   "mcp": {
     "title": "MCP-Server-Integration",
@@ -240,6 +242,12 @@
   "connections": {
     "title": "Verbindungen",
     "addConnection": "Verbindung hinzufügen",
+    "newSqliteDatabase": {
+      "menuLabel": "Neue SQLite-Datenbank…",
+      "dialogTitle": "Neue SQLite-Datenbank",
+      "fileType": "SQLite-Datenbank",
+      "error": "SQLite-Datenbank konnte nicht erstellt werden"
+    },
     "noConnections": "Keine aktiven Verbindungen",
     "createFirst": "Erstelle deine erste Verbindung",
     "active": "Aktiv",
@@ -444,6 +452,7 @@
     },
     "language": "Sprache",
     "languageDesc": "Wähle deine bevorzugte Sprache. \"Auto\" verwendet die Systemsprache.",
+    "languageSearch": "Sprachen durchsuchen...",
     "auto": "Auto (System)",
     "english": "Englisch",
     "italian": "Italienisch",
@@ -823,6 +832,7 @@
     "filePathPlaceholder": "/absoluter/pfad/zu/db.sqlite",
     "folderPathPlaceholder": "/absoluter/pfad/zum/ordner",
     "browseFile": "Datei auswählen",
+    "createSqliteFile": "Neu",
     "browseFolder": "Ordner auswählen",
     "useSsh": "SSH-Tunnel verwenden",
     "sshHost": "SSH-Host",

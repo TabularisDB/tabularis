@@ -202,7 +202,9 @@
     },
     "addToSplitGroup": "분할 그룹에 추가",
     "removeFromSplitGroup": "그룹에서 제거",
-    "movePanel": "패널 이동"
+    "movePanel": "패널 이동",
+    "refreshDatabaseList": "데이터베이스 목록 새로고침",
+    "databaseListUpToDate": "데이터베이스 목록이 최신 상태입니다"
   },
   "mcp": {
     "title": "MCP 서버 연동",
@@ -253,6 +255,12 @@
   "connections": {
     "title": "연결",
     "addConnection": "연결 추가",
+    "newSqliteDatabase": {
+      "menuLabel": "새 SQLite 데이터베이스…",
+      "dialogTitle": "새 SQLite 데이터베이스",
+      "fileType": "SQLite 데이터베이스",
+      "error": "SQLite 데이터베이스를 만들 수 없습니다"
+    },
     "noConnections": "활성 연결이 없습니다",
     "createFirst": "첫 연결 만들기",
     "active": "활성",
@@ -442,6 +450,7 @@
     },
     "language": "언어",
     "languageDesc": "원하는 언어를 선택하세요. '자동'을 선택하면 시스템 언어를 사용합니다.",
+    "languageSearch": "언어 검색...",
     "auto": "자동 (시스템)",
     "timezone": "시간대",
     "timezoneDesc": "타임스탬프 표시와 내보내기에 사용할 시간대입니다. '자동'은 시스템 시간대를 따릅니다.",
@@ -821,6 +830,7 @@
     "filePathPlaceholder": "/절대/경로/db.sqlite",
     "folderPathPlaceholder": "/절대/경로/폴더",
     "browseFile": "파일 찾아보기",
+    "createSqliteFile": "새로 만들기",
     "browseFolder": "폴더 찾아보기",
     "useSsh": "SSH 터널 사용",
     "sshHost": "SSH 호스트",

@@ -10,11 +10,11 @@ import {
   ReactFlowProvider,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type { ExplainPlan } from "../../../types/explain";
-import type { ExplainMetrics } from "../../../utils/explainMetrics";
-import type { ExplainDiagnostic } from "../../../utils/explainDiagnostics";
-import { explainPlanToFlow } from "../../../utils/explainPlan";
-import { ExplainPlanNodeComponent } from "../../ui/ExplainPlanNode";
+import type { ExplainPlan } from "../types";
+import type { ExplainMetrics } from "../metrics";
+import type { ExplainDiagnostic } from "../diagnostics";
+import { explainPlanToFlow } from "../flow";
+import { ExplainPlanNodeComponent } from "./ExplainPlanNode";
 
 const nodeTypes = {
   explainPlan: ExplainPlanNodeComponent,

@@ -18,11 +18,12 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
+  Plus,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import type { ConnectionAppearance } from "../../contexts/DatabaseContext";
 import { AppearanceSection } from "./NewConnectionModal/AppearanceSection";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import { SshConnectionsModal } from "./SshConnectionsModal";
 import { K8sConnectionsModal } from "./K8sConnectionsModal";
@@ -420,6 +421,7 @@ export const NewConnectionModal = ({
   );
   const [isActionPending, setIsActionPending] = useState(false);
   const [isPersistencePending, setIsPersistencePending] = useState(false);
+  const [isCreatingSqliteFile, setIsCreatingSqliteFile] = useState(false);
   const actionSequenceRef = useRef(0);
   const activeActionRef = useRef<number | null>(null);
   const persistenceActionRef = useRef<number | null>(null);
@@ -815,6 +817,7 @@ export const NewConnectionModal = ({
         setStatus("idle");
         setMessage("");
         setTestResult(null);
+        setIsCreatingSqliteFile(false);
       });
     }
   }, [cancelInlineK8sWork, isOpen]);
@@ -1223,6 +1226,45 @@ export const NewConnectionModal = ({
     value: string | number | boolean | undefined,
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCreateSqliteFile = async () => {
+    const actionId = beginFormAction();
+    if (actionId === null) return;
+
+    setIsCreatingSqliteFile(true);
+    setStatus("idle");
+    setMessage("");
+    setTestResult(null);
+    try {
+      const path = await save({
+        title: t("connections.newSqliteDatabase.dialogTitle"),
+        defaultPath: "database.db",
+        filters: [
+          {
+            name: t("connections.newSqliteDatabase.fileType"),
+            extensions: ["db", "sqlite", "sqlite3"],
+          },
+        ],
+      });
+      if (!path || activeActionRef.current !== actionId) return;
+
+      const createdPath = await invoke<string>("create_sqlite_file", { path });
+      if (activeActionRef.current !== actionId) return;
+      updateField("database", createdPath);
+    } catch (error) {
+      if (activeActionRef.current !== actionId) return;
+      setStatus("error");
+      setMessage(
+        `${t("connections.newSqliteDatabase.error")}: ${toErrorMessage(error)}`,
+      );
+      setTestResult("error");
+    } finally {
+      if (activeActionRef.current === actionId) {
+        setIsCreatingSqliteFile(false);
+      }
+      finishFormAction(actionId);
+    }
   };
 
   const loadDatabases = async (
@@ -1977,6 +2019,23 @@ export const NewConnectionModal = ({
             >
               <FolderOpen size={15} />
             </button>
+            {driver === "sqlite" &&
+              activeDriver.capabilities.file_based === true && (
+                <button
+                  type="button"
+                  onClick={() => void handleCreateSqliteFile()}
+                  disabled={isActionPending}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white border border-blue-500 rounded-md text-sm font-medium transition-colors"
+                  title={t("connections.newSqliteDatabase.dialogTitle")}
+                >
+                  {isCreatingSqliteFile ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Plus size={15} />
+                  )}
+                  {t("newConnection.createSqliteFile")}
+                </button>
+              )}
           </div>
         </div>
       ) : (
@@ -3150,7 +3209,7 @@ export const NewConnectionModal = ({
         disabled={isPersistencePending}
         aria-busy={isPersistencePending}
         className={clsx(
-          "bg-elevated border border-strong rounded-xl shadow-2xl w-[900px] max-w-[92vw] max-h-[90vh] flex flex-col overflow-hidden p-0 m-0 min-w-0",
+          "bg-elevated border border-strong rounded-xl shadow-2xl w-[900px] max-w-[92vw] h-[min(760px,90vh)] flex flex-col overflow-hidden p-0 m-0 min-w-0",
           isPersistencePending && "pointer-events-none",
         )}
       >

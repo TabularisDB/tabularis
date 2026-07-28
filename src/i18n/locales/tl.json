@@ -202,7 +202,9 @@
     },
     "addToSplitGroup": "Idagdag sa Split Group",
     "removeFromSplitGroup": "Alisin sa Grupo",
-    "movePanel": "Ilipat ang panel"
+    "movePanel": "Ilipat ang panel",
+    "refreshDatabaseList": "I-refresh ang listahan ng database",
+    "databaseListUpToDate": "Up to date na ang listahan ng database"
   },
   "mcp": {
     "title": "Integrasyon ng MCP Server",
@@ -253,6 +255,12 @@
   "connections": {
     "title": "Mga Koneksyon",
     "addConnection": "Magdagdag ng Koneksyon",
+    "newSqliteDatabase": {
+      "menuLabel": "Bagong SQLite Database…",
+      "dialogTitle": "Bagong SQLite Database",
+      "fileType": "SQLite database",
+      "error": "Hindi nagawa ang SQLite database"
+    },
     "noConnections": "Walang aktibong koneksyon",
     "createFirst": "Gumawa ng iyong unang koneksyon",
     "active": "Aktibo",
@@ -474,6 +482,7 @@
     },
     "language": "Wika",
     "languageDesc": "Piliin ang iyong gustong wika. Ang 'Auto' ay gagamit ng wika ng iyong system.",
+    "languageSearch": "Maghanap ng wika...",
     "auto": "Auto (System)",
     "timezone": "Timezone",
     "timezoneDesc": "Timezone na ginagamit para ipakita ang mga timestamp at export. Ang 'Auto' ay sumusunod sa timezone ng iyong system.",
@@ -853,6 +862,7 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "Mag-browse ng file",
+    "createSqliteFile": "Bago",
     "browseFolder": "Mag-browse ng folder",
     "useSsh": "Gumamit ng SSH Tunnel",
     "sshHost": "SSH Host",

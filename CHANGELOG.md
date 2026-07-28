@@ -1,3 +1,32 @@
+# [0.17.0](https://github.com/TabularisDB/tabularis/compare/v0.16.0...v0.17.0) (2026-07-27)
+
+
+### Bug Fixes
+
+* **connections:** do not gate Load Databases on username ([#528](https://github.com/TabularisDB/tabularis/issues/528)) ([#533](https://github.com/TabularisDB/tabularis/issues/533)) ([1ad3b8d](https://github.com/TabularisDB/tabularis/commit/1ad3b8da6dd4d674e76f39075b1d56534cbd2709))
+* contain scrolling and grid overflow ([#493](https://github.com/TabularisDB/tabularis/issues/493)) ([7f0b1c8](https://github.com/TabularisDB/tabularis/commit/7f0b1c816fd9a4d3621605c295d0c9c86c53f29d))
+* **editor:** skip string literals and comments in query param detection ([#519](https://github.com/TabularisDB/tabularis/issues/519)) ([f702aff](https://github.com/TabularisDB/tabularis/commit/f702affd9ebf02ad7b3b5a0836e3181906be11cd)), closes [#458](https://github.com/TabularisDB/tabularis/issues/458)
+* **editor:** use the Tauri clipboard API for Cut and Copy ([#520](https://github.com/TabularisDB/tabularis/issues/520)) ([e4d98fd](https://github.com/TabularisDB/tabularis/commit/e4d98fd0224a0bef8e3cb81c3450be89638426d8))
+* **import:** scope import to selected database and prevent double exe… ([#513](https://github.com/TabularisDB/tabularis/issues/513)) ([914208f](https://github.com/TabularisDB/tabularis/commit/914208f4a17fb88a07c6357de4e2800835c2cce8))
+* **postgres:** honor ssl_mode in build_connection_url ([#378](https://github.com/TabularisDB/tabularis/issues/378)) ([6288eea](https://github.com/TabularisDB/tabularis/commit/6288eeac1f90d5d8954a65b568ab576b5b9d7b88))
+* **sidebar:** prune dropped databases from the sidebar and saved selection ([#524](https://github.com/TabularisDB/tabularis/issues/524)) ([d6b1460](https://github.com/TabularisDB/tabularis/commit/d6b1460fd2a56e89fa296ddbf8639eead8dbdc64)), closes [#518](https://github.com/TabularisDB/tabularis/issues/518)
+* **ui:** make modal borders visible and clip rounded corners ([#509](https://github.com/TabularisDB/tabularis/issues/509)) ([1fb13f1](https://github.com/TabularisDB/tabularis/commit/1fb13f128c70852fa6613cf488e9d47f9273c70a)), closes [#475569](https://github.com/TabularisDB/tabularis/issues/475569) [#5b6b82](https://github.com/TabularisDB/tabularis/issues/5b6b82) [#508](https://github.com/TabularisDB/tabularis/issues/508)
+
+
+### Features
+
+* **525:** react to DROP DATABASE executed inside the app ([#535](https://github.com/TabularisDB/tabularis/issues/535)) ([715239b](https://github.com/TabularisDB/tabularis/commit/715239bb09803a8547e996df4171ae4a7b19ed4c)), closes [#530](https://github.com/TabularisDB/tabularis/issues/530)
+* add configurable SQL formatter settings ([#504](https://github.com/TabularisDB/tabularis/issues/504)) ([8e95bbb](https://github.com/TabularisDB/tabularis/commit/8e95bbb3f878bc99d007dccbd3df2abf97661715))
+* add SQL formatting to editor (Shift+Alt+F) ([#500](https://github.com/TabularisDB/tabularis/issues/500)) ([83050c7](https://github.com/TabularisDB/tabularis/commit/83050c770f0fd601918df5a9a7aba3216ebeec1a))
+* **editor:** clause-aware SQL autocomplete ([#505](https://github.com/TabularisDB/tabularis/issues/505)) ([38984c3](https://github.com/TabularisDB/tabularis/commit/38984c3afdd5aba476060ccf658d8086c57393e1))
+* **explain:** exclusive metrics, node findings, diagram and stats views ([#529](https://github.com/TabularisDB/tabularis/issues/529)) ([292825f](https://github.com/TabularisDB/tabularis/commit/292825f55522e42511ead6c4d6b7353dc5504bab))
+* **grid:** copy column values as list or SQL IN clause ([#482](https://github.com/TabularisDB/tabularis/issues/482)) ([7a975be](https://github.com/TabularisDB/tabularis/commit/7a975be041bd6aec8bc7dd85d0ec0a732841f764)), closes [#459](https://github.com/TabularisDB/tabularis/issues/459)
+* **i18n:** add Brazilian Portuguese (pt-BR) translation ([#537](https://github.com/TabularisDB/tabularis/issues/537)) ([b76d4ce](https://github.com/TabularisDB/tabularis/commit/b76d4cebd1ae6606cec06845dd72f5e5a458826c))
+* **postgres:** support pgvector columns (vector, halfvec, sparsevec) ([#450](https://github.com/TabularisDB/tabularis/issues/450)) ([ad5ae83](https://github.com/TabularisDB/tabularis/commit/ad5ae83a4ec3e43f2b3275ddc0bad0cde90004ec))
+* **settings:** searchable select for language picker ([4538fd0](https://github.com/TabularisDB/tabularis/commit/4538fd03dffeb71d4d8b7f99bc5abf81d427cd83))
+* **sidebar:** add a manual refresh for the database list ([#530](https://github.com/TabularisDB/tabularis/issues/530)) ([284a45b](https://github.com/TabularisDB/tabularis/commit/284a45b28767105ec1e64be789e08d5b00f4160c)), closes [#518](https://github.com/TabularisDB/tabularis/issues/518)
+* **updater:** in-app nightly release channel ([#497](https://github.com/TabularisDB/tabularis/issues/497)) ([1327328](https://github.com/TabularisDB/tabularis/commit/1327328a4adce12ca60bc340b99b17db27743460)), closes [tauri-apps/tauri#8038](https://github.com/tauri-apps/tauri/issues/8038) [#5286](https://github.com/TabularisDB/tabularis/issues/5286)
+
 # [0.16.0](https://github.com/TabularisDB/tabularis/compare/v0.15.0...v0.16.0) (2026-07-21)
 
 

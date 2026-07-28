@@ -1,9 +1,7 @@
 import { memo } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
-import type { ExplainNode } from "../../types/explain";
-import type { ExplainNodeMetrics } from "../../utils/explainMetrics";
-import type { ExplainDiagnostic } from "../../utils/explainDiagnostics";
+import type { ExplainPlanNodeData } from "../flow";
 import {
   getNodeCostStyle,
   formatCost,
@@ -11,21 +9,11 @@ import {
   getRowEstimateRatio,
   formatTime,
   formatRows,
-} from "../../utils/explainPlan";
+} from "../plan";
 import { ExplainDiagnosticChips } from "./ExplainDiagnosticChips";
 import clsx from "clsx";
 
-export interface ExplainPlanNodeData extends Record<string, unknown> {
-  node: ExplainNode;
-  metrics: ExplainNodeMetrics | null;
-  /** Largest exclusive cost in the plan, used to scale the heat colour. */
-  maxExclusiveCost: number;
-  /** Largest exclusive time in the plan, used to scale the heat colour. */
-  maxExclusiveTimeMs: number;
-  diagnostics: ExplainDiagnostic[];
-  hasAnalyzeData: boolean;
-  isSelected: boolean;
-}
+export type { ExplainPlanNodeData };
 
 export type ExplainPlanNodeType = Node<ExplainPlanNodeData, "explainPlan">;
 

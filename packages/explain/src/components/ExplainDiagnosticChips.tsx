@@ -20,7 +20,7 @@ import type {
   ExplainDiagnostic,
   ExplainDiagnosticKind,
   ExplainDiagnosticSeverity,
-} from "../../utils/explainDiagnostics";
+} from "../diagnostics";
 
 const KIND_ICONS: Record<ExplainDiagnosticKind, LucideIcon> = {
   hotspot: Flame,

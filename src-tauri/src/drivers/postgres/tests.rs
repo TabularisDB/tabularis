@@ -6,6 +6,21 @@ use super::binding::{
 use super::helpers::{
     enum_data_type, extract_base_type, is_implicit_cast_compatible, quote_qualified_type,
 };
+use super::primary_key_exists_expression;
+
+mod primary_key_detection_tests {
+    use super::*;
+
+    #[test]
+    fn primary_key_detection_uses_pg_catalog() {
+        let expression = primary_key_exists_expression();
+
+        assert!(expression.contains("pg_constraint"));
+        assert!(expression.contains("pg_attribute"));
+        assert!(expression.contains("pk_con.contype = 'p'"));
+        assert!(!expression.contains("information_schema.table_constraints"));
+    }
+}
 
 mod extract_base_type_tests {
     use super::*;

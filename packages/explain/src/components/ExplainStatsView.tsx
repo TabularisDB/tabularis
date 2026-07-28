@@ -1,10 +1,10 @@
 import { useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
-import type { ExplainPlan } from "../../../types/explain";
-import type { ExplainMetrics } from "../../../utils/explainMetrics";
-import { getExplainPlanStats } from "../../../utils/explainStats";
-import { formatRows, formatTime } from "../../../utils/explainPlan";
+import type { ExplainPlan } from "../types";
+import type { ExplainMetrics } from "../metrics";
+import { getExplainPlanStats } from "../stats";
+import { formatRows, formatTime } from "../plan";
 
 interface ExplainStatsViewProps {
   plan: ExplainPlan;

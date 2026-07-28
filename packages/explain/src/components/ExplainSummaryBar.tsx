@@ -8,8 +8,8 @@ import {
   TableProperties,
   Network,
 } from "lucide-react";
-import type { ExplainPlan } from "../../../types/explain";
-import { formatTime, formatCost, getMaxCost } from "../../../utils/explainPlan";
+import type { ExplainPlan } from "../types";
+import { formatTime, formatCost, getMaxCost } from "../plan";
 
 export type ExplainViewMode =
   | "graph"

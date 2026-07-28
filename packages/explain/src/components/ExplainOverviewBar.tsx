@@ -12,15 +12,15 @@ import {
   ScanSearch,
 } from "lucide-react";
 import clsx from "clsx";
-import type { ExplainPlan } from "../../../types/explain";
-import type { ExplainMetrics } from "../../../utils/explainMetrics";
+import type { ExplainPlan } from "../types";
+import type { ExplainMetrics } from "../metrics";
 import {
   formatCost,
   formatRatio,
   formatTime,
   getExplainDriverLegend,
   getExplainPlanSummary,
-} from "../../../utils/explainPlan";
+} from "../plan";
 
 interface ExplainOverviewBarProps {
   plan: ExplainPlan;

@@ -202,7 +202,9 @@
     },
     "addToSplitGroup": "分割グループに追加",
     "removeFromSplitGroup": "グループから削除",
-    "movePanel": "パネルを移動"
+    "movePanel": "パネルを移動",
+    "refreshDatabaseList": "データベース一覧を更新",
+    "databaseListUpToDate": "データベース一覧は最新です"
   },
   "mcp": {
     "title": "MCP サーバー連携",
@@ -253,6 +255,12 @@
   "connections": {
     "title": "接続",
     "addConnection": "接続を追加",
+    "newSqliteDatabase": {
+      "menuLabel": "新しい SQLite データベース…",
+      "dialogTitle": "新しい SQLite データベース",
+      "fileType": "SQLite データベース",
+      "error": "SQLite データベースを作成できませんでした"
+    },
     "noConnections": "アクティブな接続はありません",
     "createFirst": "最初の接続を作成",
     "active": "アクティブ",
@@ -455,6 +463,7 @@
     },
     "language": "言語",
     "languageDesc": "使用する言語を選択します。「自動」はシステムの言語を使用します。",
+    "languageSearch": "言語を検索...",
     "auto": "自動 (システム)",
     "timezone": "タイムゾーン",
     "timezoneDesc": "タイムスタンプの表示とエクスポートに使用するタイムゾーン。「自動」はシステムのタイムゾーンに従います。",
@@ -837,6 +846,7 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "ファイルを参照",
+    "createSqliteFile": "新規",
     "browseFolder": "フォルダを参照",
     "useSsh": "SSH トンネルを使用",
     "sshHost": "SSH ホスト",
