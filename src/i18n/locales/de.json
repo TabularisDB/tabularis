@@ -1447,6 +1447,8 @@
     "noConnectionDesc": "Diagramm kann ohne Verbindungs-ID nicht angezeigt werden.",
     "switchToVertical": "Zum vertikalen Layout wechseln",
     "switchToHorizontal": "Zum horizontalen Layout wechseln",
+    "lockNodes": "Knotenpositionen sperren",
+    "unlockNodes": "Knoten zum Verschieben entsperren",
     "vertical": "Vertikal",
     "horizontal": "Horizontal",
     "showAllTables": "Alle Tabellen anzeigen",

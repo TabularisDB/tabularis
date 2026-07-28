@@ -1477,6 +1477,8 @@
     "noConnectionDesc": "Hindi maipakita ang diagram kung walang connection ID.",
     "switchToVertical": "Lumipat sa Vertical Layout",
     "switchToHorizontal": "Lumipat sa Horizontal Layout",
+    "lockNodes": "I-lock ang posisyon ng mga node",
+    "unlockNodes": "I-unlock ang mga node para ilipat",
     "vertical": "Vertical",
     "horizontal": "Horizontal",
     "showAllTables": "Ipakita ang Lahat ng Table",

@@ -11,6 +11,7 @@ import {
   Position,
   useReactFlow,
   ReactFlowProvider,
+  ControlButton,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
@@ -24,6 +25,8 @@ import {
   Focus,
   Download,
   ChevronDown,
+  Lock,
+  LockOpen,
 } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -41,6 +44,32 @@ const nodeTypes = {
 
 const ANIMATION_THRESHOLD = 50;
 
+// The table node grows with its content (min-w-[220px], no max width), so the
+// layout must estimate the rendered size per node: a fixed width lets wide
+// nodes (long column names or types) overlap their neighbors.
+const estimateNodeSize = (node: Node) => {
+  const nodeData = node.data as {
+    label?: string;
+    columns?: { name: string; type: string }[];
+  };
+  const columns = nodeData.columns ?? [];
+
+  // Header: px-3 padding (24) + status dot with gap (16) + text-sm bold label
+  const headerWidth = 40 + (nodeData.label?.length ?? 0) * 8.5;
+  // Row: px-3 padding (24) + icon with gap (18) + mono text-xs name
+  // + ml-2 (8) + mono text-[10px] type (shrink-0, never truncated)
+  const widestRow = columns.reduce(
+    (max, col) => Math.max(max, 50 + col.name.length * 7.5 + col.type.length * 6.5),
+    0,
+  );
+  const width = Math.max(220, Math.ceil(Math.max(headerWidth, widestRow)));
+
+  // Header ~38px (py-2 + text-sm + border), rows ~29px (py-1.5 + text-xs + border)
+  const height = 38 + columns.length * 29;
+
+  return { width, height };
+};
+
 const getLayoutedElements = (
   nodes: Node[],
   edges: Edge[],
@@ -49,20 +78,13 @@ const getLayoutedElements = (
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-  const nodeWidth = 240;
-  // Node height approximation unused by dagre simple layout but good for spacing
-  // const nodeHeight = 40;
-
   // FIX: Swap LR<->TB to correct the inversion bug
   const dagreDirection = direction === "LR" ? "TB" : "LR";
-  dagreGraph.setGraph({ rankdir: dagreDirection, ranksep: 150, nodesep: 50 });
+  dagreGraph.setGraph({ rankdir: dagreDirection, ranksep: 150, nodesep: 60 });
 
   nodes.forEach((node) => {
-    // Estimate height based on columns for vertical spacing
-    const nodeData = node.data as { columns?: unknown[] };
-    const columns = nodeData.columns?.length || 0;
-    const height = 40 + columns * 28;
-    dagreGraph.setNode(node.id, { width: nodeWidth, height });
+    const { width, height } = estimateNodeSize(node);
+    dagreGraph.setNode(node.id, { width, height });
   });
 
   edges.forEach((edge) => {
@@ -79,8 +101,8 @@ const getLayoutedElements = (
       targetPosition: direction === "LR" ? Position.Top : Position.Left,
       sourcePosition: direction === "LR" ? Position.Bottom : Position.Right,
       position: {
-        x: nodeWithPosition.x - nodeWidth / 2,
-        y: nodeWithPosition.y - dagreGraph.node(node.id).height / 2,
+        x: nodeWithPosition.x - nodeWithPosition.width / 2,
+        y: nodeWithPosition.y - nodeWithPosition.height / 2,
       },
     };
   });
@@ -117,6 +139,7 @@ const SchemaDiagramContent = ({
   const layoutDirection = layoutDirectionOverride ?? layoutDirectionFromSettings;
   
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [nodesLocked, setNodesLocked] = useState(true);
   const [allNodes, setAllNodes] = useState<Node[]>([]);
   const [allEdges, setAllEdges] = useState<Edge[]>([]);
   const [contextMenu, setContextMenu] = useState<{
@@ -451,7 +474,7 @@ const SchemaDiagramContent = ({
         minZoom={0.05}
         maxZoom={2}
         defaultEdgeOptions={{ type: "smoothstep" }}
-        nodesDraggable={false}
+        nodesDraggable={!nodesLocked}
         nodesConnectable={false}
         elementsSelectable={true}
         panOnScroll={false}
@@ -464,7 +487,18 @@ const SchemaDiagramContent = ({
         <Controls
           className="!bg-surface-secondary !border-strong !shadow-xl"
           showInteractive={false}
-        />
+        >
+          <ControlButton
+            onClick={() => setNodesLocked((prev) => !prev)}
+            title={
+              nodesLocked
+                ? t("erDiagram.unlockNodes")
+                : t("erDiagram.lockNodes")
+            }
+          >
+            {nodesLocked ? <Lock size={14} /> : <LockOpen size={14} />}
+          </ControlButton>
+        </Controls>
         {shouldShowMiniMap && (
           <MiniMap
             nodeColor={() => "#6366f1"}
