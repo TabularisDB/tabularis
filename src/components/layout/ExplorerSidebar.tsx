@@ -85,7 +85,7 @@ import { groupRoutinesByType } from "../../utils/routines";
 import { formatObjectCount } from "../../utils/schema";
 import { groupByDate, formatHistoryTime } from "../../utils/dateGroups";
 import { SqlHighlight } from "../ui/SqlHighlight";
-import { isMultiDatabaseCapable } from "../../utils/database";
+import { isMultiDatabaseCapable, reconcileDatabaseSelection } from "../../utils/database";
 import { supportsManageTables } from "../../utils/driverCapabilities";
 import { newConsoleForDatabase, newConsoleForTable } from "../../utils/newConsole";
 import {
@@ -135,6 +135,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     needsSchemaSelection,
     selectedDatabases,
     setSelectedDatabases,
+    refreshDatabaseSelection,
     databaseDataMap,
     loadDatabaseData,
     refreshDatabaseData,
@@ -238,6 +239,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const [pendingDbSelection, setPendingDbSelection] = useState<Set<string>>(new Set());
   const [allAvailableDatabases, setAllAvailableDatabases] = useState<string[]>([]);
   const [isLoadingAllDbs, setIsLoadingAllDbs] = useState(false);
+  const [isRefreshingDbList, setIsRefreshingDbList] = useState(false);
+  // Guards against toast spam on rapid repeated clicks: isRefreshingDbList only
+  // blocks calls that overlap in flight, so several quick, individually-fast
+  // round trips could each complete and each show their own toast. This adds
+  // a short cooldown after a call finishes.
+  const lastDbListRefreshAtRef = useRef(0);
   const [viewEditorModal, setViewEditorModal] = useState<{
     isOpen: boolean;
     viewName?: string;
@@ -1203,6 +1210,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     <span className="text-xs font-semibold uppercase text-muted tracking-wider">
                       {t("sidebar.databases")} ({selectedDatabases.length})
                     </span>
+                    <div className="flex items-center gap-1">
                     <div className="relative">
                       <button
                         onClick={async () => {
@@ -1212,6 +1220,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             try {
                               const all = await invoke<string[]>("get_available_databases", { connectionId: activeConnectionId });
                               setAllAvailableDatabases(all);
+                              // A database dropped on the server has no row to
+                              // untick: drop it from the pending set too (#518).
+                              setPendingDbSelection(new Set(reconcileDatabaseSelection(selectedDatabases, all).selection));
                             } catch (e) {
                               console.error("Failed to load available databases:", e);
                             } finally {
@@ -1309,6 +1320,34 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           </div>
                         </>
                       )}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const DB_LIST_REFRESH_COOLDOWN_MS = 1500;
+                        if (
+                          isRefreshingDbList ||
+                          Date.now() - lastDbListRefreshAtRef.current < DB_LIST_REFRESH_COOLDOWN_MS
+                        ) {
+                          return;
+                        }
+                        setIsRefreshingDbList(true);
+                        try {
+                          await refreshDatabaseSelection(activeConnectionId!);
+                        } finally {
+                          lastDbListRefreshAtRef.current = Date.now();
+                          setIsRefreshingDbList(false);
+                        }
+                      }}
+                      disabled={isRefreshingDbList}
+                      className="p-1 rounded transition-colors text-green-400 hover:text-green-300 hover:bg-green-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={t("sidebar.refreshDatabaseList")}
+                    >
+                      {isRefreshingDbList ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={14} />
+                      )}
+                    </button>
                     </div>
                   </div>
 

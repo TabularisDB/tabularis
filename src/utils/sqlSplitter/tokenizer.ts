@@ -53,6 +53,14 @@ export function scanToken(
     return { kind: 'lineComment', length: end - position };
   }
 
+  if (options.hashComments && ch === '#') {
+    // MySQL/MariaDB `#` starts a comment anywhere outside a string,
+    // with no whitespace requirement (unlike `--`).
+    let end = position + 1;
+    while (end < source.length && source[end] !== '\n') end++;
+    return { kind: 'lineComment', length: end - position };
+  }
+
   if (options.blockComments && ch === '/' && source[position + 1] === '*') {
     const length = scanBlockCommentLength(
       source,
@@ -198,6 +206,10 @@ function scanEString(source: string, position: number): Token {
 const DOLLAR_TAG_RE = /\$([A-Za-z0-9_]*)\$/y;
 
 function scanDollarQuoted(source: string, position: number): Token | null {
+  // PostgreSQL requires a dollar quote that follows an identifier or
+  // keyword to be separated from it by whitespace; `foo$tag$` is a
+  // single identifier, not an opener.
+  if (isIdentBoundary(source, position - 1)) return null;
   DOLLAR_TAG_RE.lastIndex = position;
   const match = DOLLAR_TAG_RE.exec(source);
   if (!match) return null;

@@ -13,7 +13,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::drivers::driver_trait::{BatchProgressFn, DatabaseDriver, PluginManifest};
 use crate::models::{
     AiSchemaContext, BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo,
-    ExplainPlan, ForeignKey, Index, QueryResult, RoutineInfo, RoutineParameter, TableColumn,
+    ExplainQueryOutput, ForeignKey, Index, QueryResult, RoutineInfo, RoutineParameter, TableColumn,
     TableInfo, TableSchema, TriggerInfo, ViewInfo,
 };
 use crate::plugins::rpc::{JsonRpcRequest, JsonRpcResponse};
@@ -709,7 +709,7 @@ impl DatabaseDriver for RpcDriver {
         query: &str,
         analyze: bool,
         schema: Option<&str>,
-    ) -> Result<ExplainPlan, String> {
+    ) -> Result<ExplainQueryOutput, String> {
         let res = self
             .process
             .call(
@@ -717,7 +717,9 @@ impl DatabaseDriver for RpcDriver {
                 json!({ "params": params, "query": query, "analyze": analyze, "schema": schema }),
             )
             .await?;
-        serde_json::from_value(res).map_err(|e| e.to_string())
+        // A plugin knows engines the core parsers do not, so its already
+        // parsed plan passes through to the frontend untouched.
+        Ok(ExplainQueryOutput::Plan { plan: res })
     }
 
     async fn insert_record(

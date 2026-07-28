@@ -1545,3 +1545,189 @@ binary_wrapper!(PgDependencies, PG_DEPENDENCIES);
 binary_wrapper!(PgNdistinct, PG_NDISTINCT);
 binary_wrapper!(PgBrinBloomSummary, PG_BRIN_BLOOM_SUMMARY);
 binary_wrapper!(PgBrinMinmaxMultiSummary, PG_BRIN_MINMAX_MULTI_SUMMARY);
+
+// pgvector extension types (vector, halfvec, sparsevec).
+//
+// These are extension-defined base types, so they have dynamic OIDs and are NOT
+// available as `Type::*` constants — `accepts` matches on the type name instead.
+// Values are rendered as their canonical pgvector text representation so they show
+// up verbatim in the grid and can be edited/round-tripped as text (pgvector accepts
+// the same text form on input). Binary layouts follow pgvector's `*_send` functions.
+
+/// Format an `f32` the way pgvector's text output does: shortest round-trippable
+/// decimal, e.g. `1.0 -> "1"`, `1.5 -> "1.5"`. Rust's default formatter already
+/// produces the shortest round-trip representation.
+#[inline]
+fn format_vector_float(value: f32) -> String {
+    value.to_string()
+}
+
+/// pgvector `vector`: `int16 dim`, `int16 unused`, then `dim` big-endian `float4`.
+pub struct PgVector(Vec<f32>);
+
+impl<'a> FromSql<'a> for PgVector {
+    fn from_sql(_ty: &Type, raw: &[u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() < 4 {
+            return Err(format!("expected at least 4 bytes for vector, got {}", raw.len()).into());
+        }
+        let dim = u16::from_be_bytes([raw[0], raw[1]]) as usize;
+        let expected = 4 + dim * 4;
+        if raw.len() < expected {
+            return Err(format!(
+                "vector of dim {dim} expects {expected} bytes, got {}",
+                raw.len()
+            )
+            .into());
+        }
+        let mut values = Vec::with_capacity(dim);
+        for i in 0..dim {
+            let off = 4 + i * 4;
+            values.push(f32::from_be_bytes([
+                raw[off],
+                raw[off + 1],
+                raw[off + 2],
+                raw[off + 3],
+            ]));
+        }
+        Ok(Self(values))
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        ty.name() == "vector"
+    }
+}
+
+impl From<PgVector> for JsonValue {
+    fn from(value: PgVector) -> Self {
+        let body = value
+            .0
+            .iter()
+            .map(|v| format_vector_float(*v))
+            .collect::<Vec<_>>()
+            .join(",");
+        JsonValue::String(format!("[{body}]"))
+    }
+}
+
+/// Decode an IEEE 754 half-precision (`binary16`) value into `f32`.
+#[inline]
+fn f16_bits_to_f32(bits: u16) -> f32 {
+    let sign = if (bits >> 15) & 1 == 1 { -1.0f32 } else { 1.0f32 };
+    let exp = (bits >> 10) & 0x1f;
+    let mant = bits & 0x3ff;
+    match exp {
+        0 => sign * (mant as f32) * 2f32.powi(-24), // zero / subnormal
+        0x1f if mant == 0 => sign * f32::INFINITY,
+        0x1f => f32::NAN,
+        _ => sign * (1.0 + (mant as f32) / 1024.0) * 2f32.powi(exp as i32 - 15),
+    }
+}
+
+/// pgvector `halfvec`: `int16 dim`, `int16 unused`, then `dim` big-endian `float2`
+/// (half-precision) values.
+pub struct PgHalfVector(Vec<f32>);
+
+impl<'a> FromSql<'a> for PgHalfVector {
+    fn from_sql(_ty: &Type, raw: &[u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() < 4 {
+            return Err(format!("expected at least 4 bytes for halfvec, got {}", raw.len()).into());
+        }
+        let dim = u16::from_be_bytes([raw[0], raw[1]]) as usize;
+        let expected = 4 + dim * 2;
+        if raw.len() < expected {
+            return Err(format!(
+                "halfvec of dim {dim} expects {expected} bytes, got {}",
+                raw.len()
+            )
+            .into());
+        }
+        let mut values = Vec::with_capacity(dim);
+        for i in 0..dim {
+            let off = 4 + i * 2;
+            values.push(f16_bits_to_f32(u16::from_be_bytes([raw[off], raw[off + 1]])));
+        }
+        Ok(Self(values))
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        ty.name() == "halfvec"
+    }
+}
+
+impl From<PgHalfVector> for JsonValue {
+    fn from(value: PgHalfVector) -> Self {
+        let body = value
+            .0
+            .iter()
+            .map(|v| format_vector_float(*v))
+            .collect::<Vec<_>>()
+            .join(",");
+        JsonValue::String(format!("[{body}]"))
+    }
+}
+
+/// pgvector `sparsevec`: `int32 dim`, `int32 nnz`, `int32 unused`, then `nnz`
+/// big-endian `int32` indices (0-based on the wire), then `nnz` big-endian
+/// `float4` values. Text form is `{i1:v1,i2:v2}/dim` with 1-based indices.
+pub struct PgSparseVector {
+    dim: i32,
+    entries: Vec<(i32, f32)>,
+}
+
+impl<'a> FromSql<'a> for PgSparseVector {
+    fn from_sql(_ty: &Type, raw: &[u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        if raw.len() < 12 {
+            return Err(
+                format!("expected at least 12 bytes for sparsevec, got {}", raw.len()).into(),
+            );
+        }
+        let dim = i32::from_be_bytes([raw[0], raw[1], raw[2], raw[3]]);
+        let nnz = i32::from_be_bytes([raw[4], raw[5], raw[6], raw[7]]) as usize;
+        // raw[8..12] is the unused/reserved header field.
+        let expected = 12 + nnz * 4 + nnz * 4;
+        if raw.len() < expected {
+            return Err(format!(
+                "sparsevec with {nnz} entries expects {expected} bytes, got {}",
+                raw.len()
+            )
+            .into());
+        }
+        let mut entries = Vec::with_capacity(nnz);
+        let values_off = 12 + nnz * 4;
+        for i in 0..nnz {
+            let idx_off = 12 + i * 4;
+            let index = i32::from_be_bytes([
+                raw[idx_off],
+                raw[idx_off + 1],
+                raw[idx_off + 2],
+                raw[idx_off + 3],
+            ]);
+            let val_off = values_off + i * 4;
+            let value = f32::from_be_bytes([
+                raw[val_off],
+                raw[val_off + 1],
+                raw[val_off + 2],
+                raw[val_off + 3],
+            ]);
+            entries.push((index, value));
+        }
+        Ok(Self { dim, entries })
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        ty.name() == "sparsevec"
+    }
+}
+
+impl From<PgSparseVector> for JsonValue {
+    fn from(value: PgSparseVector) -> Self {
+        let body = value
+            .entries
+            .iter()
+            // pgvector prints indices 1-based; the wire format stores them 0-based.
+            .map(|(idx, v)| format!("{}:{}", idx + 1, format_vector_float(*v)))
+            .collect::<Vec<_>>()
+            .join(",");
+        JsonValue::String(format!("{{{body}}}/{}", value.dim))
+    }
+}

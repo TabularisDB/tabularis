@@ -760,7 +760,7 @@ export const Editor = () => {
       if (!(await guardDangerousQuery(textToRun))) return;
 
       // Check for parameters
-      const params = extractQueryParams(textToRun);
+      const params = extractQueryParams(textToRun, activeDialect);
       if (params.length > 0) {
         const storedParams = paramsOverride || targetTab.queryParams || {};
         const missingParams = params.filter(
@@ -785,7 +785,7 @@ export const Editor = () => {
         }
 
         // Interpolate parameters before execution
-        textToRun = interpolateQueryParams(textToRun, storedParams);
+        textToRun = interpolateQueryParams(textToRun, storedParams, activeDialect);
       }
 
       // Automatically open the results panel when running a query — but only
@@ -985,6 +985,7 @@ export const Editor = () => {
       activeDatabaseName,
       addHistoryEntry,
       guardDangerousQuery,
+      activeDialect,
     ],
   );
 
@@ -1000,7 +1001,7 @@ export const Editor = () => {
 
       // Collect all unique parameters across all queries
       const allParams = [
-        ...new Set(queries.flatMap((q) => extractQueryParams(q))),
+        ...new Set(queries.flatMap((q) => extractQueryParams(q, activeDialect))),
       ];
       if (allParams.length > 0) {
         const storedParams =
@@ -1022,7 +1023,9 @@ export const Editor = () => {
           return;
         }
         // Interpolate all queries with the stored params
-        queries = queries.map((q) => interpolateQueryParams(q, storedParams));
+        queries = queries.map((q) =>
+          interpolateQueryParams(q, storedParams, activeDialect),
+        );
       }
 
       const pageSize =
@@ -1168,7 +1171,7 @@ export const Editor = () => {
       });
       updateTab(targetTabId, { isLoading: false });
     },
-    [activeConnectionId, updateTab, patchResultEntry, settings.resultPageSize, activeSchema, t, isMultiDb, activeDatabaseName, addHistoryEntry, guardDangerousQuery],
+    [activeConnectionId, updateTab, patchResultEntry, settings.resultPageSize, activeSchema, t, isMultiDb, activeDatabaseName, addHistoryEntry, guardDangerousQuery, activeDialect],
   );
 
   // Auto-run entry point for navigation-initiated executions (sidebar "open
@@ -2574,7 +2577,7 @@ export const Editor = () => {
   const handleEditParams = useCallback(() => {
     if (!activeTab || !activeTab.query) return;
 
-    const params = extractQueryParams(activeTab.query);
+    const params = extractQueryParams(activeTab.query, activeDialect);
     if (params.length === 0) return;
 
     setQueryParamsModal({
@@ -2585,7 +2588,17 @@ export const Editor = () => {
       pendingTabId: activeTab.id,
       mode: "save",
     });
-  }, [activeTab]);
+  }, [activeTab, activeDialect]);
+
+  // Drives the Params button. Memoized because it lives in the render
+  // path (a `disabled` prop) and would otherwise rescan the whole query
+  // text (tokenizer + regex) on every keystroke.
+  const hasQueryParams = useMemo(
+    () =>
+      !!activeTab?.query &&
+      extractQueryParams(activeTab.query, activeDialect).length > 0,
+    [activeTab?.query, activeDialect],
+  );
 
   const handleRollbackChanges = useCallback(() => {
     if (!activeTab) return;
@@ -3297,10 +3310,7 @@ export const Editor = () => {
         {!isTableTab && (
           <button
             onClick={handleEditParams}
-            disabled={
-              !activeTab?.query ||
-              extractQueryParams(activeTab.query).length === 0
-            }
+            disabled={!hasQueryParams}
             className="flex items-center gap-2 px-2 @[640px]:px-3 py-1.5 bg-surface-secondary hover:bg-surface text-primary rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed border border-strong shrink-0"
             title={t("editor.queryParameters")}
           >

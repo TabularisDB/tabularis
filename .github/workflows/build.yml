@@ -28,6 +28,11 @@ on:
         required: false
         default: false
         type: boolean
+      updater_version:
+        description: "Override the app version baked into the build + latest.json (nightly uses a prerelease semver). Empty = leave as-is."
+        required: false
+        type: string
+        default: ""
 
 jobs:
   publish-tauri:
@@ -126,6 +131,18 @@ jobs:
         run: |
           echo "${{ secrets.APPLE_API_KEY_CONTENT }}" | base64 --decode > "$RUNNER_TEMP/apple_api_key.p8"
           echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/apple_api_key.p8" >> "$GITHUB_ENV"
+
+      - name: Override app version (nightly channel)
+        if: inputs.updater_version != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          v='${{ inputs.updater_version }}'
+          node -e "const f='src-tauri/tauri.conf.json';const c=require('./'+f);const fs=require('fs');c.version=process.argv[1];fs.writeFileSync(f, JSON.stringify(c, null, 2)+'\n');" "$v"
+          # First version key in Cargo.toml is the [package] version.
+          # sed -i.bak keeps it portable across GNU and macOS BSD sed.
+          sed -i.bak "0,/^version = \".*\"/s//version = \"$v\"/" src-tauri/Cargo.toml && rm -f src-tauri/Cargo.toml.bak
+          echo "Patched version to $v"
 
       - uses: tauri-apps/tauri-action@v0.6.1
         env:

@@ -15,6 +15,25 @@ export const stripLeadingSqlComments = stripLeadingComments;
 
 export const isExplainableQuery = isExplainable;
 
+/**
+ * Whether a statement changes data, so callers can warn before running it under
+ * `EXPLAIN ANALYZE` — which really executes it.
+ *
+ * A question about a query, not about a plan: it belongs with the other SQL
+ * helpers rather than in the plan analysis package.
+ */
+export function isDataModifyingQuery(query: string): boolean {
+  const trimmed = query.trim().toUpperCase();
+  return (
+    trimmed.startsWith("INSERT") ||
+    trimmed.startsWith("UPDATE") ||
+    trimmed.startsWith("DELETE") ||
+    trimmed.startsWith("DROP") ||
+    trimmed.startsWith("ALTER") ||
+    trimmed.startsWith("TRUNCATE")
+  );
+}
+
 function isIdentifierChar(char: string): boolean {
   return /[A-Za-z0-9_$]/.test(char);
 }

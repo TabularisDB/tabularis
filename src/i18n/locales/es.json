@@ -150,6 +150,8 @@
     "noTablesMatch": "No hay tablas que coincidan",
     "filterDatabases": "Filtrar bases de datos...",
     "manageDatabases": "Gestionar Bases de Datos",
+    "databaseSelectionUpdated": "Selección de bases de datos actualizada",
+    "droppedDatabasesRemoved": "Se eliminaron porque ya no existen en el servidor: {{names}}",
     "structure": "Estructura",
     "favorites": "Favoritos",
     "queryHistory": "Historial",
@@ -187,7 +189,9 @@
     },
     "addToSplitGroup": "Añadir al Grupo Dividido",
     "removeFromSplitGroup": "Quitar del Grupo",
-    "movePanel": "Mover panel"
+    "movePanel": "Mover panel",
+    "refreshDatabaseList": "Actualizar lista de bases de datos",
+    "databaseListUpToDate": "La lista de bases de datos está actualizada"
   },
   "groups": {
     "title": "Grupos",
@@ -473,6 +477,7 @@
     },
     "language": "Idioma",
     "languageDesc": "Elige tu idioma preferido. 'Auto' usará el idioma del sistema.",
+    "languageSearch": "Buscar idiomas...",
     "auto": "Auto (Sistema)",
     "english": "English",
     "italian": "Italiano",

@@ -2,7 +2,12 @@ import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import clsx from "clsx";
-import type { ExplainNode, ExplainPlan } from "../../../types/explain";
+import type { ExplainNode, ExplainPlan } from "../types";
+import type {
+  ExplainMetrics,
+  ExplainNodeMetrics,
+} from "../metrics";
+import type { ExplainDiagnostic } from "../diagnostics";
 import {
   findExplainNode,
   formatCost,
@@ -10,17 +15,22 @@ import {
   formatRows,
   formatTime,
   getRowEstimateRatio,
-} from "../../../utils/explainPlan";
+} from "../plan";
+import { ExplainDiagnosticChips } from "./ExplainDiagnosticChips";
 import { ExplainNodeDetails } from "./ExplainNodeDetails";
 
 interface ExplainTableViewProps {
   plan: ExplainPlan;
+  metrics: ExplainMetrics;
+  diagnostics: Map<string, ExplainDiagnostic[]>;
   selectedId: string | null;
   onSelect: (id: string) => void;
 }
 
 export function ExplainTableView({
   plan,
+  metrics,
+  diagnostics,
   selectedId,
   onSelect,
 }: ExplainTableViewProps) {
@@ -51,6 +61,9 @@ export function ExplainTableView({
           <thead className="sticky top-0 z-10 bg-base border-b border-default">
             <tr>
               <th className="text-left px-3 py-2 text-muted font-semibold whitespace-nowrap">
+                #
+              </th>
+              <th className="text-left px-3 py-2 text-muted font-semibold whitespace-nowrap">
                 {t("editor.visualExplain.nodeType")}
               </th>
               <th className="text-left px-3 py-2 text-muted font-semibold whitespace-nowrap">
@@ -68,7 +81,7 @@ export function ExplainTableView({
                 </th>
               )}
               <th className="text-right px-3 py-2 text-muted font-semibold whitespace-nowrap">
-                {t("editor.visualExplain.time")}
+                {t("editor.visualExplain.selfTime")}
               </th>
               <th className="text-right px-3 py-2 text-muted font-semibold whitespace-nowrap">
                 {t("editor.visualExplain.largestEstimateGap")}
@@ -87,6 +100,8 @@ export function ExplainTableView({
               onToggle={toggleExpand}
               onSelect={onSelect}
               hasAnalyzeData={plan.has_analyze_data}
+              metrics={metrics}
+              diagnostics={diagnostics}
             />
           </tbody>
         </table>
@@ -96,6 +111,10 @@ export function ExplainTableView({
         <ExplainNodeDetails
           node={selectedNode}
           hasAnalyzeData={plan.has_analyze_data}
+          metrics={
+            selectedNode ? metrics.byId.get(selectedNode.id) ?? null : null
+          }
+          diagnostics={selectedNode ? diagnostics.get(selectedNode.id) ?? [] : []}
         />
       </div>
     </div>
@@ -110,6 +129,8 @@ interface TreeRowsProps {
   onToggle: (id: string) => void;
   onSelect: (id: string) => void;
   hasAnalyzeData: boolean;
+  metrics: ExplainMetrics;
+  diagnostics: Map<string, ExplainDiagnostic[]>;
 }
 
 function TreeRows({
@@ -120,10 +141,14 @@ function TreeRows({
   onToggle,
   onSelect,
   hasAnalyzeData,
+  metrics,
+  diagnostics,
 }: TreeRowsProps) {
   const isExpanded = expandedIds.has(node.id);
   const hasChildren = node.children.length > 0;
   const isSelected = selectedId === node.id;
+  const nodeMetrics: ExplainNodeMetrics | undefined = metrics.byId.get(node.id);
+  const nodeDiagnostics = diagnostics.get(node.id) ?? [];
 
   const costStr =
     node.startup_cost != null && node.total_cost != null
@@ -133,8 +158,8 @@ function TreeRows({
         : "-";
 
   const timeStr =
-    hasAnalyzeData && node.actual_time_ms != null
-      ? formatTime(node.actual_time_ms)
+    hasAnalyzeData && nodeMetrics?.exclusiveTimeMs != null
+      ? formatTime(nodeMetrics.exclusiveTimeMs)
       : "-";
 
   const rowsStr = node.plan_rows != null ? formatRows(node.plan_rows) : "-";
@@ -159,6 +184,9 @@ function TreeRows({
         )}
         onClick={() => onSelect(node.id)}
       >
+        <td className="px-3 py-1.5 font-mono text-[10px] text-muted whitespace-nowrap">
+          {nodeMetrics ? `#${nodeMetrics.index}` : ""}
+        </td>
         <td className="px-3 py-1.5 whitespace-nowrap">
           <div
             className="flex items-center gap-1"
@@ -182,6 +210,9 @@ function TreeRows({
               <span className="w-4" />
             )}
             <span className="text-primary font-medium">{node.node_type}</span>
+            {nodeDiagnostics.length > 0 && (
+              <ExplainDiagnosticChips diagnostics={nodeDiagnostics} iconsOnly />
+            )}
           </div>
         </td>
         <td className="px-3 py-1.5 text-secondary whitespace-nowrap">
@@ -230,6 +261,8 @@ function TreeRows({
             onToggle={onToggle}
             onSelect={onSelect}
             hasAnalyzeData={hasAnalyzeData}
+            metrics={metrics}
+            diagnostics={diagnostics}
           />
         ))}
     </>

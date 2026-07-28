@@ -4,7 +4,7 @@ import { Loader2, Sparkles } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettings } from "../../../hooks/useSettings";
 import { getAiExplanationLanguage } from "../../../i18n/language";
-import type { ExplainPlan } from "../../../types/explain";
+import type { ExplainPlan } from "@tabularis/explain";
 
 interface ExplainAiAnalysisProps {
   plan: ExplainPlan;

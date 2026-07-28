@@ -69,6 +69,7 @@ pub mod preferences;
 pub mod query_history;
 #[cfg(test)]
 pub mod query_history_tests;
+pub mod sql_database_statements;
 pub mod saved_queries;
 #[cfg(test)]
 pub mod saved_queries_tests;
@@ -430,6 +431,7 @@ pub fn run() {
             connection_import_commands::apply_tabularis_import,
             commands::get_schemas,
             commands::get_available_databases,
+            commands::set_selected_databases,
             commands::get_tables,
             commands::get_columns,
             commands::get_foreign_keys,
@@ -573,6 +575,7 @@ pub fn run() {
             updater::get_installation_source,
             // Logs
             log_commands::get_logs,
+            log_commands::log_frontend_event,
             log_commands::clear_logs,
             log_commands::get_log_settings,
             log_commands::set_log_enabled,
