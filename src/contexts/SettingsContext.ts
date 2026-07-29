@@ -38,6 +38,7 @@ export interface Settings {
   aiCustomOpenaiUrl?: string;
   aiCustomOpenaiModel?: string;
   autoCheckUpdatesOnStartup?: boolean;
+  releaseChannel?: "stable" | "nightly";
   loggingEnabled?: boolean;
   maxLogEntries?: number;
   erDiagramDefaultLayout?: ERDiagramLayout;
@@ -45,6 +46,10 @@ export interface Settings {
   csvDelimiter?: string;
   /** Whether copied CSV output includes a header row. Default: true. */
   csvIncludeHeaders?: boolean;
+  /** Whether the row editor sidebar follows row selection. Default: true. */
+  rowEditorFollowSelection?: boolean;
+  /** What happens on double-click of a data cell: "inline" (edit in place), "sidebar" (open in row editor), "both" (inline + update sidebar). Default: "inline". */
+  cellDoubleClickAction?: "inline" | "sidebar" | "both";
   activeExternalDrivers?: string[];
   /** Base URL of the Tabularium plugin registry. Defaults to the built-in instance when unset. */
   tabulariumRegistryUrl?: string;
@@ -57,6 +62,15 @@ export interface Settings {
   editorWordWrap?: boolean;
   editorShowLineNumbers?: boolean;
   editorAcceptSuggestionOnEnter?: boolean;
+  runStatementUnderCursor?: boolean;
+  // SQL Formatter
+  formatterKeywordCase?: "upper" | "lower" | "preserve";
+  formatterIndentStyle?: "standard" | "tabularLeft" | "tabularRight";
+  formatterTabWidth?: number;
+  formatterUseTabs?: boolean;
+  formatterFunctionCase?: "upper" | "lower" | "preserve";
+  formatterLinesBetweenQueries?: number;
+  formatterDenseOperators?: boolean;
   pingInterval?: number;
   queryHistoryMaxEntries?: number;
   showWelcome?: boolean;
@@ -136,6 +150,14 @@ export const DEFAULT_SETTINGS: Settings = {
   editorWordWrap: true,
   editorShowLineNumbers: true,
   editorAcceptSuggestionOnEnter: true,
+  runStatementUnderCursor: true,
+  formatterKeywordCase: "upper",
+  formatterIndentStyle: "standard",
+  formatterTabWidth: 2,
+  formatterUseTabs: false,
+  formatterFunctionCase: "preserve",
+  formatterLinesBetweenQueries: 1,
+  formatterDenseOperators: false,
   pingInterval: 30,
   queryHistoryMaxEntries: 500,
   autoConnectLastConnection: true,

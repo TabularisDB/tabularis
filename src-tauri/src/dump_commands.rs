@@ -443,11 +443,20 @@ pub async fn import_database<R: Runtime>(
     connection_id: String,
     file_path: String,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<(), String> {
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    // Scope the import to the selected database on connections that expose multiple
+    // databases (e.g. MySQL/MariaDB). Without this the connection pool stays bound
+    // to the primary database, so every statement in the dump file is executed
+    // against the wrong database. Mirrors the same fix already applied to
+    // `dump_database`.
+    if let Some(db) = database {
+        params.database = crate::models::DatabaseSelection::Single(db);
+    }
     let driver = saved_conn.params.driver.clone();
     let pg_schema = schema.unwrap_or_else(|| "public".to_string());
     let app_handle = app.clone();

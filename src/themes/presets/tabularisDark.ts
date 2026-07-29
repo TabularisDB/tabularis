@@ -40,7 +40,7 @@ export const tabularisDark: Theme = {
     border: {
       subtle: "#1e293b",
       default: "#334155",
-      strong: "#475569",
+      strong: "#5b6b82",
       focus: "#3b82f6",
     },
     semantic: {

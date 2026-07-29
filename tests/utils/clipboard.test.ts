@@ -4,6 +4,8 @@ import {
   rowsToCSV,
   rowToJSON,
   rowsToJSON,
+  columnValuesForCopy,
+  columnValuesToInClause,
   getSelectedRows,
   copyTextToClipboard
 } from '../../src/utils/clipboard';
@@ -232,6 +234,84 @@ describe('clipboard utils', () => {
         [4, 'row4'],
         [5, 'row5']
       ]);
+    });
+  });
+
+  describe('columnValuesForCopy', () => {
+    const rows = [
+      [1, 'Alice'],
+      [2, "O'Brien"],
+      [3, null],
+    ];
+    const columns = ['id', 'name'];
+
+    it('should use the configured CSV header setting', () => {
+      expect(
+        columnValuesForCopy(rows, columns, 1, {
+          format: 'csv',
+          delimiter: ';',
+          includeHeader: true,
+        }),
+      ).toBe("name\nAlice\nO'Brien\nnull");
+
+      expect(
+        columnValuesForCopy(rows, columns, 0, {
+          format: 'csv',
+          includeHeader: false,
+        }),
+      ).toBe('1\n2\n3');
+    });
+
+    it('should format the selected column as JSON', () => {
+      expect(
+        columnValuesForCopy(rows, columns, 1, { format: 'json' }),
+      ).toBe('[{"name":"Alice"},{"name":"O\'Brien"},{"name":null}]');
+    });
+
+    it('should format the selected column as SQL INSERT statements', () => {
+      expect(
+        columnValuesForCopy(rows, columns, 1, {
+          format: 'sql-insert',
+          tableName: 'users',
+        }),
+      ).toBe(
+        "INSERT INTO `users` (`name`) VALUES ('Alice');\n" +
+          "INSERT INTO `users` (`name`) VALUES ('O''Brien');\n" +
+          'INSERT INTO `users` (`name`) VALUES (NULL);',
+      );
+    });
+
+    it('should format the selected column as Markdown', () => {
+      expect(
+        columnValuesForCopy(rows, columns, 1, {
+          format: 'markdown',
+          includeHeader: true,
+        }),
+      ).toBe(
+        '| name |\n| --- |\n| Alice |\n| O\'Brien |\n| null |',
+      );
+    });
+
+    it('should return an empty string for an unknown column', () => {
+      expect(
+        columnValuesForCopy(rows, columns, -1, { format: 'csv' }),
+      ).toBe('');
+    });
+  });
+
+  describe('columnValuesToInClause', () => {
+    it('should quote strings, escape quotes, and preserve SQL literals', () => {
+      const rows = [
+        [1, 'Alice'],
+        [2, "O'Brien"],
+        [3, null],
+        [4, true],
+      ];
+
+      expect(columnValuesToInClause(rows, 0)).toBe('1, 2, 3, 4');
+      expect(columnValuesToInClause(rows, 1)).toBe(
+        "'Alice', 'O''Brien', NULL, TRUE",
+      );
     });
   });
 

@@ -4,11 +4,11 @@ import { Check, ShieldAlert, X, Pencil, Maximize2, Minimize2 } from "lucide-reac
 import Editor from "@monaco-editor/react";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
-import type { ExplainPlan } from "../../types/explain";
+import type { ExplainPlan } from "@tabularis/explain";
 import type { PendingApproval } from "../../types/ai";
 import { QueryKindBadge } from "../settings/ai-activity/QueryKindBadge";
 import { VisualExplainView } from "../explain/VisualExplainView";
-import type { ExplainViewMode } from "./visual-explain/ExplainSummaryBar";
+import type { ExplainViewMode } from "@tabularis/explain/react";
 import { isDestructiveApproval } from "../../utils/aiActivity";
 
 interface AiApprovalModalProps {

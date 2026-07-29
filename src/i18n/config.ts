@@ -12,6 +12,7 @@ import ja from './locales/ja.json';
 import ru from './locales/ru.json';
 import ko from './locales/ko.json';
 import tl from './locales/tl.json';
+import ptBR from './locales/pt-BR.json';
 
 /**
  * Single source of truth for supported languages.
@@ -28,6 +29,7 @@ export const SUPPORTED_LANGUAGES = [
   { id: "ru", label: "Русский", translation: ru },
   { id: "ko", label: "한국어", translation: ko },
   { id: "tl", label: "Tagalog", translation: tl },
+  { id: "pt-BR", label: "Português (Brasil)", translation: ptBR },
 ] as const;
 
 export type AppLanguage = "auto" | (typeof SUPPORTED_LANGUAGES)[number]["id"];
@@ -50,7 +52,6 @@ i18n
       default: ['en'],
     },
     supportedLngs: [...SUPPORTED_LANGUAGES.map((l) => l.id), 'fil'],
-    nonExplicitSupportedLngs: true,
     interpolation: {
       escapeValue: false,
     },

@@ -22,10 +22,31 @@ export function hasCellReferences(sql: string): boolean {
   return CELL_REF_PATTERN.test(sql);
 }
 
-function resultToCte(result: QueryResult, alias: string): string {
+/** Quote a column name as a SQL identifier, doubling embedded quotes. */
+function quoteIdentifier(col: string): string {
+  return `"${col.replace(/"/g, '""')}"`;
+}
+
+/**
+ * Escape a value as a SQL string literal. Backslashes are doubled only for
+ * dialects where `\` is an escape character inside strings (MySQL/MariaDB);
+ * doubling them unconditionally would corrupt values on standard-conforming
+ * databases like PostgreSQL or SQLite.
+ */
+function escapeStringLiteral(val: string, escapeBackslashes: boolean): string {
+  let escaped = val;
+  if (escapeBackslashes) escaped = escaped.replace(/\\/g, "\\\\");
+  return escaped.replace(/'/g, "''");
+}
+
+function resultToCte(
+  result: QueryResult,
+  alias: string,
+  escapeBackslashes: boolean,
+): string {
   if (result.rows.length === 0) {
     const emptyCols = result.columns
-      .map((col) => `NULL AS "${col}"`)
+      .map((col) => `NULL AS ${quoteIdentifier(col)}`)
       .join(", ");
     return `${alias} AS (SELECT ${emptyCols} WHERE 1=0)`;
   }
@@ -34,10 +55,13 @@ function resultToCte(result: QueryResult, alias: string): string {
     const cols = result.columns
       .map((col, i) => {
         const val = row[i];
-        if (val === null || val === undefined) return `NULL AS "${col}"`;
-        if (typeof val === "number") return `${val} AS "${col}"`;
-        const escaped = String(val).replace(/'/g, "''");
-        return `'${escaped}' AS "${col}"`;
+        const ident = quoteIdentifier(col);
+        if (val === null || val === undefined) return `NULL AS ${ident}`;
+        if (typeof val === "number" && Number.isFinite(val)) {
+          return `${val} AS ${ident}`;
+        }
+        const escaped = escapeStringLiteral(String(val), escapeBackslashes);
+        return `'${escaped}' AS ${ident}`;
       })
       .join(", ");
     return `SELECT ${cols}`;
@@ -78,9 +102,15 @@ export function findUnresolvedDependencies(
   return Array.from(indices).sort((a, b) => a - b);
 }
 
+export interface ResolveVariablesOptions {
+  /** Double backslashes in string literals (MySQL/MariaDB dialects). */
+  escapeBackslashes?: boolean;
+}
+
 export function resolveQueryVariables(
   sql: string,
   cells: NotebookCell[],
+  options?: ResolveVariablesOptions,
 ): ResolvedQuery {
   const refs = extractCellReferences(sql);
   if (refs.length === 0) return { sql, unresolvedRefs: [] };
@@ -102,7 +132,9 @@ export function resolveQueryVariables(
     }
 
     const alias = `cell_${ref.cellIndex + 1}`;
-    ctes.push(resultToCte(targetCell.result, alias));
+    ctes.push(
+      resultToCte(targetCell.result, alias, options?.escapeBackslashes ?? false),
+    );
     resolvedSql = resolvedSql.replace(ref.match, alias);
   }
 

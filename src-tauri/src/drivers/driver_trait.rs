@@ -8,7 +8,7 @@ use std::str::FromStr;
 
 use crate::models::{
     AiSchemaContext, BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo,
-    ExplainPlan, ForeignKey, Index, QueryResult, RoutineCallArg, RoutineInfo, RoutineParameter,
+    ExplainQueryOutput, ForeignKey, Index, QueryResult, RoutineCallArg, RoutineInfo, RoutineParameter,
     TableColumn, TableInfo, TableSchema, TriggerInfo, ViewInfo,
 };
 
@@ -587,7 +587,7 @@ pub trait DatabaseDriver: Send + Sync {
         _query: &str,
         _analyze: bool,
         _schema: Option<&str>,
-    ) -> Result<ExplainPlan, String> {
+    ) -> Result<ExplainQueryOutput, String> {
         Err("EXPLAIN not supported by this driver".into())
     }
 

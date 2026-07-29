@@ -18,11 +18,12 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
+  Plus,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import type { ConnectionAppearance } from "../../contexts/DatabaseContext";
 import { AppearanceSection } from "./NewConnectionModal/AppearanceSection";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import { SshConnectionsModal } from "./SshConnectionsModal";
 import { K8sConnectionsModal } from "./K8sConnectionsModal";
@@ -95,6 +96,8 @@ interface ConnectionParams {
   // MySQL: force PIPES_AS_CONCAT / NO_ENGINE_SUBSTITUTION sql_mode on connect.
   // Defaults to true; disable for Vitess/PlanetScale which reject altering sql_mode.
   pipes_as_concat?: boolean;
+  // When true, the password field is an RDS auth token (mysql only).
+  use_iam_auth?: boolean;
   // SSH
   ssh_enabled?: boolean;
   ssh_connection_id?: string;
@@ -418,6 +421,7 @@ export const NewConnectionModal = ({
   );
   const [isActionPending, setIsActionPending] = useState(false);
   const [isPersistencePending, setIsPersistencePending] = useState(false);
+  const [isCreatingSqliteFile, setIsCreatingSqliteFile] = useState(false);
   const actionSequenceRef = useRef(0);
   const activeActionRef = useRef<number | null>(null);
   const persistenceActionRef = useRef<number | null>(null);
@@ -813,6 +817,7 @@ export const NewConnectionModal = ({
         setStatus("idle");
         setMessage("");
         setTestResult(null);
+        setIsCreatingSqliteFile(false);
       });
     }
   }, [cancelInlineK8sWork, isOpen]);
@@ -1221,6 +1226,45 @@ export const NewConnectionModal = ({
     value: string | number | boolean | undefined,
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCreateSqliteFile = async () => {
+    const actionId = beginFormAction();
+    if (actionId === null) return;
+
+    setIsCreatingSqliteFile(true);
+    setStatus("idle");
+    setMessage("");
+    setTestResult(null);
+    try {
+      const path = await save({
+        title: t("connections.newSqliteDatabase.dialogTitle"),
+        defaultPath: "database.db",
+        filters: [
+          {
+            name: t("connections.newSqliteDatabase.fileType"),
+            extensions: ["db", "sqlite", "sqlite3"],
+          },
+        ],
+      });
+      if (!path || activeActionRef.current !== actionId) return;
+
+      const createdPath = await invoke<string>("create_sqlite_file", { path });
+      if (activeActionRef.current !== actionId) return;
+      updateField("database", createdPath);
+    } catch (error) {
+      if (activeActionRef.current !== actionId) return;
+      setStatus("error");
+      setMessage(
+        `${t("connections.newSqliteDatabase.error")}: ${toErrorMessage(error)}`,
+      );
+      setTestResult("error");
+    } finally {
+      if (activeActionRef.current === actionId) {
+        setIsCreatingSqliteFile(false);
+      }
+      finishFormAction(actionId);
+    }
   };
 
   const loadDatabases = async (
@@ -1975,6 +2019,23 @@ export const NewConnectionModal = ({
             >
               <FolderOpen size={15} />
             </button>
+            {driver === "sqlite" &&
+              activeDriver.capabilities.file_based === true && (
+                <button
+                  type="button"
+                  onClick={() => void handleCreateSqliteFile()}
+                  disabled={isActionPending}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white border border-blue-500 rounded-md text-sm font-medium transition-colors"
+                  title={t("connections.newSqliteDatabase.dialogTitle")}
+                >
+                  {isCreatingSqliteFile ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Plus size={15} />
+                  )}
+                  {t("newConnection.createSqliteFile")}
+                </button>
+              )}
           </div>
         </div>
       ) : (
@@ -2085,9 +2146,7 @@ export const NewConnectionModal = ({
                   onClick={() => {
                     void loadDatabases();
                   }}
-                  disabled={
-                    loadingDatabases || !formData.host || !formData.username
-                  }
+                  disabled={loadingDatabases || !formData.host}
                   className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 disabled:text-muted disabled:cursor-not-allowed transition-colors"
                 >
                   {loadingDatabases ? (
@@ -2262,7 +2321,7 @@ export const NewConnectionModal = ({
           onClick={() => {
             void loadDatabases();
           }}
-          disabled={loadingDatabases || !formData.host || !formData.username}
+          disabled={loadingDatabases || !formData.host}
           className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 disabled:text-muted disabled:cursor-not-allowed transition-colors shrink-0"
         >
           {loadingDatabases ? (
@@ -2437,9 +2496,20 @@ export const NewConnectionModal = ({
           }
           onChange={(v) => {
             updateField("ssl_mode", v);
-            // Cleartext auth must never go over an unencrypted link.
-            if (driver === "mysql" && v === "disabled") {
-              updateField("enable_cleartext_plugin", false);
+            // Cleartext auth and RDS IAM must never go over a TLS-off
+            // connection. `Preferred` is also TLS-off for our purposes
+            // (opportunistic — the backend force-upgrades it to Required
+            // for IAM, but the UI must reflect what the user picked so
+            // the persisted value matches the visible checkbox).
+            if (driver === "mysql") {
+              const effectiveSslMode = v || "required";
+              const tlsOff = !["required", "verify_ca", "verify_identity"].includes(
+                effectiveSslMode,
+              );
+              if (tlsOff) {
+                updateField("enable_cleartext_plugin", false);
+                updateField("use_iam_auth", false);
+              }
             }
           }}
           searchable={false}
@@ -2568,8 +2638,68 @@ export const NewConnectionModal = ({
               </button>
             </div>
           </div>
+
         </div>
       )}
+
+      {/* AWS RDS IAM authentication (MySQL only).
+          Rendered outside the SSL Certificate Files block so it stays
+          reachable for new connections (where formData.ssl_mode is "" and
+          the cert block is hidden), and so that switching SSL to Disabled
+          doesn't unmount it while the underlying flag is still true. */}
+      {driver === "mysql" &&
+        (() => {
+          const effectiveSslMode = formData.ssl_mode || "required";
+          // Force-upgrade mirrors the backend: Preferred is opportunistic TLS
+          // and would let the pre-signed token travel in cleartext under the
+          // mysql_clear_password plugin.
+          const tlsOff =
+            !["required", "verify_ca", "verify_identity"].includes(
+              effectiveSslMode,
+            );
+          return (
+            <div className="space-y-1.5 pt-2 border-t border-strong">
+              <label
+                className={clsx(
+                  "flex items-center gap-2.5 select-none w-fit",
+                  tlsOff
+                    ? "cursor-not-allowed opacity-50"
+                    : "cursor-pointer",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  id="iam-auth-toggle"
+                  checked={!tlsOff && !!formData.use_iam_auth}
+                  disabled={tlsOff}
+                  onChange={(e) =>
+                    updateField("use_iam_auth", e.target.checked)
+                  }
+                  className="accent-blue-500 w-3.5 h-3.5 rounded"
+                />
+                <span className="text-sm font-medium text-secondary">
+                  {t("newConnection.useIamAuth", {
+                    defaultValue: "Use AWS IAM Authentication (RDS)",
+                  })}
+                </span>
+              </label>
+              <p className="text-xs text-muted">
+                {t("newConnection.useIamAuthHint", {
+                  defaultValue:
+                    "The password field is treated as an RDS auth token (from `aws rds generate-db-auth-token`). Requires TLS. Tokens expire every 15 minutes.",
+                })}
+              </p>
+              {formData.use_iam_auth && tlsOff && (
+                <p className="text-xs text-amber-500">
+                  {t("newConnection.useIamAuthTlsRequired", {
+                    defaultValue:
+                      "Select an enforced TLS mode above (Required, Verify CA, or Verify Identity) to use AWS IAM authentication.",
+                  })}
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
       {/* Cleartext password plugin (MySQL/MariaDB only) */}
       {driver === "mysql" &&
@@ -3079,7 +3209,7 @@ export const NewConnectionModal = ({
         disabled={isPersistencePending}
         aria-busy={isPersistencePending}
         className={clsx(
-          "bg-elevated border border-strong rounded-xl shadow-2xl w-[900px] max-w-[92vw] max-h-[90vh] flex flex-col overflow-hidden p-0 m-0 min-w-0",
+          "bg-elevated border border-strong rounded-xl shadow-2xl w-[900px] max-w-[92vw] h-[min(760px,90vh)] flex flex-col overflow-hidden p-0 m-0 min-w-0",
           isPersistencePending && "pointer-events-none",
         )}
       >

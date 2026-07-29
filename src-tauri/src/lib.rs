@@ -69,10 +69,14 @@ pub mod preferences;
 pub mod query_history;
 #[cfg(test)]
 pub mod query_history_tests;
+pub mod sql_database_statements;
 pub mod saved_queries;
 #[cfg(test)]
 pub mod saved_queries_tests;
 pub mod ssh_tunnel;
+pub mod sqlite_database;
+#[cfg(test)]
+pub mod sqlite_database_tests;
 pub mod task_manager;
 pub mod theme_commands;
 pub mod theme_models;
@@ -124,6 +128,22 @@ pub fn run() {
     // When ssh re-executes this binary as its SSH_ASKPASS helper (see the
     // `askpass` module), serve the prompt and exit without booting the app.
     askpass::maybe_run_askpass_client();
+
+    // Install the rustls `ring` crypto provider as the process-wide default.
+    //
+    // Both `sqlx` (via the `tls-rustls-ring-native-roots` feature) and the
+    // workspace's direct `rustls` usage link against the same `rustls 0.23`
+    // crate, but `rustls 0.23` enables both the `ring` and the `aws-lc-rs`
+    // crypto providers when their respective feature flags are active in
+    // the dependency graph. With two providers linked, rustls refuses to
+    // pick one automatically and panics the first time someone tries a TLS
+    // handshake ("Could not automatically determine the process-level
+    // CryptoProvider"). We pin `ring` here because:
+    //   * `sqlx` is configured to use the `ring` provider.
+    //   * `ring` is pure-Rust and works on all our target platforms
+    //     (macOS, Linux, Windows) without a C toolchain at runtime.
+    // This must run before any sqlx pool is built.
+    let _ = rustls::crypto::ring::default_provider().install_default();
 
     // On Linux + Wayland, disable the DMA-BUF renderer in WebKitGTK to prevent
     // "Protocol error dispatching to Wayland display" crashes.
@@ -355,6 +375,8 @@ pub fn run() {
             commands::test_connection,
             commands::list_databases,
             commands::save_connection,
+            sqlite_database::create_sqlite_file,
+            sqlite_database::create_sqlite_database,
             commands::delete_connection,
             commands::update_connection,
             commands::duplicate_connection,
@@ -409,6 +431,7 @@ pub fn run() {
             connection_import_commands::apply_tabularis_import,
             commands::get_schemas,
             commands::get_available_databases,
+            commands::set_selected_databases,
             commands::get_tables,
             commands::get_columns,
             commands::get_foreign_keys,
@@ -552,6 +575,7 @@ pub fn run() {
             updater::get_installation_source,
             // Logs
             log_commands::get_logs,
+            log_commands::log_frontend_event,
             log_commands::clear_logs,
             log_commands::get_log_settings,
             log_commands::set_log_enabled,

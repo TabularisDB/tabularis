@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "tabularis",
-  "version": "0.15.0",
+  "version": "0.17.0",
   "identifier": "tabularis",
   "build": {
     "frontendDist": "../dist",
@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "tabularis",
+        "dragDropEnabled": false,
         "width": 1280,
         "height": 800,
         "resizable": true,
@@ -64,7 +65,9 @@
     },
     "deep-link": {
       "desktop": {
-        "schemes": ["tabularis"]
+        "schemes": [
+          "tabularis"
+        ]
       }
     }
   }

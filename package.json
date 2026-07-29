@@ -1,7 +1,7 @@
 {
   "name": "tabularis",
   "private": true,
-  "version": "0.15.0",
+  "version": "0.17.0",
   "type": "module",
   "links": {
     "discord": "https://discord.com/invite/K2hmhfHRSt",
@@ -22,6 +22,8 @@
     "test:rust": "cd src-tauri && cargo test",
     "test:all": "pnpm test:rust && pnpm test:coverage",
     "tauri": "tauri",
+    "build:explain": "pnpm --filter @tabularis/explain build",
+    "typecheck:explain": "pnpm --filter @tabularis/explain typecheck",
     "build:plugin-api": "pnpm --filter @tabularis/plugin-api build",
     "check:plugin-api": "pnpm --filter @tabularis/plugin-api check:sync",
     "build:create-plugin": "pnpm --filter @tabularis/create-plugin build",
@@ -29,13 +31,14 @@
     "roadmap": "node scripts/update-roadmap.js",
     "sync-links": "node scripts/sync-links.js",
     "sync-sponsors": "node scripts/sync-sponsors.js",
-    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md -s && git add README.md CHANGELOG.md src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock src/version.ts"
+    "version": "node scripts/sync-version.js && conventional-changelog -p angular -i CHANGELOG.md -s && git add README*.md CHANGELOG.md src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock src/version.ts"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.23",
+    "@tabularis/explain": "workspace:*",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-clipboard-manager": "~2.3.2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
@@ -84,6 +87,7 @@
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.26",
+    "gitnexus": "^1.6.9",
     "globals": "^16.5.0",
     "jsdom": "^28.1.0",
     "postcss": "^8.5.8",

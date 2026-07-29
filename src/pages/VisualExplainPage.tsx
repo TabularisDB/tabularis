@@ -4,9 +4,14 @@ import { useTranslation } from "react-i18next";
 import { FileJson, FolderOpen, Loader2, RefreshCw } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import type { ExplainPlan } from "../types/explain";
+import type { ExplainPlan, ExplainQueryOutput } from "@tabularis/explain";
+import {
+  parseExplain,
+  resolveExplainOutput,
+  withSourceLabel,
+} from "@tabularis/explain";
 import { VisualExplainView } from "../components/explain/VisualExplainView";
-import type { ExplainViewMode } from "../components/modals/visual-explain/ExplainSummaryBar";
+import type { ExplainViewMode } from "@tabularis/explain/react";
 import {
   getExplainFileName,
   parseExplainFileParam,
@@ -48,11 +53,13 @@ export const VisualExplainPage = ({
     setPlan(null);
     setSelectedNodeId(null);
     try {
-      const result = await invoke<ExplainPlan>("load_explain_from_file", {
-        path,
-      });
-      setPlan(result);
-      setSelectedNodeId(result.root.id);
+      const file = await invoke<{ content: string; display_name: string }>(
+        "load_explain_from_file",
+        { path },
+      );
+      const parsedPlan = withSourceLabel(parseExplain(file.content), file.display_name);
+      setPlan(parsedPlan);
+      setSelectedNodeId(parsedPlan.root.id);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -67,14 +74,15 @@ export const VisualExplainPage = ({
       setPlan(null);
       setSelectedNodeId(null);
       try {
-        const result = await invoke<ExplainPlan>("explain_query_plan", {
+        const result = await invoke<ExplainQueryOutput>("explain_query_plan", {
           connectionId,
           query,
           analyze: false,
           schema: null,
         });
-        setPlan(result);
-        setSelectedNodeId(result.root.id);
+        const parsedPlan = resolveExplainOutput(result);
+        setPlan(parsedPlan);
+        setSelectedNodeId(parsedPlan.root.id);
       } catch (err) {
         setError(String(err));
       } finally {

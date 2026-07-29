@@ -150,6 +150,8 @@
     "noTablesMatch": "No hay tablas que coincidan",
     "filterDatabases": "Filtrar bases de datos...",
     "manageDatabases": "Gestionar Bases de Datos",
+    "databaseSelectionUpdated": "Selección de bases de datos actualizada",
+    "droppedDatabasesRemoved": "Se eliminaron porque ya no existen en el servidor: {{names}}",
     "structure": "Estructura",
     "favorites": "Favoritos",
     "queryHistory": "Historial",
@@ -184,7 +186,12 @@
       "delete": "Eliminar",
       "deleteConfirm": "¿Eliminar el notebook \"{{title}}\"? Esta acción no se puede deshacer.",
       "renamePlaceholder": "Nombre del notebook"
-    }
+    },
+    "addToSplitGroup": "Añadir al Grupo Dividido",
+    "removeFromSplitGroup": "Quitar del Grupo",
+    "movePanel": "Mover panel",
+    "refreshDatabaseList": "Actualizar lista de bases de datos",
+    "databaseListUpToDate": "La lista de bases de datos está actualizada"
   },
   "groups": {
     "title": "Grupos",
@@ -255,6 +262,12 @@
   "connections": {
     "title": "Conexiones",
     "addConnection": "Agregar Conexión",
+    "newSqliteDatabase": {
+      "menuLabel": "Nueva base de datos SQLite…",
+      "dialogTitle": "Nueva base de datos SQLite",
+      "fileType": "Base de datos SQLite",
+      "error": "No se pudo crear la base de datos SQLite"
+    },
     "noConnections": "No hay conexiones activas",
     "createFirst": "Crea tu primera conexión",
     "active": "Activa",
@@ -393,6 +406,13 @@
     "delimiterPipe": "Pipe (|)",
     "csvIncludeHeaders": "Incluir encabezados CSV",
     "csvIncludeHeadersDesc": "Incluir una fila de encabezado con los nombres de las columnas al copiar filas como CSV.",
+    "rowEditorFollowSelection": "El editor de filas sigue la selección",
+    "rowEditorFollowSelectionDesc": "Cuando la barra lateral del editor de filas está abierta, se actualiza automáticamente para mostrar la fila recién seleccionada.",
+    "cellDoubleClickAction": "Acción de doble clic en celda",
+    "cellDoubleClickActionDesc": "Elija qué sucede al hacer doble clic en una celda de datos.",
+    "cellDoubleClickInline": "Edición en línea",
+    "cellDoubleClickSidebar": "Abrir en barra lateral",
+    "cellDoubleClickBoth": "Ambos",
     "csvHeaders": "Exportar nombres de columnas",
     "detectJsonInTextColumns": "Detectar JSON en columnas de texto",
     "detectJsonInTextColumnsDesc": "Muestra el visor de JSON cuando una celda de texto sin tipar contiene un objeto o array JSON. Añade un pequeño coste de análisis por celda.",
@@ -427,6 +447,23 @@
     "appearance_editorShowLineNumbersDesc": "Muestra los números de línea en el margen del editor.",
     "appearance_editorAcceptSuggestionOnEnter": "Aceptar Sugerencia con Intro",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Permite que Intro (además de Tab) acepte la sugerencia de autocompletado activa. Cuando está desactivado, Intro siempre inserta una nueva línea.",
+    "queryExecution": "Ejecución de consultas",
+    "runStatementUnderCursor": "Ejecutar la instrucción bajo el cursor",
+    "runStatementUnderCursorDesc": "Cuando un script tiene varias instrucciones, ejecuta la que está bajo el cursor en lugar de mostrar el selector de consultas. Selecciona texto para ejecutar un rango específico.",
+    "formatter_title": "Formateador SQL",
+    "formatter_keywordCase": "Mayúsculas en palabras clave",
+    "formatter_keywordCaseDesc": "Cómo se capitalizan las palabras clave SQL (SELECT, FROM, WHERE) después del formateo.",
+    "formatter_functionCase": "Mayúsculas en funciones",
+    "formatter_functionCaseDesc": "Cómo se capitalizan los nombres de funciones (COUNT, SUM, COALESCE) después del formateo.",
+    "formatter_indentStyle": "Estilo de indentación",
+    "formatter_indentStyleDesc": "Estándar indenta normalmente. Tabular alinea las cláusulas en columnas.",
+    "formatter_tabWidth": "Ancho de indentación",
+    "formatter_useTabs": "Usar tabulaciones",
+    "formatter_useTabsDesc": "Indentar con tabulaciones en lugar de espacios.",
+    "formatter_linesBetweenQueries": "Líneas entre consultas",
+    "formatter_linesBetweenQueriesDesc": "Número de líneas en blanco entre sentencias SQL separadas.",
+    "formatter_denseOperators": "Operadores compactos",
+    "formatter_denseOperatorsDesc": "Eliminar espacios alrededor de operadores (ej. a=1 en lugar de a = 1).",
     "editConfigJson": "Editar config.json",
     "editConfigJsonDesc": "Edita directamente el archivo de configuración en bruto. Se requiere reinicio para aplicar los cambios.",
     "configJsonModal": {
@@ -440,6 +477,7 @@
     },
     "language": "Idioma",
     "languageDesc": "Elige tu idioma preferido. 'Auto' usará el idioma del sistema.",
+    "languageSearch": "Buscar idiomas...",
     "auto": "Auto (Sistema)",
     "english": "English",
     "italian": "Italiano",
@@ -620,6 +658,10 @@
         "copy": "Copiar",
         "copied": "¡Copiado!"
       },
+      "uninstallError": {
+        "title": "Desinstalación fallida",
+        "subtitle": "Ocurrió un error al desinstalar el plugin. Consulta los detalles a continuación."
+      },
       "startError": {
         "title": "El Plugin no se pudo iniciar",
         "subtitle": "No se pudo lanzar el proceso del plugin. Revisa los detalles del error.",
@@ -671,9 +713,12 @@
       },
       "runQuery": "Ejecutar consulta",
       "runQueryEditor": "Ejecutar consulta (en el editor)",
+      "runAll": "Ejecutar todas las sentencias",
+      "runAllEditor": "Ejecutar todas las sentencias (en el editor)",
       "tabSwitcher": "Cambiar pestaña",
       "copySelection": "Copiar selección",
       "toggleSidebar": "Mostrar/ocultar barra lateral",
+      "toggleRightSidebar": "Alternar barra lateral derecha",
       "focusTableFilter": "Enfocar el filtro de tablas",
       "openConnections": "Abrir conexiones",
       "newConnection": "Nueva conexión",
@@ -690,6 +735,7 @@
       "pasteImportClipboard": "Importar desde Portapapeles",
       "quickNavigator": "Navegador rápido",
       "triggerSuggestions": "Mostrar sugerencias",
+      "formatSql": "Formatear SQL",
       "refreshTable": "Actualizar tabla"
     },
     "aiActivity": "Actividad IA",
@@ -811,6 +857,7 @@
     "filePathPlaceholder": "/ruta/absoluta/db.sqlite",
     "folderPathPlaceholder": "/ruta/absoluta/carpeta",
     "browseFile": "Explorar archivo",
+    "createSqliteFile": "Nuevo",
     "browseFolder": "Explorar carpeta",
     "useSsh": "Usar Túnel SSH",
     "sshHost": "Host SSH",
@@ -994,6 +1041,7 @@
     "noActiveSession": "No hay sesión activa. Selecciona una conexión.",
     "stop": "Detener",
     "run": "Ejecutar",
+    "runAll": "Ejecutar todo",
     "export": "Exportar",
     "connected": "Conectado",
     "disconnected": "Desconectado",
@@ -1056,10 +1104,14 @@
     "submitChanges": "Enviar Cambios",
     "rollbackChanges": "Revertir Cambios",
     "applyToAll": "Aplicar a todo",
+    "submit": "Enviar",
+    "rollback": "Revertir",
+    "pendingCount": "{{count}} pendientes",
     "executingQuery": "Ejecutando consulta...",
     "exporting": "Exportando...",
     "rowsProcessed": "Filas Procesadas",
     "queryParameters": "Parámetros de Consulta",
+    "formatSql": "Formatear SQL",
     "convertToConsole": "Convertir a Consola",
     "parameters": "Parámetros",
     "paramValuePlaceholder": "Valor (ej. 'texto' o 123)",
@@ -1363,7 +1415,11 @@
     "showAllTables": "Mostrar Todas las Tablas",
     "showAll": "Mostrar Todo",
     "focusedOn": "Enfocado en",
-    "focusOnTable": "Enfocar en Tabla"
+    "focusOnTable": "Enfocar en Tabla",
+    "exportMermaid": "Exportar como diagrama Mermaid",
+    "exportSuccess": "Diagrama exportado",
+    "exportDbml": "Exportar como DBML",
+    "export": "Exportar"
   },
   "views": {
     "createView": "Crear Vista",
@@ -1411,7 +1467,6 @@
     "errorNoTables": "Selecciona al menos una tabla",
     "importStarted": "Importación iniciada...",
     "importSuccess": "Archivo SQL ejecutado correctamente",
-    "importFailure": "Error en la importación: ",
     "importCancelled": "Importación cancelada",
     "importFailed": "Importación fallida",
     "importingFrom": "Importando desde",
@@ -1459,7 +1514,14 @@
     "subtitle": "Fila #{{row}}",
     "save": "Guardar Cambios",
     "cancel": "Cancelar",
-    "enterValue": "Ingresar valor..."
+    "enterValue": "Ingresar valor...",
+    "pin": "Fijar",
+    "unpin": "Desfijar"
+  },
+  "rightSidebar": {
+    "resize": "Redimensionar",
+    "collapse": "Contraer",
+    "expand": "Expandir"
   },
   "contextMenu": {
     "openSidebar": "Abrir Barra Lateral",

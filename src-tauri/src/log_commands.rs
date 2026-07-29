@@ -100,6 +100,19 @@ pub fn export_logs(log_buffer: State<SharedLogBuffer>, file_path: String) -> Res
     Ok(())
 }
 
+/// Lets the frontend record user-relevant events (e.g. a database pruned from
+/// a connection's selection) in the activity log shown in Settings → Logs.
+#[tauri::command]
+pub fn log_frontend_event(level: String, message: String) {
+    match level.as_str() {
+        "error" => log::error!(target: "frontend", "{}", message),
+        "warn" => log::warn!(target: "frontend", "{}", message),
+        "debug" => log::debug!(target: "frontend", "{}", message),
+        "trace" => log::trace!(target: "frontend", "{}", message),
+        _ => log::info!(target: "frontend", "{}", message),
+    }
+}
+
 #[tauri::command]
 pub fn test_log() -> Result<(), String> {
     log::info!("Test log message from frontend");

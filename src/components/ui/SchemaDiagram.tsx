@@ -11,12 +11,27 @@ import {
   Position,
   useReactFlow,
   ReactFlowProvider,
+  ControlButton,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
 import { useEditor } from "../../hooks/useEditor";
 import { SchemaTableNodeComponent } from "./SchemaTableNode";
-import { Loader2, ArrowLeftRight, ArrowUpDown, Maximize2, Focus } from "lucide-react";
+import {
+  Loader2,
+  ArrowLeftRight,
+  ArrowUpDown,
+  Maximize2,
+  Focus,
+  Download,
+  ChevronDown,
+  Lock,
+  LockOpen,
+} from "lucide-react";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { generateMermaidErDiagram, generateDbml } from "../../utils/schemaExport";
+import { useAlert } from "../../hooks/useAlert";
 import { useTranslation } from "react-i18next";
 import { ContextMenu } from "./ContextMenu";
 import { useSearchParams } from "react-router-dom";
@@ -29,6 +44,32 @@ const nodeTypes = {
 
 const ANIMATION_THRESHOLD = 50;
 
+// The table node grows with its content (min-w-[220px], no max width), so the
+// layout must estimate the rendered size per node: a fixed width lets wide
+// nodes (long column names or types) overlap their neighbors.
+const estimateNodeSize = (node: Node) => {
+  const nodeData = node.data as {
+    label?: string;
+    columns?: { name: string; type: string }[];
+  };
+  const columns = nodeData.columns ?? [];
+
+  // Header: px-3 padding (24) + status dot with gap (16) + text-sm bold label
+  const headerWidth = 40 + (nodeData.label?.length ?? 0) * 8.5;
+  // Row: px-3 padding (24) + icon with gap (18) + mono text-xs name
+  // + ml-2 (8) + mono text-[10px] type (shrink-0, never truncated)
+  const widestRow = columns.reduce(
+    (max, col) => Math.max(max, 50 + col.name.length * 7.5 + col.type.length * 6.5),
+    0,
+  );
+  const width = Math.max(220, Math.ceil(Math.max(headerWidth, widestRow)));
+
+  // Header ~38px (py-2 + text-sm + border), rows ~29px (py-1.5 + text-xs + border)
+  const height = 38 + columns.length * 29;
+
+  return { width, height };
+};
+
 const getLayoutedElements = (
   nodes: Node[],
   edges: Edge[],
@@ -37,20 +78,13 @@ const getLayoutedElements = (
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-  const nodeWidth = 240;
-  // Node height approximation unused by dagre simple layout but good for spacing
-  // const nodeHeight = 40;
-
   // FIX: Swap LR<->TB to correct the inversion bug
   const dagreDirection = direction === "LR" ? "TB" : "LR";
-  dagreGraph.setGraph({ rankdir: dagreDirection, ranksep: 150, nodesep: 50 });
+  dagreGraph.setGraph({ rankdir: dagreDirection, ranksep: 150, nodesep: 60 });
 
   nodes.forEach((node) => {
-    // Estimate height based on columns for vertical spacing
-    const nodeData = node.data as { columns?: unknown[] };
-    const columns = nodeData.columns?.length || 0;
-    const height = 40 + columns * 28;
-    dagreGraph.setNode(node.id, { width: nodeWidth, height });
+    const { width, height } = estimateNodeSize(node);
+    dagreGraph.setNode(node.id, { width, height });
   });
 
   edges.forEach((edge) => {
@@ -67,8 +101,8 @@ const getLayoutedElements = (
       targetPosition: direction === "LR" ? Position.Top : Position.Left,
       sourcePosition: direction === "LR" ? Position.Bottom : Position.Right,
       position: {
-        x: nodeWithPosition.x - nodeWidth / 2,
-        y: nodeWithPosition.y - dagreGraph.node(node.id).height / 2,
+        x: nodeWithPosition.x - nodeWithPosition.width / 2,
+        y: nodeWithPosition.y - nodeWithPosition.height / 2,
       },
     };
   });
@@ -89,6 +123,7 @@ const SchemaDiagramContent = ({
 }: SchemaDiagramContentProps) => {
   const { t } = useTranslation();
   const { getSchema } = useEditor();
+  const { showAlert } = useAlert();
   const { settings } = useSettings();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -104,6 +139,7 @@ const SchemaDiagramContent = ({
   const layoutDirection = layoutDirectionOverride ?? layoutDirectionFromSettings;
   
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [nodesLocked, setNodesLocked] = useState(true);
   const [allNodes, setAllNodes] = useState<Node[]>([]);
   const [allEdges, setAllEdges] = useState<Edge[]>([]);
   const [contextMenu, setContextMenu] = useState<{
@@ -111,6 +147,9 @@ const SchemaDiagramContent = ({
     y: number;
     tableId: string;
   } | null>(null);
+  const [exportMenu, setExportMenu] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   const [searchParams] = useSearchParams();
 
   // Callback per gestire il click su una tabella
@@ -142,6 +181,41 @@ const SchemaDiagramContent = ({
       return current === "LR" ? "TB" : "LR";
     });
   }, [layoutDirectionFromSettings]);
+
+  // Export the full schema as a Mermaid erDiagram. Uses allNodes/allEdges
+  // rather than the rendered nodes so the export stays complete even while a
+  // single table is focused.
+  const handleExport = useCallback(
+    async (format: "mermaid" | "dbml") => {
+      if (allNodes.length === 0) return;
+
+      const isMermaid = format === "mermaid";
+      const extension = isMermaid ? "mmd" : "dbml";
+
+      try {
+        const filePath = await save({
+          filters: [
+            {
+              name: isMermaid ? "Mermaid" : "DBML",
+              extensions: [extension],
+            },
+          ],
+          defaultPath: `schema_${new Date().toISOString().slice(0, 10)}.${extension}`,
+        });
+        if (!filePath) return;
+
+        const content = isMermaid
+          ? generateMermaidErDiagram(allNodes, allEdges)
+          : generateDbml(allNodes, allEdges);
+
+        await writeTextFile(filePath, content);
+        showAlert(t("erDiagram.exportSuccess"), { kind: "info" });
+      } catch (err) {
+        showAlert(String(err), { kind: "error" });
+      }
+    },
+    [allNodes, allEdges, showAlert, t],
+  );
 
   // Callback per tornare alla vista completa
   const handleResetView = useCallback(() => {
@@ -356,6 +430,20 @@ const SchemaDiagramContent = ({
           )}
         </button>
 
+        <button
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            setExportMenu({ x: rect.left, y: rect.bottom + 4 });
+          }}
+          disabled={allNodes.length === 0}
+          className="flex items-center gap-2 px-3 py-2 bg-elevated hover:bg-surface-secondary text-primary rounded-lg border border-strong transition-colors shadow-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          title={t("erDiagram.export")}
+        >
+          <Download size={16} />
+          <span>{t("erDiagram.export")}</span>
+          <ChevronDown size={14} />
+        </button>
+
         {selectedTable && (
           <button
             onClick={handleResetView}
@@ -386,7 +474,7 @@ const SchemaDiagramContent = ({
         minZoom={0.05}
         maxZoom={2}
         defaultEdgeOptions={{ type: "smoothstep" }}
-        nodesDraggable={false}
+        nodesDraggable={!nodesLocked}
         nodesConnectable={false}
         elementsSelectable={true}
         panOnScroll={false}
@@ -399,7 +487,18 @@ const SchemaDiagramContent = ({
         <Controls
           className="!bg-surface-secondary !border-strong !shadow-xl"
           showInteractive={false}
-        />
+        >
+          <ControlButton
+            onClick={() => setNodesLocked((prev) => !prev)}
+            title={
+              nodesLocked
+                ? t("erDiagram.unlockNodes")
+                : t("erDiagram.lockNodes")
+            }
+          >
+            {nodesLocked ? <Lock size={14} /> : <LockOpen size={14} />}
+          </ControlButton>
+        </Controls>
         {shouldShowMiniMap && (
           <MiniMap
             nodeColor={() => "#6366f1"}
@@ -411,6 +510,26 @@ const SchemaDiagramContent = ({
       </ReactFlow>
 
       {/* Context Menu */}
+      {exportMenu && (
+        <ContextMenu
+          x={exportMenu.x}
+          y={exportMenu.y}
+          onClose={() => setExportMenu(null)}
+          items={[
+            {
+              label: t("erDiagram.exportMermaid"),
+              icon: Download,
+              action: () => handleExport("mermaid"),
+            },
+            {
+              label: t("erDiagram.exportDbml"),
+              icon: Download,
+              action: () => handleExport("dbml"),
+            },
+          ]}
+        />
+      )}
+
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}

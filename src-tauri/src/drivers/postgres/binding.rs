@@ -398,6 +398,16 @@ fn bind_pg_string(
         });
     }
 
+    // pgvector types must be handled before the generic array/text paths below:
+    // "[1,2,3]" would otherwise be turned into a PostgreSQL array literal by
+    // `try_parse_pg_array`, and there is no text->vector cast for a bound param.
+    if let Some(binding) = options
+        .column_type
+        .and_then(|column_type| bind_pg_vector_string(s, column_type))
+    {
+        return binding;
+    }
+
     if let Some(bytes) = crate::drivers::common::decode_blob_wire_format(s, options.max_blob_size) {
         return Ok(BoundValue {
             sql: format!("${}", placeholder_idx),
@@ -470,4 +480,48 @@ fn bind_pg_string(
         sql: format!("${}", placeholder_idx),
         param: Some((Box::new(s.to_string()), Type::TEXT)),
     })
+}
+
+/// Bind a value into a pgvector column (`vector`, `halfvec`, `sparsevec`).
+///
+/// pgvector registers no `text -> vector` cast, so a bound TEXT parameter — even
+/// via `CAST($N AS vector)` — is rejected by PostgreSQL. The literal only reaches
+/// the type's input function when it arrives as an *unknown*-typed literal, so we
+/// inline it as `'<value>'::<type>`. To keep that safe, the value is validated
+/// against a strict allow-list of characters that make up a vector literal; a
+/// non-pgvector column returns `None` so the caller falls through to its normal
+/// binding logic.
+fn bind_pg_vector_string(s: &str, column_type: &str) -> Option<Result<BoundValue, String>> {
+    let pg_type = match extract_base_type(column_type).as_str() {
+        "VECTOR" => "vector",
+        "HALFVEC" => "halfvec",
+        "SPARSEVEC" => "sparsevec",
+        _ => return None,
+    };
+
+    let trimmed = s.trim();
+
+    // Characters that can legitimately appear in a vector / halfvec / sparsevec
+    // literal: digits, sign, decimal point, exponent marker, the bracket/brace
+    // delimiters, element separators, the sparsevec index (':') and dimension
+    // ('/') separators, and whitespace. Anything else cannot be inlined safely.
+    let is_vector_literal = !trimmed.is_empty()
+        && trimmed.chars().all(|c| {
+            c.is_ascii_digit()
+                || matches!(
+                    c,
+                    '+' | '-' | '.' | 'e' | 'E' | '[' | ']' | '{' | '}' | ',' | ':' | '/' | ' '
+                )
+        });
+
+    if !is_vector_literal {
+        return Some(Err(format!(
+            "Invalid {pg_type} value: expected a numeric vector literal such as [1,2,3]"
+        )));
+    }
+
+    Some(Ok(BoundValue {
+        sql: format!("'{trimmed}'::{pg_type}"),
+        param: None,
+    }))
 }

@@ -656,6 +656,18 @@ async fn test_postgres_foreign_keys_via_pg_catalog() {
     assert_eq!(fk.on_delete.as_deref(), Some("CASCADE"));
     assert_eq!(fk.on_update.as_deref(), Some("RESTRICT"));
 
+    let parent_columns = postgres::get_columns(&params, "test_fk_parent", "fk_ref")
+        .await
+        .expect("get_columns should succeed");
+    let parent_id = parent_columns
+        .iter()
+        .find(|column| column.name == "id")
+        .expect("parent id column should be present");
+    assert!(
+        parent_id.is_pk,
+        "primary key detection should use pg_catalog, not information_schema.table_constraints"
+    );
+
     let batch = postgres::get_all_foreign_keys_batch(&params, "public")
         .await
         .expect("get_all_foreign_keys_batch should succeed");

@@ -63,6 +63,17 @@ export function parseJsonEditorValue(text: string): unknown {
 }
 
 /**
+ * Returns true if the driver already handed us decoded JSON (an object or
+ * array) rather than a string. Values cross the Tauri bridge as JSON, so
+ * dates and BLOBs arrive as strings — an object here can only have come from
+ * a JSON/JSONB (or array) column, regardless of whether column type metadata
+ * was available.
+ */
+export function isStructuredValue(value: unknown): boolean {
+  return typeof value === "object" && value !== null;
+}
+
+/**
  * Heuristic detector: returns true if `value` is a string that parses as a
  * JSON object or array. Scalars (numbers, booleans, null, quoted strings)
  * are intentionally rejected — only structured JSON triggers JSON-cell

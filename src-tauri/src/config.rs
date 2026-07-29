@@ -63,6 +63,8 @@ pub struct AppConfig {
     /// Base URL of the Tabularium plugin registry (https://tabularium.wiki).
     /// Defaults to the built-in instance when unset.
     pub tabularium_registry_url: Option<String>,
+    /// Update channel: "stable" (default) or "nightly". None ⇒ stable.
+    pub release_channel: Option<String>,
     pub plugins: Option<HashMap<String, PluginConfig>>,
     pub editor_theme: Option<String>,
     pub editor_font_family: Option<String>,
@@ -76,6 +78,15 @@ pub struct AppConfig {
     /// becomes `"smart"` (the safer variant), `false` becomes `"off"`.
     /// Default: `true` — matches the behaviour users expect from most editors.
     pub editor_accept_suggestion_on_enter: Option<bool>,
+    pub run_statement_under_cursor: Option<bool>,
+    // ----- SQL Formatter -----
+    pub formatter_keyword_case: Option<String>,
+    pub formatter_indent_style: Option<String>,
+    pub formatter_tab_width: Option<u32>,
+    pub formatter_use_tabs: Option<bool>,
+    pub formatter_function_case: Option<String>,
+    pub formatter_lines_between_queries: Option<u32>,
+    pub formatter_dense_operators: Option<bool>,
     /// Connection health check interval in seconds. 0 = disabled. Default: 30.
     pub ping_interval: Option<u32>,
     /// Maximum number of query history entries per connection. Default: 500.
@@ -327,6 +338,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         if config.tabularium_registry_url.is_some() {
             existing_config.tabularium_registry_url = config.tabularium_registry_url;
         }
+        if config.release_channel.is_some() {
+            existing_config.release_channel = config.release_channel;
+        }
         if config.plugins.is_some() {
             existing_config.plugins = config.plugins;
         }
@@ -354,6 +368,9 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         if config.editor_accept_suggestion_on_enter.is_some() {
             existing_config.editor_accept_suggestion_on_enter =
                 config.editor_accept_suggestion_on_enter;
+        }
+        if config.run_statement_under_cursor.is_some() {
+            existing_config.run_statement_under_cursor = config.run_statement_under_cursor;
         }
         if config.ping_interval.is_some() {
             let old_interval = existing_config.ping_interval;

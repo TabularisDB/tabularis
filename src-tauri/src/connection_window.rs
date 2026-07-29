@@ -44,6 +44,9 @@ pub async fn open_connection_window(
         .min_inner_size(800.0, 500.0)
         .center()
         .background_color(tauri::webview::Color(2, 6, 23, 255))
+        // The native drag-drop handler swallows DOM drag events (sidebar
+        // reorder, split panel moves), see dragDropEnabled in tauri.conf.json
+        .disable_drag_drop_handler()
         .build()
         .map_err(|e| format!("Failed to create connection window: {}", e))?;
 
