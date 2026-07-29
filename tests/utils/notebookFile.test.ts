@@ -251,6 +251,49 @@ describe('notebookFile utils', () => {
       expect(result.stopOnError).toBe(true);
     });
 
+    it('should deserialize well-formed params', () => {
+      const json = JSON.stringify({
+        version: 2,
+        title: 'T',
+        createdAt: '',
+        cells: [{ type: 'sql', content: 'SELECT @p' }],
+        params: [{ name: 'p', value: "'x'" }],
+      });
+      const result = deserializeNotebook(json);
+      expect(result.params).toEqual([{ name: 'p', value: "'x'" }]);
+    });
+
+    it('should drop malformed params from untrusted files', () => {
+      const json = JSON.stringify({
+        version: 2,
+        title: 'T',
+        createdAt: '',
+        cells: [{ type: 'sql', content: 'SELECT 1' }],
+        params: [
+          { name: 'ok', value: '1' },
+          { name: 'bad name!', value: '2' },
+          { name: 'no_value' },
+          { name: 42, value: '3' },
+          { name: 'object_value', value: { nested: true } },
+          'not-an-object',
+        ],
+      });
+      const result = deserializeNotebook(json);
+      expect(result.params).toEqual([{ name: 'ok', value: '1' }]);
+    });
+
+    it('should return undefined params when none survive sanitization', () => {
+      const json = JSON.stringify({
+        version: 2,
+        title: 'T',
+        createdAt: '',
+        cells: [{ type: 'sql', content: 'SELECT 1' }],
+        params: [{ name: 'bad name!', value: '1' }],
+      });
+      const result = deserializeNotebook(json);
+      expect(result.params).toBeUndefined();
+    });
+
     it('should deserialize isCollapsed per cell', () => {
       const json = JSON.stringify({
         version: 2,

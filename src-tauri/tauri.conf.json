@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "tabularis",
-  "version": "0.15.0",
+  "version": "0.17.0",
   "identifier": "tabularis",
   "build": {
     "frontendDist": "../dist",
@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "tabularis",
+        "dragDropEnabled": false,
         "width": 1280,
         "height": 800,
         "resizable": true,
@@ -61,6 +62,13 @@
         "https://github.com/TabularisDB/tabularis/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY0NzY0QjNEQjI4QjFEQjcKUldTM0hZdXlQVXQyWkRYdmRJOEJhVEpYTit2VXRYS0drTit1bmthSHVzcWlQK09Wb2l5cVpOWXAK"
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "tabularis"
+        ]
+      }
     }
   }
 }

@@ -163,6 +163,8 @@
     "noTablesMatch": "Aucune table correspondante",
     "filterDatabases": "Filtrer les bases de données...",
     "manageDatabases": "Gérer les bases de données",
+    "databaseSelectionUpdated": "Sélection des bases de données mise à jour",
+    "droppedDatabasesRemoved": "Supprimées car absentes du serveur : {{names}}",
     "structure": "Structure",
     "favorites": "Favoris",
     "queryHistory": "Historique",
@@ -197,7 +199,12 @@
       "delete": "Supprimer",
       "deleteConfirm": "Supprimer le notebook « {{title}} » ? Cette action est irréversible.",
       "renamePlaceholder": "Nom du notebook"
-    }
+    },
+    "addToSplitGroup": "Ajouter au groupe divisé",
+    "removeFromSplitGroup": "Retirer du groupe",
+    "movePanel": "Déplacer le panneau",
+    "refreshDatabaseList": "Actualiser la liste des bases",
+    "databaseListUpToDate": "La liste des bases de données est à jour"
   },
   "mcp": {
     "title": "Intégration du serveur MCP",
@@ -248,6 +255,12 @@
   "connections": {
     "title": "Connexions",
     "addConnection": "Ajouter une connexion",
+    "newSqliteDatabase": {
+      "menuLabel": "Nouvelle base de données SQLite…",
+      "dialogTitle": "Nouvelle base de données SQLite",
+      "fileType": "Base de données SQLite",
+      "error": "Impossible de créer la base de données SQLite"
+    },
     "noConnections": "Aucune connexion active",
     "createFirst": "Créez votre première connexion",
     "active": "Active",
@@ -386,6 +399,13 @@
     "delimiterPipe": "Barre verticale (|)",
     "csvIncludeHeaders": "Inclure les en-têtes de colonnes",
     "csvIncludeHeadersDesc": "Inclure une ligne d'en-tête avec les noms des colonnes lors de la copie des lignes au format CSV ou Markdown.",
+    "rowEditorFollowSelection": "L'éditeur de ligne suit la sélection",
+    "rowEditorFollowSelectionDesc": "Lorsque la barre latérale de l'éditeur de ligne est ouverte, elle se met automatiquement à jour pour afficher la ligne nouvellement sélectionnée.",
+    "cellDoubleClickAction": "Action du double-clic sur une cellule",
+    "cellDoubleClickActionDesc": "Choisissez ce qui se passe lorsque vous double-cliquez sur une cellule de données.",
+    "cellDoubleClickInline": "Édition en ligne",
+    "cellDoubleClickSidebar": "Ouvrir dans la barre latérale",
+    "cellDoubleClickBoth": "Les deux",
     "csvHeaders": "Exporter les noms de colonnes",
     "detectJsonInTextColumns": "Détecter le JSON dans les colonnes texte",
     "detectJsonInTextColumnsDesc": "Affiche le visualiseur JSON lorsqu'une cellule texte non typée contient un objet ou un tableau JSON. Ajoute un petit coût d'analyse par cellule.",
@@ -432,6 +452,23 @@
     "appearance_editorShowLineNumbersDesc": "Affiche les numéros de ligne dans la marge de l’éditeur.",
     "appearance_editorAcceptSuggestionOnEnter": "Accepter la suggestion avec Entrée",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Autorise la touche Entrée (en plus de Tab) à accepter la suggestion d’autocomplétion active. Lorsqu’elle est désactivée, Entrée insère toujours un saut de ligne.",
+    "queryExecution": "Exécution des requêtes",
+    "runStatementUnderCursor": "Exécuter l'instruction sous le curseur",
+    "runStatementUnderCursorDesc": "Lorsqu'un script contient plusieurs instructions, exécute celle sous le curseur au lieu d'afficher le sélecteur de requêtes. Sélectionnez du texte pour exécuter une plage spécifique.",
+    "formatter_title": "Formateur SQL",
+    "formatter_keywordCase": "Casse des mots-clés",
+    "formatter_keywordCaseDesc": "Comment les mots-clés SQL (SELECT, FROM, WHERE) sont capitalisés après le formatage.",
+    "formatter_functionCase": "Casse des fonctions",
+    "formatter_functionCaseDesc": "Comment les noms de fonctions (COUNT, SUM, COALESCE) sont capitalisés après le formatage.",
+    "formatter_indentStyle": "Style d’indentation",
+    "formatter_indentStyleDesc": "Standard indente normalement. Tabulaire aligne les clauses en colonnes.",
+    "formatter_tabWidth": "Largeur d’indentation",
+    "formatter_useTabs": "Utiliser des tabulations",
+    "formatter_useTabsDesc": "Indenter avec des tabulations au lieu d’espaces.",
+    "formatter_linesBetweenQueries": "Lignes entre requêtes",
+    "formatter_linesBetweenQueriesDesc": "Nombre de lignes vides entre les instructions SQL séparées.",
+    "formatter_denseOperators": "Opérateurs compacts",
+    "formatter_denseOperatorsDesc": "Supprimer les espaces autour des opérateurs (ex. a=1 au lieu de a = 1).",
     "editConfigJson": "Modifier config.json",
     "editConfigJsonDesc": "Modifiez directement le fichier de configuration brut. Un redémarrage est nécessaire pour appliquer les changements.",
     "configJsonModal": {
@@ -445,6 +482,7 @@
     },
     "language": "Langue",
     "languageDesc": "Choisissez votre langue préférée. \"Auto\" utilisera la langue de votre système.",
+    "languageSearch": "Rechercher une langue...",
     "auto": "Auto (Système)",
     "timezone": "Fuseau horaire",
     "timezoneDesc": "Fuseau horaire utilisé pour afficher les horodatages et les exports. « Auto » suit le fuseau horaire de votre système.",
@@ -628,6 +666,10 @@
         "copy": "Copier",
         "copied": "Copié !"
       },
+      "uninstallError": {
+        "title": "Échec de la désinstallation",
+        "subtitle": "Une erreur s’est produite lors de la désinstallation du plugin. Voir les détails ci-dessous."
+      },
       "startError": {
         "title": "Échec de démarrage du plugin",
         "subtitle": "Le processus du plugin n’a pas pu être lancé. Vérifiez les détails de l’erreur ci-dessous.",
@@ -666,7 +708,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "Propulsé par",
+      "openHomepage": "Ouvrir la page"
     },
     "shortcuts": {
       "title": "Raccourcis clavier",
@@ -677,9 +721,12 @@
       },
       "runQuery": "Exécuter la requête",
       "runQueryEditor": "Exécuter la requête (dans l’éditeur)",
+      "runAll": "Exécuter toutes les instructions",
+      "runAllEditor": "Exécuter toutes les instructions (dans l’éditeur)",
       "tabSwitcher": "Changer d’onglet",
       "copySelection": "Copier la sélection",
       "toggleSidebar": "Afficher/masquer la barre latérale",
+      "toggleRightSidebar": "Basculer la barre latérale droite",
       "focusTableFilter": "Focaliser le filtre de tables",
       "openConnections": "Ouvrir les connexions",
       "newConnection": "Nouvelle connexion",
@@ -697,6 +744,7 @@
       "pasteImportClipboard": "Importer depuis le Presse-papiers",
       "quickNavigator": "Navigateur rapide",
       "triggerSuggestions": "Afficher les suggestions",
+      "formatSql": "Formater SQL",
       "refreshTable": "Actualiser la table"
     },
     "aiActivity": "Activité IA",
@@ -818,6 +866,7 @@
     "filePathPlaceholder": "/chemin/absolu/vers/db.sqlite",
     "folderPathPlaceholder": "/chemin/absolu/vers/dossier",
     "browseFile": "Parcourir le fichier",
+    "createSqliteFile": "Nouveau",
     "browseFolder": "Parcourir le dossier",
     "useSsh": "Utiliser un tunnel SSH",
     "sshHost": "Hôte SSH",
@@ -884,7 +933,8 @@
     "scrollTabsRight": "Défiler les onglets vers la droite",
     "useIamAuth": "Utiliser l'authentification AWS IAM (RDS)",
     "useIamAuthHint": "Le champ mot de passe est traité comme un jeton d'authentification RDS (généré par `aws rds generate-db-auth-token`). Nécessite TLS. Les jetons expirent toutes les 15 minutes.",
-    "useIamAuthTlsRequired": "Activez un mode SSL ci-dessus pour utiliser l'authentification AWS IAM."
+    "useIamAuthTlsRequired": "Activez un mode SSL ci-dessus pour utiliser l'authentification AWS IAM.",
+    "changeDatabase": "Changer de base de données"
   },
   "sshConnections": {
     "title": "Connexions SSH",
@@ -941,6 +991,8 @@
     "copyColumnName": "Copier le nom de colonne",
     "copyColumnNameQuoted": "Copier comme `column`",
     "copyColumnNameTable": "Copier comme table.column",
+    "copyColumnValues": "Copier les valeurs de la colonne",
+    "copyColumnValuesIn": "Copier les valeurs comme liste SQL IN",
     "copyCells": "Copier {{count}} cellule(s)",
     "copyRows": "Copier {{count}} ligne(s)",
     "copied": "Copié dans le presse-papiers",
@@ -988,6 +1040,7 @@
     "noActiveSession": "Aucune session active. Veuillez sélectionner une connexion.",
     "stop": "Arrêter",
     "run": "Exécuter",
+    "runAll": "Tout exécuter",
     "export": "Exporter",
     "connected": "Connecté",
     "disconnected": "Déconnecté",
@@ -1071,10 +1124,14 @@
     "submitChanges": "Soumettre les modifications",
     "rollbackChanges": "Annuler les modifications",
     "applyToAll": "Appliquer à tout",
+    "submit": "Soumettre",
+    "rollback": "Annuler",
+    "pendingCount": "{{count}} en attente",
     "executingQuery": "Exécution de la requête...",
     "exporting": "Exportation...",
     "rowsProcessed": "Lignes traitées",
     "queryParameters": "Paramètres de requête",
+    "formatSql": "Formater SQL",
     "convertToConsole": "Convertir en console",
     "parameters": "Paramètres",
     "paramValuePlaceholder": "Valeur (ex. 'texte' ou 123)",
@@ -1152,7 +1209,59 @@
       "aiAnalysis": "Analyse IA",
       "aiAnalysisTitle": "Analyse IA du plan de requête",
       "aiAnalyzing": "Analyse du plan de requête avec l’IA...",
-      "aiConfigRequired": "Fournisseur IA non configuré. Veuillez aller dans Paramètres > IA."
+      "aiConfigRequired": "Fournisseur IA non configuré. Veuillez aller dans Paramètres > IA.",
+      "selfTime": "Temps propre",
+      "totalTime": "Temps total",
+      "timePerLoop": "Temps par boucle",
+      "selfCost": "Coût propre",
+      "rowsAllLoops": "Lignes (toutes boucles)",
+      "buffers": "Buffers",
+      "metric": "Métrique",
+      "noMetricData": "Ce plan ne contient aucune métrique à représenter.",
+      "diagramView": "Diagramme",
+      "statsView": "Statistiques",
+      "highestSelfCost": "Coût propre le plus élevé",
+      "slowestSelfStep": "Étape la plus lente",
+      "diagnostics": {
+        "title": "Constats",
+        "hotspot": "Point chaud",
+        "hotspotHint": "Cette étape représente une part importante du temps d'exécution total.",
+        "overEstimate": "Plus de lignes que prévu",
+        "overEstimateHint": "Le planificateur en attendait beaucoup moins. Actualisez les statistiques ou vérifiez les prédicats qu'il ne peut pas modéliser.",
+        "underEstimate": "Moins de lignes que prévu",
+        "underEstimateHint": "Le planificateur en attendait beaucoup plus et a peut-être choisi un plan plus lourd que nécessaire.",
+        "diskSort": "Tri sur disque",
+        "diskSortHint": "Le tri a débordé de la mémoire. Un work_mem plus grand le garde en RAM.",
+        "filterLoss": "Le filtre rejette presque tout",
+        "filterLossHint": "Presque toutes les lignes lues ont été rejetées par le filtre. Un index sur le prédicat éviterait ce travail.",
+        "largeSeqScan": "Balayage séquentiel important",
+        "largeSeqScanHint": "La relation entière a été lue. Vérifiez si un index peut satisfaire le prédicat.",
+        "heapFetches": "Nombreux accès au heap",
+        "heapFetchesHint": "Le parcours d'index seul a dû lire la table. Un VACUUM actualise la visibility map.",
+        "workersUnderused": "Moins de workers que prévu",
+        "workersUnderusedHint": "Des workers parallèles ont été demandés mais tous n'ont pas démarré ; le pool était probablement épuisé.",
+        "highLoops": "Exécuté de nombreuses fois",
+        "highLoopsHint": "L'étape a été exécutée une fois par ligne externe, ses valeurs par boucle sont donc des moyennes.",
+        "cacheMiss": "Lu depuis le disque",
+        "cacheMissHint": "La plupart des blocs n'étaient pas dans les shared buffers, l'étape a attendu les E/S.",
+        "neverExecuted": "Jamais exécuté",
+        "neverExecutedHint": "Le planificateur a produit cette étape mais l'exécuteur ne l'a jamais lancée."
+      },
+      "stats": {
+        "nodeCount": "Nœuds",
+        "maxDepth": "Profondeur",
+        "totalSelfTime": "Temps propre total",
+        "neverExecutedNodes": "Jamais exécutés",
+        "byNodeType": "Temps par opération",
+        "byRelation": "Relations accédées",
+        "byIndex": "Index utilisés",
+        "count": "Nombre",
+        "share": "Part",
+        "accesses": "Accès",
+        "operations": "Opérations",
+        "indexName": "Index",
+        "scans": "Parcours"
+      }
     },
     "notebook": {
       "addSqlCell": "Ajouter une cellule SQL",
@@ -1376,12 +1485,18 @@
     "noConnectionDesc": "Impossible d’afficher le diagramme sans ID de connexion.",
     "switchToVertical": "Passer en disposition verticale",
     "switchToHorizontal": "Passer en disposition horizontale",
+    "lockNodes": "Verrouiller la position des nœuds",
+    "unlockNodes": "Déverrouiller les nœuds pour les déplacer",
     "vertical": "Verticale",
     "horizontal": "Horizontale",
     "showAllTables": "Afficher toutes les tables",
     "showAll": "Tout afficher",
     "focusedOn": "Focalisé sur",
-    "focusOnTable": "Focaliser sur la table"
+    "focusOnTable": "Focaliser sur la table",
+    "exportMermaid": "Exporter en diagramme Mermaid",
+    "exportSuccess": "Diagramme exporté",
+    "exportDbml": "Exporter en DBML",
+    "export": "Exporter"
   },
   "views": {
     "createView": "Créer une vue",
@@ -1476,7 +1591,6 @@
     "errorNoTables": "Veuillez sélectionner au moins une table",
     "importStarted": "Import démarré...",
     "importSuccess": "Fichier SQL exécuté avec succès",
-    "importFailure": "Échec de l’import : ",
     "importCancelled": "Import annulé",
     "importFailed": "Échec de l’import",
     "importingFrom": "Import depuis",
@@ -1536,7 +1650,14 @@
     "subtitle": "Ligne n°{{row}}",
     "save": "Enregistrer les modifications",
     "cancel": "Annuler",
-    "enterValue": "Saisir une valeur..."
+    "enterValue": "Saisir une valeur...",
+    "pin": "Épingler",
+    "unpin": "Désépingler"
+  },
+  "rightSidebar": {
+    "resize": "Redimensionner",
+    "collapse": "Réduire",
+    "expand": "Développer"
   },
   "contextMenu": {
     "openSidebar": "Ouvrir l’éditeur latéral",
@@ -1828,7 +1949,17 @@
       "resourceTypeInvalid": "Le type de ressource doit être \"service\" ou \"pod\"",
       "resourceNameRequired": "Le nom de la ressource est requis",
       "portInvalid": "Le port doit être compris entre 1 et 65535"
-    }
+    },
+    "advancedSettings": "Paramètres kubectl avancés",
+    "kubectlPath": "Chemin de kubectl",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "Chemin du kubeconfig",
+    "kubeconfigPathPlaceholder": "Chemin vers le kubeconfig",
+    "pathValidationFailed": "Corrigez les champs de chemin Kubernetes avancés non valides avant de continuer.",
+    "pathSelectionReset": "Les chemins Kubernetes avancés ont changé. Choisissez à nouveau le contexte, le namespace et la ressource.",
+    "noContexts": "Aucun contexte disponible",
+    "noNamespaces": "Aucun namespace disponible",
+    "noResources": "Aucune ressource disponible"
   },
   "routines": {
     "menuRun": "Exécuter…",
@@ -1862,5 +1993,46 @@
   "miniGrid": {
     "runningQuery": "Exécution de la requête...",
     "copyAll": "Tout copier"
+  },
+  "deepLink": {
+    "installTitle": "Installer un plugin depuis le registre",
+    "installSubtitle": "Un registre Tabularium demande à Tabularis d'installer un plugin.",
+    "plugin": "Plugin",
+    "version": "Version",
+    "registry": "Registre",
+    "latest": "Dernière",
+    "installConfirm": "Installer",
+    "installing": "Installation…",
+    "loadingPreview": "Chargement des détails…",
+    "usingConfigured": "registre configuré",
+    "mismatchTitle": "Registre différent de celui configuré",
+    "mismatchBody": "Votre registre configuré est {{configured}}. Le lien pointe ailleurs — vérifiez avant de continuer.",
+    "updateConfirm": "Mettre à jour vers v{{version}}",
+    "alreadyInstalled": "La version {{version}} est déjà installée."
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "Rechercher des bases de données…",
+    "clearSearch": "Effacer la recherche",
+    "verified": "Vérifié",
+    "installed": "Installé",
+    "install": "Installer",
+    "clear": "Effacer",
+    "registryOffline": "Registre inaccessible — affichage des pilotes installés et intégrés uniquement.",
+    "noMatches": "Aucune base de données ne correspond à vos filtres.",
+    "clearFilters": "Effacer les filtres",
+    "driverCount_one": "{{count}} pilote",
+    "driverCount_other": "{{count}} pilotes",
+    "connectTo": "Se connecter à {{name}}",
+    "unavailableOnPlatform": "Indisponible sur votre plateforme",
+    "backToCatalogue": "Retour au catalogue",
+    "pickDriver": "Plusieurs pilotes se connectent à {{name}}. Choisissez-en un :",
+    "latestVersion": "Dernière v{{version}}",
+    "continue": "Continuer",
+    "noReleaseTitle": "Pas encore de version installable pour votre plateforme.",
+    "noReleaseBody": "Ce pilote n'a pas de build téléchargeable pour votre SE/architecture. Consultez le registre pour une version mise à jour.",
+    "notInstalled": "Ce pilote n'est pas encore installé. Installez-le pour configurer une connexion.",
+    "installVersion": "Installer v{{version}}",
+    "installingVersion": "Installation de v{{version}}…",
+    "retryInstall": "Réessayer l'installation"
   }
 }

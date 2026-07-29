@@ -51,9 +51,11 @@ export function partitionConnections(connections: ConnectionStatus[]): {
 
 /** CSS class for the connection button in the narrow sidebar */
 export function getConnectionItemClass(isActive: boolean): string {
+  // Active state is conveyed by the enlarged driver badge + rail indicator,
+  // not by a button background
   return isActive
-    ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/40'
-    : 'text-secondary hover:bg-surface-secondary hover:text-primary';
+    ? 'text-blue-400'
+    : 'text-secondary hover:text-primary';
 }
 
 /** CSS class for the status dot inside the connection button */

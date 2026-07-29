@@ -72,7 +72,7 @@ export const AiExplainModal = ({ isOpen, onClose, query }: AiExplainModalProps) 
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} overlayClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-elevated border border-strong rounded-xl w-[700px] shadow-2xl flex flex-col max-h-[85vh]">
+      <div className="bg-elevated border border-strong rounded-xl w-[700px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
         
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default">

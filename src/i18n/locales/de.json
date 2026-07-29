@@ -150,6 +150,8 @@
     "noTablesMatch": "Keine passende Tabelle",
     "filterDatabases": "Datenbanken filtern...",
     "manageDatabases": "Datenbanken verwalten",
+    "databaseSelectionUpdated": "Datenbankauswahl aktualisiert",
+    "droppedDatabasesRemoved": "Entfernt, da nicht mehr auf dem Server vorhanden: {{names}}",
     "structure": "Struktur",
     "favorites": "Favoriten",
     "queryHistory": "Verlauf",
@@ -184,7 +186,12 @@
       "delete": "Löschen",
       "deleteConfirm": "Notebook \"{{title}}\" löschen? Dies kann nicht rückgängig gemacht werden.",
       "renamePlaceholder": "Notebook-Name"
-    }
+    },
+    "addToSplitGroup": "Zur geteilten Gruppe hinzufügen",
+    "removeFromSplitGroup": "Aus der Gruppe entfernen",
+    "movePanel": "Panel verschieben",
+    "refreshDatabaseList": "Datenbankliste aktualisieren",
+    "databaseListUpToDate": "Datenbankliste ist aktuell"
   },
   "mcp": {
     "title": "MCP-Server-Integration",
@@ -235,6 +242,12 @@
   "connections": {
     "title": "Verbindungen",
     "addConnection": "Verbindung hinzufügen",
+    "newSqliteDatabase": {
+      "menuLabel": "Neue SQLite-Datenbank…",
+      "dialogTitle": "Neue SQLite-Datenbank",
+      "fileType": "SQLite-Datenbank",
+      "error": "SQLite-Datenbank konnte nicht erstellt werden"
+    },
     "noConnections": "Keine aktiven Verbindungen",
     "createFirst": "Erstelle deine erste Verbindung",
     "active": "Aktiv",
@@ -371,6 +384,13 @@
     "csvHeaders": "Spaltennamen exportieren",
     "detectJsonInTextColumns": "JSON in Text-Spalten erkennen",
     "detectJsonInTextColumnsDesc": "Zeigt JSON-Viewer-Bedienelemente, wenn eine nicht typisierte Text-Zelle ein JSON-Objekt oder -Array enthält. Verursacht kleine Parse-Kosten pro Zelle.",
+    "rowEditorFollowSelection": "Zeileneditor folgt der Auswahl",
+    "rowEditorFollowSelectionDesc": "Wenn die Zeileneditor-Seitenleiste geöffnet ist, wird sie automatisch aktualisiert, um die neu ausgewählte Zeile anzuzeigen.",
+    "cellDoubleClickAction": "Doppelklick-Aktion für Zellen",
+    "cellDoubleClickActionDesc": "Wählen Sie, was beim Doppelklick auf eine Datenzelle passiert.",
+    "cellDoubleClickInline": "Inline-Bearbeitung",
+    "cellDoubleClickSidebar": "In Seitenleiste öffnen",
+    "cellDoubleClickBoth": "Beides",
     "appearance": "Darstellung",
     "localization": "Lokalisierung",
     "themeSelection": "Themaauswahl",
@@ -402,6 +422,23 @@
     "appearance_editorShowLineNumbersDesc": "Zeigt Zeilennummern im Rand des Editors an.",
     "appearance_editorAcceptSuggestionOnEnter": "Vorschlag mit Eingabetaste übernehmen",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Erlaubt der Eingabetaste (zusätzlich zu Tab), den aktiven Autovervollständigungsvorschlag zu übernehmen. Bei deaktivierter Option fügt Enter immer einen Zeilenumbruch ein.",
+    "queryExecution": "Abfrageausführung",
+    "runStatementUnderCursor": "Anweisung unter dem Cursor ausführen",
+    "runStatementUnderCursorDesc": "Wenn ein Skript mehrere Anweisungen enthält, wird die Anweisung unter dem Cursor ausgeführt, statt die Abfrageauswahl anzuzeigen. Markiere Text, um einen bestimmten Bereich auszuführen.",
+    "formatter_title": "SQL-Formatierung",
+    "formatter_keywordCase": "Schlüsselwort-Schreibweise",
+    "formatter_keywordCaseDesc": "Groß-/Kleinschreibung von SQL-Schlüsselwörtern (SELECT, FROM, WHERE) nach der Formatierung.",
+    "formatter_functionCase": "Funktions-Schreibweise",
+    "formatter_functionCaseDesc": "Groß-/Kleinschreibung von Funktionsnamen (COUNT, SUM, COALESCE) nach der Formatierung.",
+    "formatter_indentStyle": "Einrückungsstil",
+    "formatter_indentStyleDesc": "Standard rückt normal ein. Tabellarisch richtet Klauseln in Spalten aus.",
+    "formatter_tabWidth": "Einrückungsbreite",
+    "formatter_useTabs": "Tabs verwenden",
+    "formatter_useTabsDesc": "Mit Tabs statt Leerzeichen einrücken.",
+    "formatter_linesBetweenQueries": "Zeilen zwischen Abfragen",
+    "formatter_linesBetweenQueriesDesc": "Anzahl der Leerzeilen zwischen separaten SQL-Anweisungen.",
+    "formatter_denseOperators": "Kompakte Operatoren",
+    "formatter_denseOperatorsDesc": "Leerzeichen um Operatoren entfernen (z.B. a=1 statt a = 1).",
     "editConfigJson": "config.json bearbeiten",
     "editConfigJsonDesc": "Bearbeite die rohe Konfigurationsdatei direkt. Ein Neustart ist erforderlich, um Änderungen anzuwenden.",
     "configJsonModal": {
@@ -415,6 +452,7 @@
     },
     "language": "Sprache",
     "languageDesc": "Wähle deine bevorzugte Sprache. \"Auto\" verwendet die Systemsprache.",
+    "languageSearch": "Sprachen durchsuchen...",
     "auto": "Auto (System)",
     "english": "Englisch",
     "italian": "Italienisch",
@@ -595,6 +633,10 @@
         "copy": "Kopieren",
         "copied": "Kopiert!"
       },
+      "uninstallError": {
+        "title": "Deinstallation fehlgeschlagen",
+        "subtitle": "Bei der Deinstallation des Plugins ist ein Fehler aufgetreten. Siehe Details unten."
+      },
       "startError": {
         "title": "Plugin konnte nicht gestartet werden",
         "subtitle": "Der Plugin-Prozess konnte nicht gestartet werden. Prüfe die Fehlerdetails unten.",
@@ -633,7 +675,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "Bereitgestellt von",
+      "openHomepage": "Homepage öffnen"
     },
     "shortcuts": {
       "title": "Tastenkürzel",
@@ -644,9 +688,12 @@
       },
       "runQuery": "Abfrage ausführen",
       "runQueryEditor": "Abfrage ausführen (im Editor)",
+      "runAll": "Alle Anweisungen ausführen",
+      "runAllEditor": "Alle Anweisungen ausführen (im Editor)",
       "tabSwitcher": "Tab wechseln",
       "copySelection": "Auswahl kopieren",
       "toggleSidebar": "Seitenleiste umschalten",
+      "toggleRightSidebar": "Rechte Seitenleiste umschalten",
       "focusTableFilter": "Tabellenfilter fokussieren",
       "openConnections": "Verbindungen öffnen",
       "newConnection": "Neue Verbindung",
@@ -663,6 +710,7 @@
       "pasteImportClipboard": "Aus Zwischenablage importieren",
       "quickNavigator": "Schnellnavigation",
       "triggerSuggestions": "Vorschläge anzeigen",
+      "formatSql": "SQL formatieren",
       "refreshTable": "Tabelle aktualisieren"
     },
     "aiActivity": "KI-Aktivität",
@@ -784,6 +832,7 @@
     "filePathPlaceholder": "/absoluter/pfad/zu/db.sqlite",
     "folderPathPlaceholder": "/absoluter/pfad/zum/ordner",
     "browseFile": "Datei auswählen",
+    "createSqliteFile": "Neu",
     "browseFolder": "Ordner auswählen",
     "useSsh": "SSH-Tunnel verwenden",
     "sshHost": "SSH-Host",
@@ -850,7 +899,8 @@
     "scrollTabsRight": "Registerkarten nach rechts blättern",
     "useIamAuth": "AWS-IAM-Authentifizierung verwenden (RDS)",
     "useIamAuthHint": "Das Passwortfeld wird als RDS-Auth-Token verwendet (aus `aws rds generate-db-auth-token`). Erfordert TLS. Tokens laufen alle 15 Minuten ab.",
-    "useIamAuthTlsRequired": "Aktiviere oben einen SSL-Modus, um die AWS-IAM-Authentifizierung zu nutzen."
+    "useIamAuthTlsRequired": "Aktiviere oben einen SSL-Modus, um die AWS-IAM-Authentifizierung zu nutzen.",
+    "changeDatabase": "Datenbank ändern"
   },
   "sshConnections": {
     "title": "SSH-Verbindungen",
@@ -972,6 +1022,7 @@
     "noActiveSession": "Keine aktive Sitzung. Bitte wähle eine Verbindung aus.",
     "stop": "Stopp",
     "run": "Ausführen",
+    "runAll": "Alle ausführen",
     "export": "Exportieren",
     "connected": "Verbunden",
     "disconnected": "Getrennt",
@@ -1035,10 +1086,14 @@
     "submitChanges": "Änderungen übernehmen",
     "rollbackChanges": "Änderungen zurückrollen",
     "applyToAll": "Auf alle anwenden",
+    "submit": "Übernehmen",
+    "rollback": "Zurückrollen",
+    "pendingCount": "{{count}} ausstehend",
     "executingQuery": "Abfrage wird ausgeführt...",
     "exporting": "Wird exportiert...",
     "rowsProcessed": "Verarbeitete Zeilen",
     "queryParameters": "Abfrageparameter",
+    "formatSql": "SQL formatieren",
     "convertToConsole": "In Konsole umwandeln",
     "parameters": "Parameter",
     "paramValuePlaceholder": "Wert (z. B. 'Text' oder 123)",
@@ -1116,7 +1171,59 @@
       "aiAnalysis": "KI-Analyse",
       "aiAnalysisTitle": "KI-Analyse des Abfrageplans",
       "aiAnalyzing": "Abfrageplan wird mit KI analysiert...",
-      "aiConfigRequired": "KI-Anbieter nicht konfiguriert. Bitte gehe zu Einstellungen > KI."
+      "aiConfigRequired": "KI-Anbieter nicht konfiguriert. Bitte gehe zu Einstellungen > KI.",
+      "selfTime": "Eigenzeit",
+      "totalTime": "Gesamtzeit",
+      "timePerLoop": "Zeit pro Durchlauf",
+      "selfCost": "Eigenkosten",
+      "rowsAllLoops": "Zeilen (alle Durchläufe)",
+      "buffers": "Puffer",
+      "metric": "Metrik",
+      "noMetricData": "Dieser Plan enthält keine darstellbaren Messwerte.",
+      "diagramView": "Diagramm",
+      "statsView": "Statistik",
+      "highestSelfCost": "Höchste Eigenkosten",
+      "slowestSelfStep": "Langsamster Schritt",
+      "diagnostics": {
+        "title": "Befunde",
+        "hotspot": "Hotspot",
+        "hotspotHint": "Dieser Schritt beansprucht einen großen Teil der Gesamtlaufzeit.",
+        "overEstimate": "Mehr Zeilen als geplant",
+        "overEstimateHint": "Der Planer erwartete deutlich weniger Zeilen. Statistiken aktualisieren oder Prädikate prüfen, die er nicht abbilden kann.",
+        "underEstimate": "Weniger Zeilen als geplant",
+        "underEstimateHint": "Der Planer erwartete deutlich mehr Zeilen und hat möglicherweise einen aufwendigeren Plan gewählt als nötig.",
+        "diskSort": "Sortierung auf Platte",
+        "diskSortHint": "Die Sortierung passte nicht in den Speicher. Ein größeres work_mem hält sie im RAM.",
+        "filterLoss": "Filter verwirft fast alles",
+        "filterLossHint": "Nahezu alle gelesenen Zeilen wurden vom Filter verworfen. Ein Index auf dem Prädikat würde die Arbeit vermeiden.",
+        "largeSeqScan": "Großer sequenzieller Scan",
+        "largeSeqScanHint": "Die gesamte Relation wurde gelesen. Prüfen, ob ein Index das Prädikat erfüllen kann.",
+        "heapFetches": "Viele Heap-Zugriffe",
+        "heapFetchesHint": "Der Index-Only-Scan musste doch auf die Tabelle zugreifen. VACUUM aktualisiert die Visibility Map.",
+        "workersUnderused": "Weniger Worker als geplant",
+        "workersUnderusedHint": "Parallele Worker wurden angefordert, aber nicht alle gestartet; der Worker-Pool war wahrscheinlich erschöpft.",
+        "highLoops": "Sehr oft ausgeführt",
+        "highLoopsHint": "Der Schritt lief einmal pro äußerer Zeile, die Werte pro Durchlauf sind daher Mittelwerte.",
+        "cacheMiss": "Von Platte gelesen",
+        "cacheMissHint": "Die meisten Blöcke lagen nicht in den Shared Buffers, der Schritt wartete auf I/O.",
+        "neverExecuted": "Nie ausgeführt",
+        "neverExecutedHint": "Der Planer erzeugte diesen Schritt, der Executor führte ihn nie aus."
+      },
+      "stats": {
+        "nodeCount": "Knoten",
+        "maxDepth": "Tiefe",
+        "totalSelfTime": "Gesamte Eigenzeit",
+        "neverExecutedNodes": "Nie ausgeführt",
+        "byNodeType": "Zeit je Operation",
+        "byRelation": "Zugegriffene Relationen",
+        "byIndex": "Verwendete Indizes",
+        "count": "Anzahl",
+        "share": "Anteil",
+        "accesses": "Zugriffe",
+        "operations": "Operationen",
+        "indexName": "Index",
+        "scans": "Scans"
+      }
     },
     "notebook": {
       "addSqlCell": "SQL-Zelle hinzufügen",
@@ -1340,12 +1447,18 @@
     "noConnectionDesc": "Diagramm kann ohne Verbindungs-ID nicht angezeigt werden.",
     "switchToVertical": "Zum vertikalen Layout wechseln",
     "switchToHorizontal": "Zum horizontalen Layout wechseln",
+    "lockNodes": "Knotenpositionen sperren",
+    "unlockNodes": "Knoten zum Verschieben entsperren",
     "vertical": "Vertikal",
     "horizontal": "Horizontal",
     "showAllTables": "Alle Tabellen anzeigen",
     "showAll": "Alle anzeigen",
     "focusedOn": "Fokussiert auf",
-    "focusOnTable": "Auf Tabelle fokussieren"
+    "focusOnTable": "Auf Tabelle fokussieren",
+    "exportMermaid": "Als Mermaid-Diagramm exportieren",
+    "exportSuccess": "Diagramm exportiert",
+    "exportDbml": "Als DBML exportieren",
+    "export": "Exportieren"
   },
   "views": {
     "createView": "Ansicht erstellen",
@@ -1412,7 +1525,6 @@
     "errorNoTables": "Bitte wähle mindestens eine Tabelle",
     "importStarted": "Import gestartet...",
     "importSuccess": "SQL-Datei erfolgreich ausgeführt",
-    "importFailure": "Import fehlgeschlagen: ",
     "importCancelled": "Import abgebrochen",
     "importFailed": "Import fehlgeschlagen",
     "importingFrom": "Importiere aus",
@@ -1460,7 +1572,14 @@
     "subtitle": "Zeile #{{row}}",
     "save": "Änderungen speichern",
     "cancel": "Abbrechen",
-    "enterValue": "Wert eingeben..."
+    "enterValue": "Wert eingeben...",
+    "pin": "An Zeile anheften",
+    "unpin": "Von Zeile lösen"
+  },
+  "rightSidebar": {
+    "resize": "Seitenleiste skalieren",
+    "collapse": "Rechte Seitenleiste einklappen",
+    "expand": "Rechte Seitenleiste ausklappen"
   },
   "contextMenu": {
     "openSidebar": "Seitenleisten-Editor öffnen",
@@ -1752,7 +1871,17 @@
       "resourceTypeInvalid": "Der Ressourcentyp muss \"service\" oder \"pod\" sein",
       "resourceNameRequired": "Der Ressourcenname ist erforderlich",
       "portInvalid": "Der Port muss zwischen 1 und 65535 liegen"
-    }
+    },
+    "advancedSettings": "Erweiterte kubectl-Einstellungen",
+    "kubectlPath": "kubectl-Pfad",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "Kubeconfig-Pfad",
+    "kubeconfigPathPlaceholder": "Pfad zur kubeconfig",
+    "pathValidationFailed": "Korrigiere ungültige erweiterte Kubernetes-Pfadfelder, bevor du fortfährst.",
+    "pathSelectionReset": "Die erweiterten Kubernetes-Pfade haben sich geändert. Wähle Kontext, Namespace und Ressource erneut aus.",
+    "noContexts": "Keine Kontexte verfügbar",
+    "noNamespaces": "Keine Namespaces verfügbar",
+    "noResources": "Keine Ressourcen verfügbar"
   },
   "routines": {
     "menuRun": "Ausführen…",
@@ -1786,5 +1915,46 @@
   "miniGrid": {
     "runningQuery": "Abfrage wird ausgeführt...",
     "copyAll": "Alles kopieren"
+  },
+  "deepLink": {
+    "installTitle": "Plugin aus Registry installieren",
+    "installSubtitle": "Eine Tabularium-Registry hat Tabularis gebeten, ein Plugin zu installieren.",
+    "plugin": "Plugin",
+    "version": "Version",
+    "registry": "Registry",
+    "latest": "Neueste",
+    "installConfirm": "Installieren",
+    "installing": "Installiere…",
+    "loadingPreview": "Lade Details…",
+    "usingConfigured": "konfigurierte Registry",
+    "mismatchTitle": "Abweichende Registry",
+    "mismatchBody": "Deine konfigurierte Registry ist {{configured}}. Der Link verweist auf eine andere — bitte vor dem Fortfahren prüfen.",
+    "updateConfirm": "Auf v{{version}} aktualisieren",
+    "alreadyInstalled": "Version {{version}} ist bereits installiert."
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "Datenbanken suchen…",
+    "clearSearch": "Suche löschen",
+    "verified": "Verifiziert",
+    "installed": "Installiert",
+    "install": "Installieren",
+    "clear": "Zurücksetzen",
+    "registryOffline": "Registry nicht erreichbar — es werden nur installierte und integrierte Treiber angezeigt.",
+    "noMatches": "Keine Datenbanken entsprechen deinen Filtern.",
+    "clearFilters": "Filter zurücksetzen",
+    "driverCount_one": "{{count}} Treiber",
+    "driverCount_other": "{{count}} Treiber",
+    "connectTo": "Mit {{name}} verbinden",
+    "unavailableOnPlatform": "Auf deiner Plattform nicht verfügbar",
+    "backToCatalogue": "Zurück zum Katalog",
+    "pickDriver": "Mehrere Treiber verbinden sich mit {{name}}. Wähle einen:",
+    "latestVersion": "Neueste v{{version}}",
+    "continue": "Weiter",
+    "noReleaseTitle": "Noch kein installierbares Release für deine Plattform.",
+    "noReleaseBody": "Für diesen Treiber gibt es keinen herunterladbaren Build für dein Betriebssystem/deine Architektur. Prüfe die Registry auf ein aktualisiertes Release.",
+    "notInstalled": "Dieser Treiber ist noch nicht installiert. Installiere ihn, um eine Verbindung einzurichten.",
+    "installVersion": "v{{version}} installieren",
+    "installingVersion": "v{{version}} wird installiert…",
+    "retryInstall": "Installation wiederholen"
   }
 }

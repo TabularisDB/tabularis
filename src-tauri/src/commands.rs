@@ -11,7 +11,7 @@ use crate::credential_cache;
 use crate::keychain_utils;
 use crate::models::{
     BatchStatementResult, ColumnDefinition, ConnectionGroup, ConnectionParams, ConnectionsFile,
-    ExplainPlan, ExportPayload, ForeignKey, Index, K8sConnection, K8sConnectionInput, QueryResult,
+    ExplainQueryOutput, ExportPayload, ForeignKey, Index, K8sConnection, K8sConnectionInput, QueryResult,
     RoutineInfo, RoutineParameter, SavedConnection, SshConnection, SshConnectionInput, SshTestParams,
     TableColumn, TableInfo, TestConnectionRequest, TriggerInfo,
 };
@@ -208,6 +208,75 @@ fn is_empty_or_whitespace(s: &Option<String>) -> bool {
     s.as_ref().map(|p| p.trim().is_empty()).unwrap_or(true)
 }
 
+/// Reject a connection attempt under AWS IAM auth when neither the raw form
+/// payload nor the expanded params (after SSH/K8s expansion) carry an RDS
+/// auth token. Both `test_connection` and `list_databases` run this guard
+/// before any pool / driver work so the user gets an actionable message
+/// instead of the opaque "Access denied" the server returns on an empty
+/// password.
+fn require_iam_token(
+    iam_auth: bool,
+    request_password: Option<&str>,
+    expanded_password: Option<&str>,
+) -> Result<(), String> {
+    if iam_auth
+        && request_password.unwrap_or("").is_empty()
+        && expanded_password.unwrap_or("").is_empty()
+    {
+        return Err(
+            "AWS IAM authentication is enabled but the password field is empty. \
+             Paste the output of `aws rds generate-db-auth-token` into the \
+             password field and try again. Tokens expire every 15 minutes."
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod require_iam_token_tests {
+    use super::require_iam_token;
+
+    #[test]
+    fn rejects_iam_with_both_passwords_empty() {
+        // The primary case: ad-hoc connection, IAM enabled, nothing in the
+        // form and nothing from the keychain.
+        let err = require_iam_token(true, None, None).unwrap_err();
+        assert!(err.contains("AWS IAM authentication is enabled"));
+        assert!(err.contains("15 minutes"));
+    }
+
+    #[test]
+    fn rejects_iam_with_empty_string_passwords() {
+        // Empty strings (rather than None) must also fail — sqlx stamps
+        // "" as a deliberate "user pressed Enter" password.
+        let err = require_iam_token(true, Some(""), Some("")).unwrap_err();
+        assert!(err.contains("AWS IAM authentication is enabled"));
+    }
+
+    #[test]
+    fn allows_iam_when_request_password_present() {
+        // A freshly pasted RDS auth token in the form is enough; the
+        // expanded (post-SSH/K8s) value is irrelevant.
+        require_iam_token(true, Some("fake-token"), None).unwrap();
+    }
+
+    #[test]
+    fn allows_iam_when_expanded_password_present() {
+        // The expanded value can also satisfy the guard (e.g. an SSH tunnel
+        // wrapper injected it).
+        require_iam_token(true, None, Some("fake-token")).unwrap();
+    }
+
+    #[test]
+    fn non_iam_always_passes() {
+        // Without IAM, an empty password is the caller's problem; the
+        // helper must never reject on its own.
+        require_iam_token(false, None, None).unwrap();
+        require_iam_token(false, Some(""), Some("")).unwrap();
+    }
+}
+
 /// Build the SSH tunnel map key for caching tunnels.
 #[inline]
 fn build_tunnel_map_key(
@@ -240,8 +309,17 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
         .ok_or("Missing K8s resource name")?;
     let port = params.k8s_port.ok_or("Missing K8s port")?;
 
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(
+        params.k8s_kubectl_path.clone(),
+        params.k8s_kubeconfig_path.clone(),
+    );
     let map_key = crate::k8s_tunnel::build_tunnel_key(
-        context, namespace, resource_type, resource_name, port,
+        context,
+        namespace,
+        resource_type,
+        resource_name,
+        port,
+        &options,
     );
 
     // Check for existing tunnel
@@ -263,7 +341,12 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
     );
 
     let tunnel = crate::k8s_tunnel::K8sTunnel::new(
-        context, namespace, resource_type, resource_name, port,
+        context,
+        namespace,
+        resource_type,
+        resource_name,
+        port,
+        &options,
     )
     .map_err(|e| {
         eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);
@@ -410,10 +493,13 @@ pub fn find_connection_by_id<R: Runtime>(
         }
     };
 
-    // Load passwords from keychain if needed, via the in-memory cache.
-    // On a warm cache hit this is a HashMap lookup (nanoseconds); on a cold miss
-    // it calls keychain once and caches the result for all subsequent reads.
-    if conn.params.save_in_keychain.unwrap_or(false) {
+    // Load passwords from keychain via the in-memory cache (warm hit = lookup,
+    // cold miss = keychain call + cache). Skip IAM-auth connections: their
+    // 15-min tokens must come from the `password` field, never the keychain,
+    // so a stale token from an older release can't be surfaced in the modal.
+    if conn.params.save_in_keychain.unwrap_or(false)
+        && !conn.params.use_iam_auth.unwrap_or(false)
+    {
         let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
         match credential_cache::get_db_password_cached(&cache, &conn.id) {
             Ok(pwd) => conn.params.password = Some(pwd),
@@ -531,6 +617,43 @@ pub async fn get_available_databases<R: Runtime>(
 
     let drv = driver_for(&saved_conn.params.driver).await?;
     drv.get_databases(&params).await
+}
+
+#[tauri::command]
+pub async fn set_selected_databases<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    mut databases: Vec<String>,
+) -> Result<(), String> {
+    if databases.is_empty() {
+        return Err("Database selection cannot be empty".to_string());
+    }
+    if databases.iter().any(|db| db.trim().is_empty()) {
+        return Err("Database names cannot be empty".to_string());
+    }
+
+    log::info!(
+        "Persisting database selection for connection {}: {} database(s)",
+        connection_id,
+        databases.len()
+    );
+
+    let path = get_config_path(&app)?;
+    let mut conn_file = persistence::load_connections_file(&path)?;
+
+    let conn = conn_file
+        .connections
+        .iter_mut()
+        .find(|c| c.id == connection_id)
+        .ok_or("Connection not found")?;
+
+    conn.params.database = if databases.len() == 1 {
+        crate::models::DatabaseSelection::Single(databases.remove(0))
+    } else {
+        crate::models::DatabaseSelection::Multiple(databases)
+    };
+
+    save_connections_and_invalidate(&app, &path, &conn_file)
 }
 
 #[tauri::command]
@@ -987,8 +1110,11 @@ pub async fn duplicate_connection<R: Runtime>(
 
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
 
-    // Recover passwords if in keychain (via cache for fast repeat access)
-    if original.params.save_in_keychain.unwrap_or(false) {
+    // Same IAM-auth guard as `find_connection_by_id`: never copy a stale RDS
+    // auth token into a duplicated connection.
+    if original.params.save_in_keychain.unwrap_or(false)
+        && !original.params.use_iam_auth.unwrap_or(false)
+    {
         if let Ok(pwd) = credential_cache::get_db_password_cached(&cache, &original.id) {
             original.params.password = Some(pwd);
         }
@@ -1540,6 +1666,17 @@ pub async fn test_ssh_connection<R: Runtime>(
 // Kubernetes Connections
 // ---------------------------------------------------------------------------
 
+fn validate_k8s_connection_paths(k8s: &K8sConnectionInput) -> Result<(), String> {
+    crate::k8s_tunnel::validate_k8s_path(
+        k8s.kubectl_path.as_deref().unwrap_or_default(),
+        "kubectl",
+    )?;
+    crate::k8s_tunnel::validate_k8s_path(
+        k8s.kubeconfig_path.as_deref().unwrap_or_default(),
+        "kubeconfig",
+    )
+}
+
 /// Load K8s connections synchronously from the config file.
 fn load_k8s_connections_sync<R: Runtime>(
     app: &AppHandle<R>,
@@ -1583,6 +1720,7 @@ pub async fn save_k8s_connection<R: Runtime>(
     app: AppHandle<R>,
     k8s: K8sConnectionInput,
 ) -> Result<K8sConnection, String> {
+    validate_k8s_connection_paths(&k8s)?;
     let path = get_k8s_config_path(&app)?;
     let mut connections: Vec<K8sConnection> = if path.exists() {
         let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
@@ -1600,6 +1738,8 @@ pub async fn save_k8s_connection<R: Runtime>(
         resource_type: k8s.resource_type,
         resource_name: k8s.resource_name,
         port: k8s.port,
+        kubectl_path: k8s.kubectl_path,
+        kubeconfig_path: k8s.kubeconfig_path,
     };
 
     connections.push(connection.clone());
@@ -1616,6 +1756,7 @@ pub async fn update_k8s_connection<R: Runtime>(
     id: String,
     k8s: K8sConnectionInput,
 ) -> Result<K8sConnection, String> {
+    validate_k8s_connection_paths(&k8s)?;
     let path = get_k8s_config_path(&app)?;
     let mut connections: Vec<K8sConnection> = if path.exists() {
         let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
@@ -1637,6 +1778,8 @@ pub async fn update_k8s_connection<R: Runtime>(
         resource_type: k8s.resource_type,
         resource_name: k8s.resource_name,
         port: k8s.port,
+        kubectl_path: k8s.kubectl_path,
+        kubeconfig_path: k8s.kubeconfig_path,
     };
 
     connections[idx] = connection.clone();
@@ -1673,23 +1816,32 @@ pub async fn test_k8s_connection_cmd<R: Runtime>(
     _app: AppHandle<R>,
     context: String,
     namespace: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<String, String> {
-    crate::k8s_tunnel::test_k8s_connection(&context, &namespace)
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
+    crate::k8s_tunnel::test_k8s_connection(&context, &namespace, &options)
 }
 
 #[tauri::command]
 pub async fn get_k8s_contexts_cmd<R: Runtime>(
     _app: AppHandle<R>,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<Vec<String>, String> {
-    crate::k8s_tunnel::get_k8s_contexts()
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
+    crate::k8s_tunnel::get_k8s_contexts(&options)
 }
 
 #[tauri::command]
 pub async fn get_k8s_namespaces_cmd<R: Runtime>(
     _app: AppHandle<R>,
     context: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<Vec<String>, String> {
-    crate::k8s_tunnel::get_k8s_namespaces(&context)
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
+    crate::k8s_tunnel::get_k8s_namespaces(&context, &options)
 }
 
 #[tauri::command]
@@ -1698,8 +1850,11 @@ pub async fn get_k8s_resources_cmd<R: Runtime>(
     context: String,
     namespace: String,
     resource_type: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<Vec<String>, String> {
-    crate::k8s_tunnel::get_k8s_resources(&context, &namespace, &resource_type)
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
+    crate::k8s_tunnel::get_k8s_resources(&context, &namespace, &resource_type, &options)
 }
 
 #[tauri::command]
@@ -1709,13 +1864,26 @@ pub async fn get_k8s_resource_ports_cmd<R: Runtime>(
     namespace: String,
     resource_type: String,
     resource_name: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<Vec<u16>, String> {
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
     crate::k8s_tunnel::get_k8s_resource_ports(
         &context,
         &namespace,
         &resource_type,
         &resource_name,
+        &options,
     )
+}
+
+#[tauri::command]
+pub async fn validate_k8s_path_cmd<R: Runtime>(
+    _app: AppHandle<R>,
+    path: String,
+    kind: String,
+) -> Result<(), String> {
+    crate::k8s_tunnel::validate_k8s_path(&path, &kind)
 }
 
 /// Expand K8s connection params by loading saved config and creating/reusing a tunnel.
@@ -1735,7 +1903,7 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
     }
 
     // Resolve K8s params from saved connection if using connection_id
-    let (context, namespace, resource_type, resource_name, port) =
+    let (context, namespace, resource_type, resource_name, port, kubectl_path, kubeconfig_path) =
         if let Some(k8s_id) = &params.k8s_connection_id {
             let k8s_conn = get_k8s_connection_by_id(app, k8s_id).await?;
             (
@@ -1744,6 +1912,8 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
                 k8s_conn.resource_type,
                 k8s_conn.resource_name,
                 k8s_conn.port,
+                k8s_conn.kubectl_path,
+                k8s_conn.kubeconfig_path,
             )
         } else {
             let ctx = params
@@ -1767,18 +1937,28 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
                 .ok_or("Missing K8s resource name")?
                 .to_string();
             let p = params.k8s_port.ok_or("Missing K8s port")?;
-            (ctx, ns, rt, rn, p)
+            (
+                ctx,
+                ns,
+                rt,
+                rn,
+                p,
+                params.k8s_kubectl_path.clone(),
+                params.k8s_kubeconfig_path.clone(),
+            )
         };
 
     let _remote_host = params.host.as_deref().unwrap_or("localhost");
     let _remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
 
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
     let map_key = crate::k8s_tunnel::build_tunnel_key(
         &context,
         &namespace,
         &resource_type,
         &resource_name,
         port,
+        &options,
     );
 
     // Check for existing tunnel
@@ -1813,6 +1993,7 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
         &resource_type,
         &resource_name,
         port,
+        &options,
     )
     .map_err(|e| {
         eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);
@@ -1865,7 +2046,22 @@ pub async fn test_connection<R: Runtime>(
     let mut expanded_params = expand_ssh_connection_params(&app, &request.params).await?;
     expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
 
-    if request.params.password.is_none() && expanded_params.password.is_none() {
+    // AWS RDS IAM auth tokens are short-lived (15 min) and must come from the
+    // password field on every test/connect, never from the keychain. Skip the
+    // keychain fallback so a stale token can't be reused.
+    let iam_auth = expanded_params.use_iam_auth.unwrap_or(false);
+
+    // IAM auth needs an RDS auth token right now. Without this guard the
+    // builder accepts an empty password, the server replies with the opaque
+    // "Access denied (using password: YES)", and the user can't tell whether
+    // the token is missing, wrong, or expired.
+    require_iam_token(
+        iam_auth,
+        request.params.password.as_deref(),
+        expanded_params.password.as_deref(),
+    )?;
+
+    if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
         let saved_conn = match &request.connection_id {
             Some(id) => find_connection_by_id(&app, id).ok(),
             None => None,
@@ -1900,7 +2096,13 @@ pub async fn test_connection<R: Runtime>(
         }
     }
 
-    drv.test_connection(&resolved_params).await?;
+    drv.test_connection(&resolved_params).await.map_err(|e| {
+        log::warn!(
+            "Connection test failed for database {}: {e}",
+            request.params.database
+        );
+        e
+    })?;
 
     log::info!(
         "Connection test successful for database: {}",
@@ -2891,7 +3093,18 @@ pub async fn list_databases<R: Runtime>(
     let mut expanded_params = expand_ssh_connection_params(&app, &request.params).await?;
     expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
 
-    if request.params.password.is_none() && expanded_params.password.is_none() {
+    let iam_auth = expanded_params.use_iam_auth.unwrap_or(false);
+
+    // IAM auth needs an RDS auth token right now; skip the keychain fallback
+    // so a stale token can't be reused, and fail fast with an actionable
+    // message if none was supplied.
+    require_iam_token(
+        iam_auth,
+        request.params.password.as_deref(),
+        expanded_params.password.as_deref(),
+    )?;
+
+    if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
         let saved_conn = match &request.connection_id {
             Some(id) => find_connection_by_id(&app, id).ok(),
             None => None,
@@ -3335,6 +3548,40 @@ pub async fn cancel_query(
     cancel_query_impl(&state, &connection_id)
 }
 
+/// Payload for the `database-dropped` event, emitted after a `DROP DATABASE`
+/// statement succeeds so a listener can reconcile the connection's database
+/// selection instead of leaving the dropped database in the sidebar until the
+/// next reconnect (#525).
+// `connectionId` rather than `connection_id`: the `connection-health-failed`
+// event already carries this same field in camelCase, and matching the field
+// name for the same concept matters more than matching the neighbouring
+// `batch-statement-complete` payload, which happens to use snake_case.
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct DatabaseDroppedEvent<'a> {
+    connection_id: &'a str,
+    database: &'a str,
+}
+
+/// Announces that `database` no longer exists on the server behind
+/// `connection_id`. Emitting is best-effort: a listener that missed the event
+/// only means the sidebar stays stale until the next manual refresh, which is
+/// the pre-#525 behaviour, so a failed emit must not fail the query.
+fn emit_database_dropped<R: Runtime>(app: &AppHandle<R>, connection_id: &str, database: &str) {
+    log::info!(
+        "DROP DATABASE detected on connection {}: '{}'",
+        connection_id,
+        database
+    );
+    let _ = app.emit(
+        "database-dropped",
+        DatabaseDroppedEvent {
+            connection_id,
+            database,
+        },
+    );
+}
+
 #[tauri::command]
 pub async fn execute_query<R: Runtime>(
     app: AppHandle<R>,
@@ -3357,6 +3604,10 @@ pub async fn execute_query<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    // Detected before the spawn, which takes ownership of `sanitized_query`.
+    // Cheap: only allocates when the statement really is a DROP DATABASE.
+    let dropped = crate::sql_database_statements::dropped_database(&sanitized_query);
 
     let drv = driver_for(&saved_conn.params.driver).await?;
     let task = tokio::spawn(async move {
@@ -3383,6 +3634,9 @@ pub async fn execute_query<R: Runtime>(
                 "Query executed successfully, returned {} rows",
                 query_result.rows.len()
             );
+            if let Some(database) = &dropped {
+                emit_database_dropped(&app, &connection_id, database);
+            }
             Ok(query_result)
         }
         Ok(Err(e)) => {
@@ -3440,6 +3694,14 @@ pub async fn execute_query_batch<R: Runtime>(
 
     let sanitized_queries: Vec<String> = queries.iter().map(|q| sanitize_user_query(q)).collect();
 
+    // One entry per statement, computed before the spawn takes ownership of
+    // `sanitized_queries`. Index-aligned with the results returned below, the
+    // same assumption the `batch-statement-complete` event already relies on.
+    let dropped_per_statement: Vec<Option<String>> = sanitized_queries
+        .iter()
+        .map(|q| crate::sql_database_statements::dropped_database(q))
+        .collect();
+
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
@@ -3494,6 +3756,16 @@ pub async fn execute_query_batch<R: Runtime>(
                 batch_results.len() - success_count,
                 batch_results.len()
             );
+            // A batch reports per-statement outcomes, so only announce drops
+            // whose own statement succeeded; a failed DROP leaves the database
+            // in place.
+            for (dropped, statement) in dropped_per_statement.iter().zip(&batch_results) {
+                if let Some(database) = dropped {
+                    if statement.result.is_some() {
+                        emit_database_dropped(&app, &connection_id, database);
+                    }
+                }
+            }
             Ok(batch_results)
         }
         Ok(Err(e)) => {
@@ -3517,7 +3789,7 @@ pub async fn explain_query_plan<R: Runtime>(
     query: String,
     analyze: bool,
     schema: Option<String>,
-) -> Result<ExplainPlan, String> {
+) -> Result<ExplainQueryOutput, String> {
     log::info!(
         "Explaining query on connection: {} | analyze: {} | Query: {}",
         connection_id,

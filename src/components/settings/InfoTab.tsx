@@ -24,7 +24,12 @@ import { useUpdate } from "../../hooks/useUpdate";
 import { useChangelog } from "../../hooks/useChangelog";
 import { APP_VERSION } from "../../version";
 import { ROADMAP } from "../../utils/settings";
-import { SettingRow, SettingSection, SettingToggle } from "./SettingControls";
+import {
+  SettingButtonGroup,
+  SettingRow,
+  SettingSection,
+  SettingToggle,
+} from "./SettingControls";
 import { WhatsNewModal } from "../modals/WhatsNewModal";
 import { OpenSourceLibrariesModal } from "../modals/OpenSourceLibrariesModal";
 import { SocialLinks } from "../SocialLinks";
@@ -141,6 +146,26 @@ export function InfoTab() {
             </div>
           ) : (
             <>
+              <SettingRow
+                label={t("settings.releaseChannel")}
+                description={t("settings.releaseChannelDesc")}
+              >
+                <SettingButtonGroup
+                  value={settings.releaseChannel ?? "stable"}
+                  onChange={(v) => updateSetting("releaseChannel", v)}
+                  options={[
+                    { value: "stable", label: t("settings.channelStable") },
+                    { value: "nightly", label: t("settings.channelNightly") },
+                  ]}
+                />
+              </SettingRow>
+
+              {settings.releaseChannel === "nightly" && (
+                <div className="bg-yellow-900/20 border border-yellow-900/50 text-yellow-400 px-4 py-3 rounded-lg text-xs">
+                  {t("update.nightlyWarning")}
+                </div>
+              )}
+
               <SettingRow
                 label={t("settings.autoCheckUpdates")}
                 description={t("settings.autoCheckUpdatesDesc")}

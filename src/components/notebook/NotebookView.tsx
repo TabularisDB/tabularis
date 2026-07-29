@@ -91,7 +91,8 @@ export function NotebookView({
   isActive,
 }: NotebookViewProps) {
   const { t } = useTranslation();
-  const { activeSchema, activeCapabilities, selectedDatabases } = useDatabase();
+  const { activeSchema, activeCapabilities, selectedDatabases, activeDriver } =
+    useDatabase();
   const isMultiDb =
     isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1;
   const effectiveSchema =
@@ -352,6 +353,7 @@ export function NotebookView({
       const { sql: resolvedSql, unresolvedRefs } = resolveQueryVariables(
         sql,
         cellsRef.current,
+        { escapeBackslashes: activeDriver === "mysql" },
       );
 
       if (unresolvedRefs.length > 0) {
@@ -424,6 +426,7 @@ export function NotebookView({
       settings.resultPageSize,
       updateCell,
       params,
+      activeDriver,
       guardDangerousQuery,
     ],
   );

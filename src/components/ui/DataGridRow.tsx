@@ -81,14 +81,7 @@ export interface RowCtx {
       isRawSql?: boolean;
     } | null>
   >;
-  setSidebarRowData: React.Dispatch<
-    React.SetStateAction<{
-      data: Record<string, unknown>;
-      rowIndex: number;
-      focusField?: string;
-    } | null>
-  >;
-  setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  openInSidebar: (rowIndex: number, focusField?: string) => void;
   handleRowClick: (index: number, e: React.MouseEvent) => void;
   handleCellDoubleClick: (
     rowIndex: number,
@@ -124,10 +117,6 @@ export interface RowCtx {
     tempId: string | undefined,
     readOnly: boolean,
   ) => void;
-  buildRowDataWithPending: (
-    rowArray: unknown[],
-    isInsertion: boolean,
-  ) => Record<string, unknown>;
   editInputRef: React.RefObject<HTMLInputElement | null>;
 }
 
@@ -183,8 +172,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
     setFocusedCell,
     setExpandedCell,
     setEditingCell,
-    setSidebarRowData,
-    setSidebarOpen,
+    openInSidebar,
     handleRowClick,
     handleCellDoubleClick,
     handleContextMenu,
@@ -197,7 +185,6 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
     onPendingChange,
     onPendingInsertionChange,
     openJsonViewerWindow,
-    buildRowDataWithPending,
     editInputRef,
   } = ctx;
 
@@ -240,6 +227,11 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
             setFocusedCell(null);
             onForeignKeyHidePanel?.();
             handleRowClick(rowIndex, e);
+          }}
+          onDoubleClick={() => {
+            if (!readonlyProp) {
+              openInSidebar(rowIndex);
+            }
           }}
           className={`px-2 py-1.5 text-xs text-center border-b border-r border-default sticky left-0 z-10 cursor-pointer select-none w-[50px] min-w-[50px] ${
             isInsertion
@@ -407,18 +399,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                             setEditingCell(null);
 
                             // Open sidebar with the current row
-                            const mergedRow = mergedRows[rowIndex];
-                            if (mergedRow) {
-                              setSidebarRowData({
-                                data: buildRowDataWithPending(
-                                  mergedRow.rowData,
-                                  mergedRow.type === "insertion",
-                                ),
-                                rowIndex: rowIndex,
-                                focusField: colName,
-                              });
-                              setSidebarOpen(true);
-                            }
+                            openInSidebar(rowIndex, colName);
                           }}
                           className="w-full bg-base text-primary border-none outline-none p-0 m-0 font-mono"
                         />
@@ -630,18 +611,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                           <button
                             type="button"
                             onClick={() => {
-                              const mergedRow = mergedRows[rowIndex];
-                              if (mergedRow) {
-                                setSidebarRowData({
-                                  data: buildRowDataWithPending(
-                                    mergedRow.rowData,
-                                    mergedRow.type === "insertion",
-                                  ),
-                                  rowIndex,
-                                  focusField: colName,
-                                });
-                                setSidebarOpen(true);
-                              }
+                              openInSidebar(rowIndex, colName);
                             }}
                             className="opacity-0 group-hover/blobcell:opacity-100 transition-opacity p-0.5 rounded text-muted hover:text-secondary hover:bg-surface-tertiary flex-shrink-0"
                             title={t("blobInput.openSidebar")}

@@ -28,11 +28,23 @@ jobs:
             args: "--target x86_64-apple-darwin"
           - platform: "ubuntu-24.04"
             args: ""
+            # Build inside an ubuntu:22.04 container (glibc 2.35) rather than
+            # on the bare ubuntu-24.04 runner (glibc 2.39), so the produced
+            # .deb/.AppImage keep running on older LTS distros. Pinned to the
+            # container image, not the runner, so it's unaffected by GitHub's
+            # eventual deprecation of the ubuntu-22.04 *runner* image.
+            container: "ubuntu:22.04"
           - platform: "windows-latest"
             args: ""
 
     runs-on: ${{ matrix.platform }}
+    container: ${{ matrix.container }}
     steps:
+      - name: Install container prerequisites (ubuntu container only)
+        if: matrix.container
+        run: |
+          apt-get update
+          apt-get install -y git ca-certificates curl
       - name: Resolve build ref + tag
         id: meta
         shell: bash
@@ -57,21 +69,21 @@ jobs:
             fi
           fi
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ steps.meta.outputs.ref }}
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .node-version
           cache: "pnpm"
 
       - name: install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
           # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin' || matrix.platform == 'macos-13' && 'x86_64-apple-darwin' || '' }}
@@ -79,8 +91,8 @@ jobs:
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-24.04'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          apt-get update
+          apt-get install -y \
             build-essential \
             curl \
             wget \
@@ -104,7 +116,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Cache Rust dependencies
-        uses: swatinem/rust-cache@v2.9.1
+        uses: swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           workspaces: src-tauri
 
@@ -117,7 +129,7 @@ jobs:
           echo "${{ secrets.APPLE_API_KEY_CONTENT }}" | base64 --decode > "$RUNNER_TEMP/apple_api_key.p8"
           echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/apple_api_key.p8" >> "$GITHUB_ENV"
 
-      - uses: tauri-apps/tauri-action@v0.6.1
+      - uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa # v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}

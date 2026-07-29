@@ -6,6 +6,9 @@ export interface DriverCapabilities {
   routines: boolean;
   file_based: boolean;
   folder_based: boolean;
+  /** The driver exposes a single implicit database (e.g. a flat search/document
+   * store like Meilisearch). Skips the database tab + database-name field. */
+  single_database?: boolean;
   /** Optional flag to enable/disable connection string import UI for network drivers. Defaults to true when omitted. */
   connection_string?: boolean;
   /** CamelCase alias accepted for plugin compatibility. */
@@ -69,6 +72,11 @@ export interface PluginManifest {
   capabilities: DriverCapabilities;
   /** true for built-in drivers (postgres, mysql, sqlite); false/absent for external plugins */
   is_builtin?: boolean;
+  /** Concrete database engine (registry manifest `engine`). Lets the connection
+   * catalogue place locally-installed, not-yet-published plugins. */
+  engine?: string | null;
+  /** Data-model families, primary first (registry manifest `paradigms`). */
+  paradigms?: string[];
   /** Default username pre-filled in the connection modal (e.g. "postgres", "root") */
   default_username?: string;
   /** CSS hex color for UI accents (e.g. "#f97316"). Undefined falls back to a neutral color. */
@@ -108,6 +116,29 @@ export interface RegistryPluginWithStatus {
   installed_version: string | null;
   update_available: boolean;
   platform_supported: boolean;
+  // Richer Tabularium-only fields. All optional so legacy data still works.
+  icon?: string | null;
+  repo_url?: string | null;
+  kind?: string | null;
+  tags?: string[];
+  category?: string | null;
+  downloads?: number | null;
+  /** Base URL of the registry that served this plugin (e.g. https://registry.spitzli.dev). */
+  registry_base_url?: string | null;
+  /** Concrete database the driver connects to (registry manifest extensions.engine). */
+  engine?: string | null;
+  /** Data-model families, primary first (registry manifest extensions.paradigms). */
+  paradigms?: string[];
+  /** Registry-assigned verification flag. */
+  verified?: boolean;
+  /** Deeplink-only: resolved action for the confirmation modal. */
+  install_action?: "install" | "update" | "up_to_date" | null;
+  /**
+   * Release-integrity signature state for the target version (preview path).
+   * Distinct from `verified` (admin moderation) — this is the cryptographic
+   * signature over the release's asset hashes.
+   */
+  signature?: "verified" | "unsigned" | "invalid" | "unknown" | null;
 }
 
 export interface InstalledPluginInfo {

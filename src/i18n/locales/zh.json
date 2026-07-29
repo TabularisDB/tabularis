@@ -149,6 +149,8 @@
     "noTablesMatch": "无匹配的表",
     "filterDatabases": "筛选数据库...",
     "manageDatabases": "管理数据库",
+    "databaseSelectionUpdated": "数据库选择已更新",
+    "droppedDatabasesRemoved": "已移除服务器上不再存在的数据库：{{names}}",
     "structure": "结构",
     "favorites": "收藏",
     "queryHistory": "历史",
@@ -183,7 +185,12 @@
       "delete": "删除",
       "deleteConfirm": "删除笔记本“{{title}}”？此操作无法撤销。",
       "renamePlaceholder": "笔记本名称"
-    }
+    },
+    "addToSplitGroup": "添加到拆分组",
+    "removeFromSplitGroup": "从组中移除",
+    "movePanel": "移动面板",
+    "refreshDatabaseList": "刷新数据库列表",
+    "databaseListUpToDate": "数据库列表已是最新"
   },
   "mcp": {
     "title": "MCP 服务器集成",
@@ -234,6 +241,12 @@
   "connections": {
     "title": "连接",
     "addConnection": "添加连接",
+    "newSqliteDatabase": {
+      "menuLabel": "新建 SQLite 数据库…",
+      "dialogTitle": "新建 SQLite 数据库",
+      "fileType": "SQLite 数据库",
+      "error": "无法创建 SQLite 数据库"
+    },
     "noConnections": "无活动连接",
     "createFirst": "创建您的第一个连接",
     "active": "活动",
@@ -367,6 +380,13 @@
     "delimiterPipe": "管道符 (|)",
     "csvIncludeHeaders": "包含 CSV 表头",
     "csvIncludeHeadersDesc": "以 CSV 格式复制行时包含含有列名的表头行。",
+    "rowEditorFollowSelection": "行编辑器跟随选择",
+    "rowEditorFollowSelectionDesc": "当行编辑器侧边栏打开时，自动更新以显示新选择的行。",
+    "cellDoubleClickAction": "单元格双击操作",
+    "cellDoubleClickActionDesc": "选择双击数据单元格时执行的操作。",
+    "cellDoubleClickInline": "内联编辑",
+    "cellDoubleClickSidebar": "在侧边栏中打开",
+    "cellDoubleClickBoth": "两者",
     "csvHeaders": "导出列名",
     "detectJsonInTextColumns": "在文本列中检测 JSON",
     "detectJsonInTextColumnsDesc": "当未带类型的文本单元格包含 JSON 对象或数组时显示 JSON 查看器入口。每单元格会增加少量解析开销。",
@@ -388,10 +408,25 @@
     "fontPreviewText": "The quick brown fox jumps over the lazy dog",
     "language": "语言",
     "languageDesc": "选择您的首选语言。自动\"将使用您的系统语言。",
+    "languageSearch": "搜索语言...",
     "auto": "自动（系统）",
     "english": "English",
     "italian": "Italiano",
     "spanish": "Español",
+    "formatter_title": "SQL 格式化",
+    "formatter_keywordCase": "关键字大小写",
+    "formatter_keywordCaseDesc": "格式化后 SQL 关键字（SELECT、FROM、WHERE）的大小写处理。",
+    "formatter_functionCase": "函数大小写",
+    "formatter_functionCaseDesc": "格式化后函数名（COUNT、SUM、COALESCE）的大小写处理。",
+    "formatter_indentStyle": "缩进风格",
+    "formatter_indentStyleDesc": "标准为普通缩进。表格式将子句对齐为列。",
+    "formatter_tabWidth": "缩进宽度",
+    "formatter_useTabs": "使用制表符",
+    "formatter_useTabsDesc": "使用制表符而非空格缩进。",
+    "formatter_linesBetweenQueries": "查询间空行数",
+    "formatter_linesBetweenQueriesDesc": "SQL 语句之间插入的空行数。",
+    "formatter_denseOperators": "紧凑运算符",
+    "formatter_denseOperatorsDesc": "移除运算符周围的空格（例如 a=1 而非 a = 1）。",
     "projectStatus": "项目状态",
     "roadmapDesc": "此项目是正在进行的工作 (WIP)。核心功能已稳定，但我们有更大的计划。",
     "support": "支持开发",
@@ -564,6 +599,10 @@
         "copy": "复制",
         "copied": "已复制！"
       },
+      "uninstallError": {
+        "title": "卸载失败",
+        "subtitle": "卸载插件时发生错误。请参阅下面的详细信息。"
+      },
       "startError": {
         "title": "插件启动失败",
         "subtitle": "无法启动插件进程。请参阅下面的错误详细信息。",
@@ -602,7 +641,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "技术支持：",
+      "openHomepage": "打开主页"
     },
     "shortcuts": {
       "title": "键盘快捷键",
@@ -613,9 +654,12 @@
       },
       "runQuery": "运行查询",
       "runQueryEditor": "运行查询（编辑器中）",
+      "runAll": "运行所有语句",
+      "runAllEditor": "运行所有语句（编辑器中）",
       "tabSwitcher": "切换标签",
       "copySelection": "复制选区",
       "toggleSidebar": "切换侧边栏",
+      "toggleRightSidebar": "切换右侧边栏",
       "focusTableFilter": "聚焦表格筛选",
       "openConnections": "打开连接",
       "newConnection": "新建连接",
@@ -631,6 +675,7 @@
       "categories_notebook": "笔记本",
       "quickNavigator": "快速导航",
       "triggerSuggestions": "触发建议",
+      "formatSql": "格式化 SQL",
       "refreshTable": "刷新表格"
     },
     "aiActivity": "AI 活动",
@@ -681,7 +726,10 @@
       "nextBackup": "下次备份：{{date}}",
       "nextBackupSoon": "下次备份：下次检查时",
       "hours": "小时"
-    }
+    },
+    "queryExecution": "查询执行",
+    "runStatementUnderCursor": "执行光标所在的语句",
+    "runStatementUnderCursorDesc": "当脚本包含多条语句时，执行光标所在的语句，而不显示查询选择器。选中文本可执行指定范围。"
   },
   "update": {
     "newVersionAvailable": "有新版本可用",
@@ -752,6 +800,7 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "浏览文件",
+    "createSqliteFile": "新建",
     "browseFolder": "浏览文件夹",
     "useSsh": "使用 SSH 隧道",
     "sshHost": "SSH 主机",
@@ -818,7 +867,8 @@
     "scrollTabsRight": "向右滚动标签页",
     "useIamAuth": "使用 AWS IAM 身份验证 (RDS)",
     "useIamAuthHint": "密码字段将被视为 RDS 身份验证令牌（由 `aws rds generate-db-auth-token` 生成）。需要 TLS。令牌每 15 分钟过期。",
-    "useIamAuthTlsRequired": "请在上方启用 SSL 模式以使用 AWS IAM 身份验证。"
+    "useIamAuthTlsRequired": "请在上方启用 SSL 模式以使用 AWS IAM 身份验证。",
+    "changeDatabase": "更换数据库"
   },
   "sshConnections": {
     "title": "SSH 连接",
@@ -939,6 +989,7 @@
     "noActiveSession": "无活动会话。请选择一个连接。",
     "stop": "停止",
     "run": "运行",
+    "runAll": "全部运行",
     "export": "导出",
     "connected": "已连接",
     "disconnected": "已断开",
@@ -1001,10 +1052,14 @@
     "submitChanges": "提交更改",
     "rollbackChanges": "回滚更改",
     "applyToAll": "应用到全部",
+    "submit": "提交",
+    "rollback": "回滚",
+    "pendingCount": "{{count}} 待处理",
     "executingQuery": "执行查询中...",
     "exporting": "导出中...",
     "rowsProcessed": "已处理行数",
     "queryParameters": "查询参数",
+    "formatSql": "格式化 SQL",
     "convertToConsole": "转换为控制台",
     "parameters": "参数",
     "paramValuePlaceholder": "值（例如 'text' 或 123）",
@@ -1081,7 +1136,59 @@
       "aiAnalysis": "AI 分析",
       "aiAnalysisTitle": "AI 执行计划分析",
       "aiAnalyzing": "正在使用 AI 分析执行计划...",
-      "aiConfigRequired": "未配置 AI 提供商。请前往 设置 > AI。"
+      "aiConfigRequired": "未配置 AI 提供商。请前往 设置 > AI。",
+      "selfTime": "自身耗时",
+      "totalTime": "总耗时",
+      "timePerLoop": "每次循环耗时",
+      "selfCost": "自身代价",
+      "rowsAllLoops": "行数（所有循环）",
+      "buffers": "缓冲区",
+      "metric": "指标",
+      "noMetricData": "该执行计划没有可绘制的指标数据。",
+      "diagramView": "图表",
+      "statsView": "统计",
+      "highestSelfCost": "自身代价最高",
+      "slowestSelfStep": "最慢步骤",
+      "diagnostics": {
+        "title": "发现",
+        "hotspot": "热点",
+        "hotspotHint": "该步骤占用了总执行时间的很大一部分。",
+        "overEstimate": "行数多于预估",
+        "overEstimateHint": "规划器预估的行数远远偏少。请更新统计信息，或检查它无法建模的过滤条件。",
+        "underEstimate": "行数少于预估",
+        "underEstimateHint": "规划器预估的行数远远偏多，可能因此选择了比需要更重的执行计划。",
+        "diskSort": "磁盘排序",
+        "diskSortHint": "排序超出了内存。增大 work_mem 可让其在内存中完成。",
+        "filterLoss": "过滤条件丢弃了绝大多数行",
+        "filterLossHint": "读取的行几乎全部被过滤条件丢弃。为该条件建立索引可避免这些开销。",
+        "largeSeqScan": "大规模顺序扫描",
+        "largeSeqScanHint": "读取了整个关系。请检查是否有索引能满足该条件。",
+        "heapFetches": "堆访问次数多",
+        "heapFetchesHint": "仅索引扫描仍需回表。执行 VACUUM 可刷新可见性映射。",
+        "workersUnderused": "worker 少于计划",
+        "workersUnderusedHint": "请求了并行 worker，但未全部启动，worker 池可能已耗尽。",
+        "highLoops": "执行次数很多",
+        "highLoopsHint": "该步骤对每一行外层数据执行一次，因此每次循环的数值是平均值。",
+        "cacheMiss": "从磁盘读取",
+        "cacheMissHint": "大部分块不在共享缓冲区中，该步骤在等待 I/O。",
+        "neverExecuted": "未执行",
+        "neverExecutedHint": "规划器生成了该步骤，但执行器从未运行它。"
+      },
+      "stats": {
+        "nodeCount": "节点数",
+        "maxDepth": "深度",
+        "totalSelfTime": "自身耗时合计",
+        "neverExecutedNodes": "未执行",
+        "byNodeType": "按操作统计耗时",
+        "byRelation": "访问的关系",
+        "byIndex": "使用的索引",
+        "count": "数量",
+        "share": "占比",
+        "accesses": "访问次数",
+        "operations": "操作",
+        "indexName": "索引",
+        "scans": "扫描次数"
+      }
     },
     "notebook": {
       "addSqlCell": "添加 SQL 单元格",
@@ -1284,12 +1391,18 @@
     "noConnectionDesc": "无法在没有连接 ID 的情况下显示图表。",
     "switchToVertical": "切换到垂直布局",
     "switchToHorizontal": "切换到水平布局",
+    "lockNodes": "锁定节点位置",
+    "unlockNodes": "解锁节点以移动",
     "vertical": "垂直",
     "horizontal": "水平",
     "showAllTables": "显示所有表",
     "showAll": "显示全部",
     "focusedOn": "聚焦于",
-    "focusOnTable": "聚焦于表"
+    "focusOnTable": "聚焦于表",
+    "exportMermaid": "导出为 Mermaid 图表",
+    "exportSuccess": "图表已导出",
+    "exportDbml": "导出为 DBML",
+    "export": "导出"
   },
   "views": {
     "createView": "创建视图",
@@ -1356,7 +1469,6 @@
     "errorNoTables": "请至少选择一个表",
     "importStarted": "导入开始...",
     "importSuccess": "SQL 文件执行成功",
-    "importFailure": "导入失败：",
     "importCancelled": "导入已取消",
     "importFailed": "导入失败",
     "importingFrom": "从以下文件导入",
@@ -1404,7 +1516,14 @@
     "subtitle": "行 #{{row}}",
     "save": "保存更改",
     "cancel": "取消",
-    "enterValue": "输入值..."
+    "enterValue": "输入值...",
+    "pin": "固定",
+    "unpin": "取消固定"
+  },
+  "rightSidebar": {
+    "resize": "调整大小",
+    "collapse": "折叠",
+    "expand": "展开"
   },
   "contextMenu": {
     "openSidebar": "打开侧边栏编辑器",
@@ -1692,7 +1811,17 @@
       "resourceTypeInvalid": "资源类型必须为 \"service\" 或 \"pod\"",
       "resourceNameRequired": "资源名称为必填项",
       "portInvalid": "端口必须介于 1 和 65535 之间"
-    }
+    },
+    "advancedSettings": "kubectl 高级设置",
+    "kubectlPath": "kubectl 路径",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "kubeconfig 路径",
+    "kubeconfigPathPlaceholder": "kubeconfig 的路径",
+    "pathValidationFailed": "继续前，请修正无效的 Kubernetes 高级路径字段。",
+    "pathSelectionReset": "Kubernetes 高级路径已更改。请重新选择上下文、命名空间和资源。",
+    "noContexts": "没有可用的上下文",
+    "noNamespaces": "没有可用的命名空间",
+    "noResources": "没有可用的资源"
   },
   "routines": {
     "menuRun": "运行…",
@@ -1726,5 +1855,46 @@
   "miniGrid": {
     "runningQuery": "正在执行查询...",
     "copyAll": "全部复制"
+  },
+  "deepLink": {
+    "installTitle": "从注册表安装插件",
+    "installSubtitle": "Tabularium 注册表请求 Tabularis 安装一个插件。",
+    "plugin": "插件",
+    "version": "版本",
+    "registry": "注册表",
+    "latest": "最新",
+    "installConfirm": "安装",
+    "installing": "正在安装…",
+    "loadingPreview": "正在加载详情…",
+    "usingConfigured": "已配置的注册表",
+    "mismatchTitle": "与已配置的注册表不一致",
+    "mismatchBody": "你配置的注册表是 {{configured}}。链接指向其他位置 — 请先确认再继续。",
+    "updateConfirm": "更新到 v{{version}}",
+    "alreadyInstalled": "版本 {{version}} 已安装。"
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "搜索数据库…",
+    "clearSearch": "清除搜索",
+    "verified": "已验证",
+    "installed": "已安装",
+    "install": "安装",
+    "clear": "清除",
+    "registryOffline": "无法访问注册表 — 仅显示已安装和内置的驱动程序。",
+    "noMatches": "没有数据库符合您的筛选条件。",
+    "clearFilters": "清除筛选",
+    "driverCount_one": "{{count}} 个驱动程序",
+    "driverCount_other": "{{count}} 个驱动程序",
+    "connectTo": "连接到 {{name}}",
+    "unavailableOnPlatform": "在您的平台上不可用",
+    "backToCatalogue": "返回目录",
+    "pickDriver": "多个驱动程序可连接到 {{name}}。请选择一个：",
+    "latestVersion": "最新 v{{version}}",
+    "continue": "继续",
+    "noReleaseTitle": "尚无适用于您平台的可安装版本。",
+    "noReleaseBody": "此驱动程序没有适用于您的操作系统/架构的可下载构建。请查看注册表以获取更新版本。",
+    "notInstalled": "此驱动程序尚未安装。请安装以配置连接。",
+    "installVersion": "安装 v{{version}}",
+    "installingVersion": "正在安装 v{{version}}…",
+    "retryInstall": "重试安装"
   }
 }
