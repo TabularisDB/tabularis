@@ -15,6 +15,7 @@ import {
 } from "../../utils/sqlSplitter";
 import { formatSql } from "../../utils/sqlFormat";
 import type { SqlDialect } from "../../utils/sql";
+import type { RunContext } from "../../utils/runTarget";
 
 interface SqlEditorWrapperProps {
   initialValue: string;
@@ -28,6 +29,12 @@ interface SqlEditorWrapperProps {
   dialect?: Dialect | string;
   /** Run the whole editor content (Mod+Shift+Enter). */
   onRunAll?: () => void;
+  /**
+   * Notified whenever what Run would execute changes: whether a selection is
+   * active and how many statements the buffer holds. Lets the toolbar label
+   * the button with its actual target. Requires `dialect`.
+   */
+  onRunContextChange?: (context: RunContext) => void;
 }
 
 // Internal component that resets when key changes
@@ -39,7 +46,8 @@ const SqlEditorInternal = ({
   height = "100%",
   options,
   dialect,
-  onRunAll
+  onRunAll,
+  onRunContextChange
 }: SqlEditorWrapperProps & { editorKey: string }) => {
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
@@ -48,12 +56,20 @@ const SqlEditorInternal = ({
   onRunRef.current = onRun;
   const onRunAllRef = useRef(onRunAll);
   onRunAllRef.current = onRunAll;
+  const onRunContextChangeRef = useRef(onRunContextChange);
+  onRunContextChangeRef.current = onRunContextChange;
+  const lastRunContextRef = useRef<RunContext | null>(null);
+  const refreshRunContextRef = useRef<(() => void) | null>(null);
   const dialectRef = useRef(dialect);
   dialectRef.current = dialect;
-  const lastSplitRef = useRef<{ text: string; statements: Statement[] }>({
-    text: "",
-    statements: [],
-  });
+  // Keyed on the model's version id: cursor and selection events fire per
+  // keystroke and per mouse move during a drag-select, and comparing version
+  // ids skips even the O(n) getValue() that a text-keyed cache would need.
+  const lastSplitRef = useRef<{
+    model: Monaco.editor.ITextModel | null;
+    versionId: number;
+    statements: Statement[];
+  }>({ model: null, versionId: -1, statements: [] });
   const editorTheme = useEditorTheme();
   const { settings } = useSettings();
   const { matchesShortcut } = useKeybindings();
@@ -92,6 +108,16 @@ const SqlEditorInternal = ({
       loadMonacoTheme(editorTheme, monacoRef.current);
     }
   }, [editorTheme]);
+
+  // All editors stay mounted (hidden tabs use display:none) and a hidden
+  // editor's notifications are dropped, so on becoming the active tab the
+  // consumer's run context still describes the previous tab. Re-announce it.
+  useEffect(() => {
+    if (onRunContextChange) {
+      lastRunContextRef.current = null;
+      refreshRunContextRef.current?.();
+    }
+  }, [onRunContextChange]);
 
     const handleChange = useCallback(
       (val: string | undefined) => {
@@ -328,30 +354,54 @@ const SqlEditorInternal = ({
       if (dialectRef.current !== undefined) {
         const decorations = editor.createDecorationsCollection();
 
-        const getStatements = (text: string): Statement[] => {
-          if (lastSplitRef.current.text !== text) {
+        const getStatements = (model: Monaco.editor.ITextModel): Statement[] => {
+          const versionId = model.getVersionId();
+          if (
+            lastSplitRef.current.model !== model ||
+            lastSplitRef.current.versionId !== versionId
+          ) {
             lastSplitRef.current = {
-              text,
-              statements: splitStatements(text, dialectRef.current),
+              model,
+              versionId,
+              statements: splitStatements(model.getValue(), dialectRef.current),
             };
           }
           return lastSplitRef.current.statements;
         };
 
+        // Only fires the callback when the answer actually changes — cursor
+        // selection events arrive on every keystroke and arrow key.
+        const notifyRunContext = (hasSelection: boolean, statementCount: number) => {
+          const previous = lastRunContextRef.current;
+          if (
+            previous &&
+            previous.hasSelection === hasSelection &&
+            previous.statementCount === statementCount
+          ) {
+            return;
+          }
+          lastRunContextRef.current = { hasSelection, statementCount };
+          onRunContextChangeRef.current?.({ hasSelection, statementCount });
+        };
+
         const updateCursorStatementHighlight = () => {
+          const model = editor.getModel();
           const selection = editor.getSelection();
-          if (selection && !selection.isEmpty()) {
+          const hasSelection = !!selection && !selection.isEmpty();
+          const statements = model ? getStatements(model) : [];
+          notifyRunContext(hasSelection, statements.length);
+
+          if (hasSelection) {
             decorations.clear();
             return;
           }
-          const model = editor.getModel();
           const position = editor.getPosition();
           if (!model || !position) {
             decorations.clear();
             return;
           }
           const offset = model.getOffsetAt(position);
-          const statement = findStatementAtOffset(getStatements(model.getValue()), offset);
+          const statement = findStatementAtOffset(statements, offset);
           if (!statement) {
             decorations.clear();
             return;
@@ -373,6 +423,7 @@ const SqlEditorInternal = ({
 
         editor.onDidChangeCursorSelection(updateCursorStatementHighlight);
         editor.onDidChangeModelContent(updateCursorStatementHighlight);
+        refreshRunContextRef.current = updateCursorStatementHighlight;
         updateCursorStatementHighlight();
       }
 

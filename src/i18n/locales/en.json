@@ -1050,6 +1050,8 @@
     "noActiveSession": "No active session. Please select a connection.",
     "stop": "Stop",
     "run": "Run",
+    "runSelection": "Run Selection",
+    "runStatement": "Run Statement",
     "runAll": "Run All",
     "export": "Export",
     "connected": "Connected",
@@ -1911,6 +1913,8 @@
   },
   "aiApproval": {
     "title": "AI requested a database write",
+    "titleRead": "AI requested a database read",
+    "planEstimatedRows": "Estimated rows",
     "subtitle": "On {{connection}} — review and decide before it executes.",
     "subtitleWithClient": "{{client}} on {{connection}} — review and decide before it executes.",
     "query": "Query",

@@ -1040,6 +1040,8 @@
     "noActiveSession": "Aucune session active. Veuillez sélectionner une connexion.",
     "stop": "Arrêter",
     "run": "Exécuter",
+    "runSelection": "Exécuter la sélection",
+    "runStatement": "Exécuter l'instruction",
     "runAll": "Tout exécuter",
     "export": "Exporter",
     "connected": "Connecté",
@@ -1900,6 +1902,8 @@
   },
   "aiApproval": {
     "title": "L'IA veut exécuter une écriture",
+    "titleRead": "L'IA veut exécuter une lecture",
+    "planEstimatedRows": "Lignes estimées",
     "subtitle": "Sur {{connection}} — examinez avant exécution.",
     "subtitleWithClient": "{{client}} sur {{connection}} — examinez avant exécution.",
     "query": "Requête",

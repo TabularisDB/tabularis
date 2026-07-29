@@ -1034,6 +1034,8 @@
     "noActiveSession": "アクティブなセッションがありません。接続を選択してください。",
     "stop": "停止",
     "run": "実行",
+    "runSelection": "選択箇所を実行",
+    "runStatement": "この文を実行",
     "runAll": "すべて実行",
     "export": "エクスポート",
     "connected": "接続済み",
@@ -1840,6 +1842,8 @@
   },
   "aiApproval": {
     "title": "AI がデータベース書き込みを要求しています",
+    "titleRead": "AI がデータベース読み取りを要求しています",
+    "planEstimatedRows": "推定行数",
     "subtitle": "{{connection}} 上 — 実行前に確認して判断してください。",
     "subtitleWithClient": "{{client}} が {{connection}} 上 — 実行前に確認して判断してください。",
     "query": "クエリ",

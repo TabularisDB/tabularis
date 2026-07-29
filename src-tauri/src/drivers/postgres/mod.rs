@@ -419,27 +419,38 @@ pub async fn get_indexes(
 ) -> Result<Vec<Index>, String> {
     let pool = get_postgres_pool(params).await?;
 
+    // Expression index columns have attnum = 0 and match no pg_attribute row, so
+    // walk indkey positionally and read their text from pg_get_indexdef; an inner
+    // join would drop them and hide all-expression indexes.
     let query = r#"
         SELECT
-            i.relname as index_name,
-            a.attname as column_name,
-            ix.indisunique as is_unique,
-            ix.indisprimary as is_primary,
-            array_position(ix.indkey, a.attnum) as seq_in_index
+            i.relname AS index_name,
+            COALESCE(
+                a.attname::text,
+                pg_get_indexdef(ix.indexrelid, k.n::int, true)
+            ) AS column_name,
+            ix.indisunique AS is_unique,
+            ix.indisprimary AS is_primary,
+            k.n::int AS seq_in_index,
+            (k.attnum = 0) AS is_expression
         FROM
             pg_class t
             JOIN pg_namespace n ON t.relnamespace = n.oid
             JOIN pg_index ix ON t.oid = ix.indrelid
             JOIN pg_class i ON i.oid = ix.indexrelid
-            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+            CROSS JOIN LATERAL unnest(string_to_array(ix.indkey::text, ' ')::int2[])
+                WITH ORDINALITY AS k(attnum, n)
+            LEFT JOIN pg_attribute a
+                ON a.attrelid = t.oid
+                AND a.attnum = k.attnum
+                AND k.attnum <> 0
         WHERE
             t.relkind IN ('r', 'm')
             AND n.nspname = $1
             AND t.relname = $2
         ORDER BY
-            t.relname,
             i.relname,
-            seq_in_index
+            k.n
     "#;
 
     let rows = query_all(&pool, &query, &[&schema, &table_name]).await?;
@@ -452,6 +463,7 @@ pub async fn get_indexes(
             is_unique: r.try_get("is_unique").unwrap_or(false),
             is_primary: r.try_get("is_primary").unwrap_or(false),
             seq_in_index: r.try_get("seq_in_index").unwrap_or(0),
+            is_expression: r.try_get("is_expression").unwrap_or(false),
         })
         .collect())
 }

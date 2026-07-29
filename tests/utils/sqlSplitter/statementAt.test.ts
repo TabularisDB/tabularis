@@ -43,11 +43,21 @@ describe('findStatementAtOffset', () => {
     expect(findStatementAtOffset(statements, 100)).toBe(statements[2]);
   });
 
-  it('returns undefined for an offset before the first statement starts', () => {
+  it('resolves an offset before the first statement (leading whitespace/comment) to the first statement', () => {
     const leading = splitStatements('   SELECT 1', 'generic');
     expect(leading[0].range.start).toBe(3);
-    expect(findStatementAtOffset(leading, 0)).toBeUndefined();
-    expect(findStatementAtOffset(leading, 2)).toBeUndefined();
+    expect(findStatementAtOffset(leading, 0)).toBe(leading[0]);
+    expect(findStatementAtOffset(leading, 2)).toBe(leading[0]);
+  });
+
+  it('resolves an offset in blank lines above a multi-statement buffer to the first statement', () => {
+    const leadingBlank = splitStatements('\n\nSELECT 1; SELECT 2', 'generic');
+    expect(leadingBlank).toHaveLength(2);
+    // The offsets below must sit strictly before the first statement, or this
+    // test would pass against the old undefined-returning implementation too.
+    expect(leadingBlank[0].range.start).toBe(2);
+    expect(findStatementAtOffset(leadingBlank, 0)).toBe(leadingBlank[0]);
+    expect(findStatementAtOffset(leadingBlank, 1)).toBe(leadingBlank[0]);
   });
 
   it('returns undefined for an empty statement list', () => {

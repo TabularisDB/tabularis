@@ -509,7 +509,37 @@ pub async fn get_indexes(
     let pool = get_mysql_pool(params).await?;
     let text = resolve_text_proto(&pool, params).await?;
 
-    let query = r#"
+    // MySQL 8.0.13+ exposes functional-index text in STATISTICS.EXPRESSION;
+    // older MySQL and MariaDB lack the column, so probe before selecting it.
+    let has_expression = {
+        let probe = r#"
+            SELECT COUNT(*)
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = 'information_schema'
+            AND TABLE_NAME = 'STATISTICS'
+            AND COLUMN_NAME = 'EXPRESSION'
+        "#;
+        match fetch_one_row(&pool, text, probe, &[]).await {
+            Ok(row) => r_count(&row) > 0,
+            Err(_) => false,
+        }
+    };
+
+    let query = if has_expression {
+        r#"
+        SELECT
+            INDEX_NAME,
+            COLUMN_NAME,
+            NON_UNIQUE,
+            SEQ_IN_INDEX,
+            EXPRESSION
+        FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = ?
+        AND TABLE_NAME = ?
+        ORDER BY INDEX_NAME, SEQ_IN_INDEX
+    "#
+    } else {
+        r#"
         SELECT
             INDEX_NAME,
             COLUMN_NAME,
@@ -519,7 +549,8 @@ pub async fn get_indexes(
         WHERE TABLE_SCHEMA = ?
         AND TABLE_NAME = ?
         ORDER BY INDEX_NAME, SEQ_IN_INDEX
-    "#;
+    "#
+    };
 
     let rows = fetch_all_rows(&pool, text, query, &[db_name, table_name]).await?;
 
@@ -527,16 +558,34 @@ pub async fn get_indexes(
         .iter()
         .map(|r| {
             let index_name = mysql_row_str(r, 0);
+            let column_name = mysql_row_str_opt(r, 1);
             let non_unique: i64 = r.try_get(2).unwrap_or(1);
+            let expression = if has_expression {
+                mysql_row_str_opt(r, 4)
+            } else {
+                None
+            };
+            let is_expression = column_name.is_none() && expression.is_some();
             Index {
                 name: index_name.clone(),
-                column_name: mysql_row_str(r, 1),
+                column_name: if is_expression {
+                    expression.unwrap_or_default()
+                } else {
+                    column_name.unwrap_or_default()
+                },
                 is_unique: non_unique == 0,
                 is_primary: index_name == "PRIMARY",
                 seq_in_index: r.try_get::<i64, _>(3).unwrap_or(0) as i32,
+                is_expression,
             }
         })
         .collect())
+}
+
+/// Read a `COUNT(*)` scalar, tolerating text-protocol (byte string) decoding.
+fn r_count(row: &sqlx::mysql::MySqlRow) -> i64 {
+    row.try_get::<i64, _>(0)
+        .unwrap_or_else(|_| mysql_row_str(row, 0).trim().parse::<i64>().unwrap_or(0))
 }
 
 /// Sort the pk_map into a deterministic (col, val) vec for use with QueryBuilder.

@@ -1899,6 +1899,8 @@
   },
   "aiApproval": {
     "title": "A IA solicitou uma gravação no banco de dados",
+    "titleRead": "A IA solicitou uma leitura no banco de dados",
+    "planEstimatedRows": "Linhas estimadas",
     "subtitle": "Em {{connection}} — revise e decida antes que seja executada.",
     "subtitleWithClient": "{{client}} em {{connection}} — revise e decida antes que seja executada.",
     "query": "Consulta",

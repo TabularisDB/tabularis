@@ -389,6 +389,8 @@ pub struct Index {
     pub is_unique: bool,
     pub is_primary: bool,
     pub seq_in_index: i32,
+    #[serde(default)]
+    pub is_expression: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

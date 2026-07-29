@@ -989,6 +989,8 @@
     "noActiveSession": "无活动会话。请选择一个连接。",
     "stop": "停止",
     "run": "运行",
+    "runSelection": "运行选中内容",
+    "runStatement": "运行当前语句",
     "runAll": "全部运行",
     "export": "导出",
     "connected": "已连接",
@@ -1762,6 +1764,8 @@
   },
   "aiApproval": {
     "title": "AI 请求执行数据库写入",
+    "titleRead": "AI 请求执行数据库读取",
+    "planEstimatedRows": "预估行数",
     "subtitle": "在 {{connection}} 上 — 请审核后再执行。",
     "subtitleWithClient": "{{client}} 在 {{connection}} 上 — 请审核后再执行。",
     "query": "查询",

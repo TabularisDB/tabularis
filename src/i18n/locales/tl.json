@@ -1033,6 +1033,8 @@
     "noActiveSession": "Walang aktibong session. Pumili ng connection.",
     "stop": "Itigil",
     "run": "Patakbuhin",
+    "runSelection": "Patakbuhin ang napili",
+    "runStatement": "Patakbuhin ang statement",
     "runAll": "Patakbuhin lahat",
     "export": "I-export",
     "connected": "Nakakonekta",
@@ -1892,6 +1894,8 @@
   },
   "aiApproval": {
     "title": "Humiling ang AI ng database write",
+    "titleRead": "Humiling ang AI ng database read",
+    "planEstimatedRows": "Tinatayang mga row",
     "subtitle": "Sa {{connection}} — suriin at magdesisyon bago ito i-execute.",
     "subtitleWithClient": "{{client}} sa {{connection}} — suriin at magdesisyon bago ito i-execute.",
     "query": "Query",

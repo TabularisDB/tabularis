@@ -1041,6 +1041,8 @@
     "noActiveSession": "No hay sesión activa. Selecciona una conexión.",
     "stop": "Detener",
     "run": "Ejecutar",
+    "runSelection": "Ejecutar selección",
+    "runStatement": "Ejecutar sentencia",
     "runAll": "Ejecutar todo",
     "export": "Exportar",
     "connected": "Conectado",
@@ -1744,6 +1746,8 @@
   },
   "aiApproval": {
     "title": "La IA quiere ejecutar una escritura en la base de datos",
+    "titleRead": "La IA quiere ejecutar una lectura en la base de datos",
+    "planEstimatedRows": "Filas estimadas",
     "subtitle": "En {{connection}} — revisa y decide antes de ejecutar.",
     "subtitleWithClient": "{{client}} en {{connection}} — revisa y decide antes de ejecutar.",
     "query": "Consulta",

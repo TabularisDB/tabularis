@@ -1,15 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, ShieldAlert, X, Pencil, Maximize2, Minimize2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Clock3,
+  Database,
+  Layers2,
+  Maximize2,
+  Minimize2,
+  Pencil,
+  ScanSearch,
+  ShieldAlert,
+  X,
+} from "lucide-react";
 import Editor from "@monaco-editor/react";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
-import type { ExplainPlan } from "@tabularis/explain";
+import type { ExplainPlan, ExplainPlanSummary } from "@tabularis/explain";
+import {
+  formatCost,
+  formatRatio,
+  formatRows,
+  formatTime,
+  getExplainPlanSummary,
+} from "@tabularis/explain";
 import type { PendingApproval } from "../../types/ai";
 import { QueryKindBadge } from "../settings/ai-activity/QueryKindBadge";
 import { VisualExplainView } from "../explain/VisualExplainView";
 import type { ExplainViewMode } from "@tabularis/explain/react";
 import { isDestructiveApproval } from "../../utils/aiActivity";
+import { parseApprovalExplainPlan } from "../../utils/approvalExplain";
 
 interface AiApprovalModalProps {
   approval: PendingApproval;
@@ -55,15 +75,18 @@ export function AiApprovalModal({
     return () => window.removeEventListener("keydown", handler, true);
   }, [planExpanded]);
 
-  const explainPlan = useMemo<ExplainPlan | null>(() => {
-    if (!approval.explainPlan || typeof approval.explainPlan !== "object") {
-      return null;
-    }
-    return approval.explainPlan as ExplainPlan;
-  }, [approval.explainPlan]);
+  const explainPlan = useMemo<ExplainPlan | null>(
+    () => parseApprovalExplainPlan(approval.explainPlan),
+    [approval.explainPlan],
+  );
+
+  const planSummary = useMemo(
+    () => (explainPlan ? getExplainPlanSummary(explainPlan) : null),
+    [explainPlan],
+  );
 
   useEffect(() => {
-    if (explainPlan?.root.id && !selectedNodeId) {
+    if (explainPlan?.root?.id && !selectedNodeId) {
       setSelectedNodeId(explainPlan.root.id);
     }
   }, [explainPlan, selectedNodeId]);
@@ -109,7 +132,13 @@ export function AiApprovalModal({
             </div>
             <div className="min-w-0">
               <h2 className="text-lg font-semibold text-primary truncate">
-                {t("aiApproval.title")}
+                {/* Unknown kinds are treated as writes, mirroring the
+                    fail-closed classification of the backend approval gate. */}
+                {t(
+                  approval.queryKind === "select"
+                    ? "aiApproval.titleRead"
+                    : "aiApproval.title",
+                )}
               </h2>
               <p className="text-xs text-muted truncate">
                 {approval.clientHint
@@ -188,19 +217,8 @@ export function AiApprovalModal({
                 </button>
               )}
             </div>
-            {explainPlan ? (
-              <div className="rounded-lg border border-default bg-base h-[360px] overflow-hidden">
-                <VisualExplainView
-                  plan={explainPlan}
-                  isLoading={false}
-                  error={null}
-                  viewMode={viewMode}
-                  onViewModeChange={setViewMode}
-                  selectedNodeId={selectedNodeId}
-                  onSelectNode={setSelectedNodeId}
-                  aiEnabled={false}
-                />
-              </div>
+            {explainPlan && planSummary ? (
+              <PlanSummaryBox plan={explainPlan} summary={planSummary} />
             ) : (
               <div className="rounded-lg border border-default bg-base p-4 text-xs text-muted">
                 {approval.explainError
@@ -297,4 +315,118 @@ export function AiApprovalModal({
       )}
     </div>
   );
+}
+
+interface PlanSummaryBoxProps {
+  plan: ExplainPlan;
+  summary: ExplainPlanSummary;
+}
+
+/**
+ * Compact, read-only digest of the pre-flight plan: the same findings the
+ * full explain overview surfaces, without the graph/diagram tabs. The full
+ * `VisualExplainView` stays reachable through the "Expand" overlay.
+ */
+function PlanSummaryBox({ plan, summary }: PlanSummaryBoxProps) {
+  const { t } = useTranslation();
+
+  const findings = [
+    summary.highestCostNode && {
+      key: "highest-cost",
+      label: t("editor.visualExplain.highestSelfCost"),
+      value: formatCost(summary.highestCostNode.value),
+      description: formatNodeLabel(
+        summary.highestCostNode.nodeType,
+        summary.highestCostNode.relation,
+      ),
+      icon: Layers2,
+      iconClass: "text-blue-400",
+    },
+    summary.slowestNode && {
+      key: "slowest-step",
+      label: t("editor.visualExplain.slowestSelfStep"),
+      value: formatTime(summary.slowestNode.value),
+      description: formatNodeLabel(
+        summary.slowestNode.nodeType,
+        summary.slowestNode.relation,
+      ),
+      icon: Clock3,
+      iconClass: "text-amber-400",
+    },
+    summary.largestRowMismatchNode?.ratio != null && {
+      key: "estimate-gap",
+      label: t("editor.visualExplain.largestEstimateGap"),
+      value: formatRatio(summary.largestRowMismatchNode.value),
+      description: t(
+        summary.largestRowMismatchNode.ratio >= 1
+          ? "editor.visualExplain.overEstimate"
+          : "editor.visualExplain.underEstimate",
+      ),
+      icon: AlertTriangle,
+      iconClass: "text-red-400",
+    },
+    summary.sequentialScans > 0 && {
+      key: "sequential-scans",
+      label: t("editor.visualExplain.sequentialScans"),
+      value: String(summary.sequentialScans),
+      description: t("editor.visualExplain.scanOperations"),
+      icon: ScanSearch,
+      iconClass: "text-amber-400",
+    },
+    summary.tempOperations > 0 && {
+      key: "temp-operations",
+      label: t("editor.visualExplain.tempOperations"),
+      value: String(summary.tempOperations),
+      description: t("editor.visualExplain.sortOrTempOperations"),
+      icon: Database,
+      iconClass: "text-fuchsia-400",
+    },
+  ].filter(Boolean);
+
+  const rootRows = plan.root.plan_rows;
+  const rootCost = plan.root.total_cost;
+
+  return (
+    <div className="rounded-lg border border-default bg-base p-3 space-y-2">
+      {findings.length === 0 ? (
+        <div className="text-xs text-muted">
+          {t("editor.visualExplain.noIssues")}
+        </div>
+      ) : (
+        findings.map((finding) => {
+          if (!finding) {
+            return null;
+          }
+          const Icon = finding.icon;
+          return (
+            <div key={finding.key} className="flex items-start gap-2 text-xs">
+              <Icon size={13} className={`mt-0.5 shrink-0 ${finding.iconClass}`} />
+              <span className="text-primary font-medium whitespace-nowrap">
+                {finding.label}: {finding.value}
+              </span>
+              <span className="text-muted min-w-0 truncate">
+                — {finding.description}
+              </span>
+            </div>
+          );
+        })
+      )}
+      {(rootRows != null || rootCost != null) && (
+        <div className="text-[11px] text-muted pt-2 border-t border-default/60">
+          {[
+            rootRows != null &&
+              `${t("aiApproval.planEstimatedRows")}: ${formatRows(rootRows)}`,
+            rootCost != null &&
+              `${t("editor.visualExplain.totalCost")}: ${formatCost(rootCost)}`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatNodeLabel(nodeType: string, relation: string | null): string {
+  return relation ? `${nodeType} · ${relation}` : nodeType;
 }

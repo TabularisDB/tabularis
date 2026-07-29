@@ -1000,6 +1000,8 @@
     "noActiveSession": "활성 세션이 없습니다. 연결을 선택하세요.",
     "stop": "중지",
     "run": "실행",
+    "runSelection": "선택 영역 실행",
+    "runStatement": "문 실행",
     "runAll": "모두 실행",
     "export": "내보내기",
     "connected": "연결됨",
@@ -1859,6 +1861,8 @@
   },
   "aiApproval": {
     "title": "AI가 데이터베이스 쓰기를 요청했습니다",
+    "titleRead": "AI가 데이터베이스 읽기를 요청했습니다",
+    "planEstimatedRows": "예상 행 수",
     "subtitle": "{{connection}}에서 — 실행되기 전에 검토하고 결정하세요.",
     "subtitleWithClient": "{{client}}가 {{connection}}에서 — 실행되기 전에 검토하고 결정하세요.",
     "query": "쿼리",

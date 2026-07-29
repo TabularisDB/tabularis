@@ -1022,6 +1022,8 @@
     "noActiveSession": "Keine aktive Sitzung. Bitte wähle eine Verbindung aus.",
     "stop": "Stopp",
     "run": "Ausführen",
+    "runSelection": "Auswahl ausführen",
+    "runStatement": "Anweisung ausführen",
     "runAll": "Alle ausführen",
     "export": "Exportieren",
     "connected": "Verbunden",
@@ -1822,6 +1824,8 @@
   },
   "aiApproval": {
     "title": "KI möchte in die Datenbank schreiben",
+    "titleRead": "KI möchte aus der Datenbank lesen",
+    "planEstimatedRows": "Geschätzte Zeilen",
     "subtitle": "Auf {{connection}} — vor Ausführung prüfen.",
     "subtitleWithClient": "{{client}} auf {{connection}} — vor Ausführung prüfen.",
     "query": "Abfrage",

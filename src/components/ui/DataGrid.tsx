@@ -733,11 +733,16 @@ export const DataGrid = React.memo(
         return;
       }
 
-      if (colType && isJsonColumn(colType)) {
+      // Open the dedicated viewer for structured cells instead of the inline
+      // textarea, which would stringify an array into a cramped, comma-joined
+      // box. Array values always qualify (like json/jsonb columns); JSON found
+      // inside text columns still follows the detect-json-in-text setting.
+      const rawCellValue = mergedRow.rowData[colIndex];
+      if (isJsonCellTarget(colType, rawCellValue) || Array.isArray(rawCellValue)) {
         const isInsertion = mergedRow.type === "insertion";
         openJsonViewerWindow(
           value,
-          mergedRow.rowData[colIndex],
+          rawCellValue,
           colName,
           mergedRow.rowData,
           rowIndex,
@@ -780,6 +785,7 @@ export const DataGrid = React.memo(
         columnTypeMap,
         columnLengthMap,
         columnMetadata,
+        isJsonCellTarget,
         openInSidebar,
         openJsonViewerWindow,
         showAlert,
