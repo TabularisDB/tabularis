@@ -4,6 +4,26 @@ import type {
   NotebookParam,
 } from "../types/notebook";
 import { generateCellId } from "./notebook";
+import { validateParamName } from "./notebookParams";
+
+/**
+ * Keep only well-formed params from an untrusted notebook file: name must be
+ * a valid identifier (`\w+`) and value must be a string. Malformed entries
+ * are dropped instead of failing the whole import.
+ */
+function sanitizeParams(raw: unknown): NotebookParam[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const params = raw.filter((p): p is NotebookParam => {
+    if (typeof p !== "object" || p === null) return false;
+    const { name, value } = p as Record<string, unknown>;
+    return (
+      typeof name === "string" &&
+      validateParamName(name) &&
+      typeof value === "string"
+    );
+  });
+  return params.length > 0 ? params : undefined;
+}
 
 export function serializeNotebook(
   title: string,
@@ -92,7 +112,7 @@ export function deserializeNotebook(json: string): {
         isPreview: c.type === "markdown" ? true : undefined,
       };
     }),
-    params: Array.isArray(raw.params) ? raw.params as NotebookParam[] : undefined,
+    params: sanitizeParams(raw.params),
     stopOnError: typeof raw.stopOnError === "boolean" ? raw.stopOnError : undefined,
   };
 }

@@ -234,11 +234,29 @@ pub async fn get_indexes(
 ) -> Result<Vec<Index>, String> {
     let pool = get_sqlite_pool(params).await?;
 
+    use std::collections::HashMap;
+
     let list_query = format!("PRAGMA index_list('{}')", table_name);
     let indexes = sqlx::query(&list_query)
         .fetch_all(&pool)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Expression columns come back from PRAGMA index_info with a NULL name;
+    // their text lives only in the CREATE INDEX DDL, so fetch it to recover them.
+    let ddl_rows =
+        sqlx::query("SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ?1")
+            .bind(table_name)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    let mut index_sql: HashMap<String, String> = HashMap::new();
+    for row in &ddl_rows {
+        let name: String = row.try_get("name").unwrap_or_default();
+        if let Ok(Some(sql)) = row.try_get::<Option<String>, _>("sql") {
+            index_sql.insert(name, sql);
+        }
+    }
 
     let mut result = Vec::new();
 
@@ -253,18 +271,102 @@ pub async fn get_indexes(
             .await
             .map_err(|e| e.to_string())?;
 
+        let parsed_columns = index_sql.get(&name).map(|sql| parse_sqlite_index_columns(sql));
+
         for info in info_rows {
+            let seqno: i32 = info.try_get("seqno").unwrap_or(0);
+            let col_name = info.try_get::<Option<String>, _>("name").ok().flatten();
+            let is_expression = col_name.is_none();
+            let column_name = if is_expression {
+                parsed_columns
+                    .as_ref()
+                    .and_then(|cols| cols.get(seqno as usize))
+                    .cloned()
+                    .unwrap_or_default()
+            } else {
+                col_name.unwrap_or_default()
+            };
             result.push(Index {
                 name: name.clone(),
-                column_name: info.try_get("name").unwrap_or_default(),
+                column_name,
                 is_unique: unique > 0,
                 is_primary: origin == "pk",
-                seq_in_index: info.try_get::<i32, _>("seqno").unwrap_or(0),
+                seq_in_index: seqno,
+                is_expression,
             });
         }
     }
 
     Ok(result)
+}
+
+/// Extract top-level column/expression tokens from a `CREATE INDEX` column
+/// list, e.g. `... ON t (a, lower(b))` -> `["a", "lower(b)"]`.
+pub(super) fn parse_sqlite_index_columns(sql: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0i32;
+    let mut quote: Option<char> = None;
+    let mut started = false;
+
+    for ch in sql.chars() {
+        if let Some(q) = quote {
+            if started {
+                current.push(ch);
+            }
+            if ch == q {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '\'' | '"' | '`' => {
+                quote = Some(ch);
+                if started {
+                    current.push(ch);
+                }
+            }
+            '[' => {
+                quote = Some(']');
+                if started {
+                    current.push(ch);
+                }
+            }
+            '(' => {
+                depth += 1;
+                if depth == 1 {
+                    started = true; // column list opens; skip the '(' itself
+                } else {
+                    current.push(ch);
+                }
+            }
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    let t = current.trim();
+                    if !t.is_empty() {
+                        tokens.push(t.to_string());
+                    }
+                    break;
+                }
+                current.push(ch);
+            }
+            ',' if depth == 1 => {
+                let t = current.trim();
+                if !t.is_empty() {
+                    tokens.push(t.to_string());
+                }
+                current.clear();
+            }
+            _ => {
+                if started {
+                    current.push(ch);
+                }
+            }
+        }
+    }
+
+    tokens
 }
 
 fn sqlite_push_pk_val(

@@ -255,6 +255,12 @@
   "connections": {
     "title": "Mga Koneksyon",
     "addConnection": "Magdagdag ng Koneksyon",
+    "newSqliteDatabase": {
+      "menuLabel": "Bagong SQLite Database…",
+      "dialogTitle": "Bagong SQLite Database",
+      "fileType": "SQLite database",
+      "error": "Hindi nagawa ang SQLite database"
+    },
     "noConnections": "Walang aktibong koneksyon",
     "createFirst": "Gumawa ng iyong unang koneksyon",
     "active": "Aktibo",
@@ -856,6 +862,7 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "Mag-browse ng file",
+    "createSqliteFile": "Bago",
     "browseFolder": "Mag-browse ng folder",
     "useSsh": "Gumamit ng SSH Tunnel",
     "sshHost": "SSH Host",
@@ -1470,12 +1477,18 @@
     "noConnectionDesc": "Hindi maipakita ang diagram kung walang connection ID.",
     "switchToVertical": "Lumipat sa Vertical Layout",
     "switchToHorizontal": "Lumipat sa Horizontal Layout",
+    "lockNodes": "I-lock ang posisyon ng mga node",
+    "unlockNodes": "I-unlock ang mga node para ilipat",
     "vertical": "Vertical",
     "horizontal": "Horizontal",
     "showAllTables": "Ipakita ang Lahat ng Table",
     "showAll": "Ipakita Lahat",
     "focusedOn": "Nakatuon sa",
-    "focusOnTable": "Tumuon sa Table"
+    "focusOnTable": "Tumuon sa Table",
+    "exportMermaid": "I-export bilang Mermaid diagram",
+    "exportSuccess": "Na-export ang diagram",
+    "exportDbml": "I-export bilang DBML",
+    "export": "I-export"
   },
   "views": {
     "createView": "Gumawa ng View",

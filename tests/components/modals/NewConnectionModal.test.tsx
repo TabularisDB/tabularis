@@ -1,7 +1,8 @@
 import { useState, type ComponentProps, type ReactNode } from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 import { NewConnectionModal } from "../../../src/components/modals/NewConnectionModal";
 
 interface MockSelectProps {
@@ -14,6 +15,7 @@ interface MockSelectProps {
 
 const driverState = vi.hoisted(() => ({
   defaultPort: 15432 as number | null,
+  catalogueDriver: "mysql" as "mysql" | "sqlite",
 }));
 
 const k8sMocks = vi.hoisted(() => ({
@@ -80,6 +82,19 @@ vi.mock("../../../src/hooks/useDrivers", () => ({
           supports_ssl: false,
         },
       },
+      {
+        id: "sqlite",
+        name: "SQLite",
+        version: "1.0.0",
+        default_port: null,
+        is_builtin: true,
+        capabilities: {
+          file_based: true,
+          folder_based: false,
+          connection_string: false,
+          supports_ssl: false,
+        },
+      },
     ],
     allDrivers: [],
     installedPlugins: [],
@@ -103,42 +118,46 @@ vi.mock("../../../src/hooks/useSettings", () => ({
 }));
 
 vi.mock("../../../src/hooks/useConnectionCatalogue", () => ({
-  useConnectionCatalogue: () => ({
-    groups: [
-      {
-        engine: "mysql",
-        displayName: "MySQL",
-        primaryParadigm: "sql",
-        secondaryParadigms: [],
-        installed: true,
-        verified: true,
-        platformSupported: true,
-        downloads: null,
-        drivers: [
-          {
-            slug: "mysql",
-            name: "MySQL",
-            engine: "mysql",
-            paradigms: ["sql"],
-            verified: true,
-            installed: true,
-            installedVersion: "1.0.0",
-            latestVersion: "1.0.0",
-            isBuiltin: true,
-            platformSupported: true,
-            downloads: null,
-            updateAvailable: false,
-            icon: null,
-            color: null,
-          },
-        ],
-      },
-    ],
-    facets: [],
-    loading: false,
-    registryOffline: false,
-    refresh: vi.fn(),
-  }),
+  useConnectionCatalogue: () => {
+    const engine = driverState.catalogueDriver;
+    const name = engine === "sqlite" ? "SQLite" : "MySQL";
+    return {
+      groups: [
+        {
+          engine,
+          displayName: name,
+          primaryParadigm: "sql",
+          secondaryParadigms: [],
+          installed: true,
+          verified: true,
+          platformSupported: true,
+          downloads: null,
+          drivers: [
+            {
+              slug: engine,
+              name,
+              engine,
+              paradigms: ["sql"],
+              verified: true,
+              installed: true,
+              installedVersion: "1.0.0",
+              latestVersion: "1.0.0",
+              isBuiltin: true,
+              platformSupported: true,
+              downloads: null,
+              updateAvailable: false,
+              icon: null,
+              color: null,
+            },
+          ],
+        },
+      ],
+      facets: [],
+      loading: false,
+      registryOffline: false,
+      refresh: vi.fn(),
+    };
+  },
 }));
 
 vi.mock("../../../src/utils/ssh", () => ({
@@ -271,6 +290,31 @@ function pickEngineFromCatalogue() {
     screen.getByRole("button", { name: "connectionCatalogue.connectTo" }),
   );
 }
+
+describe("NewConnectionModal layout", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    driverState.defaultPort = 15432;
+    vi.mocked(invoke).mockResolvedValue("ok");
+    sshMocks.loadSshConnections.mockResolvedValue([]);
+    k8sMocks.loadK8sConnections.mockResolvedValue([]);
+    k8sMocks.getK8sContexts.mockResolvedValue(["ctx"]);
+    k8sMocks.getK8sNamespaces.mockResolvedValue(["db"]);
+    k8sMocks.getK8sResources.mockResolvedValue(["mysql-svc"]);
+    k8sMocks.getK8sResourcePorts.mockResolvedValue([6543]);
+    k8sMocks.validateK8sPath.mockResolvedValue(undefined);
+  });
+
+  it("keeps the dialog shell at a stable viewport-bounded height", () => {
+    const { container } = renderModal();
+    const shell = container.querySelector("fieldset");
+
+    expect(shell).toHaveClass("h-[min(760px,90vh)]");
+    expect(shell).toHaveClass("overflow-hidden");
+    expect(shell).toHaveClass("flex");
+    expect(shell).toHaveClass("flex-col");
+  });
+});
 
 async function openInlineK8s() {
   const view = renderModal();
@@ -1115,5 +1159,105 @@ describe("NewConnectionModal advanced inline K8s paths", () => {
     expect(payload?.params).not.toHaveProperty("k8s_kubectl_path");
     expect(payload?.params).not.toHaveProperty("k8s_kubeconfig_path");
     expect(k8sMocks.getK8sContexts).not.toHaveBeenCalled();
+  });
+});
+
+describe("NewConnectionModal SQLite file creation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    driverState.catalogueDriver = "sqlite";
+    vi.mocked(save).mockResolvedValue("/tmp/customers");
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "create_sqlite_file") {
+        return Promise.resolve("/tmp/customers.db");
+      }
+      if (command === "save_connection") {
+        return Promise.resolve({ id: "sqlite-connection" });
+      }
+      return Promise.resolve(undefined);
+    });
+    sshMocks.loadSshConnections.mockResolvedValue([]);
+    k8sMocks.loadK8sConnections.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    driverState.catalogueDriver = "mysql";
+  });
+
+  it("creates a file and continues through the existing save flow", async () => {
+    renderModal();
+    pickEngineFromCatalogue();
+
+    fireEvent.click(screen.getByText("newConnection.createSqliteFile"));
+
+    const pathInput = await screen.findByPlaceholderText(
+      "newConnection.filePathPlaceholder",
+    );
+    await waitFor(() => expect(pathInput).toHaveValue("/tmp/customers.db"));
+    expect(save).toHaveBeenCalledWith({
+      title: "connections.newSqliteDatabase.dialogTitle",
+      defaultPath: "database.db",
+      filters: [
+        {
+          name: "connections.newSqliteDatabase.fileType",
+          extensions: ["db", "sqlite", "sqlite3"],
+        },
+      ],
+    });
+    expect(invoke).toHaveBeenCalledWith("create_sqlite_file", {
+      path: "/tmp/customers",
+    });
+
+    fireEvent.change(screen.getByPlaceholderText("newConnection.namePlaceholder"), {
+      target: { value: "Customers" },
+    });
+    fireEvent.click(screen.getByText("newConnection.save"));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "save_connection",
+        expect.objectContaining({
+          name: "Customers",
+          params: expect.objectContaining({
+            driver: "sqlite",
+            database: "/tmp/customers.db",
+          }),
+        }),
+      );
+    });
+  });
+
+  it("leaves the path unchanged when file creation is cancelled", async () => {
+    vi.mocked(save).mockResolvedValue(null);
+    renderModal();
+    pickEngineFromCatalogue();
+
+    fireEvent.click(screen.getByText("newConnection.createSqliteFile"));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(invoke).not.toHaveBeenCalledWith(
+      "create_sqlite_file",
+      expect.anything(),
+    );
+    expect(
+      screen.getByPlaceholderText("newConnection.filePathPlaceholder"),
+    ).toHaveValue("");
+  });
+
+  it("shows an error when the SQLite file cannot be created", async () => {
+    vi.mocked(invoke).mockRejectedValue(new Error("permission denied"));
+    renderModal();
+    pickEngineFromCatalogue();
+
+    fireEvent.click(screen.getByText("newConnection.createSqliteFile"));
+
+    expect(
+      await screen.findByText(
+        "connections.newSqliteDatabase.error: permission denied",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("newConnection.filePathPlaceholder"),
+    ).toHaveValue("");
   });
 });

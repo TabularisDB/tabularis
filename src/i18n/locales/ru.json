@@ -255,6 +255,12 @@
   "connections": {
     "title": "Подключения",
     "addConnection": "Добавить подключение",
+    "newSqliteDatabase": {
+      "menuLabel": "Новая база данных SQLite…",
+      "dialogTitle": "Новая база данных SQLite",
+      "fileType": "База данных SQLite",
+      "error": "Не удалось создать базу данных SQLite"
+    },
     "noConnections": "Нет активных подключений",
     "createFirst": "Создайте первое подключение",
     "active": "Активно",
@@ -818,6 +824,7 @@
     "filePathPlaceholder": "/абсолютный/путь/к/db.sqlite",
     "folderPathPlaceholder": "/абсолютный/путь/к/папке",
     "browseFile": "Выбрать файл",
+    "createSqliteFile": "Создать",
     "browseFolder": "Выбрать папку",
     "useSsh": "Использовать SSH-туннель",
     "sshHost": "SSH-хост",
@@ -1445,12 +1452,18 @@
     "noConnectionDesc": "Отображение диаграммы невозможно без ID подключения.",
     "switchToVertical": "Переключить на вертикальное расположение",
     "switchToHorizontal": "Переключить на горизонтальное расположение",
+    "lockNodes": "Зафиксировать позиции узлов",
+    "unlockNodes": "Разблокировать узлы для перемещения",
     "vertical": "Вертикально",
     "horizontal": "Горизонтально",
     "showAllTables": "Показать все таблицы",
     "showAll": "Показать все",
     "focusedOn": "Фокус на",
-    "focusOnTable": "Фокус на таблице"
+    "focusOnTable": "Фокус на таблице",
+    "exportMermaid": "Экспортировать как диаграмму Mermaid",
+    "exportSuccess": "Диаграмма экспортирована",
+    "exportDbml": "Экспортировать как DBML",
+    "export": "Экспорт"
   },
   "views": {
     "createView": "Создать представление",

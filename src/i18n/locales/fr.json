@@ -255,6 +255,12 @@
   "connections": {
     "title": "Connexions",
     "addConnection": "Ajouter une connexion",
+    "newSqliteDatabase": {
+      "menuLabel": "Nouvelle base de données SQLite…",
+      "dialogTitle": "Nouvelle base de données SQLite",
+      "fileType": "Base de données SQLite",
+      "error": "Impossible de créer la base de données SQLite"
+    },
     "noConnections": "Aucune connexion active",
     "createFirst": "Créez votre première connexion",
     "active": "Active",
@@ -860,6 +866,7 @@
     "filePathPlaceholder": "/chemin/absolu/vers/db.sqlite",
     "folderPathPlaceholder": "/chemin/absolu/vers/dossier",
     "browseFile": "Parcourir le fichier",
+    "createSqliteFile": "Nouveau",
     "browseFolder": "Parcourir le dossier",
     "useSsh": "Utiliser un tunnel SSH",
     "sshHost": "Hôte SSH",
@@ -1478,12 +1485,18 @@
     "noConnectionDesc": "Impossible d’afficher le diagramme sans ID de connexion.",
     "switchToVertical": "Passer en disposition verticale",
     "switchToHorizontal": "Passer en disposition horizontale",
+    "lockNodes": "Verrouiller la position des nœuds",
+    "unlockNodes": "Déverrouiller les nœuds pour les déplacer",
     "vertical": "Verticale",
     "horizontal": "Horizontale",
     "showAllTables": "Afficher toutes les tables",
     "showAll": "Tout afficher",
     "focusedOn": "Focalisé sur",
-    "focusOnTable": "Focaliser sur la table"
+    "focusOnTable": "Focaliser sur la table",
+    "exportMermaid": "Exporter en diagramme Mermaid",
+    "exportSuccess": "Diagramme exporté",
+    "exportDbml": "Exporter en DBML",
+    "export": "Exporter"
   },
   "views": {
     "createView": "Créer une vue",

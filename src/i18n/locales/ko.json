@@ -255,6 +255,12 @@
   "connections": {
     "title": "연결",
     "addConnection": "연결 추가",
+    "newSqliteDatabase": {
+      "menuLabel": "새 SQLite 데이터베이스…",
+      "dialogTitle": "새 SQLite 데이터베이스",
+      "fileType": "SQLite 데이터베이스",
+      "error": "SQLite 데이터베이스를 만들 수 없습니다"
+    },
     "noConnections": "활성 연결이 없습니다",
     "createFirst": "첫 연결 만들기",
     "active": "활성",
@@ -824,6 +830,7 @@
     "filePathPlaceholder": "/절대/경로/db.sqlite",
     "folderPathPlaceholder": "/절대/경로/폴더",
     "browseFile": "파일 찾아보기",
+    "createSqliteFile": "새로 만들기",
     "browseFolder": "폴더 찾아보기",
     "useSsh": "SSH 터널 사용",
     "sshHost": "SSH 호스트",
@@ -1437,12 +1444,18 @@
     "noConnectionDesc": "연결 ID 없이는 다이어그램을 표시할 수 없습니다.",
     "switchToVertical": "세로 레이아웃으로 전환",
     "switchToHorizontal": "가로 레이아웃으로 전환",
+    "lockNodes": "노드 위치 고정",
+    "unlockNodes": "노드 잠금 해제하여 이동",
     "vertical": "세로",
     "horizontal": "가로",
     "showAllTables": "모든 테이블 표시",
     "showAll": "모두 표시",
     "focusedOn": "포커스 대상",
-    "focusOnTable": "테이블에 포커스"
+    "focusOnTable": "테이블에 포커스",
+    "exportMermaid": "Mermaid 다이어그램으로 내보내기",
+    "exportSuccess": "다이어그램 내보내기 완료",
+    "exportDbml": "DBML로 내보내기",
+    "export": "내보내기"
   },
   "views": {
     "createView": "뷰 생성",

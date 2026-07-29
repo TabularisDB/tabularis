@@ -255,6 +255,12 @@
   "connections": {
     "title": "Connections",
     "addConnection": "Add Connection",
+    "newSqliteDatabase": {
+      "menuLabel": "New SQLite Database…",
+      "dialogTitle": "New SQLite Database",
+      "fileType": "SQLite database",
+      "error": "Failed to create SQLite database"
+    },
     "noConnections": "No active connections",
     "createFirst": "Create your first connection",
     "active": "Active",
@@ -870,6 +876,7 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "Browse file",
+    "createSqliteFile": "New",
     "browseFolder": "Browse folder",
     "useSsh": "Use SSH Tunnel",
     "sshHost": "SSH Host",
@@ -1489,12 +1496,18 @@
     "noConnectionDesc": "Cannot display diagram without a connection ID.",
     "switchToVertical": "Switch to Vertical Layout",
     "switchToHorizontal": "Switch to Horizontal Layout",
+    "lockNodes": "Lock node positions",
+    "unlockNodes": "Unlock nodes to move them",
     "vertical": "Vertical",
     "horizontal": "Horizontal",
     "showAllTables": "Show All Tables",
     "showAll": "Show All",
     "focusedOn": "Focused on",
-    "focusOnTable": "Focus on Table"
+    "focusOnTable": "Focus on Table",
+    "exportMermaid": "Export as Mermaid diagram",
+    "exportSuccess": "Diagram exported",
+    "exportDbml": "Export as DBML",
+    "export": "Export"
   },
   "views": {
     "createView": "Create View",

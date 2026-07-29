@@ -20,4 +20,5 @@ export interface Index {
   is_unique: boolean;
   is_primary: boolean;
   seq_in_index?: number;
+  is_expression?: boolean;
 }

@@ -32,7 +32,7 @@ jobs:
       tag: ${{ steps.decide.outputs.tag }}
       updater_version: ${{ steps.decide.outputs.updater_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Decide whether a nightly is due
         id: decide

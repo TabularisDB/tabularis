@@ -241,6 +241,12 @@
   "connections": {
     "title": "连接",
     "addConnection": "添加连接",
+    "newSqliteDatabase": {
+      "menuLabel": "新建 SQLite 数据库…",
+      "dialogTitle": "新建 SQLite 数据库",
+      "fileType": "SQLite 数据库",
+      "error": "无法创建 SQLite 数据库"
+    },
     "noConnections": "无活动连接",
     "createFirst": "创建您的第一个连接",
     "active": "活动",
@@ -794,6 +800,7 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "浏览文件",
+    "createSqliteFile": "新建",
     "browseFolder": "浏览文件夹",
     "useSsh": "使用 SSH 隧道",
     "sshHost": "SSH 主机",
@@ -1384,12 +1391,18 @@
     "noConnectionDesc": "无法在没有连接 ID 的情况下显示图表。",
     "switchToVertical": "切换到垂直布局",
     "switchToHorizontal": "切换到水平布局",
+    "lockNodes": "锁定节点位置",
+    "unlockNodes": "解锁节点以移动",
     "vertical": "垂直",
     "horizontal": "水平",
     "showAllTables": "显示所有表",
     "showAll": "显示全部",
     "focusedOn": "聚焦于",
-    "focusOnTable": "聚焦于表"
+    "focusOnTable": "聚焦于表",
+    "exportMermaid": "导出为 Mermaid 图表",
+    "exportSuccess": "图表已导出",
+    "exportDbml": "导出为 DBML",
+    "export": "导出"
   },
   "views": {
     "createView": "创建视图",
