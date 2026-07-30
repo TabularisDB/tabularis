@@ -934,7 +934,11 @@
     "useIamAuth": "Utiliser l'authentification AWS IAM (RDS)",
     "useIamAuthHint": "Le champ mot de passe est traité comme un jeton d'authentification RDS (généré par `aws rds generate-db-auth-token`). Nécessite TLS. Les jetons expirent toutes les 15 minutes.",
     "useIamAuthTlsRequired": "Activez un mode SSL ci-dessus pour utiliser l'authentification AWS IAM.",
-    "changeDatabase": "Changer de base de données"
+    "changeDatabase": "Changer de base de données",
+    "testSsh": "Tester SSH",
+    "testSshHint": "Vérifie uniquement le tunnel SSH (hôte et identifiants), sans se connecter à la base de données.",
+    "sshTestSuccess": "Connexion SSH à {{target}} établie",
+    "stopTest": "Arrêter"
   },
   "sshConnections": {
     "title": "Connexions SSH",
@@ -960,7 +964,14 @@
     "savedInKeychain": "Mot de passe enregistré dans le trousseau système",
     "manageDesc": "Tunnels SSH réutilisables pour vos connexions aux bases de données. Les mots de passe et phrases secrètes sont stockés dans le trousseau du système.",
     "deleteInUse_one": "Elle est utilisée par {{count}} connexion enregistrée, qui ne passera plus par ce tunnel.",
-    "deleteInUse_other": "Elle est utilisée par {{count}} connexions enregistrées, qui ne passeront plus par ce tunnel."
+    "deleteInUse_other": "Elle est utilisée par {{count}} connexions enregistrées, qui ne passeront plus par ce tunnel.",
+    "errors": {
+      "connectionRequired": "Sélectionnez une connexion SSH ou configurez-en une en ligne",
+      "connectionMissing": "La connexion SSH sélectionnée n’existe plus",
+      "hostRequired": "L’hôte SSH est requis",
+      "userRequired": "L’utilisateur SSH est requis",
+      "portInvalid": "Le port SSH doit être compris entre 1 et 65535"
+    }
   },
   "sshAskpass": {
     "title": "Authentification SSH",
@@ -2038,5 +2049,64 @@
     "installVersion": "Installer v{{version}}",
     "installingVersion": "Installation de v{{version}}…",
     "retryInstall": "Réessayer l'installation"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "Échec de l’authentification SSH",
+      "recovery": "Vérifiez l’utilisateur, le mot de passe ou la clé privée dans l’onglet SSH."
+    },
+    "ssh-unreachable": {
+      "summary": "Serveur SSH injoignable",
+      "recovery": "Vérifiez l’hôte et le port SSH et que le serveur est joignable. Si le tunnel se connecte, vérifiez l’hôte et le port de la base de données vus depuis le serveur SSH."
+    },
+    "ssh": {
+      "summary": "Échec du tunnel SSH",
+      "recovery": "Vérifiez les paramètres dans l’onglet SSH."
+    },
+    "db-auth": {
+      "summary": "Échec de l’authentification à la base de données",
+      "recovery": "Vérifiez le nom d’utilisateur et le mot de passe de la base de données."
+    },
+    "network": {
+      "summary": "Serveur de base de données injoignable",
+      "recovery": "Vérifiez l’hôte et le port et que le serveur est en cours d’exécution."
+    },
+    "db-not-found": {
+      "summary": "Base de données introuvable",
+      "recovery": "Vérifiez le nom de la base de données."
+    },
+    "unknown": {
+      "summary": "Échec de la connexion"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Journal du test",
+    "noLog": "Aucune étape enregistrée pour ce test.",
+    "rawError": "Détails de l’erreur",
+    "copyDiagnostics": "Copier le diagnostic",
+    "copied": "Copié !",
+    "steps": {
+      "cancelled": "Test arrêté par l’utilisateur",
+      "resolve": {
+        "error": "Échec de la préparation des paramètres de connexion"
+      },
+      "sshTunnel": {
+        "start": "Ouverture du tunnel SSH",
+        "ok": "Tunnel SSH établi",
+        "error": "Échec du tunnel SSH"
+      },
+      "k8sForward": {
+        "start": "Démarrage du port-forward Kubernetes",
+        "ok": "Port-forward prêt",
+        "error": "Échec du port-forward Kubernetes"
+      },
+      "dbConnect": {
+        "start": "Connexion à la base de données",
+        "ok": "Connexion à la base de données établie",
+        "error": "Échec de la connexion à la base de données"
+      }
+    },
+    "title": "Journal du test de connexion",
+    "showLog": "Afficher le journal"
   }
 }

@@ -1651,6 +1651,23 @@ pub async fn test_ssh_connection<R: Runtime>(
         },
     );
 
+    // Inline SSH secrets of a saved DB connection live in the keychain under
+    // the DB connection id (not in the SSH connections file), so fall back
+    // there when the form did not re-enter them.
+    let (resolved_password, resolved_passphrase) = match ssh.db_connection_id.as_deref() {
+        Some(db_id) if resolved_password.is_none() || resolved_passphrase.is_none() => {
+            match find_connection_by_id(&app, db_id) {
+                Ok(saved) => apply_inline_ssh_secret_fallback(
+                    resolved_password,
+                    resolved_passphrase,
+                    &saved.params,
+                ),
+                Err(_) => (resolved_password, resolved_passphrase),
+            }
+        }
+        _ => (resolved_password, resolved_passphrase),
+    };
+
     ssh_tunnel::test_ssh_connection(
         &ssh.host,
         ssh.port,
@@ -2042,9 +2059,14 @@ pub async fn test_connection<R: Runtime>(
         "Testing connection to database: {}",
         request.params.database
     );
+    let progress_id = request.progress_id.as_deref();
 
-    let mut expanded_params = expand_ssh_connection_params(&app, &request.params).await?;
-    expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let mut expanded_params = expand_ssh_connection_params(&app, &request.params)
+        .await
+        .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
+    expanded_params = expand_k8s_connection_params(&app, &expanded_params)
+        .await
+        .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
 
     // AWS RDS IAM auth tokens are short-lived (15 min) and must come from the
     // password field on every test/connect, never from the keychain. Skip the
@@ -2059,7 +2081,8 @@ pub async fn test_connection<R: Runtime>(
         iam_auth,
         request.params.password.as_deref(),
         expanded_params.password.as_deref(),
-    )?;
+    )
+    .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
 
     if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
         let saved_conn = match &request.connection_id {
@@ -2072,27 +2095,78 @@ pub async fn test_connection<R: Runtime>(
             });
     }
 
-    let resolved_params = if let Some(conn_id) = &request.connection_id {
-        resolve_connection_params_with_id(&expanded_params, conn_id)?
+    let ssh_enabled = expanded_params.ssh_enabled.unwrap_or(false);
+    let k8s_enabled = expanded_params.k8s_enabled.unwrap_or(false);
+    let tunnel_step = if ssh_enabled {
+        Some("sshTunnel")
+    } else if k8s_enabled {
+        Some("k8sForward")
     } else {
-        resolve_connection_params(&expanded_params)?
+        None
     };
+
+    if ssh_enabled {
+        emit_test_progress(
+            &app,
+            progress_id,
+            "sshTunnel",
+            "start",
+            Some(format!(
+                "{}@{}:{}",
+                expanded_params.ssh_user.as_deref().unwrap_or("?"),
+                expanded_params.ssh_host.as_deref().unwrap_or("?"),
+                expanded_params.ssh_port.unwrap_or(22)
+            )),
+        );
+    } else if k8s_enabled {
+        emit_test_progress(
+            &app,
+            progress_id,
+            "k8sForward",
+            "start",
+            expanded_params.k8s_resource_name.clone(),
+        );
+    }
+
+    let resolved_params = if let Some(conn_id) = &request.connection_id {
+        resolve_connection_params_with_id(&expanded_params, conn_id)
+    } else {
+        resolve_connection_params(&expanded_params)
+    }
+    .map_err(|e| emit_test_failure(&app, progress_id, tunnel_step.unwrap_or("resolve"), e))?;
     log::debug!(
         "Test connection params: Host={:?}, Port={:?}",
         resolved_params.host,
         resolved_params.port
     );
 
-    let drv = driver_for(&resolved_params.driver).await?;
+    if let Some(step) = tunnel_step {
+        emit_test_progress(
+            &app,
+            progress_id,
+            step,
+            "ok",
+            resolved_params.port.map(|port| format!("127.0.0.1:{port}")),
+        );
+    }
+
+    let drv = driver_for(&resolved_params.driver)
+        .await
+        .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
+
+    let db_target = match (expanded_params.host.as_deref(), expanded_params.port) {
+        (Some(host), Some(port)) => format!("{host}:{port}"),
+        (Some(host), None) => host.to_string(),
+        _ => expanded_params.database.to_string(),
+    };
+    emit_test_progress(&app, progress_id, "dbConnect", "start", Some(db_target));
 
     // For file-based drivers, verify the database file exists before attempting connection
     if drv.manifest().capabilities.file_based {
         let db_path = std::path::Path::new(resolved_params.database.primary());
         if !db_path.exists() {
-            return Err(format!(
-                "Database file not found: {}",
-                resolved_params.database
-            ));
+            let err = format!("Database file not found: {}", resolved_params.database);
+            return Err(emit_test_failure(&app, progress_id, "dbConnect", err));
         }
     }
 
@@ -2101,14 +2175,47 @@ pub async fn test_connection<R: Runtime>(
             "Connection test failed for database {}: {e}",
             request.params.database
         );
-        e
+        emit_test_failure(&app, progress_id, "dbConnect", e)
     })?;
 
+    emit_test_progress(&app, progress_id, "dbConnect", "ok", None);
     log::info!(
         "Connection test successful for database: {}",
         request.params.database
     );
     Ok("Connection successful!".to_string())
+}
+
+/// Emits one step of a connection test's live progress log. A no-op when the
+/// caller did not request progress (no id).
+fn emit_test_progress<R: Runtime>(
+    app: &AppHandle<R>,
+    progress_id: Option<&str>,
+    step: &str,
+    status: &str,
+    detail: Option<String>,
+) {
+    let Some(id) = progress_id else { return };
+    let _ = app.emit(
+        "connection-test-progress",
+        serde_json::json!({
+            "id": id,
+            "step": step,
+            "status": status,
+            "detail": detail,
+        }),
+    );
+}
+
+/// Emits a failed step and passes the error through, for use in `map_err`.
+fn emit_test_failure<R: Runtime>(
+    app: &AppHandle<R>,
+    progress_id: Option<&str>,
+    step: &str,
+    error: String,
+) -> String {
+    emit_test_progress(app, progress_id, step, "error", Some(error.clone()));
+    error
 }
 
 #[cfg(test)]
@@ -2516,6 +2623,63 @@ mod tests {
                 |_| Ok("".to_string()),
             );
             assert_eq!(result, None);
+        }
+    }
+
+    mod apply_inline_ssh_secret_fallback_tests {
+        use super::*;
+
+        fn params_with_ssh(
+            password: Option<&str>,
+            passphrase: Option<&str>,
+        ) -> ConnectionParams {
+            ConnectionParams {
+                ssh_password: password.map(|p| p.to_string()),
+                ssh_key_passphrase: passphrase.map(|p| p.to_string()),
+                ..Default::default()
+            }
+        }
+
+        #[test]
+        fn fills_both_secrets_from_saved_params() {
+            let params = params_with_ssh(Some("pwd"), Some("phrase"));
+            let (password, passphrase) =
+                apply_inline_ssh_secret_fallback(None, None, &params);
+            assert_eq!(password, Some("pwd".to_string()));
+            assert_eq!(passphrase, Some("phrase".to_string()));
+        }
+
+        #[test]
+        fn resolved_secrets_keep_priority_over_saved() {
+            let params = params_with_ssh(Some("saved_pwd"), Some("saved_phrase"));
+            let (password, passphrase) = apply_inline_ssh_secret_fallback(
+                Some("request_pwd".to_string()),
+                Some("request_phrase".to_string()),
+                &params,
+            );
+            assert_eq!(password, Some("request_pwd".to_string()));
+            assert_eq!(passphrase, Some("request_phrase".to_string()));
+        }
+
+        #[test]
+        fn blank_saved_secrets_are_ignored() {
+            let params = params_with_ssh(Some("   "), Some(""));
+            let (password, passphrase) =
+                apply_inline_ssh_secret_fallback(None, None, &params);
+            assert_eq!(password, None);
+            assert_eq!(passphrase, None);
+        }
+
+        #[test]
+        fn fills_only_missing_secret() {
+            let params = params_with_ssh(Some("saved_pwd"), Some("saved_phrase"));
+            let (password, passphrase) = apply_inline_ssh_secret_fallback(
+                Some("request_pwd".to_string()),
+                None,
+                &params,
+            );
+            assert_eq!(password, Some("request_pwd".to_string()));
+            assert_eq!(passphrase, Some("saved_phrase".to_string()));
         }
     }
 
@@ -4089,6 +4253,24 @@ fn resolve_ssh_test_credential(
 
     // Priority 3: Credential from saved connection
     extract_saved_credential(&saved)
+}
+
+/// Fills SSH secrets that are still unresolved from the inline SSH fields of
+/// a saved database connection (already hydrated from the keychain by
+/// `find_connection_by_id`). Secrets explicitly provided by the request keep
+/// priority; blank saved values are ignored.
+fn apply_inline_ssh_secret_fallback(
+    resolved_password: Option<String>,
+    resolved_passphrase: Option<String>,
+    saved_params: &ConnectionParams,
+) -> (Option<String>, Option<String>) {
+    fn non_blank(value: &Option<String>) -> Option<String> {
+        value.as_ref().filter(|v| !v.trim().is_empty()).cloned()
+    }
+    (
+        resolved_password.or_else(|| non_blank(&saved_params.ssh_password)),
+        resolved_passphrase.or_else(|| non_blank(&saved_params.ssh_key_passphrase)),
+    )
 }
 
 /// Helper for backward compatibility - resolves SSH password

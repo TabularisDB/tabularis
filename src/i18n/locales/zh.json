@@ -868,7 +868,11 @@
     "useIamAuth": "使用 AWS IAM 身份验证 (RDS)",
     "useIamAuthHint": "密码字段将被视为 RDS 身份验证令牌（由 `aws rds generate-db-auth-token` 生成）。需要 TLS。令牌每 15 分钟过期。",
     "useIamAuthTlsRequired": "请在上方启用 SSL 模式以使用 AWS IAM 身份验证。",
-    "changeDatabase": "更换数据库"
+    "changeDatabase": "更换数据库",
+    "testSsh": "测试 SSH",
+    "testSshHint": "仅验证 SSH 隧道(主机和凭据),不连接数据库。",
+    "sshTestSuccess": "已建立到 {{target}} 的 SSH 连接",
+    "stopTest": "停止"
   },
   "sshConnections": {
     "title": "SSH 连接",
@@ -893,7 +897,14 @@
     "testFailed": "连接测试失败",
     "savedInKeychain": "密码已保存到系统密钥链",
     "manageDesc": "可在数据库连接中复用的 SSH 隧道。密码和口令保存在系统钥匙串中。",
-    "deleteInUse_other": "有 {{count}} 个已保存的数据库连接正在使用它，删除后这些连接将不再通过此隧道连接。"
+    "deleteInUse_other": "有 {{count}} 个已保存的数据库连接正在使用它，删除后这些连接将不再通过此隧道连接。",
+    "errors": {
+      "connectionRequired": "请选择一个 SSH 连接或内联配置",
+      "connectionMissing": "所选的 SSH 连接已不存在",
+      "hostRequired": "SSH 主机为必填项",
+      "userRequired": "SSH 用户为必填项",
+      "portInvalid": "SSH 端口必须在 1 到 65535 之间"
+    }
   },
   "sshAskpass": {
     "title": "SSH 身份验证",
@@ -1900,5 +1911,64 @@
     "installVersion": "安装 v{{version}}",
     "installingVersion": "正在安装 v{{version}}…",
     "retryInstall": "重试安装"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "SSH 认证失败",
+      "recovery": "请在 SSH 标签页中检查用户、密码或私钥。"
+    },
+    "ssh-unreachable": {
+      "summary": "无法连接 SSH 服务器",
+      "recovery": "请检查 SSH 主机和端口,并确认服务器可达。如果隧道能连接,请检查从 SSH 服务器看到的数据库主机和端口。"
+    },
+    "ssh": {
+      "summary": "SSH 隧道失败",
+      "recovery": "请检查 SSH 标签页中的设置。"
+    },
+    "db-auth": {
+      "summary": "数据库认证失败",
+      "recovery": "请检查数据库用户名和密码。"
+    },
+    "network": {
+      "summary": "无法连接数据库服务器",
+      "recovery": "请检查主机和端口,并确认服务器正在运行。"
+    },
+    "db-not-found": {
+      "summary": "未找到数据库",
+      "recovery": "请检查数据库名称。"
+    },
+    "unknown": {
+      "summary": "连接失败"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "测试日志",
+    "noLog": "此测试未记录任何步骤。",
+    "rawError": "错误详情",
+    "copyDiagnostics": "复制诊断信息",
+    "copied": "已复制!",
+    "steps": {
+      "cancelled": "测试已被用户停止",
+      "resolve": {
+        "error": "准备连接参数失败"
+      },
+      "sshTunnel": {
+        "start": "正在打开 SSH 隧道",
+        "ok": "SSH 隧道已建立",
+        "error": "SSH 隧道失败"
+      },
+      "k8sForward": {
+        "start": "正在启动 Kubernetes 端口转发",
+        "ok": "端口转发就绪",
+        "error": "Kubernetes 端口转发失败"
+      },
+      "dbConnect": {
+        "start": "正在连接数据库",
+        "ok": "数据库连接已建立",
+        "error": "数据库连接失败"
+      }
+    },
+    "title": "连接测试日志",
+    "showLog": "显示日志"
   }
 }

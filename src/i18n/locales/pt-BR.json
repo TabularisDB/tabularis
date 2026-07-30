@@ -936,7 +936,11 @@
     "useIamAuth": "Usar Autenticação IAM da AWS (RDS)",
     "useIamAuthHint": "O campo de senha é tratado como um token de autenticação RDS (de `aws rds generate-db-auth-token`). Requer TLS. Os tokens expiram a cada 15 minutos.",
     "useIamAuthTlsRequired": "Ative um modo SSL acima para usar a autenticação IAM da AWS.",
-    "changeDatabase": "Trocar banco de dados"
+    "changeDatabase": "Trocar banco de dados",
+    "testSsh": "Testar SSH",
+    "testSshHint": "Verifica apenas o túnel SSH (host e credenciais), sem conectar ao banco de dados.",
+    "sshTestSuccess": "Conexão SSH com {{target}} estabelecida",
+    "stopTest": "Parar"
   },
   "sshConnections": {
     "title": "Conexões SSH",
@@ -962,7 +966,14 @@
     "savedInKeychain": "Senha salva no chaveiro do sistema",
     "manageDesc": "Túneis SSH reutilizáveis para suas conexões de banco de dados. Senhas e frases-senha são armazenadas no chaveiro do sistema.",
     "deleteInUse_one": "É usada por {{count}} conexão de banco de dados salva, que não se conectará mais através deste túnel.",
-    "deleteInUse_other": "É usada por {{count}} conexões de banco de dados salvas, que não se conectarão mais através deste túnel."
+    "deleteInUse_other": "É usada por {{count}} conexões de banco de dados salvas, que não se conectarão mais através deste túnel.",
+    "errors": {
+      "connectionRequired": "Selecione uma conexão SSH ou configure uma inline",
+      "connectionMissing": "A conexão SSH selecionada não existe mais",
+      "hostRequired": "O host SSH é obrigatório",
+      "userRequired": "O usuário SSH é obrigatório",
+      "portInvalid": "A porta SSH deve estar entre 1 e 65535"
+    }
   },
   "sshAskpass": {
     "title": "Autenticação SSH",
@@ -2035,5 +2046,64 @@
     "installVersion": "Instalar v{{version}}",
     "installingVersion": "Instalando v{{version}}…",
     "retryInstall": "Tentar instalação novamente"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "Falha na autenticação SSH",
+      "recovery": "Verifique o usuário, a senha ou a chave privada na aba SSH."
+    },
+    "ssh-unreachable": {
+      "summary": "Servidor SSH inacessível",
+      "recovery": "Verifique o host e a porta SSH e se o servidor está acessível. Se o túnel conectar, verifique o host e a porta do banco de dados vistos do servidor SSH."
+    },
+    "ssh": {
+      "summary": "Falha no túnel SSH",
+      "recovery": "Verifique as configurações na aba SSH."
+    },
+    "db-auth": {
+      "summary": "Falha na autenticação do banco de dados",
+      "recovery": "Verifique o nome de usuário e a senha do banco de dados."
+    },
+    "network": {
+      "summary": "Servidor de banco de dados inacessível",
+      "recovery": "Verifique o host e a porta e se o servidor está em execução."
+    },
+    "db-not-found": {
+      "summary": "Banco de dados não encontrado",
+      "recovery": "Verifique o nome do banco de dados."
+    },
+    "unknown": {
+      "summary": "Falha na conexão"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Log do teste",
+    "noLog": "Nenhuma etapa foi registrada para este teste.",
+    "rawError": "Detalhes do erro",
+    "copyDiagnostics": "Copiar diagnóstico",
+    "copied": "Copiado!",
+    "steps": {
+      "cancelled": "Teste interrompido pelo usuário",
+      "resolve": {
+        "error": "Falha ao preparar os parâmetros de conexão"
+      },
+      "sshTunnel": {
+        "start": "Abrindo o túnel SSH",
+        "ok": "Túnel SSH estabelecido",
+        "error": "Falha no túnel SSH"
+      },
+      "k8sForward": {
+        "start": "Iniciando o port-forward do Kubernetes",
+        "ok": "Port-forward pronto",
+        "error": "Falha no port-forward do Kubernetes"
+      },
+      "dbConnect": {
+        "start": "Conectando ao banco de dados",
+        "ok": "Conexão com o banco de dados estabelecida",
+        "error": "Falha na conexão com o banco de dados"
+      }
+    },
+    "title": "Log do teste de conexão",
+    "showLog": "Mostrar log"
   }
 }

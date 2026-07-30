@@ -164,6 +164,11 @@ pub struct SshTestParams {
     pub allow_passphrase_prompt: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
+    /// Id of the saved database connection whose inline SSH secrets should be
+    /// used as a fallback: they live in the keychain under the DB connection
+    /// id, not in the SSH connections file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub db_connection_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -352,6 +357,10 @@ pub struct TestConnectionRequest {
     pub params: ConnectionParams,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
+    /// When set, the test emits "connection-test-progress" events tagged with
+    /// this id so the caller can render a live step log.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

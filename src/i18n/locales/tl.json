@@ -929,7 +929,11 @@
     "scrollTabsRight": "I-scroll ang mga tab pakanan",
     "useIamAuth": "Gumamit ng AWS IAM Authentication (RDS)",
     "useIamAuthHint": "Ang password field ay itinuturing na RDS auth token (mula sa `aws rds generate-db-auth-token`). Kailangan ng TLS. Nag-e-expire ang mga token bawat 15 minuto.",
-    "useIamAuthTlsRequired": "I-enable ang SSL mode sa itaas para magamit ang AWS IAM authentication."
+    "useIamAuthTlsRequired": "I-enable ang SSL mode sa itaas para magamit ang AWS IAM authentication.",
+    "testSsh": "Subukan ang SSH",
+    "testSshHint": "Sinusuri lamang ang SSH tunnel (host at mga kredensyal), nang hindi kumokonekta sa database.",
+    "sshTestSuccess": "Naitatag ang koneksyong SSH sa {{target}}",
+    "stopTest": "Ihinto"
   },
   "sshConnections": {
     "title": "Mga SSH Connection",
@@ -955,7 +959,14 @@
     "savedInKeychain": "Naka-save ang password sa system keychain",
     "manageDesc": "Maaaring gamitin ulit na SSH tunnel para sa iyong mga database connection. Ang mga password at passphrase ay naka-store sa system keychain.",
     "deleteInUse_one": "Ginagamit ito ng {{count}} naka-save na database connection, na hindi na makakakonekta sa tunnel na ito.",
-    "deleteInUse_other": "Ginagamit ito ng {{count}} naka-save na database connection, na hindi na makakakonekta sa tunnel na ito."
+    "deleteInUse_other": "Ginagamit ito ng {{count}} naka-save na database connection, na hindi na makakakonekta sa tunnel na ito.",
+    "errors": {
+      "connectionRequired": "Pumili ng koneksyong SSH o mag-configure ng inline",
+      "connectionMissing": "Wala na ang napiling koneksyong SSH",
+      "hostRequired": "Kinakailangan ang SSH host",
+      "userRequired": "Kinakailangan ang SSH user",
+      "portInvalid": "Ang SSH port ay dapat nasa pagitan ng 1 at 65535"
+    }
   },
   "sshAskpass": {
     "title": "SSH Authentication",
@@ -1989,5 +2000,64 @@
   "miniGrid": {
     "runningQuery": "Tumatakbo ang query...",
     "copyAll": "Kopyahin lahat"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "Nabigo ang SSH authentication",
+      "recovery": "Suriin ang SSH user, password, o private key sa tab na SSH."
+    },
+    "ssh-unreachable": {
+      "summary": "Hindi maabot ang SSH server",
+      "recovery": "Suriin ang SSH host at port, at kung maaabot ang server. Kung kumokonekta ang tunnel, suriin ang host at port ng database mula sa SSH server."
+    },
+    "ssh": {
+      "summary": "Nabigo ang SSH tunnel",
+      "recovery": "Suriin ang mga setting sa tab na SSH."
+    },
+    "db-auth": {
+      "summary": "Nabigo ang authentication sa database",
+      "recovery": "Suriin ang username at password ng database."
+    },
+    "network": {
+      "summary": "Hindi maabot ang database server",
+      "recovery": "Suriin ang host at port, at kung tumatakbo ang server."
+    },
+    "db-not-found": {
+      "summary": "Hindi natagpuan ang database",
+      "recovery": "Suriin ang pangalan ng database."
+    },
+    "unknown": {
+      "summary": "Nabigo ang koneksyon"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Log ng pagsubok",
+    "noLog": "Walang naitalang hakbang para sa pagsubok na ito.",
+    "rawError": "Mga detalye ng error",
+    "copyDiagnostics": "Kopyahin ang diagnostics",
+    "copied": "Nakopya!",
+    "steps": {
+      "cancelled": "Inihinto ng user ang pagsubok",
+      "resolve": {
+        "error": "Nabigo ang paghahanda ng mga parameter ng koneksyon"
+      },
+      "sshTunnel": {
+        "start": "Binubuksan ang SSH tunnel",
+        "ok": "Naitatag ang SSH tunnel",
+        "error": "Nabigo ang SSH tunnel"
+      },
+      "k8sForward": {
+        "start": "Sinisimulan ang Kubernetes port-forward",
+        "ok": "Handa na ang port-forward",
+        "error": "Nabigo ang Kubernetes port-forward"
+      },
+      "dbConnect": {
+        "start": "Kumokonekta sa database",
+        "ok": "Naitatag ang koneksyon sa database",
+        "error": "Nabigo ang koneksyon sa database"
+      }
+    },
+    "title": "Log ng pagsubok ng koneksyon",
+    "showLog": "Ipakita ang log"
   }
 }
