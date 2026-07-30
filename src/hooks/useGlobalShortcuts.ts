@@ -58,6 +58,12 @@ export function useGlobalShortcuts() {
 				return;
 			}
 
+			if (matchesShortcut(e, "database_switcher")) {
+				e.preventDefault();
+				window.dispatchEvent(new CustomEvent("tabularis:open-database-switcher"));
+				return;
+			}
+
 			if (matchesShortcut(e, "open_connections")) {
 				e.preventDefault();
 				navigate("/connections");

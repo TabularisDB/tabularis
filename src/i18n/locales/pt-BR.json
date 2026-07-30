@@ -747,7 +747,8 @@
       "quickNavigator": "Navegador Rápido",
       "triggerSuggestions": "Acionar sugestões",
       "formatSql": "Formatar SQL",
-      "refreshTable": "Atualizar tabela"
+      "refreshTable": "Atualizar tabela",
+      "databaseSwitcher": "Abrir o seletor de bancos de dados"
     },
     "aiActivity": "Atividade de IA",
     "backup": {
@@ -2105,5 +2106,15 @@
     },
     "title": "Log do teste de conexão",
     "showLog": "Mostrar log"
+  },
+  "databaseSwitcher": {
+    "open": "Trocar banco de dados",
+    "placeholder": "Pesquisar bancos de dados...",
+    "loading": "Carregando bancos de dados...",
+    "empty": "Nenhum banco de dados encontrado",
+    "noResults": "Nenhum banco de dados corresponde a \"{{query}}\"",
+    "current": "Atual",
+    "count_one": "{{count}} banco de dados",
+    "count_other": "{{count}} bancos de dados"
   }
 }

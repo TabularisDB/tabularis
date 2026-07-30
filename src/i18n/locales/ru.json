@@ -704,7 +704,8 @@
       "quickNavigator": "Быстрый навигатор",
       "triggerSuggestions": "Показать подсказки",
       "formatSql": "Форматировать SQL",
-      "refreshTable": "Обновить таблицу"
+      "refreshTable": "Обновить таблицу",
+      "databaseSwitcher": "Открыть переключатель баз данных"
     },
     "aiActivity": "Активность AI",
     "backup": {
@@ -2060,5 +2061,15 @@
     },
     "title": "Журнал теста подключения",
     "showLog": "Показать журнал"
+  },
+  "databaseSwitcher": {
+    "open": "Сменить базу данных",
+    "placeholder": "Поиск баз данных...",
+    "loading": "Загрузка баз данных...",
+    "empty": "Базы данных не найдены",
+    "noResults": "Нет баз данных, соответствующих «{{query}}»",
+    "current": "Текущая",
+    "count_one": "{{count}} база данных",
+    "count_other": "{{count}} баз данных"
   }
 }

@@ -18,8 +18,10 @@ import { ExplorerSidebar, type SidebarTab } from "./ExplorerSidebar";
 import { PanelDatabaseProvider } from "./PanelDatabaseProvider";
 import { DiscordCommunityCallout } from "./sidebar/DiscordCommunityCallout";
 import { QuickNavigatorModal } from "../modals/QuickNavigatorModal";
+import { DatabaseSwitcherModal } from "../modals/DatabaseSwitcherModal";
 import { GenerateSQLModal } from "../modals/GenerateSQLModal";
 import { SchemaModal } from "../modals/SchemaModal";
+import { isMultiDatabaseCapable } from "../../utils/database";
 
 // Hooks & Utils
 import { useSidebarResize } from "../../hooks/useSidebarResize";
@@ -37,6 +39,7 @@ export const Sidebar = () => {
   const isDarkTheme = !currentTheme?.id?.includes("-light");
   const {
     activeConnectionId,
+    activeCapabilities,
     connections,
   } = useDatabase();
   const navigate = useNavigate();
@@ -46,6 +49,7 @@ export const Sidebar = () => {
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("structure");
   const [showShortcutHints, setShowShortcutHints] = useState(false);
   const [isQuickNavigatorOpen, setIsQuickNavigatorOpen] = useState(false);
+  const [isDatabaseSwitcherOpen, setIsDatabaseSwitcherOpen] = useState(false);
   const [generateSQLTable, setGenerateSQLTable] = useState<string | null>(null);
   const [inspectTable, setInspectTable] = useState<{ tableName: string; schema?: string } | null>(null);
   const { isMac } = useKeybindings();
@@ -65,6 +69,18 @@ export const Sidebar = () => {
     window.addEventListener("tabularis:open-quick-navigator", handler);
     return () => window.removeEventListener("tabularis:open-quick-navigator", handler);
   }, [activeConnectionId]);
+
+  // Database switcher: only meaningful for multi-database-capable drivers.
+  useEffect(() => {
+    const handler = () => {
+      if (activeConnectionId && isMultiDatabaseCapable(activeCapabilities)) {
+        setIsDatabaseSwitcherOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("tabularis:open-database-switcher", handler);
+    return () =>
+      window.removeEventListener("tabularis:open-database-switcher", handler);
+  }, [activeConnectionId, activeCapabilities]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -411,6 +427,12 @@ export const Sidebar = () => {
           onClose={() => setIsQuickNavigatorOpen(false)}
           onGenerateSql={(tableName) => setGenerateSQLTable(tableName)}
           onInspect={(tableName, schema) => setInspectTable({ tableName, schema })}
+        />
+      )}
+      {activeConnectionId && isDatabaseSwitcherOpen && (
+        <DatabaseSwitcherModal
+          isOpen={isDatabaseSwitcherOpen}
+          onClose={() => setIsDatabaseSwitcherOpen(false)}
         />
       )}
       {generateSQLTable && (

@@ -741,7 +741,8 @@
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "I-import mula sa Clipboard",
       "quickNavigator": "Quick Navigator",
-      "formatSql": "I-format ang SQL"
+      "formatSql": "I-format ang SQL",
+      "databaseSwitcher": "Buksan ang database switcher"
     },
     "aiActivity": "AI Activity",
     "backup": {
@@ -2059,5 +2060,15 @@
     },
     "title": "Log ng pagsubok ng koneksyon",
     "showLog": "Ipakita ang log"
+  },
+  "databaseSwitcher": {
+    "open": "Magpalit ng database",
+    "placeholder": "Maghanap ng mga database...",
+    "loading": "Nilo-load ang mga database...",
+    "empty": "Walang natagpuang database",
+    "noResults": "Walang database na tumutugma sa \"{{query}}\"",
+    "current": "Kasalukuyan",
+    "count_one": "{{count}} database",
+    "count_other": "{{count}} database"
   }
 }

@@ -736,7 +736,8 @@
       "quickNavigator": "Navegador rápido",
       "triggerSuggestions": "Mostrar sugerencias",
       "formatSql": "Formatear SQL",
-      "refreshTable": "Actualizar tabla"
+      "refreshTable": "Actualizar tabla",
+      "databaseSwitcher": "Abrir el selector de bases de datos"
     },
     "aiActivity": "Actividad IA",
     "backup": {
@@ -1952,5 +1953,15 @@
     },
     "title": "Registro de la prueba de conexión",
     "showLog": "Mostrar registro"
+  },
+  "databaseSwitcher": {
+    "open": "Cambiar base de datos",
+    "placeholder": "Buscar bases de datos...",
+    "loading": "Cargando bases de datos...",
+    "empty": "No se encontraron bases de datos",
+    "noResults": "Ninguna base de datos coincide con \"{{query}}\"",
+    "current": "Actual",
+    "count_one": "{{count}} base de datos",
+    "count_other": "{{count}} bases de datos"
   }
 }

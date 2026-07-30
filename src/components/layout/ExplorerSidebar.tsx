@@ -35,6 +35,7 @@ import {
   Clock,
   Clipboard,
   BookOpen,
+  ArrowLeftRight,
 } from "lucide-react";
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { toErrorMessage } from "../../utils/errors";
@@ -1211,6 +1212,19 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       {t("sidebar.databases")} ({selectedDatabases.length})
                     </span>
                     <div className="flex items-center gap-1">
+                    <button
+                      onClick={() =>
+                        window.dispatchEvent(
+                          new CustomEvent("tabularis:open-database-switcher"),
+                        )
+                      }
+                      className="p-1 rounded text-muted hover:text-secondary hover:bg-surface-secondary transition-colors"
+                      title={t("databaseSwitcher.open", {
+                        defaultValue: "Switch database",
+                      })}
+                    >
+                      <ArrowLeftRight size={14} />
+                    </button>
                     <div className="relative">
                       <button
                         onClick={async () => {
@@ -1475,7 +1489,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                 <>
                   {/* MySQL/SQLite: Flat layout */}
                   {(() => {
-                    const dbLabel = isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length === 1
+                    const canSwitch = isMultiDatabaseCapable(activeCapabilities);
+                    const dbLabel = canSwitch && selectedDatabases.length === 1
                       ? selectedDatabases[0]
                       : activeDatabaseName;
                     return dbLabel ? (
@@ -1484,6 +1499,21 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         <span className="text-sm font-medium text-secondary truncate">
                           {dbLabel}
                         </span>
+                        {canSwitch && (
+                          <button
+                            onClick={() =>
+                              window.dispatchEvent(
+                                new CustomEvent("tabularis:open-database-switcher"),
+                              )
+                            }
+                            className="ml-auto p-1 rounded text-muted hover:text-secondary hover:bg-surface-secondary transition-colors"
+                            title={t("databaseSwitcher.open", {
+                              defaultValue: "Switch database",
+                            })}
+                          >
+                            <ArrowLeftRight size={13} />
+                          </button>
+                        )}
                       </div>
                     ) : null;
                   })()}

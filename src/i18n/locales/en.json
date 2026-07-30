@@ -754,7 +754,8 @@
       "quickNavigator": "Quick Navigator",
       "triggerSuggestions": "Trigger suggestions",
       "formatSql": "Format SQL",
-      "refreshTable": "Refresh table"
+      "refreshTable": "Refresh table",
+      "databaseSwitcher": "Open database switcher"
     },
     "aiActivity": "AI Activity",
     "backup": {
@@ -2119,5 +2120,15 @@
     },
     "title": "Connection test log",
     "showLog": "Show log"
+  },
+  "databaseSwitcher": {
+    "open": "Switch database",
+    "placeholder": "Search databases...",
+    "loading": "Loading databases...",
+    "empty": "No databases found",
+    "noResults": "No databases match \"{{query}}\"",
+    "current": "Current",
+    "count_one": "{{count}} database",
+    "count_other": "{{count}} databases"
   }
 }

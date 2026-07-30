@@ -676,7 +676,8 @@
       "quickNavigator": "快速导航",
       "triggerSuggestions": "触发建议",
       "formatSql": "格式化 SQL",
-      "refreshTable": "刷新表格"
+      "refreshTable": "刷新表格",
+      "databaseSwitcher": "打开数据库切换器"
     },
     "aiActivity": "AI 活动",
     "backup": {
@@ -1970,5 +1971,15 @@
     },
     "title": "连接测试日志",
     "showLog": "显示日志"
+  },
+  "databaseSwitcher": {
+    "open": "切换数据库",
+    "placeholder": "搜索数据库...",
+    "loading": "正在加载数据库...",
+    "empty": "未找到数据库",
+    "noResults": "没有与“{{query}}”匹配的数据库",
+    "current": "当前",
+    "count_one": "{{count}} 个数据库",
+    "count_other": "{{count}} 个数据库"
   }
 }

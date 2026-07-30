@@ -709,7 +709,8 @@
       "categories_notebook": "노트북",
       "pasteImportClipboard": "클립보드에서 가져오기",
       "quickNavigator": "빠른 탐색기",
-      "formatSql": "SQL 포맷"
+      "formatSql": "SQL 포맷",
+      "databaseSwitcher": "데이터베이스 전환기 열기"
     },
     "aiActivity": "AI 활동",
     "backup": {
@@ -2016,5 +2017,15 @@
     },
     "title": "연결 테스트 로그",
     "showLog": "로그 보기"
+  },
+  "databaseSwitcher": {
+    "open": "데이터베이스 전환",
+    "placeholder": "데이터베이스 검색...",
+    "loading": "데이터베이스 불러오는 중...",
+    "empty": "데이터베이스를 찾을 수 없습니다",
+    "noResults": "\"{{query}}\"와 일치하는 데이터베이스가 없습니다",
+    "current": "현재",
+    "count_one": "데이터베이스 {{count}}개",
+    "count_other": "데이터베이스 {{count}}개"
   }
 }

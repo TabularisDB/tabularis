@@ -725,7 +725,8 @@
       "quickNavigator": "クイックナビゲーター",
       "triggerSuggestions": "候補を表示",
       "formatSql": "SQLをフォーマット",
-      "refreshTable": "テーブルを更新"
+      "refreshTable": "テーブルを更新",
+      "databaseSwitcher": "データベース切り替えを開く"
     },
     "aiActivity": "AI アクティビティ",
     "backup": {
@@ -2048,5 +2049,15 @@
     },
     "title": "接続テストのログ",
     "showLog": "ログを表示"
+  },
+  "databaseSwitcher": {
+    "open": "データベースを切り替え",
+    "placeholder": "データベースを検索...",
+    "loading": "データベースを読み込み中...",
+    "empty": "データベースが見つかりません",
+    "noResults": "「{{query}}」に一致するデータベースはありません",
+    "current": "現在",
+    "count_one": "{{count}} 件のデータベース",
+    "count_other": "{{count}} 件のデータベース"
   }
 }

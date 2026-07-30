@@ -711,7 +711,8 @@
       "quickNavigator": "Schnellnavigation",
       "triggerSuggestions": "Vorschläge anzeigen",
       "formatSql": "SQL formatieren",
-      "refreshTable": "Tabelle aktualisieren"
+      "refreshTable": "Tabelle aktualisieren",
+      "databaseSwitcher": "Datenbank-Umschalter öffnen"
     },
     "aiActivity": "KI-Aktivität",
     "backup": {
@@ -2030,5 +2031,15 @@
     },
     "title": "Protokoll des Verbindungstests",
     "showLog": "Protokoll anzeigen"
+  },
+  "databaseSwitcher": {
+    "open": "Datenbank wechseln",
+    "placeholder": "Datenbanken durchsuchen...",
+    "loading": "Datenbanken werden geladen...",
+    "empty": "Keine Datenbanken gefunden",
+    "noResults": "Keine Datenbank entspricht \"{{query}}\"",
+    "current": "Aktuell",
+    "count_one": "{{count}} Datenbank",
+    "count_other": "{{count}} Datenbanken"
   }
 }

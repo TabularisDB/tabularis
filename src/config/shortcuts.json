@@ -210,6 +210,16 @@
     "overridable": true
   },
   {
+    "id": "database_switcher",
+    "category": "navigation",
+    "defaultMac": "⌘+K",
+    "defaultWin": "Ctrl+K",
+    "macMatch": { "metaKey": true, "key": "k" },
+    "winMatch": { "ctrlKey": true, "key": "k" },
+    "i18nKey": "settings.shortcuts.databaseSwitcher",
+    "overridable": true
+  },
+  {
     "id": "trigger_suggestions",
     "category": "editor",
     "defaultMac": "⌘+I",
