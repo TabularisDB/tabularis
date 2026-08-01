@@ -156,6 +156,18 @@ pub struct AppConfig {
     pub last_active_connection_id: Option<String>,
     /// Ids of all connections that were open when the app was last closed.
     pub last_open_connection_ids: Option<Vec<String>>,
+
+    // ----- Window State -----.
+    /// Window width in pixels when the app was last closed.
+    pub window_width: Option<u32>,
+    /// Window height in pixels when the app was last closed.
+    pub window_height: Option<u32>,
+    /// Window X position when the app was last closed.
+    pub window_x: Option<i32>,
+    /// Window Y position when the app was last closed.
+    pub window_y: Option<i32>,
+    /// Whether the window was maximized when the app was last closed.
+    pub window_maximized: Option<bool>,
 }
 
 static CONFIG_CACHE: Lazy<RwLock<AppConfig>> = Lazy::new(|| RwLock::new(AppConfig::default()));
@@ -457,6 +469,21 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.last_open_connection_ids.is_some() {
             existing_config.last_open_connection_ids = config.last_open_connection_ids;
+        }
+        if config.window_width.is_some() {
+            existing_config.window_width = config.window_width;
+        }
+        if config.window_height.is_some() {
+            existing_config.window_height = config.window_height;
+        }
+        if config.window_x.is_some() {
+            existing_config.window_x = config.window_x;
+        }
+        if config.window_y.is_some() {
+            existing_config.window_y = config.window_y;
+        }
+        if config.window_maximized.is_some() {
+            existing_config.window_maximized = config.window_maximized;
         }
 
         let content = serde_json::to_string_pretty(&existing_config).map_err(|e| e.to_string())?;
@@ -849,6 +876,28 @@ pub fn save_config_json(app: AppHandle, json: String) -> Result<(), String> {
     }
 }
 
+/// Save the main window's size and position to config.
+pub fn save_window_state(app: &AppHandle, width: u32, height: u32, x: i32, y: i32, maximized: bool) -> Result<(), String> {
+    if let Some(config_dir) = get_config_dir(app) {
+        if !config_dir.exists() {
+            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
+        }
+        let config_path = config_dir.join("config.json");
+        let mut config = load_config_internal(app);
+        config.window_width = Some(width);
+        config.window_height = Some(height);
+        config.window_x = Some(x);
+        config.window_y = Some(y);
+        config.window_maximized = Some(maximized);
+        let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+        fs::write(config_path, content).map_err(|e| e.to_string())?;
+        cache_config(&config);
+        Ok(())
+    } else {
+        Err("Could not resolve config directory".to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1103,5 +1152,62 @@ mod tests {
         // we just confirm the call returns a valid AppConfig (Default fallback
         // path is exercised indirectly via parse failures + missing file).
         let _ = load_config_from_disk();
+    }
+
+    #[test]
+    fn window_state_fields_default_to_none() {
+        let config = AppConfig::default();
+        assert!(config.window_width.is_none());
+        assert!(config.window_height.is_none());
+        assert!(config.window_x.is_none());
+        assert!(config.window_y.is_none());
+        assert!(config.window_maximized.is_none());
+    }
+
+    #[test]
+    fn window_state_fields_serialize_with_camel_case() {
+        let mut config = AppConfig::default();
+        config.window_width = Some(1920);
+        config.window_height = Some(1080);
+        config.window_x = Some(100);
+        config.window_y = Some(200);
+        config.window_maximized = Some(true);
+
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("windowWidth"));
+        assert!(json.contains("windowHeight"));
+        assert!(json.contains("windowX"));
+        assert!(json.contains("windowY"));
+        assert!(json.contains("windowMaximized"));
+        // snake_case must not appear in JSON
+        assert!(!json.contains("window_width"));
+        assert!(!json.contains("window_maximized"));
+    }
+
+    #[test]
+    fn window_state_fields_round_trip() {
+        let json = r#"{
+            "windowWidth": 1920,
+            "windowHeight": 1080,
+            "windowX": 100,
+            "windowY": 200,
+            "windowMaximized": true
+        }"#;
+
+        let config: AppConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.window_width, Some(1920));
+        assert_eq!(config.window_height, Some(1080));
+        assert_eq!(config.window_x, Some(100));
+        assert_eq!(config.window_y, Some(200));
+        assert_eq!(config.window_maximized, Some(true));
+
+        // Re-serialize and parse again
+        let serialized = serde_json::to_string(&config).unwrap();
+        let reparsed: AppConfig = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(reparsed.window_width, Some(1920));
+        assert_eq!(reparsed.window_height, Some(1080));
+        assert_eq!(reparsed.window_x, Some(100));
+        assert_eq!(reparsed.window_y, Some(200));
+        assert_eq!(reparsed.window_maximized, Some(true));
     }
 }

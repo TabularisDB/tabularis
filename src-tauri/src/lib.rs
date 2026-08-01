@@ -324,16 +324,51 @@ pub fn run() {
             // queries instead of waiting for the full approval timeout.
             heartbeat::spawn();
 
-            // Maximize the window on startup if the user enabled it.
-            if crate::config::load_config_internal(&app.handle())
-                .start_maximized
-                .unwrap_or(false)
-            {
-                if let Some(window) = app.get_webview_window("main") {
+            // Restore window size and position if saved
+            let config = crate::config::load_config_internal(&app.handle());
+            if let Some(window) = app.get_webview_window("main") {
+                // Restore position and size first
+                if let (Some(x), Some(y), Some(width), Some(height)) = (
+                    config.window_x,
+                    config.window_y,
+                    config.window_width,
+                    config.window_height,
+                ) {
+                    if let Err(e) = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y })) {
+                        log::warn!("Failed to restore window position: {e}");
+                    }
+                    if let Err(e) = window.set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height })) {
+                        log::warn!("Failed to restore window size: {e}");
+                    }
+                }
+
+                // Then maximize if needed
+                if config.window_maximized.unwrap_or(false) {
                     if let Err(e) = window.maximize() {
                         log::warn!("Failed to maximize window on startup: {e}");
                     }
                 }
+
+                // Save window state on close
+                let close_app = app.handle().clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { .. } = event {
+                        let window = close_app.get_webview_window("main");
+                        if let Some(window) = window {
+                            let maximized = window.is_maximized().unwrap_or(false);
+                            if let (Ok(pos), Ok(size)) = (window.outer_position(), window.inner_size()) {
+                                let _ = crate::config::save_window_state(
+                                    &close_app,
+                                    size.width,
+                                    size.height,
+                                    pos.x,
+                                    pos.y,
+                                    maximized,
+                                );
+                            }
+                        }
+                    }
+                });
             }
 
             // Open devtools automatically in debug mode
