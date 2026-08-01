@@ -1156,6 +1156,7 @@
     "pendingCount": "{{count}} nakabinbin",
     "executingQuery": "Isinasakatuparan ang query...",
     "exporting": "Nag-e-export...",
+    "anonymizedExport": "Anonymized export…",
     "rowsProcessed": "Mga Row na Naproseso",
     "queryParameters": "Mga Parameter ng Query",
     "formatSql": "I-format ang SQL",
@@ -1407,6 +1408,23 @@
       "expandAll": "I-expand lahat",
       "collapsed": "Na-collapse"
     }
+  },
+  "exportAnonymize": {
+    "title": "Anonymized export",
+    "subtitle": "I-mask o i-pseudonymize ang mga column bago isulat ang file",
+    "description": "Mag-assign ng rule bawat column. Ang NULL, fixed value, at partial mask ay pumapalit sa mga value; ang mga HMAC pseudonym ay deterministic bawat key, kaya gumagana pa rin ang mga join sa mga pseudonymized column sa pagitan ng mga table na na-export gamit ang parehong key. Tandaan: ito ay pseudonymization/masking, hindi garantiya ng legal (GDPR) na anonymization.",
+    "keyLabel": "Pseudonymization key",
+    "keyDescription": "Ginagamit ng mga HMAC rule. Gamitin muli ang parehong key sa pagitan ng mga export para sa mga stable na pseudonym, o i-regenerate para sa bagong set.",
+    "regenerate": "Gumawa ng bagong key",
+    "column": "Column",
+    "rule": "Rule",
+    "ruleNone": "Wala",
+    "ruleNull": "NULL",
+    "ruleFixed": "Fixed value",
+    "rulePartial": "Partial mask",
+    "ruleHmac": "Hash (HMAC)",
+    "keepStart": "Panatilihin ang unang N character",
+    "keepEnd": "Panatilihin ang huling N character"
   },
   "createTable": {
     "title": "Gumawa ng Bagong Table",

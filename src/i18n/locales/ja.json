@@ -1136,6 +1136,7 @@
     "pendingCount": "保留中 {{count}}件",
     "executingQuery": "クエリを実行中...",
     "exporting": "エクスポート中...",
+    "anonymizedExport": "匿名化エクスポート…",
     "rowsProcessed": "処理行数",
     "queryParameters": "クエリパラメータ",
     "formatSql": "SQLをフォーマット",
@@ -1388,6 +1389,23 @@
       "expandAll": "すべて展開",
       "collapsed": "折りたたみ中"
     }
+  },
+  "exportAnonymize": {
+    "title": "匿名化エクスポート",
+    "subtitle": "ファイル書き出し前に列をマスキングまたは仮名化",
+    "description": "列ごとにルールを割り当てます。NULL、固定値、部分マスクは値を置き換えます。HMAC 仮名はキーごとに決定的なため、同じキーでエクスポートしたテーブル間では仮名化された列の結合が引き続き機能します。注意: これは仮名化/マスキングであり、法的な（GDPR）匿名化を保証するものではありません。",
+    "keyLabel": "仮名化キー",
+    "keyDescription": "HMAC ルールで使用されます。エクスポート間で同じキーを再利用すると仮名が安定します。再生成すると新しいセットになります。",
+    "regenerate": "新しいキーを生成",
+    "column": "列",
+    "rule": "ルール",
+    "ruleNone": "なし",
+    "ruleNull": "NULL",
+    "ruleFixed": "固定値",
+    "rulePartial": "部分マスク",
+    "ruleHmac": "ハッシュ（HMAC）",
+    "keepStart": "先頭 N 文字を保持",
+    "keepEnd": "末尾 N 文字を保持"
   },
   "createTable": {
     "title": "新規テーブルを作成",

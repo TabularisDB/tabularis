@@ -61,6 +61,7 @@ import {
   ExternalLink,
   CheckCircle2,
   WrapText,
+  Eraser,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
@@ -82,6 +83,8 @@ import {
   ExportProgressModal,
   type ExportStatus,
 } from "../components/modals/ExportProgressModal";
+import { ExportAnonymizeModal } from "../components/modals/ExportAnonymizeModal";
+import type { AnonymizeSpec } from "../utils/anonymize";
 import { splitQueries, splitStatements, findStatementAtOffset, extractTableName, getExplainableQueries, statementLabel, type Statement } from "../utils/sql";
 import { resolveRunTarget, type RunContext } from "../utils/runTarget";
 import {
@@ -360,6 +363,7 @@ export const Editor = () => {
 
   const [showNewRowModal, setShowNewRowModal] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [anonymizeModalOpen, setAnonymizeModalOpen] = useState(false);
   const [editorHeight, setEditorHeight] = useState(300);
   const editorHeightRef = useRef(300);
   // Root of this editor instance: the resize logic must stay scoped to it,
@@ -3085,7 +3089,10 @@ export const Editor = () => {
     setExportState((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
-  const handleExportCommon = async (format: "csv" | "json" | "markdown") => {
+  const handleExportCommon = async (
+    format: "csv" | "json" | "markdown",
+    anonymize?: AnonymizeSpec,
+  ) => {
     if (!activeTab || !activeConnectionId) return;
 
     const effectiveSchema =
@@ -3137,6 +3144,7 @@ export const Editor = () => {
         filePath,
         format,
         csvDelimiter: format === "csv" ? csvDelimiter : undefined,
+        anonymize,
         ...databaseParam,
       });
 
@@ -3676,6 +3684,19 @@ export const Editor = () => {
                 <FileText size={14} className="shrink-0 opacity-80" />
                 <span className="flex-1">Markdown</span>
                 <span className="text-xs text-muted">.md</span>
+              </button>
+              <div className="my-1 border-t border-default" />
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setExportMenuOpen(false);
+                  setAnonymizeModalOpen(true);
+                }}
+                title={t("exportAnonymize.subtitle")}
+                className="flex items-center gap-2.5 text-left px-3 py-2 text-sm text-secondary hover:bg-blue-500/15 hover:text-blue-400 transition-colors"
+              >
+                <Eraser size={14} className="shrink-0 opacity-80" />
+                <span className="flex-1">{t("editor.anonymizedExport")}</span>
               </button>
             </div>
           )}
@@ -4620,6 +4641,12 @@ export const Editor = () => {
         errorMessage={exportState.errorMessage}
         onCancel={cancelExport}
         onClose={closeExportModal}
+      />
+      <ExportAnonymizeModal
+        isOpen={anonymizeModalOpen}
+        onClose={() => setAnonymizeModalOpen(false)}
+        columns={activeTab?.result?.columns ?? []}
+        onExport={handleExportCommon}
       />
       <QueryParamsModal
         isOpen={queryParamsModal.isOpen}

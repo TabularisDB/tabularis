@@ -1091,6 +1091,7 @@
     "pendingCount": "{{count}} 待处理",
     "executingQuery": "执行查询中...",
     "exporting": "导出中...",
+    "anonymizedExport": "匿名化导出…",
     "rowsProcessed": "已处理行数",
     "queryParameters": "查询参数",
     "formatSql": "格式化 SQL",
@@ -1327,6 +1328,23 @@
       "generatingName": "正在生成名称...",
       "resultSetPrefix": "结果"
     }
+  },
+  "exportAnonymize": {
+    "title": "匿名化导出",
+    "subtitle": "在写入文件前对列进行掩码或假名化",
+    "description": "为每列指定规则。NULL、固定值和部分掩码会直接替换原值；HMAC 假名在同一密钥下是确定性的，因此使用同一密钥导出的多张表仍可在假名化列上进行连接。注意：这是假名化/掩码，并不构成法律（GDPR）意义上的匿名化保证。",
+    "keyLabel": "假名化密钥",
+    "keyDescription": "供 HMAC 规则使用。在多次导出中使用同一密钥可保持假名稳定；重新生成则得到一组全新的假名。",
+    "regenerate": "生成新密钥",
+    "column": "列",
+    "rule": "规则",
+    "ruleNone": "无",
+    "ruleNull": "NULL",
+    "ruleFixed": "固定值",
+    "rulePartial": "部分掩码",
+    "ruleHmac": "哈希（HMAC）",
+    "keepStart": "保留前 N 个字符",
+    "keepEnd": "保留后 N 个字符"
   },
   "createTable": {
     "title": "创建新表",

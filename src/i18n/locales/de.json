@@ -1125,6 +1125,7 @@
     "pendingCount": "{{count}} ausstehend",
     "executingQuery": "Abfrage wird ausgeführt...",
     "exporting": "Wird exportiert...",
+    "anonymizedExport": "Anonymisierter Export…",
     "rowsProcessed": "Verarbeitete Zeilen",
     "queryParameters": "Abfrageparameter",
     "formatSql": "SQL formatieren",
@@ -1377,6 +1378,23 @@
       "expandAll": "Alle ausklappen",
       "collapsed": "Eingeklappt"
     }
+  },
+  "exportAnonymize": {
+    "title": "Anonymisierter Export",
+    "subtitle": "Spalten vor dem Schreiben der Datei maskieren oder pseudonymisieren",
+    "description": "Weisen Sie jeder Spalte eine Regel zu. NULL, feste Werte und Teilmasken ersetzen Werte; HMAC-Pseudonyme sind pro Schlüssel deterministisch, sodass Joins über pseudonymisierte Spalten bei Tabellen, die mit demselben Schlüssel exportiert wurden, weiterhin funktionieren. Hinweis: Dies ist Pseudonymisierung/Maskierung, keine Garantie für rechtliche (DSGVO-)Anonymisierung.",
+    "keyLabel": "Pseudonymisierungsschlüssel",
+    "keyDescription": "Wird von HMAC-Regeln verwendet. Verwenden Sie denselben Schlüssel für stabile Pseudonyme über Exporte hinweg oder generieren Sie einen neuen.",
+    "regenerate": "Neuen Schlüssel generieren",
+    "column": "Spalte",
+    "rule": "Regel",
+    "ruleNone": "Keine",
+    "ruleNull": "NULL",
+    "ruleFixed": "Fester Wert",
+    "rulePartial": "Teilmaske",
+    "ruleHmac": "Hash (HMAC)",
+    "keepStart": "Erste N Zeichen behalten",
+    "keepEnd": "Letzte N Zeichen behalten"
   },
   "createTable": {
     "title": "Neue Tabelle erstellen",

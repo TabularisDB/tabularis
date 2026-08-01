@@ -1123,6 +1123,7 @@
     "pendingCount": "대기 중 {{count}}건",
     "executingQuery": "쿼리를 실행하는 중...",
     "exporting": "내보내는 중...",
+    "anonymizedExport": "익명화보내기…",
     "rowsProcessed": "처리된 행",
     "queryParameters": "쿼리 매개변수",
     "formatSql": "SQL 포맷",
@@ -1374,6 +1375,23 @@
       "expandAll": "모두 펼치기",
       "collapsed": "접힘"
     }
+  },
+  "exportAnonymize": {
+    "title": "익명화보내기",
+    "subtitle": "파일을 쓰기 전에 열을 마스킹하거나 가명 처리",
+    "description": "열별로 규칙을 지정합니다. NULL, 고정 값, 부분 마스크는 값을 대체합니다. HMAC 가명은 키별로 결정적이므로 같은 키로보낸 테이블 간에는 가명 처리된 열의 조인이 계속 작동합니다. 참고: 이것은 가명 처리/마스킹이며 법적(GDPR) 익명화를 보장하지 않습니다.",
+    "keyLabel": "가명화 키",
+    "keyDescription": "HMAC 규칙에서 사용됩니다.보내기 간에 같은 키를 재사용하면 가명이 안정적으로 유지되고, 다시 생성하면 새로운 세트가 됩니다.",
+    "regenerate": "새 키 생성",
+    "column": "열",
+    "rule": "규칙",
+    "ruleNone": "없음",
+    "ruleNull": "NULL",
+    "ruleFixed": "고정 값",
+    "rulePartial": "부분 마스크",
+    "ruleHmac": "해시(HMAC)",
+    "keepStart": "앞 N자 유지",
+    "keepEnd": "뒤 N자 유지"
   },
   "createTable": {
     "title": "새 테이블 만들기",

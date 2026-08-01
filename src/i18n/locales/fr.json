@@ -1163,6 +1163,7 @@
     "pendingCount": "{{count}} en attente",
     "executingQuery": "Exécution de la requête...",
     "exporting": "Exportation...",
+    "anonymizedExport": "Export anonymisé…",
     "rowsProcessed": "Lignes traitées",
     "queryParameters": "Paramètres de requête",
     "formatSql": "Formater SQL",
@@ -1415,6 +1416,23 @@
       "expandAll": "Tout développer",
       "collapsed": "Réduit"
     }
+  },
+  "exportAnonymize": {
+    "title": "Export anonymisé",
+    "subtitle": "Masquez ou pseudonymisez des colonnes avant l'écriture du fichier",
+    "description": "Attribuez une règle par colonne. NULL, valeurs fixes et masques partiels remplacent les valeurs ; les pseudonymes HMAC sont déterministes par clé, donc les jointures sur les colonnes pseudonymisées fonctionnent toujours entre tables exportées avec la même clé. Remarque : il s'agit de pseudonymisation/masquage, pas d'une garantie d'anonymisation légale (RGPD).",
+    "keyLabel": "Clé de pseudonymisation",
+    "keyDescription": "Utilisée par les règles HMAC. Réutilisez la même clé entre exports pour des pseudonymes stables, ou régénérez-la pour un nouvel ensemble.",
+    "regenerate": "Générer une nouvelle clé",
+    "column": "Colonne",
+    "rule": "Règle",
+    "ruleNone": "Aucune",
+    "ruleNull": "NULL",
+    "ruleFixed": "Valeur fixe",
+    "rulePartial": "Masque partiel",
+    "ruleHmac": "Hachage (HMAC)",
+    "keepStart": "Conserver les N premiers caractères",
+    "keepEnd": "Conserver les N derniers caractères"
   },
   "createTable": {
     "title": "Créer une nouvelle table",

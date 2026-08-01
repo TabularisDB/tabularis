@@ -1143,6 +1143,7 @@
     "pendingCount": "{{count}} pendientes",
     "executingQuery": "Ejecutando consulta...",
     "exporting": "Exportando...",
+    "anonymizedExport": "Exportación anonimizada…",
     "rowsProcessed": "Filas Procesadas",
     "queryParameters": "Parámetros de Consulta",
     "formatSql": "Formatear SQL",
@@ -1340,6 +1341,23 @@
       "expandAll": "Expandir todo",
       "collapsed": "Contraído"
     }
+  },
+  "exportAnonymize": {
+    "title": "Exportación anonimizada",
+    "subtitle": "Enmascara o seudonimiza columnas antes de escribir el archivo",
+    "description": "Asigna una regla por columna. NULL, valores fijos y máscaras parciales sustituyen los valores; los seudónimos HMAC son deterministas por clave, así que los joins en columnas seudonimizadas siguen funcionando entre tablas exportadas con la misma clave. Nota: esto es seudonimización/enmascaramiento, no una garantía de anonimización legal (RGPD).",
+    "keyLabel": "Clave de seudonimización",
+    "keyDescription": "La usan las reglas HMAC. Reutiliza la misma clave entre exportaciones para seudónimos estables, o regenérala para un conjunto nuevo.",
+    "regenerate": "Generar una nueva clave",
+    "column": "Columna",
+    "rule": "Regla",
+    "ruleNone": "Ninguna",
+    "ruleNull": "NULL",
+    "ruleFixed": "Valor fijo",
+    "rulePartial": "Máscara parcial",
+    "ruleHmac": "Hash (HMAC)",
+    "keepStart": "Mantener los primeros N caracteres",
+    "keepEnd": "Mantener los últimos N caracteres"
   },
   "createTable": {
     "title": "Crear Nueva Tabla",

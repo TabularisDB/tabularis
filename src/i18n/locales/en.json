@@ -1173,6 +1173,7 @@
     "pendingCount": "{{count}} pending",
     "executingQuery": "Executing query...",
     "exporting": "Exporting...",
+    "anonymizedExport": "Anonymized export…",
     "rowsProcessed": "Rows Processed",
     "queryParameters": "Query Parameters",
     "formatSql": "Format SQL",
@@ -1426,6 +1427,23 @@
       "expandAll": "Expand all",
       "collapsed": "Collapsed"
     }
+  },
+  "exportAnonymize": {
+    "title": "Anonymized export",
+    "subtitle": "Mask or pseudonymize columns before writing the file",
+    "description": "Assign a rule per column. NULL, fixed-value and partial masks replace values outright; HMAC pseudonyms are deterministic per key, so joins on pseudonymized columns still work across tables exported with the same key. Note: this is pseudonymization/masking, not a guarantee of legal (GDPR) anonymization.",
+    "keyLabel": "Pseudonymization key",
+    "keyDescription": "Used by HMAC rules. Reuse the same key across exports for stable pseudonyms, or regenerate it for a fresh set.",
+    "regenerate": "Generate a new key",
+    "column": "Column",
+    "rule": "Rule",
+    "ruleNone": "None",
+    "ruleNull": "NULL",
+    "ruleFixed": "Fixed value",
+    "rulePartial": "Partial mask",
+    "ruleHmac": "Hash (HMAC)",
+    "keepStart": "Keep first N characters",
+    "keepEnd": "Keep last N characters"
   },
   "createTable": {
     "title": "Create New Table",

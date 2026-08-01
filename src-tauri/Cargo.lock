@@ -6475,6 +6475,7 @@ dependencies = [
  "filetime",
  "futures",
  "gtk",
+ "hmac",
  "infer 0.16.0",
  "keyring",
  "log",

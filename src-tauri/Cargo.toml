@@ -45,6 +45,9 @@ urlencoding = "2.1.3"
 base64 = "0.22.1"
 infer = "0.16"
 sha2 = "0.10"
+# HMAC-SHA256 for deterministic pseudonymization in anonymized exports
+# (already in the tree via transitive deps).
+hmac = "0.12"
 # Registry release-integrity: verify the Ed25519 JWS the Tabularium registry
 # signs over each release's asset hashes (already in the tree via transitive deps).
 ed25519-dalek = "2"

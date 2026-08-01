@@ -1,3 +1,4 @@
+mod anonymize;
 mod format;
 mod progress;
 mod sink;
@@ -5,6 +6,7 @@ mod sink;
 #[cfg(test)]
 mod tests;
 
+pub use anonymize::{AnonymizeRule, AnonymizeSpec, RowAnonymizer};
 pub use format::{parse_csv_delimiter, value_to_csv_string, ExportFormat, DEFAULT_CSV_DELIMITER};
 pub use progress::{ProgressEmitter, DEFAULT_INTERVAL as DEFAULT_PROGRESS_INTERVAL};
 pub use sink::{CsvSink, JsonSink, MarkdownSink, RowSink};
@@ -74,6 +76,7 @@ pub async fn export_query_to_file<R: Runtime>(
     format: String,
     csv_delimiter: Option<String>,
     database: Option<String>,
+    anonymize: Option<AnonymizeSpec>,
 ) -> Result<(), String> {
     let sanitized_query = sanitize_query(&query);
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
@@ -90,6 +93,10 @@ pub async fn export_query_to_file<R: Runtime>(
 
     let export_format = ExportFormat::parse(&format)?;
     let delimiter = parse_csv_delimiter(csv_delimiter.as_deref());
+    let anonymizer =
+        anonymize
+            .map(RowAnonymizer::new)
+            .and_then(|a| if a.is_noop() { None } else { Some(a) });
 
     let app_for_task = app.clone();
     let task_connection_id = connection_id.clone();
@@ -105,6 +112,7 @@ pub async fn export_query_to_file<R: Runtime>(
             writer,
             export_format,
             delimiter,
+            anonymizer,
         )
         .await
     });
@@ -137,6 +145,7 @@ async fn run_export<R: Runtime>(
     writer: BufWriter<File>,
     format: ExportFormat,
     delimiter: u8,
+    anonymizer: Option<RowAnonymizer>,
 ) -> Result<(), String> {
     let app_for_progress = app.clone();
     let mut progress = ProgressEmitter::new(DEFAULT_PROGRESS_INTERVAL, move |count| {
@@ -151,17 +160,41 @@ async fn run_export<R: Runtime>(
     match format {
         ExportFormat::Csv => {
             let mut sink = CsvSink::new(writer, delimiter);
-            stream_to_sink(driver, params, query, &mut sink, &mut progress).await?;
+            stream_to_sink(
+                driver,
+                params,
+                query,
+                &mut sink,
+                &mut progress,
+                anonymizer.as_ref(),
+            )
+            .await?;
             sink.finish()?;
         }
         ExportFormat::Json => {
             let mut sink = JsonSink::new(writer);
-            stream_to_sink(driver, params, query, &mut sink, &mut progress).await?;
+            stream_to_sink(
+                driver,
+                params,
+                query,
+                &mut sink,
+                &mut progress,
+                anonymizer.as_ref(),
+            )
+            .await?;
             sink.finish()?;
         }
         ExportFormat::Markdown => {
             let mut sink = MarkdownSink::new(writer);
-            stream_to_sink(driver, params, query, &mut sink, &mut progress).await?;
+            stream_to_sink(
+                driver,
+                params,
+                query,
+                &mut sink,
+                &mut progress,
+                anonymizer.as_ref(),
+            )
+            .await?;
             sink.finish()?;
         }
     }
@@ -176,13 +209,23 @@ async fn stream_to_sink<S, F>(
     query: &str,
     sink: &mut S,
     progress: &mut ProgressEmitter<F>,
+    anonymizer: Option<&RowAnonymizer>,
 ) -> Result<(), String>
 where
     S: RowSink + Send,
     F: FnMut(u64) + Send,
 {
     let mut on_row = |headers: &[String], values: &[Value]| -> Result<(), String> {
-        sink.write_row(headers, values)?;
+        if let Some(anonymizer) = anonymizer {
+            // Anonymized export (#483): rewrite ruled columns before the sink
+            // sees them. Works for every driver — the transform sits between
+            // the row stream and the sinks.
+            let mut transformed = values.to_vec();
+            anonymizer.apply(headers, &mut transformed);
+            sink.write_row(headers, &transformed)?;
+        } else {
+            sink.write_row(headers, values)?;
+        }
         progress.tick();
         Ok(())
     };
