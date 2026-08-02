@@ -19,6 +19,12 @@ export interface EditorContextType {
   closeTabsToRight: (id: string) => void;
   updateTab: (id: string, partial: Partial<Tab>) => void;
   /**
+   * Reorder a tab within its own connection's tab list. `insertAt` is a gap
+   * index into the *filtered* (per-connection) `tabs` array — 0 means
+   * "before the first tab", `tabs.length` means "after the last".
+   */
+  reorderTab: (fromTabId: string, insertAt: number) => void;
+  /**
    * Functional update of a single result entry inside a tab's `results` array,
    * matched by entry id. Used to resolve batch result tabs progressively as
    * each statement completes — safe under rapid back-to-back events because it

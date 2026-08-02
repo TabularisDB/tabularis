@@ -20,6 +20,26 @@
     "overridable": false
   },
   {
+    "id": "run_all",
+    "category": "editor",
+    "defaultMac": "⌘+⇧+F5",
+    "defaultWin": "Ctrl+Shift+F5",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "F5" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "F5" },
+    "i18nKey": "settings.shortcuts.runAll",
+    "overridable": false
+  },
+  {
+    "id": "run_all_editor",
+    "category": "editor",
+    "defaultMac": "⌘+⇧+Enter",
+    "defaultWin": "Ctrl+Shift+Enter",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "Enter" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "Enter" },
+    "i18nKey": "settings.shortcuts.runAllEditor",
+    "overridable": false
+  },
+  {
     "id": "new_tab",
     "category": "editor",
     "defaultMac": "⌘+T",
@@ -70,6 +90,16 @@
     "overridable": true
   },
   {
+    "id": "refresh_table",
+    "category": "data_grid",
+    "defaultMac": "⌘+R",
+    "defaultWin": "Ctrl+R",
+    "macMatch": { "metaKey": true, "key": "r" },
+    "winMatch": { "ctrlKey": true, "key": "r" },
+    "i18nKey": "settings.shortcuts.refreshTable",
+    "overridable": true
+  },
+  {
     "id": "tab_switcher",
     "category": "editor",
     "defaultMac": "Ctrl+Tab",
@@ -97,6 +127,16 @@
     "macMatch": { "metaKey": true, "key": "b" },
     "winMatch": { "ctrlKey": true, "key": "b" },
     "i18nKey": "settings.shortcuts.toggleSidebar",
+    "overridable": true
+  },
+  {
+    "id": "toggle_right_sidebar",
+    "category": "navigation",
+    "defaultMac": "⌘+Shift+B",
+    "defaultWin": "Ctrl+Shift+B",
+    "macMatch": { "metaKey": true, "shiftKey": true, "key": "b" },
+    "winMatch": { "ctrlKey": true, "shiftKey": true, "key": "b" },
+    "i18nKey": "settings.shortcuts.toggleRightSidebar",
     "overridable": true
   },
   {
@@ -168,5 +208,25 @@
     "winMatch": { "ctrlKey": true, "key": "p" },
     "i18nKey": "settings.shortcuts.quickNavigator",
     "overridable": true
+  },
+  {
+    "id": "trigger_suggestions",
+    "category": "editor",
+    "defaultMac": "⌘+I",
+    "defaultWin": "Ctrl+Space",
+    "macMatch": { "metaKey": true, "key": "i" },
+    "winMatch": { "ctrlKey": true, "key": " " },
+    "i18nKey": "settings.shortcuts.triggerSuggestions",
+    "overridable": true
+  },
+  {
+    "id": "format_sql",
+    "category": "editor",
+    "defaultMac": "Shift+⌥+F",
+    "defaultWin": "Shift+Alt+F",
+    "macMatch": { "shiftKey": true, "altKey": true, "key": "f" },
+    "winMatch": { "shiftKey": true, "altKey": true, "key": "f" },
+    "i18nKey": "settings.shortcuts.formatSql",
+    "overridable": false
   }
 ]

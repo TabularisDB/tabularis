@@ -5,7 +5,7 @@
 # tabularis
 
 <p align="center">
-  <strong>Tabularis is an open-source desktop SQL workspace for PostgreSQL, MySQL/MariaDB, SQLite and 13+ more databases like DuckDB, ClickHouse, Redis and Firestore.<br />
+  <strong>Tabularis is an open-source desktop SQL workspace for PostgreSQL, MySQL/MariaDB, SQLite and 15+ more databases like DuckDB, ClickHouse, Redis and Firestore.<br />
   Its built-in MCP server lets Claude, Cursor and Devin (formerly Windsurf) read your schema and run queries in the same app you already use.</strong>
 </p>
 
@@ -18,7 +18,10 @@
   <a href="./README.fr.md">Français</a> |
   <a href="./README.de.md">Deutsch</a> |
   <a href="./README.ja.md">日本語</a> |
-  <a href="./README.ru.md">Русский</a>
+  <a href="./README.ru.md">Русский</a> |
+  <a href="./README.tl.md">Tagalog</a> |
+  <a href="./README.ko.md">한국어</a> |
+  <a href="./README.pt-BR.md">Português (Brasil)</a>
 </p>
 
 <p align="center">
@@ -58,11 +61,11 @@ sudo snap install tabularis                                      # Linux
 
 Or grab an installer directly:
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.4/tabularis_0.13.4_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.4/tabularis_0.13.4_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.4/tabularis_0.13.4_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.4/tabularis_0.13.4_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.4/tabularis_0.13.4_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.13.4/tabularis-0.13.1-1.x86_64.rpm)
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.17.0/tabularis_0.17.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.17.0/tabularis_0.17.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.17.0/tabularis_0.17.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.17.0/tabularis_0.17.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.17.0/tabularis_0.17.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.17.0/tabularis-0.17.0-1.x86_64.rpm)
 
-The app UI is available in English, Italian, Spanish, Chinese (Simplified), French, German, Japanese and Russian.
+The app UI is available in English, Italian, Spanish, Chinese (Simplified), French, German, Japanese, Russian, Tagalog and Portuguese (Brazilian).
 
-**Discord** — [Join our Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with the maintainers, share feedback, and get help from the community.
+**Discord:** [Join our Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with the maintainers, share feedback, and get help from the community.
 
 ## Table of Contents
 
@@ -91,7 +94,7 @@ The app UI is available in English, Italian, Spanish, Chinese (Simplified), Fren
   - [Plugin System](#plugin-system)
 - [Configuration Storage](#configuration-storage)
   - [AI Features (Optional)](#ai-features-optional)
-  - [MCP Server — AI Agent Integration](#mcp-server--ai-agent-integration)
+  - [MCP Server: AI Agent Integration](#mcp-server-ai-agent-integration)
 - [Tech Stack](#tech-stack)
 - [Development](#development)
 - [Roadmap](#roadmap)
@@ -110,17 +113,17 @@ The app UI is available in English, Italian, Spanish, Chinese (Simplified), Fren
 | Plugins in **any language** (JSON-RPC over stdio) | ✅ | Java/Eclipse plugins | JavaScript plugins | ❌ |
 | AI text-to-SQL with **local models** (Ollama) | ✅ | Cloud-based AI assistant | ❌ | ❌ |
 | Visual EXPLAIN with interactive plan graphs | ✅ | ✅ | ❌ | ❌ |
-| Databases out of the box | 3 built-in + 13 official plugins | 100+ | 20+ | ~10 |
+| Databases out of the box | 3 built-in + 16 official plugins | 100+ | 20+ | ~10 |
 
-> Comparison as of June 2026; features in other tools may have changed since. If you need dozens of drivers, use DBeaver — tabularis focuses on doing a few databases well.
+> Comparison as of June 2026; features in other tools may have changed since. If you need dozens of drivers, use DBeaver. Tabularis focuses on doing a few databases well.
 
 ### Database support
 
-PostgreSQL, MySQL/MariaDB and SQLite ship built in. Everything else is a plugin — current coverage (mirroring the [driver & plugin coverage](https://tabularis.dev/#driver-coverage) on the website):
+PostgreSQL, MySQL/MariaDB and SQLite ship built in. Everything else is a plugin. Current coverage, mirroring the [driver & plugin coverage](https://tabularis.dev/#driver-coverage) on the website:
 
-ClickHouse (shipped), Cloudflare D1 (shipped), DM / Dameng (shipped), DuckDB (shipped), Firestore (shipped), IBM Db2 (shipped), IBM Informix (shipped), Redis (shipped), CSV Folder (shipped), Google Sheets (shipped), HackerNews (shipped), Google BigQuery (claimed), LibSQL / Turso (claimed), Meilisearch (claimed), MongoDB (claimed), Oracle (claimed), SQL Server (claimed), Amazon Redshift (scoped), CockroachDB (scoped), TiDB (scoped), DynamoDB (coming soon), Snowflake (coming soon), Cassandra (open), Elasticsearch (open), Etcd (open), Firebird (open), ScyllaDB (open), SQL Anywhere (open), SurrealDB (open), Trino / Presto (open).
+[ClickHouse](https://github.com/TabularisDB/tabularis-clickhouse-plugin) (shipped), [Cloudflare D1](https://github.com/josejorge/tabularis_cloudflare_d1_plugin) (shipped), [DM / Dameng](https://github.com/haos666/tabularis-dameng-plugin) (shipped), [DuckDB](https://github.com/TabularisDB/tabularis-duckdb-plugin) (shipped), [DynamoDB](https://github.com/TabularisDB/tabularis-dynamodb-plugin) (shipped), [Elasticsearch](https://github.com/TabularisDB/tabularis-elasticsearch-plugin) (shipped), [Firestore](https://codeberg.org/NewtTheWolf/firestore-tabularis) (shipped), [IBM Db2](https://github.com/TabularisDB/tabularis-db2-plugin) (shipped), [IBM Informix](https://github.com/danielnuld/tabularis-informix-plugin) (shipped), [MongoDB](https://github.com/danielnuld/tabularis-mongodb-plugin) (shipped), Redis (shipped, in [Go](https://github.com/gzamboni/tabularis-redis-plugin-go) and [Rust](https://github.com/nicholas-papachriston/tabularis-redis-plugin)), [CSV Folder](https://github.com/TabularisDB/tabularis-csv-plugin) (shipped), [Google Sheets](https://github.com/TabularisDB/tabularis-google-sheets-plugin) (shipped), [HackerNews](https://github.com/TabularisDB/tabularis-hackernews-plugin) (shipped), Google BigQuery (claimed), [LibSQL / Turso](https://github.com/TabularisDB/tabularis-libsql-plugin) (claimed), Meilisearch (claimed), [Oracle](https://github.com/TabularisDB/tabularis-oracle-plugin) (claimed), [SQL Server](https://github.com/TabularisDB/tabularis-sqlserver-plugin) (claimed), Amazon Redshift (scoped), CockroachDB (scoped), TiDB (scoped), Snowflake (coming soon), Cassandra (open), Etcd (open), Firebird (open), ScyllaDB (open), SQL Anywhere (open), SurrealDB (open), Trino / Presto (open).
 
-> **Shipped** drivers are installable from the [plugin registry](https://tabularis.dev/plugins). Everything else is on the [bounty board](https://tabularis.dev/plugins/bounties) — claim one, sponsor one, or [request a database](https://github.com/TabularisDB/tabularis/discussions).
+> **Shipped** drivers are installable from the [plugin registry](https://tabularis.dev/plugins). Everything else is on the [bounty board](https://tabularis.dev/plugins/bounties): claim one, sponsor one, or [request a database](https://github.com/TabularisDB/tabularis/discussions). The SQL Server driver is in active development in its own repository, [tabularis-sqlserver-plugin](https://github.com/TabularisDB/tabularis-sqlserver-plugin).
 
 ## Installation
 
@@ -226,7 +229,7 @@ Join our [Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with th
 
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/schema-management)
 
-- **Tree View:** Browse tables, columns, keys, indexes, views, and stored routines — with inline editing from the sidebar.
+- **Tree View:** Browse tables, columns, keys, indexes, views, and stored routines, with inline editing from the sidebar.
 - **ER Diagram:** Interactive Entity-Relationship visualization (pan, zoom, layout) with selective table diagram generation.
 - **Context Actions:** Show data, count rows, modify schema, duplicate/delete tables.
 - **SQL Dump & Import:** Export and restore databases with a single flow.
@@ -236,7 +239,7 @@ Join our [Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with th
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/editor)
 
 - **Monaco Editor** with syntax highlighting and auto-completion, in a tabbed interface with isolated connections per tab and resizable **split view**.
-- **Multi-Statement Execution:** Run All, Run Selected, or pick individual queries — results appear in separate tabs with independent pagination.
+- **Multi-Statement Execution:** Run All, Run Selected, or pick individual queries. Results appear in separate tabs with independent pagination.
 - **Smart Query Splitting:** Correctly handles stored procedures, functions, and `$$`-delimited blocks.
 - **Saved Queries** and an **AI assist overlay** directly in the editor.
 
@@ -245,7 +248,7 @@ Join our [Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with th
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/notebooks)
 
 - **Multi-Cell Workspace:** Combine SQL and Markdown cells in a single document, with inline results and bar/line/pie charts.
-- **Cross-Cell Variables:** Reference results from other cells with `{{cellName.columnName}}`, plus global `{{$paramName}}` parameters.
+- **Cross-Cell Variables:** Reference another cell's full result as a table with `{{cell_N}}` (expanded to a CTE at run time), plus global `@paramName` parameters.
 - **Run All:** Sequential execution with stop-on-error option and completion summary.
 - **Persistence & Export:** Auto-saved as `.tabularis-notebook` files; export as HTML, CSV, or JSON.
 - Outline panel, drag & drop cell reordering, and AI-generated cell names.
@@ -254,7 +257,7 @@ Join our [Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with th
 
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/keyboard-shortcuts)
 
-- **Built-in shortcuts** for navigation, editor, and data grid actions — platform-aware (`Cmd` on macOS, `Ctrl` on Windows/Linux).
+- **Built-in shortcuts** for navigation, editor, and data grid actions, platform-aware (`Cmd` on macOS, `Ctrl` on Windows/Linux).
 - **Fully customizable:** Remap any non-locked shortcut from **Settings → Keyboard Shortcuts**; overrides persist to `keybindings.json`.
 - Hold `Ctrl+Shift` in the sidebar to reveal numbered badges (1–9) for instant connection switching.
 
@@ -291,7 +294,7 @@ Join our [Discord server](https://discord.com/invite/K2hmhfHRSt) to talk with th
 
 Tabularis is **hackable with an external plugin system**. Plugins are standalone executables that communicate with the app over **JSON-RPC 2.0 via stdin/stdout**, and can be written in any language.
 
-- **Install Plugins:** Browse and install community drivers from **Settings → Available Plugins** — no restart required.
+- **Install Plugins:** Browse and install community drivers from **Settings → Available Plugins**, no restart required.
 - **Manage Drivers:** View all registered drivers (built-in and plugins) in **Settings → Installed Drivers** and uninstall plugins with one click.
 - **Any Database:** Add support for DuckDB, MongoDB, or any other database by writing or installing a plugin.
 - **Plugin Registry:** Official plugins are listed in [`plugins/registry.json`](./plugins/registry.json).
@@ -307,7 +310,7 @@ Tabularis is **hackable with an external plugin system**. Plugins are standalone
 
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/configuration)
 
-Configuration is stored in `~/.config/tabularis/` (Linux), `~/Library/Application Support/tabularis/` (macOS), or `%APPDATA%\tabularis\` (Windows): connection profiles, saved queries, app settings (`config.json`), custom themes, and per-connection editor preferences — tabs and queries are restored when you reopen a connection. The wiki covers the full file layout and every `config.json` option, including custom AI model overrides.
+Configuration is stored in `~/.config/tabularis/` (Linux), `~/Library/Application Support/tabularis/` (macOS), or `%APPDATA%\tabularis\` (Windows): connection profiles, saved queries, app settings (`config.json`), custom themes, and per-connection editor preferences. Tabs and queries are restored when you reopen a connection. The wiki covers the full file layout and every `config.json` option, including custom AI model overrides.
 
 ### AI Features (Optional)
 
@@ -315,7 +318,7 @@ Configuration is stored in `~/.config/tabularis/` (Linux), `~/Library/Applicatio
 
 Optional Text-to-SQL and query explanation powered by **OpenAI**, **Anthropic**, **MiniMax**, **OpenRouter**, **Ollama** (local models, no API key, full privacy), and any **OpenAI-compatible API** (Groq, Perplexity, Azure OpenAI, LocalAI, ...). Model lists are fetched from your provider and cached locally; custom models can be configured per provider.
 
-### MCP Server — AI Agent Integration
+### MCP Server: AI Agent Integration
 
 > [Full reference on tabularis.dev →](https://tabularis.dev/wiki/mcp-server)
 
@@ -334,6 +337,7 @@ Once connected, your AI agent can:
 | Tool | Description |
 |------|-------------|
 | `list_connections` | List all saved database connections |
+| `list_databases` | List all databases available for a connection |
 | `list_tables` | List tables in a connection (with optional schema filter) |
 | `describe_table` | Get full schema: columns, indexes, foreign keys |
 | `run_query` | Execute any SQL query and return results |
@@ -373,9 +377,9 @@ pnpm tauri build
 - [x] [Visual Explain Analyze](https://github.com/TabularisDB/tabularis/issues/22)
 - [x] [Plugin System](https://github.com/TabularisDB/tabularis/issues/19)
 - [x] [Query History](https://github.com/TabularisDB/tabularis/issues/18)
-- [ ] [Plugin registry platform — OAuth publishing, release sync, download analytics](https://github.com/TabularisDB/tabularis/issues/196)
-- [ ] [UI design system & visual identity — call for contributors](https://github.com/TabularisDB/tabularis/issues/195)
-- [ ] [SQL Server driver — implementation roadmap & call for contributors](https://github.com/TabularisDB/tabularis/issues/150)
+- [ ] [Plugin registry platform: OAuth publishing, release sync, download analytics](https://github.com/TabularisDB/tabularis/issues/196)
+- [ ] [UI design system & visual identity: call for contributors](https://github.com/TabularisDB/tabularis/issues/195)
+- [ ] [SQL Server driver plugin, in development in its own repository](https://github.com/TabularisDB/tabularis-sqlserver-plugin)
 - [ ] [Feature: Remote Control](https://github.com/TabularisDB/tabularis/issues/46)
 - [ ] [Command Palette](https://github.com/TabularisDB/tabularis/issues/25)
 - [ ] [SQL Formatting / Prettier](https://github.com/TabularisDB/tabularis/issues/23)
@@ -386,11 +390,11 @@ pnpm tauri build
 
 ## Contributing
 
-Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md). Good places to start:
+Contributions are welcome, see [CONTRIBUTING.md](./CONTRIBUTING.md). Good places to start:
 
-- [SQL Server driver — implementation roadmap & call for contributors](https://github.com/TabularisDB/tabularis/issues/150)
-- [UI design system & visual identity — call for contributors](https://github.com/TabularisDB/tabularis/issues/195)
-- Write a driver plugin in any language — see the [Plugin Guide](./plugins/PLUGIN_GUIDE.md)
+- [SQL Server driver plugin: test the driver and claim open issues](https://github.com/TabularisDB/tabularis-sqlserver-plugin)
+- [UI design system & visual identity: call for contributors](https://github.com/TabularisDB/tabularis/issues/195)
+- Write a driver plugin in any language with the [Plugin Guide](./plugins/PLUGIN_GUIDE.md)
 
 <!-- SPONSORS:START -->
 
@@ -404,6 +408,8 @@ Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md). Good pla
 - <a href="https://devglobe.app/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/devglobe_compact.png" height="28" alt="DevGlobe" /></a> **[DevGlobe](https://devglobe.app/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Connect your IDE, show up on the globe, and showcase your projects to a community of builders.
 - <a href="https://tolgee.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/tolgee_compact.svg" height="28" alt="Tolgee" /></a> **[Tolgee](https://tolgee.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Open-source localization platform — translate your app in context, without the spreadsheet chaos.
 - <a href="https://1password.com/developers?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/1password_compact.png" height="28" alt="1Password" /></a> **[1Password](https://1password.com/developers?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — The password and secrets manager developers trust — free for open-source projects.
+- <a href="https://www.jetbrains.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/jetbrains_compact.png" height="28" alt="JetBrains" /></a> **[JetBrains](https://www.jetbrains.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Professional developer tools — IntelliJ IDEA, WebStorm, DataGrip and the rest of the All Products Pack.
+- <a href="https://signpath.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/signpath_compact.png" height="28" alt="SignPath" /></a> **[SignPath](https://signpath.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Code signing for open source — signed Windows releases without the certificate bill.
 
 _[Become a sponsor →](https://tabularis.dev/sponsors)_
 
@@ -411,7 +417,7 @@ _[Become a sponsor →](https://tabularis.dev/sponsors)_
 
 ## Origin Story
 
-Tabularis started as an experiment: how far could AI-assisted development get in building a working tool from scratch? Further than expected — it's now an actively maintained project with regular releases and a plugin ecosystem.
+Tabularis started as an experiment: how far could AI-assisted development get in building a working tool from scratch? Further than expected: it's now an actively maintained project with regular releases and a plugin ecosystem.
 
 ## License
 
@@ -420,7 +426,7 @@ Apache License 2.0
 ---
 
 <p align="center">
-  Like tabularis? <a href="https://github.com/TabularisDB/tabularis">Star the repo</a> ⭐ — it helps the project a lot.
+  Like tabularis? <a href="https://github.com/TabularisDB/tabularis">Star the repo</a> ⭐, it helps the project a lot.
 </p>
 
 <p align="center">

@@ -52,4 +52,12 @@ export const versionLinks: Record<string, string> = {
     "https://tabularis.dev/blog/v0133-result-colors-gruvbox-themed-tabs-session-restore",
   "0.13.4":
     "https://tabularis.dev/blog/v0134-ssh-security-keys-detachable-results-smarter-editor",
+  "0.14.0":
+    "https://tabularis.dev/blog/v0140-stored-routines-connection-windows-destructive-query-guard",
+  "0.15.0":
+    "https://tabularis.dev/blog/v0150-import-connections-nested-groups-encrypted-exports",
+  "0.16.0":
+    "https://tabularis.dev/blog/v0160-hosted-plugin-registry-k8s-overrides-encrypted-backups",
+  "0.17.0":
+    "https://tabularis.dev/blog/v0170-visual-explain-diagnostics-row-editor-sidebar-sql-formatting"
 };

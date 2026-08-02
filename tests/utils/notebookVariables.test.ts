@@ -179,6 +179,86 @@ describe("notebookVariables", () => {
       expect(result.sql).toContain("NULL AS");
     });
 
+    it("should escape double quotes in column names", () => {
+      const cells = [
+        makeCell({
+          type: "sql",
+          result: {
+            columns: ['a" FROM x; DROP TABLE y; --'],
+            rows: [["v"]],
+            affected_rows: 0,
+          },
+        }),
+      ];
+      const result = resolveQueryVariables("SELECT * FROM {{cell_1}}", cells);
+      expect(result.sql).toContain('AS "a"" FROM x; DROP TABLE y; --"');
+      expect(result.sql).not.toContain('AS "a" FROM x');
+    });
+
+    it("should leave backslashes untouched by default", () => {
+      const cells = [
+        makeCell({
+          type: "sql",
+          result: {
+            columns: ["path"],
+            rows: [["C:\\temp\\"]],
+            affected_rows: 0,
+          },
+        }),
+      ];
+      const result = resolveQueryVariables("SELECT * FROM {{cell_1}}", cells);
+      expect(result.sql).toContain("'C:\\temp\\'");
+    });
+
+    it("should double backslashes when escapeBackslashes is set", () => {
+      const cells = [
+        makeCell({
+          type: "sql",
+          result: {
+            columns: ["path"],
+            rows: [["C:\\temp\\"]],
+            affected_rows: 0,
+          },
+        }),
+      ];
+      const result = resolveQueryVariables("SELECT * FROM {{cell_1}}", cells, {
+        escapeBackslashes: true,
+      });
+      expect(result.sql).toContain("'C:\\\\temp\\\\'");
+    });
+
+    it("should escape a backslash-quote sequence safely for MySQL", () => {
+      const cells = [
+        makeCell({
+          type: "sql",
+          result: {
+            columns: ["v"],
+            rows: [["\\', (SELECT 1)) --"]],
+            affected_rows: 0,
+          },
+        }),
+      ];
+      const result = resolveQueryVariables("SELECT * FROM {{cell_1}}", cells, {
+        escapeBackslashes: true,
+      });
+      expect(result.sql).toContain("'\\\\'', (SELECT 1)) --'");
+    });
+
+    it("should emit non-finite numbers as string literals", () => {
+      const cells = [
+        makeCell({
+          type: "sql",
+          result: {
+            columns: ["n"],
+            rows: [[Number.POSITIVE_INFINITY]],
+            affected_rows: 0,
+          },
+        }),
+      ];
+      const result = resolveQueryVariables("SELECT * FROM {{cell_1}}", cells);
+      expect(result.sql).toContain("'Infinity'");
+    });
+
     it("should handle empty result set", () => {
       const cells = [
         makeCell({

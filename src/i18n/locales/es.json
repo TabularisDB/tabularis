@@ -37,7 +37,13 @@
     "noResults": "No se encontraron resultados",
     "error": "Error",
     "success": "Éxito",
-    "ok": "OK"
+    "ok": "OK",
+    "continue": "Continuar",
+    "back": "Atrás",
+    "copy": "Copiar",
+    "showDetails": "Mostrar detalles",
+    "hideDetails": "Ocultar detalles",
+    "beta": "Beta"
   },
   "sidebar": {
     "connections": "Conexiones",
@@ -88,6 +94,7 @@
     "modifyColumn": "Modificar Columna",
     "copyName": "Copiar Nombre",
     "openInEditor": "Abrir en el Editor",
+    "openInNewWindow": "Abrir en una nueva ventana",
     "closePanel": "Cerrar panel",
     "setAsActive": "Establecer como Activa",
     "deleteTable": "Eliminar Tabla",
@@ -143,6 +150,8 @@
     "noTablesMatch": "No hay tablas que coincidan",
     "filterDatabases": "Filtrar bases de datos...",
     "manageDatabases": "Gestionar Bases de Datos",
+    "databaseSelectionUpdated": "Selección de bases de datos actualizada",
+    "droppedDatabasesRemoved": "Se eliminaron porque ya no existen en el servidor: {{names}}",
     "structure": "Estructura",
     "favorites": "Favoritos",
     "queryHistory": "Historial",
@@ -177,7 +186,33 @@
       "delete": "Eliminar",
       "deleteConfirm": "¿Eliminar el notebook \"{{title}}\"? Esta acción no se puede deshacer.",
       "renamePlaceholder": "Nombre del notebook"
-    }
+    },
+    "addToSplitGroup": "Añadir al Grupo Dividido",
+    "removeFromSplitGroup": "Quitar del Grupo",
+    "movePanel": "Mover panel",
+    "refreshDatabaseList": "Actualizar lista de bases de datos",
+    "databaseListUpToDate": "La lista de bases de datos está actualizada",
+    "allDatabasesRefreshed": "Bases de datos actualizadas: {{names}}"
+  },
+  "groups": {
+    "title": "Grupos",
+    "newGroup": "Nuevo grupo",
+    "createGroup": "Crear grupo",
+    "rename": "Renombrar",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Seguro que quieres eliminar el grupo \"{{name}}\"? Las conexiones de este grupo pasarán a estar sin agrupar.",
+    "deleteTitle": "Eliminar grupo",
+    "connection": "conexión",
+    "connections": "conexiones",
+    "ungrouped": "Sin agrupar",
+    "moveToGroup": "Mover a",
+    "removeFromGroup": "Quitar del grupo",
+    "noGroups": "Aún no hay grupos",
+    "createFirst": "Crea tu primer grupo para organizar las conexiones",
+    "groupName": "Nombre del grupo",
+    "dragHint": "Arrastra las conexiones aquí",
+    "createError": "No se pudo crear el grupo",
+    "subgroupNamePrompt": "Nombre de la subcarpeta (usa / para niveles anidados)"
   },
   "mcp": {
     "title": "Integración del Servidor MCP",
@@ -228,6 +263,12 @@
   "connections": {
     "title": "Conexiones",
     "addConnection": "Agregar Conexión",
+    "newSqliteDatabase": {
+      "menuLabel": "Nueva base de datos SQLite…",
+      "dialogTitle": "Nueva base de datos SQLite",
+      "fileType": "Base de datos SQLite",
+      "error": "No se pudo crear la base de datos SQLite"
+    },
     "noConnections": "No hay conexiones activas",
     "createFirst": "Crea tu primera conexión",
     "active": "Activa",
@@ -252,10 +293,77 @@
     "noSearchResults": "Ninguna conexión coincide con \"{{query}}\"",
     "gridView": "Vista de cuadrícula",
     "listView": "Vista de lista",
+    "selectedCount": "{{count}} seleccionadas",
+    "deleteSelected": "Eliminar seleccionadas",
+    "moveSelected": "Mover a grupo",
+    "exportSelected": "Exportar selección",
+    "deselectAll": "Deseleccionar todo",
+    "confirmDeleteSelected": "¿Seguro que quieres eliminar {{count}} conexiones seleccionadas?",
+    "deleteSelectedTitle": "Eliminar conexiones seleccionadas",
     "export": "Exportar conexiones",
     "import": "Importar conexiones",
     "exportTitle": "Exportar conexiones",
-    "exportWarning": "El archivo exportado contendrá tus contraseñas de base de datos y SSH en texto plano. Guárdalo de forma segura."
+    "exportWarning": "El archivo exportado contendrá tus contraseñas de base de datos y SSH en texto plano. Guárdalo de forma segura.",
+    "exportModal": {
+      "title": "Exportar conexiones",
+      "subtitle": "Elige cómo exportar tus conexiones",
+      "subtitleSelected": "Exportar {{count}} conexión(es) seleccionada(s)",
+      "encrypted": "Cifrado con contraseña",
+      "encryptedDesc": "Se incluyen todas las conexiones y contraseñas, protegidas con una contraseña de tu elección. Recomendado para copias de seguridad.",
+      "noSecrets": "En texto plano, sin contraseñas",
+      "noSecretsDesc": "Las conexiones se exportan como JSON legible, pero se excluyen todas las contraseñas y frases de paso. Recomendado para compartir.",
+      "plaintext": "En texto plano, con todas las contraseñas",
+      "plaintextDesc": "Las conexiones y contraseñas se exportan como JSON legible. Cualquiera con el archivo puede leer tus credenciales.",
+      "password": "Contraseña",
+      "confirmPassword": "Confirmar contraseña",
+      "passwordRequired": "Se requiere una contraseña para una exportación cifrada.",
+      "passwordMismatch": "Las contraseñas no coinciden.",
+      "export": "Exportar"
+    },
+    "importPasswordModal": {
+      "title": "Archivo de exportación cifrado",
+      "subtitle": "Este archivo está protegido con una contraseña",
+      "password": "Contraseña",
+      "unlock": "Importar"
+    },
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace",
+        "applyToAll": "Acción para todas:"
+      },
+      "tabularisJsonHint": "Archivo de exportación de Tabularis (.json)",
+      "menuLabel": "Importar conexiones…",
+      "group": {
+        "label": "Grupo:",
+        "none": "Sin grupo",
+        "new": "Nuevo grupo…",
+        "newPlaceholder": "Nombre del grupo",
+        "parentLabel": "en",
+        "parentNone": "Nivel superior",
+        "applyToAll": "Grupo para todas:",
+        "keepPerConnection": "Por conexión"
+      },
+      "betaNotice": "La importación desde otra app está en beta. Si tienes algún problema,",
+      "reportIssue": "repórtalo en GitHub."
+    },
+    "databaseCount_one": "{{count}} base de datos",
+    "databaseCount_other": "{{count}} bases de datos"
   },
   "connectionAppearance": {
     "section": "Apariencia",
@@ -301,6 +409,13 @@
     "delimiterPipe": "Pipe (|)",
     "csvIncludeHeaders": "Incluir encabezados CSV",
     "csvIncludeHeadersDesc": "Incluir una fila de encabezado con los nombres de las columnas al copiar filas como CSV.",
+    "rowEditorFollowSelection": "El editor de filas sigue la selección",
+    "rowEditorFollowSelectionDesc": "Cuando la barra lateral del editor de filas está abierta, se actualiza automáticamente para mostrar la fila recién seleccionada.",
+    "cellDoubleClickAction": "Acción de doble clic en celda",
+    "cellDoubleClickActionDesc": "Elija qué sucede al hacer doble clic en una celda de datos.",
+    "cellDoubleClickInline": "Edición en línea",
+    "cellDoubleClickSidebar": "Abrir en barra lateral",
+    "cellDoubleClickBoth": "Ambos",
     "csvHeaders": "Exportar nombres de columnas",
     "detectJsonInTextColumns": "Detectar JSON en columnas de texto",
     "detectJsonInTextColumnsDesc": "Muestra el visor de JSON cuando una celda de texto sin tipar contiene un objeto o array JSON. Añade un pequeño coste de análisis por celda.",
@@ -335,6 +450,23 @@
     "appearance_editorShowLineNumbersDesc": "Muestra los números de línea en el margen del editor.",
     "appearance_editorAcceptSuggestionOnEnter": "Aceptar Sugerencia con Intro",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Permite que Intro (además de Tab) acepte la sugerencia de autocompletado activa. Cuando está desactivado, Intro siempre inserta una nueva línea.",
+    "queryExecution": "Ejecución de consultas",
+    "runStatementUnderCursor": "Ejecutar la instrucción bajo el cursor",
+    "runStatementUnderCursorDesc": "Cuando un script tiene varias instrucciones, ejecuta la que está bajo el cursor en lugar de mostrar el selector de consultas. Selecciona texto para ejecutar un rango específico.",
+    "formatter_title": "Formateador SQL",
+    "formatter_keywordCase": "Mayúsculas en palabras clave",
+    "formatter_keywordCaseDesc": "Cómo se capitalizan las palabras clave SQL (SELECT, FROM, WHERE) después del formateo.",
+    "formatter_functionCase": "Mayúsculas en funciones",
+    "formatter_functionCaseDesc": "Cómo se capitalizan los nombres de funciones (COUNT, SUM, COALESCE) después del formateo.",
+    "formatter_indentStyle": "Estilo de indentación",
+    "formatter_indentStyleDesc": "Estándar indenta normalmente. Tabular alinea las cláusulas en columnas.",
+    "formatter_tabWidth": "Ancho de indentación",
+    "formatter_useTabs": "Usar tabulaciones",
+    "formatter_useTabsDesc": "Indentar con tabulaciones en lugar de espacios.",
+    "formatter_linesBetweenQueries": "Líneas entre consultas",
+    "formatter_linesBetweenQueriesDesc": "Número de líneas en blanco entre sentencias SQL separadas.",
+    "formatter_denseOperators": "Operadores compactos",
+    "formatter_denseOperatorsDesc": "Eliminar espacios alrededor de operadores (ej. a=1 en lugar de a = 1).",
     "editConfigJson": "Editar config.json",
     "editConfigJsonDesc": "Edita directamente el archivo de configuración en bruto. Se requiere reinicio para aplicar los cambios.",
     "configJsonModal": {
@@ -348,6 +480,7 @@
     },
     "language": "Idioma",
     "languageDesc": "Elige tu idioma preferido. 'Auto' usará el idioma del sistema.",
+    "languageSearch": "Buscar idiomas...",
     "auto": "Auto (Sistema)",
     "english": "English",
     "italian": "Italiano",
@@ -403,10 +536,9 @@
       "explainplanPromptDesc": "Personaliza las instrucciones para el analisis IA de los planes EXPLAIN. Usa {{LANGUAGE}} para el idioma de salida.",
       "enterExplainplanPrompt": "Ingresa el prompt de analisis del plan de ejecucion...",
       "keySaved": "Clave API guardada de forma segura",
-      "promptSaved": "Prompt del sistema guardado correctamente",
+      "promptSaved": "Prompt guardado",
       "explainPromptSaved": "Prompt de explicación guardado correctamente",
       "promptReset": "Prompt del sistema restablecido al predeterminado",
-      "explainPromptReset": "Prompt de explicación restablecido al predeterminado",
       "modelPlaceholder": "Selecciona un modelo",
       "searchPlaceholder": "Buscar modelos...",
       "noResults": "No se encontraron modelos",
@@ -422,7 +554,9 @@
       "endpointUrlDesc": "La URL base de tu API compatible con OpenAI. Ejemplos: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "ej., llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "Ingresa el nombre del modelo proporcionado por tu servicio compatible con OpenAI.",
-      "customOpenaiModelHelp": "Ingresa el nombre exacto del modelo para tu proveedor compatible con OpenAI."
+      "customOpenaiModelHelp": "Ingresa el nombre exacto del modelo para tu proveedor compatible con OpenAI.",
+      "promptResetSuccess": "Prompt restablecido al valor predeterminado",
+      "apiKeySaved": "Clave API guardada de forma segura"
     },
     "updates": "Actualizaciones",
     "openSourceLibraries": "Librerías Open Source",
@@ -527,6 +661,10 @@
         "copy": "Copiar",
         "copied": "¡Copiado!"
       },
+      "uninstallError": {
+        "title": "Desinstalación fallida",
+        "subtitle": "Ocurrió un error al desinstalar el plugin. Consulta los detalles a continuación."
+      },
       "startError": {
         "title": "El Plugin no se pudo iniciar",
         "subtitle": "No se pudo lanzar el proceso del plugin. Revisa los detalles del error.",
@@ -565,7 +703,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "Con tecnología de",
+      "openHomepage": "Abrir página"
     },
     "shortcuts": {
       "title": "Atajos de teclado",
@@ -576,9 +716,12 @@
       },
       "runQuery": "Ejecutar consulta",
       "runQueryEditor": "Ejecutar consulta (en el editor)",
+      "runAll": "Ejecutar todas las sentencias",
+      "runAllEditor": "Ejecutar todas las sentencias (en el editor)",
       "tabSwitcher": "Cambiar pestaña",
       "copySelection": "Copiar selección",
       "toggleSidebar": "Mostrar/ocultar barra lateral",
+      "toggleRightSidebar": "Alternar barra lateral derecha",
       "focusTableFilter": "Enfocar el filtro de tablas",
       "openConnections": "Abrir conexiones",
       "newConnection": "Nueva conexión",
@@ -593,9 +736,60 @@
       "notebookRunAll": "Ejecutar Todas las Celdas",
       "categories_notebook": "Notebook",
       "pasteImportClipboard": "Importar desde Portapapeles",
-      "quickNavigator": "Navegador rápido"
+      "quickNavigator": "Navegador rápido",
+      "triggerSuggestions": "Mostrar sugerencias",
+      "formatSql": "Formatear SQL",
+      "refreshTable": "Actualizar tabla"
     },
-    "aiActivity": "Actividad IA"
+    "aiActivity": "Actividad IA",
+    "backup": {
+      "title": "Backup",
+      "directory": "Carpeta de copias",
+      "directoryDesc": "Ninguna carpeta seleccionada.",
+      "chooseDirectory": "Elegir carpeta",
+      "password": "Contraseña de copia",
+      "passwordDesc": "Las copias siempre están cifradas. La contraseña se guarda en el llavero del sistema.",
+      "passwordSetDesc": "Las copias de seguridad se cifran con esta contraseña. Se guarda en el llavero del sistema.",
+      "passwordReplaceDesc": "Introduce una nueva contraseña. Las copias ya creadas conservan la anterior.",
+      "changePassword": "Cambiar contraseña",
+      "webdavPasswordSetDesc": "Hay una contraseña guardada en el llavero del sistema.",
+      "passwordSaved": "Contraseña de copia guardada.",
+      "configureFirst": "Configura primero un destino y define una contraseña de copia.",
+      "interval": "Frecuencia",
+      "intervalDesc": "Con qué frecuencia se escribe una nueva copia.",
+      "every6h": "6 h",
+      "every12h": "12 h",
+      "daily": "Diaria",
+      "weekly": "Semanal",
+      "retention": "Copias conservadas",
+      "retentionDesc": "Los archivos de copia más antiguos se eliminan automáticamente.",
+      "files": "archivos",
+      "backupNow": "Copiar ahora",
+      "lastBackup": "Última copia: {{date}}",
+      "noBackupYet": "Aún no hay copias.",
+      "backupDone": "Copia escrita en {{path}}",
+      "custom": "Personalizada",
+      "destination": "Destino",
+      "target": "Destino de las copias",
+      "targetDesc": "Dónde se escriben los archivos de copia. Una carpeta sincronizada por Dropbox, OneDrive o Syncthing te da una copia en la nube gratis.",
+      "targetLocal": "Carpeta local",
+      "webdavUrl": "URL WebDAV",
+      "webdavUrlDesc": "URL de la carpeta WebDAV donde se suben las copias (p. ej. Nextcloud).",
+      "webdavUsername": "Usuario WebDAV",
+      "webdavUsernameDesc": "Cuenta usada para autenticarse en el servidor WebDAV.",
+      "webdavPassword": "Contraseña WebDAV",
+      "webdavPasswordDesc": "Se guarda en el llavero del sistema. Para Nextcloud, mejor una contraseña de aplicación.",
+      "webdavSaved": "Contraseña WebDAV guardada.",
+      "mode": "Disparador",
+      "modeDesc": "Cuándo se escribe una copia. Manual: solo mediante el botón de abajo.",
+      "modeManual": "Manual",
+      "modeInterval": "Por intervalo",
+      "modeOnClose": "Al cerrar",
+      "modeOnLaunch": "Al abrir",
+      "nextBackup": "Próxima copia: {{date}}",
+      "nextBackupSoon": "Próxima copia: en la próxima comprobación",
+      "hours": "horas"
+    }
   },
   "update": {
     "newVersionAvailable": "Nueva Versión Disponible",
@@ -642,6 +836,7 @@
     "namePlaceholder": "Ingresa el nombre de tu conexión",
     "nameRequired": "El nombre de la conexión es requerido",
     "dbNameRequired": "El nombre de la base de datos es requerido",
+    "connectionUriRequiresKeychain": "Las URI de conexión deben guardarse en el Llavero del sistema. Activa “Guardar contraseñas en el Llavero” para continuar.",
     "dbType": "Tipo de Base de Datos",
     "host": "Host",
     "port": "Puerto",
@@ -666,6 +861,7 @@
     "filePathPlaceholder": "/ruta/absoluta/db.sqlite",
     "folderPathPlaceholder": "/ruta/absoluta/carpeta",
     "browseFile": "Explorar archivo",
+    "createSqliteFile": "Nuevo",
     "browseFolder": "Explorar carpeta",
     "useSsh": "Usar Túnel SSH",
     "sshHost": "Host SSH",
@@ -729,7 +925,20 @@
     "startupScriptDescription": "SQL que se ejecuta en cada nueva conexión a esta fuente de datos. Úsalo para ajustes de sesión como SET / set_config (p. ej., para omitir RLS). Separa las sentencias con punto y coma.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Desplazar pestañas a la izquierda",
-    "scrollTabsRight": "Desplazar pestañas a la derecha"
+    "scrollTabsRight": "Desplazar pestañas a la derecha",
+    "useIamAuth": "Usar autenticación AWS IAM (RDS)",
+    "useIamAuthHint": "El campo de contraseña se interpreta como un token de autenticación de RDS (obtenido con `aws rds generate-db-auth-token`). Requiere TLS. Los tokens caducan cada 15 minutos.",
+    "useIamAuthTlsRequired": "Activa un modo SSL arriba para usar la autenticación AWS IAM.",
+    "changeDatabase": "Cambiar base de datos",
+    "testSsh": "Probar SSH",
+    "testSshHint": "Verifica solo el túnel SSH (host y credenciales), sin conectarse a la base de datos.",
+    "sshTestSuccess": "Conexión SSH a {{target}} establecida",
+    "stopTest": "Detener",
+    "allDatabases": "Todas las bases de datos",
+    "chooseDatabases": "Elegir bases de datos",
+    "allDatabasesHint": "Al conectar se cargan automáticamente todas las bases de datos del servidor. Las bases de datos creadas o eliminadas en el servidor aparecen solas, sin editar esta conexión.",
+    "selectDatabasesHint": "Selecciona las bases de datos que incluirá esta conexión.",
+    "loadDatabasesHint": "Pulsa Cargar bases de datos para obtener las disponibles."
   },
   "sshConnections": {
     "title": "Conexiones SSH",
@@ -752,7 +961,17 @@
     "keyFile": "Archivo de clave",
     "quickTest": "Prueba rápida de conexión",
     "testFailed": "La prueba de conexión falló",
-    "savedInKeychain": "Contraseña guardada en el llavero del sistema"
+    "savedInKeychain": "Contraseña guardada en el llavero del sistema",
+    "manageDesc": "Túneles SSH reutilizables para tus conexiones de base de datos. Las contraseñas y frases de acceso se guardan en el llavero del sistema.",
+    "deleteInUse_one": "La usa {{count}} conexión guardada, que dejará de conectarse a través de este túnel.",
+    "deleteInUse_other": "La usan {{count}} conexiones guardadas, que dejarán de conectarse a través de este túnel.",
+    "errors": {
+      "connectionRequired": "Selecciona una conexión SSH o configura una en línea",
+      "connectionMissing": "La conexión SSH seleccionada ya no existe",
+      "hostRequired": "El host SSH es obligatorio",
+      "userRequired": "El usuario SSH es obligatorio",
+      "portInvalid": "El puerto SSH debe estar entre 1 y 65535"
+    }
   },
   "sshAskpass": {
     "title": "Autenticación SSH",
@@ -771,12 +990,25 @@
     "updateFailed": "Error en la actualización: ",
     "deleteFailed": "Error al eliminar la fila: ",
     "null": "null",
+    "emptySet": "(conjunto vacío)",
     "sortByAsc": "Ordenar por {{col}} ASC",
     "sortByDesc": "Ordenar por {{col}} DESC",
     "clearSort": "Quitar ordenamiento",
     "copyCell": "Copiar Celda",
     "copyRow": "Copiar Fila",
-    "copySelectedRows": "Copiar fila(s) seleccionada(s)",
+    "selectAll": "Seleccionar Todo",
+    "selectAllN": "Seleccionar Todo ({{count}})",
+    "deselectAll": "Deseleccionar Todo",
+    "copySelectedN": "Copiar Seleccionadas ({{count}})",
+    "selectColumn": "Seleccionar Columna",
+    "deselectColumn": "Deseleccionar Columna",
+    "copySelectedColumns": "Copiar Columnas Seleccionadas ({{count}})",
+    "copyRangeN": "Copiar Rango ({{rows}}×{{cols}})",
+    "copyAllRows": "Copiar Todo ({{count}})",
+    "copyAll": "Copiar Todo",
+    "copiedRows": "{{count}} fila(s) copiada(s) al portapapeles",
+    "copiedRowsOfTotal": "Copiadas {{loaded}} de {{total}} filas al portapapeles",
+    "copiedCells": "{{count}} celda(s) copiada(s) al portapapeles",
     "copyColumnName": "Copiar nombre de columna",
     "copyColumnNameQuoted": "Copiar como `columna`",
     "copyColumnNameTable": "Copiar como tabla.columna",
@@ -841,6 +1073,9 @@
     "noActiveSession": "No hay sesión activa. Selecciona una conexión.",
     "stop": "Detener",
     "run": "Ejecutar",
+    "runSelection": "Ejecutar selección",
+    "runStatement": "Ejecutar sentencia",
+    "runAll": "Ejecutar todo",
     "export": "Exportar",
     "connected": "Conectado",
     "disconnected": "Desconectado",
@@ -854,6 +1089,7 @@
     "page": "Página {{current}}",
     "jumpToPage": "Clic para ir a la página",
     "loadRowCount": "Cargar conteo de filas",
+    "rowCount": "{{total}} filas",
     "executePrompt": "Ejecuta una consulta para ver resultados",
     "results": {
       "minimize": "Minimizar",
@@ -873,6 +1109,13 @@
     "saveThisQuery": "Guardar esta consulta",
     "noValidQueries": "No se encontraron consultas válidas",
     "queryFailed": "La consulta falló.",
+    "dangerousQueryTitle": "¿Ejecutar sin cláusula WHERE?",
+    "dangerousQueryMessage": "Esta sentencia afectará a todas las filas de la tabla porque no tiene una cláusula WHERE. Esta acción no se puede deshacer.",
+    "dangerousQueryConfirm": "Ejecutar de todos modos",
+    "dangerousQueryDropTitle": "¿Eliminar este objeto?",
+    "dangerousQueryDropMessage": "DROP elimina de forma permanente este objeto y todos sus datos. Esta acción no se puede deshacer.",
+    "dangerousQueryTruncateTitle": "¿Vaciar esta tabla?",
+    "dangerousQueryTruncateMessage": "TRUNCATE elimina todas las filas de la tabla. Esta acción no se puede deshacer.",
     "showErrorDetails": "Mostrar detalles",
     "hideErrorDetails": "Ocultar detalles",
     "errorBoundary": {
@@ -895,10 +1138,14 @@
     "submitChanges": "Enviar Cambios",
     "rollbackChanges": "Revertir Cambios",
     "applyToAll": "Aplicar a todo",
+    "submit": "Enviar",
+    "rollback": "Revertir",
+    "pendingCount": "{{count}} pendientes",
     "executingQuery": "Ejecutando consulta...",
     "exporting": "Exportando...",
     "rowsProcessed": "Filas Procesadas",
     "queryParameters": "Parámetros de Consulta",
+    "formatSql": "Formatear SQL",
     "convertToConsole": "Convertir a Consola",
     "parameters": "Parámetros",
     "paramValuePlaceholder": "Valor (ej. 'texto' o 123)",
@@ -1087,6 +1334,7 @@
       "viewTabs": "Vista en pestañas",
       "viewStacked": "Vista apilada",
       "queryPrefix": "Consulta",
+      "resultSetPrefix": "Resultado",
       "results": "Resultados",
       "collapseAll": "Contraer todo",
       "expandAll": "Expandir todo",
@@ -1201,7 +1449,11 @@
     "showAllTables": "Mostrar Todas las Tablas",
     "showAll": "Mostrar Todo",
     "focusedOn": "Enfocado en",
-    "focusOnTable": "Enfocar en Tabla"
+    "focusOnTable": "Enfocar en Tabla",
+    "exportMermaid": "Exportar como diagrama Mermaid",
+    "exportSuccess": "Diagrama exportado",
+    "exportDbml": "Exportar como DBML",
+    "export": "Exportar"
   },
   "views": {
     "createView": "Crear Vista",
@@ -1249,7 +1501,6 @@
     "errorNoTables": "Selecciona al menos una tabla",
     "importStarted": "Importación iniciada...",
     "importSuccess": "Archivo SQL ejecutado correctamente",
-    "importFailure": "Error en la importación: ",
     "importCancelled": "Importación cancelada",
     "importFailed": "Importación fallida",
     "importingFrom": "Importando desde",
@@ -1297,7 +1548,14 @@
     "subtitle": "Fila #{{row}}",
     "save": "Guardar Cambios",
     "cancel": "Cancelar",
-    "enterValue": "Ingresar valor..."
+    "enterValue": "Ingresar valor...",
+    "pin": "Fijar",
+    "unpin": "Desfijar"
+  },
+  "rightSidebar": {
+    "resize": "Redimensionar",
+    "collapse": "Contraer",
+    "expand": "Expandir"
   },
   "contextMenu": {
     "openSidebar": "Abrir Barra Lateral",
@@ -1442,7 +1700,8 @@
     "targetColumn": "Columna destino",
     "targetColumnPlaceholder": "Elegir destino...",
     "skipColumn": "Omitir (no importar)",
-    "createNewColumn": "Crear nueva columna"
+    "createNewColumn": "Crear nueva columna",
+    "typePlaceholder": "Tipo"
   },
   "aiActivity": {
     "title": "Actividad IA",
@@ -1519,6 +1778,8 @@
   },
   "aiApproval": {
     "title": "La IA quiere ejecutar una escritura en la base de datos",
+    "titleRead": "La IA quiere ejecutar una lectura en la base de datos",
+    "planEstimatedRows": "Filas estimadas",
     "subtitle": "En {{connection}} — revisa y decide antes de ejecutar.",
     "subtitleWithClient": "{{client}} en {{connection}} — revisa y decide antes de ejecutar.",
     "query": "Consulta",
@@ -1568,7 +1829,17 @@
       "resourceTypeInvalid": "El tipo de recurso debe ser \"service\" o \"pod\"",
       "resourceNameRequired": "El nombre del recurso es obligatorio",
       "portInvalid": "El puerto debe estar entre 1 y 65535"
-    }
+    },
+    "advancedSettings": "Configuración avanzada de kubectl",
+    "kubectlPath": "Ruta de kubectl",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "Ruta de kubeconfig",
+    "kubeconfigPathPlaceholder": "Ruta al kubeconfig",
+    "pathValidationFailed": "Corrige los campos de ruta avanzada de Kubernetes no válidos antes de continuar.",
+    "pathSelectionReset": "Las rutas avanzadas de Kubernetes han cambiado. Elige de nuevo el contexto, el namespace y el recurso.",
+    "noContexts": "No hay contextos disponibles",
+    "noNamespaces": "No hay namespaces disponibles",
+    "noResources": "No hay recursos disponibles"
   },
   "routines": {
     "menuRun": "Ejecutar…",
@@ -1592,5 +1863,145 @@
     "runButton": "Ejecutar",
     "runTabPrefix": "Ejecutar",
     "returnValue": "devuelve"
+  },
+  "pagination": {
+    "firstPage": "Primera página",
+    "previousPage": "Página anterior",
+    "nextPage": "Página siguiente",
+    "lastPage": "Última página"
+  },
+  "miniGrid": {
+    "runningQuery": "Ejecutando consulta...",
+    "copyAll": "Copiar todo"
+  },
+  "userManagement": {
+    "tabTitle": "Usuarios y privilegios",
+    "filterPlaceholder": "Filtrar usuarios...",
+    "newUser": "Nuevo usuario",
+    "create": "Crear usuario",
+    "userPlaceholder": "nombre de usuario",
+    "passwordPlaceholder": "Contraseña",
+    "newPasswordPlaceholder": "Nueva contraseña",
+    "changePassword": "Cambiar contraseña",
+    "dropUser": "Eliminar usuario",
+    "dropTitle": "Eliminar usuario",
+    "dropConfirm": "¿Eliminar el usuario {{account}}? Esta acción es irreversible.",
+    "locked": "Bloqueado",
+    "loadError": "Error al cargar los usuarios:",
+    "noUsers": "No se encontraron usuarios",
+    "selectPrompt": "Selecciona un usuario para ver sus privilegios",
+    "currentGrants": "Privilegios actuales",
+    "scope": "Base de datos",
+    "scopePlaceholder": "Vacío = global (*.*)",
+    "revokeTitle": "Revocar privilegios",
+    "revokeConfirm": "¿Revocar {{privileges}} de {{account}} en {{scope}}?",
+    "add": "Añadir",
+    "apply": "Aplicar",
+    "privileges": "Privilegios",
+    "globalScope": "Global (*.*)",
+    "addScope": "Añadir base de datos / tabla",
+    "databasePlaceholder": "base de datos",
+    "tablePlaceholder": "tabla (opcional)",
+    "initialPrivilegesHint": "Opcional: privilegios iniciales concedidos justo después de la creación. Elige una base de datos o déjalo vacío para conceder globalmente."
+  },
+  "deepLink": {
+    "installTitle": "Instalar plugin desde el registro",
+    "installSubtitle": "Un registro de Tabularium pidió a Tabularis que instale un plugin.",
+    "plugin": "Plugin",
+    "version": "Versión",
+    "registry": "Registro",
+    "latest": "Última",
+    "installConfirm": "Instalar",
+    "installing": "Instalando…",
+    "loadingPreview": "Cargando detalles…",
+    "usingConfigured": "registro configurado",
+    "mismatchTitle": "Registro distinto al configurado",
+    "mismatchBody": "Tu registro configurado es {{configured}}. El enlace apunta a otro — revisa antes de continuar.",
+    "updateConfirm": "Actualizar a v{{version}}",
+    "alreadyInstalled": "La versión {{version}} ya está instalada."
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "Buscar bases de datos…",
+    "clearSearch": "Borrar búsqueda",
+    "verified": "Verificado",
+    "installed": "Instalado",
+    "install": "Instalar",
+    "clear": "Limpiar",
+    "registryOffline": "Registro no disponible: mostrando solo controladores instalados e integrados.",
+    "noMatches": "Ninguna base de datos coincide con tus filtros.",
+    "clearFilters": "Limpiar filtros",
+    "driverCount_one": "{{count}} controlador",
+    "driverCount_other": "{{count}} controladores",
+    "connectTo": "Conectar a {{name}}",
+    "unavailableOnPlatform": "No disponible en tu plataforma",
+    "backToCatalogue": "Volver al catálogo",
+    "pickDriver": "Varios controladores se conectan a {{name}}. Elige uno:",
+    "latestVersion": "Última v{{version}}",
+    "continue": "Continuar",
+    "noReleaseTitle": "Aún no hay una versión instalable para tu plataforma.",
+    "noReleaseBody": "Este controlador no tiene una compilación descargable para tu SO/arquitectura. Consulta el registro para una versión actualizada.",
+    "notInstalled": "Este controlador aún no está instalado. Instálalo para configurar una conexión.",
+    "installVersion": "Instalar v{{version}}",
+    "installingVersion": "Instalando v{{version}}…",
+    "retryInstall": "Reintentar instalación"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "Error de autenticación SSH",
+      "recovery": "Comprueba el usuario, la contraseña o la clave privada en la pestaña SSH."
+    },
+    "ssh-unreachable": {
+      "summary": "Servidor SSH inaccesible",
+      "recovery": "Comprueba el host y el puerto SSH y que el servidor sea accesible. Si el túnel conecta, verifica el host y el puerto de la base de datos vistos desde el servidor SSH."
+    },
+    "ssh": {
+      "summary": "Fallo del túnel SSH",
+      "recovery": "Comprueba la configuración en la pestaña SSH."
+    },
+    "db-auth": {
+      "summary": "Error de autenticación en la base de datos",
+      "recovery": "Comprueba el nombre de usuario y la contraseña de la base de datos."
+    },
+    "network": {
+      "summary": "Servidor de base de datos inaccesible",
+      "recovery": "Comprueba el host y el puerto y que el servidor esté en ejecución."
+    },
+    "db-not-found": {
+      "summary": "Base de datos no encontrada",
+      "recovery": "Comprueba el nombre de la base de datos."
+    },
+    "unknown": {
+      "summary": "Error de conexión"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Registro de la prueba",
+    "noLog": "No se registraron pasos para esta prueba.",
+    "rawError": "Detalles del error",
+    "copyDiagnostics": "Copiar diagnóstico",
+    "copied": "¡Copiado!",
+    "steps": {
+      "cancelled": "Prueba detenida por el usuario",
+      "resolve": {
+        "error": "Error al preparar los parámetros de conexión"
+      },
+      "sshTunnel": {
+        "start": "Abriendo el túnel SSH",
+        "ok": "Túnel SSH establecido",
+        "error": "Fallo del túnel SSH"
+      },
+      "k8sForward": {
+        "start": "Iniciando el port-forward de Kubernetes",
+        "ok": "Port-forward listo",
+        "error": "Fallo del port-forward de Kubernetes"
+      },
+      "dbConnect": {
+        "start": "Conectando a la base de datos",
+        "ok": "Conexión a la base de datos establecida",
+        "error": "Fallo de conexión a la base de datos"
+      }
+    },
+    "title": "Registro de la prueba de conexión",
+    "showLog": "Mostrar registro"
   }
 }

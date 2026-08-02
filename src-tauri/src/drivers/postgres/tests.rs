@@ -1,8 +1,26 @@
 use super::binding::{
-    PgValueOptions, bind_pg_boolean_string, bind_pg_number, bind_pg_numeric_string,
-    bind_pg_temporal_string, bind_pg_value, build_pk_map_predicate, build_pk_predicate,
+    bind_pg_boolean_string, bind_pg_enum_string, bind_pg_number, bind_pg_numeric_string,
+    bind_pg_temporal_string, bind_pg_value, build_pk_map_predicate, build_pk_predicate, BoundValue,
+    PgValueOptions,
 };
-use super::helpers::{extract_base_type, is_implicit_cast_compatible};
+use super::helpers::{
+    enum_data_type, extract_base_type, is_implicit_cast_compatible, quote_qualified_type,
+};
+use super::primary_key_exists_expression;
+
+mod primary_key_detection_tests {
+    use super::*;
+
+    #[test]
+    fn primary_key_detection_uses_pg_catalog() {
+        let expression = primary_key_exists_expression();
+
+        assert!(expression.contains("pg_constraint"));
+        assert!(expression.contains("pg_attribute"));
+        assert!(expression.contains("pk_con.contype = 'p'"));
+        assert!(!expression.contains("information_schema.table_constraints"));
+    }
+}
 
 mod extract_base_type_tests {
     use super::*;
@@ -256,7 +274,9 @@ mod pg_boolean_string_binding_tests {
 
     #[test]
     fn true_string_for_boolean_column_binds_as_bool() {
-        let bound = bind_pg_boolean_string("true", "boolean", 1).unwrap().unwrap();
+        let bound = bind_pg_boolean_string("true", "boolean", 1)
+            .unwrap()
+            .unwrap();
         assert_eq!(bound.sql, "$1");
         assert!(bound.param.is_some());
     }
@@ -290,11 +310,9 @@ mod pg_boolean_string_binding_tests {
 
     #[test]
     fn surrounding_whitespace_is_tolerated() {
-        assert!(
-            bind_pg_boolean_string("  true  ", "boolean", 1)
-                .unwrap()
-                .is_ok()
-        );
+        assert!(bind_pg_boolean_string("  true  ", "boolean", 1)
+            .unwrap()
+            .is_ok());
     }
 
     #[test]
@@ -324,13 +342,10 @@ mod pg_temporal_string_binding_tests {
 
     #[test]
     fn timestamptz_column_casts_to_canonical_type() {
-        let bound = bind_pg_temporal_string(
-            "2025-06-30T12:00:00+00:00",
-            "timestamp with time zone",
-            1,
-        )
-        .unwrap()
-        .unwrap();
+        let bound =
+            bind_pg_temporal_string("2025-06-30T12:00:00+00:00", "timestamp with time zone", 1)
+                .unwrap()
+                .unwrap();
         assert_eq!(bound.sql, "CAST($1 AS timestamptz)");
         let (_, pg_type) = bound.param.unwrap();
         // The placeholder must be pinned to TEXT — not TIMESTAMPTZ — or
@@ -341,9 +356,10 @@ mod pg_temporal_string_binding_tests {
 
     #[test]
     fn timestamp_without_time_zone_casts_to_timestamp() {
-        let bound = bind_pg_temporal_string("2025-06-30 12:00:00", "timestamp without time zone", 2)
-            .unwrap()
-            .unwrap();
+        let bound =
+            bind_pg_temporal_string("2025-06-30 12:00:00", "timestamp without time zone", 2)
+                .unwrap()
+                .unwrap();
         assert_eq!(bound.sql, "CAST($2 AS timestamp)");
     }
 
@@ -393,6 +409,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("boolean"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: true,
                 hstore_oid: None,
@@ -411,6 +428,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("boolean"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: true,
                 hstore_oid: None,
@@ -429,6 +447,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("integer"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: true,
                 hstore_oid: None,
@@ -447,6 +466,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: None,
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: true,
                 hstore_oid: None,
@@ -465,6 +485,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: None,
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
                 hstore_oid: None,
@@ -483,6 +504,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: None,
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
                 hstore_oid: None,
@@ -501,6 +523,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("jsonb"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
                 hstore_oid: None,
@@ -519,6 +542,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("json"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
                 hstore_oid: None,
@@ -537,6 +561,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("jsonb"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
                 hstore_oid: None,
@@ -555,6 +580,7 @@ mod bind_pg_value_tests {
             1,
             PgValueOptions {
                 column_type: Some("text"),
+                enum_type: None,
                 max_blob_size: 1024,
                 allow_default: false,
                 hstore_oid: None,
@@ -567,118 +593,260 @@ mod bind_pg_value_tests {
     }
 
     #[test]
-fn hstore_object_bound_as_value_with_correct_type_name() {
-    let bound = bind_pg_value(
-        serde_json::json!({"key": "value", "other": "thing"}),
-        1,
-        PgValueOptions {
-            column_type: Some("USER-DEFINED"),
-            max_blob_size: 1024,
-            allow_default: false,
-            hstore_oid: Some(16_500),
-        },
-    )
-    .unwrap();
+    fn hstore_object_bound_as_value_with_correct_type_name() {
+        let bound = bind_pg_value(
+            serde_json::json!({"key": "value", "other": "thing"}),
+            1,
+            PgValueOptions {
+                column_type: Some("hstore"),
+                enum_type: None,
+                max_blob_size: 1024,
+                allow_default: false,
+                hstore_oid: Some(16_500),
+            },
+        )
+        .unwrap();
 
-    assert_eq!(bound.sql, "$1");
-    let (_, pg_type) = bound.param.unwrap();
-    assert_eq!(pg_type.name(), "hstore");
-    assert_eq!(pg_type.oid(), 16_500);
+        assert_eq!(bound.sql, "$1");
+        let (_, pg_type) = bound.param.unwrap();
+        assert_eq!(pg_type.name(), "hstore");
+        assert_eq!(pg_type.oid(), 16_500);
+    }
+
+    #[test]
+    fn hstore_object_with_null_value_bound_correctly() {
+        let bound = bind_pg_value(
+            serde_json::json!({"key": null}),
+            1,
+            PgValueOptions {
+                column_type: Some("hstore"),
+                enum_type: None,
+                max_blob_size: 1024,
+                allow_default: false,
+                hstore_oid: Some(16_500),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(bound.sql, "$1");
+        assert!(bound.param.is_some());
+    }
+
+    #[test]
+    fn hstore_null_value_stays_sql_null() {
+        let bound = bind_pg_value(
+            serde_json::Value::Null,
+            1,
+            PgValueOptions {
+                column_type: Some("hstore"),
+                enum_type: None,
+                max_blob_size: 1024,
+                allow_default: false,
+                hstore_oid: Some(16_500),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(bound.sql, "NULL");
+        assert!(bound.param.is_none());
+    }
+
+    #[test]
+    fn hstore_non_string_value_in_object_returns_clear_error() {
+        let err = match bind_pg_value(
+            serde_json::json!({"key": 42}),
+            1,
+            PgValueOptions {
+                column_type: Some("hstore"),
+                enum_type: None,
+                max_blob_size: 1024,
+                allow_default: false,
+                hstore_oid: Some(16_500),
+            },
+        ) {
+            Ok(_) => panic!("expected an error for non-string hstore value"),
+            Err(e) => e,
+        };
+
+        assert!(err.contains("key"));
+        assert!(err.contains("string or null"));
+    }
+
+    #[test]
+    fn hstore_non_object_value_returns_clear_error() {
+        let err = match bind_pg_value(
+            serde_json::json!("just a string"),
+            1,
+            PgValueOptions {
+                column_type: Some("hstore"),
+                enum_type: None,
+                max_blob_size: 1024,
+                allow_default: false,
+                hstore_oid: Some(16_500),
+            },
+        ) {
+            Ok(_) => panic!("expected an error for non-object hstore value"),
+            Err(e) => e,
+        };
+
+        assert!(err.contains("JSON object"));
+    }
+
+    #[test]
+    fn hstore_object_without_resolved_oid_returns_clear_error() {
+        let err = match bind_pg_value(
+            serde_json::json!({"key": "value"}),
+            1,
+            PgValueOptions {
+                column_type: Some("hstore"),
+                enum_type: None,
+                max_blob_size: 1024,
+                allow_default: false,
+                hstore_oid: None,
+            },
+        ) {
+            Ok(_) => panic!("expected an error when hstore_oid could not be resolved"),
+            Err(e) => e,
+        };
+
+        assert!(err.contains("hstore"));
+    }
 }
 
-#[test]
-fn hstore_object_with_null_value_bound_correctly() {
-    let bound = bind_pg_value(
-        serde_json::json!({"key": null}),
-        1,
-        PgValueOptions {
-            column_type: Some("USER-DEFINED"),
-            max_blob_size: 1024,
-            allow_default: false,
-            hstore_oid: Some(16_500),
-        },
-    )
-    .unwrap();
+mod bind_pg_enum_string_tests {
+    use super::*;
+    use tokio_postgres::types::Type;
 
-    assert_eq!(bound.sql, "$1");
-    assert!(bound.param.is_some());
+    #[test]
+    fn casts_through_the_qualified_enum_type_pinned_as_text() {
+        let bound = bind_pg_enum_string("pro", "\"public\".\"plan_type\"", 1);
+        assert_eq!(bound.sql, "CAST($1 AS \"public\".\"plan_type\")");
+        let (_, ty) = bound.param.expect("expected a bound parameter");
+        assert_eq!(ty, Type::TEXT);
+    }
+
+    #[test]
+    fn placeholder_index_is_respected() {
+        let bound = bind_pg_enum_string("free", "\"public\".\"plan_type\"", 3);
+        assert_eq!(bound.sql, "CAST($3 AS \"public\".\"plan_type\")");
+    }
+
+    #[test]
+    fn bind_pg_value_uses_enum_coercion_for_enum_columns() {
+        let bound = bind_pg_value(
+            serde_json::json!("enterprise"),
+            1,
+            PgValueOptions {
+                column_type: Some("USER-DEFINED"),
+                enum_type: Some("\"public\".\"plan_type\""),
+                max_blob_size: 1024,
+                allow_default: true,
+                hstore_oid: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(bound.sql, "CAST($1 AS \"public\".\"plan_type\")");
+        assert!(bound.param.is_some());
+    }
+
+    #[test]
+    fn enum_coercion_wins_over_shape_heuristics() {
+        // A label that happens to be uuid-shaped must still cast to the enum,
+        // not to uuid.
+        let bound = bind_pg_value(
+            serde_json::json!("123e4567-e89b-12d3-a456-426614174000"),
+            1,
+            PgValueOptions {
+                column_type: Some("USER-DEFINED"),
+                enum_type: Some("\"public\".\"weird_enum\""),
+                max_blob_size: 1024,
+                allow_default: true,
+                hstore_oid: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(bound.sql, "CAST($1 AS \"public\".\"weird_enum\")");
+    }
+
+    #[test]
+    fn null_for_enum_column_stays_sql_null() {
+        let bound = bind_pg_value(
+            serde_json::Value::Null,
+            1,
+            PgValueOptions {
+                column_type: Some("USER-DEFINED"),
+                enum_type: Some("\"public\".\"plan_type\""),
+                max_blob_size: 1024,
+                allow_default: true,
+                hstore_oid: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(bound.sql, "NULL");
+        assert!(bound.param.is_none());
+    }
+
+    #[test]
+    fn default_sentinel_wins_over_enum_coercion() {
+        let bound = bind_pg_value(
+            serde_json::json!("__USE_DEFAULT__"),
+            1,
+            PgValueOptions {
+                column_type: Some("USER-DEFINED"),
+                enum_type: Some("\"public\".\"plan_type\""),
+                max_blob_size: 1024,
+                allow_default: true,
+                hstore_oid: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(bound.sql, "DEFAULT");
+        assert!(bound.param.is_none());
+    }
 }
 
-#[test]
-fn hstore_null_value_stays_sql_null() {
-    let bound = bind_pg_value(
-        serde_json::Value::Null,
-        1,
-        PgValueOptions {
-            column_type: Some("USER-DEFINED"),
-            max_blob_size: 1024,
-            allow_default: false,
-            hstore_oid: Some(16_500),
-        },
-    )
-    .unwrap();
+mod enum_helpers_tests {
+    use super::*;
 
-    assert_eq!(bound.sql, "NULL");
-    assert!(bound.param.is_none());
-}
+    #[test]
+    fn quote_qualified_type_quotes_schema_and_name() {
+        assert_eq!(
+            quote_qualified_type("public", "plan_type"),
+            "\"public\".\"plan_type\""
+        );
+    }
 
-#[test]
-fn hstore_non_string_value_in_object_returns_clear_error() {
-    let err = match bind_pg_value(
-        serde_json::json!({"key": 42}),
-        1,
-        PgValueOptions {
-            column_type: Some("USER-DEFINED"),
-            max_blob_size: 1024,
-            allow_default: false,
-            hstore_oid: Some(16_500),
-        },
-    ) {
-        Ok(_) => panic!("expected an error for non-string hstore value"),
-        Err(e) => e,
-    };
+    #[test]
+    fn quote_qualified_type_escapes_embedded_quotes() {
+        assert_eq!(
+            quote_qualified_type("pub\"lic", "plan\"type"),
+            "\"pub\"\"lic\".\"plan\"\"type\""
+        );
+    }
 
-    assert!(err.contains("key"));
-    assert!(err.contains("string or null"));
-}
+    #[test]
+    fn enum_data_type_surfaces_allowed_values() {
+        assert_eq!(
+            enum_data_type(
+                "USER-DEFINED".to_string(),
+                Some("'free','basic','pro'".to_string())
+            ),
+            "enum('free','basic','pro')"
+        );
+    }
 
-#[test]
-fn hstore_non_object_value_returns_clear_error() {
-    let err = match bind_pg_value(
-        serde_json::json!("just a string"),
-        1,
-        PgValueOptions {
-            column_type: Some("USER-DEFINED"),
-            max_blob_size: 1024,
-            allow_default: false,
-            hstore_oid: Some(16_500),
-        },
-    ) {
-        Ok(_) => panic!("expected an error for non-object hstore value"),
-        Err(e) => e,
-    };
-
-    assert!(err.contains("JSON object"));
-}
-
-#[test]
-fn hstore_object_without_resolved_oid_returns_clear_error() {
-    let err = match bind_pg_value(
-        serde_json::json!({"key": "value"}),
-        1,
-        PgValueOptions {
-            column_type: Some("USER-DEFINED"),
-            max_blob_size: 1024,
-            allow_default: false,
-            hstore_oid: None,
-        },
-    ) {
-        Ok(_) => panic!("expected an error when hstore_oid could not be resolved"),
-        Err(e) => e,
-    };
-
-    assert!(err.contains("hstore"));
-}
+    #[test]
+    fn enum_data_type_keeps_raw_type_without_values() {
+        assert_eq!(enum_data_type("integer".to_string(), None), "integer");
+        assert_eq!(
+            enum_data_type("USER-DEFINED".to_string(), Some(String::new())),
+            "USER-DEFINED"
+        );
+    }
 }
 
 mod build_pk_predicate_tests {
@@ -709,9 +877,13 @@ mod build_pk_predicate_tests {
     #[test]
     fn uuid_string_pk_binds_as_text_for_varchar_column() {
         let uuid = "550e8400-e29b-41d4-a716-446655440000";
-        let (sql, (param, pg_type)) =
-            build_pk_predicate("guid", serde_json::json!(uuid), 1, Some("character varying"))
-                .unwrap();
+        let (sql, (param, pg_type)) = build_pk_predicate(
+            "guid",
+            serde_json::json!(uuid),
+            1,
+            Some("character varying"),
+        )
+        .unwrap();
         assert_eq!(sql, "\"guid\" = $1");
         assert_eq!(pg_type, tokio_postgres::types::Type::TEXT);
         assert_eq!(format!("{:?}", param), format!("{:?}", uuid.to_string()));
@@ -815,7 +987,10 @@ mod build_pk_map_predicate_tests {
         let expected_uuid: uuid::Uuid = uuid.parse().unwrap();
         assert_eq!(params[0].1, tokio_postgres::types::Type::TEXT);
         assert_eq!(params[1].1, tokio_postgres::types::Type::UUID);
-        assert_eq!(format!("{:?}", params[0].0), format!("{:?}", uuid.to_string()));
+        assert_eq!(
+            format!("{:?}", params[0].0),
+            format!("{:?}", uuid.to_string())
+        );
         assert_eq!(format!("{:?}", params[1].0), format!("{:?}", expected_uuid));
     }
 
@@ -982,6 +1157,37 @@ mod routine_management {
     }
 
     #[test]
+    fn function_call_excludes_out_params() {
+        // PostgreSQL functions do not accept pure OUT parameters in the call
+        // signature; only IN/INOUT are passed.
+        let sql = routine_call_sql(
+            "fn_split",
+            "FUNCTION",
+            &[
+                arg("p_in", "IN", Some("5"), true),
+                arg("p_lo", "OUT", None, false),
+                arg("p_hi", "OUT", None, false),
+            ],
+            Some("public"),
+        );
+        assert_eq!(sql, "SELECT * FROM \"public\".\"fn_split\"(5);");
+    }
+
+    #[test]
+    fn function_call_keeps_inout_params() {
+        let sql = routine_call_sql(
+            "fn_adjust",
+            "FUNCTION",
+            &[
+                arg("p_val", "INOUT", Some("10"), true),
+                arg("p_out", "OUT", None, false),
+            ],
+            Some("public"),
+        );
+        assert_eq!(sql, "SELECT * FROM \"public\".\"fn_adjust\"(10);");
+    }
+
+    #[test]
     fn procedure_call_renders_out_params_as_null() {
         let sql = routine_call_sql(
             "sp_test",
@@ -998,9 +1204,15 @@ mod routine_management {
     #[test]
     fn create_templates_are_schema_qualified_or_replace() {
         let tpl = routine_create_template("FUNCTION", Some("app"));
-        assert!(tpl.starts_with("CREATE OR REPLACE FUNCTION \"app\"."), "{tpl}");
+        assert!(
+            tpl.starts_with("CREATE OR REPLACE FUNCTION \"app\"."),
+            "{tpl}"
+        );
         let tpl = routine_create_template("PROCEDURE", None);
-        assert!(tpl.starts_with("CREATE OR REPLACE PROCEDURE my_procedure"), "{tpl}");
+        assert!(
+            tpl.starts_with("CREATE OR REPLACE PROCEDURE my_procedure"),
+            "{tpl}"
+        );
     }
 
     #[test]
@@ -1013,5 +1225,105 @@ mod routine_management {
             drop_routine_sql("sp", "PROCEDURE", "", None),
             "DROP PROCEDURE \"sp\"()"
         );
+    }
+}
+
+mod build_connection_url_tests {
+    use super::super::PostgresDriver;
+    use crate::drivers::driver_trait::DatabaseDriver;
+    use crate::models::{ConnectionParams, DatabaseSelection};
+
+    fn params_with_ssl_mode(ssl_mode: Option<&str>) -> ConnectionParams {
+        ConnectionParams {
+            driver: "postgres".to_string(),
+            host: Some("127.0.0.1".to_string()),
+            port: Some(5432),
+            username: Some("postgres".to_string()),
+            password: Some("secret".to_string()),
+            database: DatabaseSelection::Single("app".to_string()),
+            ssl_mode: ssl_mode.map(|s| s.to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn includes_disabled_ssl_mode() {
+        let driver = PostgresDriver::new();
+        let url = driver
+            .build_connection_url(&params_with_ssl_mode(Some("disable")))
+            .unwrap();
+        assert!(url.contains("sslmode=disable"), "url was: {url}");
+    }
+
+    #[test]
+    fn defaults_to_prefer_when_unset() {
+        let driver = PostgresDriver::new();
+        let url = driver
+            .build_connection_url(&params_with_ssl_mode(None))
+            .unwrap();
+        assert!(url.contains("sslmode=prefer"), "url was: {url}");
+    }
+}
+
+mod pg_vector_binding_tests {
+    use super::*;
+
+    fn bind_vector(value: &str, column_type: &str) -> BoundValue {
+        bind_pg_value(
+            serde_json::json!(value),
+            1,
+            PgValueOptions {
+                column_type: Some(column_type),
+                enum_type: None,
+                max_blob_size: u64::MAX,
+                allow_default: false,
+                hstore_oid: None,
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn vector_value_is_inlined_as_typed_literal() {
+        let bound = bind_vector("[1,2,3]", "vector");
+        assert_eq!(bound.sql, "'[1,2,3]'::vector");
+        assert!(bound.param.is_none());
+    }
+
+    #[test]
+    fn halfvec_and_sparsevec_are_inlined_with_their_own_type() {
+        let halfvec = bind_vector("[1,2,3]", "halfvec");
+        assert_eq!(halfvec.sql, "'[1,2,3]'::halfvec");
+        assert!(halfvec.param.is_none());
+
+        let sparsevec = bind_vector("{1:1,3:2}/5", "sparsevec");
+        assert_eq!(sparsevec.sql, "'{1:1,3:2}/5'::sparsevec");
+        assert!(sparsevec.param.is_none());
+    }
+
+    #[test]
+    fn surrounding_whitespace_is_trimmed_before_inlining() {
+        let bound = bind_vector("  [1,2,3]  ", "vector");
+        assert_eq!(bound.sql, "'[1,2,3]'::vector");
+    }
+
+    #[test]
+    fn non_numeric_vector_value_is_rejected() {
+        let result = bind_pg_value(
+            serde_json::json!("[1,2,3]); DROP TABLE t"),
+            1,
+            PgValueOptions {
+                column_type: Some("vector"),
+                enum_type: None,
+                max_blob_size: u64::MAX,
+                allow_default: false,
+                hstore_oid: None,
+            },
+        );
+        let err = match result {
+            Ok(_) => panic!("expected non-numeric vector value to be rejected"),
+            Err(err) => err,
+        };
+        assert!(err.contains("Invalid vector value"), "{err}");
     }
 }

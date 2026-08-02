@@ -170,7 +170,7 @@ export const CreateForeignKeyModal = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} overlayClassName="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100]">
-      <div className="bg-elevated rounded-xl shadow-2xl w-[600px] border border-strong flex flex-col max-h-[90vh]">
+      <div className="bg-elevated rounded-xl shadow-2xl w-[600px] border border-strong flex flex-col max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
@@ -201,6 +201,7 @@ export const CreateForeignKeyModal = ({
                 <input
                     value={fkName}
                     onChange={(e) => { setFkName(e.target.value); setError(''); }}
+                    autoFocus
                     className={`w-full bg-base border rounded-lg px-3 py-2 text-primary text-sm focus:border-blue-500 focus:outline-none font-mono ${!fkName.trim() && error ? 'border-red-500' : 'border-strong'}`}
                 />
             </div>

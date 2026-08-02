@@ -7,10 +7,9 @@ use sqlx::{AnyConnection, Connection};
 use std::str::FromStr;
 
 use crate::models::{
-    BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo, ExplainPlan,
-    ForeignKey, Index, QueryResult, RoutineCallArg, RoutineInfo, RoutineParameter, TableColumn,
-    TableInfo,
-    TableSchema, TriggerInfo, ViewInfo,
+    AiSchemaContext, BatchStatementResult, ColumnDefinition, ConnectionParams, DataTypeInfo,
+    DbUserInfo, ExplainQueryOutput, ForeignKey, Index, QueryResult, RoutineCallArg, RoutineInfo,
+    RoutineParameter, TableColumn, TableInfo, TableSchema, TriggerInfo, ViewInfo,
 };
 
 /// Callback invoked the moment each statement in a batch finishes, with the
@@ -69,6 +68,12 @@ pub struct DriverCapabilities {
     /// Folder-based database (e.g. CSV directory); connection points to a directory instead of a file.
     #[serde(default)]
     pub folder_based: bool,
+    /// The driver exposes a single implicit database, so there is nothing to
+    /// select or name (e.g. a flat search/document store like Meilisearch).
+    /// Skips the database tab and the database-name field in the connection
+    /// modal. Network drivers only.
+    #[serde(default)]
+    pub single_database: bool,
     /// Enables connection string import input in the connection modal.
     /// Defaults to `true` for backward compatibility.
     #[serde(default = "default_true", alias = "connectionString")]
@@ -76,6 +81,16 @@ pub struct DriverCapabilities {
     /// Optional placeholder example shown for connection string input.
     #[serde(default, alias = "connectionStringExample")]
     pub connection_string_example: String,
+    /// The driver consumes the raw connection URI verbatim instead of the
+    /// decomposed host/port/database fields. Set by drivers whose scheme
+    /// carries semantics the decomposition would destroy (e.g. the DNS
+    /// seedlist lookup implied by `mongodb+srv://`). Defaults to `false`.
+    #[serde(default, alias = "connectionUri")]
+    pub connection_uri: bool,
+    /// Additional URI schemes handled by this driver, beyond its own id and
+    /// the scheme of `connection_string_example` (e.g. `["mongodb+srv"]`).
+    #[serde(default, alias = "connectionUriSchemes")]
+    pub connection_uri_schemes: Vec<String>,
     /// Character used to quote identifiers (e.g. `"` for PostgreSQL, `` ` `` for MySQL).
     #[serde(default = "default_double_quote")]
     pub identifier_quote: String,
@@ -114,6 +129,10 @@ pub struct DriverCapabilities {
     /// Supports listing and managing database triggers.
     #[serde(default)]
     pub triggers: bool,
+    /// Supports listing and managing server accounts (users, grants).
+    /// Plugins opt in via their manifest. Defaults to `false`.
+    #[serde(default, alias = "userManagement")]
+    pub user_management: bool,
     /// Supports managing stored routines (run with parameters, create from
     /// template, edit definition, drop). Requires `routines` to be useful;
     /// plugins opt in via their manifest. Defaults to `false`.
@@ -124,6 +143,12 @@ pub struct DriverCapabilities {
     /// their manifest. Defaults to `false`.
     #[serde(default, alias = "supportsSsl")]
     pub supports_ssl: bool,
+    /// Supports EXPLAIN / query plan visualization (`explain_query`).
+    /// When `false`, the Visual Explain UI is hidden for connections using
+    /// this driver. Built-in drivers set this; plugins opt in via their
+    /// manifest. Defaults to `false`.
+    #[serde(default)]
+    pub explain: bool,
     /// When `true`, the driver is read-only: all data modification operations
     /// (INSERT, UPDATE, DELETE) are disabled in the UI.
     /// Table/column management is also hidden regardless of `manage_tables`.
@@ -197,6 +222,16 @@ pub struct PluginManifest {
     /// built-in entries without relying on a hardcoded ID list.
     #[serde(default)]
     pub is_builtin: bool,
+    /// Concrete database engine this driver targets (registry manifest
+    /// `engine`, e.g. `"meilisearch"`). `None` for built-ins (the frontend
+    /// supplies their engine/paradigms). Lets the connection catalogue place
+    /// locally-installed, not-yet-published plugins.
+    #[serde(default)]
+    pub engine: Option<String>,
+    /// Data-model families, primary first (registry manifest `paradigms`,
+    /// e.g. `["search", "document"]`). Empty for built-ins.
+    #[serde(default)]
+    pub paradigms: Vec<String>,
     /// Default username pre-filled in the connection modal (e.g. `"postgres"`,
     /// `"root"`). Empty string for drivers that have no default.
     #[serde(default)]
@@ -291,6 +326,20 @@ pub trait DatabaseDriver: Send + Sync {
         table: &str,
         schema: Option<&str>,
     ) -> Result<Vec<TableColumn>, String>;
+
+    /// Returns a bounded, structured schema context for AI features.
+    ///
+    /// Drivers may override this to use a database-specific batch query. The
+    /// default implementation composes the context from the standard metadata
+    /// methods, so existing external plugins work without a protocol update.
+    async fn get_ai_schema_context(
+        &self,
+        params: &ConnectionParams,
+        schema: Option<&str>,
+        max_tables: usize,
+    ) -> Result<AiSchemaContext, String> {
+        crate::ai_schema_context::load_from_driver(self, params, schema, max_tables).await
+    }
 
     async fn get_foreign_keys(
         &self,
@@ -552,7 +601,7 @@ pub trait DatabaseDriver: Send + Sync {
         _query: &str,
         _analyze: bool,
         _schema: Option<&str>,
-    ) -> Result<ExplainPlan, String> {
+    ) -> Result<ExplainQueryOutput, String> {
         Err("EXPLAIN not supported by this driver".into())
     }
 
@@ -723,6 +772,97 @@ pub trait DatabaseDriver: Send + Sync {
         _schema: Option<&str>,
     ) -> Result<(), String> {
         Err("Triggers not supported by this driver".into())
+    }
+
+    // --- User management (gated by `DriverCapabilities::user_management`) ----
+    // Defaults return errors so drivers without account management (SQLite,
+    // plugins) need no changes; the UI hides the feature unless the
+    // capability is set.
+
+    /// Returns the privilege keywords accepted by `apply_db_user_privileges`,
+    /// split by scope, so the frontend renders the dialect's own catalog.
+    async fn get_db_privilege_catalog(
+        &self,
+    ) -> Result<crate::models::DbPrivilegeCatalog, String> {
+        Err("User management is not supported by this driver".into())
+    }
+
+    /// Lists the server accounts visible to the connected user.
+    async fn get_db_users(&self, _params: &ConnectionParams) -> Result<Vec<DbUserInfo>, String> {
+        Err("User management is not supported by this driver".into())
+    }
+
+    /// Returns the grants of one account as raw SQL statements
+    /// (e.g. the output of MySQL's `SHOW GRANTS FOR`).
+    async fn get_db_user_grants(
+        &self,
+        _params: &ConnectionParams,
+        _user: &str,
+        _host: &str,
+    ) -> Result<Vec<String>, String> {
+        Err("User management is not supported by this driver".into())
+    }
+
+    /// Returns one account's privileges parsed per scope (global, database,
+    /// table), feeding the checkbox editor. Grants the dialect cannot
+    /// represent that way (roles, column-level, proxy) are omitted here and
+    /// only appear in `get_db_user_grants`.
+    async fn get_db_user_privileges(
+        &self,
+        _params: &ConnectionParams,
+        _user: &str,
+        _host: &str,
+    ) -> Result<Vec<crate::models::DbUserGrantSet>, String> {
+        Err("User management is not supported by this driver".into())
+    }
+
+    /// Creates an account with the given password.
+    async fn create_db_user(
+        &self,
+        _params: &ConnectionParams,
+        _user: &str,
+        _host: &str,
+        _password: &str,
+    ) -> Result<(), String> {
+        Err("User management is not supported by this driver".into())
+    }
+
+    /// Drops an account.
+    async fn drop_db_user(
+        &self,
+        _params: &ConnectionParams,
+        _user: &str,
+        _host: &str,
+    ) -> Result<(), String> {
+        Err("User management is not supported by this driver".into())
+    }
+
+    /// Changes an account's password.
+    async fn set_db_user_password(
+        &self,
+        _params: &ConnectionParams,
+        _user: &str,
+        _host: &str,
+        _password: &str,
+    ) -> Result<(), String> {
+        Err("User management is not supported by this driver".into())
+    }
+
+    /// Grants (`grant == true`) or revokes a set of privileges for an
+    /// account. Scope: global (`database == None`), one database
+    /// (`db.*`), or one table (`db.table` when `table` is `Some`).
+    /// Drivers must validate `privileges` against their own allowlist.
+    async fn apply_db_user_privileges(
+        &self,
+        _params: &ConnectionParams,
+        _user: &str,
+        _host: &str,
+        _database: Option<&str>,
+        _table: Option<&str>,
+        _privileges: &[String],
+        _grant: bool,
+    ) -> Result<(), String> {
+        Err("User management is not supported by this driver".into())
     }
 
     // --- ER diagram (batch) -------------------------------------------------

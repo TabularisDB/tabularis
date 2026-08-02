@@ -35,6 +35,7 @@ import {
   Clock,
   Clipboard,
   BookOpen,
+  UsersRound,
 } from "lucide-react";
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { toErrorMessage } from "../../utils/errors";
@@ -85,7 +86,7 @@ import { groupRoutinesByType } from "../../utils/routines";
 import { formatObjectCount } from "../../utils/schema";
 import { groupByDate, formatHistoryTime } from "../../utils/dateGroups";
 import { SqlHighlight } from "../ui/SqlHighlight";
-import { isMultiDatabaseCapable } from "../../utils/database";
+import { isMultiDatabaseCapable, usesMultiDatabaseLayout, reconcileDatabaseSelection } from "../../utils/database";
 import { supportsManageTables } from "../../utils/driverCapabilities";
 import { newConsoleForDatabase, newConsoleForTable } from "../../utils/newConsole";
 import {
@@ -135,6 +136,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     needsSchemaSelection,
     selectedDatabases,
     setSelectedDatabases,
+    refreshDatabaseSelection,
     databaseDataMap,
     loadDatabaseData,
     refreshDatabaseData,
@@ -143,7 +145,25 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     connect,
   } = useDatabase();
   const { allDrivers } = useDrivers();
-  const { tabs, openNotebook, updateTab, closeTab } = useEditor();
+  const { tabs, openNotebook, updateTab, closeTab, addTab, setActiveTabId } =
+    useEditor();
+
+  // Opens (or focuses) the users & privileges tab of the active connection.
+  const openUserManagement = () => {
+    if (!activeConnectionId) return;
+    const existing = tabs.find(
+      (tab) => tab.type === "users" && tab.connectionId === activeConnectionId,
+    );
+    if (existing) {
+      setActiveTabId(existing.id);
+    } else {
+      addTab({
+        type: "users",
+        title: t("userManagement.tabTitle"),
+        connectionId: activeConnectionId,
+      });
+    }
+  };
 
   // Accent color for a connection, matching the tinted editor tab bar / split
   // panel headers. Falls back to the driver manifest color.
@@ -238,6 +258,12 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const [pendingDbSelection, setPendingDbSelection] = useState<Set<string>>(new Set());
   const [allAvailableDatabases, setAllAvailableDatabases] = useState<string[]>([]);
   const [isLoadingAllDbs, setIsLoadingAllDbs] = useState(false);
+  const [isRefreshingDbList, setIsRefreshingDbList] = useState(false);
+  // Guards against toast spam on rapid repeated clicks: isRefreshingDbList only
+  // blocks calls that overlap in flight, so several quick, individually-fast
+  // round trips could each complete and each show their own toast. This adds
+  // a short cooldown after a call finishes.
+  const lastDbListRefreshAtRef = useRef(0);
   const [viewEditorModal, setViewEditorModal] = useState<{
     isOpen: boolean;
     viewName?: string;
@@ -518,7 +544,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     }
   };
 
-  const isMultiDb = isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1;
+  const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
 
   useEffect(() => {
     if (!activeTable) return;
@@ -654,6 +680,18 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                         <Network size={16} className="rotate-90 text-orange-400 shrink-0" />
                         <span>View Schema Diagram</span>
                       </button>
+                      {activeCapabilities?.user_management === true && (
+                        <button
+                          onClick={() => {
+                            openUserManagement();
+                            setIsActionsDropdownOpen(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-secondary hover:bg-surface-secondary hover:text-primary transition-colors text-left whitespace-nowrap"
+                        >
+                          <UsersRound size={16} className="text-emerald-400 shrink-0" />
+                          <span>{t("userManagement.tabTitle")}</span>
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
@@ -692,8 +730,28 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                 >
                   <Network size={16} className="rotate-90" />
                 </button>
+                {activeCapabilities?.user_management === true && (
+                  <button
+                    onClick={openUserManagement}
+                    className="text-muted hover:text-emerald-400 transition-colors p-1 hover:bg-surface-secondary rounded"
+                    title={t("userManagement.tabTitle")}
+                  >
+                    <UsersRound size={16} />
+                  </button>
+                )}
               </>
             ))}
+            {/* User management is server-level, so unlike the per-database
+                actions above it stays available in multi-database mode. */}
+            {isMultiDb && activeCapabilities?.user_management === true && (
+              <button
+                onClick={openUserManagement}
+                className="text-muted hover:text-emerald-400 transition-colors p-1 hover:bg-surface-secondary rounded"
+                title={t("userManagement.tabTitle")}
+              >
+                <UsersRound size={16} />
+              </button>
+            )}
             <button
               onClick={onCollapse}
               className="text-muted hover:text-secondary transition-colors p-1 hover:bg-surface-secondary rounded"
@@ -1195,7 +1253,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     </>
                   )}
                 </div>
-              ) : isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1 ? (
+              ) : usesMultiDatabaseLayout(activeCapabilities, selectedDatabases) ? (
                 /* Multi-database MySQL layout */
                 <div>
                   {/* Database header: label + manage button */}
@@ -1203,6 +1261,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     <span className="text-xs font-semibold uppercase text-muted tracking-wider">
                       {t("sidebar.databases")} ({selectedDatabases.length})
                     </span>
+                    <div className="flex items-center gap-1">
                     <div className="relative">
                       <button
                         onClick={async () => {
@@ -1212,6 +1271,9 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             try {
                               const all = await invoke<string[]>("get_available_databases", { connectionId: activeConnectionId });
                               setAllAvailableDatabases(all);
+                              // A database dropped on the server has no row to
+                              // untick: drop it from the pending set too (#518).
+                              setPendingDbSelection(new Set(reconcileDatabaseSelection(selectedDatabases, all).selection));
                             } catch (e) {
                               console.error("Failed to load available databases:", e);
                             } finally {
@@ -1309,6 +1371,34 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           </div>
                         </>
                       )}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const DB_LIST_REFRESH_COOLDOWN_MS = 1500;
+                        if (
+                          isRefreshingDbList ||
+                          Date.now() - lastDbListRefreshAtRef.current < DB_LIST_REFRESH_COOLDOWN_MS
+                        ) {
+                          return;
+                        }
+                        setIsRefreshingDbList(true);
+                        try {
+                          await refreshDatabaseSelection(activeConnectionId!);
+                        } finally {
+                          lastDbListRefreshAtRef.current = Date.now();
+                          setIsRefreshingDbList(false);
+                        }
+                      }}
+                      disabled={isRefreshingDbList}
+                      className="p-1 rounded transition-colors text-green-400 hover:text-green-300 hover:bg-green-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={t("sidebar.refreshDatabaseList")}
+                    >
+                      {isRefreshingDbList ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={14} />
+                      )}
+                    </button>
                     </div>
                   </div>
 
@@ -2561,6 +2651,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           onClose={() => setImportModal(null)}
           connectionId={activeConnectionId}
           databaseName={importModal.database || activeDatabaseName || "Database"}
+          targetDatabase={importModal.database || activeDatabaseName || undefined}
           filePath={importModal.filePath}
           onSuccess={() => {
             if (refreshTables) refreshTables();

@@ -55,4 +55,21 @@ describe("Accordion", () => {
     );
     expect(screen.getByText("Action")).toBeInTheDocument();
   });
+
+  it("keeps actions in a padded lane away from the scrollbar edge", () => {
+    render(
+      <Accordion
+        title="Test Title"
+        isOpen={false}
+        onToggle={() => {}}
+        actions={<button>Action</button>}
+      >
+        <div>Content</div>
+      </Accordion>
+    );
+
+    const actionLane = screen.getByText("Action").parentElement;
+    expect(actionLane).toHaveClass("shrink-0");
+    expect(actionLane).toHaveClass("pr-3");
+  });
 });

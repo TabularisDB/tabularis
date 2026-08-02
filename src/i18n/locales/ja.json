@@ -37,7 +37,13 @@
     "noResults": "結果が見つかりません",
     "error": "エラー",
     "success": "成功",
-    "ok": "OK"
+    "ok": "OK",
+    "continue": "続行",
+    "back": "戻る",
+    "copy": "コピー",
+    "showDetails": "詳細を表示",
+    "hideDetails": "詳細を非表示",
+    "beta": "ベータ"
   },
   "sidebar": {
     "connections": "接続",
@@ -88,6 +94,7 @@
     "modifyColumn": "カラムを変更",
     "copyName": "名前をコピー",
     "openInEditor": "エディタで開く",
+    "openInNewWindow": "新しいウィンドウで開く",
     "closePanel": "パネルを閉じる",
     "setAsActive": "アクティブに設定",
     "deleteTable": "テーブルを削除",
@@ -156,6 +163,8 @@
     "noTablesMatch": "一致するテーブルがありません",
     "filterDatabases": "データベースをフィルター...",
     "manageDatabases": "データベースを管理",
+    "databaseSelectionUpdated": "データベースの選択を更新しました",
+    "droppedDatabasesRemoved": "サーバーに存在しないため削除されました: {{names}}",
     "structure": "構造",
     "favorites": "お気に入り",
     "queryHistory": "履歴",
@@ -190,7 +199,13 @@
       "delete": "削除",
       "deleteConfirm": "ノートブック「{{title}}」を削除しますか？この操作は元に戻せません。",
       "renamePlaceholder": "ノートブック名"
-    }
+    },
+    "addToSplitGroup": "分割グループに追加",
+    "removeFromSplitGroup": "グループから削除",
+    "movePanel": "パネルを移動",
+    "refreshDatabaseList": "データベース一覧を更新",
+    "databaseListUpToDate": "データベース一覧は最新です",
+    "allDatabasesRefreshed": "データベースを更新しました: {{names}}"
   },
   "mcp": {
     "title": "MCP サーバー連携",
@@ -241,6 +256,12 @@
   "connections": {
     "title": "接続",
     "addConnection": "接続を追加",
+    "newSqliteDatabase": {
+      "menuLabel": "新しい SQLite データベース…",
+      "dialogTitle": "新しい SQLite データベース",
+      "fileType": "SQLite データベース",
+      "error": "SQLite データベースを作成できませんでした"
+    },
     "noConnections": "アクティブな接続はありません",
     "createFirst": "最初の接続を作成",
     "active": "アクティブ",
@@ -265,10 +286,77 @@
     "noSearchResults": "「{{query}}」に一致する接続はありません",
     "gridView": "グリッド表示",
     "listView": "リスト表示",
+    "selectedCount": "{{count}} 件選択中",
+    "deleteSelected": "選択項目を削除",
+    "moveSelected": "グループに移動",
+    "exportSelected": "選択をエクスポート",
+    "deselectAll": "選択を解除",
+    "confirmDeleteSelected": "選択した {{count}} 件の接続を削除してもよろしいですか？",
+    "deleteSelectedTitle": "選択した接続を削除",
     "export": "接続をエクスポート",
     "import": "接続をインポート",
     "exportTitle": "接続をエクスポート",
-    "exportWarning": "エクスポートされたファイルには、データベースおよび SSH のパスワードが平文で含まれます。安全な場所に保管してください。"
+    "exportWarning": "エクスポートされたファイルには、データベースおよび SSH のパスワードが平文で含まれます。安全な場所に保管してください。",
+    "exportModal": {
+      "title": "接続をエクスポート",
+      "subtitle": "接続のエクスポート方法を選択してください",
+      "subtitleSelected": "選択した{{count}}件の接続をエクスポート",
+      "encrypted": "パスワードで暗号化",
+      "encryptedDesc": "すべての接続とパスワードが含まれ、任意のパスワードで保護されます。バックアップに推奨。",
+      "noSecrets": "平文（パスワードなし）",
+      "noSecretsDesc": "接続は読み取り可能なJSONとしてエクスポートされますが、パスワードとパスフレーズはすべて除外されます。共有に推奨。",
+      "plaintext": "平文（すべてのパスワードを含む）",
+      "plaintextDesc": "接続とパスワードが読み取り可能なJSONとしてエクスポートされます。ファイルを持つ誰もが認証情報を読めます。",
+      "password": "パスワード",
+      "confirmPassword": "パスワードの確認",
+      "passwordRequired": "暗号化エクスポートにはパスワードが必要です。",
+      "passwordMismatch": "パスワードが一致しません。",
+      "export": "エクスポート"
+    },
+    "importPasswordModal": {
+      "title": "暗号化されたエクスポートファイル",
+      "subtitle": "このファイルはパスワードで保護されています",
+      "password": "パスワード",
+      "unlock": "インポート"
+    },
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace",
+        "applyToAll": "すべての操作:"
+      },
+      "tabularisJsonHint": "Tabularis エクスポートファイル (.json)",
+      "menuLabel": "接続をインポート…",
+      "group": {
+        "label": "グループ:",
+        "none": "グループなし",
+        "new": "新規グループ…",
+        "newPlaceholder": "グループ名",
+        "parentLabel": "場所",
+        "parentNone": "トップレベル",
+        "applyToAll": "すべてのグループ:",
+        "keepPerConnection": "接続ごと"
+      },
+      "betaNotice": "アプリからのインポートはベータ版です。問題が発生した場合は、",
+      "reportIssue": "GitHub で報告してください。"
+    },
+    "databaseCount_one": "{{count}} 件のデータベース",
+    "databaseCount_other": "{{count}} 件のデータベース"
   },
   "connectionAppearance": {
     "section": "外観",
@@ -309,6 +397,13 @@
     "delimiterPipe": "パイプ (|)",
     "csvIncludeHeaders": "CSVヘッダーを含める",
     "csvIncludeHeadersDesc": "行をCSVとしてコピーするときに、列名のヘッダー行を含めます。",
+    "rowEditorFollowSelection": "行エディターが選択に追従",
+    "rowEditorFollowSelectionDesc": "行エディターのサイドバーが開いているとき、新しく選択された行を自動的に表示します。",
+    "cellDoubleClickAction": "セルのダブルクリック動作",
+    "cellDoubleClickActionDesc": "データセルをダブルクリックしたときの動作を選択します。",
+    "cellDoubleClickInline": "インライン編集",
+    "cellDoubleClickSidebar": "サイドバーで開く",
+    "cellDoubleClickBoth": "両方",
     "csvHeaders": "列名をエクスポート",
     "appearance": "外観",
     "localization": "ローカライズ",
@@ -341,6 +436,23 @@
     "appearance_editorShowLineNumbersDesc": "エディタの左端に行番号を表示します。",
     "appearance_editorAcceptSuggestionOnEnter": "Enter で候補を確定",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Tab に加えて Enter でもオートコンプリートの候補を確定できるようにします。オフの場合、Enter は常に改行を挿入します。",
+    "queryExecution": "クエリの実行",
+    "runStatementUnderCursor": "カーソル位置のステートメントを実行",
+    "runStatementUnderCursorDesc": "スクリプトに複数のステートメントがある場合、クエリ選択画面を表示せずにカーソル位置のステートメントを実行します。特定の範囲を実行するにはテキストを選択してください。",
+    "formatter_title": "SQLフォーマッター",
+    "formatter_keywordCase": "キーワードの大文字/小文字",
+    "formatter_keywordCaseDesc": "フォーマット後のSQLキーワード（SELECT、FROM、WHERE）の大文字/小文字。",
+    "formatter_functionCase": "関数の大文字/小文字",
+    "formatter_functionCaseDesc": "フォーマット後の関数名（COUNT、SUM、COALESCE）の大文字/小文字。",
+    "formatter_indentStyle": "インデントスタイル",
+    "formatter_indentStyleDesc": "標準は通常のインデント。タブラーは句を列に揃えます。",
+    "formatter_tabWidth": "インデント幅",
+    "formatter_useTabs": "タブを使用",
+    "formatter_useTabsDesc": "スペースの代わりにタブでインデント。",
+    "formatter_linesBetweenQueries": "クエリ間の行数",
+    "formatter_linesBetweenQueriesDesc": "SQL文間に挿入する空行の数。",
+    "formatter_denseOperators": "演算子を詰める",
+    "formatter_denseOperatorsDesc": "演算子の周りのスペースを削除（例：a = 1 → a=1）。",
     "editConfigJson": "config.json を編集",
     "editConfigJsonDesc": "生の設定ファイルを直接編集します。変更を反映するには再起動が必要です。",
     "configJsonModal": {
@@ -354,6 +466,7 @@
     },
     "language": "言語",
     "languageDesc": "使用する言語を選択します。「自動」はシステムの言語を使用します。",
+    "languageSearch": "言語を検索...",
     "auto": "自動 (システム)",
     "timezone": "タイムゾーン",
     "timezoneDesc": "タイムスタンプの表示とエクスポートに使用するタイムゾーン。「自動」はシステムのタイムゾーンに従います。",
@@ -412,10 +525,9 @@
       "explainplanPromptDesc": "AI による EXPLAIN クエリ計画分析の指示をカスタマイズします。{{LANGUAGE}} を出力言語に使用します。",
       "enterExplainplanPrompt": "実行計画分析プロンプトを入力...",
       "keySaved": "API キーを安全に保存しました",
-      "promptSaved": "システムプロンプトを正常に保存しました",
+      "promptSaved": "プロンプトを保存しました",
       "explainPromptSaved": "説明プロンプトを正常に保存しました",
       "promptReset": "システムプロンプトをデフォルトに戻しました",
-      "explainPromptReset": "説明プロンプトをデフォルトに戻しました",
       "modelPlaceholder": "モデルを選択",
       "searchPlaceholder": "モデルを検索...",
       "noResults": "モデルが見つかりません",
@@ -431,7 +543,9 @@
       "endpointUrlDesc": "OpenAI 互換 API のベース URL です。例: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "例: llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "OpenAI 互換サービスが提供するモデル名を入力してください。",
-      "customOpenaiModelHelp": "OpenAI 互換プロバイダの正確なモデル名を入力してください。"
+      "customOpenaiModelHelp": "OpenAI 互換プロバイダの正確なモデル名を入力してください。",
+      "promptResetSuccess": "プロンプトをデフォルトにリセットしました",
+      "apiKeySaved": "APIキーを安全に保存しました"
     },
     "updates": "アップデート",
     "openSourceLibraries": "オープンソースライブラリ",
@@ -536,6 +650,10 @@
         "copy": "コピー",
         "copied": "コピーしました！"
       },
+      "uninstallError": {
+        "title": "アンインストール失敗",
+        "subtitle": "プラグインのアンインストール中にエラーが発生しました。詳細は下記を参照してください。"
+      },
       "startError": {
         "title": "プラグインの起動に失敗",
         "subtitle": "プラグインプロセスを起動できませんでした。下記のエラー詳細を確認してください。",
@@ -574,7 +692,9 @@
             }
           }
         }
-      }
+      },
+      "poweredBy": "提供：",
+      "openHomepage": "ホームページを開く"
     },
     "shortcuts": {
       "title": "キーボードショートカット",
@@ -585,9 +705,12 @@
       },
       "runQuery": "クエリを実行",
       "runQueryEditor": "クエリを実行 (エディタ内)",
+      "runAll": "すべてのステートメントを実行",
+      "runAllEditor": "すべてのステートメントを実行 (エディタ内)",
       "tabSwitcher": "タブを切り替え",
       "copySelection": "選択範囲をコピー",
       "toggleSidebar": "サイドバーを切り替え",
+      "toggleRightSidebar": "右サイドバーの切り替え",
       "focusTableFilter": "テーブルフィルターにフォーカス",
       "openConnections": "接続を開く",
       "newConnection": "新規接続",
@@ -602,9 +725,60 @@
       "notebookRunAll": "すべてのセルを実行",
       "categories_notebook": "ノートブック",
       "pasteImportClipboard": "クリップボードからインポート",
-      "quickNavigator": "クイックナビゲーター"
+      "quickNavigator": "クイックナビゲーター",
+      "triggerSuggestions": "候補を表示",
+      "formatSql": "SQLをフォーマット",
+      "refreshTable": "テーブルを更新"
     },
-    "aiActivity": "AI アクティビティ"
+    "aiActivity": "AI アクティビティ",
+    "backup": {
+      "title": "バックアップ",
+      "directory": "バックアップフォルダー",
+      "directoryDesc": "フォルダーが選択されていません。",
+      "chooseDirectory": "フォルダーを選択",
+      "password": "バックアップパスワード",
+      "passwordDesc": "バックアップは常に暗号化されます。パスワードはシステムのキーチェーンに保存されます。",
+      "passwordSetDesc": "バックアップはこのパスワードで暗号化されます。パスワードはシステムのキーチェーンに保存されます。",
+      "passwordReplaceDesc": "新しいパスワードを入力してください。既存のバックアップは古いパスワードのままです。",
+      "changePassword": "パスワードを変更",
+      "webdavPasswordSetDesc": "パスワードはシステムのキーチェーンに保存されています。",
+      "passwordSaved": "バックアップパスワードを保存しました。",
+      "configureFirst": "先に保存先を設定し、バックアップパスワードを設定してください。",
+      "interval": "頻度",
+      "intervalDesc": "新しいバックアップを書き込む頻度。",
+      "every6h": "6時間",
+      "every12h": "12時間",
+      "daily": "毎日",
+      "weekly": "毎週",
+      "retention": "保持するバックアップ数",
+      "retentionDesc": "古いバックアップファイルは自動的に削除されます。",
+      "files": "件",
+      "backupNow": "今すぐバックアップ",
+      "lastBackup": "最終バックアップ: {{date}}",
+      "noBackupYet": "バックアップはまだありません。",
+      "backupDone": "バックアップを {{path}} に書き込みました",
+      "custom": "カスタム",
+      "destination": "保存先",
+      "target": "バックアップの保存先",
+      "targetDesc": "バックアップファイルの書き込み先。Dropbox・OneDrive・Syncthing で同期されたフォルダーなら無料でクラウドバックアップになります。",
+      "targetLocal": "ローカルフォルダー",
+      "webdavUrl": "WebDAV URL",
+      "webdavUrlDesc": "バックアップをアップロードする WebDAV フォルダーの URL（例：Nextcloud）。",
+      "webdavUsername": "WebDAV ユーザー名",
+      "webdavUsernameDesc": "WebDAV サーバーの認証に使うアカウント。",
+      "webdavPassword": "WebDAV パスワード",
+      "webdavPasswordDesc": "システムのキーチェーンに保存されます。Nextcloud ではアプリパスワードを推奨します。",
+      "webdavSaved": "WebDAV パスワードを保存しました。",
+      "mode": "バックアップのタイミング",
+      "modeDesc": "バックアップを書き込むタイミング。手動では下のボタンからのみ実行します。",
+      "modeManual": "手動",
+      "modeInterval": "一定間隔",
+      "modeOnClose": "終了時",
+      "modeOnLaunch": "起動時",
+      "nextBackup": "次のバックアップ: {{date}}",
+      "nextBackupSoon": "次のバックアップ: 次回チェック時",
+      "hours": "時間"
+    }
   },
   "update": {
     "newVersionAvailable": "新しいバージョンが利用可能",
@@ -651,6 +825,7 @@
     "namePlaceholder": "接続名を入力",
     "nameRequired": "接続名は必須です",
     "dbNameRequired": "データベース名は必須です",
+    "connectionUriRequiresKeychain": "接続 URI は OS のキーチェーンに保存する必要があります。「パスワードをキーチェーンに保存」を有効にしてください。",
     "dbType": "データベースの種類",
     "host": "ホスト",
     "port": "ポート",
@@ -675,6 +850,7 @@
     "filePathPlaceholder": "/absolute/path/to/db.sqlite",
     "folderPathPlaceholder": "/absolute/path/to/folder",
     "browseFile": "ファイルを参照",
+    "createSqliteFile": "新規",
     "browseFolder": "フォルダを参照",
     "useSsh": "SSH トンネルを使用",
     "sshHost": "SSH ホスト",
@@ -738,7 +914,20 @@
     "startupScriptDescription": "このデータソースへの新規接続ごとに実行される SQL です。SET / set_config（例: RLS のバイパス）などのセッション設定に使用します。複数のステートメントはセミコロンで区切ってください。",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "タブを左にスクロール",
-    "scrollTabsRight": "タブを右にスクロール"
+    "scrollTabsRight": "タブを右にスクロール",
+    "useIamAuth": "AWS IAM 認証を使用する (RDS)",
+    "useIamAuthHint": "パスワード欄は RDS 認証トークン (`aws rds generate-db-auth-token` の出力) として扱われます。TLS 必須。トークンの有効期限は 15 分です。",
+    "useIamAuthTlsRequired": "AWS IAM 認証を使用するには、上記で SSL モードを有効にしてください。",
+    "changeDatabase": "データベースを変更",
+    "testSsh": "SSH をテスト",
+    "testSshHint": "データベースに接続せず、SSH トンネル(ホストと認証情報)のみを検証します。",
+    "sshTestSuccess": "{{target}} への SSH 接続が確立されました",
+    "stopTest": "停止",
+    "allDatabases": "すべてのデータベース",
+    "chooseDatabases": "データベースを選択",
+    "allDatabasesHint": "接続時にサーバー上のすべてのデータベースが自動的に読み込まれます。サーバーで作成・削除されたデータベースは、この接続を編集しなくても自動的に反映されます。",
+    "selectDatabasesHint": "この接続に含めるデータベースを選択してください。",
+    "loadDatabasesHint": "「データベースを読み込む」をクリックすると利用可能なデータベースを取得します。"
   },
   "sshConnections": {
     "title": "SSH 接続",
@@ -761,7 +950,16 @@
     "keyFile": "鍵ファイル",
     "quickTest": "簡易接続テスト",
     "testFailed": "接続テストに失敗しました",
-    "savedInKeychain": "パスワードをシステムのキーチェーンに保存しました"
+    "savedInKeychain": "パスワードをシステムのキーチェーンに保存しました",
+    "manageDesc": "データベース接続で再利用できるSSHトンネルです。パスワードとパスフレーズはシステムのキーチェーンに保存されます。",
+    "deleteInUse_other": "この接続は{{count}}件の保存済みデータベース接続で使用されており、削除するとこのトンネル経由で接続できなくなります。",
+    "errors": {
+      "connectionRequired": "SSH 接続を選択するか、インラインで設定してください",
+      "connectionMissing": "選択された SSH 接続は存在しません",
+      "hostRequired": "SSH ホストは必須です",
+      "userRequired": "SSH ユーザーは必須です",
+      "portInvalid": "SSH ポートは 1〜65535 の範囲で指定してください"
+    }
   },
   "sshAskpass": {
     "title": "SSH認証",
@@ -779,12 +977,25 @@
     "updateFailed": "更新に失敗しました: ",
     "deleteFailed": "行の削除に失敗しました: ",
     "null": "null",
+    "emptySet": "（空のセット）",
     "sortByAsc": "{{col}} を昇順で並べ替え",
     "sortByDesc": "{{col}} を降順で並べ替え",
     "clearSort": "並べ替えを解除",
     "copyCell": "セルをコピー",
     "copyRow": "行をコピー",
-    "copySelectedRows": "選択した行をコピー",
+    "selectAll": "すべて選択",
+    "selectAllN": "すべて選択（{{count}}）",
+    "deselectAll": "すべて解除",
+    "copySelectedN": "選択をコピー（{{count}}）",
+    "selectColumn": "列を選択",
+    "deselectColumn": "列の選択を解除",
+    "copySelectedColumns": "選択した列をコピー（{{count}}）",
+    "copyRangeN": "範囲をコピー（{{rows}}×{{cols}}）",
+    "copyAllRows": "すべてコピー（{{count}}）",
+    "copyAll": "すべてコピー",
+    "copiedRows": "{{count}} 行をクリップボードにコピーしました",
+    "copiedRowsOfTotal": "{{total}} 行中 {{loaded}} 行をクリップボードにコピーしました",
+    "copiedCells": "{{count}} 個のセルをクリップボードにコピーしました",
     "copyColumnName": "カラム名をコピー",
     "copyColumnNameQuoted": "`column` 形式でコピー",
     "copyColumnNameTable": "table.column 形式でコピー",
@@ -855,6 +1066,9 @@
     "noActiveSession": "アクティブなセッションがありません。接続を選択してください。",
     "stop": "停止",
     "run": "実行",
+    "runSelection": "選択箇所を実行",
+    "runStatement": "この文を実行",
+    "runAll": "すべて実行",
     "export": "エクスポート",
     "connected": "接続済み",
     "disconnected": "切断済み",
@@ -868,6 +1082,7 @@
     "page": "{{current}} ページ",
     "jumpToPage": "クリックでページ移動",
     "loadRowCount": "行数を読み込む",
+    "rowCount": "{{total}} 行",
     "executePrompt": "クエリを実行すると結果が表示されます",
     "results": {
       "minimize": "最小化",
@@ -888,6 +1103,13 @@
     "saveThisQuery": "このクエリを保存",
     "noValidQueries": "有効なクエリが見つかりません",
     "queryFailed": "クエリが失敗しました。",
+    "dangerousQueryTitle": "WHERE句なしで実行しますか？",
+    "dangerousQueryMessage": "このステートメントにはWHERE句がないため、テーブルのすべての行に影響します。この操作は元に戻せません。",
+    "dangerousQueryConfirm": "実行する",
+    "dangerousQueryDropTitle": "このオブジェクトを削除しますか？",
+    "dangerousQueryDropMessage": "DROP はこのオブジェクトとそのすべてのデータを完全に削除します。この操作は元に戻せません。",
+    "dangerousQueryTruncateTitle": "このテーブルを空にしますか？",
+    "dangerousQueryTruncateMessage": "TRUNCATE はテーブルのすべての行を削除します。この操作は元に戻せません。",
     "showErrorDetails": "詳細を表示",
     "hideErrorDetails": "詳細を非表示",
     "errorBoundary": {
@@ -909,10 +1131,14 @@
     "submitChanges": "変更を送信",
     "rollbackChanges": "変更をロールバック",
     "applyToAll": "すべてに適用",
+    "submit": "送信",
+    "rollback": "ロールバック",
+    "pendingCount": "保留中 {{count}}件",
     "executingQuery": "クエリを実行中...",
     "exporting": "エクスポート中...",
     "rowsProcessed": "処理行数",
     "queryParameters": "クエリパラメータ",
+    "formatSql": "SQLをフォーマット",
     "convertToConsole": "コンソールに変換",
     "parameters": "パラメータ",
     "paramValuePlaceholder": "値 (例: 'text' や 123)",
@@ -990,7 +1216,59 @@
       "aiAnalysis": "AI 分析",
       "aiAnalysisTitle": "AI によるクエリ計画分析",
       "aiAnalyzing": "AI でクエリ計画を分析中...",
-      "aiConfigRequired": "AI プロバイダが未設定です。設定 > AI に移動してください。"
+      "aiConfigRequired": "AI プロバイダが未設定です。設定 > AI に移動してください。",
+      "selfTime": "自己時間",
+      "totalTime": "合計時間",
+      "timePerLoop": "ループあたりの時間",
+      "selfCost": "自己コスト",
+      "rowsAllLoops": "行数 (全ループ)",
+      "buffers": "バッファ",
+      "metric": "指標",
+      "noMetricData": "このプランには図示できる指標がありません。",
+      "diagramView": "ダイアグラム",
+      "statsView": "統計",
+      "highestSelfCost": "自己コスト最大",
+      "slowestSelfStep": "最も遅いステップ",
+      "diagnostics": {
+        "title": "検出結果",
+        "hotspot": "ホットスポット",
+        "hotspotHint": "このステップが実行時間全体の大きな割合を占めています。",
+        "overEstimate": "想定より多い行数",
+        "overEstimateHint": "プランナーの見積もりが大幅に少なすぎました。統計情報を更新するか、見積もりできない条件を確認してください。",
+        "underEstimate": "想定より少ない行数",
+        "underEstimateHint": "プランナーの見積もりが大幅に多すぎたため、必要以上に重いプランを選んだ可能性があります。",
+        "diskSort": "ディスクソート",
+        "diskSortHint": "ソートがメモリに収まりませんでした。work_mem を増やすとメモリ内で処理できます。",
+        "filterLoss": "フィルタでほぼ破棄",
+        "filterLossHint": "読み取った行のほとんどがフィルタで破棄されました。条件にインデックスを張れば無駄な処理を避けられます。",
+        "largeSeqScan": "大規模なシーケンシャルスキャン",
+        "largeSeqScanHint": "リレーション全体を読み取りました。条件を満たすインデックスがないか確認してください。",
+        "heapFetches": "ヒープ参照が多い",
+        "heapFetchesHint": "index-only scan がテーブルを参照しました。VACUUM で可視性マップが更新されます。",
+        "workersUnderused": "ワーカーが計画より少ない",
+        "workersUnderusedHint": "並列ワーカーが要求されましたが全数は起動しませんでした。ワーカープールが枯渇していた可能性があります。",
+        "highLoops": "多数回の実行",
+        "highLoopsHint": "外側の行ごとに実行されたため、ループあたりの値は平均です。",
+        "cacheMiss": "ディスクからの読み取り",
+        "cacheMissHint": "多くのブロックが共有バッファにないため、I/O 待ちが発生しました。",
+        "neverExecuted": "未実行",
+        "neverExecutedHint": "プランナーが生成しましたが、エグゼキュータは実行しませんでした。"
+      },
+      "stats": {
+        "nodeCount": "ノード数",
+        "maxDepth": "深さ",
+        "totalSelfTime": "自己時間の合計",
+        "neverExecutedNodes": "未実行",
+        "byNodeType": "操作別の時間",
+        "byRelation": "アクセスしたリレーション",
+        "byIndex": "使用インデックス",
+        "count": "件数",
+        "share": "割合",
+        "accesses": "アクセス数",
+        "operations": "操作",
+        "indexName": "インデックス",
+        "scans": "スキャン数"
+      }
     },
     "notebook": {
       "addSqlCell": "SQL セルを追加",
@@ -1104,6 +1382,7 @@
       "viewTabs": "タブ表示",
       "viewStacked": "スタック表示",
       "queryPrefix": "クエリ",
+      "resultSetPrefix": "結果",
       "results": "結果",
       "collapseAll": "すべて折りたたむ",
       "expandAll": "すべて展開",
@@ -1213,12 +1492,18 @@
     "noConnectionDesc": "接続 ID がないため、図を表示できません。",
     "switchToVertical": "垂直レイアウトに切り替え",
     "switchToHorizontal": "水平レイアウトに切り替え",
+    "lockNodes": "ノードの位置を固定",
+    "unlockNodes": "ロックを解除してノードを移動",
     "vertical": "垂直",
     "horizontal": "水平",
     "showAllTables": "すべてのテーブルを表示",
     "showAll": "すべて表示",
     "focusedOn": "フォーカス中",
-    "focusOnTable": "テーブルにフォーカス"
+    "focusOnTable": "テーブルにフォーカス",
+    "exportMermaid": "Mermaid 図としてエクスポート",
+    "exportSuccess": "図をエクスポートしました",
+    "exportDbml": "DBML としてエクスポート",
+    "export": "エクスポート"
   },
   "views": {
     "createView": "ビューを作成",
@@ -1313,7 +1598,6 @@
     "errorNoTables": "少なくとも 1 つのテーブルを選択してください",
     "importStarted": "インポートを開始しました...",
     "importSuccess": "SQL ファイルを正常に実行しました",
-    "importFailure": "インポートに失敗しました: ",
     "importCancelled": "インポートをキャンセルしました",
     "importFailed": "インポートに失敗しました",
     "importingFrom": "インポート元",
@@ -1341,7 +1625,14 @@
     "subtitle": "行 #{{row}}",
     "save": "変更を保存",
     "cancel": "キャンセル",
-    "enterValue": "値を入力..."
+    "enterValue": "値を入力...",
+    "pin": "ピン留め",
+    "unpin": "ピン留め解除"
+  },
+  "rightSidebar": {
+    "resize": "サイズ変更",
+    "collapse": "折りたたむ",
+    "expand": "展開する"
   },
   "contextMenu": {
     "openSidebar": "サイドバーエディタで開く"
@@ -1452,7 +1743,8 @@
     "createFirst": "最初のグループを作成して接続を整理しましょう",
     "groupName": "グループ名",
     "dragHint": "接続をここにドラッグ",
-    "createError": "グループの作成に失敗しました"
+    "createError": "グループの作成に失敗しました",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "データベース",
@@ -1504,7 +1796,8 @@
     "targetColumn": "対象カラム",
     "targetColumnPlaceholder": "対象を選択...",
     "skipColumn": "スキップ (インポートしない)",
-    "createNewColumn": "新規カラムを作成"
+    "createNewColumn": "新規カラムを作成",
+    "typePlaceholder": "型"
   },
   "aiActivity": {
     "title": "AI アクティビティ",
@@ -1581,6 +1874,8 @@
   },
   "aiApproval": {
     "title": "AI がデータベース書き込みを要求しています",
+    "titleRead": "AI がデータベース読み取りを要求しています",
+    "planEstimatedRows": "推定行数",
     "subtitle": "{{connection}} 上 — 実行前に確認して判断してください。",
     "subtitleWithClient": "{{client}} が {{connection}} 上 — 実行前に確認して判断してください。",
     "query": "クエリ",
@@ -1630,7 +1925,17 @@
       "resourceTypeInvalid": "リソースタイプは \"service\" または \"pod\" である必要があります",
       "resourceNameRequired": "リソース名は必須です",
       "portInvalid": "ポートは 1 から 65535 の範囲で指定してください"
-    }
+    },
+    "advancedSettings": "kubectl の詳細設定",
+    "kubectlPath": "kubectl のパス",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "kubeconfig のパス",
+    "kubeconfigPathPlaceholder": "kubeconfig へのパス",
+    "pathValidationFailed": "続行する前に、Kubernetes の詳細設定にある無効なパス項目を修正してください。",
+    "pathSelectionReset": "Kubernetes の詳細パスが変更されました。コンテキスト、名前空間、リソースをもう一度選択してください。",
+    "noContexts": "利用可能なコンテキストはありません",
+    "noNamespaces": "利用可能なネームスペースはありません",
+    "noResources": "利用可能なリソースはありません"
   },
   "routines": {
     "menuRun": "実行…",
@@ -1654,5 +1959,145 @@
     "runButton": "実行",
     "runTabPrefix": "実行",
     "returnValue": "戻り値"
+  },
+  "pagination": {
+    "firstPage": "最初のページ",
+    "previousPage": "前のページ",
+    "nextPage": "次のページ",
+    "lastPage": "最後のページ"
+  },
+  "miniGrid": {
+    "runningQuery": "クエリを実行中...",
+    "copyAll": "すべてコピー"
+  },
+  "userManagement": {
+    "tabTitle": "ユーザーと権限",
+    "filterPlaceholder": "ユーザーを絞り込み...",
+    "newUser": "新規ユーザー",
+    "create": "ユーザーを作成",
+    "userPlaceholder": "ユーザー名",
+    "passwordPlaceholder": "パスワード",
+    "newPasswordPlaceholder": "新しいパスワード",
+    "changePassword": "パスワードを変更",
+    "dropUser": "ユーザーを削除",
+    "dropTitle": "ユーザーを削除",
+    "dropConfirm": "ユーザー {{account}} を削除しますか？この操作は元に戻せません。",
+    "locked": "ロック中",
+    "loadError": "ユーザーの読み込みに失敗しました:",
+    "noUsers": "ユーザーが見つかりません",
+    "selectPrompt": "権限を表示するユーザーを選択してください",
+    "currentGrants": "現在の権限",
+    "scope": "データベース",
+    "scopePlaceholder": "空 = グローバル (*.*)",
+    "revokeTitle": "権限を取り消す",
+    "revokeConfirm": "{{scope}} に対する {{account}} の {{privileges}} を取り消しますか？",
+    "add": "追加",
+    "apply": "適用",
+    "privileges": "権限",
+    "globalScope": "グローバル (*.*)",
+    "addScope": "データベース / テーブルを追加",
+    "databasePlaceholder": "データベース",
+    "tablePlaceholder": "テーブル（任意）",
+    "initialPrivilegesHint": "任意: 作成直後に付与する初期権限です。データベースを選択するか、空のままにするとグローバルに付与されます。"
+  },
+  "deepLink": {
+    "installTitle": "レジストリからプラグインをインストール",
+    "installSubtitle": "Tabularium レジストリが Tabularis にプラグインのインストールを要求しました。",
+    "plugin": "プラグイン",
+    "version": "バージョン",
+    "registry": "レジストリ",
+    "latest": "最新",
+    "installConfirm": "インストール",
+    "installing": "インストール中…",
+    "loadingPreview": "詳細を読み込み中…",
+    "usingConfigured": "設定済みレジストリ",
+    "mismatchTitle": "設定とは異なるレジストリ",
+    "mismatchBody": "設定済みのレジストリは {{configured}} です。リンクは別の場所を指しています — 続行前にご確認ください。",
+    "updateConfirm": "v{{version}} に更新",
+    "alreadyInstalled": "バージョン {{version}} は既にインストールされています。"
+  },
+  "connectionCatalogue": {
+    "searchPlaceholder": "データベースを検索…",
+    "clearSearch": "検索をクリア",
+    "verified": "検証済み",
+    "installed": "インストール済み",
+    "install": "インストール",
+    "clear": "クリア",
+    "registryOffline": "レジストリに接続できません — インストール済みおよび組み込みドライバーのみ表示しています。",
+    "noMatches": "フィルターに一致するデータベースがありません。",
+    "clearFilters": "フィルターをクリア",
+    "driverCount_one": "{{count}} 個のドライバー",
+    "driverCount_other": "{{count}} 個のドライバー",
+    "connectTo": "{{name}} に接続",
+    "unavailableOnPlatform": "お使いのプラットフォームでは利用できません",
+    "backToCatalogue": "カタログに戻る",
+    "pickDriver": "複数のドライバーが {{name}} に接続します。1つ選択してください：",
+    "latestVersion": "最新 v{{version}}",
+    "continue": "続行",
+    "noReleaseTitle": "お使いのプラットフォーム向けのインストール可能なリリースはまだありません。",
+    "noReleaseBody": "このドライバーには、お使いのOS/アーキテクチャ向けのダウンロード可能なビルドがありません。更新されたリリースについてはレジストリを確認してください。",
+    "notInstalled": "このドライバーはまだインストールされていません。接続を設定するにはインストールしてください。",
+    "installVersion": "v{{version}} をインストール",
+    "installingVersion": "v{{version}} をインストール中…",
+    "retryInstall": "インストールを再試行"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "SSH 認証に失敗しました",
+      "recovery": "SSH タブでユーザー、パスワード、秘密鍵を確認してください。"
+    },
+    "ssh-unreachable": {
+      "summary": "SSH サーバーに接続できません",
+      "recovery": "SSH ホストとポート、サーバーに到達可能かを確認してください。トンネルが接続できる場合は、SSH サーバーから見たデータベースのホストとポートを確認してください。"
+    },
+    "ssh": {
+      "summary": "SSH トンネルに失敗しました",
+      "recovery": "SSH タブの設定を確認してください。"
+    },
+    "db-auth": {
+      "summary": "データベース認証に失敗しました",
+      "recovery": "データベースのユーザー名とパスワードを確認してください。"
+    },
+    "network": {
+      "summary": "データベースサーバーに接続できません",
+      "recovery": "ホストとポート、サーバーが起動しているかを確認してください。"
+    },
+    "db-not-found": {
+      "summary": "データベースが見つかりません",
+      "recovery": "データベース名を確認してください。"
+    },
+    "unknown": {
+      "summary": "接続に失敗しました"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "テストログ",
+    "noLog": "このテストではステップが記録されませんでした。",
+    "rawError": "エラーの詳細",
+    "copyDiagnostics": "診断情報をコピー",
+    "copied": "コピーしました!",
+    "steps": {
+      "cancelled": "ユーザーによりテストが停止されました",
+      "resolve": {
+        "error": "接続パラメータの準備に失敗しました"
+      },
+      "sshTunnel": {
+        "start": "SSH トンネルを開いています",
+        "ok": "SSH トンネルが確立されました",
+        "error": "SSH トンネルに失敗しました"
+      },
+      "k8sForward": {
+        "start": "Kubernetes ポートフォワードを開始しています",
+        "ok": "ポートフォワードの準備ができました",
+        "error": "Kubernetes ポートフォワードに失敗しました"
+      },
+      "dbConnect": {
+        "start": "データベースに接続しています",
+        "ok": "データベース接続が確立されました",
+        "error": "データベース接続に失敗しました"
+      }
+    },
+    "title": "接続テストのログ",
+    "showLog": "ログを表示"
   }
 }

@@ -125,7 +125,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     (currentLanguageApplied || trackedLanguageState?.settled === true);
 
   // Load settings from backend on mount
+  const hasLoadedSettingsRef = useRef(false);
   useEffect(() => {
+    if (hasLoadedSettingsRef.current) return;
+    hasLoadedSettingsRef.current = true;
+
     const loadSettings = async () => {
       try {
         const config = await invoke<Partial<Settings>>("get_config");
@@ -154,6 +158,10 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
           // If aiEnabled is null or undefined in config, treat it as disabled (false)
           if (config.aiEnabled === null || config.aiEnabled === undefined) {
             finalSettings.aiEnabled = false;
+          }
+
+          if (typeof config.runStatementUnderCursor !== "boolean") {
+            finalSettings.runStatementUnderCursor = true;
           }
 
           // Ensure resultPageSize has a valid default
@@ -255,7 +263,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     };
 
     loadSettings();
-  }, []);
+  }, [isLanguageApplied, queueLanguageApplication]);
 
   // Update i18n when language changes
   useEffect(() => {

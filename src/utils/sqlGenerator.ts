@@ -161,7 +161,7 @@ export function generateIndexStatements(
     name: string;
     is_unique: boolean;
     is_primary: boolean;
-    columns: Array<{ name: string; seq_in_index?: number; position: number }>;
+    columns: Array<{ name: string; seq_in_index?: number; position: number; is_expression?: boolean }>;
   }>();
 
   indexes.forEach((idx, position) => {
@@ -171,6 +171,7 @@ export function generateIndexStatements(
         name: idx.column_name,
         seq_in_index: idx.seq_in_index,
         position,
+        is_expression: idx.is_expression,
       });
       return;
     }
@@ -183,11 +184,12 @@ export function generateIndexStatements(
         name: idx.column_name,
         seq_in_index: idx.seq_in_index,
         position,
+        is_expression: idx.is_expression,
       }],
     });
   });
 
-  const renderColumns = (columns: Array<{ name: string; seq_in_index?: number; position: number }>) =>
+  const renderColumns = (columns: Array<{ name: string; seq_in_index?: number; position: number; is_expression?: boolean }>) =>
     [...columns]
       .sort((a, b) => {
         const aSeq = a.seq_in_index ?? Number.MAX_SAFE_INTEGER;
@@ -195,7 +197,7 @@ export function generateIndexStatements(
         if (aSeq !== bSeq) return aSeq - bSeq;
         return a.position - b.position;
       })
-      .map(col => `${quote}${col.name}${quote}`)
+      .map(col => (col.is_expression ? col.name : `${quote}${col.name}${quote}`))
       .join(', ');
 
   const indexGroups = [...groupedIndexes.values()];

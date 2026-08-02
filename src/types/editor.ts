@@ -17,7 +17,6 @@ export interface TableColumn {
   is_auto_increment: boolean;
   default_value?: string;
   character_maximum_length?: number;
-  udt_name?: string;
 }
 
 export interface TableSchema {
@@ -38,6 +37,11 @@ export interface QueryResult {
   affected_rows: number;
   truncated?: boolean;
   pagination?: Pagination;
+  /// Extra result sets beyond the first one from a single statement, e.g. a
+  /// MySQL `CALL` whose procedure body holds multiple `SELECT`s. Mirrors
+  /// `src-tauri/src/models.rs::QueryResult`; the first set stays in
+  /// `columns` / `rows`.
+  additional_results?: QueryResult[];
 }
 
 /// One statement's outcome inside an `execute_query_batch` invocation.
@@ -82,7 +86,7 @@ export interface PendingInsertion {
 export interface Tab {
   id: string;
   title: string;
-  type: "console" | "table" | "query_builder" | "notebook";
+  type: "console" | "table" | "query_builder" | "notebook" | "users";
   query: string;
   result: QueryResult | null;
   error: string;

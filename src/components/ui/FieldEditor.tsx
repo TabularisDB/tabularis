@@ -1,15 +1,32 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Sparkles, Ban, FileDigit } from "lucide-react";
+import { Sparkles, Ban, Eraser, FileDigit } from "lucide-react";
 import { GeometryInput } from "./GeometryInput";
 import { BlobInput } from "./BlobInput";
 import { DateInput } from "./DateInput";
 import { JsonInput } from "./JsonInput";
 import { TextInput } from "./TextInput";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
+import {
+  isEnumType,
+  parseEnumValues,
+  isSetType,
+  parseSetValues,
+} from "../../utils/columnTypes";
+import { EnumSetInput } from "./EnumSetInput";
 import { isBlobColumn } from "../../utils/blob";
-import { isJsonColumn, isJsonContent, isHstoreColumn } from "../../utils/json";
-import { isLongTextValue, isTextColumn } from "../../utils/text";
+import {
+  isJsonColumn,
+  isJsonContent,
+  isHstoreColumn,
+  isStructuredValue,
+} from "../../utils/json";
+import {
+  isLongTextValue,
+  isTextColumn,
+  isVectorColumn,
+  supportsEmptyString,
+} from "../../utils/text";
 import { getDateInputMode } from "../../utils/dateInput";
 import { USE_DEFAULT_SENTINEL } from "../../utils/dataGrid";
 
@@ -17,7 +34,6 @@ export interface FieldEditorProps {
   name: string;
   type?: string;
   characterMaximumLength?: number;
-  udtName?: string;
   value: unknown;
   onChange: (value: unknown) => void;
   placeholder?: string;
@@ -42,7 +58,6 @@ export const FieldEditor = ({
   name,
   type,
   characterMaximumLength,
-  udtName,
   value,
   onChange,
   placeholder,
@@ -61,23 +76,34 @@ export const FieldEditor = ({
   const { t } = useTranslation();
   const isGeometric = type && isGeometricType(type);
   const isBlob = type && isBlobColumn(type, characterMaximumLength);
-  const isJsonByType = !!(type && isJsonColumn(type)) || isHstoreColumn(udtName);
+  const isJsonByType = !!(type && (isJsonColumn(type) || isHstoreColumn(type)));
   const detectedJson =
     !isBlob &&
     !isGeometric &&
-    detectJsonInTextColumns &&
-    (Array.isArray(value) ||
-      Array.isArray(originalValue) ||
-      isJsonContent(value) ||
-      isJsonContent(originalValue));
+    (isStructuredValue(value) ||
+      isStructuredValue(originalValue) ||
+      (detectJsonInTextColumns &&
+        (isJsonContent(value) || isJsonContent(originalValue))));
   const isJson = isJsonByType || detectedJson;
   const dateMode = !isJson && type ? getDateInputMode(type) : null;
+  const isEnum =
+    !isBlob && !isGeometric && !isJson && !dateMode && type
+      ? isEnumType(type)
+      : false;
+  const enumValues = isEnum && type ? parseEnumValues(type) : [];
+  const isSet =
+    !isBlob && !isGeometric && !isJson && !dateMode && !isEnum && type
+      ? isSetType(type)
+      : false;
+  const setValues = isSet && type ? parseSetValues(type) : [];
   const isLongText =
     !isBlob &&
     !isGeometric &&
     !isJson &&
     !dateMode &&
-    isTextColumn(type) &&
+    !isEnum &&
+    !isSet &&
+    (isTextColumn(type) || isVectorColumn(type)) &&
     (isLongTextValue(value) || isLongTextValue(originalValue));
 
   const defaultPlaceholder = placeholder || t("rowEditor.enterValue");
@@ -129,6 +155,16 @@ export const FieldEditor = ({
     <DateInput
       value={String(value ?? "")}
       mode={dateMode}
+      onChange={(newValue) => onChange(newValue)}
+      className={className}
+    />
+  ) : isEnum || isSet ? (
+    <EnumSetInput
+      variant="inline"
+      multiple={isSet}
+      value={value === null || value === undefined ? null : String(value)}
+      options={isSet ? setValues : enumValues}
+      isNullable={isNullable}
       onChange={(newValue) => onChange(newValue)}
       className={className}
     />
@@ -192,13 +228,14 @@ export const FieldEditor = ({
             {t("dataGrid.setDefault")}
           </button>
         )}
-        {!isBlob && (
+        {supportsEmptyString(type) && (
           <button
             type="button"
-            onClick={() => onChange(" ")}
-            className="px-2 py-1 text-xs bg-surface-secondary text-secondary rounded border border-default hover:bg-surface-tertiary transition-colors"
+            onClick={() => onChange("")}
+            className="px-2 py-1 text-xs bg-surface-secondary text-secondary rounded border border-default hover:bg-surface-tertiary transition-colors flex items-center gap-1"
             title={t("dataGrid.setEmpty")}
           >
+            <Eraser size={12} />
             {t("dataGrid.setEmpty")}
           </button>
         )}

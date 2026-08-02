@@ -1,16 +1,28 @@
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, X } from "lucide-react";
 import { Modal } from "../ui/Modal";
+import { SqlPreview } from "../ui/SqlPreview";
 
 interface ConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   message: string;
+  /** Optional SQL shown in a read-only preview below the message. */
+  sql?: string;
   confirmLabel?: string;
   confirmClassName?: string;
   onConfirm: () => void;
   variant?: "danger" | "warning" | "info";
+  /**
+   * When set, the confirm button stays disabled for this many seconds after the
+   * modal opens, showing a countdown. Gives the user a beat to actually read the
+   * message before confirming a destructive action.
+   */
+  confirmDelaySeconds?: number;
+  /** Forwarded to the underlying Modal, e.g. to raise z-index above another modal. */
+  overlayClassName?: string;
 }
 
 export const ConfirmModal = ({
@@ -18,12 +30,34 @@ export const ConfirmModal = ({
   onClose,
   title,
   message,
+  sql,
   confirmLabel,
   confirmClassName,
   onConfirm,
   variant = "danger",
+  confirmDelaySeconds,
+  overlayClassName,
 }: ConfirmModalProps) => {
   const { t } = useTranslation();
+  const [remaining, setRemaining] = useState(confirmDelaySeconds ?? 0);
+
+  // Reset the countdown whenever the modal transitions to open — done during
+  // render (React's recommended pattern) rather than in an effect.
+  const [prevOpen, setPrevOpen] = useState(isOpen);
+  if (isOpen !== prevOpen) {
+    setPrevOpen(isOpen);
+    setRemaining(isOpen ? (confirmDelaySeconds ?? 0) : 0);
+  }
+
+  useEffect(() => {
+    if (!isOpen || !confirmDelaySeconds) return;
+    const interval = setInterval(() => {
+      setRemaining((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isOpen, confirmDelaySeconds]);
+
+  const isCountingDown = remaining > 0;
 
   const variantStyles = {
     danger: {
@@ -46,7 +80,7 @@ export const ConfirmModal = ({
   const currentVariant = variantStyles[variant];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={onClose} overlayClassName={overlayClassName}>
       <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[480px] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
@@ -62,8 +96,9 @@ export const ConfirmModal = ({
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-6 space-y-4">
           <p className="text-sm text-secondary leading-relaxed">{message}</p>
+          {sql && <SqlPreview sql={sql} height="120px" />}
         </div>
 
         {/* Footer */}
@@ -76,12 +111,15 @@ export const ConfirmModal = ({
           </button>
           <button
             onClick={onConfirm}
-            className={
+            disabled={isCountingDown}
+            className={`${
               confirmClassName ??
               `px-4 py-2 ${currentVariant.button} text-white rounded-lg text-sm font-medium transition-colors`
-            }
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            {confirmLabel ?? (variant === "danger" ? t("common.delete") : t("common.ok"))}
+            {isCountingDown
+              ? `${confirmLabel ?? (variant === "danger" ? t("common.delete") : t("common.ok"))} (${remaining})`
+              : (confirmLabel ?? (variant === "danger" ? t("common.delete") : t("common.ok")))}
           </button>
         </div>
       </div>

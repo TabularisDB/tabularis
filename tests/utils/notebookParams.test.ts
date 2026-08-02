@@ -83,6 +83,20 @@ describe("notebookParams", () => {
       );
       expect(result.sql).toBe("SELECT 100, 100");
     });
+
+    it("should keep regex replacement patterns in values literal", () => {
+      const result = resolveParams("SELECT * FROM t WHERE a = @p", [
+        { name: "p", value: "100$&2" },
+      ]);
+      expect(result.sql).toBe("SELECT * FROM t WHERE a = 100$&2");
+    });
+
+    it("should not expand $' or $` in values", () => {
+      const result = resolveParams("SELECT @p FROM t", [
+        { name: "p", value: "$' OR $` OR $$" },
+      ]);
+      expect(result.sql).toBe("SELECT $' OR $` OR $$ FROM t");
+    });
   });
 
   describe("validateParamName", () => {

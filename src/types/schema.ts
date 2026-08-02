@@ -5,7 +5,6 @@ export interface TableColumn {
   is_nullable: boolean;
   is_auto_increment: boolean;
   character_maximum_length?: number;
-  udt_name?: string;
 }
 
 export interface ForeignKey {
@@ -21,4 +20,5 @@ export interface Index {
   is_unique: boolean;
   is_primary: boolean;
   seq_in_index?: number;
+  is_expression?: boolean;
 }

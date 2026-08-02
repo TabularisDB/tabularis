@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
@@ -93,12 +94,39 @@ struct AiModelsCache {
     models: HashMap<String, Vec<String>>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct MiniMaxEndpoint {
+    region: &'static str,
+    openai_base_url: &'static str,
+}
+
+const MINIMAX_ENDPOINTS: [MiniMaxEndpoint; 2] = [
+    MiniMaxEndpoint {
+        region: "global",
+        openai_base_url: "https://api.minimax.io/v1",
+    },
+    MiniMaxEndpoint {
+        region: "cn_zh",
+        openai_base_url: "https://api.minimaxi.com/v1",
+    },
+];
+
+static MINIMAX_PREFERRED_ENDPOINT: AtomicUsize = AtomicUsize::new(0);
+
+fn minimax_endpoint_order(preferred: usize) -> [usize; 2] {
+    if preferred == 1 {
+        [1, 0]
+    } else {
+        [0, 1]
+    }
+}
+
 // --- Helper Functions ---
 
 fn load_default_models() -> HashMap<String, Vec<String>> {
     let yaml_content = include_str!("ai_models.yaml");
     serde_yaml::from_str(yaml_content).unwrap_or_else(|e| {
-        println!("Failed to parse models.yaml: {}", e);
+        eprintln!("Failed to parse models.yaml: {}", e);
         HashMap::new() // Fallback to empty map on critical error (should be caught by tests)
     })
 }
@@ -213,22 +241,24 @@ async fn fetch_minimax_models(api_key: &str) -> Vec<String> {
         return Vec::new();
     }
     let client = Client::new();
-    match client
-        .get("https://api.minimax.io/v1/models")
-        .header("Authorization", format!("Bearer {}", api_key))
-        .send()
-        .await
-    {
-        Ok(res) => {
+    let preferred = MINIMAX_PREFERRED_ENDPOINT.load(Ordering::Relaxed);
+    for index in minimax_endpoint_order(preferred) {
+        let endpoint = MINIMAX_ENDPOINTS[index];
+        if let Ok(res) = client
+            .get(format!("{}/models", endpoint.openai_base_url))
+            .header("Authorization", format!("Bearer {}", api_key))
+            .send()
+            .await
+        {
             if res.status().is_success() {
                 if let Ok(json) = res.json::<OpenAiModelList>().await {
+                    MINIMAX_PREFERRED_ENDPOINT.store(index, Ordering::Relaxed);
                     return json.data.into_iter().map(|m| m.id).collect();
                 }
             }
-            Vec::new()
         }
-        Err(_) => Vec::new(),
     }
+    Vec::new()
 }
 
 async fn fetch_openrouter_models() -> Vec<String> {
@@ -965,26 +995,39 @@ async fn generate_minimax(
         "temperature": 0.1
     });
 
-    let res = client
-        .post("https://api.minimax.io/v1/chat/completions")
-        .header("Authorization", format!("Bearer {}", api_key))
-        .header("Content-Type", "application/json")
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    let preferred = MINIMAX_PREFERRED_ENDPOINT.load(Ordering::Relaxed);
+    let mut errors = Vec::new();
 
-    if !res.status().is_success() {
-        let error_text = res.text().await.unwrap_or_default();
-        return Err(format!("MiniMax Error: {}", error_text));
+    for index in minimax_endpoint_order(preferred) {
+        let endpoint = MINIMAX_ENDPOINTS[index];
+        let url = format!("{}/chat/completions", endpoint.openai_base_url);
+        match client
+            .post(url)
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await
+        {
+            Ok(res) if res.status().is_success() => {
+                let json: serde_json::Value =
+                    res.json().await.map_err(|e| e.to_string())?;
+                let content = json["choices"][0]["message"]["content"]
+                    .as_str()
+                    .ok_or("Invalid response format from MiniMax")?;
+                MINIMAX_PREFERRED_ENDPOINT.store(index, Ordering::Relaxed);
+                return Ok(clean_response(content));
+            }
+            Ok(res) => {
+                let status = res.status();
+                let error_text = res.text().await.unwrap_or_default();
+                errors.push(format!("{} ({status}): {error_text}", endpoint.region));
+            }
+            Err(error) => errors.push(format!("{}: {error}", endpoint.region)),
+        }
     }
 
-    let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
-    let content = json["choices"][0]["message"]["content"]
-        .as_str()
-        .ok_or("Invalid response format from MiniMax")?;
-
-    Ok(clean_response(content))
+    Err(format!("MiniMax Error: {}", errors.join("; ")))
 }
 
 fn clean_response(text: &str) -> String {
@@ -1037,6 +1080,19 @@ mod tests {
 
         // Ollama is not in yaml, so it shouldn't be here yet
         assert!(!models.contains_key("ollama"));
+    }
+
+    #[test]
+    fn test_minimax_endpoint_order_prefers_last_successful_region() {
+        let global_first = minimax_endpoint_order(0);
+        assert_eq!(MINIMAX_ENDPOINTS[global_first[0]].region, "global");
+        assert_eq!(MINIMAX_ENDPOINTS[global_first[1]].region, "cn_zh");
+
+        let cn_first = minimax_endpoint_order(1);
+        assert_eq!(MINIMAX_ENDPOINTS[cn_first[0]].region, "cn_zh");
+        assert_eq!(MINIMAX_ENDPOINTS[cn_first[1]].region, "global");
+
+        assert_eq!(minimax_endpoint_order(usize::MAX), [0, 1]);
     }
 
     #[test]

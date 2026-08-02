@@ -63,6 +63,34 @@ export interface SelectedColumn {
   colName: string;
 }
 
+function formatTableRef(
+  tableName: string,
+  driver: string | null | undefined,
+): string {
+  if (!driver) return tableName;
+  return tableName
+    .split('.')
+    .map((part) => formatSqlIdentifier(part, driver))
+    .join('.');
+}
+
+function formatColumnRef(
+  alias: string,
+  column: string,
+  driver: string | null | undefined,
+): string {
+  return `${alias}.${formatSqlIdentifier(column, driver)}`;
+}
+
+function formatGeneratedColumnRef(
+  column: string,
+  driver: string | null | undefined,
+): string {
+  const [alias, ...nameParts] = column.split('.');
+  if (nameParts.length === 0) return formatSqlIdentifier(column, driver);
+  return `${alias}.${formatSqlIdentifier(nameParts.join('.'), driver)}`;
+}
+
 /**
  * Collects tables and their aliases from nodes
  */
@@ -90,7 +118,8 @@ export function generateTableList(nodes: QueryNode[], aliases: Record<string, st
  */
 export function collectSelectedColumns(
   nodes: QueryNode[],
-  aliases: Record<string, string>
+  aliases: Record<string, string>,
+  driver?: string | null,
 ): { columns: SelectedColumn[]; hasAggregation: boolean; nonAggregatedCols: string[] } {
   const selectedColsWithOrder: SelectedColumn[] = [];
   const nonAggregatedCols: string[] = [];
@@ -105,15 +134,16 @@ export function collectSelectedColumns(
         if (isChecked) {
           const agg = data.columnAggregations?.[col];
           const colAlias = data.columnAliases?.[col];
-          let colExpr = `${alias}.${col}`;
+          const columnRef = formatColumnRef(alias, col, driver);
+          let colExpr = columnRef;
           let order = 999;
 
           if (agg?.function) {
             hasAggregation = true;
             if (agg.function === 'COUNT_DISTINCT') {
-              colExpr = `COUNT(DISTINCT ${alias}.${col})`;
+              colExpr = `COUNT(DISTINCT ${columnRef})`;
             } else {
-              colExpr = `${agg.function}(${alias}.${col})`;
+              colExpr = `${agg.function}(${columnRef})`;
             }
 
             if (agg?.alias) {
@@ -124,7 +154,7 @@ export function collectSelectedColumns(
               order = agg.order;
             }
           } else {
-            nonAggregatedCols.push(`${alias}.${col}`);
+            nonAggregatedCols.push(columnRef);
 
             if (colAlias?.alias) {
               colExpr += ` AS ${colAlias.alias}`;
@@ -166,11 +196,15 @@ export function generateSelectClause(columns: SelectedColumn[]): string {
 export function generateFromClause(
   nodes: QueryNode[],
   edges: QueryEdge[],
-  aliases: Record<string, string>
+  aliases: Record<string, string>,
+  driver?: string | null,
 ): string {
   if (nodes.length === 0) return '';
 
-  const tableList = generateTableList(nodes, aliases);
+  const tableList = nodes.map((node) => {
+    const tableName = formatTableRef(node.data.label, driver);
+    return `${tableName} ${aliases[node.id]}`;
+  });
 
   if (edges.length === 0) {
     return '\nFROM\n  ' + tableList.join(',\n  ');
@@ -180,7 +214,7 @@ export function generateFromClause(
   const firstData = firstNode.data;
   const processedNodes = new Set<string>([firstNode.id]);
 
-  let sql = `\nFROM\n  ${firstData.label} ${aliases[firstNode.id]}`;
+  let sql = `\nFROM\n  ${formatTableRef(firstData.label, driver)} ${aliases[firstNode.id]}`;
 
   const edgesToProcess = [...edges];
   let madeProgress = true;
@@ -201,7 +235,7 @@ export function generateFromClause(
           const sourceAlias = aliases[edge.source];
           const edgeData = edge.data;
           const joinType = edgeData?.joinType || 'INNER';
-          sql += `\n${joinType} JOIN ${targetData.label} ${targetAlias} ON ${sourceAlias}.${edge.sourceHandle} = ${targetAlias}.${edge.targetHandle}`;
+          sql += `\n${joinType} JOIN ${formatTableRef(targetData.label, driver)} ${targetAlias} ON ${formatColumnRef(sourceAlias, edge.sourceHandle ?? '', driver)} = ${formatColumnRef(targetAlias, edge.targetHandle ?? '', driver)}`;
           processedNodes.add(edge.target);
           edgesToProcess.splice(i, 1);
           madeProgress = true;
@@ -215,7 +249,7 @@ export function generateFromClause(
           const targetAlias = aliases[edge.target];
           const edgeData = edge.data;
           const joinType = edgeData?.joinType || 'INNER';
-          sql += `\n${joinType} JOIN ${sourceData.label} ${sourceAlias} ON ${sourceAlias}.${edge.sourceHandle} = ${targetAlias}.${edge.targetHandle}`;
+          sql += `\n${joinType} JOIN ${formatTableRef(sourceData.label, driver)} ${sourceAlias} ON ${formatColumnRef(sourceAlias, edge.sourceHandle ?? '', driver)} = ${formatColumnRef(targetAlias, edge.targetHandle ?? '', driver)}`;
           processedNodes.add(edge.source);
           edgesToProcess.splice(i, 1);
           madeProgress = true;
@@ -232,7 +266,7 @@ export function generateFromClause(
   nodes.forEach((node) => {
     if (!processedNodes.has(node.id)) {
       const data = node.data;
-      sql += `,\n  ${data.label} ${aliases[node.id]}`;
+      sql += `,\n  ${formatTableRef(data.label, driver)} ${aliases[node.id]}`;
     }
   });
 
@@ -242,13 +276,16 @@ export function generateFromClause(
 /**
  * Generates WHERE clause for non-aggregate conditions
  */
-export function generateWhereClause(conditions: WhereCondition[]): string {
+export function generateWhereClause(
+  conditions: WhereCondition[],
+  driver?: string | null,
+): string {
   const normalConditions = conditions.filter((c) => !c.isAggregate && c.column && c.value);
 
   if (normalConditions.length === 0) return '';
 
   const clauses = normalConditions.map((c, idx) => {
-    const condition = `${c.column} ${c.operator} ${c.value}`;
+    const condition = `${formatGeneratedColumnRef(c.column, driver)} ${c.operator} ${c.value}`;
     return idx === 0 ? condition : `${c.logicalOperator} ${condition}`;
   });
 
@@ -261,13 +298,17 @@ export function generateWhereClause(conditions: WhereCondition[]): string {
 export function generateGroupByClause(
   hasAggregation: boolean,
   nonAggregatedCols: string[],
-  manualGroupBy: string[]
+  manualGroupBy: string[],
+  driver?: string | null,
 ): string {
+  const formattedManualGroupBy = manualGroupBy.map((column) =>
+    formatGeneratedColumnRef(column, driver),
+  );
   const finalGroupBy =
     hasAggregation && nonAggregatedCols.length > 0
-      ? [...new Set([...nonAggregatedCols, ...manualGroupBy])]
-      : manualGroupBy.length > 0
-        ? manualGroupBy
+      ? [...new Set([...nonAggregatedCols, ...formattedManualGroupBy])]
+      : formattedManualGroupBy.length > 0
+        ? formattedManualGroupBy
         : [];
 
   if (finalGroupBy.length === 0) return '';
@@ -301,7 +342,7 @@ export function generateOrderByClause(
   if (orderBy.length === 0) return '';
 
   const clauses = orderBy.map(
-    (o) => `${formatSqlIdentifier(o.column, driver)} ${o.direction}`,
+    (o) => `${formatGeneratedColumnRef(o.column, driver)} ${o.direction}`,
   );
   return '\nORDER BY\n  ' + clauses.join(',\n  ');
 }
@@ -329,13 +370,13 @@ export function generateVisualQuerySQL(
   if (nodes.length === 0) return '';
 
   const aliases = collectTableAliases(nodes);
-  const { columns, hasAggregation, nonAggregatedCols } = collectSelectedColumns(nodes, aliases);
+  const { columns, hasAggregation, nonAggregatedCols } = collectSelectedColumns(nodes, aliases, driver);
 
   let sql = 'SELECT\n';
   sql += generateSelectClause(columns);
-  sql += generateFromClause(nodes, edges, aliases);
-  sql += generateWhereClause(whereConditions);
-  sql += generateGroupByClause(hasAggregation, nonAggregatedCols, groupBy);
+  sql += generateFromClause(nodes, edges, aliases, driver);
+  sql += generateWhereClause(whereConditions, driver);
+  sql += generateGroupByClause(hasAggregation, nonAggregatedCols, groupBy, driver);
   sql += generateHavingClause(whereConditions);
   sql += generateOrderByClause(orderBy, driver);
   sql += generateLimitClause(limit);

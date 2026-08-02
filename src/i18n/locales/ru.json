@@ -37,7 +37,13 @@
     "noResults": "Ничего не найдено",
     "error": "Ошибка",
     "success": "Готово",
-    "ok": "ОК"
+    "ok": "ОК",
+    "continue": "Продолжить",
+    "back": "Назад",
+    "copy": "Копировать",
+    "showDetails": "Показать подробности",
+    "hideDetails": "Скрыть подробности",
+    "beta": "Бета"
   },
   "sidebar": {
     "connections": "Подключения",
@@ -88,6 +94,7 @@
     "modifyColumn": "Изменить столбец",
     "copyName": "Копировать имя",
     "openInEditor": "Открыть в редакторе",
+    "openInNewWindow": "Открыть в новом окне",
     "closePanel": "Закрыть панель",
     "setAsActive": "Сделать активным",
     "deleteTable": "Удалить таблицу",
@@ -156,6 +163,8 @@
     "noTablesMatch": "Таблицы не найдены",
     "filterDatabases": "Фильтр баз данных...",
     "manageDatabases": "Управление базами данных",
+    "databaseSelectionUpdated": "Выбор баз данных обновлён",
+    "droppedDatabasesRemoved": "Удалены, так как больше не существуют на сервере: {{names}}",
     "structure": "Структура",
     "favorites": "Избранное",
     "queryHistory": "История",
@@ -190,7 +199,13 @@
       "delete": "Удалить",
       "deleteConfirm": "Удалить блокнот «{{title}}»? Это действие нельзя отменить.",
       "renamePlaceholder": "Имя блокнота"
-    }
+    },
+    "addToSplitGroup": "Добавить в группу разделения",
+    "removeFromSplitGroup": "Убрать из группы",
+    "movePanel": "Переместить панель",
+    "refreshDatabaseList": "Обновить список баз данных",
+    "databaseListUpToDate": "Список баз данных актуален",
+    "allDatabasesRefreshed": "Базы данных обновлены: {{names}}"
   },
   "mcp": {
     "title": "Интеграция MCP-сервера",
@@ -241,6 +256,12 @@
   "connections": {
     "title": "Подключения",
     "addConnection": "Добавить подключение",
+    "newSqliteDatabase": {
+      "menuLabel": "Новая база данных SQLite…",
+      "dialogTitle": "Новая база данных SQLite",
+      "fileType": "База данных SQLite",
+      "error": "Не удалось создать базу данных SQLite"
+    },
     "noConnections": "Нет активных подключений",
     "createFirst": "Создайте первое подключение",
     "active": "Активно",
@@ -268,10 +289,77 @@
     "noSearchResults": "Подключения по запросу \"{{query}}\" не найдены",
     "gridView": "Сетка",
     "listView": "Список",
+    "selectedCount": "Выбрано: {{count}}",
+    "deleteSelected": "Удалить выбранные",
+    "moveSelected": "Переместить в группу",
+    "exportSelected": "Экспортировать выбранные",
+    "deselectAll": "Снять выделение",
+    "confirmDeleteSelected": "Вы уверены, что хотите удалить {{count}} выбранных подключений?",
+    "deleteSelectedTitle": "Удалить выбранные подключения",
     "export": "Экспортировать подключения",
     "import": "Импортировать подключения",
     "exportTitle": "Экспорт подключений",
-    "exportWarning": "Экспортируемый файл будет содержать пароли к базам данных и SSH в открытом виде. Храните его в надёжном месте!"
+    "exportWarning": "Экспортируемый файл будет содержать пароли к базам данных и SSH в открытом виде. Храните его в надёжном месте!",
+    "exportModal": {
+      "title": "Экспорт подключений",
+      "subtitle": "Выберите способ экспорта подключений",
+      "subtitleSelected": "Экспортировать выбранные подключения: {{count}}",
+      "encrypted": "Зашифровано паролем",
+      "encryptedDesc": "Все подключения и пароли включены и защищены выбранным вами паролем. Рекомендуется для резервных копий.",
+      "noSecrets": "Открытым текстом, без паролей",
+      "noSecretsDesc": "Подключения экспортируются в читаемом JSON, но все пароли и парольные фразы исключаются. Рекомендуется для обмена.",
+      "plaintext": "Открытым текстом, со всеми паролями",
+      "plaintextDesc": "Подключения и пароли экспортируются в читаемом JSON. Любой, у кого есть файл, сможет прочитать ваши учётные данные.",
+      "password": "Пароль",
+      "confirmPassword": "Подтвердите пароль",
+      "passwordRequired": "Для зашифрованного экспорта требуется пароль.",
+      "passwordMismatch": "Пароли не совпадают.",
+      "export": "Экспортировать"
+    },
+    "importPasswordModal": {
+      "title": "Зашифрованный файл экспорта",
+      "subtitle": "Этот файл защищён паролем",
+      "password": "Пароль",
+      "unlock": "Импортировать"
+    },
+    "importFromApp": {
+      "title": "Import from App",
+      "subtitle": "Import connections from another installed SQL client",
+      "previewSubtitle": "Review connections from {{source}}",
+      "notInstalled": "Not installed",
+      "chooseFile": "Choose an export file to import",
+      "connectionsFound_one": "1 connection found",
+      "connectionsFound_other": "{{count}} connections found",
+      "includePasswords": "Include passwords",
+      "includePasswordsHint": "Saved passwords are read and decrypted during import (may require Keychain permission)",
+      "credentialsAborted": "Some passwords could not be read",
+      "importCount_one": "Import 1 connection",
+      "importCount_other": "Import {{count}} connections",
+      "noConnections": "No connections found to import",
+      "duplicateOf": "Duplicate of \"{{name}}\"",
+      "action": {
+        "import": "Import",
+        "skip": "Skip",
+        "replace": "Replace",
+        "applyToAll": "Действие для всех:"
+      },
+      "tabularisJsonHint": "Файл экспорта Tabularis (.json)",
+      "menuLabel": "Импорт подключений…",
+      "group": {
+        "label": "Группа:",
+        "none": "Без группы",
+        "new": "Новая группа…",
+        "newPlaceholder": "Название группы",
+        "parentLabel": "в",
+        "parentNone": "Верхний уровень",
+        "applyToAll": "Группа для всех:",
+        "keepPerConnection": "Для каждого подключения"
+      },
+      "betaNotice": "Импорт из приложения находится в бета-версии. Если возникнет проблема,",
+      "reportIssue": "сообщите о ней на GitHub."
+    },
+    "databaseCount_one": "{{count}} база данных",
+    "databaseCount_other": "{{count}} баз данных"
   },
   "settings": {
     "title": "Настройки",
@@ -291,6 +379,13 @@
     "delimiterPipe": "Вертикальная черта (|)",
     "csvIncludeHeaders": "Включать заголовки CSV",
     "csvIncludeHeadersDesc": "Добавлять строку заголовка с именами столбцов при копировании строк в формате CSV.",
+    "rowEditorFollowSelection": "Редактор строки следует за выделением",
+    "rowEditorFollowSelectionDesc": "Когда боковая панель редактора строки открыта, она автоматически обновляется, показывая вновь выбранную строку.",
+    "cellDoubleClickAction": "Действие при двойном щелчке по ячейке",
+    "cellDoubleClickActionDesc": "Выберите, что происходит при двойном щелчке по ячейке данных.",
+    "cellDoubleClickInline": "Редактирование на месте",
+    "cellDoubleClickSidebar": "Открыть в боковой панели",
+    "cellDoubleClickBoth": "Оба",
     "csvHeaders": "Экспортировать имена столбцов",
     "detectJsonInTextColumns": "Определять JSON в текстовых столбцах",
     "detectJsonInTextColumnsDesc": "Показывать просмотрщик JSON, когда нетипизированная текстовая ячейка содержит объект или массив JSON. Создаёт небольшие издержки на разбор каждой ячейки.",
@@ -325,6 +420,23 @@
     "appearance_editorShowLineNumbersDesc": "Отображать номера строк на полях редактора.",
     "appearance_editorAcceptSuggestionOnEnter": "Принимать подсказку по Enter",
     "appearance_editorAcceptSuggestionOnEnterDesc": "Разрешить Enter (в дополнение к Tab) для принятия активной подсказки автодополнения. При отключении Enter всегда вставляет новую строку.",
+    "queryExecution": "Выполнение запросов",
+    "runStatementUnderCursor": "Выполнять запрос под курсором",
+    "runStatementUnderCursorDesc": "Если скрипт содержит несколько запросов, выполняется тот, что под курсором, вместо показа списка запросов. Выделите текст, чтобы выполнить определённый фрагмент.",
+    "formatter_title": "Форматирование SQL",
+    "formatter_keywordCase": "Регистр ключевых слов",
+    "formatter_keywordCaseDesc": "Регистр ключевых слов SQL (SELECT, FROM, WHERE) после форматирования.",
+    "formatter_functionCase": "Регистр функций",
+    "formatter_functionCaseDesc": "Регистр имён функций (COUNT, SUM, COALESCE) после форматирования.",
+    "formatter_indentStyle": "Стиль отступов",
+    "formatter_indentStyleDesc": "Стандартный — обычные отступы. Табличный — выравнивание предложений по колонкам.",
+    "formatter_tabWidth": "Ширина отступа",
+    "formatter_useTabs": "Табуляция",
+    "formatter_useTabsDesc": "Отступы табуляцией вместо пробелов.",
+    "formatter_linesBetweenQueries": "Строки между запросами",
+    "formatter_linesBetweenQueriesDesc": "Количество пустых строк между отдельными SQL-операторами.",
+    "formatter_denseOperators": "Компактные операторы",
+    "formatter_denseOperatorsDesc": "Убрать пробелы вокруг операторов (например, a=1 вместо a = 1).",
     "editConfigJson": "Изменить config.json",
     "editConfigJsonDesc": "Прямое редактирование файла конфигурации. Изменения вступят в силу после перезапуска.",
     "configJsonModal": {
@@ -338,6 +450,7 @@
     },
     "language": "Язык",
     "languageDesc": "Выберите язык интерфейса. «Авто» использует язык системы.",
+    "languageSearch": "Поиск языка...",
     "auto": "Авто (системный)",
     "english": "English",
     "italian": "Italiano",
@@ -393,10 +506,9 @@
       "explainplanPromptDesc": "Настройте инструкции для AI-анализа планов EXPLAIN. Используйте {{LANGUAGE}} для языка вывода.",
       "enterExplainplanPrompt": "Введите промпт для анализа плана выполнения...",
       "keySaved": "API-ключ сохранён в хранилище ключей",
-      "promptSaved": "Системный промпт сохранён",
+      "promptSaved": "Промпт сохранён",
       "explainPromptSaved": "Промпт для объяснения сохранён",
       "promptReset": "Системный промпт сброшен",
-      "explainPromptReset": "Промпт для объяснения сброшен",
       "modelPlaceholder": "Выберите модель",
       "searchPlaceholder": "Поиск моделей...",
       "noResults": "Модели не найдены",
@@ -412,7 +524,9 @@
       "endpointUrlDesc": "Базовый URL OpenAI-совместимого API. Примеры: https://api.groq.com/openai/v1, http://localhost:8000/v1",
       "customOpenaiModelPlaceholder": "например, llama3-70b-8192, mixtral-8x7b",
       "customOpenaiModelDesc": "Введите название модели, предоставляемой OpenAI-совместимым сервисом.",
-      "customOpenaiModelHelp": "Укажите точное название модели вашего OpenAI-совместимого провайдера."
+      "customOpenaiModelHelp": "Укажите точное название модели вашего OpenAI-совместимого провайдера.",
+      "promptResetSuccess": "Промпт сброшен к значению по умолчанию",
+      "apiKeySaved": "API-ключ надёжно сохранён"
     },
     "updates": "Обновления",
     "openSourceLibraries": "Библиотеки с открытым исходным кодом",
@@ -517,6 +631,10 @@
         "copy": "Копировать",
         "copied": "Скопировано!"
       },
+      "uninstallError": {
+        "title": "Ошибка удаления",
+        "subtitle": "При удалении плагина произошла ошибка. Подробности ниже."
+      },
       "startError": {
         "title": "Плагин не запустился",
         "subtitle": "Процесс плагина не удалось запустить. Подробности ниже.",
@@ -566,9 +684,12 @@
       },
       "runQuery": "Выполнить запрос",
       "runQueryEditor": "Выполнить запрос (в редакторе)",
+      "runAll": "Выполнить все инструкции",
+      "runAllEditor": "Выполнить все инструкции (в редакторе)",
       "tabSwitcher": "Переключить вкладку",
       "copySelection": "Копировать выделение",
       "toggleSidebar": "Показать/скрыть боковую панель",
+      "toggleRightSidebar": "Переключить правую боковую панель",
       "focusTableFilter": "Фокус на фильтре таблиц",
       "openConnections": "Открыть подключения",
       "newConnection": "Новое подключение",
@@ -583,9 +704,60 @@
       "notebookRunAll": "Выполнить все ячейки",
       "categories_notebook": "Ноутбук",
       "pasteImportClipboard": "Импортировать из буфера обмена",
-      "quickNavigator": "Быстрый навигатор"
+      "quickNavigator": "Быстрый навигатор",
+      "triggerSuggestions": "Показать подсказки",
+      "formatSql": "Форматировать SQL",
+      "refreshTable": "Обновить таблицу"
     },
-    "aiActivity": "Активность AI"
+    "aiActivity": "Активность AI",
+    "backup": {
+      "title": "Бэкап",
+      "directory": "Папка резервных копий",
+      "directoryDesc": "Папка не выбрана.",
+      "chooseDirectory": "Выбрать папку",
+      "password": "Пароль резервной копии",
+      "passwordDesc": "Резервные копии всегда зашифрованы. Пароль хранится в системном хранилище ключей.",
+      "passwordSetDesc": "Резервные копии шифруются этим паролем. Он хранится в системном хранилище ключей.",
+      "passwordReplaceDesc": "Введите новый пароль. Уже созданные резервные копии сохраняют старый.",
+      "changePassword": "Изменить пароль",
+      "webdavPasswordSetDesc": "Пароль хранится в системном хранилище ключей.",
+      "passwordSaved": "Пароль резервной копии сохранён.",
+      "configureFirst": "Сначала настройте назначение и задайте пароль резервной копии.",
+      "interval": "Периодичность",
+      "intervalDesc": "Как часто записывается новая резервная копия.",
+      "every6h": "6 ч",
+      "every12h": "12 ч",
+      "daily": "Ежедневно",
+      "weekly": "Еженедельно",
+      "retention": "Хранимые копии",
+      "retentionDesc": "Старые файлы резервных копий удаляются автоматически.",
+      "files": "файлов",
+      "backupNow": "Создать копию сейчас",
+      "lastBackup": "Последняя копия: {{date}}",
+      "noBackupYet": "Резервных копий пока нет.",
+      "backupDone": "Резервная копия записана в {{path}}",
+      "custom": "Свой интервал",
+      "destination": "Назначение",
+      "target": "Назначение резервных копий",
+      "targetDesc": "Куда записываются файлы резервных копий. Папка, синхронизируемая Dropbox, OneDrive или Syncthing, даёт облачную копию бесплатно.",
+      "targetLocal": "Локальная папка",
+      "webdavUrl": "URL WebDAV",
+      "webdavUrlDesc": "URL папки WebDAV, куда загружаются копии (например, Nextcloud).",
+      "webdavUsername": "Пользователь WebDAV",
+      "webdavUsernameDesc": "Учётная запись для аутентификации на сервере WebDAV.",
+      "webdavPassword": "Пароль WebDAV",
+      "webdavPasswordDesc": "Хранится в системном хранилище ключей. Для Nextcloud лучше пароль приложения.",
+      "webdavSaved": "Пароль WebDAV сохранён.",
+      "mode": "Запуск резервного копирования",
+      "modeDesc": "Когда записывается копия. Вручную — только кнопкой ниже.",
+      "modeManual": "Вручную",
+      "modeInterval": "По интервалу",
+      "modeOnClose": "При закрытии",
+      "modeOnLaunch": "При запуске",
+      "nextBackup": "Следующая копия: {{date}}",
+      "nextBackupSoon": "Следующая копия: при следующей проверке",
+      "hours": "часов"
+    }
   },
   "update": {
     "newVersionAvailable": "Доступна новая версия",
@@ -632,6 +804,7 @@
     "namePlaceholder": "Введите название подключения",
     "nameRequired": "Название подключения обязательно",
     "dbNameRequired": "Название базы данных обязательно",
+    "connectionUriRequiresKeychain": "URI подключения должны храниться в системном хранилище ключей. Включите «Сохранять пароли в Keychain», чтобы продолжить.",
     "dbType": "Тип базы данных",
     "host": "Хост",
     "port": "Порт",
@@ -655,6 +828,7 @@
     "filePathPlaceholder": "/абсолютный/путь/к/db.sqlite",
     "folderPathPlaceholder": "/абсолютный/путь/к/папке",
     "browseFile": "Выбрать файл",
+    "createSqliteFile": "Создать",
     "browseFolder": "Выбрать папку",
     "useSsh": "Использовать SSH-туннель",
     "sshHost": "SSH-хост",
@@ -717,7 +891,19 @@
     "startupScriptDescription": "SQL, выполняемый при каждом новом подключении к этому источнику данных. Используйте его для настроек сеанса, таких как SET / set_config (например, для обхода RLS). Разделяйте операторы точкой с запятой.",
     "startupScriptPlaceholder": "SELECT set_config('app.bypass_rls', 'on', false);",
     "scrollTabsLeft": "Прокрутить вкладки влево",
-    "scrollTabsRight": "Прокрутить вкладки вправо"
+    "scrollTabsRight": "Прокрутить вкладки вправо",
+    "useIamAuth": "Использовать аутентификацию AWS IAM (RDS)",
+    "useIamAuthHint": "Поле пароля используется как токен аутентификации RDS (команда `aws rds generate-db-auth-token`). Требуется TLS. Срок действия токенов — 15 минут.",
+    "useIamAuthTlsRequired": "Чтобы использовать аутентификацию AWS IAM, включите режим SSL выше.",
+    "testSsh": "Проверить SSH",
+    "testSshHint": "Проверяет только SSH-туннель (хост и учётные данные), без подключения к базе данных.",
+    "sshTestSuccess": "SSH-подключение к {{target}} установлено",
+    "stopTest": "Остановить",
+    "allDatabases": "Все базы данных",
+    "chooseDatabases": "Выбрать базы данных",
+    "allDatabasesHint": "При подключении автоматически загружаются все базы данных сервера. Созданные или удалённые на сервере базы появляются сами — без изменения этого подключения.",
+    "selectDatabasesHint": "Выберите базы данных для этого подключения.",
+    "loadDatabasesHint": "Нажмите «Загрузить базы данных», чтобы получить список доступных."
   },
   "sshConnections": {
     "title": "SSH-подключения",
@@ -740,7 +926,19 @@
     "keyFile": "Файл ключа",
     "quickTest": "Быстрая проверка подключения",
     "testFailed": "Проверка подключения не удалась",
-    "savedInKeychain": "Пароль сохранён в системном хранилище ключей"
+    "savedInKeychain": "Пароль сохранён в системном хранилище ключей",
+    "manageDesc": "Многоразовые SSH-туннели для подключений к базам данных. Пароли и парольные фразы хранятся в системной связке ключей.",
+    "deleteInUse_one": "Его использует {{count}} сохранённое подключение, которое больше не будет подключаться через этот туннель.",
+    "deleteInUse_few": "Его используют {{count}} сохранённых подключения, которые больше не будут подключаться через этот туннель.",
+    "deleteInUse_many": "Его используют {{count}} сохранённых подключений, которые больше не будут подключаться через этот туннель.",
+    "deleteInUse_other": "Его используют {{count}} сохранённых подключений, которые больше не будут подключаться через этот туннель.",
+    "errors": {
+      "connectionRequired": "Выберите SSH-подключение или настройте его в форме",
+      "connectionMissing": "Выбранное SSH-подключение больше не существует",
+      "hostRequired": "Укажите SSH-хост",
+      "userRequired": "Укажите SSH-пользователя",
+      "portInvalid": "SSH-порт должен быть от 1 до 65535"
+    }
   },
   "sshAskpass": {
     "title": "Аутентификация SSH",
@@ -762,12 +960,25 @@
     "updateFailed": "Ошибка обновления: ",
     "deleteFailed": "Не удалось удалить строку: ",
     "null": "null",
+    "emptySet": "(пустой набор)",
     "sortByAsc": "Сортировать по {{col}} ASC",
     "sortByDesc": "Сортировать по {{col}} DESC",
     "clearSort": "Сбросить сортировку",
     "copyCell": "Копировать ячейку",
     "copyRow": "Копировать строку",
-    "copySelectedRows": "Копировать выбранные строки",
+    "selectAll": "Выбрать все",
+    "selectAllN": "Выбрать все ({{count}})",
+    "deselectAll": "Снять выбор",
+    "copySelectedN": "Скопировать выбранные ({{count}})",
+    "selectColumn": "Выбрать столбец",
+    "deselectColumn": "Снять выбор столбца",
+    "copySelectedColumns": "Копировать выбранные столбцы ({{count}})",
+    "copyRangeN": "Копировать диапазон ({{rows}}×{{cols}})",
+    "copyAllRows": "Скопировать все ({{count}})",
+    "copyAll": "Скопировать все",
+    "copiedRows": "Скопировано строк в буфер обмена: {{count}}",
+    "copiedRowsOfTotal": "Скопировано {{loaded}} из {{total}} строк в буфер обмена",
+    "copiedCells": "Скопировано ячеек в буфер обмена: {{count}}",
     "copyColumnName": "Копировать имя столбца",
     "copyColumnNameQuoted": "Копировать как `column`",
     "copyColumnNameTable": "Копировать как table.column",
@@ -837,6 +1048,9 @@
     "noActiveSession": "Нет активной сессии. Выберите подключение.",
     "stop": "Остановить",
     "run": "Запустить",
+    "runSelection": "Выполнить выделенное",
+    "runStatement": "Выполнить инструкцию",
+    "runAll": "Выполнить все",
     "export": "Экспортировать",
     "connected": "Подключено",
     "disconnected": "Отключено",
@@ -850,6 +1064,7 @@
     "page": "Страница {{current}}",
     "jumpToPage": "Нажмите для перехода на страницу",
     "loadRowCount": "Загрузить количество строк",
+    "rowCount": "{{total}} строк",
     "executePrompt": "Выполните запрос, чтобы увидеть результаты",
     "results": {
       "minimize": "Свернуть",
@@ -870,6 +1085,13 @@
     "saveThisQuery": "Сохранить этот запрос",
     "noValidQueries": "Допустимые запросы не найдены",
     "queryFailed": "Ошибка выполнения запроса.",
+    "dangerousQueryTitle": "Выполнить без условия WHERE?",
+    "dangerousQueryMessage": "Этот запрос затронет все строки таблицы, так как в нём отсутствует условие WHERE. Это действие нельзя отменить.",
+    "dangerousQueryConfirm": "Всё равно выполнить",
+    "dangerousQueryDropTitle": "Удалить этот объект?",
+    "dangerousQueryDropMessage": "DROP безвозвратно удаляет этот объект и все его данные. Это действие нельзя отменить.",
+    "dangerousQueryTruncateTitle": "Очистить эту таблицу?",
+    "dangerousQueryTruncateMessage": "TRUNCATE удаляет все строки таблицы. Это действие нельзя отменить.",
     "showErrorDetails": "Показать подробности",
     "hideErrorDetails": "Скрыть подробности",
     "errorBoundary": {
@@ -894,10 +1116,14 @@
     "submitChanges": "Применить изменения",
     "rollbackChanges": "Откатить изменения",
     "applyToAll": "Применить ко всем",
+    "submit": "Применить",
+    "rollback": "Откатить",
+    "pendingCount": "Ожидает: {{count}}",
     "executingQuery": "Выполнение запроса...",
     "exporting": "Экспорт...",
     "rowsProcessed": "Обработано строк",
     "queryParameters": "Параметры запроса",
+    "formatSql": "Форматировать SQL",
     "convertToConsole": "Преобразовать в консоль",
     "parameters": "Параметры",
     "paramValuePlaceholder": "Значение (например, 'текст' или 123)",
@@ -975,7 +1201,59 @@
       "aiAnalysis": "AI-анализ",
       "aiAnalysisTitle": "AI-анализ плана запроса",
       "aiAnalyzing": "Анализ плана запроса с помощью AI...",
-      "aiConfigRequired": "AI-провайдер не настроен. Перейдите в Настройки > AI."
+      "aiConfigRequired": "AI-провайдер не настроен. Перейдите в Настройки > AI.",
+      "selfTime": "Собственное время",
+      "totalTime": "Общее время",
+      "timePerLoop": "Время на цикл",
+      "selfCost": "Собственная стоимость",
+      "rowsAllLoops": "Строки (все циклы)",
+      "buffers": "Буферы",
+      "metric": "Метрика",
+      "noMetricData": "В этом плане нет метрик для построения диаграммы.",
+      "diagramView": "Диаграмма",
+      "statsView": "Статистика",
+      "highestSelfCost": "Наибольшая собственная стоимость",
+      "slowestSelfStep": "Самый медленный шаг",
+      "diagnostics": {
+        "title": "Наблюдения",
+        "hotspot": "Узкое место",
+        "hotspotHint": "На этот шаг приходится значительная доля общего времени выполнения.",
+        "overEstimate": "Строк больше, чем ожидалось",
+        "overEstimateHint": "Планировщик ожидал значительно меньше строк. Обновите статистику или проверьте предикаты, которые он не может оценить.",
+        "underEstimate": "Строк меньше, чем ожидалось",
+        "underEstimateHint": "Планировщик ожидал значительно больше строк и мог выбрать более тяжёлый план, чем требуется.",
+        "diskSort": "Сортировка на диске",
+        "diskSortHint": "Сортировка не поместилась в память. Увеличение work_mem оставит её в оперативной памяти.",
+        "filterLoss": "Фильтр отбрасывает почти всё",
+        "filterLossHint": "Почти все прочитанные строки отброшены фильтром. Индекс по предикату избавил бы от этой работы.",
+        "largeSeqScan": "Большое последовательное сканирование",
+        "largeSeqScanHint": "Прочитано всё отношение. Проверьте, может ли индекс удовлетворить предикат.",
+        "heapFetches": "Много обращений к heap",
+        "heapFetchesHint": "Index-only scan всё же обращался к таблице. VACUUM обновит карту видимости.",
+        "workersUnderused": "Воркеров меньше, чем запланировано",
+        "workersUnderusedHint": "Параллельные воркеры были запрошены, но запустились не все: пул, вероятно, был исчерпан.",
+        "highLoops": "Выполнен много раз",
+        "highLoopsHint": "Шаг выполнялся по одному разу на внешнюю строку, поэтому значения за цикл — средние.",
+        "cacheMiss": "Чтение с диска",
+        "cacheMissHint": "Большинство блоков не было в shared buffers, поэтому шаг ждал ввода-вывода.",
+        "neverExecuted": "Ни разу не выполнен",
+        "neverExecutedHint": "Планировщик создал этот шаг, но исполнитель его не запускал."
+      },
+      "stats": {
+        "nodeCount": "Узлы",
+        "maxDepth": "Глубина",
+        "totalSelfTime": "Суммарное собственное время",
+        "neverExecutedNodes": "Не выполнялись",
+        "byNodeType": "Время по операциям",
+        "byRelation": "Задействованные отношения",
+        "byIndex": "Использованные индексы",
+        "count": "Количество",
+        "share": "Доля",
+        "accesses": "Обращения",
+        "operations": "Операции",
+        "indexName": "Индекс",
+        "scans": "Сканирования"
+      }
     },
     "notebook": {
       "addSqlCell": "Добавить SQL-ячейку",
@@ -1098,6 +1376,7 @@
       "viewTabs": "Вкладки",
       "viewStacked": "Список",
       "queryPrefix": "Запрос",
+      "resultSetPrefix": "Результат",
       "results": "Результаты",
       "collapseAll": "Свернуть все",
       "expandAll": "Развернуть все",
@@ -1207,12 +1486,18 @@
     "noConnectionDesc": "Отображение диаграммы невозможно без ID подключения.",
     "switchToVertical": "Переключить на вертикальное расположение",
     "switchToHorizontal": "Переключить на горизонтальное расположение",
+    "lockNodes": "Зафиксировать позиции узлов",
+    "unlockNodes": "Разблокировать узлы для перемещения",
     "vertical": "Вертикально",
     "horizontal": "Горизонтально",
     "showAllTables": "Показать все таблицы",
     "showAll": "Показать все",
     "focusedOn": "Фокус на",
-    "focusOnTable": "Фокус на таблице"
+    "focusOnTable": "Фокус на таблице",
+    "exportMermaid": "Экспортировать как диаграмму Mermaid",
+    "exportSuccess": "Диаграмма экспортирована",
+    "exportDbml": "Экспортировать как DBML",
+    "export": "Экспорт"
   },
   "views": {
     "createView": "Создать представление",
@@ -1307,7 +1592,6 @@
     "errorNoTables": "Выберите хотя бы одну таблицу",
     "importStarted": "Импорт начат...",
     "importSuccess": "SQL-файл выполнен",
-    "importFailure": "Ошибка импорта: ",
     "importCancelled": "Импорт отменён",
     "importFailed": "Импорт не удался",
     "importingFrom": "Импорт из",
@@ -1367,7 +1651,14 @@
     "subtitle": "Строка #{{row}}",
     "save": "Сохранить изменения",
     "cancel": "Отменить",
-    "enterValue": "Введите значение..."
+    "enterValue": "Введите значение...",
+    "pin": "Закрепить",
+    "unpin": "Открепить"
+  },
+  "rightSidebar": {
+    "resize": "Изменить размер",
+    "collapse": "Свернуть",
+    "expand": "Развернуть"
   },
   "contextMenu": {
     "openSidebar": "Открыть в боковом редакторе",
@@ -1485,7 +1776,8 @@
     "createFirst": "Создайте первую группу для организации подключений",
     "groupName": "Название группы",
     "dragHint": "Перетащите подключения сюда",
-    "createError": "Не удалось создать группу"
+    "createError": "Не удалось создать группу",
+    "subgroupNamePrompt": "Subfolder name (use / for nested levels)"
   },
   "queryModal": {
     "database": "База данных",
@@ -1549,7 +1841,8 @@
     "targetColumn": "Целевой столбец",
     "targetColumnPlaceholder": "Выберите цель...",
     "skipColumn": "Пропустить (не импортировать)",
-    "createNewColumn": "Создать новый столбец"
+    "createNewColumn": "Создать новый столбец",
+    "typePlaceholder": "Тип"
   },
   "aiActivity": {
     "title": "Активность AI",
@@ -1634,6 +1927,8 @@
   },
   "aiApproval": {
     "title": "AI запрашивает запись в базу данных",
+    "titleRead": "AI запрашивает чтение из базы данных",
+    "planEstimatedRows": "Оценка строк",
     "subtitle": "На {{connection}} — проверьте запрос перед выполнением.",
     "subtitleWithClient": "{{client}} на {{connection}} — проверьте запрос перед выполнением.",
     "query": "Запрос",
@@ -1683,7 +1978,17 @@
       "resourceTypeInvalid": "Тип ресурса должен быть \"service\" или \"pod\"",
       "resourceNameRequired": "Имя ресурса обязательно",
       "portInvalid": "Порт должен быть в диапазоне от 1 до 65535"
-    }
+    },
+    "advancedSettings": "Расширенные настройки kubectl",
+    "kubectlPath": "Путь к kubectl",
+    "kubectlPathPlaceholder": "kubectl",
+    "kubeconfigPath": "Путь к kubeconfig",
+    "kubeconfigPathPlaceholder": "Путь к kubeconfig",
+    "pathValidationFailed": "Исправьте недопустимые поля расширенных путей Kubernetes перед продолжением.",
+    "pathSelectionReset": "Расширенные пути Kubernetes изменились. Снова выберите контекст, пространство имён и ресурс.",
+    "noContexts": "Нет доступных контекстов",
+    "noNamespaces": "Нет доступных пространств имён",
+    "noResources": "Нет доступных ресурсов"
   },
   "routines": {
     "menuRun": "Выполнить…",
@@ -1707,5 +2012,104 @@
     "runButton": "Выполнить",
     "runTabPrefix": "Выполнить",
     "returnValue": "возвращает"
+  },
+  "pagination": {
+    "firstPage": "Первая страница",
+    "previousPage": "Предыдущая страница",
+    "nextPage": "Следующая страница",
+    "lastPage": "Последняя страница"
+  },
+  "miniGrid": {
+    "runningQuery": "Выполнение запроса...",
+    "copyAll": "Копировать всё"
+  },
+  "userManagement": {
+    "tabTitle": "Пользователи и привилегии",
+    "filterPlaceholder": "Фильтр пользователей...",
+    "newUser": "Новый пользователь",
+    "create": "Создать пользователя",
+    "userPlaceholder": "имя пользователя",
+    "passwordPlaceholder": "Пароль",
+    "newPasswordPlaceholder": "Новый пароль",
+    "changePassword": "Изменить пароль",
+    "dropUser": "Удалить пользователя",
+    "dropTitle": "Удалить пользователя",
+    "dropConfirm": "Удалить пользователя {{account}}? Это действие необратимо.",
+    "locked": "Заблокирован",
+    "loadError": "Не удалось загрузить пользователей:",
+    "noUsers": "Пользователи не найдены",
+    "selectPrompt": "Выберите пользователя, чтобы посмотреть его привилегии",
+    "currentGrants": "Текущие права",
+    "scope": "База данных",
+    "scopePlaceholder": "Пусто = глобально (*.*)",
+    "revokeTitle": "Отозвать привилегии",
+    "revokeConfirm": "Отозвать {{privileges}} у {{account}} на {{scope}}?",
+    "add": "Добавить",
+    "apply": "Применить",
+    "privileges": "Привилегии",
+    "globalScope": "Глобально (*.*)",
+    "addScope": "Добавить базу данных / таблицу",
+    "databasePlaceholder": "база данных",
+    "tablePlaceholder": "таблица (необязательно)",
+    "initialPrivilegesHint": "Необязательно: начальные привилегии, выдаваемые сразу после создания. Выберите базу данных или оставьте поле пустым, чтобы выдать их глобально."
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "Ошибка аутентификации SSH",
+      "recovery": "Проверьте пользователя, пароль или приватный ключ на вкладке SSH."
+    },
+    "ssh-unreachable": {
+      "summary": "SSH-сервер недоступен",
+      "recovery": "Проверьте SSH-хост и порт и доступность сервера. Если туннель подключается, проверьте хост и порт базы данных со стороны SSH-сервера."
+    },
+    "ssh": {
+      "summary": "Сбой SSH-туннеля",
+      "recovery": "Проверьте настройки на вкладке SSH."
+    },
+    "db-auth": {
+      "summary": "Ошибка аутентификации в базе данных",
+      "recovery": "Проверьте имя пользователя и пароль базы данных."
+    },
+    "network": {
+      "summary": "Сервер базы данных недоступен",
+      "recovery": "Проверьте хост и порт и что сервер запущен."
+    },
+    "db-not-found": {
+      "summary": "База данных не найдена",
+      "recovery": "Проверьте имя базы данных."
+    },
+    "unknown": {
+      "summary": "Не удалось подключиться"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Журнал теста",
+    "noLog": "Для этого теста не записано ни одного шага.",
+    "rawError": "Подробности ошибки",
+    "copyDiagnostics": "Скопировать диагностику",
+    "copied": "Скопировано!",
+    "steps": {
+      "cancelled": "Тест остановлен пользователем",
+      "resolve": {
+        "error": "Не удалось подготовить параметры подключения"
+      },
+      "sshTunnel": {
+        "start": "Открытие SSH-туннеля",
+        "ok": "SSH-туннель установлен",
+        "error": "Сбой SSH-туннеля"
+      },
+      "k8sForward": {
+        "start": "Запуск port-forward Kubernetes",
+        "ok": "Port-forward готов",
+        "error": "Сбой port-forward Kubernetes"
+      },
+      "dbConnect": {
+        "start": "Подключение к базе данных",
+        "ok": "Подключение к базе данных установлено",
+        "error": "Сбой подключения к базе данных"
+      }
+    },
+    "title": "Журнал теста подключения",
+    "showLog": "Показать журнал"
   }
 }

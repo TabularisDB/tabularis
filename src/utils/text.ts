@@ -14,6 +14,11 @@ const TEXT_TYPES = [
   "STRING",
 ];
 
+// pgvector extension types. Their values arrive as long textual literals
+// (e.g. "[-0.0038,-0.0132,…]"), so for preview/editing purposes they behave
+// like long text even though they are not character types.
+const VECTOR_TYPES = ["VECTOR", "HALFVEC", "SPARSEVEC"];
+
 export const LONG_TEXT_THRESHOLD = 80;
 
 /**
@@ -55,6 +60,31 @@ export function isTextColumn(dataType: string | undefined): boolean {
   return TEXT_TYPES.some((type) => normalized.includes(type));
 }
 
+/**
+ * Whether an empty string (`""`) is a legal, meaningful value for a column of
+ * the given type.
+ *
+ * Only textual types accept `""`. For strongly-typed columns (uuid, numeric,
+ * temporal, boolean, …) the database rejects an empty string — e.g. Postgres
+ * fails an UPDATE on a `uuid` column with `invalid input syntax for type uuid`
+ * or a text/uuid type mismatch — so the "Set Empty" quick action must not be
+ * offered there; "Set NULL" is the correct action instead. When the type is
+ * unknown we stay permissive rather than hide the action for lack of metadata.
+ */
+export function supportsEmptyString(dataType: string | undefined): boolean {
+  if (!dataType) return true;
+  return isTextColumn(dataType);
+}
+
+// pgvector columns (vector / halfvec / sparsevec) whose values are rendered
+// as long textual literals and benefit from the same preview/editor affordances
+// as long text. Matches the base name so "vector(1536)" still resolves.
+export function isVectorColumn(dataType: string | undefined): boolean {
+  if (!dataType) return false;
+  const normalized = dataType.toUpperCase();
+  return VECTOR_TYPES.some((type) => normalized.includes(type));
+}
+
 export function isLongTextValue(value: unknown): boolean {
   if (typeof value !== "string") return false;
   if (value.length > LONG_TEXT_THRESHOLD) return true;
@@ -65,7 +95,7 @@ export function isLongTextCellTarget(
   colType: string | undefined,
   value: unknown,
 ): boolean {
-  if (!isTextColumn(colType)) return false;
+  if (!isTextColumn(colType) && !isVectorColumn(colType)) return false;
   return isLongTextValue(value);
 }
 

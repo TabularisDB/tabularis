@@ -11,7 +11,7 @@ use crate::credential_cache;
 use crate::keychain_utils;
 use crate::models::{
     BatchStatementResult, ColumnDefinition, ConnectionGroup, ConnectionParams, ConnectionsFile,
-    ExplainPlan, ExportPayload, ForeignKey, Index, K8sConnection, K8sConnectionInput, QueryResult,
+    ExplainQueryOutput, ExportPayload, ForeignKey, Index, K8sConnection, K8sConnectionInput, QueryResult,
     RoutineInfo, RoutineParameter, SavedConnection, SshConnection, SshConnectionInput, SshTestParams,
     TableColumn, TableInfo, TestConnectionRequest, TriggerInfo,
 };
@@ -208,6 +208,75 @@ fn is_empty_or_whitespace(s: &Option<String>) -> bool {
     s.as_ref().map(|p| p.trim().is_empty()).unwrap_or(true)
 }
 
+/// Reject a connection attempt under AWS IAM auth when neither the raw form
+/// payload nor the expanded params (after SSH/K8s expansion) carry an RDS
+/// auth token. Both `test_connection` and `list_databases` run this guard
+/// before any pool / driver work so the user gets an actionable message
+/// instead of the opaque "Access denied" the server returns on an empty
+/// password.
+fn require_iam_token(
+    iam_auth: bool,
+    request_password: Option<&str>,
+    expanded_password: Option<&str>,
+) -> Result<(), String> {
+    if iam_auth
+        && request_password.unwrap_or("").is_empty()
+        && expanded_password.unwrap_or("").is_empty()
+    {
+        return Err(
+            "AWS IAM authentication is enabled but the password field is empty. \
+             Paste the output of `aws rds generate-db-auth-token` into the \
+             password field and try again. Tokens expire every 15 minutes."
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod require_iam_token_tests {
+    use super::require_iam_token;
+
+    #[test]
+    fn rejects_iam_with_both_passwords_empty() {
+        // The primary case: ad-hoc connection, IAM enabled, nothing in the
+        // form and nothing from the keychain.
+        let err = require_iam_token(true, None, None).unwrap_err();
+        assert!(err.contains("AWS IAM authentication is enabled"));
+        assert!(err.contains("15 minutes"));
+    }
+
+    #[test]
+    fn rejects_iam_with_empty_string_passwords() {
+        // Empty strings (rather than None) must also fail — sqlx stamps
+        // "" as a deliberate "user pressed Enter" password.
+        let err = require_iam_token(true, Some(""), Some("")).unwrap_err();
+        assert!(err.contains("AWS IAM authentication is enabled"));
+    }
+
+    #[test]
+    fn allows_iam_when_request_password_present() {
+        // A freshly pasted RDS auth token in the form is enough; the
+        // expanded (post-SSH/K8s) value is irrelevant.
+        require_iam_token(true, Some("fake-token"), None).unwrap();
+    }
+
+    #[test]
+    fn allows_iam_when_expanded_password_present() {
+        // The expanded value can also satisfy the guard (e.g. an SSH tunnel
+        // wrapper injected it).
+        require_iam_token(true, None, Some("fake-token")).unwrap();
+    }
+
+    #[test]
+    fn non_iam_always_passes() {
+        // Without IAM, an empty password is the caller's problem; the
+        // helper must never reject on its own.
+        require_iam_token(false, None, None).unwrap();
+        require_iam_token(false, Some(""), Some("")).unwrap();
+    }
+}
+
 /// Build the SSH tunnel map key for caching tunnels.
 #[inline]
 fn build_tunnel_map_key(
@@ -240,8 +309,17 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
         .ok_or("Missing K8s resource name")?;
     let port = params.k8s_port.ok_or("Missing K8s port")?;
 
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(
+        params.k8s_kubectl_path.clone(),
+        params.k8s_kubeconfig_path.clone(),
+    );
     let map_key = crate::k8s_tunnel::build_tunnel_key(
-        context, namespace, resource_type, resource_name, port,
+        context,
+        namespace,
+        resource_type,
+        resource_name,
+        port,
+        &options,
     );
 
     // Check for existing tunnel
@@ -263,7 +341,12 @@ fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, Str
     );
 
     let tunnel = crate::k8s_tunnel::K8sTunnel::new(
-        context, namespace, resource_type, resource_name, port,
+        context,
+        namespace,
+        resource_type,
+        resource_name,
+        port,
+        &options,
     )
     .map_err(|e| {
         eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);
@@ -375,7 +458,7 @@ pub fn get_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String
     if !config_dir.exists() {
         fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     }
-    Ok(config_dir.join("connections.json"))
+    Ok(crate::paths::resolve_connections_path(&config_dir))
 }
 
 pub fn get_ssh_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
@@ -384,6 +467,132 @@ pub fn get_ssh_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, St
         fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     }
     Ok(config_dir.join("ssh_connections.json"))
+}
+
+fn runtime_connection_uri(params: &ConnectionParams) -> Option<&str> {
+    params
+        .connection_uri
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+}
+
+/// A connection URI embeds credentials, so it may only be persisted behind the
+/// OS keychain. Refuse the save rather than silently downgrading to plaintext.
+fn validate_connection_uri_persistence(params: &ConnectionParams) -> Result<(), String> {
+    if runtime_connection_uri(params).is_some() && !params.save_in_keychain.unwrap_or(false) {
+        return Err("Connection URIs must be stored in the OS keychain".to_string());
+    }
+    Ok(())
+}
+
+/// Write the secret first, then persist `connections.json`. If persistence
+/// fails the secret is restored to its previous value so the keychain never
+/// drifts from the file.
+fn persist_secret_change(
+    apply: impl FnOnce() -> Result<(), String>,
+    persist: impl FnOnce() -> Result<(), String>,
+    rollback: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    apply()?;
+    match persist() {
+        Ok(()) => Ok(()),
+        Err(error) => match rollback() {
+            Ok(()) => Err(error),
+            // Report both: the rollback error alone would hide why the save
+            // failed in the first place.
+            Err(rollback_error) => Err(format!("{error} ({rollback_error})")),
+        },
+    }
+}
+
+/// `change` is `None` to leave the stored URI untouched, `Some(Some(uri))` to
+/// write it, and `Some(None)` to clear it.
+fn persist_connection_uri_change(
+    cache: &credential_cache::CredentialCache,
+    connection_id: &str,
+    stored_in_keychain: bool,
+    change: Option<Option<&str>>,
+    persist: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    let Some(value) = change else {
+        return persist();
+    };
+    let previous_keychain = stored_in_keychain
+        .then(|| keychain_utils::get_connection_uri(connection_id))
+        .transpose()
+        .map_err(|_| "Failed to read the stored connection URI from the OS keychain".to_string())?;
+    let previous_cache = cache
+        .connection_uris
+        .lock()
+        .unwrap()
+        .get(connection_id)
+        .cloned();
+
+    persist_secret_change(
+        || {
+            if let Some(value) = value {
+                keychain_utils::set_connection_uri(connection_id, value)?;
+                credential_cache::set_connection_uri_cached(cache, connection_id, value);
+            } else {
+                keychain_utils::delete_connection_uri(connection_id)?;
+                credential_cache::invalidate_connection_uri(cache, connection_id);
+            }
+            Ok(())
+        },
+        persist,
+        || {
+            let keychain_result = match previous_keychain.as_deref() {
+                Some(value) => keychain_utils::set_connection_uri(connection_id, value),
+                None => keychain_utils::delete_connection_uri(connection_id),
+            };
+            let mut entries = cache.connection_uris.lock().unwrap();
+            match (&keychain_result, previous_cache) {
+                // Only re-pin the old value once the keychain actually holds it
+                // again. If the restore failed, drop the entry so the next read
+                // consults the keychain instead of trusting a stale copy.
+                (Ok(()), Some(entry)) => _ = entries.insert(connection_id.to_string(), entry),
+                (Ok(()), None) | (Err(_), _) => _ = entries.remove(connection_id),
+            }
+            keychain_result.map_err(|_| "Failed to roll back the stored connection URI".to_string())
+        },
+    )
+}
+
+/// Strip the URI out of the params that go to `connections.json`, leaving only
+/// the marker that says a keychain entry exists.
+fn params_for_persistence(
+    params: &ConnectionParams,
+    connection_uri_in_keychain: bool,
+) -> ConnectionParams {
+    let mut persisted = params.clone();
+    persisted.connection_uri = None;
+    persisted.connection_uri_in_keychain = connection_uri_in_keychain.then_some(true);
+    persisted
+}
+
+/// Re-attach the URI a saved connection needs at runtime, from the session
+/// cache or the keychain.
+fn restore_runtime_connection_uri(
+    cache: &credential_cache::CredentialCache,
+    connection_id: &str,
+    params: &mut ConnectionParams,
+) -> Result<(), String> {
+    if runtime_connection_uri(params).is_some() {
+        return Ok(());
+    }
+
+    let stored_in_keychain = params.connection_uri_in_keychain.unwrap_or(false);
+    match credential_cache::get_connection_uri_cached(cache, connection_id, stored_in_keychain) {
+        Ok(Some(connection_uri)) => {
+            params.connection_uri = Some(connection_uri);
+            Ok(())
+        }
+        Ok(None) if stored_in_keychain => {
+            Err("Stored connection URI is unavailable in the OS keychain".to_string())
+        }
+        Ok(None) => Ok(()),
+        Err(_) => Err("Failed to read the stored connection URI from the OS keychain".to_string()),
+    }
 }
 
 pub fn find_connection_by_id<R: Runtime>(
@@ -410,11 +619,16 @@ pub fn find_connection_by_id<R: Runtime>(
         }
     };
 
-    // Load passwords from keychain if needed, via the in-memory cache.
-    // On a warm cache hit this is a HashMap lookup (nanoseconds); on a cold miss
-    // it calls keychain once and caches the result for all subsequent reads.
-    if conn.params.save_in_keychain.unwrap_or(false) {
-        let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+    restore_runtime_connection_uri(&cache, &conn.id, &mut conn.params)?;
+
+    // Load passwords from keychain via the in-memory cache (warm hit = lookup,
+    // cold miss = keychain call + cache). Skip IAM-auth connections: their
+    // 15-min tokens must come from the `password` field, never the keychain,
+    // so a stale token from an older release can't be surfaced in the modal.
+    if conn.params.save_in_keychain.unwrap_or(false)
+        && !conn.params.use_iam_auth.unwrap_or(false)
+    {
         match credential_cache::get_db_password_cached(&cache, &conn.id) {
             Ok(pwd) => conn.params.password = Some(pwd),
             Err(e) => eprintln!(
@@ -439,6 +653,40 @@ pub fn find_connection_by_id<R: Runtime>(
     }
 
     Ok(conn)
+}
+
+/// Merge a list of incoming groups into an existing list, preserving hierarchy
+/// and repairing any `parent_id` that points to a group id not present in the
+/// union (i.e. neither in the existing list nor in the incoming batch).
+///
+/// Behaviour:
+/// - Existing groups with the same id are overwritten by the incoming one
+///   (so renames / re-ordering / new parent_id from the JSON win).
+/// - Missing parents are demoted to root (`parent_id = None`) rather than
+///   being rejected, so a partially-malformed JSON still imports successfully
+///   and the user keeps most of their tree.
+/// - The merge is idempotent: running it twice on the same input is a no-op.
+pub(crate) fn merge_groups(existing: &mut Vec<ConnectionGroup>, incoming: Vec<ConnectionGroup>) {
+    for new_group in incoming {
+        if let Some(existing_group) = existing.iter_mut().find(|g| g.id == new_group.id) {
+            *existing_group = new_group;
+        } else {
+            existing.push(new_group);
+        }
+    }
+
+    // Build the set of every group id we now have (post-merge) so we can
+    // detect parent_ids that no longer point anywhere. Collected into an
+    // owned set to release the immutable borrow before we mutate existing.
+    let known_ids: std::collections::HashSet<String> =
+        existing.iter().map(|g| g.id.clone()).collect();
+    for g in existing.iter_mut() {
+        if let Some(parent) = g.parent_id.as_deref() {
+            if !known_ids.contains(parent) {
+                g.parent_id = None;
+            }
+        }
+    }
 }
 
 /// Write the connections file and invalidate the in-memory connection cache so
@@ -497,6 +745,43 @@ pub async fn get_available_databases<R: Runtime>(
 
     let drv = driver_for(&saved_conn.params.driver).await?;
     drv.get_databases(&params).await
+}
+
+#[tauri::command]
+pub async fn set_selected_databases<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    mut databases: Vec<String>,
+) -> Result<(), String> {
+    if databases.is_empty() {
+        return Err("Database selection cannot be empty".to_string());
+    }
+    if databases.iter().any(|db| db.trim().is_empty()) {
+        return Err("Database names cannot be empty".to_string());
+    }
+
+    log::info!(
+        "Persisting database selection for connection {}: {} database(s)",
+        connection_id,
+        databases.len()
+    );
+
+    let path = get_config_path(&app)?;
+    let mut conn_file = persistence::load_connections_file(&path)?;
+
+    let conn = conn_file
+        .connections
+        .iter_mut()
+        .find(|c| c.id == connection_id)
+        .ok_or("Connection not found")?;
+
+    conn.params.database = if databases.len() == 1 {
+        crate::models::DatabaseSelection::Single(databases.remove(0))
+    } else {
+        crate::models::DatabaseSelection::Multiple(databases)
+    };
+
+    save_connections_and_invalidate(&app, &path, &conn_file)
 }
 
 #[tauri::command]
@@ -660,6 +945,32 @@ pub async fn get_schema_snapshot<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn get_ai_schema_context<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    schema: Option<String>,
+) -> Result<String, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+    let driver = driver_for(&saved_conn.params.driver).await?;
+    let identifier_quote = driver.manifest().capabilities.identifier_quote.as_str();
+    let context = driver
+        .get_ai_schema_context(
+            &params,
+            schema.as_deref(),
+            crate::ai_schema_context::DEFAULT_MAX_TABLES,
+        )
+        .await?;
+
+    Ok(crate::ai_schema_context::format_for_prompt(
+        &context,
+        identifier_quote,
+    ))
+}
+
+#[tauri::command]
 pub async fn save_connection<R: Runtime>(
     app: AppHandle<R>,
     name: String,
@@ -667,16 +978,18 @@ pub async fn save_connection<R: Runtime>(
     detect_json_in_text_columns: Option<bool>,
 ) -> Result<SavedConnection, String> {
     log::info!("Saving new connection: {}", name);
+    validate_connection_uri_persistence(&params)?;
 
     let path = get_config_path(&app)?;
     let mut conn_file = persistence::load_connections_file(&path).unwrap_or_default();
 
     let id = Uuid::new_v4().to_string();
-    let mut params_to_save = params.clone();
+    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+    let connection_uri = runtime_connection_uri(&params).map(str::to_owned);
+    let mut params_to_save = params_for_persistence(&params, connection_uri.is_some());
 
     if params.save_in_keychain.unwrap_or(false) {
         log::debug!("Storing passwords in keychain for connection: {}", name);
-        let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
         if let Some(pwd) = &params.password {
             keychain_utils::set_db_password(&id, pwd)?;
             credential_cache::set_db_password_cached(&cache, &id, pwd);
@@ -708,7 +1021,13 @@ pub async fn save_connection<R: Runtime>(
         appearance: None,
     };
     conn_file.connections.push(new_conn.clone());
-    save_connections_and_invalidate(&app, &path, &conn_file)?;
+    persist_connection_uri_change(
+        &cache,
+        &id,
+        false,
+        connection_uri.as_deref().map(Some),
+        || save_connections_and_invalidate(&app, &path, &conn_file),
+    )?;
 
     log::info!("Connection saved successfully: {} (ID: {})", name, id);
 
@@ -728,6 +1047,14 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
 
     let mut conn_file = persistence::load_connections_file(&path)?;
 
+    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
+    let uri_stored_in_keychain = conn_file
+        .connections
+        .iter()
+        .find(|c| c.id == id)
+        .and_then(|c| c.params.connection_uri_in_keychain)
+        .unwrap_or(false);
+
     // Capture the appearance before retain so we can cascade-delete the icon file.
     let appearance_to_delete = conn_file
         .connections
@@ -743,11 +1070,11 @@ pub async fn delete_connection<R: Runtime>(app: AppHandle<R>, id: String) -> Res
     keychain_utils::delete_db_password(&id).ok();
     keychain_utils::delete_ssh_password(&id).ok();
     keychain_utils::delete_ssh_key_passphrase(&id).ok();
+    persist_connection_uri_change(&cache, &id, uri_stored_in_keychain, Some(None), || {
+        save_connections_and_invalidate(&app, &path, &conn_file)
+    })?;
     // Invalidate the in-memory cache for this connection
-    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     credential_cache::invalidate_all_for_connection(&cache, &id);
-
-    save_connections_and_invalidate(&app, &path, &conn_file)?;
 
     // Cascade-delete the custom icon file if the connection used one.
     if let Ok(app_data) = app.path().app_data_dir() {
@@ -779,6 +1106,7 @@ pub async fn update_connection<R: Runtime>(
     params: ConnectionParams,
     detect_json_in_text_columns: Option<bool>,
 ) -> Result<SavedConnection, String> {
+    validate_connection_uri_persistence(&params)?;
     let path = get_config_path(&app)?;
     let mut conn_file = persistence::load_connections_file(&path)?;
 
@@ -788,7 +1116,29 @@ pub async fn update_connection<R: Runtime>(
         .position(|c| c.id == id)
         .ok_or("Connection not found")?;
 
-    let mut params_to_save = params.clone();
+    let existing_uri_in_keychain = conn_file.connections[conn_idx]
+        .params
+        .connection_uri_in_keychain
+        .unwrap_or(false);
+    // A stored URI belongs to the driver that produced it. Switching drivers
+    // must drop it rather than hand one driver's credentials to another.
+    let same_driver = conn_file.connections[conn_idx].params.driver == params.driver;
+    let connection_uri = runtime_connection_uri(&params).map(str::to_owned);
+    // The frontend sends the URI back only when the user retyped it. An edit
+    // that leaves the field untouched must keep the stored secret; an edit that
+    // explicitly clears the marker must delete it.
+    let preserve_stored_uri = connection_uri.is_none()
+        && same_driver
+        && params.save_in_keychain.unwrap_or(false)
+        && existing_uri_in_keychain
+        && params.connection_uri_in_keychain != Some(false);
+    let uri_change = match connection_uri.as_deref() {
+        Some(value) => Some(Some(value)),
+        None if preserve_stored_uri => None,
+        None => Some(None),
+    };
+    let mut params_to_save =
+        params_for_persistence(&params, connection_uri.is_some() || preserve_stored_uri);
 
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
     if params.save_in_keychain.unwrap_or(false) {
@@ -820,7 +1170,11 @@ pub async fn update_connection<R: Runtime>(
         keychain_utils::delete_db_password(&id).ok();
         keychain_utils::delete_ssh_password(&id).ok();
         keychain_utils::delete_ssh_key_passphrase(&id).ok();
-        credential_cache::invalidate_all_for_connection(&cache, &id);
+        // The connection URI is cleared by its own transaction below, which
+        // needs the previous cache entry intact to roll back.
+        credential_cache::invalidate_db_password(&cache, &id);
+        credential_cache::invalidate_ssh_password(&cache, &id);
+        credential_cache::invalidate_ssh_key_passphrase(&cache, &id);
     }
 
     // Preserve existing group_id and sort_order from the original connection
@@ -842,7 +1196,9 @@ pub async fn update_connection<R: Runtime>(
 
     conn_file.connections[conn_idx] = updated.clone();
 
-    save_connections_and_invalidate(&app, &path, &conn_file)?;
+    persist_connection_uri_change(&cache, &id, existing_uri_in_keychain, uri_change, || {
+        save_connections_and_invalidate(&app, &path, &conn_file)
+    })?;
 
     // On single→multi transition, associate existing favorites/history (with no
     // database set) to the original single database name.
@@ -927,8 +1283,11 @@ pub async fn duplicate_connection<R: Runtime>(
 
     let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
 
-    // Recover passwords if in keychain (via cache for fast repeat access)
-    if original.params.save_in_keychain.unwrap_or(false) {
+    // Same IAM-auth guard as `find_connection_by_id`: never copy a stale RDS
+    // auth token into a duplicated connection.
+    if original.params.save_in_keychain.unwrap_or(false)
+        && !original.params.use_iam_auth.unwrap_or(false)
+    {
         if let Ok(pwd) = credential_cache::get_db_password_cached(&cache, &original.id) {
             original.params.password = Some(pwd);
         }
@@ -1073,7 +1432,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
         return Ok(()); // No migration needed
     }
 
-    println!("[Migration] Starting SSH connections migration...");
+    eprintln!("[Migration] Starting SSH connections migration...");
 
     let ssh_path = get_ssh_config_path(app)?;
     let mut ssh_connections: Vec<SshConnection> = if ssh_path.exists() {
@@ -1171,7 +1530,7 @@ async fn migrate_ssh_connections<R: Runtime>(app: &AppHandle<R>) -> Result<(), S
     conn_file.connections = migrated_connections;
     save_connections_and_invalidate(app, &conn_path, &conn_file)?;
 
-    println!(
+    eprintln!(
         "[Migration] Successfully migrated {} SSH connections",
         ssh_connections.len()
     );
@@ -1465,7 +1824,33 @@ pub async fn test_ssh_connection<R: Runtime>(
         },
     );
 
-    ssh_tunnel::test_ssh_connection(
+    // Inline SSH secrets of a saved DB connection live in the keychain under
+    // the DB connection id (not in the SSH connections file), so fall back
+    // there when the form did not re-enter them.
+    let (resolved_password, resolved_passphrase) = match ssh.db_connection_id.as_deref() {
+        Some(db_id) if resolved_password.is_none() || resolved_passphrase.is_none() => {
+            match find_connection_by_id(&app, db_id) {
+                Ok(saved) => apply_inline_ssh_secret_fallback(
+                    resolved_password,
+                    resolved_passphrase,
+                    &saved.params,
+                ),
+                Err(_) => (resolved_password, resolved_passphrase),
+            }
+        }
+        _ => (resolved_password, resolved_passphrase),
+    };
+
+    let progress_id = ssh.progress_id.as_deref();
+    emit_test_progress(
+        &app,
+        progress_id,
+        "sshTunnel",
+        "start",
+        Some(format!("{}@{}:{}", ssh.user, ssh.host, ssh.port)),
+    );
+
+    let result = ssh_tunnel::test_ssh_connection(
         &ssh.host,
         ssh.port,
         &ssh.user,
@@ -1473,12 +1858,28 @@ pub async fn test_ssh_connection<R: Runtime>(
         ssh.key_file.as_deref(),
         resolved_passphrase.as_deref(),
         ssh.allow_passphrase_prompt.unwrap_or(false),
-    )
+    );
+    match &result {
+        Ok(_) => emit_test_progress(&app, progress_id, "sshTunnel", "ok", None),
+        Err(e) => emit_test_progress(&app, progress_id, "sshTunnel", "error", Some(e.clone())),
+    }
+    result
 }
 
 // ---------------------------------------------------------------------------
 // Kubernetes Connections
 // ---------------------------------------------------------------------------
+
+fn validate_k8s_connection_paths(k8s: &K8sConnectionInput) -> Result<(), String> {
+    crate::k8s_tunnel::validate_k8s_path(
+        k8s.kubectl_path.as_deref().unwrap_or_default(),
+        "kubectl",
+    )?;
+    crate::k8s_tunnel::validate_k8s_path(
+        k8s.kubeconfig_path.as_deref().unwrap_or_default(),
+        "kubeconfig",
+    )
+}
 
 /// Load K8s connections synchronously from the config file.
 fn load_k8s_connections_sync<R: Runtime>(
@@ -1523,6 +1924,7 @@ pub async fn save_k8s_connection<R: Runtime>(
     app: AppHandle<R>,
     k8s: K8sConnectionInput,
 ) -> Result<K8sConnection, String> {
+    validate_k8s_connection_paths(&k8s)?;
     let path = get_k8s_config_path(&app)?;
     let mut connections: Vec<K8sConnection> = if path.exists() {
         let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
@@ -1540,6 +1942,8 @@ pub async fn save_k8s_connection<R: Runtime>(
         resource_type: k8s.resource_type,
         resource_name: k8s.resource_name,
         port: k8s.port,
+        kubectl_path: k8s.kubectl_path,
+        kubeconfig_path: k8s.kubeconfig_path,
     };
 
     connections.push(connection.clone());
@@ -1556,6 +1960,7 @@ pub async fn update_k8s_connection<R: Runtime>(
     id: String,
     k8s: K8sConnectionInput,
 ) -> Result<K8sConnection, String> {
+    validate_k8s_connection_paths(&k8s)?;
     let path = get_k8s_config_path(&app)?;
     let mut connections: Vec<K8sConnection> = if path.exists() {
         let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
@@ -1577,6 +1982,8 @@ pub async fn update_k8s_connection<R: Runtime>(
         resource_type: k8s.resource_type,
         resource_name: k8s.resource_name,
         port: k8s.port,
+        kubectl_path: k8s.kubectl_path,
+        kubeconfig_path: k8s.kubeconfig_path,
     };
 
     connections[idx] = connection.clone();
@@ -1613,23 +2020,32 @@ pub async fn test_k8s_connection_cmd<R: Runtime>(
     _app: AppHandle<R>,
     context: String,
     namespace: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<String, String> {
-    crate::k8s_tunnel::test_k8s_connection(&context, &namespace)
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
+    crate::k8s_tunnel::test_k8s_connection(&context, &namespace, &options)
 }
 
 #[tauri::command]
 pub async fn get_k8s_contexts_cmd<R: Runtime>(
     _app: AppHandle<R>,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<Vec<String>, String> {
-    crate::k8s_tunnel::get_k8s_contexts()
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
+    crate::k8s_tunnel::get_k8s_contexts(&options)
 }
 
 #[tauri::command]
 pub async fn get_k8s_namespaces_cmd<R: Runtime>(
     _app: AppHandle<R>,
     context: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<Vec<String>, String> {
-    crate::k8s_tunnel::get_k8s_namespaces(&context)
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
+    crate::k8s_tunnel::get_k8s_namespaces(&context, &options)
 }
 
 #[tauri::command]
@@ -1638,8 +2054,11 @@ pub async fn get_k8s_resources_cmd<R: Runtime>(
     context: String,
     namespace: String,
     resource_type: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<Vec<String>, String> {
-    crate::k8s_tunnel::get_k8s_resources(&context, &namespace, &resource_type)
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
+    crate::k8s_tunnel::get_k8s_resources(&context, &namespace, &resource_type, &options)
 }
 
 #[tauri::command]
@@ -1649,13 +2068,26 @@ pub async fn get_k8s_resource_ports_cmd<R: Runtime>(
     namespace: String,
     resource_type: String,
     resource_name: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
 ) -> Result<Vec<u16>, String> {
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
     crate::k8s_tunnel::get_k8s_resource_ports(
         &context,
         &namespace,
         &resource_type,
         &resource_name,
+        &options,
     )
+}
+
+#[tauri::command]
+pub async fn validate_k8s_path_cmd<R: Runtime>(
+    _app: AppHandle<R>,
+    path: String,
+    kind: String,
+) -> Result<(), String> {
+    crate::k8s_tunnel::validate_k8s_path(&path, &kind)
 }
 
 /// Expand K8s connection params by loading saved config and creating/reusing a tunnel.
@@ -1675,7 +2107,7 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
     }
 
     // Resolve K8s params from saved connection if using connection_id
-    let (context, namespace, resource_type, resource_name, port) =
+    let (context, namespace, resource_type, resource_name, port, kubectl_path, kubeconfig_path) =
         if let Some(k8s_id) = &params.k8s_connection_id {
             let k8s_conn = get_k8s_connection_by_id(app, k8s_id).await?;
             (
@@ -1684,6 +2116,8 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
                 k8s_conn.resource_type,
                 k8s_conn.resource_name,
                 k8s_conn.port,
+                k8s_conn.kubectl_path,
+                k8s_conn.kubeconfig_path,
             )
         } else {
             let ctx = params
@@ -1707,18 +2141,28 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
                 .ok_or("Missing K8s resource name")?
                 .to_string();
             let p = params.k8s_port.ok_or("Missing K8s port")?;
-            (ctx, ns, rt, rn, p)
+            (
+                ctx,
+                ns,
+                rt,
+                rn,
+                p,
+                params.k8s_kubectl_path.clone(),
+                params.k8s_kubeconfig_path.clone(),
+            )
         };
 
     let _remote_host = params.host.as_deref().unwrap_or("localhost");
     let _remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
 
+    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
     let map_key = crate::k8s_tunnel::build_tunnel_key(
         &context,
         &namespace,
         &resource_type,
         &resource_name,
         port,
+        &options,
     );
 
     // Check for existing tunnel
@@ -1753,6 +2197,7 @@ pub async fn expand_k8s_connection_params<R: Runtime>(
         &resource_type,
         &resource_name,
         port,
+        &options,
     )
     .map_err(|e| {
         eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);
@@ -1801,11 +2246,32 @@ pub async fn test_connection<R: Runtime>(
         "Testing connection to database: {}",
         request.params.database
     );
+    let progress_id = request.progress_id.as_deref();
 
-    let mut expanded_params = expand_ssh_connection_params(&app, &request.params).await?;
-    expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let mut expanded_params = expand_ssh_connection_params(&app, &request.params)
+        .await
+        .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
+    expanded_params = expand_k8s_connection_params(&app, &expanded_params)
+        .await
+        .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
 
-    if request.params.password.is_none() && expanded_params.password.is_none() {
+    // AWS RDS IAM auth tokens are short-lived (15 min) and must come from the
+    // password field on every test/connect, never from the keychain. Skip the
+    // keychain fallback so a stale token can't be reused.
+    let iam_auth = expanded_params.use_iam_auth.unwrap_or(false);
+
+    // IAM auth needs an RDS auth token right now. Without this guard the
+    // builder accepts an empty password, the server replies with the opaque
+    // "Access denied (using password: YES)", and the user can't tell whether
+    // the token is missing, wrong, or expired.
+    require_iam_token(
+        iam_auth,
+        request.params.password.as_deref(),
+        expanded_params.password.as_deref(),
+    )
+    .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
+
+    if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
         let saved_conn = match &request.connection_id {
             Some(id) => find_connection_by_id(&app, id).ok(),
             None => None,
@@ -1816,37 +2282,138 @@ pub async fn test_connection<R: Runtime>(
             });
     }
 
-    let resolved_params = if let Some(conn_id) = &request.connection_id {
-        resolve_connection_params_with_id(&expanded_params, conn_id)?
+    // Reconnecting to a saved connection sends the on-disk params, which never
+    // carry the URI — restore it the same way the password is restored above.
+    // An inline URI (the ephemeral Test Connection flow) always wins.
+    if runtime_connection_uri(&expanded_params).is_none() {
+        if let Some(conn_id) = &request.connection_id {
+            let cache = app.state::<std::sync::Arc<credential_cache::CredentialCache>>();
+            restore_runtime_connection_uri(&cache, conn_id, &mut expanded_params)
+                .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
+        }
+    }
+
+    let ssh_enabled = expanded_params.ssh_enabled.unwrap_or(false);
+    let k8s_enabled = expanded_params.k8s_enabled.unwrap_or(false);
+    let tunnel_step = if ssh_enabled {
+        Some("sshTunnel")
+    } else if k8s_enabled {
+        Some("k8sForward")
     } else {
-        resolve_connection_params(&expanded_params)?
+        None
     };
+
+    if ssh_enabled {
+        emit_test_progress(
+            &app,
+            progress_id,
+            "sshTunnel",
+            "start",
+            Some(format!(
+                "{}@{}:{}",
+                expanded_params.ssh_user.as_deref().unwrap_or("?"),
+                expanded_params.ssh_host.as_deref().unwrap_or("?"),
+                expanded_params.ssh_port.unwrap_or(22)
+            )),
+        );
+    } else if k8s_enabled {
+        emit_test_progress(
+            &app,
+            progress_id,
+            "k8sForward",
+            "start",
+            expanded_params.k8s_resource_name.clone(),
+        );
+    }
+
+    let resolved_params = if let Some(conn_id) = &request.connection_id {
+        resolve_connection_params_with_id(&expanded_params, conn_id)
+    } else {
+        resolve_connection_params(&expanded_params)
+    }
+    .map_err(|e| emit_test_failure(&app, progress_id, tunnel_step.unwrap_or("resolve"), e))?;
     log::debug!(
         "Test connection params: Host={:?}, Port={:?}",
         resolved_params.host,
         resolved_params.port
     );
 
-    let drv = driver_for(&resolved_params.driver).await?;
+    if let Some(step) = tunnel_step {
+        emit_test_progress(
+            &app,
+            progress_id,
+            step,
+            "ok",
+            resolved_params.port.map(|port| format!("127.0.0.1:{port}")),
+        );
+    }
+
+    let drv = driver_for(&resolved_params.driver)
+        .await
+        .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
+
+    let db_target = match (expanded_params.host.as_deref(), expanded_params.port) {
+        (Some(host), Some(port)) => format!("{host}:{port}"),
+        (Some(host), None) => host.to_string(),
+        _ => expanded_params.database.to_string(),
+    };
+    emit_test_progress(&app, progress_id, "dbConnect", "start", Some(db_target));
 
     // For file-based drivers, verify the database file exists before attempting connection
     if drv.manifest().capabilities.file_based {
         let db_path = std::path::Path::new(resolved_params.database.primary());
         if !db_path.exists() {
-            return Err(format!(
-                "Database file not found: {}",
-                resolved_params.database
-            ));
+            let err = format!("Database file not found: {}", resolved_params.database);
+            return Err(emit_test_failure(&app, progress_id, "dbConnect", err));
         }
     }
 
-    drv.test_connection(&resolved_params).await?;
+    drv.test_connection(&resolved_params).await.map_err(|e| {
+        log::warn!(
+            "Connection test failed for database {}: {e}",
+            request.params.database
+        );
+        emit_test_failure(&app, progress_id, "dbConnect", e)
+    })?;
 
+    emit_test_progress(&app, progress_id, "dbConnect", "ok", None);
     log::info!(
         "Connection test successful for database: {}",
         request.params.database
     );
     Ok("Connection successful!".to_string())
+}
+
+/// Emits one step of a connection test's live progress log. A no-op when the
+/// caller did not request progress (no id).
+fn emit_test_progress<R: Runtime>(
+    app: &AppHandle<R>,
+    progress_id: Option<&str>,
+    step: &str,
+    status: &str,
+    detail: Option<String>,
+) {
+    let Some(id) = progress_id else { return };
+    let _ = app.emit(
+        "connection-test-progress",
+        serde_json::json!({
+            "id": id,
+            "step": step,
+            "status": status,
+            "detail": detail,
+        }),
+    );
+}
+
+/// Emits a failed step and passes the error through, for use in `map_err`.
+fn emit_test_failure<R: Runtime>(
+    app: &AppHandle<R>,
+    progress_id: Option<&str>,
+    step: &str,
+    error: String,
+) -> String {
+    emit_test_progress(app, progress_id, step, "error", Some(error.clone()));
+    error
 }
 
 #[cfg(test)]
@@ -1863,6 +2430,109 @@ mod tests {
             database: DatabaseSelection::Single("testdb".to_string()),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn persisted_params_never_contain_the_connection_uri() {
+        let sentinel = "mongodb+srv://fixture-user:fixture-password@cluster.example.invalid/app";
+        let params = ConnectionParams {
+            connection_uri: Some(sentinel.to_string()),
+            save_in_keychain: Some(true),
+            ..base_params()
+        };
+
+        let persisted = params_for_persistence(&params, true);
+        let json = serde_json::to_string(&persisted).expect("serialize persisted params");
+
+        assert_eq!(persisted.connection_uri, None);
+        assert_eq!(persisted.connection_uri_in_keychain, Some(true));
+        assert!(!json.contains(sentinel));
+        assert!(!json.contains("fixture-password"));
+    }
+
+    #[test]
+    fn a_connection_uri_cannot_be_saved_outside_the_keychain() {
+        let params = ConnectionParams {
+            connection_uri: Some("mongodb+srv://cluster.example.invalid/app".to_string()),
+            save_in_keychain: Some(false),
+            ..base_params()
+        };
+
+        assert!(validate_connection_uri_persistence(&params).is_err());
+        assert!(validate_connection_uri_persistence(&base_params()).is_ok());
+    }
+
+    #[test]
+    fn a_blank_connection_uri_is_treated_as_absent() {
+        let params = ConnectionParams {
+            connection_uri: Some("   ".to_string()),
+            save_in_keychain: Some(false),
+            ..base_params()
+        };
+
+        assert_eq!(runtime_connection_uri(&params), None);
+        assert!(validate_connection_uri_persistence(&params).is_ok());
+    }
+
+    #[test]
+    fn restores_the_exact_connection_uri_from_the_session_cache() {
+        let cache = credential_cache::CredentialCache::default();
+        let sentinel =
+            "mongodb+srv://fixture-user:fixture-password@cluster.example.invalid/app?x=a%2Fb";
+        credential_cache::set_connection_uri_cached(&cache, "conn-1", sentinel);
+        let mut params = base_params();
+
+        restore_runtime_connection_uri(&cache, "conn-1", &mut params)
+            .expect("restore cached connection URI");
+
+        assert_eq!(params.connection_uri.as_deref(), Some(sentinel));
+    }
+
+    #[test]
+    fn params_saved_before_the_uri_field_existed_remain_usable() {
+        let cache = credential_cache::CredentialCache::default();
+        let mut params = base_params();
+
+        restore_runtime_connection_uri(&cache, "legacy-conn", &mut params)
+            .expect("legacy params remain usable");
+
+        assert_eq!(params.connection_uri, None);
+        assert_eq!(params.host.as_deref(), Some("localhost"));
+    }
+
+    #[test]
+    fn deleting_a_connection_clears_its_cached_uri() {
+        let cache = credential_cache::CredentialCache::default();
+        credential_cache::set_connection_uri_cached(
+            &cache,
+            "conn-1",
+            "mongodb+srv://cluster.example.invalid/app",
+        );
+
+        credential_cache::invalidate_all_for_connection(&cache, "conn-1");
+
+        assert_eq!(
+            credential_cache::get_connection_uri_cached(&cache, "conn-1", false).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn a_failed_persist_rolls_the_stored_uri_back() {
+        let rolled_back = std::cell::Cell::new(false);
+
+        let error = persist_secret_change(
+            || Ok(()),
+            || Err("fictional connections.json failure".to_string()),
+            || {
+                rolled_back.set(true);
+                Ok(())
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(error, "fictional connections.json failure");
+        assert!(rolled_back.get());
     }
 
     fn saved_conn(id: &str, password: Option<&str>, save_in_keychain: bool) -> SavedConnection {
@@ -2254,6 +2924,63 @@ mod tests {
                 |_| Ok("".to_string()),
             );
             assert_eq!(result, None);
+        }
+    }
+
+    mod apply_inline_ssh_secret_fallback_tests {
+        use super::*;
+
+        fn params_with_ssh(
+            password: Option<&str>,
+            passphrase: Option<&str>,
+        ) -> ConnectionParams {
+            ConnectionParams {
+                ssh_password: password.map(|p| p.to_string()),
+                ssh_key_passphrase: passphrase.map(|p| p.to_string()),
+                ..Default::default()
+            }
+        }
+
+        #[test]
+        fn fills_both_secrets_from_saved_params() {
+            let params = params_with_ssh(Some("pwd"), Some("phrase"));
+            let (password, passphrase) =
+                apply_inline_ssh_secret_fallback(None, None, &params);
+            assert_eq!(password, Some("pwd".to_string()));
+            assert_eq!(passphrase, Some("phrase".to_string()));
+        }
+
+        #[test]
+        fn resolved_secrets_keep_priority_over_saved() {
+            let params = params_with_ssh(Some("saved_pwd"), Some("saved_phrase"));
+            let (password, passphrase) = apply_inline_ssh_secret_fallback(
+                Some("request_pwd".to_string()),
+                Some("request_phrase".to_string()),
+                &params,
+            );
+            assert_eq!(password, Some("request_pwd".to_string()));
+            assert_eq!(passphrase, Some("request_phrase".to_string()));
+        }
+
+        #[test]
+        fn blank_saved_secrets_are_ignored() {
+            let params = params_with_ssh(Some("   "), Some(""));
+            let (password, passphrase) =
+                apply_inline_ssh_secret_fallback(None, None, &params);
+            assert_eq!(password, None);
+            assert_eq!(passphrase, None);
+        }
+
+        #[test]
+        fn fills_only_missing_secret() {
+            let params = params_with_ssh(Some("saved_pwd"), Some("saved_phrase"));
+            let (password, passphrase) = apply_inline_ssh_secret_fallback(
+                Some("request_pwd".to_string()),
+                None,
+                &params,
+            );
+            assert_eq!(password, Some("request_pwd".to_string()));
+            assert_eq!(passphrase, Some("saved_phrase".to_string()));
         }
     }
 
@@ -2665,6 +3392,162 @@ mod tests {
             assert!(state.handles.lock().unwrap().get("conn-1").is_none());
         }
     }
+
+    // -------------------------------------------------------------------
+    // Cascade-delete helpers
+    // -------------------------------------------------------------------
+
+    fn group(id: &str, parent: Option<&str>) -> ConnectionGroup {
+        ConnectionGroup {
+            id: id.to_string(),
+            name: id.to_string(),
+            collapsed: false,
+            sort_order: 0,
+            parent_id: parent.map(|p| p.to_string()),
+        }
+    }
+
+    fn conn(id: &str, group_id: Option<&str>) -> SavedConnection {
+        let mut c = saved_conn(id, None, false);
+        c.group_id = group_id.map(|g| g.to_string());
+        c
+    }
+
+    #[test]
+    fn collect_group_subtree_returns_root_only_for_leaf() {
+        let groups = vec![group("a", None), group("b", None)];
+        let subtree = crate::models::collect_group_subtree(&groups, "a");
+        assert_eq!(subtree, std::collections::HashSet::from(["a".to_string()]));
+    }
+
+    #[test]
+    fn collect_group_subtree_walks_full_descendant_chain() {
+        // Tree:
+        //   root
+        //   ├── child1
+        //   │   └── grand1
+        //   │       └── great1
+        //   └── child2
+        //   other (unrelated)
+        let groups = vec![
+            group("root", None),
+            group("child1", Some("root")),
+            group("grand1", Some("child1")),
+            group("great1", Some("grand1")),
+            group("child2", Some("root")),
+            group("other", None),
+        ];
+        let subtree = crate::models::collect_group_subtree(&groups, "root");
+        assert_eq!(
+            subtree,
+            std::collections::HashSet::from([
+                "root".to_string(),
+                "child1".to_string(),
+                "grand1".to_string(),
+                "great1".to_string(),
+                "child2".to_string(),
+            ])
+        );
+        assert!(!subtree.contains("other"));
+    }
+
+    #[test]
+    fn collect_group_subtree_for_subgroup_does_not_include_siblings() {
+        // Tree:
+        //   root
+        //   ├── keep
+        //   └── drop
+        let groups = vec![
+            group("root", None),
+            group("keep", Some("root")),
+            group("drop", Some("root")),
+        ];
+        let subtree = crate::models::collect_group_subtree(&groups, "drop");
+        assert_eq!(subtree, std::collections::HashSet::from(["drop".to_string()]));
+        assert!(!subtree.contains("root"));
+        assert!(!subtree.contains("keep"));
+    }
+
+    #[test]
+    fn collect_group_subtree_for_unknown_id_is_singleton() {
+        let groups = vec![group("a", None)];
+        let subtree = crate::models::collect_group_subtree(&groups, "missing");
+        assert_eq!(subtree, std::collections::HashSet::from(["missing".to_string()]));
+    }
+
+    #[test]
+    fn cascade_delete_removes_parent_descendants_and_connections() {
+        // Mirrors what the command does after the helper returns: groups
+        // and connections not in the subtree must survive untouched.
+        let groups = vec![
+            group("root", None),
+            group("child", Some("root")),
+            group("grand", Some("child")),
+            group("sibling", None),
+        ];
+        let connections = vec![
+            conn("c1", Some("root")),
+            conn("c2", Some("child")),
+            conn("c3", Some("grand")),
+            conn("c4", Some("sibling")),
+            conn("c5", None),
+        ];
+        let to_delete = crate::models::collect_group_subtree(&groups, "root");
+
+        let groups_after: Vec<_> = groups
+            .iter()
+            .filter(|g| !to_delete.contains(&g.id))
+            .cloned()
+            .collect();
+        let conns_after: Vec<_> = connections
+            .iter()
+            .filter(|c| !c.group_id.as_ref().is_some_and(|g| to_delete.contains(g)))
+            .cloned()
+            .collect();
+
+        assert_eq!(groups_after, vec![group("sibling", None)]);
+        assert_eq!(
+            conns_after.iter().map(|c| c.id.clone()).collect::<Vec<_>>(),
+            vec!["c4".to_string(), "c5".to_string()],
+        );
+    }
+
+    #[test]
+    fn cascade_delete_subgroup_leaves_parent_and_other_subgroups_alone() {
+        let groups = vec![
+            group("root", None),
+            group("keep", Some("root")),
+            group("drop", Some("root")),
+            group("grand", Some("drop")),
+        ];
+        let connections = vec![
+            conn("c1", Some("root")),
+            conn("c2", Some("drop")),
+            conn("c3", Some("grand")),
+            conn("c4", Some("keep")),
+        ];
+        let to_delete = crate::models::collect_group_subtree(&groups, "drop");
+
+        let groups_after: Vec<_> = groups
+            .iter()
+            .filter(|g| !to_delete.contains(&g.id))
+            .cloned()
+            .collect();
+        let conns_after: Vec<_> = connections
+            .iter()
+            .filter(|c| !c.group_id.as_ref().is_some_and(|g| to_delete.contains(g)))
+            .cloned()
+            .collect();
+
+        assert_eq!(
+            groups_after,
+            vec![group("root", None), group("keep", Some("root"))],
+        );
+        assert_eq!(
+            conns_after.iter().map(|c| c.id.clone()).collect::<Vec<_>>(),
+            vec!["c1".to_string(), "c4".to_string()],
+        );
+    }
 }
 
 #[tauri::command]
@@ -2675,7 +3558,18 @@ pub async fn list_databases<R: Runtime>(
     let mut expanded_params = expand_ssh_connection_params(&app, &request.params).await?;
     expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
 
-    if request.params.password.is_none() && expanded_params.password.is_none() {
+    let iam_auth = expanded_params.use_iam_auth.unwrap_or(false);
+
+    // IAM auth needs an RDS auth token right now; skip the keychain fallback
+    // so a stale token can't be reused, and fail fast with an actionable
+    // message if none was supplied.
+    require_iam_token(
+        iam_auth,
+        request.params.password.as_deref(),
+        expanded_params.password.as_deref(),
+    )?;
+
+    if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
         let saved_conn = match &request.connection_id {
             Some(id) => find_connection_by_id(&app, id).ok(),
             None => None,
@@ -2684,6 +3578,16 @@ pub async fn list_databases<R: Runtime>(
             resolve_test_connection_password(&request.params, saved_conn.as_ref(), |conn_id| {
                 keychain_utils::get_db_password(conn_id, "")
             });
+    }
+
+    // Reconnecting to a saved connection sends the on-disk params, which never
+    // carry the URI — restore it the same way the password is restored above.
+    // An inline URI (the ephemeral Test Connection flow) always wins.
+    if runtime_connection_uri(&expanded_params).is_none() {
+        if let Some(conn_id) = &request.connection_id {
+            let cache = app.state::<std::sync::Arc<credential_cache::CredentialCache>>();
+            restore_runtime_connection_uri(&cache, conn_id, &mut expanded_params)?;
+        }
     }
 
     let resolved_params = if let Some(conn_id) = &request.connection_id {
@@ -3119,6 +4023,40 @@ pub async fn cancel_query(
     cancel_query_impl(&state, &connection_id)
 }
 
+/// Payload for the `database-dropped` event, emitted after a `DROP DATABASE`
+/// statement succeeds so a listener can reconcile the connection's database
+/// selection instead of leaving the dropped database in the sidebar until the
+/// next reconnect (#525).
+// `connectionId` rather than `connection_id`: the `connection-health-failed`
+// event already carries this same field in camelCase, and matching the field
+// name for the same concept matters more than matching the neighbouring
+// `batch-statement-complete` payload, which happens to use snake_case.
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct DatabaseDroppedEvent<'a> {
+    connection_id: &'a str,
+    database: &'a str,
+}
+
+/// Announces that `database` no longer exists on the server behind
+/// `connection_id`. Emitting is best-effort: a listener that missed the event
+/// only means the sidebar stays stale until the next manual refresh, which is
+/// the pre-#525 behaviour, so a failed emit must not fail the query.
+fn emit_database_dropped<R: Runtime>(app: &AppHandle<R>, connection_id: &str, database: &str) {
+    log::info!(
+        "DROP DATABASE detected on connection {}: '{}'",
+        connection_id,
+        database
+    );
+    let _ = app.emit(
+        "database-dropped",
+        DatabaseDroppedEvent {
+            connection_id,
+            database,
+        },
+    );
+}
+
 #[tauri::command]
 pub async fn execute_query<R: Runtime>(
     app: AppHandle<R>,
@@ -3141,6 +4079,10 @@ pub async fn execute_query<R: Runtime>(
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
     let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
+
+    // Detected before the spawn, which takes ownership of `sanitized_query`.
+    // Cheap: only allocates when the statement really is a DROP DATABASE.
+    let dropped = crate::sql_database_statements::dropped_database(&sanitized_query);
 
     let drv = driver_for(&saved_conn.params.driver).await?;
     let task = tokio::spawn(async move {
@@ -3167,6 +4109,9 @@ pub async fn execute_query<R: Runtime>(
                 "Query executed successfully, returned {} rows",
                 query_result.rows.len()
             );
+            if let Some(database) = &dropped {
+                emit_database_dropped(&app, &connection_id, database);
+            }
             Ok(query_result)
         }
         Ok(Err(e)) => {
@@ -3224,6 +4169,14 @@ pub async fn execute_query_batch<R: Runtime>(
 
     let sanitized_queries: Vec<String> = queries.iter().map(|q| sanitize_user_query(q)).collect();
 
+    // One entry per statement, computed before the spawn takes ownership of
+    // `sanitized_queries`. Index-aligned with the results returned below, the
+    // same assumption the `batch-statement-complete` event already relies on.
+    let dropped_per_statement: Vec<Option<String>> = sanitized_queries
+        .iter()
+        .map(|q| crate::sql_database_statements::dropped_database(q))
+        .collect();
+
     let saved_conn = find_connection_by_id(&app, &connection_id)?;
     let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
     let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
@@ -3278,6 +4231,16 @@ pub async fn execute_query_batch<R: Runtime>(
                 batch_results.len() - success_count,
                 batch_results.len()
             );
+            // A batch reports per-statement outcomes, so only announce drops
+            // whose own statement succeeded; a failed DROP leaves the database
+            // in place.
+            for (dropped, statement) in dropped_per_statement.iter().zip(&batch_results) {
+                if let Some(database) = dropped {
+                    if statement.result.is_some() {
+                        emit_database_dropped(&app, &connection_id, database);
+                    }
+                }
+            }
             Ok(batch_results)
         }
         Ok(Err(e)) => {
@@ -3301,7 +4264,7 @@ pub async fn explain_query_plan<R: Runtime>(
     query: String,
     analyze: bool,
     schema: Option<String>,
-) -> Result<ExplainPlan, String> {
+) -> Result<ExplainQueryOutput, String> {
     log::info!(
         "Explaining query on connection: {} | analyze: {} | Query: {}",
         connection_id,
@@ -3601,6 +4564,24 @@ fn resolve_ssh_test_credential(
 
     // Priority 3: Credential from saved connection
     extract_saved_credential(&saved)
+}
+
+/// Fills SSH secrets that are still unresolved from the inline SSH fields of
+/// a saved database connection (already hydrated from the keychain by
+/// `find_connection_by_id`). Secrets explicitly provided by the request keep
+/// priority; blank saved values are ignored.
+fn apply_inline_ssh_secret_fallback(
+    resolved_password: Option<String>,
+    resolved_passphrase: Option<String>,
+    saved_params: &ConnectionParams,
+) -> (Option<String>, Option<String>) {
+    fn non_blank(value: &Option<String>) -> Option<String> {
+        value.as_ref().filter(|v| !v.trim().is_empty()).cloned()
+    }
+    (
+        resolved_password.or_else(|| non_blank(&saved_params.ssh_password)),
+        resolved_passphrase.or_else(|| non_blank(&saved_params.ssh_key_passphrase)),
+    )
 }
 
 /// Helper for backward compatibility - resolves SSH password
@@ -4058,10 +5039,169 @@ pub async fn drop_trigger<R: Runtime>(
     result
 }
 
+// --- User management (gated by `DriverCapabilities::user_management`) -------
+
+/// Resolves the connection and driver shared by every user-management command.
+async fn user_mgmt_context<R: Runtime>(
+    app: &AppHandle<R>,
+    connection_id: &str,
+) -> Result<
+    (
+        std::sync::Arc<dyn crate::drivers::driver_trait::DatabaseDriver>,
+        ConnectionParams,
+    ),
+    String,
+> {
+    let saved_conn = find_connection_by_id(app, connection_id)?;
+    let expanded_params = expand_ssh_connection_params(app, &saved_conn.params).await?;
+    let expanded_params = expand_k8s_connection_params(app, &expanded_params).await?;
+    let params = resolve_connection_params_with_id(&expanded_params, connection_id)?;
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    Ok((drv, params))
+}
+
+#[tauri::command]
+pub async fn get_db_privilege_catalog<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+) -> Result<crate::models::DbPrivilegeCatalog, String> {
+    let saved_conn = find_connection_by_id(&app, &connection_id)?;
+    let drv = driver_for(&saved_conn.params.driver).await?;
+    drv.get_db_privilege_catalog().await
+}
+
+#[tauri::command]
+pub async fn get_db_users<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+) -> Result<Vec<crate::models::DbUserInfo>, String> {
+    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
+    drv.get_db_users(&params).await
+}
+
+#[tauri::command]
+pub async fn get_db_user_grants<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    user: String,
+    host: String,
+) -> Result<Vec<String>, String> {
+    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
+    drv.get_db_user_grants(&params, &user, &host).await
+}
+
+#[tauri::command]
+pub async fn create_db_user<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    user: String,
+    host: String,
+    password: String,
+) -> Result<(), String> {
+    log::info!("Creating database user '{user}'@'{host}'");
+    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
+    let result = drv.create_db_user(&params, &user, &host, &password).await;
+    if let Err(e) = &result {
+        log::error!("Failed to create user '{user}'@'{host}': {e}");
+    }
+    result
+}
+
+#[tauri::command]
+pub async fn drop_db_user<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    user: String,
+    host: String,
+) -> Result<(), String> {
+    log::info!("Dropping database user '{user}'@'{host}'");
+    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
+    let result = drv.drop_db_user(&params, &user, &host).await;
+    if let Err(e) = &result {
+        log::error!("Failed to drop user '{user}'@'{host}': {e}");
+    }
+    result
+}
+
+#[tauri::command]
+pub async fn set_db_user_password<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    user: String,
+    host: String,
+    password: String,
+) -> Result<(), String> {
+    log::info!("Changing password for database user '{user}'@'{host}'");
+    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
+    let result = drv.set_db_user_password(&params, &user, &host, &password).await;
+    if let Err(e) = &result {
+        log::error!("Failed to change password for '{user}'@'{host}': {e}");
+    }
+    result
+}
+
+#[tauri::command]
+pub async fn get_db_user_privileges<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    user: String,
+    host: String,
+) -> Result<Vec<crate::models::DbUserGrantSet>, String> {
+    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
+    drv.get_db_user_privileges(&params, &user, &host).await
+}
+
+#[tauri::command]
+pub async fn apply_db_user_privileges<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    user: String,
+    host: String,
+    database: Option<String>,
+    table: Option<String>,
+    privileges: Vec<String>,
+    grant: bool,
+) -> Result<(), String> {
+    let scope = match (database.as_deref(), table.as_deref()) {
+        (Some(db), Some(tbl)) => format!("{db}.{tbl}"),
+        (Some(db), None) => format!("{db}.*"),
+        _ => "*.*".to_string(),
+    };
+    log::info!(
+        "{} privileges for '{user}'@'{host}' on {scope}",
+        if grant { "Granting" } else { "Revoking" },
+    );
+    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
+    let result = drv
+        .apply_db_user_privileges(
+            &params,
+            &user,
+            &host,
+            database.as_deref(),
+            table.as_deref(),
+            &privileges,
+            grant,
+        )
+        .await;
+    if let Err(e) = &result {
+        log::error!("Failed to apply privileges for '{user}'@'{host}': {e}");
+    }
+    result
+}
+
 /// Register a connection as active for health-check pinging.
 #[tauri::command]
-pub async fn register_active_connection(connection_id: String) {
+pub async fn register_active_connection<R: Runtime>(app: AppHandle<R>, connection_id: String) {
     crate::health_check::register_connection(connection_id).await;
+    // Broadcast so every window learns this connection is now open.
+    crate::health_check::emit_active_changed(&app).await;
+}
+
+/// Snapshot of connection ids currently open in the shared backend (across all
+/// windows). Used by each window to render cross-window connection status.
+#[tauri::command]
+pub async fn get_active_connections() -> Vec<String> {
+    crate::health_check::active_connections().await
 }
 
 /// Disconnect from a database connection by closing its connection pool
@@ -4082,6 +5222,9 @@ pub async fn disconnect_connection<R: Runtime>(
 
     // Close the connection pool
     crate::pool_manager::close_pool_with_id(&params, Some(&connection_id)).await;
+
+    // Broadcast so every window learns this connection is now closed.
+    crate::health_check::emit_active_changed(&app).await;
 
     log::info!(
         "Successfully disconnected from connection: {}",
@@ -4298,24 +5441,120 @@ pub async fn get_connections_with_groups<R: Runtime>(
 pub async fn create_connection_group<R: Runtime>(
     app: AppHandle<R>,
     name: String,
+    parent_id: Option<String>,
 ) -> Result<ConnectionGroup, String> {
     let path = get_config_path(&app)?;
     let mut file = persistence::load_connections_file(&path).unwrap_or_default();
 
-    // Calculate next sort_order
-    let max_order = file.groups.iter().map(|g| g.sort_order).max().unwrap_or(-1);
+    if let Some(pid) = &parent_id {
+        if !file.groups.iter().any(|g| &g.id == pid) {
+            return Err(format!("Parent group with ID {} not found", pid));
+        }
+    }
+
+    let max_order = file
+        .groups
+        .iter()
+        .filter(|g| g.parent_id == parent_id)
+        .map(|g| g.sort_order)
+        .max()
+        .unwrap_or(-1);
 
     let group = ConnectionGroup {
         id: Uuid::new_v4().to_string(),
         name,
         collapsed: false,
         sort_order: max_order + 1,
+        parent_id,
     };
 
     file.groups.push(group.clone());
     save_connections_and_invalidate(&app, &path, &file)?;
 
     Ok(group)
+}
+
+/// Splits a `/`-separated group path into trimmed, non-empty segments.
+/// Returns an error if the result is empty.
+pub(crate) fn parse_group_path(path: &str) -> Result<Vec<String>, String> {
+    let segments: Vec<String> = path
+        .split('/')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    if segments.is_empty() {
+        return Err("Group path cannot be empty".to_string());
+    }
+    Ok(segments)
+}
+
+/// Finds an existing group by case-insensitive name match within a parent's
+/// children, or `None` if no such group exists.
+pub(crate) fn find_child_group<'a>(
+    groups: &'a [ConnectionGroup],
+    name: &str,
+    parent_id: &Option<String>,
+) -> Option<&'a ConnectionGroup> {
+    let name_lower = name.to_lowercase();
+    groups
+        .iter()
+        .find(|g| g.name.to_lowercase() == name_lower && g.parent_id == *parent_id)
+}
+
+/// Creates a nested group hierarchy from a `/`-separated path.
+///
+/// Each segment of `path` becomes one group. Existing segments are reused
+/// (looked up case-insensitively among the children of the current parent);
+/// missing segments are created in order. The final segment is returned.
+/// The hierarchy is created atomically: either every missing segment is
+/// persisted or none are.
+#[tauri::command]
+pub async fn create_group_path<R: Runtime>(
+    app: AppHandle<R>,
+    path: String,
+    parent_id: Option<String>,
+) -> Result<ConnectionGroup, String> {
+    let path_cfg = get_config_path(&app)?;
+    let mut file = persistence::load_connections_file(&path_cfg).unwrap_or_default();
+
+    if let Some(pid) = &parent_id {
+        if !file.groups.iter().any(|g| &g.id == pid) {
+            return Err(format!("Parent group with ID {} not found", pid));
+        }
+    }
+
+    let segments = parse_group_path(&path)?;
+    let mut current_parent = parent_id;
+    let mut last_created: Option<ConnectionGroup> = None;
+
+    for seg in segments {
+        if let Some(g) = find_child_group(&file.groups, &seg, &current_parent).cloned() {
+            current_parent = Some(g.id.clone());
+            last_created = Some(g);
+            continue;
+        }
+        let max_order = file
+            .groups
+            .iter()
+            .filter(|g| g.parent_id == current_parent)
+            .map(|g| g.sort_order)
+            .max()
+            .unwrap_or(-1);
+        let new_group = ConnectionGroup {
+            id: Uuid::new_v4().to_string(),
+            name: seg,
+            collapsed: false,
+            sort_order: max_order + 1,
+            parent_id: current_parent.clone(),
+        };
+        current_parent = Some(new_group.id.clone());
+        last_created = Some(new_group.clone());
+        file.groups.push(new_group);
+    }
+
+    save_connections_and_invalidate(&app, &path_cfg, &file)?;
+
+    last_created.ok_or_else(|| "Group path resolved to an empty hierarchy".to_string())
 }
 
 #[tauri::command]
@@ -4350,6 +5589,83 @@ pub async fn update_connection_group<R: Runtime>(
 
     Ok(updated)
 }
+/// Re-parent a group. Pass `Some(id)` to make it a child of that group,
+/// or `None` to make it a top-level root. Cycles are rejected.
+#[tauri::command]
+pub async fn move_group_to_parent<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    parent_id: Option<String>,
+) -> Result<ConnectionGroup, String> {
+    let path = get_config_path(&app)?;
+    let mut file = persistence::load_connections_file(&path)?;
+
+    if !file.groups.iter().any(|g| g.id == id) {
+        return Err(format!("Group with ID {} not found", id));
+    }
+
+    if let Some(pid) = &parent_id {
+        if pid == &id {
+            return Err("A group cannot be its own parent".to_string());
+        }
+        if !file.groups.iter().any(|g| &g.id == pid) {
+            return Err(format!("Parent group with ID {} not found", pid));
+        }
+    }
+
+    reject_if_would_create_cycle(&file.groups, &id, parent_id.as_deref())?;
+
+    let group = file
+        .groups
+        .iter_mut()
+        .find(|g| g.id == id)
+        .expect("group existence checked above");
+    group.parent_id = parent_id;
+    let updated = group.clone();
+
+    save_connections_and_invalidate(&app, &path, &file)?;
+    Ok(updated)
+}
+
+/// Reject re-parenting that would create a cycle: `target` must not be a
+/// descendant of `group_id`. Walks up from `target` looking for `group_id`.
+/// Bounded by `groups.len()` to fail-safe against pre-existing data cycles.
+pub(crate) fn reject_if_would_create_cycle(
+    groups: &[ConnectionGroup],
+    group_id: &str,
+    new_parent_id: Option<&str>,
+) -> Result<(), String> {
+    let Some(target) = new_parent_id else {
+        return Ok(());
+    };
+    let mut current = Some(target.to_string());
+    let mut visited = std::collections::HashSet::new();
+    let max_steps = groups.len() + 1;
+    for _ in 0..max_steps {
+        match current {
+            Some(node) if node == group_id => {
+                return Err(
+                    "Cannot move a group into one of its own descendants (would create a cycle)"
+                        .to_string(),
+                );
+            }
+            Some(node) => {
+                if !visited.insert(node.clone()) {
+                    return Err(
+                        "Connection-group tree contains a pre-existing cycle; refusing to modify it"
+                            .to_string(),
+                    );
+                }
+                current = groups
+                    .iter()
+                    .find(|g| g.id == node)
+                    .and_then(|g| g.parent_id.clone());
+            }
+            None => return Ok(()),
+        }
+    }
+    Err("Connection-group tree is deeper than the number of groups; refusing to modify it".to_string())
+}
 
 #[tauri::command]
 pub async fn delete_connection_group<R: Runtime>(
@@ -4359,15 +5675,22 @@ pub async fn delete_connection_group<R: Runtime>(
     let path = get_config_path(&app)?;
     let mut file = persistence::load_connections_file(&path)?;
 
-    // Remove connections from the group (set group_id to None)
-    for conn in &mut file.connections {
-        if conn.group_id.as_ref() == Some(&id) {
-            conn.group_id = None;
-        }
+    // Ensure the group exists before we walk the tree.
+    if !file.groups.iter().any(|g| g.id == id) {
+        return Err(format!("Group with ID {} not found", id));
     }
 
-    // Remove the group
-    file.groups.retain(|g| g.id != id);
+    // Cascade delete: collect the target group and all of its descendants
+    // (transitively) so the entire subtree is removed. The caller only
+    // needs to specify the top-level group — every nested child group is
+    // deleted along with it. Connections belonging to any group in the
+    // subtree are removed as well.
+    let to_delete = crate::models::collect_group_subtree(&file.groups, &id);
+
+    file.groups.retain(|g| !to_delete.contains(&g.id));
+    file.connections
+        .retain(|c| !c.group_id.as_ref().is_some_and(|gid| to_delete.contains(gid)));
+
     save_connections_and_invalidate(&app, &path, &file)?;
 
     Ok(())
@@ -4468,7 +5791,10 @@ pub async fn get_server_now<R: Runtime>(
 #[tauri::command]
 pub async fn export_connections_payload<R: Runtime>(
     app: AppHandle<R>,
+    include_secrets: Option<bool>,
+    connection_ids: Option<Vec<String>>,
 ) -> Result<ExportPayload, String> {
+    let include_secrets = include_secrets.unwrap_or(true);
     let conn_path = get_config_path(&app)?;
     let ssh_path = get_ssh_config_path(&app)?;
 
@@ -4479,6 +5805,29 @@ pub async fn export_connections_payload<R: Runtime>(
     } else {
         Vec::new()
     };
+    let mut k8s_connections = load_k8s_connections_sync(&app)?;
+
+    // When a selection is provided, keep only the selected connections (of any
+    // kind) plus the group chains needed to preserve their hierarchy. Done
+    // before password resolution so unselected credentials never leave the
+    // keychain.
+    if let Some(ids) = &connection_ids {
+        let selected: std::collections::HashSet<&str> =
+            ids.iter().map(String::as_str).collect();
+        conn_file
+            .connections
+            .retain(|c| selected.contains(c.id.as_str()));
+        ssh_connections.retain(|s| selected.contains(s.id.as_str()));
+        k8s_connections.retain(|k| selected.contains(k.id.as_str()));
+        let kept_groups = crate::models::collect_group_ancestors(
+            &conn_file.groups,
+            conn_file
+                .connections
+                .iter()
+                .filter_map(|c| c.group_id.as_deref()),
+        );
+        conn_file.groups.retain(|g| kept_groups.contains(&g.id));
+    }
 
     let cache = app
         .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
@@ -4487,7 +5836,22 @@ pub async fn export_connections_payload<R: Runtime>(
 
     // Resolve passwords for database connections
     for conn in &mut conn_file.connections {
+        if !include_secrets {
+            // Strip any secrets that may already live in the connections file
+            conn.params.password = None;
+            conn.params.ssh_password = None;
+            conn.params.ssh_key_passphrase = None;
+            conn.params.connection_uri = None;
+            continue;
+        }
         if conn.params.save_in_keychain.unwrap_or(false) {
+            // Without this the export carries the marker but not the URI, and
+            // restoring elsewhere yields a connection that cannot resolve it.
+            if let Ok(Some(uri)) =
+                credential_cache::get_connection_uri_cached(&cache, &conn.id, true)
+            {
+                conn.params.connection_uri = Some(uri);
+            }
             if let Ok(pwd) = credential_cache::get_db_password_cached(&cache, &conn.id) {
                 conn.params.password = Some(pwd);
             }
@@ -4506,6 +5870,11 @@ pub async fn export_connections_payload<R: Runtime>(
 
     // Resolve passwords for SSH connections
     for ssh in &mut ssh_connections {
+        if !include_secrets {
+            ssh.password = None;
+            ssh.key_passphrase = None;
+            continue;
+        }
         if ssh.save_in_keychain.unwrap_or(false) {
             if let Ok(pwd) = credential_cache::get_ssh_password_cached(&cache, &ssh.id) {
                 ssh.password = Some(pwd);
@@ -4522,12 +5891,40 @@ pub async fn export_connections_payload<R: Runtime>(
         groups: conn_file.groups,
         connections: conn_file.connections,
         ssh_connections,
-        k8s_connections: load_k8s_connections_sync(&app)?,
+        k8s_connections,
     })
 }
 
 #[tauri::command]
+pub async fn encrypt_export_payload(
+    payload: ExportPayload,
+    password: String,
+) -> Result<crate::export_crypto::EncryptedEnvelope, String> {
+    let plaintext = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
+    crate::export_crypto::encrypt(&plaintext, &password)
+}
+
+#[tauri::command]
+pub async fn decrypt_export_payload(
+    envelope: crate::export_crypto::EncryptedEnvelope,
+    password: String,
+) -> Result<ExportPayload, String> {
+    let plaintext = crate::export_crypto::decrypt(&envelope, &password)?;
+    serde_json::from_str(&plaintext).map_err(|e| format!("Invalid export payload: {e}"))
+}
+
+#[tauri::command]
 pub async fn import_connections_payload<R: Runtime>(
+    app: AppHandle<R>,
+    payload: ExportPayload,
+) -> Result<(), String> {
+    apply_export_payload(app, payload).await
+}
+
+/// Merge an `ExportPayload` into the user's stored connections, groups, SSH and
+/// K8s records, moving any inline secrets into the keychain. Shared by the JSON
+/// import command above and the foreign-app import flow.
+pub async fn apply_export_payload<R: Runtime>(
     app: AppHandle<R>,
     payload: ExportPayload,
 ) -> Result<(), String> {
@@ -4547,19 +5944,22 @@ pub async fn import_connections_payload<R: Runtime>(
         .inner()
         .clone();
 
-    // Merge groups
-    for new_group in payload.groups {
-        if let Some(existing) = current_file.groups.iter_mut().find(|g| g.id == new_group.id) {
-            *existing = new_group;
-        } else {
-            current_file.groups.push(new_group);
-        }
-    }
+    // Merge groups (preserves hierarchy; demotes orphaned parent_ids to root)
+    merge_groups(&mut current_file.groups, payload.groups);
 
     // Merge connections and handle passwords
     for mut new_conn in payload.connections {
+        // An imported payload is untrusted input and may carry an inline URI.
+        // Hold it to the same rule as a save: keychain or nothing.
+        validate_connection_uri_persistence(&new_conn.params)?;
+
         // Handle passwords in keychain
         if new_conn.params.save_in_keychain.unwrap_or(false) {
+            if let Some(uri) = runtime_connection_uri(&new_conn.params) {
+                let uri = uri.to_string();
+                keychain_utils::set_connection_uri(&new_conn.id, &uri)?;
+                credential_cache::set_connection_uri_cached(&cache, &new_conn.id, &uri);
+            }
             if let Some(pwd) = &new_conn.params.password {
                 keychain_utils::set_db_password(&new_conn.id, pwd)?;
                 credential_cache::set_db_password_cached(&cache, &new_conn.id, pwd);
@@ -4583,6 +5983,11 @@ pub async fn import_connections_payload<R: Runtime>(
             new_conn.params.ssh_password = None;
             new_conn.params.ssh_key_passphrase = None;
         }
+
+        // The URI never reaches disk: it is either in the keychain by now, or
+        // `validate_connection_uri_persistence` rejected the payload above.
+        let imported_uri_in_keychain = runtime_connection_uri(&new_conn.params).is_some();
+        new_conn.params = params_for_persistence(&new_conn.params, imported_uri_in_keychain);
 
         if let Some(existing) = current_file
             .connections

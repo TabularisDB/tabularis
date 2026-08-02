@@ -40,10 +40,12 @@ export function resolveParams(
       unresolvedParams.push(name);
       continue;
     }
-    // Replace all occurrences of @name with the value
+    // Replace all occurrences of @name with the value. The replacer function
+    // keeps `$&`, `$'` etc. in the value literal instead of being expanded as
+    // replacement patterns.
     resolvedSql = resolvedSql.replace(
       new RegExp(`@${name}\\b`, "g"),
-      value,
+      () => value,
     );
   }
 

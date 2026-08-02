@@ -59,10 +59,15 @@ import {
 } from "../../utils/notebookStore";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useSqlAutocompleteRegistration } from "../../hooks/useSqlAutocompleteRegistration";
-import { isMultiDatabaseCapable } from "../../utils/database";
+import { usesMultiDatabaseLayout } from "../../utils/database";
 import { useSettings } from "../../hooks/useSettings";
 import { useAlert } from "../../hooks/useAlert";
 import { useKeybindings } from "../../hooks/useKeybindings";
+import {
+  useDangerousQueryGuard,
+  DANGEROUS_QUERY_I18N,
+} from "../../hooks/useDangerousQueryGuard";
+import { ConfirmModal } from "../modals/ConfirmModal";
 import { NotebookToolbar } from "./NotebookToolbar";
 import { NotebookHistoryPanel } from "./NotebookHistoryPanel";
 import { NotebookCellWrapper } from "./NotebookCellWrapper";
@@ -86,9 +91,9 @@ export function NotebookView({
   isActive,
 }: NotebookViewProps) {
   const { t } = useTranslation();
-  const { activeSchema, activeCapabilities, selectedDatabases } = useDatabase();
-  const isMultiDb =
-    isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1;
+  const { activeSchema, activeCapabilities, selectedDatabases, activeDriver } =
+    useDatabase();
+  const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
   const effectiveSchema =
     tab.schema || activeSchema || (isMultiDb ? selectedDatabases[0] : null);
   useSqlAutocompleteRegistration(connectionId, {
@@ -98,6 +103,11 @@ export function NotebookView({
   const { settings } = useSettings();
   const { showAlert } = useAlert();
   const { matchesShortcut } = useKeybindings();
+  const {
+    pending: dangerousQuery,
+    guardQuery: guardDangerousQuery,
+    resolve: resolveDangerousQuery,
+  } = useDangerousQueryGuard();
 
   // Local notebook state — loaded from store/disk, NOT from tab
   const [notebook, setNotebook] = useState<NotebookState | null>(() =>
@@ -342,6 +352,7 @@ export function NotebookView({
       const { sql: resolvedSql, unresolvedRefs } = resolveQueryVariables(
         sql,
         cellsRef.current,
+        { escapeBackslashes: activeDriver === "mysql" },
       );
 
       if (unresolvedRefs.length > 0) {
@@ -353,6 +364,11 @@ export function NotebookView({
           isLoading: false,
           result: null,
         });
+        return;
+      }
+
+      if (!(await guardDangerousQuery(resolvedSql))) {
+        updateCell(cellId, { isLoading: false });
         return;
       }
 
@@ -409,6 +425,8 @@ export function NotebookView({
       settings.resultPageSize,
       updateCell,
       params,
+      activeDriver,
+      guardDangerousQuery,
     ],
   );
 
@@ -820,6 +838,25 @@ export function NotebookView({
 
   return (
     <div className="flex flex-col h-full relative">
+      <ConfirmModal
+        isOpen={!!dangerousQuery}
+        onClose={() => resolveDangerousQuery(false)}
+        onConfirm={() => resolveDangerousQuery(true)}
+        title={t(
+          dangerousQuery
+            ? DANGEROUS_QUERY_I18N[dangerousQuery.kind].title
+            : "editor.dangerousQueryTitle",
+        )}
+        message={t(
+          dangerousQuery
+            ? DANGEROUS_QUERY_I18N[dangerousQuery.kind].message
+            : "editor.dangerousQueryMessage",
+        )}
+        sql={dangerousQuery?.sql}
+        confirmLabel={t("editor.dangerousQueryConfirm")}
+        variant="danger"
+        confirmDelaySeconds={5}
+      />
       <NotebookToolbar {...toolbarProps} />
       {showHistory && (
         <NotebookHistoryPanel

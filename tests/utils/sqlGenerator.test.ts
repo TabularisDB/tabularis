@@ -324,6 +324,17 @@ describe('sqlGenerator utils', () => {
       expect(result[0]).toContain('UNIQUE');
       expect(result[1]).not.toContain('UNIQUE');
     });
+
+    it('should not identifier-quote expression columns', () => {
+      const indexes: Index[] = [
+        { name: 'idx_lower_email', column_name: 'lower(email)', is_unique: false, is_primary: false, seq_in_index: 1, is_expression: true },
+        { name: 'idx_mixed', column_name: 'status', is_unique: false, is_primary: false, seq_in_index: 1 },
+        { name: 'idx_mixed', column_name: 'lower(email)', is_unique: false, is_primary: false, seq_in_index: 2, is_expression: true },
+      ];
+      const result = generateIndexStatements(indexes, tableName, '"');
+      expect(result).toContain('CREATE INDEX "idx_lower_email" ON "users" (lower(email));');
+      expect(result).toContain('CREATE INDEX "idx_mixed" ON "users" ("status", lower(email));');
+    });
   });
 
   describe('generateCreateTableSQL', () => {

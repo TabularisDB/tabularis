@@ -1,6 +1,53 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
+
+/// Returns the set of group IDs that form the subtree rooted at `root_id`,
+/// including the root itself. Walks `parent_id` pointers transitively so
+/// any number of nesting levels is collected. The caller is expected to
+/// have already verified that `root_id` exists; an unknown id yields a
+/// singleton set containing just that id (which won't match any record).
+pub fn collect_group_subtree(groups: &[ConnectionGroup], root_id: &str) -> HashSet<String> {
+    let mut to_delete: HashSet<String> = HashSet::new();
+    to_delete.insert(root_id.to_string());
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for g in groups {
+            if let Some(parent) = g.parent_id.as_ref() {
+                if to_delete.contains(parent) && to_delete.insert(g.id.clone()) {
+                    changed = true;
+                }
+            }
+        }
+    }
+    to_delete
+}
+
+/// Returns the set of group IDs consisting of `leaf_ids` and all their
+/// ancestors, walking `parent_id` pointers up to the roots. Unknown ids are
+/// ignored. Used to prune the group list when exporting a subset of
+/// connections without orphaning their group hierarchy.
+pub fn collect_group_ancestors<'a>(
+    groups: &[ConnectionGroup],
+    leaf_ids: impl IntoIterator<Item = &'a str>,
+) -> HashSet<String> {
+    let parents: HashMap<&str, Option<&str>> = groups
+        .iter()
+        .map(|g| (g.id.as_str(), g.parent_id.as_deref()))
+        .collect();
+    let mut kept: HashSet<String> = HashSet::new();
+    for leaf in leaf_ids {
+        let mut current = Some(leaf);
+        while let Some(id) = current {
+            if !parents.contains_key(id) || !kept.insert(id.to_string()) {
+                break;
+            }
+            current = parents.get(id).copied().flatten();
+        }
+    }
+    kept
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -117,6 +164,15 @@ pub struct SshTestParams {
     pub allow_passphrase_prompt: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
+    /// Id of the saved database connection whose inline SSH secrets should be
+    /// used as a fallback: they live in the keychain under the DB connection
+    /// id, not in the SSH connections file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub db_connection_id: Option<String>,
+    /// When set, the test emits "connection-test-progress" events tagged with
+    /// this id so the caller can render a step log.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -126,6 +182,22 @@ pub struct ConnectionParams {
     pub port: Option<u16>,
     pub username: Option<String>,
     pub password: Option<String>,
+    /// Opaque driver-specific connection URI forwarded verbatim to the driver
+    /// (e.g. a `mongodb+srv://` seedlist URI). Runtime only: command handlers
+    /// strip it before persisting a connection, because it embeds credentials.
+    #[serde(
+        default,
+        alias = "connectionUri",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub connection_uri: Option<String>,
+    /// True when the URI can be restored from a separate OS keychain entry.
+    #[serde(
+        default,
+        alias = "connectionUriInKeychain",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub connection_uri_in_keychain: Option<bool>,
     pub database: DatabaseSelection,
     pub ssl_mode: Option<String>,
     pub ssl_ca: Option<String>,
@@ -140,6 +212,11 @@ pub struct ConnectionParams {
     // Set to `false` for servers that reject altering sql_mode, e.g. Vitess/PlanetScale.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pipes_as_concat: Option<bool>,
+    // When true, `password` is a pre-signed RDS auth token (from
+    // `aws rds generate-db-auth-token`) instead of a real password.
+    // Requires TLS; only meaningful for the `mysql` driver.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_iam_auth: Option<bool>,
     // SSH Tunnel
     pub ssh_enabled: Option<bool>,
     pub ssh_connection_id: Option<String>,
@@ -174,6 +251,10 @@ pub struct ConnectionParams {
     pub k8s_resource_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub k8s_port: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub k8s_kubectl_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub k8s_kubeconfig_path: Option<String>,
     /// SQL run on every new physical connection in the pool (e.g. `SET` /
     /// `set_config` for session-scoped settings such as bypassing RLS).
     /// Statements are separated by `;`. Runs per pooled connection so the
@@ -218,7 +299,7 @@ pub struct SavedConnection {
     pub appearance: Option<ConnectionAppearance>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct ConnectionGroup {
     pub id: String,
     pub name: String,
@@ -226,6 +307,10 @@ pub struct ConnectionGroup {
     pub collapsed: bool,
     #[serde(default)]
     pub sort_order: i32,
+    /// `Some(group_id)` makes this group a child of that group; `None` is a
+    /// top-level root. Cycles are rejected by the backend.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -245,6 +330,10 @@ pub struct K8sConnection {
     pub resource_type: String, // "service" or "pod"
     pub resource_name: String,
     pub port: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubectl_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubeconfig_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -255,6 +344,10 @@ pub struct K8sConnectionInput {
     pub resource_type: String,
     pub resource_name: String,
     pub port: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubectl_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubeconfig_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -284,6 +377,10 @@ pub struct TestConnectionRequest {
     pub params: ConnectionParams,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
+    /// When set, the test emits "connection-test-progress" events tagged with
+    /// this id so the caller can render a live step log.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -302,8 +399,6 @@ pub struct TableColumn {
     pub default_value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub character_maximum_length: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub udt_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -323,6 +418,8 @@ pub struct Index {
     pub is_unique: bool,
     pub is_primary: bool,
     pub seq_in_index: i32,
+    #[serde(default)]
+    pub is_expression: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -341,6 +438,12 @@ pub struct QueryResult {
     #[serde(default)]
     pub truncated: bool,
     pub pagination: Option<Pagination>,
+    /// Extra result sets produced by a single statement beyond the first one,
+    /// e.g. a MySQL `CALL` to a stored procedure containing multiple `SELECT`s.
+    /// The first result set stays in `columns` / `rows` so consumers unaware
+    /// of multi-result statements keep working unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub additional_results: Option<Vec<QueryResult>>,
 }
 
 /// One statement's outcome within an `execute_batch` call. Exactly one of
@@ -380,56 +483,34 @@ impl BatchStatementResult {
     }
 }
 
-/// A single node in a query execution plan tree.
+/// Raw EXPLAIN output produced by a built-in driver.
+///
+/// Parsing lives in the `@tabularis/explain` TypeScript package
+/// (`parseRawExplain`): a driver's job ends at handing over the payload it
+/// obtained — text, a JSON document, or decoded rows re-serialised as a JSON
+/// array — plus the format tag naming what it is.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ExplainNode {
-    pub id: String,
-    pub node_type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub relation: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub startup_cost: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_cost: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub plan_rows: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub actual_rows: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub actual_time_ms: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub actual_loops: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub buffers_hit: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub buffers_read: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub filter: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub index_condition: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub join_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hash_condition: Option<String>,
-    #[serde(default)]
-    pub extra: HashMap<String, serde_json::Value>,
-    #[serde(default)]
-    pub children: Vec<ExplainNode>,
+pub struct RawExplainOutput {
+    /// Driver id of the engine that produced the payload ("postgres", …).
+    pub engine: String,
+    /// Wire format tag understood by `@tabularis/explain`:
+    /// `postgres-json`, `mysql-json`, `mysql-analyze-text`,
+    /// `mysql-tabular-rows` or `sqlite-eqp-rows`.
+    pub format: String,
+    /// The untouched payload: text, a JSON document, or rows as a JSON array.
+    pub payload: String,
+    pub original_query: String,
 }
 
-/// The complete result of an EXPLAIN query, including the plan tree and metadata.
+/// What `explain_query` hands to the frontend: a raw payload from a built-in
+/// driver, or a plan a plugin driver already parsed. Plugins know engines the
+/// core parsers do not, so their JSON-RPC `explain_query` result passes
+/// through untouched.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ExplainPlan {
-    pub root: ExplainNode,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub planning_time_ms: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub execution_time_ms: Option<f64>,
-    pub original_query: String,
-    pub driver: String,
-    pub has_analyze_data: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub raw_output: Option<String>,
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum ExplainQueryOutput {
+    Raw { raw: RawExplainOutput },
+    Plan { plan: serde_json::Value },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -437,6 +518,15 @@ pub struct TableSchema {
     pub name: String,
     pub columns: Vec<TableColumn>,
     pub foreign_keys: Vec<ForeignKey>,
+}
+
+/// Bounded schema metadata prepared by a database driver for AI features.
+/// The host remains responsible for rendering this structured data into a
+/// provider-agnostic prompt.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AiSchemaContext {
+    pub tables: Vec<TableSchema>,
+    pub total_table_count: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -480,6 +570,41 @@ pub struct TriggerInfo {
     pub event: String,   // e.g. "INSERT", "UPDATE", "DELETE", "INSERT OR UPDATE"
     pub timing: String,  // "BEFORE", "AFTER", "INSTEAD OF"
     pub definition: Option<String>,
+}
+
+/// One database account as listed by the server (MySQL/MariaDB:
+/// `mysql.user` rows, identified by the `user`@`host` pair).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DbUserInfo {
+    pub user: String,
+    pub host: String,
+    /// Account is locked (`ALTER USER ... ACCOUNT LOCK`); `false` when the
+    /// server does not expose the flag.
+    pub locked: bool,
+}
+
+/// The privilege keywords a driver accepts in `apply_db_user_privileges`,
+/// split by scope. Sent to the frontend so the privilege editor renders the
+/// dialect's own catalog instead of hardcoding one.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct DbPrivilegeCatalog {
+    /// Privileges valid at the database scope (and also globally).
+    pub database: Vec<String>,
+    /// Privileges valid only at the global scope.
+    pub global: Vec<String>,
+    /// Privileges valid at the table scope.
+    pub table: Vec<String>,
+}
+
+/// One account's privileges on one scope, parsed from the server's grant
+/// metadata (MySQL: one `SHOW GRANTS` line). `database == None` is the
+/// global scope; `table` is only ever `Some` when `database` is.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct DbUserGrantSet {
+    pub database: Option<String>,
+    pub table: Option<String>,
+    /// Canonical privilege keywords, `GRANT OPTION` included as an entry.
+    pub privileges: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -10,6 +10,9 @@ import fr from './locales/fr.json';
 import de from './locales/de.json';
 import ja from './locales/ja.json';
 import ru from './locales/ru.json';
+import ko from './locales/ko.json';
+import tl from './locales/tl.json';
+import ptBR from './locales/pt-BR.json';
 
 /**
  * Single source of truth for supported languages.
@@ -24,20 +27,31 @@ export const SUPPORTED_LANGUAGES = [
   { id: "de", label: "Deutsch", translation: de },
   { id: "ja", label: "日本語", translation: ja },
   { id: "ru", label: "Русский", translation: ru },
+  { id: "ko", label: "한국어", translation: ko },
+  { id: "tl", label: "Tagalog", translation: tl },
+  { id: "pt-BR", label: "Português (Brasil)", translation: ptBR },
 ] as const;
 
 export type AppLanguage = "auto" | (typeof SUPPORTED_LANGUAGES)[number]["id"];
 
-const resources = Object.fromEntries(
-  SUPPORTED_LANGUAGES.map(({ id, translation }) => [id, { translation }]),
-);
+const resources = {
+  ...Object.fromEntries(
+    SUPPORTED_LANGUAGES.map(({ id, translation }) => [id, { translation }]),
+  ),
+  // Browser auto-detection often reports fil / fil-PH
+  fil: { translation: tl },
+};
 
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources,
-    fallbackLng: 'en',
+    fallbackLng: {
+      fil: ['tl', 'en'],
+      default: ['en'],
+    },
+    supportedLngs: [...SUPPORTED_LANGUAGES.map((l) => l.id), 'fil'],
     interpolation: {
       escapeValue: false,
     },

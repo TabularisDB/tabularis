@@ -89,7 +89,6 @@ pub async fn get_columns(
                 is_auto_increment: false,
                 default_value: dflt_value,
                 character_maximum_length: None,
-                udt_name: None,
             }
         })
         .collect())
@@ -178,7 +177,6 @@ pub async fn get_all_columns_batch(
                     is_auto_increment: false, // SQLite doesn't expose this via table_info easily, typically AUTOINCREMENT on INTEGER PRIMARY KEY
                     default_value: dflt_value,
                     character_maximum_length: None,
-                    udt_name: None,
                 }
             })
             .collect();
@@ -236,11 +234,29 @@ pub async fn get_indexes(
 ) -> Result<Vec<Index>, String> {
     let pool = get_sqlite_pool(params).await?;
 
+    use std::collections::HashMap;
+
     let list_query = format!("PRAGMA index_list('{}')", table_name);
     let indexes = sqlx::query(&list_query)
         .fetch_all(&pool)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Expression columns come back from PRAGMA index_info with a NULL name;
+    // their text lives only in the CREATE INDEX DDL, so fetch it to recover them.
+    let ddl_rows =
+        sqlx::query("SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ?1")
+            .bind(table_name)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    let mut index_sql: HashMap<String, String> = HashMap::new();
+    for row in &ddl_rows {
+        let name: String = row.try_get("name").unwrap_or_default();
+        if let Ok(Some(sql)) = row.try_get::<Option<String>, _>("sql") {
+            index_sql.insert(name, sql);
+        }
+    }
 
     let mut result = Vec::new();
 
@@ -255,18 +271,102 @@ pub async fn get_indexes(
             .await
             .map_err(|e| e.to_string())?;
 
+        let parsed_columns = index_sql.get(&name).map(|sql| parse_sqlite_index_columns(sql));
+
         for info in info_rows {
+            let seqno: i32 = info.try_get("seqno").unwrap_or(0);
+            let col_name = info.try_get::<Option<String>, _>("name").ok().flatten();
+            let is_expression = col_name.is_none();
+            let column_name = if is_expression {
+                parsed_columns
+                    .as_ref()
+                    .and_then(|cols| cols.get(seqno as usize))
+                    .cloned()
+                    .unwrap_or_default()
+            } else {
+                col_name.unwrap_or_default()
+            };
             result.push(Index {
                 name: name.clone(),
-                column_name: info.try_get("name").unwrap_or_default(),
+                column_name,
                 is_unique: unique > 0,
                 is_primary: origin == "pk",
-                seq_in_index: info.try_get::<i32, _>("seqno").unwrap_or(0),
+                seq_in_index: seqno,
+                is_expression,
             });
         }
     }
 
     Ok(result)
+}
+
+/// Extract top-level column/expression tokens from a `CREATE INDEX` column
+/// list, e.g. `... ON t (a, lower(b))` -> `["a", "lower(b)"]`.
+pub(super) fn parse_sqlite_index_columns(sql: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0i32;
+    let mut quote: Option<char> = None;
+    let mut started = false;
+
+    for ch in sql.chars() {
+        if let Some(q) = quote {
+            if started {
+                current.push(ch);
+            }
+            if ch == q {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '\'' | '"' | '`' => {
+                quote = Some(ch);
+                if started {
+                    current.push(ch);
+                }
+            }
+            '[' => {
+                quote = Some(']');
+                if started {
+                    current.push(ch);
+                }
+            }
+            '(' => {
+                depth += 1;
+                if depth == 1 {
+                    started = true; // column list opens; skip the '(' itself
+                } else {
+                    current.push(ch);
+                }
+            }
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    let t = current.trim();
+                    if !t.is_empty() {
+                        tokens.push(t.to_string());
+                    }
+                    break;
+                }
+                current.push(ch);
+            }
+            ',' if depth == 1 => {
+                let t = current.trim();
+                if !t.is_empty() {
+                    tokens.push(t.to_string());
+                }
+                current.clear();
+            }
+            _ => {
+                if started {
+                    current.push(ch);
+                }
+            }
+        }
+    }
+
+    tokens
 }
 
 fn sqlite_push_pk_val(
@@ -532,6 +632,7 @@ async fn exec_on_sqlite_conn(
             affected_rows: exec_result.rows_affected(),
             truncated: false,
             pagination: None,
+            additional_results: None,
         });
     }
 
@@ -607,6 +708,7 @@ async fn exec_on_sqlite_conn(
         affected_rows: 0,
         truncated,
         pagination,
+        additional_results: None,
     })
 }
 
@@ -757,7 +859,6 @@ pub async fn get_view_columns(
                 is_auto_increment: false,
                 default_value: dflt_value,
                 character_maximum_length: None,
-                udt_name: None,
             }
         })
         .collect())
@@ -881,6 +982,7 @@ impl SqliteDriver {
                 default_port: None,
                 capabilities: DriverCapabilities {
                     schemas: false,
+                    single_database: false,
                     views: true,
                     materialized_views: false,
                     routines: false,
@@ -889,6 +991,8 @@ impl SqliteDriver {
                     folder_based: false,
                     connection_string: false,
                     connection_string_example: String::new(),
+                    connection_uri: false,
+                    connection_uri_schemes: Vec::new(),
                     identifier_quote: "\"".into(),
                     alter_primary_key: true,
                     auto_increment_keyword: "AUTOINCREMENT".into(),
@@ -898,12 +1002,16 @@ impl SqliteDriver {
                     create_foreign_keys: false,
                     no_connection_required: false,
                     manage_tables: true,
+                    explain: true,
                     readonly: false,
                     triggers: true,
                     supports_ssl: false,
+                    user_management: false,
                     sql_dialect: SqlDialect::Sqlite,
                 },
                 is_builtin: true,
+                engine: Some("sqlite".to_string()),
+                paradigms: vec!["sql".to_string()],
                 default_username: String::new(),
                 color: "#06b6d4".to_string(),
                 icon: "sqlite".to_string(),
@@ -1164,7 +1272,7 @@ impl DatabaseDriver for SqliteDriver {
         query: &str,
         _analyze: bool,
         _schema: Option<&str>,
-    ) -> Result<crate::models::ExplainPlan, String> {
+    ) -> Result<crate::models::ExplainQueryOutput, String> {
         explain_query(params, query).await
     }
 

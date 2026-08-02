@@ -3,6 +3,12 @@ import {
   parseColumnType,
   buildColumnDefinition,
   getRequiredExtensions,
+  isEnumType,
+  parseEnumValues,
+  isSetType,
+  parseSetValues,
+  parseSetMembers,
+  serializeSetMembers,
 } from '../../src/utils/columnTypes';
 import type { DataTypeInfo } from '../../src/types/dataTypes';
 
@@ -268,6 +274,134 @@ describe('columnTypes utils', () => {
       );
       expect(result).toEqual(expect.arrayContaining(['postgis', 'hstore']));
       expect(result).toHaveLength(2);
+    });
+  });
+
+  describe('isEnumType', () => {
+    it('should detect a plain enum definition', () => {
+      expect(isEnumType("enum('pending','approved','rejected')")).toBe(true);
+    });
+
+    it('should be case-insensitive and tolerate whitespace before the paren', () => {
+      expect(isEnumType("ENUM ('a','b')")).toBe(true);
+    });
+
+    it('should not match set types', () => {
+      expect(isEnumType("set('news','tech')")).toBe(false);
+    });
+
+    it('should not match scalar types or a bare "enum" word', () => {
+      expect(isEnumType('varchar(255)')).toBe(false);
+      expect(isEnumType('enum')).toBe(false);
+      expect(isEnumType('')).toBe(false);
+    });
+  });
+
+  describe('parseEnumValues', () => {
+    it('should extract the allowed values unquoted', () => {
+      expect(parseEnumValues("enum('pending','approved','rejected')")).toEqual([
+        'pending',
+        'approved',
+        'rejected',
+      ]);
+    });
+
+    it('should unescape doubled single quotes', () => {
+      expect(parseEnumValues("enum('plain','it''s complicated','other')")).toEqual([
+        'plain',
+        "it's complicated",
+        'other',
+      ]);
+    });
+
+    it('should handle a single value', () => {
+      expect(parseEnumValues("enum('only')")).toEqual(['only']);
+    });
+
+    it('should return an empty array for non-enum input', () => {
+      expect(parseEnumValues('varchar(255)')).toEqual([]);
+      expect(parseEnumValues('enum')).toEqual([]);
+      expect(parseEnumValues('')).toEqual([]);
+    });
+  });
+
+  describe('isSetType', () => {
+    it('should detect a plain set definition', () => {
+      expect(isSetType("set('news','sport','tech')")).toBe(true);
+    });
+
+    it('should be case-insensitive and tolerate whitespace before the paren', () => {
+      expect(isSetType("SET ('a','b')")).toBe(true);
+    });
+
+    it('should not match enum types', () => {
+      expect(isSetType("enum('pending','approved')")).toBe(false);
+    });
+
+    it('should not match scalar types or a bare "set" word', () => {
+      expect(isSetType('varchar(255)')).toBe(false);
+      expect(isSetType('set')).toBe(false);
+      expect(isSetType('')).toBe(false);
+    });
+  });
+
+  describe('parseSetValues', () => {
+    it('should extract the allowed values unquoted', () => {
+      expect(parseSetValues("set('news','sport','tech')")).toEqual([
+        'news',
+        'sport',
+        'tech',
+      ]);
+    });
+
+    it('should unescape doubled single quotes', () => {
+      expect(parseSetValues("set('a','it''s','b')")).toEqual([
+        'a',
+        "it's",
+        'b',
+      ]);
+    });
+
+    it('should return an empty array for non-set input', () => {
+      expect(parseSetValues("enum('a','b')")).toEqual([]);
+      expect(parseSetValues('set')).toEqual([]);
+      expect(parseSetValues('')).toEqual([]);
+    });
+  });
+
+  describe('parseSetMembers', () => {
+    it('should split a comma-joined set value into members', () => {
+      expect(parseSetMembers('news,tech')).toEqual(['news', 'tech']);
+    });
+
+    it('should return an empty array for the empty set', () => {
+      expect(parseSetMembers('')).toEqual([]);
+    });
+
+    it('should handle a single member', () => {
+      expect(parseSetMembers('news')).toEqual(['news']);
+    });
+  });
+
+  describe('serializeSetMembers', () => {
+    const allowed = ['news', 'sport', 'tech', 'music'];
+
+    it('should serialize members in the declared order regardless of input order', () => {
+      expect(serializeSetMembers(['tech', 'news'], allowed)).toBe('news,tech');
+    });
+
+    it('should ignore members not present in the allowed list', () => {
+      expect(serializeSetMembers(['news', 'bogus'], allowed)).toBe('news');
+    });
+
+    it('should return an empty string for no members', () => {
+      expect(serializeSetMembers([], allowed)).toBe('');
+    });
+
+    it('should accept a Set as input', () => {
+      expect(serializeSetMembers(new Set(['music', 'sport']), allowed)).toBe(
+        'sport,music',
+      );
     });
   });
 });

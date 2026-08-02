@@ -17,18 +17,18 @@ describe("isJsonColumn", () => {
 });
 
 describe("isHstoreColumn", () => {
-  it("recognizes hstore by udt_name regardless of case", () => {
+  it("recognizes hstore regardless of case", () => {
     expect(isHstoreColumn("hstore")).toBe(true);
     expect(isHstoreColumn("HSTORE")).toBe(true);
   });
 
-  it("rejects other udt_names, including other USER-DEFINED types", () => {
+  it("rejects other user-defined type names", () => {
     expect(isHstoreColumn("citext")).toBe(false);
     expect(isHstoreColumn("mood")).toBe(false);
     expect(isHstoreColumn("text")).toBe(false);
   });
 
-  it("returns false for missing udt_name", () => {
+  it("returns false for missing type", () => {
     expect(isHstoreColumn(undefined)).toBe(false);
     expect(isHstoreColumn(null)).toBe(false);
     expect(isHstoreColumn("")).toBe(false);

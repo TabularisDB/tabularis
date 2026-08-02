@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   isMultiDatabaseCapable,
+  usesMultiDatabaseLayout,
   isMultiDatabaseSelection,
+  getTableDataChangeScope,
   getDatabaseList,
   getEffectiveDatabase,
+  reconcileDatabaseSelection,
 } from '../../src/utils/database';
 import type { DriverCapabilities } from '../../src/types/plugins';
 
@@ -34,6 +37,25 @@ describe('isMultiDatabaseCapable', () => {
     expect(isMultiDatabaseCapable({ ...baseCapabilities, folder_based: true })).toBe(false);
   });
 
+  it('returns false for a single_database store (Meilisearch)', () => {
+    expect(isMultiDatabaseCapable({ ...baseCapabilities, single_database: true })).toBe(false);
+  });
+});
+
+describe('usesMultiDatabaseLayout', () => {
+  it('is on for a multi-db driver with any populated selection', () => {
+    expect(usesMultiDatabaseLayout(baseCapabilities, ['a', 'b'])).toBe(true);
+    // A single database still needs the multi-db presentation: all-databases
+    // connections have no default schema, so queries must stay db-qualified.
+    expect(usesMultiDatabaseLayout(baseCapabilities, ['a'])).toBe(true);
+  });
+
+  it('is off with an empty selection or a non multi-db driver', () => {
+    expect(usesMultiDatabaseLayout(baseCapabilities, [])).toBe(false);
+    expect(usesMultiDatabaseLayout({ ...baseCapabilities, schemas: true }, ['a'])).toBe(false);
+    expect(usesMultiDatabaseLayout(null, ['a'])).toBe(false);
+  });
+
   it('returns false when both schemas and file_based are true', () => {
     expect(isMultiDatabaseCapable({ ...baseCapabilities, schemas: true, file_based: true })).toBe(false);
   });
@@ -44,6 +66,44 @@ describe('isMultiDatabaseCapable', () => {
 
   it('returns false for undefined capabilities', () => {
     expect(isMultiDatabaseCapable(undefined)).toBe(false);
+  });
+});
+
+describe('getTableDataChangeScope', () => {
+  it('prefers the table tab schema for schema-capable drivers', () => {
+    expect(
+      getTableDataChangeScope(
+        { ...baseCapabilities, schemas: true },
+        'schema_a',
+        'schema_b',
+      ),
+    ).toEqual({ schema: 'schema_a' });
+  });
+
+  it('falls back to the active schema when a schema-capable tab has no schema', () => {
+    expect(
+      getTableDataChangeScope(
+        { ...baseCapabilities, schemas: true },
+        undefined,
+        'public',
+      ),
+    ).toEqual({ schema: 'public' });
+  });
+
+  it('uses the table tab value as database for multi-database drivers', () => {
+    expect(getTableDataChangeScope(baseCapabilities, 'app_db', 'ignored')).toEqual({
+      database: 'app_db',
+    });
+  });
+
+  it('omits scope for flat drivers', () => {
+    expect(
+      getTableDataChangeScope(
+        { ...baseCapabilities, file_based: true },
+        'main',
+        'public',
+      ),
+    ).toEqual({});
   });
 });
 
@@ -88,6 +148,58 @@ describe('getDatabaseList', () => {
 
   it('returns single-element array for single-element array input', () => {
     expect(getDatabaseList(['only'])).toEqual(['only']);
+  });
+});
+
+describe('reconcileDatabaseSelection', () => {
+  it('keeps the selection unchanged when every database exists', () => {
+    expect(reconcileDatabaseSelection(['a', 'b'], ['a', 'b', 'c'])).toEqual({
+      selection: ['a', 'b'],
+      removed: [],
+    });
+  });
+
+  it('removes databases that no longer exist on the server', () => {
+    expect(reconcileDatabaseSelection(['a', 'vins', 'b'], ['a', 'b', 'c'])).toEqual({
+      selection: ['a', 'b'],
+      removed: ['vins'],
+    });
+  });
+
+  it('preserves the saved order of the surviving selection', () => {
+    expect(reconcileDatabaseSelection(['z', 'a', 'm'], ['a', 'm', 'z']).selection).toEqual([
+      'z',
+      'a',
+      'm',
+    ]);
+  });
+
+  it('reports everything as removed when the server list is empty', () => {
+    expect(reconcileDatabaseSelection(['a', 'b'], [])).toEqual({
+      selection: [],
+      removed: ['a', 'b'],
+    });
+  });
+
+  it('returns empty results for an empty saved selection', () => {
+    expect(reconcileDatabaseSelection([], ['a', 'b'])).toEqual({
+      selection: [],
+      removed: [],
+    });
+  });
+
+  it('matches database names case-sensitively', () => {
+    expect(reconcileDatabaseSelection(['Vins'], ['vins'])).toEqual({
+      selection: [],
+      removed: ['Vins'],
+    });
+  });
+
+  it('keeps duplicate saved entries that exist on the server', () => {
+    expect(reconcileDatabaseSelection(['a', 'a'], ['a'])).toEqual({
+      selection: ['a', 'a'],
+      removed: [],
+    });
   });
 });
 

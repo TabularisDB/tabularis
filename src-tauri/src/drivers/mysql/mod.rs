@@ -4,8 +4,10 @@ pub mod types;
 
 mod explain;
 mod helpers;
+mod multi_result;
 mod routines;
 mod stmt_classify;
+mod users;
 
 #[cfg(test)]
 mod stmt_classify_tests;
@@ -255,7 +257,10 @@ pub async fn get_tables(
     let rows = fetch_all_rows(
         &pool,
         text,
-        "SELECT table_name as name FROM information_schema.tables WHERE table_schema = ? AND table_type = 'BASE TABLE' ORDER BY table_name ASC",
+        // MariaDB reports tables created WITH SYSTEM VERSIONING as table_type
+        // 'SYSTEM VERSIONED' rather than 'BASE TABLE', so they must be included
+        // explicitly or they silently vanish from the table list.
+        "SELECT table_name as name FROM information_schema.tables WHERE table_schema = ? AND table_type IN ('BASE TABLE', 'SYSTEM VERSIONED') ORDER BY table_name ASC",
         &[db_name],
     )
     .await?;
@@ -279,7 +284,7 @@ pub async fn get_columns(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT column_name, data_type, column_key, is_nullable, extra, column_default, character_maximum_length
+        SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length
         FROM information_schema.columns
         WHERE table_schema = ? AND table_name = ?
         ORDER BY ordinal_position
@@ -291,12 +296,24 @@ pub async fn get_columns(
         .iter()
         .map(|r| {
             let column_name = mysql_row_str(r, 0);
-            let data_type = mysql_row_str(r, 1);
-            let key = mysql_row_str(r, 2);
-            let null_str = mysql_row_str(r, 3);
-            let extra = mysql_row_str(r, 4);
-            let default_val = mysql_row_str_opt(r, 5);
-            let character_maximum_length: Option<u64> = r.try_get(6).ok();
+            let raw_data_type = mysql_row_str(r, 1);
+            let column_type = mysql_row_str(r, 2);
+            let key = mysql_row_str(r, 3);
+            let null_str = mysql_row_str(r, 4);
+            let extra = mysql_row_str(r, 5);
+            let default_val = mysql_row_str_opt(r, 6);
+            let character_maximum_length: Option<u64> = r.try_get(7).ok();
+
+            // For ENUM and SET, `data_type` returns only the base name (e.g. "enum"),
+            // while `column_type` returns the full definition with allowed values
+            // (e.g. "enum('pending','approved','rejected')").
+            let data_type = if raw_data_type.eq_ignore_ascii_case("enum")
+                || raw_data_type.eq_ignore_ascii_case("set")
+            {
+                column_type
+            } else {
+                raw_data_type
+            };
 
             let is_auto_increment = extra.contains("auto_increment");
 
@@ -317,7 +334,6 @@ pub async fn get_columns(
                 is_auto_increment,
                 default_value,
                 character_maximum_length,
-                udt_name: None,
             }
         })
         .collect())
@@ -376,7 +392,7 @@ pub async fn get_all_columns_batch(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-        SELECT table_name, column_name, data_type, column_key, is_nullable, extra, column_default, character_maximum_length
+        SELECT table_name, column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length
         FROM information_schema.columns
         WHERE table_schema = ?
         ORDER BY table_name, ordinal_position
@@ -389,12 +405,24 @@ pub async fn get_all_columns_batch(
     for row in &rows {
         let table_name = mysql_row_str(row, 0);
         let column_name = mysql_row_str(row, 1);
-        let data_type = mysql_row_str(row, 2);
-        let key = mysql_row_str(row, 3);
-        let null_str = mysql_row_str(row, 4);
-        let extra = mysql_row_str(row, 5);
-        let default_val = mysql_row_str_opt(row, 6);
-        let character_maximum_length: Option<u64> = row.try_get(7).ok();
+        let raw_data_type = mysql_row_str(row, 2);
+        let column_type = mysql_row_str(row, 3);
+        let key = mysql_row_str(row, 4);
+        let null_str = mysql_row_str(row, 5);
+        let extra = mysql_row_str(row, 6);
+        let default_val = mysql_row_str_opt(row, 7);
+        let character_maximum_length: Option<u64> = row.try_get(8).ok();
+
+        // For ENUM and SET, `data_type` returns only the base name (e.g. "enum"),
+        // while `column_type` returns the full definition with allowed values
+        // (e.g. "enum('pending','approved','rejected')").
+        let data_type = if raw_data_type.eq_ignore_ascii_case("enum")
+            || raw_data_type.eq_ignore_ascii_case("set")
+        {
+            column_type
+        } else {
+            raw_data_type
+        };
 
         let is_auto_increment = extra.contains("auto_increment");
 
@@ -415,7 +443,6 @@ pub async fn get_all_columns_batch(
             is_auto_increment,
             default_value,
             character_maximum_length,
-            udt_name: None,
         };
 
         result
@@ -486,7 +513,37 @@ pub async fn get_indexes(
     let pool = get_mysql_pool(params).await?;
     let text = resolve_text_proto(&pool, params).await?;
 
-    let query = r#"
+    // MySQL 8.0.13+ exposes functional-index text in STATISTICS.EXPRESSION;
+    // older MySQL and MariaDB lack the column, so probe before selecting it.
+    let has_expression = {
+        let probe = r#"
+            SELECT COUNT(*)
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = 'information_schema'
+            AND TABLE_NAME = 'STATISTICS'
+            AND COLUMN_NAME = 'EXPRESSION'
+        "#;
+        match fetch_one_row(&pool, text, probe, &[]).await {
+            Ok(row) => r_count(&row) > 0,
+            Err(_) => false,
+        }
+    };
+
+    let query = if has_expression {
+        r#"
+        SELECT
+            INDEX_NAME,
+            COLUMN_NAME,
+            NON_UNIQUE,
+            SEQ_IN_INDEX,
+            EXPRESSION
+        FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = ?
+        AND TABLE_NAME = ?
+        ORDER BY INDEX_NAME, SEQ_IN_INDEX
+    "#
+    } else {
+        r#"
         SELECT
             INDEX_NAME,
             COLUMN_NAME,
@@ -496,7 +553,8 @@ pub async fn get_indexes(
         WHERE TABLE_SCHEMA = ?
         AND TABLE_NAME = ?
         ORDER BY INDEX_NAME, SEQ_IN_INDEX
-    "#;
+    "#
+    };
 
     let rows = fetch_all_rows(&pool, text, query, &[db_name, table_name]).await?;
 
@@ -504,16 +562,34 @@ pub async fn get_indexes(
         .iter()
         .map(|r| {
             let index_name = mysql_row_str(r, 0);
+            let column_name = mysql_row_str_opt(r, 1);
             let non_unique: i64 = r.try_get(2).unwrap_or(1);
+            let expression = if has_expression {
+                mysql_row_str_opt(r, 4)
+            } else {
+                None
+            };
+            let is_expression = column_name.is_none() && expression.is_some();
             Index {
                 name: index_name.clone(),
-                column_name: mysql_row_str(r, 1),
+                column_name: if is_expression {
+                    expression.unwrap_or_default()
+                } else {
+                    column_name.unwrap_or_default()
+                },
                 is_unique: non_unique == 0,
                 is_primary: index_name == "PRIMARY",
                 seq_in_index: r.try_get::<i64, _>(3).unwrap_or(0) as i32,
+                is_expression,
             }
         })
         .collect())
+}
+
+/// Read a `COUNT(*)` scalar, tolerating text-protocol (byte string) decoding.
+fn r_count(row: &sqlx::mysql::MySqlRow) -> i64 {
+    row.try_get::<i64, _>(0)
+        .unwrap_or_else(|_| mysql_row_str(row, 0).trim().parse::<i64>().unwrap_or(0))
 }
 
 /// Sort the pk_map into a deterministic (col, val) vec for use with QueryBuilder.
@@ -987,7 +1063,7 @@ pub async fn get_view_columns(
     let text = resolve_text_proto(&pool, params).await?;
 
     let query = r#"
-            SELECT column_name, data_type, column_key, is_nullable, extra, column_default, character_maximum_length
+            SELECT column_name, data_type, column_type, column_key, is_nullable, extra, column_default, character_maximum_length
             FROM information_schema.columns
             WHERE table_schema = ? AND table_name = ?
             ORDER BY ordinal_position
@@ -999,12 +1075,24 @@ pub async fn get_view_columns(
         .iter()
         .map(|r| {
             let column_name = mysql_row_str(r, 0);
-            let data_type = mysql_row_str(r, 1);
-            let key = mysql_row_str(r, 2);
-            let null_str = mysql_row_str(r, 3);
-            let extra = mysql_row_str(r, 4);
-            let default_val = mysql_row_str_opt(r, 5);
-            let character_maximum_length: Option<u64> = r.try_get(6).ok();
+            let raw_data_type = mysql_row_str(r, 1);
+            let column_type = mysql_row_str(r, 2);
+            let key = mysql_row_str(r, 3);
+            let null_str = mysql_row_str(r, 4);
+            let extra = mysql_row_str(r, 5);
+            let default_val = mysql_row_str_opt(r, 6);
+            let character_maximum_length: Option<u64> = r.try_get(7).ok();
+
+            // For ENUM and SET, `data_type` returns only the base name (e.g. "enum"),
+            // while `column_type` returns the full definition with allowed values
+            // (e.g. "enum('pending','approved','rejected')").
+            let data_type = if raw_data_type.eq_ignore_ascii_case("enum")
+                || raw_data_type.eq_ignore_ascii_case("set")
+            {
+                column_type
+            } else {
+                raw_data_type
+            };
 
             let is_auto_increment = extra.contains("auto_increment");
 
@@ -1025,7 +1113,6 @@ pub async fn get_view_columns(
                 is_auto_increment,
                 default_value,
                 character_maximum_length,
-                udt_name: None,
             }
         })
         .collect())
@@ -1180,6 +1267,7 @@ async fn exec_on_mysql_conn(
             affected_rows: exec_result.rows_affected(),
             truncated: false,
             pagination: None,
+            additional_results: None,
         });
     }
 
@@ -1200,6 +1288,7 @@ async fn exec_on_mysql_conn(
             affected_rows: exec_result.rows_affected(),
             truncated: false,
             pagination: None,
+            additional_results: None,
         });
     }
 
@@ -1226,33 +1315,38 @@ async fn exec_on_mysql_conn(
         final_query = query.to_string();
     }
 
-    let mut columns: Vec<String> = Vec::new();
-    let mut json_rows = Vec::new();
+    // A single statement may stream back several result sets (e.g. a `CALL`
+    // whose procedure body holds multiple `SELECT`s), so `fetch_many` is used
+    // instead of `fetch`: it interleaves rows with one `Either::Left`
+    // terminator per result set, which the collector folds into discrete sets.
+    let mut collector = multi_result::ResultSetCollector::new(manual_limit);
 
     // Scope the stream so `conn` borrow is released before returning
     {
         use futures::stream::StreamExt;
-        let mut rows_stream = if text.enabled {
-            use sqlx::Executor;
-            (&mut *conn).fetch(sqlx::raw_sql(&final_query))
+        use sqlx::Executor;
+        let mut event_stream = if text.enabled {
+            (&mut *conn).fetch_many(sqlx::raw_sql(&final_query))
         } else {
-            sqlx::query(&final_query).fetch(&mut *conn)
+            (&mut *conn).fetch_many(sqlx::query(&final_query))
         };
 
-        while let Some(result) = rows_stream.next().await {
+        while let Some(result) = event_stream.next().await {
             match result {
-                Ok(row) => {
-                    // Initialize columns from the first row
-                    if columns.is_empty() {
-                        columns = row.columns().iter().map(|c| c.name().to_string()).collect();
+                Ok(sqlx::Either::Left(_)) => collector.end_result_set(),
+                Ok(sqlx::Either::Right(row)) => {
+                    // Initialize columns from the first row of each result set
+                    if collector.needs_columns() {
+                        collector.set_columns(
+                            row.columns().iter().map(|c| c.name().to_string()).collect(),
+                        );
                     }
 
-                    // Check limit (only if manual_limit is set)
-                    if let Some(l) = manual_limit {
-                        if json_rows.len() >= l as usize {
-                            truncated = true;
-                            break;
-                        }
+                    // Past the row cap the row is still consumed (the stream
+                    // must drain to reach later result sets) but not decoded.
+                    if collector.at_limit() {
+                        collector.note_overflow_row();
+                        continue;
                     }
 
                     // Map row using type extraction function
@@ -1261,12 +1355,41 @@ async fn exec_on_mysql_conn(
                         let val = extract_value(&row, i, None);
                         json_row.push(val);
                     }
-                    json_rows.push(json_row);
+                    collector.push_row(json_row);
                 }
                 Err(e) => return Err(e.to_string()),
             }
         }
-    } // rows_stream dropped here — conn borrow released
+    } // event_stream dropped here — conn borrow released
+
+    let mut result_sets = collector.finish();
+    let primary = if result_sets.is_empty() {
+        multi_result::ResultSetData::default()
+    } else {
+        result_sets.remove(0)
+    };
+    let columns = primary.columns;
+    let mut json_rows = primary.rows;
+    if primary.truncated {
+        truncated = true;
+    }
+    let additional_results = if result_sets.is_empty() {
+        None
+    } else {
+        Some(
+            result_sets
+                .into_iter()
+                .map(|set| QueryResult {
+                    columns: set.columns,
+                    rows: set.rows,
+                    affected_rows: 0,
+                    truncated: set.truncated,
+                    pagination: None,
+                    additional_results: None,
+                })
+                .collect(),
+        )
+    };
 
     // Apply LIMIT +1 result: if we got page_size+1 rows, has_more=true
     if let Some(ref mut p) = pagination {
@@ -1284,6 +1407,7 @@ async fn exec_on_mysql_conn(
         affected_rows: 0,
         truncated,
         pagination,
+        additional_results,
     })
 }
 
@@ -1362,6 +1486,135 @@ pub async fn get_triggers(
         .collect();
     log::debug!("MySQL: Found {} triggers in {}", triggers.len(), db_name);
     Ok(triggers)
+}
+
+// --- User management ---------------------------------------------------
+
+pub async fn get_db_users(params: &ConnectionParams) -> Result<Vec<crate::models::DbUserInfo>, String> {
+    let pool = get_mysql_pool(params).await?;
+    let text = resolve_text_proto(&pool, params).await?;
+    // `account_locked` exists on MySQL 5.7+ / MariaDB 10.4+; older servers
+    // (and MariaDB < 10.4) miss the column, so fall back to user/host only.
+    let with_lock = fetch_all_rows(
+        &pool,
+        text,
+        "SELECT user, host, account_locked FROM mysql.user ORDER BY user, host",
+        &[],
+    )
+    .await;
+    let (rows, has_lock) = match with_lock {
+        Ok(rows) => (rows, true),
+        Err(_) => {
+            match fetch_all_rows(
+                &pool,
+                text,
+                "SELECT user, host FROM mysql.user ORDER BY user, host",
+                &[],
+            )
+            .await
+            {
+                Ok(rows) => (rows, false),
+                // No SELECT privilege on mysql.user: degrade to the connected
+                // account only — everyone may run SHOW GRANTS on themselves.
+                Err(_) => {
+                    let row =
+                        fetch_one_row(&pool, text, "SELECT CURRENT_USER()", &[]).await?;
+                    let current = mysql_row_str(&row, 0);
+                    let (user, host) = current
+                        .rsplit_once('@')
+                        .unwrap_or((current.as_str(), "%"));
+                    return Ok(vec![crate::models::DbUserInfo {
+                        user: user.to_string(),
+                        host: host.to_string(),
+                        locked: false,
+                    }]);
+                }
+            }
+        }
+    };
+    Ok(rows
+        .iter()
+        .map(|r| crate::models::DbUserInfo {
+            user: mysql_row_str(r, 0),
+            host: mysql_row_str(r, 1),
+            locked: has_lock && mysql_row_str(r, 2).eq_ignore_ascii_case("Y"),
+        })
+        .collect())
+}
+
+pub async fn get_db_user_grants(
+    params: &ConnectionParams,
+    user: &str,
+    host: &str,
+) -> Result<Vec<String>, String> {
+    let pool = get_mysql_pool(params).await?;
+    // Account names are always inlined as literals (SHOW GRANTS cannot take
+    // bind parameters), so the server's escaping mode is always needed.
+    let nbe = server_no_backslash_escapes(&pool).await?;
+    let sql = users::show_grants_sql(user, host, nbe)?;
+    let rows = fetch_all_rows(&pool, TextProto::protocol_only(true), &sql, &[]).await?;
+    Ok(rows.iter().map(|r| mysql_row_str(r, 0)).collect())
+}
+
+/// Shared executor for the account-management DDL: builds the statement with
+/// the server's real escaping mode (literals are always inlined — account
+/// statements cannot use bind parameters) and runs it through the text
+/// protocol, since some servers refuse to prepare account statements.
+async fn exec_user_stmt(
+    params: &ConnectionParams,
+    build: impl FnOnce(bool) -> Result<String, String>,
+) -> Result<(), String> {
+    let pool = get_mysql_pool(params).await?;
+    let nbe = server_no_backslash_escapes(&pool).await?;
+    let sql = build(nbe)?;
+    exec_stmt(&pool, TextProto::protocol_only(true), &sql).await?;
+    Ok(())
+}
+
+pub async fn create_db_user(
+    params: &ConnectionParams,
+    user: &str,
+    host: &str,
+    password: &str,
+) -> Result<(), String> {
+    exec_user_stmt(params, |nbe| users::create_user_sql(user, host, password, nbe)).await
+}
+
+pub async fn drop_db_user(params: &ConnectionParams, user: &str, host: &str) -> Result<(), String> {
+    exec_user_stmt(params, |nbe| users::drop_user_sql(user, host, nbe)).await
+}
+
+pub async fn set_db_user_password(
+    params: &ConnectionParams,
+    user: &str,
+    host: &str,
+    password: &str,
+) -> Result<(), String> {
+    exec_user_stmt(params, |nbe| users::set_password_sql(user, host, password, nbe)).await
+}
+
+pub async fn get_db_user_privileges(
+    params: &ConnectionParams,
+    user: &str,
+    host: &str,
+) -> Result<Vec<crate::models::DbUserGrantSet>, String> {
+    let lines = get_db_user_grants(params, user, host).await?;
+    Ok(users::parse_grants(&lines))
+}
+
+pub async fn apply_db_user_privileges(
+    params: &ConnectionParams,
+    user: &str,
+    host: &str,
+    database: Option<&str>,
+    table: Option<&str>,
+    privileges: &[String],
+    grant: bool,
+) -> Result<(), String> {
+    exec_user_stmt(params, |nbe| {
+        users::apply_privileges_sql(user, host, database, table, privileges, grant, nbe)
+    })
+    .await
 }
 
 pub async fn get_trigger_definition(
@@ -1487,6 +1740,7 @@ impl MysqlDriver {
                 default_port: Some(3306),
                 capabilities: DriverCapabilities {
                     schemas: false,
+                    single_database: false,
                     views: true,
                     materialized_views: false,
                     routines: true,
@@ -1495,6 +1749,8 @@ impl MysqlDriver {
                     folder_based: false,
                     connection_string: true,
                     connection_string_example: "mysql://user:pass@localhost:3306/db".into(),
+                    connection_uri: false,
+                    connection_uri_schemes: Vec::new(),
                     identifier_quote: "`".into(),
                     alter_primary_key: true,
                     auto_increment_keyword: "AUTO_INCREMENT".into(),
@@ -1504,12 +1760,16 @@ impl MysqlDriver {
                     create_foreign_keys: true,
                     no_connection_required: false,
                     manage_tables: true,
+                    explain: true,
                     readonly: false,
                     triggers: true,
+                    user_management: true,
                     supports_ssl: true,
                     sql_dialect: SqlDialect::Mysql,
                 },
                 is_builtin: true,
+                engine: Some("mysql".to_string()),
+                paradigms: vec!["sql".to_string()],
                 default_username: "root".to_string(),
                 color: "#f97316".to_string(),
                 icon: "mysql".to_string(),
@@ -1806,6 +2066,79 @@ impl DatabaseDriver for MysqlDriver {
         get_routine_definition(params, routine_name, routine_type).await
     }
 
+    async fn get_db_privilege_catalog(
+        &self,
+    ) -> Result<crate::models::DbPrivilegeCatalog, String> {
+        Ok(users::privilege_catalog())
+    }
+
+    async fn get_db_users(
+        &self,
+        params: &crate::models::ConnectionParams,
+    ) -> Result<Vec<crate::models::DbUserInfo>, String> {
+        get_db_users(params).await
+    }
+
+    async fn get_db_user_grants(
+        &self,
+        params: &crate::models::ConnectionParams,
+        user: &str,
+        host: &str,
+    ) -> Result<Vec<String>, String> {
+        get_db_user_grants(params, user, host).await
+    }
+
+    async fn create_db_user(
+        &self,
+        params: &crate::models::ConnectionParams,
+        user: &str,
+        host: &str,
+        password: &str,
+    ) -> Result<(), String> {
+        create_db_user(params, user, host, password).await
+    }
+
+    async fn drop_db_user(
+        &self,
+        params: &crate::models::ConnectionParams,
+        user: &str,
+        host: &str,
+    ) -> Result<(), String> {
+        drop_db_user(params, user, host).await
+    }
+
+    async fn set_db_user_password(
+        &self,
+        params: &crate::models::ConnectionParams,
+        user: &str,
+        host: &str,
+        password: &str,
+    ) -> Result<(), String> {
+        set_db_user_password(params, user, host, password).await
+    }
+
+    async fn get_db_user_privileges(
+        &self,
+        params: &crate::models::ConnectionParams,
+        user: &str,
+        host: &str,
+    ) -> Result<Vec<crate::models::DbUserGrantSet>, String> {
+        get_db_user_privileges(params, user, host).await
+    }
+
+    async fn apply_db_user_privileges(
+        &self,
+        params: &crate::models::ConnectionParams,
+        user: &str,
+        host: &str,
+        database: Option<&str>,
+        table: Option<&str>,
+        privileges: &[String],
+        grant: bool,
+    ) -> Result<(), String> {
+        apply_db_user_privileges(params, user, host, database, table, privileges, grant).await
+    }
+
     async fn get_triggers(
         &self,
         params: &crate::models::ConnectionParams,
@@ -1919,7 +2252,7 @@ impl DatabaseDriver for MysqlDriver {
         query: &str,
         analyze: bool,
         schema: Option<&str>,
-    ) -> Result<crate::models::ExplainPlan, String> {
+    ) -> Result<crate::models::ExplainQueryOutput, String> {
         explain_query(params, query, analyze, schema).await
     }
 

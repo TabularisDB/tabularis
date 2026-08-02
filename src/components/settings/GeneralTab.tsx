@@ -74,6 +74,7 @@ export function GeneralTab() {
               { value: "csv", label: "CSV" },
               { value: "json", label: "JSON" },
               { value: "sql-insert", label: "SQL INSERT" },
+              { value: "markdown", label: "Markdown" },
             ]}
           />
         </SettingRow>
@@ -108,6 +109,43 @@ export function GeneralTab() {
           />
         </SettingRow>
 
+        <SettingRow
+          label={t("settings.rowEditorFollowSelection")}
+          description={t("settings.rowEditorFollowSelectionDesc")}
+        >
+          <SettingToggle
+            checked={settings.rowEditorFollowSelection ?? true}
+            onChange={(v) => updateSetting("rowEditorFollowSelection", v)}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t("settings.cellDoubleClickAction")}
+          description={t("settings.cellDoubleClickActionDesc")}
+        >
+          <SettingButtonGroup
+            value={settings.cellDoubleClickAction ?? "inline"}
+            onChange={(v) => updateSetting("cellDoubleClickAction", v)}
+            options={[
+              { value: "inline", label: t("settings.cellDoubleClickInline") },
+              { value: "sidebar", label: t("settings.cellDoubleClickSidebar") },
+              { value: "both", label: t("settings.cellDoubleClickBoth") },
+            ]}
+          />
+        </SettingRow>
+
+      </SettingSection>
+
+      <SettingSection title={t("settings.queryExecution")}>
+        <SettingRow
+          label={t("settings.runStatementUnderCursor")}
+          description={t("settings.runStatementUnderCursorDesc")}
+        >
+          <SettingToggle
+            checked={settings.runStatementUnderCursor !== false}
+            onChange={(v) => updateSetting("runStatementUnderCursor", v)}
+          />
+        </SettingRow>
       </SettingSection>
 
       <SettingSection title={t("settings.connectionHealthCheck")}>

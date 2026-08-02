@@ -6,13 +6,12 @@ import {
   getDriverLabel,
   generateConnectionName,
   connectionSubtitle,
-  hasConnectionMenuItems,
   getCardClass,
   type ConnectionParams,
   type DatabaseDriver,
 } from '../../src/utils/connections';
 import type { DriverCapabilities } from '../../src/types/plugins';
-import type { SavedConnection, ConnectionGroup } from '../../src/contexts/DatabaseContext';
+import type { SavedConnection } from '../../src/contexts/DatabaseContext';
 
 const makeFileCaps = (): DriverCapabilities => ({
   schemas: false, views: false, routines: false,
@@ -442,31 +441,25 @@ describe('connections', () => {
       const conn = makeConn({ host: 'db.host', port: 5432, database: 'mydb' });
       expect(connectionSubtitle(conn, null)).toBe('db.host:5432  ·  mydb');
     });
-  });
 
-  describe('hasConnectionMenuItems', () => {
-    const makeGroup = (id: string): ConnectionGroup => ({
-      id, name: id, collapsed: false, sort_order: 0,
+    it('should label empty database as all databases on multi-db drivers', () => {
+      const conn = makeConn({ host: 'db.host', port: 3306, database: '' });
+      expect(connectionSubtitle(conn, makeRemoteCaps())).toBe('db.host:3306  ·  All databases');
+      expect(
+        connectionSubtitle(conn, makeRemoteCaps(), { allDatabases: 'Tutti i database' }),
+      ).toBe('db.host:3306  ·  Tutti i database');
     });
 
-    it('should return false when no groups and connection is not in a group', () => {
-      expect(hasConnectionMenuItems([], undefined)).toBe(false);
+    it('should keep empty database verbatim when capabilities are unknown', () => {
+      const conn = makeConn({ host: 'db.host', port: 3306, database: '' });
+      expect(connectionSubtitle(conn, null)).toBe('db.host:3306  ·  ');
     });
 
-    it('should return true when there are groups and connection is not in any', () => {
-      expect(hasConnectionMenuItems([makeGroup('g1'), makeGroup('g2')], undefined)).toBe(true);
-    });
-
-    it('should return true when connection is in a group (can be removed)', () => {
-      expect(hasConnectionMenuItems([], 'g1')).toBe(true);
-    });
-
-    it('should return true when connection is the only group and is already in it (can be removed)', () => {
-      expect(hasConnectionMenuItems([makeGroup('g1')], 'g1')).toBe(true);
-    });
-
-    it('should return true when connection is in one group and another exists', () => {
-      expect(hasConnectionMenuItems([makeGroup('g1'), makeGroup('g2')], 'g1')).toBe(true);
+    it('should use the translated database counter when provided', () => {
+      const conn = makeConn({ host: 'db.host', port: 5432, database: ['db1', 'db2'] });
+      expect(
+        connectionSubtitle(conn, makeRemoteCaps(), { databaseCount: (c) => `${c} DB` }),
+      ).toBe('db.host:5432  ·  2 DB');
     });
   });
 

@@ -10,12 +10,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { useSettings } from "../../hooks/useSettings";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useDrivers } from "../../hooks/useDrivers";
-import type { ExplainPlan } from "../../types/explain";
-import { isDataModifyingQuery } from "../../utils/explainPlan";
-import { isExplainableQuery } from "../../utils/sql";
+import type { ExplainPlan, ExplainQueryOutput } from "@tabularis/explain";
+import { resolveExplainOutput } from "@tabularis/explain";
+import { isDataModifyingQuery, isExplainableQuery } from "../../utils/sql";
 import { getConnectionIcon } from "../../utils/driverUI";
+import { Modal } from "../ui/Modal";
 import { VisualExplainView } from "../explain/VisualExplainView";
-import type { ExplainViewMode } from "./visual-explain/ExplainSummaryBar";
+import type { ExplainViewMode } from "@tabularis/explain/react";
 
 interface VisualExplainModalProps {
   isOpen: boolean;
@@ -78,14 +79,15 @@ export const VisualExplainModal = ({
     setPlan(null);
 
     try {
-      const result = await invoke<ExplainPlan>("explain_query_plan", {
+      const result = await invoke<ExplainQueryOutput>("explain_query_plan", {
         connectionId,
         query,
         analyze,
         schema: schema || null,
       });
-      setPlan(result);
-      setSelectedNodeId(result.root.id);
+      const parsedPlan = resolveExplainOutput(result);
+      setPlan(parsedPlan);
+      setSelectedNodeId(parsedPlan.root.id);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -100,10 +102,8 @@ export const VisualExplainModal = ({
     }
   }, [isOpen, query, connectionId, handleExplain]);
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] backdrop-blur-sm">
+    <Modal isOpen={isOpen} onClose={onClose}>
       <div className="bg-elevated border border-strong rounded-xl shadow-2xl w-[90vw] h-[85vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-default bg-base">
           <div className="flex items-center gap-3">
@@ -189,6 +189,6 @@ export const VisualExplainModal = ({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };

@@ -1,6 +1,6 @@
 use super::format::{parse_csv_delimiter, value_to_csv_string, ExportFormat, DEFAULT_CSV_DELIMITER};
 use super::progress::ProgressEmitter;
-use super::sink::{CsvSink, JsonSink, RowSink};
+use super::sink::{CsvSink, JsonSink, MarkdownSink, RowSink};
 use serde_json::{json, Value};
 
 // ---------------------------------------------------------------------------
@@ -22,6 +22,15 @@ fn parse_csv_format_is_case_insensitive() {
 fn parse_json_format_is_case_insensitive() {
     assert_eq!(ExportFormat::parse("json").unwrap(), ExportFormat::Json);
     assert_eq!(ExportFormat::parse("JSON").unwrap(), ExportFormat::Json);
+}
+
+#[test]
+fn parse_markdown_format_accepts_md_alias() {
+    assert_eq!(
+        ExportFormat::parse("markdown").unwrap(),
+        ExportFormat::Markdown
+    );
+    assert_eq!(ExportFormat::parse("MD").unwrap(), ExportFormat::Markdown);
 }
 
 #[test]
@@ -196,6 +205,59 @@ fn csv_quotes_values_containing_delimiter() {
         &[(vec!["v"], vec![json!("a,b")])],
     );
     assert!(csv.contains("\"a,b\""));
+}
+
+// ---------------------------------------------------------------------------
+// MarkdownSink
+// ---------------------------------------------------------------------------
+
+fn collect_markdown(rows: &[(Vec<&str>, Vec<Value>)]) -> String {
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut sink = MarkdownSink::new(&mut buf);
+        for (headers, values) in rows {
+            let headers_owned: Vec<String> = headers.iter().map(|s| s.to_string()).collect();
+            sink.write_row(&headers_owned, values).unwrap();
+        }
+        sink.finish().unwrap();
+    }
+    String::from_utf8(buf).unwrap()
+}
+
+#[test]
+fn markdown_writes_header_separator_then_rows() {
+    let md = collect_markdown(&[
+        (vec!["id", "name"], vec![json!(1), json!("alice")]),
+        (vec!["id", "name"], vec![json!(2), json!("bob")]),
+    ]);
+    assert_eq!(
+        md,
+        "| id | name |\n| --- | --- |\n| 1 | alice |\n| 2 | bob |\n"
+    );
+}
+
+#[test]
+fn markdown_emits_null_sentinel_for_null_values() {
+    let md = collect_markdown(&[(vec!["v"], vec![Value::Null])]);
+    assert_eq!(md, "| v |\n| --- |\n| NULL |\n");
+}
+
+#[test]
+fn markdown_escapes_pipes_and_newlines() {
+    let md = collect_markdown(&[(
+        vec!["a", "b"],
+        vec![json!("x|y"), json!("line1\nline2\r\nline3")],
+    )]);
+    assert_eq!(
+        md,
+        "| a | b |\n| --- | --- |\n| x\\|y | line1<br>line2<br>line3 |\n"
+    );
+}
+
+#[test]
+fn markdown_empty_stream_writes_nothing() {
+    let md = collect_markdown(&[]);
+    assert_eq!(md, "");
 }
 
 // ---------------------------------------------------------------------------

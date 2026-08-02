@@ -112,6 +112,7 @@ The manifest tells Tabularis everything about your plugin.
 | `alter_primary_key` | bool | `true` if the database supports altering primary keys after table creation. |
 | `manage_tables` | bool | `true` to enable table and column management UI (Create Table, Add/Modify/Drop Column, Drop Table). Does not control index or FK operations. Defaults to `true`. |
 | `readonly` | bool | When `true`, the driver is read-only: all data modification operations (INSERT, UPDATE, DELETE) are disabled in the UI. The add/delete row buttons, inline cell editing, and context menu edit actions are hidden. Table and column management is also hidden regardless of `manage_tables`. Defaults to `false`. |
+| `explain` | bool | `true` if the driver implements the `explain_query` method (EXPLAIN / query plan support). Enables the Visual EXPLAIN button in the SQL editor and notebook cells; when `false` or omitted, the Visual EXPLAIN UI is hidden for connections using this driver. Defaults to `false`. |
 | `supports_ssl` | bool | `true` to show the SSL/TLS configuration tab (mode + CA/client cert/key) in the connection modal. The values are forwarded to the plugin as `ssl_mode`, `ssl_ca`, `ssl_cert`, and `ssl_key` in `ConnectionParams`. Network drivers only. Also accepted as camelCase `supportsSsl`. Defaults to `false`. |
 
 ### Data Types
@@ -946,6 +947,47 @@ Delete a row from a table.
 
 ---
 
+### AI Schema Context (Optional)
+
+AI Query Assist obtains metadata through the active database driver. Plugins
+that already implement `get_tables`, `get_columns`, and `get_foreign_keys` work
+without changes: Tabularis calls those standard methods, limits the result, and
+formats the provider-agnostic system prompt in the host.
+
+Plugins may optionally implement `get_ai_schema_context` to replace those
+per-table calls with a database-specific batch query. Return JSON-RPC error
+`-32601` when the method is not implemented; Tabularis then uses the standard
+metadata fallback automatically.
+
+**Params:**
+```json
+{
+  "params": ConnectionParams,
+  "schema": "public",
+  "max_tables": 20
+}
+```
+
+**Result:**
+```json
+{
+  "tables": [
+    {
+      "name": "users",
+      "columns": [ /* standard get_columns entries */ ],
+      "foreign_keys": [ /* standard get_foreign_keys entries */ ]
+    }
+  ],
+  "total_table_count": 42
+}
+```
+
+The plugin must respect `max_tables`, but `total_table_count` reports the
+number of tables before truncation. Plugins return structured metadata only;
+the host owns prompt wording, identifier quoting, and provider dispatch.
+
+---
+
 ### Batch / ER Diagram Methods
 
 These methods are used to build ER diagrams efficiently by loading all metadata in one call.
@@ -958,11 +1000,13 @@ Return the complete schema structure (tables + columns + foreign keys).
 
 **Result:**
 ```json
-{
-  "tables": [{ "name": "users", "schema": "public", "comment": null }],
-  "columns": { "users": [ /* column list */ ] },
-  "foreign_keys": { "users": [ /* FK list */ ] }
-}
+[
+  {
+    "name": "users",
+    "columns": [ /* column list */ ],
+    "foreign_keys": [ /* FK list */ ]
+  }
+]
 ```
 
 ---

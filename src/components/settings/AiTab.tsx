@@ -129,6 +129,9 @@ export function AiTab() {
       const openrouter = await invoke<AiKeyStatus>("check_ai_key_status", {
         provider: "openrouter",
       });
+      const minimax = await invoke<AiKeyStatus>("check_ai_key_status", {
+        provider: "minimax",
+      });
       const customOpenai = await invoke<AiKeyStatus>("check_ai_key_status", {
         provider: "custom-openai",
       });
@@ -137,6 +140,7 @@ export function AiTab() {
         openai,
         anthropic,
         openrouter,
+        minimax,
         "custom-openai": customOpenai,
         ollama,
       });
@@ -173,12 +177,12 @@ export function AiTab() {
       await checkKeys();
       setKeyInput("");
       setEditingKey(false);
-      showAlert("API Key saved securely", {
-        title: "Success",
+      showAlert(t("settings.ai.apiKeySaved"), {
+        title: t("common.success"),
         kind: "info",
       });
     } catch (e) {
-      showAlert(String(e), { title: "Error", kind: "error" });
+      showAlert(String(e), { title: t("common.error"), kind: "error" });
     }
   };
 
@@ -189,12 +193,12 @@ export function AiTab() {
     const prompt = promptMap[type];
     try {
       await invoke(cmd, { prompt });
-      showAlert(
-        `${type === "system" ? "System" : "Explain"} prompt saved successfully`,
-        { title: "Success", kind: "info" },
-      );
+      showAlert(t("settings.ai.promptSaved"), {
+        title: t("common.success"),
+        kind: "info",
+      });
     } catch (e) {
-      showAlert(String(e), { title: "Error", kind: "error" });
+      showAlert(String(e), { title: t("common.error"), kind: "error" });
     }
   };
 
@@ -206,21 +210,21 @@ export function AiTab() {
     try {
       const defaultPrompt = await invoke<string>(cmd);
       setter(defaultPrompt);
-      showAlert(
-        `${type === "system" ? "System" : "Explain"} prompt reset to default`,
-        { title: "Success", kind: "info" },
-      );
+      showAlert(t("settings.ai.promptResetSuccess"), {
+        title: t("common.success"),
+        kind: "info",
+      });
     } catch (e) {
-      showAlert(String(e), { title: "Error", kind: "error" });
+      showAlert(String(e), { title: t("common.error"), kind: "error" });
     }
   };
 
   return (
     <div>
       {/* Enable toggle */}
-      <SettingSection title="AI Configuration">
+      <SettingSection title={t("settings.ai.title")}>
         <SettingRow
-          label="AI Configuration"
+          label={t("settings.ai.title")}
           description={t("settings.ai.enableDesc")}
         >
           <SettingToggle

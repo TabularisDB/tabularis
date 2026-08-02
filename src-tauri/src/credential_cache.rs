@@ -11,7 +11,7 @@ pub enum CacheEntry {
     Absent,
 }
 
-/// In-memory credential cache backed by four HashMaps.
+/// In-memory credential cache backed by separate maps per credential type.
 ///
 /// Uses `std::sync::Mutex` (not `tokio::sync::Mutex`) because all critical
 /// sections are pure HashMap operations (nanoseconds) and are never held
@@ -19,6 +19,7 @@ pub enum CacheEntry {
 /// it into `tokio::task::spawn_blocking` closures.
 pub struct CredentialCache {
     pub db_passwords: Mutex<HashMap<String, CacheEntry>>,
+    pub connection_uris: Mutex<HashMap<String, CacheEntry>>,
     pub ssh_passwords: Mutex<HashMap<String, CacheEntry>>,
     pub ssh_passphrases: Mutex<HashMap<String, CacheEntry>>,
     pub ai_keys: Mutex<HashMap<String, CacheEntry>>,
@@ -28,6 +29,7 @@ impl Default for CredentialCache {
     fn default() -> Self {
         Self {
             db_passwords: Mutex::new(HashMap::new()),
+            connection_uris: Mutex::new(HashMap::new()),
             ssh_passwords: Mutex::new(HashMap::new()),
             ssh_passphrases: Mutex::new(HashMap::new()),
             ai_keys: Mutex::new(HashMap::new()),
@@ -64,6 +66,33 @@ pub fn get_db_password_cached(
         );
     }
     result
+}
+
+/// Read a connection URI from this process first. Only consult the OS keychain
+/// when the persisted marker explicitly says an entry was written for it.
+pub fn get_connection_uri_cached(
+    cache: &CredentialCache,
+    connection_id: &str,
+    load_from_keychain: bool,
+) -> Result<Option<String>, String> {
+    {
+        let guard = cache.connection_uris.lock().unwrap();
+        match guard.get(connection_id) {
+            Some(CacheEntry::Present(v)) => return Ok(Some(v.clone())),
+            Some(CacheEntry::Absent) => return Ok(None),
+            None => {}
+        }
+    }
+    if !load_from_keychain {
+        return Ok(None);
+    }
+
+    let value = crate::keychain_utils::get_connection_uri(connection_id)?;
+    cache.connection_uris.lock().unwrap().insert(
+        connection_id.to_string(),
+        CacheEntry::Present(value.clone()),
+    );
+    Ok(Some(value))
 }
 
 /// Get SSH password: check cache first, fall through to keychain on miss.
@@ -158,6 +187,17 @@ pub fn set_db_password_cached(cache: &CredentialCache, connection_id: &str, pass
     );
 }
 
+pub fn set_connection_uri_cached(
+    cache: &CredentialCache,
+    connection_id: &str,
+    connection_uri: &str,
+) {
+    cache.connection_uris.lock().unwrap().insert(
+        connection_id.to_string(),
+        CacheEntry::Present(connection_uri.to_string()),
+    );
+}
+
 pub fn set_ssh_password_cached(cache: &CredentialCache, connection_id: &str, password: &str) {
     cache.ssh_passwords.lock().unwrap().insert(
         connection_id.to_string(),
@@ -193,6 +233,10 @@ pub fn invalidate_db_password(cache: &CredentialCache, connection_id: &str) {
     cache.db_passwords.lock().unwrap().remove(connection_id);
 }
 
+pub fn invalidate_connection_uri(cache: &CredentialCache, connection_id: &str) {
+    cache.connection_uris.lock().unwrap().remove(connection_id);
+}
+
 pub fn invalidate_ssh_password(cache: &CredentialCache, connection_id: &str) {
     cache.ssh_passwords.lock().unwrap().remove(connection_id);
 }
@@ -208,6 +252,7 @@ pub fn invalidate_ai_key(cache: &CredentialCache, provider: &str) {
 /// Invalidate all cached credentials for a connection ID (e.g. on delete).
 pub fn invalidate_all_for_connection(cache: &CredentialCache, connection_id: &str) {
     cache.db_passwords.lock().unwrap().remove(connection_id);
+    cache.connection_uris.lock().unwrap().remove(connection_id);
     cache.ssh_passwords.lock().unwrap().remove(connection_id);
     cache.ssh_passphrases.lock().unwrap().remove(connection_id);
 }

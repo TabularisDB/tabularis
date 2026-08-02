@@ -6,7 +6,7 @@ import type { Tab } from '../types/editor';
 export interface CleanedTab {
   id: string;
   title: string;
-  type: 'console' | 'table' | 'query_builder' | 'notebook';
+  type: 'console' | 'table' | 'query_builder' | 'notebook' | 'users';
   query: string;
   page: number;
   activeTable: string | null;

@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   DatabaseContext,
   type TableInfo,
@@ -17,8 +19,12 @@ import type { PluginManifest } from '../types/plugins';
 import { clearAutocompleteCache } from '../utils/autocomplete';
 import { toErrorMessage } from '../utils/errors';
 import { useSettings } from '../hooks/useSettings';
+import { useToast } from '../hooks/useToast';
 import { findConnectionsForDrivers } from '../utils/connectionManager';
-import { isMultiDatabaseCapable, getEffectiveDatabase, getDatabaseList } from '../utils/database';
+import { isMultiDatabaseCapable, usesMultiDatabaseLayout, getEffectiveDatabase, getDatabaseList, reconcileDatabaseSelection } from '../utils/database';
+
+/** Label of the main window; Tauri defaults to this when none is configured. */
+const MAIN_WINDOW_LABEL = 'main';
 
 const createEmptyConnectionData = (driver: string = '', name: string = '', dbName: string = ''): ConnectionData => ({
   driver,
@@ -41,12 +47,15 @@ const createEmptyConnectionData = (driver: string = '', name: string = '', dbNam
   needsSchemaSelection: false,
   selectedDatabases: [],
   databaseDataMap: {},
+  allDatabasesMode: false,
   isConnecting: false,
   isConnected: false,
 });
 
 export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const { settings } = useSettings();
+  const { showToast } = useToast();
+  const { t } = useTranslation();
   const [activeConnectionId, setActiveConnectionId] = useState<string | null>(null);
   const [openConnectionIds, setOpenConnectionIds] = useState<string[]>([]);
   const [connectionDataMap, setConnectionDataMap] = useState<Record<string, ConnectionData>>({});
@@ -54,6 +63,10 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const [connections, setConnections] = useState<SavedConnection[]>([]);
   const [connectionGroups, setConnectionGroups] = useState<ConnectionGroup[]>([]);
   const [isLoadingConnections, setIsLoadingConnections] = useState(false);
+  // Connection ids open anywhere in the app (shared backend, all windows).
+  // Kept in sync via the `connections:active-changed` broadcast so each window
+  // can show accurate cross-window connection status.
+  const [globallyOpenConnectionIds, setGloballyOpenConnectionIds] = useState<string[]>([]);
 
   // Refs used in the plugin-disable effect to avoid stale closures
   const openConnectionIdsRef = useRef(openConnectionIds);
@@ -102,7 +115,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         if (activeConnectionName && activeDatabaseName) {
           const schemaSuffix = activeSchema && activeCapabilities?.schemas === true ? `/${activeSchema}` : '';
           const dbDisplay =
-            isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1
+            usesMultiDatabaseLayout(activeCapabilities, selectedDatabases)
               ? (activeSchema ?? activeDatabaseName)
               : activeDatabaseName;
           title = `tabularis - ${activeConnectionName} (${dbDisplay}${schemaSuffix})`;
@@ -124,6 +137,108 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       },
     }));
   }, []);
+
+  // Re-runs the same reconciliation that happens on connect (#518), for a
+  // connection that's already open. Lets a user recover from a database dropped
+  // mid-session without having to disconnect and reconnect.
+  //
+  // `notifyWhenUnchanged` tells the user the list was already up to date. That
+  // closes the loop for someone who pressed refresh, but it is noise when the
+  // reconciliation was triggered automatically (#525) — nobody asked, so
+  // silence is the right answer when there is nothing to report.
+  const refreshDatabaseSelection = useCallback(async (
+    connectionId: string,
+    { notifyWhenUnchanged = true }: { notifyWhenUnchanged?: boolean } = {},
+  ) => {
+    const conn = connections.find(c => c.id === connectionId);
+    const data = connectionDataMap[connectionId];
+    const current = data?.selectedDatabases ?? [];
+    if (!conn || current.length === 0) return;
+
+    // "All databases" mode: the server list IS the selection — replace it
+    // wholesale (nothing is persisted) so new databases appear and dropped
+    // ones disappear.
+    if (data?.allDatabasesMode) {
+      try {
+        const available = await invoke<string[]>('get_available_databases', { connectionId });
+        const added = available.filter(db => !current.includes(db));
+        const removed = current.filter(db => !available.includes(db));
+        if (added.length > 0 || removed.length > 0) {
+          const prunedDataMap = Object.fromEntries(
+            Object.entries(data.databaseDataMap).filter(([db]) => available.includes(db))
+          );
+          updateConnectionData(connectionId, {
+            selectedDatabases: available,
+            databaseDataMap: prunedDataMap,
+          });
+          const changes = [
+            ...added.map(db => `+${db}`),
+            ...removed.map(db => `-${db}`),
+          ].join(', ');
+          showToast(t('sidebar.allDatabasesRefreshed', { names: changes }), {
+            title: t('sidebar.databaseSelectionUpdated'),
+            kind: 'info',
+          });
+        } else if (notifyWhenUnchanged) {
+          showToast(t('sidebar.databaseListUpToDate'), { kind: 'info' });
+        }
+      } catch (e) {
+        console.error('Failed to refresh database list:', e);
+        showToast(String(e), { kind: 'error' });
+      }
+      return;
+    }
+
+    try {
+      const available = await invoke<string[]>('get_available_databases', { connectionId });
+
+      // Same guard as the connect-time reconciliation: an incomplete server
+      // list (e.g. restricted privileges) must not be mistaken for missing
+      // databases.
+      if (!available.includes(current[0])) {
+        console.warn('Skipping database selection reconciliation: server list does not include the primary database');
+        return;
+      }
+
+      const { selection, removed } = reconcileDatabaseSelection(current, available);
+      if (removed.length > 0) {
+        // NOTE: if this shrinks the selection down to a single database, the
+        // sidebar correctly switches to the single-database layout (it derives
+        // that from selectedDatabases.length), but the remaining database's
+        // table list is not re-loaded through the single-db code path the way
+        // connect() does it. Same gap as connect-time reconciliation would
+        // have if triggered outside of connect() - flagging rather than
+        // guessing at a fix here.
+        updateConnectionData(connectionId, { selectedDatabases: selection });
+        invoke('set_selected_databases', {
+          connectionId,
+          databases: selection,
+        }).catch(e => console.error('Failed to persist reconciled database selection:', e));
+        showToast(t('sidebar.droppedDatabasesRemoved', { names: removed.join(', ') }), {
+          title: t('sidebar.databaseSelectionUpdated'),
+          kind: 'warning',
+        });
+        invoke('log_frontend_event', {
+          level: 'warn',
+          message: `Connection "${conn.name}": removed ${removed.join(', ')} from the database selection (no longer on the server)`,
+        }).catch(() => {});
+      } else {
+        if (notifyWhenUnchanged) {
+          showToast(t('sidebar.databaseListUpToDate'), { kind: 'info' });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to refresh database selection:', e);
+      showToast(String(e), { kind: 'error' });
+    }
+  }, [connections, connectionDataMap, updateConnectionData, showToast, t]);
+
+  // Lets the listener below subscribe once: `refreshDatabaseSelection` is
+  // recreated whenever connection state changes, so depending on it directly
+  // would tear the subscription down and rebuild it constantly, with a window
+  // in between where an event would be missed.
+  const refreshDatabaseSelectionRef = useRef(refreshDatabaseSelection);
+  refreshDatabaseSelectionRef.current = refreshDatabaseSelection;
 
   const refreshTables = async (targetConnectionId?: string) => {
     const connId = targetConnectionId ?? activeConnectionId;
@@ -454,7 +569,25 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     const currentData = connectionDataMap[connId];
     if (!currentData) return;
 
-    updateConnectionData(connId, { selectedDatabases: newDatabases });
+    // Drop cached data for databases that left the selection.
+    const prunedDataMap = Object.fromEntries(
+      Object.entries(currentData.databaseDataMap).filter(([db]) => newDatabases.includes(db))
+    );
+
+    updateConnectionData(connId, {
+      selectedDatabases: newDatabases,
+      databaseDataMap: prunedDataMap,
+      // Picking an explicit subset persists it and leaves "all databases"
+      // mode; the connection modal is the way back.
+      allDatabasesMode: false,
+    });
+
+    if (newDatabases.length > 0) {
+      invoke('set_selected_databases', {
+        connectionId: connId,
+        databases: newDatabases,
+      }).catch(e => console.error('Failed to persist selected databases:', e));
+    }
 
     for (const db of newDatabases) {
       const existing = currentData.databaseDataMap[db];
@@ -540,10 +673,70 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       // Register for health-check pinging.
       await invoke('register_active_connection', { connectionId });
 
-      const isMultiDb = isMultiDatabaseCapable(capabilities) && Array.isArray(dbParam) && dbParam.length > 1;
+      const savedDbList = isMultiDatabaseCapable(capabilities) ? getDatabaseList(dbParam) : [];
+      // Empty selection on a multi-db driver = "all databases" mode: the list
+      // comes from the server on every connect, so databases created/dropped
+      // outside the app show up without editing the connection.
+      const allDatabasesMode = isMultiDatabaseCapable(capabilities) && savedDbList.length === 0;
+      let isMultiDb = savedDbList.length > 1;
+      let dbList = isMultiDb ? savedDbList : [];
+
+      if (allDatabasesMode) {
+        try {
+          dbList = await invoke<string[]>('get_available_databases', { connectionId });
+          isMultiDb = dbList.length > 0;
+        } catch (e) {
+          // Without a database list the connection is unusable (it has no
+          // default schema) — fail the connect with the real error.
+          const errorMsg = toErrorMessage(e);
+          updateConnectionData(connectionId, {
+            isConnecting: false,
+            isConnected: false,
+            isLoadingTables: false,
+            isLoadingViews: false,
+            isLoadingRoutines: false,
+            error: errorMsg,
+          });
+          setOpenConnectionIds(prev => prev.filter(id => id !== connectionId));
+          throw new Error(errorMsg);
+        }
+      } else if (isMultiDb) {
+        // Reconcile the saved selection against the server so databases
+        // dropped outside the app don't linger in the sidebar (#518).
+        try {
+          const available = await invoke<string[]>('get_available_databases', { connectionId });
+          // The primary database must exist while this connection is open: if
+          // the server list doesn't include it, the list is unreliable (e.g.
+          // filtered by privileges) and pruning from it would drop valid
+          // entries. This also guarantees the selection never ends up empty.
+          if (available.includes(dbList[0])) {
+            const { selection, removed } = reconcileDatabaseSelection(dbList, available);
+            if (removed.length > 0) {
+              dbList = selection;
+              isMultiDb = selection.length > 1;
+              invoke('set_selected_databases', {
+                connectionId,
+                databases: selection,
+              }).catch(e => console.error('Failed to persist reconciled database selection:', e));
+              showToast(t('sidebar.droppedDatabasesRemoved', { names: removed.join(', ') }), {
+                title: t('sidebar.databaseSelectionUpdated'),
+                kind: 'warning',
+              });
+              invoke('log_frontend_event', {
+                level: 'warn',
+                message: `Connection "${conn.name}": removed ${removed.join(', ')} from the database selection (no longer on the server)`,
+              }).catch(() => {});
+            }
+          } else {
+            console.warn('Skipping database selection reconciliation: server list does not include the primary database');
+          }
+        } catch (e) {
+          // Server list unavailable: keep the saved selection.
+          console.error('Failed to reconcile database selection:', e);
+        }
+      }
 
       if (isMultiDb) {
-        const dbList = getDatabaseList(dbParam);
         const firstDb = dbList[0] ?? '';
 
         // Pre-load first database inline
@@ -574,6 +767,8 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         updateConnectionData(connectionId, {
           selectedDatabases: dbList,
           databaseDataMap: initialDbMap,
+          allDatabasesMode,
+          ...(allDatabasesMode ? { databaseName: firstDb } : {}),
           isLoadingTables: false,
           isLoadingViews: false,
           isLoadingRoutines: false,
@@ -715,23 +910,51 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       console.error(`[DatabaseProvider] Failed to disconnect from ${targetId}:`, error);
     }
 
-    setOpenConnectionIds(prev => prev.filter(id => id !== targetId));
+    const remainingIds = openConnectionIds.filter(id => id !== targetId);
+
+    setOpenConnectionIds(remainingIds);
     setConnectionDataMap(prev => {
       const newMap = { ...prev };
       delete newMap[targetId];
       return newMap;
     });
 
+    // Persist the updated session immediately. A disconnect is an explicit user
+    // action, so we can't rely on the reactive persistence effect below (it skips
+    // the empty list to protect the startup state) — otherwise disconnecting the
+    // last connection would leave it in `last_open_connection_ids` and the app
+    // would auto-reconnect it (and restore its tabs) on next launch.
+    invoke('set_last_open_connections', { connectionIds: remainingIds }).catch(() => {});
+
     if (activeConnectionId === targetId) {
-      const remainingIds = openConnectionIds.filter(id => id !== targetId);
       if (remainingIds.length > 0) {
         setActiveConnectionId(remainingIds[0]);
       } else {
         setActiveConnectionId(null);
         setActiveTable(null);
+        invoke('set_last_active_connection', { connectionId: null }).catch(() => {});
       }
     }
   };
+
+  const detachConnection = useCallback((connectionId: string) => {
+    clearAutocompleteCache(connectionId);
+
+    setOpenConnectionIds(prev => prev.filter(id => id !== connectionId));
+    setConnectionDataMap(prev => {
+      const newMap = { ...prev };
+      delete newMap[connectionId];
+      return newMap;
+    });
+
+    setActiveConnectionId(prev => {
+      if (prev !== connectionId) return prev;
+      const remaining = openConnectionIds.filter(id => id !== connectionId);
+      if (remaining.length > 0) return remaining[0];
+      setActiveTable(null);
+      return null;
+    });
+  }, [openConnectionIds]);
 
   const switchConnection = useCallback((connectionId: string) => {
     if (openConnectionIds.includes(connectionId)) {
@@ -768,6 +991,14 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const isConnectionOpen = useCallback((connectionId: string): boolean => {
     return openConnectionIds.includes(connectionId);
   }, [openConnectionIds]);
+
+  // True when the connection is open in ANY window (this one or another), based
+  // on the shared backend registry. Falls back to local state so a just-opened
+  // connection reflects immediately, before the broadcast round-trips.
+  const isConnectionOpenAnywhere = useCallback((connectionId: string): boolean => {
+    return openConnectionIds.includes(connectionId)
+      || globallyOpenConnectionIds.includes(connectionId);
+  }, [openConnectionIds, globallyOpenConnectionIds]);
 
   // Auto-disconnect open connections when their plugin is disabled
   useEffect(() => {
@@ -835,10 +1066,72 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     return () => { unlisten.then(fn => fn()); };
   }, []);
 
+  // Track the set of connections open anywhere (across all windows). Seed from
+  // the backend snapshot, then keep in sync via the broadcast event.
+  useEffect(() => {
+    invoke<string[]>('get_active_connections')
+      .then(setGloballyOpenConnectionIds)
+      .catch(() => {});
+    const unlisten = listen<string[]>('connections:active-changed', (event) => {
+      setGloballyOpenConnectionIds(event.payload);
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
+
+  // A `DROP DATABASE` that succeeded inside the app leaves the stored selection
+  // stale; the backend now says so instead of making the user press refresh
+  // (#525).
+  //
+  // Only the main window acts on it. `emit` broadcasts to every window and each
+  // one mounts its own provider, but reconciling persists through
+  // `set_selected_databases`, which reloads and rewrites the whole connections
+  // file — so letting several windows react risks one overwriting another's
+  // changes. The main window is the stable anchor: dedicated connection windows
+  // close with their connection. Other windows pick the change up on their next
+  // refresh.
+  useEffect(() => {
+    if (getCurrentWindow().label !== MAIN_WINDOW_LABEL) return;
+    const unlisten = listen<{ connectionId: string; database: string }>(
+      'database-dropped',
+      (event) => {
+        void refreshDatabaseSelectionRef.current(event.payload.connectionId, {
+          notifyWhenUnchanged: false,
+        });
+      },
+    );
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
+
   // Connection Group methods
-  const createGroup = useCallback(async (name: string): Promise<ConnectionGroup> => {
-    const group = await invoke<ConnectionGroup>('create_connection_group', { name });
+  const createGroup = useCallback(async (
+    name: string,
+    parentId?: string | null
+  ): Promise<ConnectionGroup> => {
+    // The Tauri command expects `parent_id: Option<String>`. Passing
+    // `null` directly is fine — Tauri serialises it as `null` in JSON
+    // and the Rust deserializer maps it to `None`. Passing `undefined`
+    // would also work because serde's default attribute treats it the
+    // same, but we normalise to `null` for explicitness.
+    const group = await invoke<ConnectionGroup>('create_connection_group', {
+      name,
+      parentId: parentId ?? null,
+    });
     setConnectionGroups(prev => [...prev, group]);
+    return group;
+  }, []);
+
+  const createGroupPath = useCallback(async (
+    path: string,
+    parentId?: string | null
+  ): Promise<ConnectionGroup> => {
+    const group = await invoke<ConnectionGroup>('create_group_path', {
+      path,
+      parentId: parentId ?? null,
+    });
+    // Re-fetch the full group list because the backend may have reused
+    // existing segments and created new ones we don't yet know about.
+    const fresh = await invoke<ConnectionGroup[]>('get_connection_groups');
+    setConnectionGroups(fresh);
     return group;
   }, []);
 
@@ -852,13 +1145,27 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     );
   }, []);
 
-  const deleteGroup = useCallback(async (id: string): Promise<void> => {
-    await invoke('delete_connection_group', { id });
-    setConnectionGroups(prev => prev.filter(g => g.id !== id));
-    // Update connections that were in this group
-    setConnections(prev =>
-      prev.map(c => (c.group_id === id ? { ...c, group_id: undefined } : c))
+  const moveGroupToParent = useCallback(async (
+    id: string,
+    parentId: string | null
+  ): Promise<void> => {
+    await invoke('move_group_to_parent', { id, parentId });
+    setConnectionGroups(prev =>
+      prev.map(g => (g.id === id ? { ...g, parent_id: parentId } : g))
     );
+  }, []);
+
+  const deleteGroup = useCallback(async (id: string): Promise<void> => {
+    // The backend cascade-deletes the target group, every nested child
+    // group, and all connections belonging to any group in that subtree.
+    // Re-load from the backend instead of mirroring the cascade in
+    // optimistic state — this keeps the optimistic update trivial and
+    // guarantees the UI matches the persisted file even if the cascade
+    // behaviour evolves.
+    await invoke('delete_connection_group', { id });
+    const fresh = await invoke<ConnectionsFile>('get_connections_with_groups');
+    setConnections(fresh.connections);
+    setConnectionGroups(fresh.groups);
   }, []);
 
   const moveConnectionToGroup = useCallback(async (
@@ -937,6 +1244,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       isLoadingConnections,
       connect,
       disconnect,
+      detachConnection,
       switchConnection,
       setActiveTable: setActiveTableWithSchema,
       refreshTables,
@@ -949,10 +1257,15 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       loadDatabaseData,
       refreshDatabaseData,
       setSelectedDatabases,
+      refreshDatabaseSelection,
       getConnectionData,
       isConnectionOpen,
+      isConnectionOpenAnywhere,
+      globallyOpenConnectionIds,
       createGroup,
+      createGroupPath,
       updateGroup,
+      moveGroupToParent,
       deleteGroup,
       moveConnectionToGroup,
       reorderGroups,

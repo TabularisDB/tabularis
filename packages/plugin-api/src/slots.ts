@@ -113,7 +113,7 @@ export interface SlotComponentProps {
 }
 
 /**
- * Manifest-level UI extension declaration (what authors put in manifest.json).
+ * Manifest-level UI extension declaration (what authors put in the `.tabularium` manifest).
  */
 export interface UIExtensionDeclaration {
   slot: SlotName;

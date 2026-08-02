@@ -121,7 +121,7 @@ export function NotebookCellHeader({
   const [nameInput, setNameInput] = useState(cellName ?? "");
   const dbButtonRef = useRef<HTMLButtonElement>(null);
   const [dbDropdownPosition, setDbDropdownPosition] = useState({ top: 0, left: 0 });
-  const showDbSelector = cellType === "sql" && selectedDatabases && selectedDatabases.length > 1 && activeSchema && onSchemaChange;
+  const showDbSelector = cellType === "sql" && selectedDatabases && selectedDatabases.length >= 1 && activeSchema && onSchemaChange;
 
   const updateDbDropdownPosition = useCallback(() => {
     if (dbButtonRef.current) {

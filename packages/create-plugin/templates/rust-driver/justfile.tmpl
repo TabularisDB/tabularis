@@ -61,7 +61,7 @@ build-ui:
 dev-install: build
     mkdir -p ~/.local/share/tabularis/plugins/${ID}
     cp target/debug/${BIN_NAME} ~/.local/share/tabularis/plugins/${ID}/
-    cp manifest.json ~/.local/share/tabularis/plugins/${ID}/
+    cp .tabularium ~/.local/share/tabularis/plugins/${ID}/
     @if [ -f ui/dist/index.js ]; then \
         mkdir -p ~/.local/share/tabularis/plugins/${ID}/ui/dist; \
         cp ui/dist/index.js ~/.local/share/tabularis/plugins/${ID}/ui/dist/; \
@@ -73,7 +73,7 @@ dev-install: build
 dev-install: build
     mkdir -p "$HOME/Library/Application Support/tabularis/plugins/${ID}"
     cp target/debug/${BIN_NAME} "$HOME/Library/Application Support/tabularis/plugins/${ID}/"
-    cp manifest.json "$HOME/Library/Application Support/tabularis/plugins/${ID}/"
+    cp .tabularium "$HOME/Library/Application Support/tabularis/plugins/${ID}/"
     @if [ -f ui/dist/index.js ]; then \
         mkdir -p "$HOME/Library/Application Support/tabularis/plugins/${ID}/ui/dist"; \
         cp ui/dist/index.js "$HOME/Library/Application Support/tabularis/plugins/${ID}/ui/dist/"; \
@@ -86,7 +86,7 @@ dev-install: build
     $dest = Join-Path $env:APPDATA "tabularis\plugins\${ID}"
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
     Copy-Item "target\debug\${BIN_NAME}.exe" $dest
-    Copy-Item "manifest.json" $dest
+    Copy-Item ".tabularium" $dest
     if (Test-Path "ui\dist\index.js") {
         New-Item -ItemType Directory -Force -Path (Join-Path $dest "ui\dist") | Out-Null
         Copy-Item "ui\dist\index.js" (Join-Path $dest "ui\dist")
