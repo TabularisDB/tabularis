@@ -216,7 +216,7 @@ fn bind_pg_hstore(
             })
         }
 
-// The grid's plain-text cell editor doesn't yet know about hstore, so it
+        // The grid's plain-text cell editor doesn't yet know about hstore, so it
         // round-trips the value as a JSON-encoded string rather than an object.
         // Accept that shape here so editing still works until the editor is
         // taught to treat hstore columns like JSON (issue #395).
