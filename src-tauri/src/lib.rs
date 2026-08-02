@@ -343,7 +343,7 @@ pub fn run() {
                 }
 
                 // Then maximize if needed
-                if config.window_maximized.unwrap_or(false) {
+                if config.window_maximized.unwrap_or(false) || config.start_maximized.unwrap_or(false) {
                     if let Err(e) = window.maximize() {
                         log::warn!("Failed to maximize window on startup: {e}");
                     }
