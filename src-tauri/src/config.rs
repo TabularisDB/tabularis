@@ -157,7 +157,7 @@ pub struct AppConfig {
     /// Ids of all connections that were open when the app was last closed.
     pub last_open_connection_ids: Option<Vec<String>>,
 
-    // ----- Window State -----.
+    // ----- Window State -----
     /// Window width in pixels when the app was last closed.
     pub window_width: Option<u32>,
     /// Window height in pixels when the app was last closed.
