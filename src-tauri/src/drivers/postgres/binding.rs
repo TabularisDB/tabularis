@@ -139,7 +139,7 @@ pub(super) fn bind_pg_value(
     placeholder_idx: usize,
     options: PgValueOptions<'_>,
 ) -> Result<BoundValue, String> {
-    if options.hstore_oid.is_some() || options.column_type == Some("USER-DEFINED") {
+    if options.hstore_oid.is_some() {
         return bind_pg_hstore(value, placeholder_idx, options.hstore_oid);
     }
     // Bind serde_json::Value directly for json/jsonb — serialize-and-cast trips an OID mismatch.
