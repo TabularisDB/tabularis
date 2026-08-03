@@ -20,6 +20,8 @@ export interface ConnectionParams {
   port?: number;
   username?: string;
   password?: string;
+  /** AWS region (DynamoDB and other AWS drivers). */
+  region?: string;
   /** Raw driver-specific connection URI, forwarded verbatim to the driver.
    * Never persisted in connections.json: it embeds credentials and is stored
    * in the OS keychain instead. */

@@ -6,6 +6,8 @@ interface ConnectionParams {
   port?: number;
   username?: string;
   password?: string;
+  /** AWS region (DynamoDB and other AWS drivers). */
+  region?: string;
   /** Raw driver-specific connection URI, restored from the OS keychain by the host. */
   connection_uri?: string;
   /** True when the URI can be restored from the OS keychain. */

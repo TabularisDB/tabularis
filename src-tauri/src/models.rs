@@ -182,6 +182,10 @@ pub struct ConnectionParams {
     pub port: Option<u16>,
     pub username: Option<String>,
     pub password: Option<String>,
+    /// AWS region for drivers that need an explicit signing region
+    /// (e.g. DynamoDB). Optional so SQL drivers ignore it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region: Option<String>,
     /// Opaque driver-specific connection URI forwarded verbatim to the driver
     /// (e.g. a `mongodb+srv://` seedlist URI). Runtime only: command handlers
     /// strip it before persisting a connection, because it embeds credentials.

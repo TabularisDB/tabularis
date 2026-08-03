@@ -79,6 +79,11 @@ import {
   type EngineGroup,
   type CatalogueDriver,
 } from "../../utils/connectionCatalogue";
+import {
+  AWS_REGION_CODES,
+  AWS_REGION_SELECT_LABELS,
+  regionFromDynamoDbHost,
+} from "../../utils/awsRegions";
 
 // Accent colors per data paradigm, used for driver chips in the configure header.
 const PARADIGM_ACCENT: Record<string, string> = {
@@ -101,6 +106,8 @@ interface ConnectionParams {
   port?: number;
   username?: string;
   password?: string;
+  /** AWS region (DynamoDB and other AWS drivers). */
+  region?: string;
   /** Raw driver-specific connection URI, stored in the OS keychain, never in connections.json. */
   connection_uri?: string;
   /** True when the URI can be restored from the OS keychain. */
@@ -594,6 +601,8 @@ export const NewConnectionModal = ({
   // Flat single-database store (e.g. Meilisearch): no database to select or name.
   const singleDatabase =
     activeDriver?.capabilities?.single_database === true;
+  const isDynamoDb =
+    driver === "dynamodb" || activeDriver?.engine === "dynamodb";
 
   // ── plugin slot: connection-modal.connection_content ──
   const slotRegistry = usePluginSlotRegistry();
@@ -1436,6 +1445,24 @@ export const NewConnectionModal = ({
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Auto-fill region from a standard DynamoDB endpoint hostname when the
+  // region field is still empty (or still matches a previously derived value).
+  useEffect(() => {
+    if (!isDynamoDb) return;
+    const derived = regionFromDynamoDbHost(formData.host);
+    if (!derived) return;
+    setFormData((prev) => {
+      if (prev.region && prev.region !== derived) {
+        // User picked a different region explicitly — leave it alone unless
+        // the current value still matches a previously auto-derived host.
+        const prevHostRegion = regionFromDynamoDbHost(prev.host);
+        if (prev.region !== prevHostRegion) return prev;
+      }
+      if (prev.region === derived) return prev;
+      return { ...prev, region: derived };
+    });
+  }, [isDynamoDb, formData.host]);
+
   // Any change to the SSH configuration invalidates a previous SSH test
   // result: a stale green check must not survive an edit.
   const invalidateSshTest = useCallback(() => {
@@ -1754,6 +1781,7 @@ export const NewConnectionModal = ({
       port: drivers.find((d) => d.id === newDriver)?.default_port ?? undefined,
       username: "",
       password: "",
+      region: undefined,
       database: "",
       ssl_mode: "",
       ssh_enabled: false,
@@ -2482,6 +2510,36 @@ export const NewConnectionModal = ({
               placeholder={driver === "mysql" ? "3306" : "5432"}
             />
           </div>
+
+          {/* AWS region — DynamoDB needs an explicit signing region. The
+              generic host/port form has no region field, so without this
+              the plugin falls back to us-east-1 and real AWS endpoints in
+              other regions fail with InvalidSignatureException. */}
+          {isDynamoDb && (
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
+                {t("newConnection.region", { defaultValue: "AWS Region" })}
+              </label>
+              <Select
+                value={formData.region || null}
+                options={[...AWS_REGION_CODES]}
+                labels={AWS_REGION_SELECT_LABELS}
+                onChange={(val) => updateField("region", val ?? "")}
+                searchable
+                searchPlaceholder={t("common.search")}
+                noResultsLabel={t("common.noResults")}
+                placeholder={t("newConnection.regionPlaceholder", {
+                  defaultValue: "Select region (e.g. us-west-2)",
+                })}
+              />
+              <p className="text-[11px] leading-relaxed text-muted">
+                {t("newConnection.regionHint", {
+                  defaultValue:
+                    "Signing region for AWS DynamoDB. Auto-filled from a standard dynamodb.<region>.amazonaws.com host when empty.",
+                })}
+              </p>
+            </div>
+          )}
 
           {/* User + Password */}
           <div className="grid grid-cols-2 gap-3">
