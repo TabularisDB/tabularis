@@ -201,6 +201,11 @@
         }
       }
     },
+    "type_mappings": {
+      "type": "object",
+      "description": "Optional map of generic inferred type names to driver-specific types. Used by the host to resolve map_inferred_type() locally without an RPC call. Keys are uppercase generic names (e.g. DATETIME, JSON), values are the driver-native equivalents (e.g. TIMESTAMP, JSONB).",
+      "additionalProperties": { "type": "string" }
+    },
     "data_types": {
       "type": "array",
       "description": "List of SQL data types supported by this driver for column creation in the UI.",

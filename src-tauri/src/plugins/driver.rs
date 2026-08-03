@@ -1686,6 +1686,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn rpc_driver_materialized_view_columns_falls_back_when_method_missing() {
+        let driver = test_driver_result(|request| {
+            assert_eq!(request.method, "get_materialized_view_columns");
+            Err("Method not found (-32601)".to_string())
+        });
+
+        let cols = driver
+            .get_materialized_view_columns(&test_connection_params(), "mv_x", None)
+            .await
+            .expect("fallback returns empty vec");
+
+        assert!(cols.is_empty());
+    }
+
+    #[tokio::test]
     async fn rpc_driver_forwards_get_materialized_view_definition() {
         let driver = test_driver(|request| {
             assert_eq!(request.method, "get_materialized_view_definition");

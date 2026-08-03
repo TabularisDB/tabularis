@@ -93,6 +93,7 @@ The manifest tells Tabularis everything about your plugin.
 | `executable` | string | Relative path to the executable inside the plugin folder. |
 | `capabilities` | object | Feature flags (see below). |
 | `data_types` | array | List of supported data types (see below). |
+| `type_mappings` | object \| null | Optional map of generic inferred type names to driver-specific types. Used during paste/import to map generic types (e.g. `DATETIME`) to driver-native equivalents (e.g. `TIMESTAMP`). See [Type Mappings](#type-mappings) below. |
 
 ### Capabilities
 
@@ -138,6 +139,32 @@ Each entry in `data_types` describes a type the driver supports for column creat
 | `json` | JSON, JSONB |
 | `spatial` | GEOMETRY, POINT, POLYGON |
 | `other` | BOOLEAN, UUID |
+
+---
+
+### Type Mappings
+
+The optional `type_mappings` field lets your plugin declare how generic inferred type names should be mapped to driver-specific types. This is used during paste/import operations where Tabularis infers column types from data (e.g., detects a date column as `DATETIME`) and needs to translate that to a driver-native type.
+
+Since `map_inferred_type()` is a synchronous trait method that cannot issue an RPC call, the mapping is declared statically in the manifest and resolved by the host at lookup time.
+
+**Example for a PostgreSQL plugin:**
+
+```json
+{
+  "type_mappings": {
+    "DATETIME": "TIMESTAMP",
+    "JSON": "JSONB"
+  }
+}
+```
+
+**Rules:**
+- Keys are uppercase generic type names (the inferred type before mapping)
+- Values are the driver-native equivalents to use instead
+- Lookup is case-insensitive (the host uppercases the input before matching)
+- If a type has no mapping, it passes through unchanged
+- If `type_mappings` is omitted or empty, all types pass through unchanged
 
 ---
 
@@ -760,6 +787,44 @@ Drop a view.
 
 ---
 
+### Materialized Views
+
+These methods are optional. If your plugin returns `-32601` (method not found), the host falls back to empty results. Declare `materialized_views: true` in capabilities to enable the UI.
+
+#### `get_materialized_views`
+
+List materialized views in a schema.
+
+**Params:** `{ "params": ConnectionParams, "schema": string | null }`
+
+**Result:** `[{ "name": string, "schema": string | null }]`
+
+#### `get_materialized_view_columns`
+
+Get columns of a materialized view.
+
+**Params:** `{ "params": ConnectionParams, "view_name": string, "schema": string | null }`
+
+**Result:** `[TableColumn]` (same shape as `get_columns`)
+
+#### `get_materialized_view_definition`
+
+Get the SQL definition of a materialized view.
+
+**Params:** `{ "params": ConnectionParams, "view_name": string, "schema": string | null }`
+
+**Result:** `string` (the SQL definition)
+
+#### `refresh_materialized_view`
+
+Refresh a materialized view's data.
+
+**Params:** `{ "params": ConnectionParams, "view_name": string, "schema": string | null }`
+
+**Result:** `null` on success, or an error.
+
+---
+
 ### Routines
 
 #### `get_routines`
@@ -944,6 +1009,57 @@ Delete a row from a table.
 ```
 
 **Result:** Number of affected rows (e.g. `1`), or an error.
+
+---
+
+### BLOB Operations
+
+These methods are optional. If your plugin returns `-32601` (method not found), the host shows "BLOB export/preview not supported" to the user.
+
+#### `save_blob_to_file`
+
+Save a binary column value to a file on disk. The plugin receives the file path and is responsible for writing the file directly (since the plugin runs on the same machine as the host).
+
+**Params:**
+```json
+{
+  "params": ConnectionParams,
+  "table": "documents",
+  "col_name": "content",
+  "pk_map": { "id": 42 },
+  "schema": "public",
+  "file_path": "/tmp/export.pdf"
+}
+```
+
+**Result:** `null` on success, or an error.
+
+**Contract:** The plugin must:
+1. Query the binary column value using the PK map to identify the row
+2. Write the raw bytes to `file_path`
+3. Return `null` on success or an error string on failure
+
+#### `fetch_blob_as_data_url`
+
+Fetch a binary column value and return it as a displayable string (for preview in the row editor).
+
+**Params:**
+```json
+{
+  "params": ConnectionParams,
+  "table": "images",
+  "col_name": "data",
+  "pk_map": { "id": 7 },
+  "schema": "public"
+}
+```
+
+**Result:** A string in the BLOB wire format: `"BLOB:<size_bytes>:<mime_type>:<base64_data>"`, or an error.
+
+**Example response:**
+```json
+{ "result": "BLOB:1024:image/png:iVBORw0KGgo..." }
+```
 
 ---
 
