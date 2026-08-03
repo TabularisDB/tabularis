@@ -56,6 +56,10 @@ describe('settingsUI', () => {
       expect(getProviderLabel('minimax' as AiProvider)).toBe('MiniMax');
     });
 
+    it('should return correct label for OrcaRouter', () => {
+      expect(getProviderLabel('orcarouter' as AiProvider)).toBe('OrcaRouter');
+    });
+
     it('should capitalize unknown providers', () => {
       expect(getProviderLabel('custom' as AiProvider)).toBe('Custom');
       expect(getProviderLabel('test' as AiProvider)).toBe('Test');

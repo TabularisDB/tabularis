@@ -280,6 +280,26 @@ async fn fetch_openrouter_models() -> Vec<String> {
     }
 }
 
+async fn fetch_orcarouter_models(api_key: &str) -> Vec<String> {
+    let client = Client::new();
+    match client
+        .get("https://api.orcarouter.ai/v1/models")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await
+    {
+        Ok(res) => {
+            if res.status().is_success() {
+                if let Ok(json) = res.json::<OpenRouterModelList>().await {
+                    return json.data.into_iter().map(|m| m.id).collect();
+                }
+            }
+            Vec::new()
+        }
+        Err(_) => Vec::new(),
+    }
+}
+
 /// Build an API endpoint URL from a user-provided base_url.
 ///
 /// Handles various formats the user might input:
@@ -400,6 +420,14 @@ pub async fn get_ai_models(
                     }
                 }
 
+                // Always refresh OrcaRouter if API key is present
+                if let Ok(key) = config::get_ai_api_key(&app, "orcarouter") {
+                    let orcarouter_models = fetch_orcarouter_models(&key).await;
+                    if !orcarouter_models.is_empty() {
+                        cached_models.insert("orcarouter".to_string(), orcarouter_models);
+                    }
+                }
+
                 return Ok(cached_models);
             }
         }
@@ -452,7 +480,20 @@ pub async fn get_ai_models(
         }
     }
 
-    // 5. OpenRouter (Dynamic public)
+    // 5. OrcaRouter (Dynamic if key exists)
+    if let Ok(key) = config::get_ai_api_key(&app, "orcarouter") {
+        let remote_models = fetch_orcarouter_models(&key).await;
+        if !remote_models.is_empty() {
+            if let Some(static_list) = models.get_mut("orcarouter") {
+                let mut set: HashSet<String> = static_list.iter().cloned().collect();
+                set.extend(remote_models);
+                *static_list = set.into_iter().collect();
+                static_list.sort();
+            }
+        }
+    }
+
+    // 6. OpenRouter (Dynamic public)
     let openrouter_models = fetch_openrouter_models().await;
     if !openrouter_models.is_empty() {
         if let Some(static_list) = models.get_mut("openrouter") {
@@ -570,6 +611,7 @@ async fn dispatch_provider(
         "openai" => generate_openai(&client, &api_key, gen_req, system_prompt).await,
         "anthropic" => generate_anthropic(&client, &api_key, gen_req, system_prompt).await,
         "openrouter" => generate_openrouter(&client, &api_key, gen_req, system_prompt).await,
+        "orcarouter" => generate_orcarouter(&client, &api_key, gen_req, system_prompt).await,
         "ollama" => generate_ollama(&client, gen_req, system_prompt, ollama_port).await,
         "custom-openai" => {
             let base_url = app_config
@@ -902,6 +944,44 @@ async fn generate_openrouter(
     Ok(clean_response(content))
 }
 
+async fn generate_orcarouter(
+    client: &Client,
+    api_key: &str,
+    req: &AiGenerateRequest,
+    system_prompt: &str,
+) -> Result<String, String> {
+    let body = json!({
+        "model": req.model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": req.prompt}
+        ],
+        "temperature": 0.0
+    });
+
+    let res = client
+        .post("https://api.orcarouter.ai/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("HTTP-Referer", "https://github.com/TabularisDB/tabularis")
+        .header("X-Title", "Tabularis")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !res.status().is_success() {
+        let error_text = res.text().await.unwrap_or_default();
+        return Err(format!("OrcaRouter Error: {}", error_text));
+    }
+
+    let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+    let content = json["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or("Invalid response format from OrcaRouter")?;
+
+    Ok(clean_response(content))
+}
+
 async fn generate_anthropic(
     client: &Client,
     api_key: &str,
@@ -1058,6 +1138,7 @@ mod tests {
         assert!(models.contains_key("anthropic"));
         assert!(models.contains_key("openrouter"));
         assert!(models.contains_key("minimax"));
+        assert!(models.contains_key("orcarouter"));
 
         // Check for new futuristic models from yaml
         let openai = models.get("openai").unwrap();
@@ -1077,6 +1158,11 @@ mod tests {
         assert!(minimax.contains(&"MiniMax-M2.7-highspeed".to_string()));
         // M3 should be listed first so it is selected as the default model
         assert_eq!(minimax.first().map(String::as_str), Some("MiniMax-M3"));
+
+        // Check OrcaRouter models
+        let orcarouter = models.get("orcarouter").unwrap();
+        assert!(orcarouter.contains(&"orcarouter/auto".to_string()));
+        assert!(orcarouter.contains(&"openai/gpt-5.5".to_string()));
 
         // Ollama is not in yaml, so it shouldn't be here yet
         assert!(!models.contains_key("ollama"));

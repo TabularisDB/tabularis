@@ -203,6 +203,12 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 provider: "minimax",
               });
               if (hasMiniMax) detectedProvider = "minimax";
+              else {
+                const hasOrcaRouter = await invoke<boolean>("check_ai_key", {
+                  provider: "orcarouter",
+                });
+                if (hasOrcaRouter) detectedProvider = "orcarouter";
+              }
             }
             }
           }
@@ -216,7 +222,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
             // Only set provider if not already set
             if (!finalSettings.aiProvider) {
-              finalSettings.aiProvider = detectedProvider as "openai" | "anthropic" | "openrouter" | "minimax";
+              finalSettings.aiProvider = detectedProvider as "openai" | "anthropic" | "openrouter" | "minimax" | "orcarouter";
             }
             // Only set model if not already set AND we have a model available
             if (!finalSettings.aiModel && firstModel) {

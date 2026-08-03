@@ -7,6 +7,7 @@ export type AiProvider =
   | "openai"
   | "anthropic"
   | "openrouter"
+  | "orcarouter"
   | "ollama"
   | "custom-openai"
   | "minimax";
