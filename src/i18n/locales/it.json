@@ -191,7 +191,8 @@
     "removeFromSplitGroup": "Rimuovi dal Gruppo",
     "movePanel": "Sposta pannello",
     "refreshDatabaseList": "Aggiorna elenco database",
-    "databaseListUpToDate": "L'elenco dei database è aggiornato"
+    "databaseListUpToDate": "L'elenco dei database è aggiornato",
+    "allDatabasesRefreshed": "Database aggiornati: {{names}}"
   },
   "groups": {
     "title": "Gruppi",
@@ -360,7 +361,9 @@
       },
       "betaNotice": "L'importazione da un'altra app è in beta. Se riscontri un problema,",
       "reportIssue": "segnalalo su GitHub."
-    }
+    },
+    "databaseCount_one": "{{count}} database",
+    "databaseCount_other": "{{count}} database"
   },
   "connectionAppearance": {
     "section": "Aspetto",
@@ -833,6 +836,7 @@
     "namePlaceholder": "Inserisci il nome della connessione",
     "nameRequired": "Il nome della connessione è richiesto",
     "dbNameRequired": "Il nome del database è richiesto",
+    "connectionUriRequiresKeychain": "Gli URI di connessione devono essere salvati nel Portachiavi di sistema. Attiva “Salva password nel Portachiavi” per continuare.",
     "dbType": "Tipo Database",
     "host": "Host",
     "port": "Porta",
@@ -925,7 +929,16 @@
     "useIamAuth": "Usa autenticazione AWS IAM (RDS)",
     "useIamAuthHint": "Il campo password è trattato come un token di autenticazione RDS (da `aws rds generate-db-auth-token`). Richiede TLS. I token scadono ogni 15 minuti.",
     "useIamAuthTlsRequired": "Attiva una modalità SSL qui sopra per usare l'autenticazione AWS IAM.",
-    "changeDatabase": "Cambia database"
+    "changeDatabase": "Cambia database",
+    "testSsh": "Testa SSH",
+    "testSshHint": "Verifica solo il tunnel SSH (host e credenziali), senza connettersi al database.",
+    "sshTestSuccess": "Connessione SSH a {{target}} stabilita",
+    "stopTest": "Interrompi",
+    "allDatabases": "Tutti i database",
+    "chooseDatabases": "Scegli i database",
+    "allDatabasesHint": "Alla connessione vengono caricati automaticamente tutti i database del server. I database creati o eliminati sul server compaiono da soli, senza modificare questa connessione.",
+    "selectDatabasesHint": "Seleziona i database da includere in questa connessione.",
+    "loadDatabasesHint": "Premi Carica database per recuperare i database disponibili."
   },
   "sshConnections": {
     "title": "Connessioni SSH",
@@ -951,7 +964,14 @@
     "savedInKeychain": "Password salvata nel portachiavi di sistema",
     "manageDesc": "Tunnel SSH riutilizzabili per le tue connessioni ai database. Password e passphrase sono salvate nel portachiavi di sistema.",
     "deleteInUse_one": "È usata da {{count}} connessione salvata, che non passerà più da questo tunnel.",
-    "deleteInUse_other": "È usata da {{count}} connessioni salvate, che non passeranno più da questo tunnel."
+    "deleteInUse_other": "È usata da {{count}} connessioni salvate, che non passeranno più da questo tunnel.",
+    "errors": {
+      "connectionRequired": "Seleziona una connessione SSH o configurane una inline",
+      "connectionMissing": "La connessione SSH selezionata non esiste più",
+      "hostRequired": "L'host SSH è obbligatorio",
+      "userRequired": "L'utente SSH è obbligatorio",
+      "portInvalid": "La porta SSH deve essere compresa tra 1 e 65535"
+    }
   },
   "sshAskpass": {
     "title": "Autenticazione SSH",
@@ -976,7 +996,19 @@
     "clearSort": "Rimuovi ordinamento",
     "copyCell": "Copia cella",
     "copyRow": "Copia riga",
-    "copySelectedRows": "Copia riga/righe selezionate",
+    "selectAll": "Seleziona Tutti",
+    "selectAllN": "Seleziona Tutti ({{count}})",
+    "deselectAll": "Deseleziona Tutti",
+    "copySelectedN": "Copia Selezionate ({{count}})",
+    "selectColumn": "Seleziona Colonna",
+    "deselectColumn": "Deseleziona Colonna",
+    "copySelectedColumns": "Copia Colonne Selezionate ({{count}})",
+    "copyRangeN": "Copia Intervallo ({{rows}}×{{cols}})",
+    "copyAllRows": "Copia Tutto ({{count}})",
+    "copyAll": "Copia Tutto",
+    "copiedRows": "{{count}} riga/righe copiate negli appunti",
+    "copiedRowsOfTotal": "Copiate {{loaded}} di {{total}} righe negli appunti",
+    "copiedCells": "{{count}} cella/e copiate negli appunti",
     "copyColumnName": "Copia nome colonna",
     "copyColumnNameQuoted": "Copia come `colonna`",
     "copyColumnNameTable": "Copia come tabella.colonna",
@@ -1922,6 +1954,36 @@
     "runningQuery": "Esecuzione query...",
     "copyAll": "Copia tutto"
   },
+  "userManagement": {
+    "tabTitle": "Utenti & privilegi",
+    "filterPlaceholder": "Filtra utenti...",
+    "newUser": "Nuovo utente",
+    "create": "Crea utente",
+    "userPlaceholder": "nome utente",
+    "passwordPlaceholder": "Password",
+    "newPasswordPlaceholder": "Nuova password",
+    "changePassword": "Cambia password",
+    "dropUser": "Elimina utente",
+    "dropTitle": "Elimina utente",
+    "dropConfirm": "Eliminare l'utente {{account}}? L'operazione è irreversibile.",
+    "locked": "Bloccato",
+    "loadError": "Impossibile caricare gli utenti:",
+    "noUsers": "Nessun utente trovato",
+    "selectPrompt": "Seleziona un utente per vederne i privilegi",
+    "currentGrants": "Privilegi attuali",
+    "scope": "Database",
+    "scopePlaceholder": "Vuoto = globale (*.*)",
+    "revokeTitle": "Revoca privilegi",
+    "revokeConfirm": "Revocare {{privileges}} da {{account}} su {{scope}}?",
+    "add": "Aggiungi",
+    "apply": "Applica",
+    "privileges": "Privilegi",
+    "globalScope": "Globale (*.*)",
+    "addScope": "Aggiungi database / tabella",
+    "databasePlaceholder": "database",
+    "tablePlaceholder": "tabella (opzionale)",
+    "initialPrivilegesHint": "Opzionale: privilegi iniziali concessi subito dopo la creazione. Scegli un database, o lascia vuoto per concederli globalmente."
+  },
   "deepLink": {
     "installTitle": "Installa plugin dal registro",
     "installSubtitle": "Un registro Tabularium ha chiesto a Tabularis di installare un plugin.",
@@ -1962,5 +2024,64 @@
     "installVersion": "Installa v{{version}}",
     "installingVersion": "Installazione di v{{version}}…",
     "retryInstall": "Riprova installazione"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "Autenticazione SSH fallita",
+      "recovery": "Controlla utente, password o chiave privata nella scheda SSH."
+    },
+    "ssh-unreachable": {
+      "summary": "Server SSH non raggiungibile",
+      "recovery": "Controlla host e porta SSH e che il server sia raggiungibile. Se il tunnel si connette, verifica host e porta del database visti dal server SSH."
+    },
+    "ssh": {
+      "summary": "Tunnel SSH fallito",
+      "recovery": "Controlla le impostazioni nella scheda SSH."
+    },
+    "db-auth": {
+      "summary": "Autenticazione al database fallita",
+      "recovery": "Controlla nome utente e password del database."
+    },
+    "network": {
+      "summary": "Server del database non raggiungibile",
+      "recovery": "Controlla host e porta e che il server sia in esecuzione."
+    },
+    "db-not-found": {
+      "summary": "Database non trovato",
+      "recovery": "Controlla il nome del database."
+    },
+    "unknown": {
+      "summary": "Connessione fallita"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Log del test",
+    "noLog": "Nessun passaggio registrato per questo test.",
+    "rawError": "Dettagli errore",
+    "copyDiagnostics": "Copia diagnostica",
+    "copied": "Copiato!",
+    "steps": {
+      "cancelled": "Test interrotto dall'utente",
+      "resolve": {
+        "error": "Preparazione dei parametri di connessione fallita"
+      },
+      "sshTunnel": {
+        "start": "Apertura del tunnel SSH",
+        "ok": "Tunnel SSH stabilito",
+        "error": "Tunnel SSH fallito"
+      },
+      "k8sForward": {
+        "start": "Avvio del port-forward Kubernetes",
+        "ok": "Port-forward pronto",
+        "error": "Port-forward Kubernetes fallito"
+      },
+      "dbConnect": {
+        "start": "Connessione al database",
+        "ok": "Connessione al database stabilita",
+        "error": "Connessione al database fallita"
+      }
+    },
+    "title": "Log del test di connessione",
+    "showLog": "Mostra log"
   }
 }

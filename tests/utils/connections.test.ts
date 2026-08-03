@@ -441,6 +441,26 @@ describe('connections', () => {
       const conn = makeConn({ host: 'db.host', port: 5432, database: 'mydb' });
       expect(connectionSubtitle(conn, null)).toBe('db.host:5432  ·  mydb');
     });
+
+    it('should label empty database as all databases on multi-db drivers', () => {
+      const conn = makeConn({ host: 'db.host', port: 3306, database: '' });
+      expect(connectionSubtitle(conn, makeRemoteCaps())).toBe('db.host:3306  ·  All databases');
+      expect(
+        connectionSubtitle(conn, makeRemoteCaps(), { allDatabases: 'Tutti i database' }),
+      ).toBe('db.host:3306  ·  Tutti i database');
+    });
+
+    it('should keep empty database verbatim when capabilities are unknown', () => {
+      const conn = makeConn({ host: 'db.host', port: 3306, database: '' });
+      expect(connectionSubtitle(conn, null)).toBe('db.host:3306  ·  ');
+    });
+
+    it('should use the translated database counter when provided', () => {
+      const conn = makeConn({ host: 'db.host', port: 5432, database: ['db1', 'db2'] });
+      expect(
+        connectionSubtitle(conn, makeRemoteCaps(), { databaseCount: (c) => `${c} DB` }),
+      ).toBe('db.host:5432  ·  2 DB');
+    });
   });
 
   describe('getCardClass', () => {

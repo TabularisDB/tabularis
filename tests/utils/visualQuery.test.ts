@@ -223,6 +223,25 @@ describe('visualQuery utils', () => {
 
       expect(result.columns[0].order).toBe(999);
     });
+
+    it('should quote selected reserved columns for postgres', () => {
+      const nodes: QueryNode[] = [
+        {
+          id: 'n1',
+          data: {
+            label: 'user',
+            columns: [{ name: 'order', type: 'INT' }],
+            selectedColumns: { order: true },
+          },
+        },
+      ];
+      const aliases = { n1: 't1' };
+
+      const result = collectSelectedColumns(nodes, aliases, 'postgres');
+
+      expect(result.columns[0].expr).toBe('t1."order"');
+      expect(result.nonAggregatedCols).toEqual(['t1."order"']);
+    });
   });
 
   describe('sortColumnsByOrder', () => {
@@ -380,6 +399,39 @@ describe('visualQuery utils', () => {
     it('should return empty string for no nodes', () => {
       expect(generateFromClause([], [], {})).toBe('');
     });
+
+    it('should quote reserved table names for postgres', () => {
+      const nodes: QueryNode[] = [
+        { id: 'n1', data: { label: 'user', columns: [], selectedColumns: {} } },
+      ];
+      const aliases = { n1: 't1' };
+
+      expect(generateFromClause(nodes, [], aliases, 'postgres')).toBe(
+        '\nFROM\n  "user" t1',
+      );
+    });
+
+    it('should quote reserved join columns and tables for postgres', () => {
+      const nodes: QueryNode[] = [
+        { id: 'n1', data: { label: 'user', columns: [], selectedColumns: {} } },
+        { id: 'n2', data: { label: 'order', columns: [], selectedColumns: {} } },
+      ];
+      const edges: QueryEdge[] = [
+        {
+          id: 'e1',
+          source: 'n1',
+          target: 'n2',
+          sourceHandle: 'id',
+          targetHandle: 'user',
+        },
+      ];
+      const aliases = { n1: 't1', n2: 't2' };
+
+      const result = generateFromClause(nodes, edges, aliases, 'postgres');
+
+      expect(result).toContain('FROM\n  "user" t1');
+      expect(result).toContain('INNER JOIN "order" t2 ON t1.id = t2."user"');
+    });
   });
 
   describe('generateWhereClause', () => {
@@ -443,6 +495,16 @@ describe('visualQuery utils', () => {
     it('should return empty string for no conditions', () => {
       expect(generateWhereClause([])).toBe('');
     });
+
+    it('should quote generated WHERE column references for postgres', () => {
+      const conditions: WhereCondition[] = [
+        { id: '1', column: 't1.user', operator: '=', value: "'alice'", logicalOperator: 'AND', isAggregate: false },
+      ];
+
+      expect(generateWhereClause(conditions, 'postgres')).toBe(
+        "\nWHERE\n  t1.\"user\" = 'alice'",
+      );
+    });
   });
 
   describe('generateGroupByClause', () => {
@@ -481,6 +543,12 @@ describe('visualQuery utils', () => {
 
     it('should return empty for empty arrays', () => {
       expect(generateGroupByClause(false, [], [])).toBe('');
+    });
+
+    it('should quote generated GROUP BY column references for postgres', () => {
+      expect(generateGroupByClause(false, [], ['t1.user'], 'postgres')).toBe(
+        '\nGROUP BY\n  t1."user"',
+      );
     });
   });
 
@@ -546,6 +614,16 @@ describe('visualQuery utils', () => {
 
       expect(generateOrderByClause(orderBy, 'postgres')).toBe(
         '\nORDER BY\n  "Status" DESC',
+      );
+    });
+
+    it('should quote generated ORDER BY column references for postgres', () => {
+      const orderBy: OrderByClause[] = [
+        { id: '1', column: 't1.user', direction: 'ASC' },
+      ];
+
+      expect(generateOrderByClause(orderBy, 'postgres')).toBe(
+        '\nORDER BY\n  t1."user" ASC',
       );
     });
   });
@@ -630,6 +708,25 @@ describe('visualQuery utils', () => {
 
     it('should return empty string for no nodes', () => {
       expect(generateVisualQuerySQL([], [], [], [], [], '')).toBe('');
+    });
+
+    it('should generate postgres SQL with quoted reserved identifiers', () => {
+      const nodes: QueryNode[] = [
+        {
+          id: 'n1',
+          data: {
+            label: 'user',
+            columns: [{ name: 'id', type: 'INT' }, { name: 'order', type: 'INT' }],
+            selectedColumns: { id: true, order: true },
+          },
+        },
+      ];
+
+      const result = generateVisualQuerySQL(nodes, [], [], [], [], '', 'postgres');
+
+      expect(result).toContain('t1.id');
+      expect(result).toContain('t1."order"');
+      expect(result).toContain('FROM\n  "user" t1');
     });
   });
 });

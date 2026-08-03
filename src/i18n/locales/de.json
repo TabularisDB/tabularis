@@ -191,7 +191,8 @@
     "removeFromSplitGroup": "Aus der Gruppe entfernen",
     "movePanel": "Panel verschieben",
     "refreshDatabaseList": "Datenbankliste aktualisieren",
-    "databaseListUpToDate": "Datenbankliste ist aktuell"
+    "databaseListUpToDate": "Datenbankliste ist aktuell",
+    "allDatabasesRefreshed": "Datenbanken aktualisiert: {{names}}"
   },
   "mcp": {
     "title": "MCP-Server-Integration",
@@ -340,7 +341,9 @@
       },
       "betaNotice": "Der Import aus einer App befindet sich in der Beta-Phase. Falls ein Problem auftritt,",
       "reportIssue": "melde es auf GitHub."
-    }
+    },
+    "databaseCount_one": "{{count}} Datenbank",
+    "databaseCount_other": "{{count}} Datenbanken"
   },
   "connectionAppearance": {
     "section": "Darstellung",
@@ -808,6 +811,7 @@
     "namePlaceholder": "Gib deinen Verbindungsnamen an",
     "nameRequired": "Verbindungsname ist erforderlich",
     "dbNameRequired": "Datenbankname ist erforderlich",
+    "connectionUriRequiresKeychain": "Verbindungs-URIs müssen im Keychain des Betriebssystems gespeichert werden. Aktiviere „Passwörter im Keychain speichern“, um fortzufahren.",
     "dbType": "Datenbanktyp",
     "host": "Host",
     "port": "Port",
@@ -900,7 +904,16 @@
     "useIamAuth": "AWS-IAM-Authentifizierung verwenden (RDS)",
     "useIamAuthHint": "Das Passwortfeld wird als RDS-Auth-Token verwendet (aus `aws rds generate-db-auth-token`). Erfordert TLS. Tokens laufen alle 15 Minuten ab.",
     "useIamAuthTlsRequired": "Aktiviere oben einen SSL-Modus, um die AWS-IAM-Authentifizierung zu nutzen.",
-    "changeDatabase": "Datenbank ändern"
+    "changeDatabase": "Datenbank ändern",
+    "testSsh": "SSH testen",
+    "testSshHint": "Prüft nur den SSH-Tunnel (Host und Anmeldedaten), ohne Verbindung zur Datenbank.",
+    "sshTestSuccess": "SSH-Verbindung zu {{target}} hergestellt",
+    "stopTest": "Stopp",
+    "allDatabases": "Alle Datenbanken",
+    "chooseDatabases": "Datenbanken auswählen",
+    "allDatabasesHint": "Beim Verbinden werden automatisch alle Datenbanken des Servers geladen. Auf dem Server erstellte oder gelöschte Datenbanken erscheinen von selbst — ohne diese Verbindung zu bearbeiten.",
+    "selectDatabasesHint": "Die Datenbanken auswählen, die diese Verbindung enthalten soll.",
+    "loadDatabasesHint": "Auf „Datenbanken laden“ klicken, um die verfügbaren Datenbanken abzurufen."
   },
   "sshConnections": {
     "title": "SSH-Verbindungen",
@@ -926,7 +939,14 @@
     "savedInKeychain": "Passwort im System-Keychain gespeichert",
     "manageDesc": "Wiederverwendbare SSH-Tunnel für deine Datenbankverbindungen. Passwörter und Passphrasen werden im System-Schlüsselbund gespeichert.",
     "deleteInUse_one": "Sie wird von {{count}} gespeicherten Verbindung verwendet, die sich nicht mehr über diesen Tunnel verbinden wird.",
-    "deleteInUse_other": "Sie wird von {{count}} gespeicherten Verbindungen verwendet, die sich nicht mehr über diesen Tunnel verbinden werden."
+    "deleteInUse_other": "Sie wird von {{count}} gespeicherten Verbindungen verwendet, die sich nicht mehr über diesen Tunnel verbinden werden.",
+    "errors": {
+      "connectionRequired": "SSH-Verbindung auswählen oder inline konfigurieren",
+      "connectionMissing": "Die ausgewählte SSH-Verbindung existiert nicht mehr",
+      "hostRequired": "SSH-Host ist erforderlich",
+      "userRequired": "SSH-Benutzer ist erforderlich",
+      "portInvalid": "SSH-Port muss zwischen 1 und 65535 liegen"
+    }
   },
   "sshAskpass": {
     "title": "SSH-Authentifizierung",
@@ -951,7 +971,19 @@
     "clearSort": "Sortierung löschen",
     "copyCell": "Zelle kopieren",
     "copyRow": "Zeile kopieren",
-    "copySelectedRows": "Ausgewählte Zeile(n) kopieren",
+    "selectAll": "Alle auswählen",
+    "selectAllN": "Alle auswählen ({{count}})",
+    "deselectAll": "Alle abwählen",
+    "copySelectedN": "Auswahl kopieren ({{count}})",
+    "selectColumn": "Spalte auswählen",
+    "deselectColumn": "Spalte abwählen",
+    "copySelectedColumns": "Ausgewählte Spalten kopieren ({{count}})",
+    "copyRangeN": "Bereich kopieren ({{rows}}×{{cols}})",
+    "copyAllRows": "Alle kopieren ({{count}})",
+    "copyAll": "Alle kopieren",
+    "copiedRows": "{{count}} Zeile(n) in die Zwischenablage kopiert",
+    "copiedRowsOfTotal": "{{loaded}} von {{total}} Zeile(n) in die Zwischenablage kopiert",
+    "copiedCells": "{{count}} Zelle(n) in die Zwischenablage kopiert",
     "copyColumnName": "Spaltennamen kopieren",
     "copyColumnNameQuoted": "Als `column` kopieren",
     "copyColumnNameTable": "Als table.column kopieren",
@@ -1920,6 +1952,36 @@
     "runningQuery": "Abfrage wird ausgeführt...",
     "copyAll": "Alles kopieren"
   },
+  "userManagement": {
+    "tabTitle": "Benutzer & Rechte",
+    "filterPlaceholder": "Benutzer filtern...",
+    "newUser": "Neuer Benutzer",
+    "create": "Benutzer erstellen",
+    "userPlaceholder": "Benutzername",
+    "passwordPlaceholder": "Passwort",
+    "newPasswordPlaceholder": "Neues Passwort",
+    "changePassword": "Passwort ändern",
+    "dropUser": "Benutzer löschen",
+    "dropTitle": "Benutzer löschen",
+    "dropConfirm": "Benutzer {{account}} löschen? Dies kann nicht rückgängig gemacht werden.",
+    "locked": "Gesperrt",
+    "loadError": "Benutzer konnten nicht geladen werden:",
+    "noUsers": "Keine Benutzer gefunden",
+    "selectPrompt": "Wähle einen Benutzer, um seine Rechte anzuzeigen",
+    "currentGrants": "Aktuelle Berechtigungen",
+    "scope": "Datenbank",
+    "scopePlaceholder": "Leer = global (*.*)",
+    "revokeTitle": "Rechte entziehen",
+    "revokeConfirm": "{{privileges}} von {{account}} auf {{scope}} entziehen?",
+    "add": "Hinzufügen",
+    "apply": "Anwenden",
+    "privileges": "Rechte",
+    "globalScope": "Global (*.*)",
+    "addScope": "Datenbank / Tabelle hinzufügen",
+    "databasePlaceholder": "Datenbank",
+    "tablePlaceholder": "Tabelle (optional)",
+    "initialPrivilegesHint": "Optional: Anfangsrechte, die direkt nach der Erstellung gewährt werden. Wähle eine Datenbank oder lasse das Feld leer, um global zu gewähren."
+  },
   "deepLink": {
     "installTitle": "Plugin aus Registry installieren",
     "installSubtitle": "Eine Tabularium-Registry hat Tabularis gebeten, ein Plugin zu installieren.",
@@ -1960,5 +2022,64 @@
     "installVersion": "v{{version}} installieren",
     "installingVersion": "v{{version}} wird installiert…",
     "retryInstall": "Installation wiederholen"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "SSH-Authentifizierung fehlgeschlagen",
+      "recovery": "Benutzer, Passwort oder privaten Schlüssel im SSH-Tab prüfen."
+    },
+    "ssh-unreachable": {
+      "summary": "SSH-Server nicht erreichbar",
+      "recovery": "SSH-Host und -Port prüfen und ob der Server erreichbar ist. Wenn der Tunnel steht, Host und Port der Datenbank aus Sicht des SSH-Servers prüfen."
+    },
+    "ssh": {
+      "summary": "SSH-Tunnel fehlgeschlagen",
+      "recovery": "Die Einstellungen im SSH-Tab prüfen."
+    },
+    "db-auth": {
+      "summary": "Datenbank-Authentifizierung fehlgeschlagen",
+      "recovery": "Benutzername und Passwort der Datenbank prüfen."
+    },
+    "network": {
+      "summary": "Datenbankserver nicht erreichbar",
+      "recovery": "Host und Port prüfen und ob der Server läuft."
+    },
+    "db-not-found": {
+      "summary": "Datenbank nicht gefunden",
+      "recovery": "Den Datenbanknamen prüfen."
+    },
+    "unknown": {
+      "summary": "Verbindung fehlgeschlagen"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Testprotokoll",
+    "noLog": "Für diesen Test wurden keine Schritte aufgezeichnet.",
+    "rawError": "Fehlerdetails",
+    "copyDiagnostics": "Diagnose kopieren",
+    "copied": "Kopiert!",
+    "steps": {
+      "cancelled": "Test vom Benutzer abgebrochen",
+      "resolve": {
+        "error": "Vorbereitung der Verbindungsparameter fehlgeschlagen"
+      },
+      "sshTunnel": {
+        "start": "SSH-Tunnel wird geöffnet",
+        "ok": "SSH-Tunnel hergestellt",
+        "error": "SSH-Tunnel fehlgeschlagen"
+      },
+      "k8sForward": {
+        "start": "Kubernetes-Port-Forward wird gestartet",
+        "ok": "Port-Forward bereit",
+        "error": "Kubernetes-Port-Forward fehlgeschlagen"
+      },
+      "dbConnect": {
+        "start": "Verbindung zur Datenbank wird hergestellt",
+        "ok": "Datenbankverbindung hergestellt",
+        "error": "Datenbankverbindung fehlgeschlagen"
+      }
+    },
+    "title": "Protokoll des Verbindungstests",
+    "showLog": "Protokoll anzeigen"
   }
 }

@@ -39,6 +39,22 @@ export function getTableDataChangeScope(
 }
 
 /**
+ * Returns true when an open connection should use the multi-database
+ * presentation (db-qualified queries, per-database sidebar tree).
+ *
+ * `selectedDatabases` is populated only by the multi-database connect path,
+ * so any non-empty value means the connection was opened in that mode — this
+ * includes "all databases" connections that currently expose a single
+ * database, which still have no default schema and need qualified queries.
+ */
+export function usesMultiDatabaseLayout(
+  capabilities: DriverCapabilities | null | undefined,
+  selectedDatabases: string[],
+): boolean {
+  return isMultiDatabaseCapable(capabilities) && selectedDatabases.length >= 1;
+}
+
+/**
  * Returns true when the database param is an array (multi-database selection).
  */
 export function isMultiDatabaseSelection(db: string | string[]): db is string[] {

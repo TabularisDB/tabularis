@@ -164,6 +164,15 @@ pub struct SshTestParams {
     pub allow_passphrase_prompt: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
+    /// Id of the saved database connection whose inline SSH secrets should be
+    /// used as a fallback: they live in the keychain under the DB connection
+    /// id, not in the SSH connections file.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub db_connection_id: Option<String>,
+    /// When set, the test emits "connection-test-progress" events tagged with
+    /// this id so the caller can render a step log.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -173,6 +182,22 @@ pub struct ConnectionParams {
     pub port: Option<u16>,
     pub username: Option<String>,
     pub password: Option<String>,
+    /// Opaque driver-specific connection URI forwarded verbatim to the driver
+    /// (e.g. a `mongodb+srv://` seedlist URI). Runtime only: command handlers
+    /// strip it before persisting a connection, because it embeds credentials.
+    #[serde(
+        default,
+        alias = "connectionUri",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub connection_uri: Option<String>,
+    /// True when the URI can be restored from a separate OS keychain entry.
+    #[serde(
+        default,
+        alias = "connectionUriInKeychain",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub connection_uri_in_keychain: Option<bool>,
     pub database: DatabaseSelection,
     pub ssl_mode: Option<String>,
     pub ssl_ca: Option<String>,
@@ -352,6 +377,10 @@ pub struct TestConnectionRequest {
     pub params: ConnectionParams,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
+    /// When set, the test emits "connection-test-progress" events tagged with
+    /// this id so the caller can render a live step log.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -541,6 +570,41 @@ pub struct TriggerInfo {
     pub event: String,   // e.g. "INSERT", "UPDATE", "DELETE", "INSERT OR UPDATE"
     pub timing: String,  // "BEFORE", "AFTER", "INSTEAD OF"
     pub definition: Option<String>,
+}
+
+/// One database account as listed by the server (MySQL/MariaDB:
+/// `mysql.user` rows, identified by the `user`@`host` pair).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DbUserInfo {
+    pub user: String,
+    pub host: String,
+    /// Account is locked (`ALTER USER ... ACCOUNT LOCK`); `false` when the
+    /// server does not expose the flag.
+    pub locked: bool,
+}
+
+/// The privilege keywords a driver accepts in `apply_db_user_privileges`,
+/// split by scope. Sent to the frontend so the privilege editor renders the
+/// dialect's own catalog instead of hardcoding one.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct DbPrivilegeCatalog {
+    /// Privileges valid at the database scope (and also globally).
+    pub database: Vec<String>,
+    /// Privileges valid only at the global scope.
+    pub global: Vec<String>,
+    /// Privileges valid at the table scope.
+    pub table: Vec<String>,
+}
+
+/// One account's privileges on one scope, parsed from the server's grant
+/// metadata (MySQL: one `SHOW GRANTS` line). `database == None` is the
+/// global scope; `table` is only ever `Some` when `database` is.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct DbUserGrantSet {
+    pub database: Option<String>,
+    pub table: Option<String>,
+    /// Canonical privilege keywords, `GRANT OPTION` included as an entry.
+    pub privileges: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

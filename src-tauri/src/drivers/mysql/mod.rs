@@ -7,6 +7,7 @@ mod helpers;
 mod multi_result;
 mod routines;
 mod stmt_classify;
+mod users;
 
 #[cfg(test)]
 mod stmt_classify_tests;
@@ -256,7 +257,10 @@ pub async fn get_tables(
     let rows = fetch_all_rows(
         &pool,
         text,
-        "SELECT table_name as name FROM information_schema.tables WHERE table_schema = ? AND table_type = 'BASE TABLE' ORDER BY table_name ASC",
+        // MariaDB reports tables created WITH SYSTEM VERSIONING as table_type
+        // 'SYSTEM VERSIONED' rather than 'BASE TABLE', so they must be included
+        // explicitly or they silently vanish from the table list.
+        "SELECT table_name as name FROM information_schema.tables WHERE table_schema = ? AND table_type IN ('BASE TABLE', 'SYSTEM VERSIONED') ORDER BY table_name ASC",
         &[db_name],
     )
     .await?;
@@ -1484,6 +1488,135 @@ pub async fn get_triggers(
     Ok(triggers)
 }
 
+// --- User management ---------------------------------------------------
+
+pub async fn get_db_users(params: &ConnectionParams) -> Result<Vec<crate::models::DbUserInfo>, String> {
+    let pool = get_mysql_pool(params).await?;
+    let text = resolve_text_proto(&pool, params).await?;
+    // `account_locked` exists on MySQL 5.7+ / MariaDB 10.4+; older servers
+    // (and MariaDB < 10.4) miss the column, so fall back to user/host only.
+    let with_lock = fetch_all_rows(
+        &pool,
+        text,
+        "SELECT user, host, account_locked FROM mysql.user ORDER BY user, host",
+        &[],
+    )
+    .await;
+    let (rows, has_lock) = match with_lock {
+        Ok(rows) => (rows, true),
+        Err(_) => {
+            match fetch_all_rows(
+                &pool,
+                text,
+                "SELECT user, host FROM mysql.user ORDER BY user, host",
+                &[],
+            )
+            .await
+            {
+                Ok(rows) => (rows, false),
+                // No SELECT privilege on mysql.user: degrade to the connected
+                // account only — everyone may run SHOW GRANTS on themselves.
+                Err(_) => {
+                    let row =
+                        fetch_one_row(&pool, text, "SELECT CURRENT_USER()", &[]).await?;
+                    let current = mysql_row_str(&row, 0);
+                    let (user, host) = current
+                        .rsplit_once('@')
+                        .unwrap_or((current.as_str(), "%"));
+                    return Ok(vec![crate::models::DbUserInfo {
+                        user: user.to_string(),
+                        host: host.to_string(),
+                        locked: false,
+                    }]);
+                }
+            }
+        }
+    };
+    Ok(rows
+        .iter()
+        .map(|r| crate::models::DbUserInfo {
+            user: mysql_row_str(r, 0),
+            host: mysql_row_str(r, 1),
+            locked: has_lock && mysql_row_str(r, 2).eq_ignore_ascii_case("Y"),
+        })
+        .collect())
+}
+
+pub async fn get_db_user_grants(
+    params: &ConnectionParams,
+    user: &str,
+    host: &str,
+) -> Result<Vec<String>, String> {
+    let pool = get_mysql_pool(params).await?;
+    // Account names are always inlined as literals (SHOW GRANTS cannot take
+    // bind parameters), so the server's escaping mode is always needed.
+    let nbe = server_no_backslash_escapes(&pool).await?;
+    let sql = users::show_grants_sql(user, host, nbe)?;
+    let rows = fetch_all_rows(&pool, TextProto::protocol_only(true), &sql, &[]).await?;
+    Ok(rows.iter().map(|r| mysql_row_str(r, 0)).collect())
+}
+
+/// Shared executor for the account-management DDL: builds the statement with
+/// the server's real escaping mode (literals are always inlined — account
+/// statements cannot use bind parameters) and runs it through the text
+/// protocol, since some servers refuse to prepare account statements.
+async fn exec_user_stmt(
+    params: &ConnectionParams,
+    build: impl FnOnce(bool) -> Result<String, String>,
+) -> Result<(), String> {
+    let pool = get_mysql_pool(params).await?;
+    let nbe = server_no_backslash_escapes(&pool).await?;
+    let sql = build(nbe)?;
+    exec_stmt(&pool, TextProto::protocol_only(true), &sql).await?;
+    Ok(())
+}
+
+pub async fn create_db_user(
+    params: &ConnectionParams,
+    user: &str,
+    host: &str,
+    password: &str,
+) -> Result<(), String> {
+    exec_user_stmt(params, |nbe| users::create_user_sql(user, host, password, nbe)).await
+}
+
+pub async fn drop_db_user(params: &ConnectionParams, user: &str, host: &str) -> Result<(), String> {
+    exec_user_stmt(params, |nbe| users::drop_user_sql(user, host, nbe)).await
+}
+
+pub async fn set_db_user_password(
+    params: &ConnectionParams,
+    user: &str,
+    host: &str,
+    password: &str,
+) -> Result<(), String> {
+    exec_user_stmt(params, |nbe| users::set_password_sql(user, host, password, nbe)).await
+}
+
+pub async fn get_db_user_privileges(
+    params: &ConnectionParams,
+    user: &str,
+    host: &str,
+) -> Result<Vec<crate::models::DbUserGrantSet>, String> {
+    let lines = get_db_user_grants(params, user, host).await?;
+    Ok(users::parse_grants(&lines))
+}
+
+pub async fn apply_db_user_privileges(
+    params: &ConnectionParams,
+    user: &str,
+    host: &str,
+    database: Option<&str>,
+    table: Option<&str>,
+    privileges: &[String],
+    grant: bool,
+) -> Result<(), String> {
+    exec_user_stmt(params, |nbe| {
+        users::apply_privileges_sql(user, host, database, table, privileges, grant, nbe)
+    })
+    .await
+}
+
 pub async fn get_trigger_definition(
     params: &ConnectionParams,
     trigger_name: &str,
@@ -1616,6 +1749,8 @@ impl MysqlDriver {
                     folder_based: false,
                     connection_string: true,
                     connection_string_example: "mysql://user:pass@localhost:3306/db".into(),
+                    connection_uri: false,
+                    connection_uri_schemes: Vec::new(),
                     identifier_quote: "`".into(),
                     alter_primary_key: true,
                     auto_increment_keyword: "AUTO_INCREMENT".into(),
@@ -1628,6 +1763,7 @@ impl MysqlDriver {
                     explain: true,
                     readonly: false,
                     triggers: true,
+                    user_management: true,
                     supports_ssl: true,
                     sql_dialect: SqlDialect::Mysql,
                 },
@@ -1929,6 +2065,79 @@ impl DatabaseDriver for MysqlDriver {
         _schema: Option<&str>,
     ) -> Result<String, String> {
         get_routine_definition(params, routine_name, routine_type).await
+    }
+
+    async fn get_db_privilege_catalog(
+        &self,
+    ) -> Result<crate::models::DbPrivilegeCatalog, String> {
+        Ok(users::privilege_catalog())
+    }
+
+    async fn get_db_users(
+        &self,
+        params: &crate::models::ConnectionParams,
+    ) -> Result<Vec<crate::models::DbUserInfo>, String> {
+        get_db_users(params).await
+    }
+
+    async fn get_db_user_grants(
+        &self,
+        params: &crate::models::ConnectionParams,
+        user: &str,
+        host: &str,
+    ) -> Result<Vec<String>, String> {
+        get_db_user_grants(params, user, host).await
+    }
+
+    async fn create_db_user(
+        &self,
+        params: &crate::models::ConnectionParams,
+        user: &str,
+        host: &str,
+        password: &str,
+    ) -> Result<(), String> {
+        create_db_user(params, user, host, password).await
+    }
+
+    async fn drop_db_user(
+        &self,
+        params: &crate::models::ConnectionParams,
+        user: &str,
+        host: &str,
+    ) -> Result<(), String> {
+        drop_db_user(params, user, host).await
+    }
+
+    async fn set_db_user_password(
+        &self,
+        params: &crate::models::ConnectionParams,
+        user: &str,
+        host: &str,
+        password: &str,
+    ) -> Result<(), String> {
+        set_db_user_password(params, user, host, password).await
+    }
+
+    async fn get_db_user_privileges(
+        &self,
+        params: &crate::models::ConnectionParams,
+        user: &str,
+        host: &str,
+    ) -> Result<Vec<crate::models::DbUserGrantSet>, String> {
+        get_db_user_privileges(params, user, host).await
+    }
+
+    async fn apply_db_user_privileges(
+        &self,
+        params: &crate::models::ConnectionParams,
+        user: &str,
+        host: &str,
+        database: Option<&str>,
+        table: Option<&str>,
+        privileges: &[String],
+        grant: bool,
+    ) -> Result<(), String> {
+        apply_db_user_privileges(params, user, host, database, table, privileges, grant).await
     }
 
     async fn get_triggers(

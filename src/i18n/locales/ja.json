@@ -204,7 +204,8 @@
     "removeFromSplitGroup": "グループから削除",
     "movePanel": "パネルを移動",
     "refreshDatabaseList": "データベース一覧を更新",
-    "databaseListUpToDate": "データベース一覧は最新です"
+    "databaseListUpToDate": "データベース一覧は最新です",
+    "allDatabasesRefreshed": "データベースを更新しました: {{names}}"
   },
   "mcp": {
     "title": "MCP サーバー連携",
@@ -353,7 +354,9 @@
       },
       "betaNotice": "アプリからのインポートはベータ版です。問題が発生した場合は、",
       "reportIssue": "GitHub で報告してください。"
-    }
+    },
+    "databaseCount_one": "{{count}} 件のデータベース",
+    "databaseCount_other": "{{count}} 件のデータベース"
   },
   "connectionAppearance": {
     "section": "外観",
@@ -822,6 +825,7 @@
     "namePlaceholder": "接続名を入力",
     "nameRequired": "接続名は必須です",
     "dbNameRequired": "データベース名は必須です",
+    "connectionUriRequiresKeychain": "接続 URI は OS のキーチェーンに保存する必要があります。「パスワードをキーチェーンに保存」を有効にしてください。",
     "dbType": "データベースの種類",
     "host": "ホスト",
     "port": "ポート",
@@ -914,7 +918,16 @@
     "useIamAuth": "AWS IAM 認証を使用する (RDS)",
     "useIamAuthHint": "パスワード欄は RDS 認証トークン (`aws rds generate-db-auth-token` の出力) として扱われます。TLS 必須。トークンの有効期限は 15 分です。",
     "useIamAuthTlsRequired": "AWS IAM 認証を使用するには、上記で SSL モードを有効にしてください。",
-    "changeDatabase": "データベースを変更"
+    "changeDatabase": "データベースを変更",
+    "testSsh": "SSH をテスト",
+    "testSshHint": "データベースに接続せず、SSH トンネル(ホストと認証情報)のみを検証します。",
+    "sshTestSuccess": "{{target}} への SSH 接続が確立されました",
+    "stopTest": "停止",
+    "allDatabases": "すべてのデータベース",
+    "chooseDatabases": "データベースを選択",
+    "allDatabasesHint": "接続時にサーバー上のすべてのデータベースが自動的に読み込まれます。サーバーで作成・削除されたデータベースは、この接続を編集しなくても自動的に反映されます。",
+    "selectDatabasesHint": "この接続に含めるデータベースを選択してください。",
+    "loadDatabasesHint": "「データベースを読み込む」をクリックすると利用可能なデータベースを取得します。"
   },
   "sshConnections": {
     "title": "SSH 接続",
@@ -939,7 +952,14 @@
     "testFailed": "接続テストに失敗しました",
     "savedInKeychain": "パスワードをシステムのキーチェーンに保存しました",
     "manageDesc": "データベース接続で再利用できるSSHトンネルです。パスワードとパスフレーズはシステムのキーチェーンに保存されます。",
-    "deleteInUse_other": "この接続は{{count}}件の保存済みデータベース接続で使用されており、削除するとこのトンネル経由で接続できなくなります。"
+    "deleteInUse_other": "この接続は{{count}}件の保存済みデータベース接続で使用されており、削除するとこのトンネル経由で接続できなくなります。",
+    "errors": {
+      "connectionRequired": "SSH 接続を選択するか、インラインで設定してください",
+      "connectionMissing": "選択された SSH 接続は存在しません",
+      "hostRequired": "SSH ホストは必須です",
+      "userRequired": "SSH ユーザーは必須です",
+      "portInvalid": "SSH ポートは 1〜65535 の範囲で指定してください"
+    }
   },
   "sshAskpass": {
     "title": "SSH認証",
@@ -963,7 +983,19 @@
     "clearSort": "並べ替えを解除",
     "copyCell": "セルをコピー",
     "copyRow": "行をコピー",
-    "copySelectedRows": "選択した行をコピー",
+    "selectAll": "すべて選択",
+    "selectAllN": "すべて選択（{{count}}）",
+    "deselectAll": "すべて解除",
+    "copySelectedN": "選択をコピー（{{count}}）",
+    "selectColumn": "列を選択",
+    "deselectColumn": "列の選択を解除",
+    "copySelectedColumns": "選択した列をコピー（{{count}}）",
+    "copyRangeN": "範囲をコピー（{{rows}}×{{cols}}）",
+    "copyAllRows": "すべてコピー（{{count}}）",
+    "copyAll": "すべてコピー",
+    "copiedRows": "{{count}} 行をクリップボードにコピーしました",
+    "copiedRowsOfTotal": "{{total}} 行中 {{loaded}} 行をクリップボードにコピーしました",
+    "copiedCells": "{{count}} 個のセルをクリップボードにコピーしました",
     "copyColumnName": "カラム名をコピー",
     "copyColumnNameQuoted": "`column` 形式でコピー",
     "copyColumnNameTable": "table.column 形式でコピー",
@@ -1938,6 +1970,36 @@
     "runningQuery": "クエリを実行中...",
     "copyAll": "すべてコピー"
   },
+  "userManagement": {
+    "tabTitle": "ユーザーと権限",
+    "filterPlaceholder": "ユーザーを絞り込み...",
+    "newUser": "新規ユーザー",
+    "create": "ユーザーを作成",
+    "userPlaceholder": "ユーザー名",
+    "passwordPlaceholder": "パスワード",
+    "newPasswordPlaceholder": "新しいパスワード",
+    "changePassword": "パスワードを変更",
+    "dropUser": "ユーザーを削除",
+    "dropTitle": "ユーザーを削除",
+    "dropConfirm": "ユーザー {{account}} を削除しますか？この操作は元に戻せません。",
+    "locked": "ロック中",
+    "loadError": "ユーザーの読み込みに失敗しました:",
+    "noUsers": "ユーザーが見つかりません",
+    "selectPrompt": "権限を表示するユーザーを選択してください",
+    "currentGrants": "現在の権限",
+    "scope": "データベース",
+    "scopePlaceholder": "空 = グローバル (*.*)",
+    "revokeTitle": "権限を取り消す",
+    "revokeConfirm": "{{scope}} に対する {{account}} の {{privileges}} を取り消しますか？",
+    "add": "追加",
+    "apply": "適用",
+    "privileges": "権限",
+    "globalScope": "グローバル (*.*)",
+    "addScope": "データベース / テーブルを追加",
+    "databasePlaceholder": "データベース",
+    "tablePlaceholder": "テーブル（任意）",
+    "initialPrivilegesHint": "任意: 作成直後に付与する初期権限です。データベースを選択するか、空のままにするとグローバルに付与されます。"
+  },
   "deepLink": {
     "installTitle": "レジストリからプラグインをインストール",
     "installSubtitle": "Tabularium レジストリが Tabularis にプラグインのインストールを要求しました。",
@@ -1978,5 +2040,64 @@
     "installVersion": "v{{version}} をインストール",
     "installingVersion": "v{{version}} をインストール中…",
     "retryInstall": "インストールを再試行"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "SSH 認証に失敗しました",
+      "recovery": "SSH タブでユーザー、パスワード、秘密鍵を確認してください。"
+    },
+    "ssh-unreachable": {
+      "summary": "SSH サーバーに接続できません",
+      "recovery": "SSH ホストとポート、サーバーに到達可能かを確認してください。トンネルが接続できる場合は、SSH サーバーから見たデータベースのホストとポートを確認してください。"
+    },
+    "ssh": {
+      "summary": "SSH トンネルに失敗しました",
+      "recovery": "SSH タブの設定を確認してください。"
+    },
+    "db-auth": {
+      "summary": "データベース認証に失敗しました",
+      "recovery": "データベースのユーザー名とパスワードを確認してください。"
+    },
+    "network": {
+      "summary": "データベースサーバーに接続できません",
+      "recovery": "ホストとポート、サーバーが起動しているかを確認してください。"
+    },
+    "db-not-found": {
+      "summary": "データベースが見つかりません",
+      "recovery": "データベース名を確認してください。"
+    },
+    "unknown": {
+      "summary": "接続に失敗しました"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "テストログ",
+    "noLog": "このテストではステップが記録されませんでした。",
+    "rawError": "エラーの詳細",
+    "copyDiagnostics": "診断情報をコピー",
+    "copied": "コピーしました!",
+    "steps": {
+      "cancelled": "ユーザーによりテストが停止されました",
+      "resolve": {
+        "error": "接続パラメータの準備に失敗しました"
+      },
+      "sshTunnel": {
+        "start": "SSH トンネルを開いています",
+        "ok": "SSH トンネルが確立されました",
+        "error": "SSH トンネルに失敗しました"
+      },
+      "k8sForward": {
+        "start": "Kubernetes ポートフォワードを開始しています",
+        "ok": "ポートフォワードの準備ができました",
+        "error": "Kubernetes ポートフォワードに失敗しました"
+      },
+      "dbConnect": {
+        "start": "データベースに接続しています",
+        "ok": "データベース接続が確立されました",
+        "error": "データベース接続に失敗しました"
+      }
+    },
+    "title": "接続テストのログ",
+    "showLog": "ログを表示"
   }
 }

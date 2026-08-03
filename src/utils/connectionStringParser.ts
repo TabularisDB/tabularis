@@ -15,6 +15,10 @@ export interface ParsedConnectionString {
   username?: string;
   password?: string;
   database: string;
+  /** Original connection string, preserved verbatim for URI-passthrough drivers.
+   * When set it is authoritative: the decomposed fields above are only there so
+   * the UI has something to display. */
+  connection_uri?: string;
 }
 
 export interface ConnectionStringParseResult {
@@ -39,6 +43,8 @@ export interface ConnectionStringDriver {
 interface ResolvedDriver {
   id: DatabaseDriver;
   local: boolean;
+  /** The driver takes the raw URI verbatim; decomposing it would lose meaning. */
+  passthrough: boolean;
 }
 
 /**
@@ -84,6 +90,23 @@ function connectionStringImportEnabled(
   );
 }
 
+function uriPassthroughEnabled(
+  capabilities?: DriverCapabilities | null,
+): boolean {
+  if (!capabilities) return false;
+  return capabilities.connection_uri ?? capabilities.connectionUri ?? false;
+}
+
+function getExtraProtocols(
+  capabilities?: DriverCapabilities | null,
+): string[] {
+  const schemes =
+    capabilities?.connection_uri_schemes ??
+    capabilities?.connectionUriSchemes ??
+    [];
+  return schemes.map(normalizeProtocol).filter((scheme) => scheme.length > 0);
+}
+
 function resolveDrivers(
   drivers?: ReadonlyArray<ConnectionStringDriver>,
 ): ReadonlyArray<ConnectionStringDriver> {
@@ -103,9 +126,15 @@ function buildProtocolRegistry(
 
     if (!canImport) continue;
 
+    const resolved: ResolvedDriver = {
+      id: driver.id,
+      local,
+      passthrough: uriPassthroughEnabled(driver.capabilities),
+    };
+
     const idProtocol = normalizeProtocol(driver.id);
     if (idProtocol) {
-      registry.set(idProtocol, { id: driver.id, local });
+      registry.set(idProtocol, resolved);
     }
 
     const exampleProtocol = getProtocolFromExample(
@@ -114,7 +143,17 @@ function buildProtocolRegistry(
     );
 
     if (exampleProtocol) {
-      registry.set(exampleProtocol, { id: driver.id, local });
+      registry.set(exampleProtocol, resolved);
+    }
+
+    // Declared schemes never displace a protocol another driver already owns.
+    // Drivers arrive sorted by id, so without this a plugin could claim
+    // `postgres` and, sorting later, capture connection strings — credentials
+    // included — meant for the built-in driver.
+    for (const extraProtocol of getExtraProtocols(driver.capabilities)) {
+      if (!registry.has(extraProtocol)) {
+        registry.set(extraProtocol, resolved);
+      }
     }
   }
 
@@ -169,6 +208,27 @@ export function parseConnectionString(
     return {
       success: false,
       error: `Unsupported database driver: ${protocol}${suffix}`,
+    };
+  }
+
+  if (resolved.passthrough) {
+    // The scheme and query string carry meaning the decomposed fields cannot
+    // represent (a `mongodb+srv://` host has SRV records but no A record, and
+    // params like `tls` or `replicaSet` have no field of their own), so the
+    // original string is kept verbatim and handed to the driver as-is. The
+    // fields below are derived only so the UI can label the connection; the
+    // password is deliberately left out because the URI already carries it and
+    // is the only copy that reaches the keychain.
+    return {
+      success: true,
+      params: {
+        driver: resolved.id,
+        host: url.hostname || undefined,
+        port: url.port ? Number.parseInt(url.port, 10) : undefined,
+        username: url.username ? decodeURIComponent(url.username) : undefined,
+        database: decodeURIComponent(url.pathname.replace(/^\//, "")),
+        connection_uri: trimmed,
+      },
     };
   }
 
@@ -242,6 +302,7 @@ export function toConnectionParams(
     username: parsed.username,
     password: parsed.password,
     database: parsed.database,
+    connection_uri: parsed.connection_uri,
   };
 }
 

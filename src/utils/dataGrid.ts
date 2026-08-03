@@ -10,6 +10,9 @@ import { isJsonColumn } from "./json";
 /** Sentinel value indicating that the database DEFAULT value should be used */
 export const USE_DEFAULT_SENTINEL = "__USE_DEFAULT__";
 
+/** Fixed height of a grid row, shared by the row markup and the virtualizer. */
+export const DATA_GRID_ROW_HEIGHT = 35;
+
 /** Build an object mapping PK column names to their values from a data row. */
 export function buildPkMap(
   pkColumns: string[],

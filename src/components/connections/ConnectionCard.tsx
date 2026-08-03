@@ -56,7 +56,11 @@ export const ConnectionCard = ({
   const isDriverEnabled = enabledDrivers.some(d => d.id === conn.params.driver);
   const driverManifest = allDrivers.find(d => d.id === conn.params.driver);
   const capabilities = getCapabilitiesForDriver(conn.params.driver, allDrivers);
-  const subtitle = connectionSubtitle(conn, capabilities);
+  const subtitle = connectionSubtitle(conn, capabilities, {
+    allDatabases: t("newConnection.allDatabases"),
+    databaseCount: (count) =>
+      t("connections.databaseCount", { count, defaultValue: "{{count}} databases" }),
+  });
   const driverColor = getConnectionAccent(conn, driverManifest);
 
   return (

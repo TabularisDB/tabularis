@@ -275,6 +275,28 @@ async fn resolve_db_params(
         conn.params.password = None;
     }
 
+    // connections.json never holds the URI, so a passthrough connection that
+    // works in the app would reach the driver without its endpoint and
+    // credentials here unless it is restored the same way. Kept out of the
+    // password branches above: the URI has its own keychain entry and its own
+    // marker, so it must not depend on how the password happens to be stored.
+    if conn.params.connection_uri_in_keychain.unwrap_or(false) {
+        let cache = std::sync::Arc::new(credential_cache::CredentialCache::default());
+        let id = conn.id.clone();
+        let uri = tokio::task::spawn_blocking(move || {
+            credential_cache::get_connection_uri_cached(&cache, &id, true)
+        })
+        .await
+        .map_err(|e| JsonRpcError {
+            code: -32000,
+            message: e.to_string(),
+            data: None,
+        })?;
+        if let Ok(Some(value)) = uri {
+            conn.params.connection_uri = Some(value);
+        }
+    }
+
     let expanded = expand_ssh_params_for_mcp(&conn.params).await?;
     let expanded = expand_k8s_params_for_mcp(&expanded).await?;
     let db_params = commands::resolve_connection_params(&expanded).map_err(|e| JsonRpcError {

@@ -204,7 +204,8 @@
     "removeFromSplitGroup": "Alisin sa Grupo",
     "movePanel": "Ilipat ang panel",
     "refreshDatabaseList": "I-refresh ang listahan ng database",
-    "databaseListUpToDate": "Up to date na ang listahan ng database"
+    "databaseListUpToDate": "Up to date na ang listahan ng database",
+    "allDatabasesRefreshed": "Na-update ang mga database: {{names}}"
   },
   "mcp": {
     "title": "Integrasyon ng MCP Server",
@@ -353,7 +354,9 @@
       },
       "betaNotice": "Ang Import from App ay nasa beta. Kung may problema ka,",
       "reportIssue": "i-report ito sa GitHub."
-    }
+    },
+    "databaseCount_one": "{{count}} database",
+    "databaseCount_other": "{{count}} database"
   },
   "connectionAppearance": {
     "section": "Hitsura",
@@ -838,6 +841,7 @@
     "namePlaceholder": "Ilagay ang pangalan ng connection",
     "nameRequired": "Kailangan ang pangalan ng connection",
     "dbNameRequired": "Kailangan ang pangalan ng database",
+    "connectionUriRequiresKeychain": "Dapat i-save ang mga connection URI sa OS keychain. I-enable ang “I-save ang mga password sa Keychain” para magpatuloy.",
     "dbType": "Uri ng Database",
     "host": "Host",
     "port": "Port",
@@ -929,7 +933,16 @@
     "scrollTabsRight": "I-scroll ang mga tab pakanan",
     "useIamAuth": "Gumamit ng AWS IAM Authentication (RDS)",
     "useIamAuthHint": "Ang password field ay itinuturing na RDS auth token (mula sa `aws rds generate-db-auth-token`). Kailangan ng TLS. Nag-e-expire ang mga token bawat 15 minuto.",
-    "useIamAuthTlsRequired": "I-enable ang SSL mode sa itaas para magamit ang AWS IAM authentication."
+    "useIamAuthTlsRequired": "I-enable ang SSL mode sa itaas para magamit ang AWS IAM authentication.",
+    "testSsh": "Subukan ang SSH",
+    "testSshHint": "Sinusuri lamang ang SSH tunnel (host at mga kredensyal), nang hindi kumokonekta sa database.",
+    "sshTestSuccess": "Naitatag ang koneksyong SSH sa {{target}}",
+    "stopTest": "Ihinto",
+    "allDatabases": "Lahat ng database",
+    "chooseDatabases": "Pumili ng mga database",
+    "allDatabasesHint": "Sa pagkonekta, awtomatikong nilo-load ang lahat ng database sa server. Ang mga database na ginawa o tinanggal sa server ay lalabas nang kusa — hindi na kailangang i-edit ang koneksyong ito.",
+    "selectDatabasesHint": "Piliin ang mga database na isasama sa koneksyong ito.",
+    "loadDatabasesHint": "I-click ang I-load ang mga database para kunin ang mga available."
   },
   "sshConnections": {
     "title": "Mga SSH Connection",
@@ -955,7 +968,14 @@
     "savedInKeychain": "Naka-save ang password sa system keychain",
     "manageDesc": "Maaaring gamitin ulit na SSH tunnel para sa iyong mga database connection. Ang mga password at passphrase ay naka-store sa system keychain.",
     "deleteInUse_one": "Ginagamit ito ng {{count}} naka-save na database connection, na hindi na makakakonekta sa tunnel na ito.",
-    "deleteInUse_other": "Ginagamit ito ng {{count}} naka-save na database connection, na hindi na makakakonekta sa tunnel na ito."
+    "deleteInUse_other": "Ginagamit ito ng {{count}} naka-save na database connection, na hindi na makakakonekta sa tunnel na ito.",
+    "errors": {
+      "connectionRequired": "Pumili ng koneksyong SSH o mag-configure ng inline",
+      "connectionMissing": "Wala na ang napiling koneksyong SSH",
+      "hostRequired": "Kinakailangan ang SSH host",
+      "userRequired": "Kinakailangan ang SSH user",
+      "portInvalid": "Ang SSH port ay dapat nasa pagitan ng 1 at 65535"
+    }
   },
   "sshAskpass": {
     "title": "SSH Authentication",
@@ -982,7 +1002,19 @@
     "clearSort": "Alisin ang sort",
     "copyCell": "Kopyahin ang Cell",
     "copyRow": "Kopyahin ang Row",
-    "copySelectedRows": "Kopyahin ang napiling row",
+    "selectAll": "Piliin Lahat",
+    "selectAllN": "Piliin Lahat ({{count}})",
+    "deselectAll": "Alisin ang Lahat sa Pagpili",
+    "copySelectedN": "Kopyahin ang Napili ({{count}})",
+    "selectColumn": "Piliin ang Column",
+    "deselectColumn": "Alisin ang Pagpili ng Column",
+    "copySelectedColumns": "Kopyahin ang Napiling Columns ({{count}})",
+    "copyRangeN": "Kopyahin ang Range ({{rows}}×{{cols}})",
+    "copyAllRows": "Kopyahin Lahat ({{count}})",
+    "copyAll": "Kopyahin Lahat",
+    "copiedRows": "Nakopya ang {{count}} row sa clipboard",
+    "copiedRowsOfTotal": "Nakopya ang {{loaded}} sa {{total}} na row sa clipboard",
+    "copiedCells": "Nakopya ang {{count}} cell sa clipboard",
     "copyColumnName": "Kopyahin ang pangalan ng column",
     "copyColumnNameQuoted": "Kopyahin bilang `column`",
     "copyColumnNameTable": "Kopyahin bilang table.column",
@@ -1989,5 +2021,94 @@
   "miniGrid": {
     "runningQuery": "Tumatakbo ang query...",
     "copyAll": "Kopyahin lahat"
+  },
+  "userManagement": {
+    "tabTitle": "Mga user at pribilehiyo",
+    "filterPlaceholder": "I-filter ang mga user...",
+    "newUser": "Bagong user",
+    "create": "Gumawa ng user",
+    "userPlaceholder": "username",
+    "passwordPlaceholder": "Password",
+    "newPasswordPlaceholder": "Bagong password",
+    "changePassword": "Palitan ang password",
+    "dropUser": "Burahin ang user",
+    "dropTitle": "Burahin ang user",
+    "dropConfirm": "Burahin ang user na {{account}}? Hindi na ito maibabalik.",
+    "locked": "Naka-lock",
+    "loadError": "Nabigong i-load ang mga user:",
+    "noUsers": "Walang nahanap na user",
+    "selectPrompt": "Pumili ng user para makita ang mga pribilehiyo nito",
+    "currentGrants": "Kasalukuyang mga grant",
+    "scope": "Database",
+    "scopePlaceholder": "Walang laman = global (*.*)",
+    "revokeTitle": "Bawiin ang mga pribilehiyo",
+    "revokeConfirm": "Bawiin ang {{privileges}} mula kay {{account}} sa {{scope}}?",
+    "add": "Idagdag",
+    "apply": "Ilapat",
+    "privileges": "Mga pribilehiyo",
+    "globalScope": "Global (*.*)",
+    "addScope": "Magdagdag ng database / talahanayan",
+    "databasePlaceholder": "database",
+    "tablePlaceholder": "talahanayan (opsyonal)",
+    "initialPrivilegesHint": "Opsyonal: mga paunang pribilehiyong ibibigay agad pagkatapos gumawa. Pumili ng database, o iwanang walang laman para ibigay ito nang global."
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "Nabigo ang SSH authentication",
+      "recovery": "Suriin ang SSH user, password, o private key sa tab na SSH."
+    },
+    "ssh-unreachable": {
+      "summary": "Hindi maabot ang SSH server",
+      "recovery": "Suriin ang SSH host at port, at kung maaabot ang server. Kung kumokonekta ang tunnel, suriin ang host at port ng database mula sa SSH server."
+    },
+    "ssh": {
+      "summary": "Nabigo ang SSH tunnel",
+      "recovery": "Suriin ang mga setting sa tab na SSH."
+    },
+    "db-auth": {
+      "summary": "Nabigo ang authentication sa database",
+      "recovery": "Suriin ang username at password ng database."
+    },
+    "network": {
+      "summary": "Hindi maabot ang database server",
+      "recovery": "Suriin ang host at port, at kung tumatakbo ang server."
+    },
+    "db-not-found": {
+      "summary": "Hindi natagpuan ang database",
+      "recovery": "Suriin ang pangalan ng database."
+    },
+    "unknown": {
+      "summary": "Nabigo ang koneksyon"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Log ng pagsubok",
+    "noLog": "Walang naitalang hakbang para sa pagsubok na ito.",
+    "rawError": "Mga detalye ng error",
+    "copyDiagnostics": "Kopyahin ang diagnostics",
+    "copied": "Nakopya!",
+    "steps": {
+      "cancelled": "Inihinto ng user ang pagsubok",
+      "resolve": {
+        "error": "Nabigo ang paghahanda ng mga parameter ng koneksyon"
+      },
+      "sshTunnel": {
+        "start": "Binubuksan ang SSH tunnel",
+        "ok": "Naitatag ang SSH tunnel",
+        "error": "Nabigo ang SSH tunnel"
+      },
+      "k8sForward": {
+        "start": "Sinisimulan ang Kubernetes port-forward",
+        "ok": "Handa na ang port-forward",
+        "error": "Nabigo ang Kubernetes port-forward"
+      },
+      "dbConnect": {
+        "start": "Kumokonekta sa database",
+        "ok": "Naitatag ang koneksyon sa database",
+        "error": "Nabigo ang koneksyon sa database"
+      }
+    },
+    "title": "Log ng pagsubok ng koneksyon",
+    "showLog": "Ipakita ang log"
   }
 }

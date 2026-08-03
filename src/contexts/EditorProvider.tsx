@@ -22,6 +22,7 @@ import {
   shouldUseCachedSchema,
   createSchemaCacheEntry,
 } from "../utils/editor";
+import { moveTab } from "../utils/tabDnd";
 import {
   createNotebookFromState,
   evictFromCache,
@@ -341,6 +342,14 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     setTabs((prev) => updateTabInList(prev, id, partial));
   }, []);
 
+  const reorderTab = useCallback(
+    (fromTabId: string, insertAt: number) => {
+      if (!activeConnectionId) return;
+      setTabs((prev) => moveTab(prev, activeConnectionId, fromTabId, insertAt));
+    },
+    [activeConnectionId],
+  );
+
   const updateResultEntry = useCallback(
     (tabId: string, entryId: string, partial: Partial<QueryResultEntry>) => {
       setTabs((prev) =>
@@ -405,6 +414,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       openNotebook,
       closeTab,
       updateTab,
+      reorderTab,
       updateResultEntry,
       setActiveTabId,
       closeAllTabs,
@@ -421,6 +431,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
       openNotebook,
       closeTab,
       updateTab,
+      reorderTab,
       updateResultEntry,
       setActiveTabId,
       closeAllTabs,

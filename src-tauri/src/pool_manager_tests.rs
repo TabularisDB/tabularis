@@ -201,6 +201,32 @@ mod tests {
     }
 
     #[test]
+    fn mysql_options_skip_database_when_empty() {
+        // Empty database = "no default schema" (all-databases connections):
+        // it must not reach the handshake, where "" is rejected by the
+        // server with "Unknown database ''".
+        let mut params = mysql_params("required");
+        params.database = DatabaseSelection::Single(String::new());
+        let options = build_mysql_options(&params, None).unwrap();
+        let dbg = format!("{options:?}");
+        assert!(
+            dbg.contains("database: None"),
+            "expected no database in options, got: {dbg}"
+        );
+    }
+
+    #[test]
+    fn mysql_options_keep_non_empty_database() {
+        let params = mysql_params("required");
+        let options = build_mysql_options(&params, None).unwrap();
+        let dbg = format!("{options:?}");
+        assert!(
+            dbg.contains("database: Some(\"dec\")"),
+            "expected the configured database in options, got: {dbg}"
+        );
+    }
+
+    #[test]
     fn mysql_pool_key_changes_when_cleartext_plugin_changes() {
         let mut plain = mysql_params("required");
         plain.enable_cleartext_plugin = Some(false);

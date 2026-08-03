@@ -90,16 +90,22 @@ export async function deleteSshConnection(id: string): Promise<void> {
 
 /**
  * Test an SSH connection
+ * @param options.dbConnectionId Saved database connection whose inline SSH
+ *   secrets (stored in the keychain under the DB connection id) may be used
+ *   as a fallback when the form did not re-enter them.
  * @returns Success message if connection works
  * @throws Error with message if connection fails
  */
 export async function testSshConnection(
-  ssh: Partial<SshConnection>
+  ssh: Partial<SshConnection>,
+  options: { dbConnectionId?: string; progressId?: string } = {}
 ): Promise<string> {
   return await invoke<string>("test_ssh_connection", {
     ssh: {
       ...normalizeSshParams(ssh),
-      connection_id: ssh.id
+      connection_id: ssh.id,
+      db_connection_id: options.dbConnectionId,
+      progress_id: options.progressId
     }
   });
 }

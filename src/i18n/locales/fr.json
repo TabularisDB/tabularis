@@ -204,7 +204,8 @@
     "removeFromSplitGroup": "Retirer du groupe",
     "movePanel": "Déplacer le panneau",
     "refreshDatabaseList": "Actualiser la liste des bases",
-    "databaseListUpToDate": "La liste des bases de données est à jour"
+    "databaseListUpToDate": "La liste des bases de données est à jour",
+    "allDatabasesRefreshed": "Bases de données mises à jour : {{names}}"
   },
   "mcp": {
     "title": "Intégration du serveur MCP",
@@ -353,7 +354,9 @@
       },
       "betaNotice": "L'import depuis une app est en bêta. En cas de problème,",
       "reportIssue": "signalez-le sur GitHub."
-    }
+    },
+    "databaseCount_one": "{{count}} base de données",
+    "databaseCount_other": "{{count}} bases de données"
   },
   "connectionAppearance": {
     "section": "Apparence",
@@ -842,6 +845,7 @@
     "namePlaceholder": "Indiquez le nom de votre connexion",
     "nameRequired": "Le nom de la connexion est requis",
     "dbNameRequired": "Le nom de la base de données est requis",
+    "connectionUriRequiresKeychain": "Les URI de connexion doivent être enregistrées dans le trousseau du système. Activez « Enregistrer les mots de passe dans le trousseau » pour continuer.",
     "dbType": "Type de base de données",
     "host": "Hôte",
     "port": "Port",
@@ -934,7 +938,16 @@
     "useIamAuth": "Utiliser l'authentification AWS IAM (RDS)",
     "useIamAuthHint": "Le champ mot de passe est traité comme un jeton d'authentification RDS (généré par `aws rds generate-db-auth-token`). Nécessite TLS. Les jetons expirent toutes les 15 minutes.",
     "useIamAuthTlsRequired": "Activez un mode SSL ci-dessus pour utiliser l'authentification AWS IAM.",
-    "changeDatabase": "Changer de base de données"
+    "changeDatabase": "Changer de base de données",
+    "testSsh": "Tester SSH",
+    "testSshHint": "Vérifie uniquement le tunnel SSH (hôte et identifiants), sans se connecter à la base de données.",
+    "sshTestSuccess": "Connexion SSH à {{target}} établie",
+    "stopTest": "Arrêter",
+    "allDatabases": "Toutes les bases de données",
+    "chooseDatabases": "Choisir les bases de données",
+    "allDatabasesHint": "À la connexion, toutes les bases de données du serveur sont chargées automatiquement. Les bases créées ou supprimées sur le serveur apparaissent d’elles-mêmes, sans modifier cette connexion.",
+    "selectDatabasesHint": "Sélectionnez les bases de données à inclure dans cette connexion.",
+    "loadDatabasesHint": "Cliquez sur Charger les bases de données pour récupérer celles disponibles."
   },
   "sshConnections": {
     "title": "Connexions SSH",
@@ -960,7 +973,14 @@
     "savedInKeychain": "Mot de passe enregistré dans le trousseau système",
     "manageDesc": "Tunnels SSH réutilisables pour vos connexions aux bases de données. Les mots de passe et phrases secrètes sont stockés dans le trousseau du système.",
     "deleteInUse_one": "Elle est utilisée par {{count}} connexion enregistrée, qui ne passera plus par ce tunnel.",
-    "deleteInUse_other": "Elle est utilisée par {{count}} connexions enregistrées, qui ne passeront plus par ce tunnel."
+    "deleteInUse_other": "Elle est utilisée par {{count}} connexions enregistrées, qui ne passeront plus par ce tunnel.",
+    "errors": {
+      "connectionRequired": "Sélectionnez une connexion SSH ou configurez-en une en ligne",
+      "connectionMissing": "La connexion SSH sélectionnée n’existe plus",
+      "hostRequired": "L’hôte SSH est requis",
+      "userRequired": "L’utilisateur SSH est requis",
+      "portInvalid": "Le port SSH doit être compris entre 1 et 65535"
+    }
   },
   "sshAskpass": {
     "title": "Authentification SSH",
@@ -987,7 +1007,19 @@
     "clearSort": "Effacer le tri",
     "copyCell": "Copier la cellule",
     "copyRow": "Copier la ligne",
-    "copySelectedRows": "Copier la/les ligne(s) sélectionnée(s)",
+    "selectAll": "Tout sélectionner",
+    "selectAllN": "Tout sélectionner ({{count}})",
+    "deselectAll": "Tout désélectionner",
+    "copySelectedN": "Copier la sélection ({{count}})",
+    "selectColumn": "Sélectionner la colonne",
+    "deselectColumn": "Désélectionner la colonne",
+    "copySelectedColumns": "Copier les colonnes sélectionnées ({{count}})",
+    "copyRangeN": "Copier la plage ({{rows}}×{{cols}})",
+    "copyAllRows": "Tout Copier ({{count}})",
+    "copyAll": "Tout Copier",
+    "copiedRows": "{{count}} ligne(s) copiée(s) dans le presse-papiers",
+    "copiedRowsOfTotal": "{{loaded}} lignes sur {{total}} copiées dans le presse-papiers",
+    "copiedCells": "{{count}} cellule(s) copiée(s) dans le presse-papiers",
     "copyColumnName": "Copier le nom de colonne",
     "copyColumnNameQuoted": "Copier comme `column`",
     "copyColumnNameTable": "Copier comme table.column",
@@ -1998,6 +2030,36 @@
     "runningQuery": "Exécution de la requête...",
     "copyAll": "Tout copier"
   },
+  "userManagement": {
+    "tabTitle": "Utilisateurs & privilèges",
+    "filterPlaceholder": "Filtrer les utilisateurs...",
+    "newUser": "Nouvel utilisateur",
+    "create": "Créer l'utilisateur",
+    "userPlaceholder": "nom d'utilisateur",
+    "passwordPlaceholder": "Mot de passe",
+    "newPasswordPlaceholder": "Nouveau mot de passe",
+    "changePassword": "Changer le mot de passe",
+    "dropUser": "Supprimer l'utilisateur",
+    "dropTitle": "Supprimer l'utilisateur",
+    "dropConfirm": "Supprimer l'utilisateur {{account}} ? Cette action est irréversible.",
+    "locked": "Verrouillé",
+    "loadError": "Échec du chargement des utilisateurs :",
+    "noUsers": "Aucun utilisateur trouvé",
+    "selectPrompt": "Sélectionnez un utilisateur pour voir ses privilèges",
+    "currentGrants": "Privilèges actuels",
+    "scope": "Base de données",
+    "scopePlaceholder": "Vide = global (*.*)",
+    "revokeTitle": "Révoquer des privilèges",
+    "revokeConfirm": "Révoquer {{privileges}} de {{account}} sur {{scope}} ?",
+    "add": "Ajouter",
+    "apply": "Appliquer",
+    "privileges": "Privilèges",
+    "globalScope": "Global (*.*)",
+    "addScope": "Ajouter une base / table",
+    "databasePlaceholder": "base de données",
+    "tablePlaceholder": "table (optionnel)",
+    "initialPrivilegesHint": "Optionnel : privilèges initiaux accordés juste après la création. Choisissez une base, ou laissez vide pour accorder globalement."
+  },
   "deepLink": {
     "installTitle": "Installer un plugin depuis le registre",
     "installSubtitle": "Un registre Tabularium demande à Tabularis d'installer un plugin.",
@@ -2038,5 +2100,64 @@
     "installVersion": "Installer v{{version}}",
     "installingVersion": "Installation de v{{version}}…",
     "retryInstall": "Réessayer l'installation"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "Échec de l’authentification SSH",
+      "recovery": "Vérifiez l’utilisateur, le mot de passe ou la clé privée dans l’onglet SSH."
+    },
+    "ssh-unreachable": {
+      "summary": "Serveur SSH injoignable",
+      "recovery": "Vérifiez l’hôte et le port SSH et que le serveur est joignable. Si le tunnel se connecte, vérifiez l’hôte et le port de la base de données vus depuis le serveur SSH."
+    },
+    "ssh": {
+      "summary": "Échec du tunnel SSH",
+      "recovery": "Vérifiez les paramètres dans l’onglet SSH."
+    },
+    "db-auth": {
+      "summary": "Échec de l’authentification à la base de données",
+      "recovery": "Vérifiez le nom d’utilisateur et le mot de passe de la base de données."
+    },
+    "network": {
+      "summary": "Serveur de base de données injoignable",
+      "recovery": "Vérifiez l’hôte et le port et que le serveur est en cours d’exécution."
+    },
+    "db-not-found": {
+      "summary": "Base de données introuvable",
+      "recovery": "Vérifiez le nom de la base de données."
+    },
+    "unknown": {
+      "summary": "Échec de la connexion"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Journal du test",
+    "noLog": "Aucune étape enregistrée pour ce test.",
+    "rawError": "Détails de l’erreur",
+    "copyDiagnostics": "Copier le diagnostic",
+    "copied": "Copié !",
+    "steps": {
+      "cancelled": "Test arrêté par l’utilisateur",
+      "resolve": {
+        "error": "Échec de la préparation des paramètres de connexion"
+      },
+      "sshTunnel": {
+        "start": "Ouverture du tunnel SSH",
+        "ok": "Tunnel SSH établi",
+        "error": "Échec du tunnel SSH"
+      },
+      "k8sForward": {
+        "start": "Démarrage du port-forward Kubernetes",
+        "ok": "Port-forward prêt",
+        "error": "Échec du port-forward Kubernetes"
+      },
+      "dbConnect": {
+        "start": "Connexion à la base de données",
+        "ok": "Connexion à la base de données établie",
+        "error": "Échec de la connexion à la base de données"
+      }
+    },
+    "title": "Journal du test de connexion",
+    "showLog": "Afficher le journal"
   }
 }

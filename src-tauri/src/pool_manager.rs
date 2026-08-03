@@ -256,9 +256,15 @@ pub(crate) fn build_mysql_options(
         .host(host)
         .port(port)
         .username(username)
-        .database(database)
         .timezone(timezone)
         .ssl_mode(ssl_mode);
+
+    // Skip `.database(...)` when empty: an empty database means "connect with
+    // no default schema" (all-databases connections), while passing "" in the
+    // handshake makes the server reject with "Unknown database ''".
+    if !database.is_empty() {
+        options = options.database(database);
+    }
 
     // Skip `.password(...)` when the password is empty: an empty string is
     // stamped by sqlx as "user pressed Enter", which the server rejects with

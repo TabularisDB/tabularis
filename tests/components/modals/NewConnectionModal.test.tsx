@@ -29,6 +29,16 @@ const k8sMocks = vi.hoisted(() => ({
 
 const sshMocks = vi.hoisted(() => ({
   loadSshConnections: vi.fn(),
+  testSshConnection: vi.fn(),
+}));
+
+const eventMocks = vi.hoisted(() => ({
+  listen: vi.fn(),
+  unlisten: vi.fn(),
+}));
+
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: eventMocks.listen,
 }));
 
 vi.mock("../../../src/components/ui/Modal", () => ({
@@ -162,6 +172,7 @@ vi.mock("../../../src/hooks/useConnectionCatalogue", () => ({
 
 vi.mock("../../../src/utils/ssh", () => ({
   loadSshConnections: sshMocks.loadSshConnections,
+  testSshConnection: sshMocks.testSshConnection,
 }));
 
 vi.mock("../../../src/utils/k8s", () => ({
@@ -297,6 +308,8 @@ describe("NewConnectionModal layout", () => {
     driverState.defaultPort = 15432;
     vi.mocked(invoke).mockResolvedValue("ok");
     sshMocks.loadSshConnections.mockResolvedValue([]);
+    sshMocks.testSshConnection.mockResolvedValue("ok");
+    eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
     k8sMocks.loadK8sConnections.mockResolvedValue([]);
     k8sMocks.getK8sContexts.mockResolvedValue(["ctx"]);
     k8sMocks.getK8sNamespaces.mockResolvedValue(["db"]);
@@ -375,6 +388,8 @@ describe("NewConnectionModal K8s port defaults", () => {
     driverState.defaultPort = 15432;
     vi.mocked(invoke).mockResolvedValue("ok");
     sshMocks.loadSshConnections.mockResolvedValue([]);
+    sshMocks.testSshConnection.mockResolvedValue("ok");
+    eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
     k8sMocks.loadK8sConnections.mockResolvedValue([]);
     k8sMocks.getK8sContexts.mockResolvedValue(["ctx"]);
     k8sMocks.getK8sNamespaces.mockResolvedValue(["db"]);
@@ -454,6 +469,8 @@ describe("NewConnectionModal advanced inline K8s paths", () => {
     driverState.defaultPort = 15432;
     vi.mocked(invoke).mockResolvedValue("ok");
     sshMocks.loadSshConnections.mockResolvedValue([]);
+    sshMocks.testSshConnection.mockResolvedValue("ok");
+    eventMocks.listen.mockResolvedValue(eventMocks.unlisten);
     k8sMocks.loadK8sConnections.mockResolvedValue([]);
     k8sMocks.getK8sContexts.mockResolvedValue(["ctx"]);
     k8sMocks.getK8sNamespaces.mockResolvedValue(["db"]);

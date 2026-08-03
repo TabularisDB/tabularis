@@ -204,7 +204,8 @@
     "removeFromSplitGroup": "Remove from Group",
     "movePanel": "Move panel",
     "refreshDatabaseList": "Refresh database list",
-    "databaseListUpToDate": "Database list is up to date"
+    "databaseListUpToDate": "Database list is up to date",
+    "allDatabasesRefreshed": "Databases updated: {{names}}"
   },
   "mcp": {
     "title": "MCP Server Integration",
@@ -353,7 +354,9 @@
       },
       "betaNotice": "Import from App is in beta. If you run into a problem,",
       "reportIssue": "report it on GitHub."
-    }
+    },
+    "databaseCount_one": "{{count}} database",
+    "databaseCount_other": "{{count}} databases"
   },
   "connectionAppearance": {
     "section": "Appearance",
@@ -852,6 +855,7 @@
     "namePlaceholder": "Provide your connection name",
     "nameRequired": "Connection name is required",
     "dbNameRequired": "Database name is required",
+    "connectionUriRequiresKeychain": "Connection URIs must be saved in the OS keychain. Enable “Save passwords in Keychain” to continue.",
     "dbType": "Database Type",
     "host": "Host",
     "port": "Port",
@@ -944,7 +948,16 @@
     "useIamAuth": "Use AWS IAM Authentication (RDS)",
     "useIamAuthHint": "The password field is treated as an RDS auth token (from `aws rds generate-db-auth-token`). Requires TLS. Tokens expire every 15 minutes.",
     "useIamAuthTlsRequired": "Enable an SSL mode above to use AWS IAM authentication.",
-    "changeDatabase": "Change database"
+    "changeDatabase": "Change database",
+    "testSsh": "Test SSH",
+    "testSshHint": "Verifies only the SSH tunnel (host and credentials), without connecting to the database.",
+    "sshTestSuccess": "SSH connection to {{target}} established",
+    "stopTest": "Stop",
+    "allDatabases": "All databases",
+    "chooseDatabases": "Choose databases",
+    "allDatabasesHint": "Every database on the server is loaded automatically when connecting. Databases created or dropped on the server show up on their own — no need to edit this connection.",
+    "selectDatabasesHint": "Select the databases to include in this connection.",
+    "loadDatabasesHint": "Click Load Databases to fetch available databases."
   },
   "sshConnections": {
     "title": "SSH Connections",
@@ -970,7 +983,14 @@
     "savedInKeychain": "Password saved in system keychain",
     "manageDesc": "Reusable SSH tunnels for your database connections. Passwords and passphrases are stored in the system keychain.",
     "deleteInUse_one": "It is used by {{count}} saved database connection, which will no longer connect through this tunnel.",
-    "deleteInUse_other": "It is used by {{count}} saved database connections, which will no longer connect through this tunnel."
+    "deleteInUse_other": "It is used by {{count}} saved database connections, which will no longer connect through this tunnel.",
+    "errors": {
+      "connectionRequired": "Select an SSH connection or configure one inline",
+      "connectionMissing": "The selected SSH connection no longer exists",
+      "hostRequired": "SSH host is required",
+      "userRequired": "SSH user is required",
+      "portInvalid": "SSH port must be between 1 and 65535"
+    }
   },
   "sshAskpass": {
     "title": "SSH Authentication",
@@ -997,7 +1017,19 @@
     "clearSort": "Clear sort",
     "copyCell": "Copy Cell",
     "copyRow": "Copy Row",
-    "copySelectedRows": "Copy selected row(s)",
+    "selectAll": "Select All",
+    "selectAllN": "Select All ({{count}})",
+    "deselectAll": "Deselect All",
+    "copySelectedN": "Copy Selected ({{count}})",
+    "selectColumn": "Select Column",
+    "deselectColumn": "Deselect Column",
+    "copySelectedColumns": "Copy Selected Columns ({{count}})",
+    "copyRangeN": "Copy Range ({{rows}}×{{cols}})",
+    "copyAllRows": "Copy All ({{count}})",
+    "copyAll": "Copy All",
+    "copiedRows": "Copied {{count}} row(s) to clipboard",
+    "copiedRowsOfTotal": "Copied {{loaded}} of {{total}} row(s) to clipboard",
+    "copiedCells": "Copied {{count}} cell(s) to clipboard",
     "copyColumnName": "Copy column name",
     "copyColumnNameQuoted": "Copy as `column`",
     "copyColumnNameTable": "Copy as table.column",
@@ -2009,6 +2041,36 @@
     "runningQuery": "Running query...",
     "copyAll": "Copy all"
   },
+  "userManagement": {
+    "tabTitle": "Users & Privileges",
+    "filterPlaceholder": "Filter users...",
+    "newUser": "New user",
+    "create": "Create user",
+    "userPlaceholder": "username",
+    "passwordPlaceholder": "Password",
+    "newPasswordPlaceholder": "New password",
+    "changePassword": "Change password",
+    "dropUser": "Drop user",
+    "dropTitle": "Drop user",
+    "dropConfirm": "Drop user {{account}}? This cannot be undone.",
+    "locked": "Locked",
+    "loadError": "Failed to load users:",
+    "noUsers": "No users found",
+    "selectPrompt": "Select a user to view its privileges",
+    "currentGrants": "Current grants",
+    "scope": "Database",
+    "scopePlaceholder": "Empty = global (*.*)",
+    "revokeTitle": "Revoke privileges",
+    "revokeConfirm": "Revoke {{privileges}} from {{account}} on {{scope}}?",
+    "add": "Add",
+    "apply": "Apply",
+    "privileges": "Privileges",
+    "globalScope": "Global (*.*)",
+    "addScope": "Add database / table",
+    "databasePlaceholder": "database",
+    "tablePlaceholder": "table (optional)",
+    "initialPrivilegesHint": "Optional: initial privileges granted right after creation. Pick a database, or leave it empty to grant globally."
+  },
   "deepLink": {
     "installTitle": "Install plugin from registry",
     "installSubtitle": "A Tabularium registry asked Tabularis to install a plugin.",
@@ -2049,5 +2111,64 @@
     "installVersion": "Install v{{version}}",
     "installingVersion": "Installing v{{version}}…",
     "retryInstall": "Retry install"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "SSH authentication failed",
+      "recovery": "Check the SSH user, password, or private key in the SSH tab."
+    },
+    "ssh-unreachable": {
+      "summary": "SSH server unreachable",
+      "recovery": "Check the SSH host and port, and that the server is reachable. If the tunnel connects, verify the database host and port as seen from the SSH server."
+    },
+    "ssh": {
+      "summary": "SSH tunnel failed",
+      "recovery": "Check the settings in the SSH tab."
+    },
+    "db-auth": {
+      "summary": "Database authentication failed",
+      "recovery": "Check the database username and password."
+    },
+    "network": {
+      "summary": "Database server unreachable",
+      "recovery": "Check the host and port, and that the server is running."
+    },
+    "db-not-found": {
+      "summary": "Database not found",
+      "recovery": "Check the database name."
+    },
+    "unknown": {
+      "summary": "Connection failed"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Test log",
+    "noLog": "No steps were recorded for this test.",
+    "rawError": "Error details",
+    "copyDiagnostics": "Copy diagnostics",
+    "copied": "Copied!",
+    "steps": {
+      "cancelled": "Test stopped by user",
+      "resolve": {
+        "error": "Failed to prepare connection parameters"
+      },
+      "sshTunnel": {
+        "start": "Opening SSH tunnel",
+        "ok": "SSH tunnel established",
+        "error": "SSH tunnel failed"
+      },
+      "k8sForward": {
+        "start": "Starting Kubernetes port-forward",
+        "ok": "Port-forward ready",
+        "error": "Kubernetes port-forward failed"
+      },
+      "dbConnect": {
+        "start": "Connecting to the database",
+        "ok": "Database connection established",
+        "error": "Database connection failed"
+      }
+    },
+    "title": "Connection test log",
+    "showLog": "Show log"
   }
 }

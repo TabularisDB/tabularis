@@ -86,7 +86,7 @@ export interface PendingInsertion {
 export interface Tab {
   id: string;
   title: string;
-  type: "console" | "table" | "query_builder" | "notebook";
+  type: "console" | "table" | "query_builder" | "notebook" | "users";
   query: string;
   result: QueryResult | null;
   error: string;

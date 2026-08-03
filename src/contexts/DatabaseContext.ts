@@ -104,6 +104,10 @@ export interface ConnectionData {
   needsSchemaSelection: boolean;
   selectedDatabases: string[];
   databaseDataMap: Record<string, SchemaData>;
+  /** Multi-db drivers with no explicit selection: the database list is
+   * fetched from the server on every connect/refresh instead of being
+   * persisted. */
+  allDatabasesMode: boolean;
   isConnecting: boolean;
   isConnected: boolean;
   error?: string;

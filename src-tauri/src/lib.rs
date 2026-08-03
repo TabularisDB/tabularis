@@ -543,6 +543,15 @@ pub fn run() {
             commands::get_trigger_definition,
             commands::create_trigger,
             commands::drop_trigger,
+            // User management
+            commands::get_db_privilege_catalog,
+            commands::get_db_users,
+            commands::get_db_user_grants,
+            commands::get_db_user_privileges,
+            commands::create_db_user,
+            commands::drop_db_user,
+            commands::set_db_user_password,
+            commands::apply_db_user_privileges,
             // MCP
             mcp::install::get_mcp_status,
             mcp::install::install_mcp_config,

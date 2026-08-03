@@ -6,6 +6,7 @@
 import type { DriverCapabilities } from "../types/plugins";
 import type { SavedConnection } from "../contexts/DatabaseContext";
 import { isLocalDriver } from "./driverCapabilities";
+import { isMultiDatabaseCapable } from "./database";
 
 export type DatabaseDriver = string;
 
@@ -19,6 +20,12 @@ export interface ConnectionParams {
   port?: number;
   username?: string;
   password?: string;
+  /** Raw driver-specific connection URI, forwarded verbatim to the driver.
+   * Never persisted in connections.json: it embeds credentials and is stored
+   * in the OS keychain instead. */
+  connection_uri?: string;
+  /** True when the URI can be restored from the OS keychain. */
+  connection_uri_in_keychain?: boolean;
   ssh_enabled?: boolean;
   ssh_connection_id?: string;
   // Legacy fields (for backward compatibility)
@@ -189,17 +196,30 @@ export function getDriverLabel(driver: DatabaseDriver): string {
 
 /**
  * Build the subtitle shown below a connection name (host:port · db or file path).
+ *
+ * `labels` carries the translated strings the subtitle may need: the
+ * "all databases" label (multi-db connection with no explicit selection)
+ * and the "{{n}} databases" counter. Untranslated fallbacks apply when
+ * omitted.
  */
 export function connectionSubtitle(
   conn: SavedConnection,
   capabilities: DriverCapabilities | null | undefined,
+  labels?: { allDatabases?: string; databaseCount?: (count: number) => string },
 ): string {
   if (isLocalDriver(capabilities)) {
     const db = conn.params.database;
     return Array.isArray(db) ? db[0] ?? '' : db;
   }
   const db = conn.params.database;
-  const dbStr = Array.isArray(db) ? `${db.length} databases` : db;
+  const isAllDatabases =
+    isMultiDatabaseCapable(capabilities) &&
+    (Array.isArray(db) ? db.length === 0 : db.trim() === '');
+  const dbStr = isAllDatabases
+    ? labels?.allDatabases ?? 'All databases'
+    : Array.isArray(db)
+      ? labels?.databaseCount?.(db.length) ?? `${db.length} databases`
+      : db;
   return `${conn.params.host ?? 'localhost'}:${conn.params.port ?? ''}  ·  ${dbStr}`;
 }
 

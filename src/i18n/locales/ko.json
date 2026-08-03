@@ -204,7 +204,8 @@
     "removeFromSplitGroup": "그룹에서 제거",
     "movePanel": "패널 이동",
     "refreshDatabaseList": "데이터베이스 목록 새로고침",
-    "databaseListUpToDate": "데이터베이스 목록이 최신 상태입니다"
+    "databaseListUpToDate": "데이터베이스 목록이 최신 상태입니다",
+    "allDatabasesRefreshed": "데이터베이스 업데이트됨: {{names}}"
   },
   "mcp": {
     "title": "MCP 서버 연동",
@@ -321,7 +322,9 @@
       },
       "betaNotice": "앱에서 가져오기 기능은 베타입니다. 문제가 발생하면",
       "reportIssue": "GitHub에 알려주세요."
-    }
+    },
+    "databaseCount_one": "데이터베이스 {{count}}개",
+    "databaseCount_other": "데이터베이스 {{count}}개"
   },
   "connectionAppearance": {
     "section": "모양",
@@ -806,6 +809,7 @@
     "namePlaceholder": "연결 이름을 입력하세요",
     "nameRequired": "연결 이름은 필수입니다",
     "dbNameRequired": "데이터베이스 이름은 필수입니다",
+    "connectionUriRequiresKeychain": "연결 URI는 OS 키체인에 저장해야 합니다. “키체인에 비밀번호 저장”을 활성화하세요.",
     "dbType": "데이터베이스 종류",
     "host": "호스트",
     "port": "포트",
@@ -897,7 +901,16 @@
     "scrollTabsRight": "탭 오른쪽으로 스크롤",
     "useIamAuth": "AWS IAM 인증 사용 (RDS)",
     "useIamAuthHint": "비밀번호 필드는 RDS 인증 토큰(`aws rds generate-db-auth-token`으로 생성)으로 처리됩니다. TLS가 필요합니다. 토큰은 15분마다 만료됩니다.",
-    "useIamAuthTlsRequired": "AWS IAM 인증을 사용하려면 위에서 SSL 모드를 활성화하세요."
+    "useIamAuthTlsRequired": "AWS IAM 인증을 사용하려면 위에서 SSL 모드를 활성화하세요.",
+    "testSsh": "SSH 테스트",
+    "testSshHint": "데이터베이스에 연결하지 않고 SSH 터널(호스트와 자격 증명)만 확인합니다.",
+    "sshTestSuccess": "{{target}}에 대한 SSH 연결이 설정되었습니다",
+    "stopTest": "중지",
+    "allDatabases": "모든 데이터베이스",
+    "chooseDatabases": "데이터베이스 선택",
+    "allDatabasesHint": "연결 시 서버의 모든 데이터베이스가 자동으로 로드됩니다. 서버에서 생성되거나 삭제된 데이터베이스는 이 연결을 수정하지 않아도 자동으로 반영됩니다.",
+    "selectDatabasesHint": "이 연결에 포함할 데이터베이스를 선택하세요.",
+    "loadDatabasesHint": "데이터베이스 불러오기를 클릭하여 사용 가능한 데이터베이스를 가져오세요."
   },
   "sshConnections": {
     "title": "SSH 연결",
@@ -923,7 +936,14 @@
     "savedInKeychain": "비밀번호가 시스템 키체인에 저장되었습니다",
     "manageDesc": "데이터베이스 연결에서 재사용할 수 있는 SSH 터널입니다. 비밀번호와 암호는 시스템 키체인에 저장됩니다.",
     "deleteInUse_one": "저장된 데이터베이스 연결 {{count}}개가 이 터널을 사용 중이며, 삭제하면 더 이상 이 터널을 통해 연결하지 않습니다.",
-    "deleteInUse_other": "저장된 데이터베이스 연결 {{count}}개가 이 터널을 사용 중이며, 삭제하면 더 이상 이 터널을 통해 연결하지 않습니다."
+    "deleteInUse_other": "저장된 데이터베이스 연결 {{count}}개가 이 터널을 사용 중이며, 삭제하면 더 이상 이 터널을 통해 연결하지 않습니다.",
+    "errors": {
+      "connectionRequired": "SSH 연결을 선택하거나 인라인으로 구성하세요",
+      "connectionMissing": "선택한 SSH 연결이 더 이상 존재하지 않습니다",
+      "hostRequired": "SSH 호스트는 필수입니다",
+      "userRequired": "SSH 사용자는 필수입니다",
+      "portInvalid": "SSH 포트는 1~65535 사이여야 합니다"
+    }
   },
   "sshAskpass": {
     "title": "SSH 인증",
@@ -949,7 +969,19 @@
     "clearSort": "정렬 해제",
     "copyCell": "셀 복사",
     "copyRow": "행 복사",
-    "copySelectedRows": "선택한 행 복사",
+    "selectAll": "전체 선택",
+    "selectAllN": "전체 선택 ({{count}})",
+    "deselectAll": "전체 선택 해제",
+    "copySelectedN": "선택 항목 복사 ({{count}})",
+    "selectColumn": "열 선택",
+    "deselectColumn": "열 선택 해제",
+    "copySelectedColumns": "선택한 열 복사 ({{count}})",
+    "copyRangeN": "범위 복사 ({{rows}}×{{cols}})",
+    "copyAllRows": "모두 복사 ({{count}})",
+    "copyAll": "모두 복사",
+    "copiedRows": "{{count}}개 행을 클립보드에 복사했습니다",
+    "copiedRowsOfTotal": "{{total}}개 중 {{loaded}}개 행을 클립보드에 복사했습니다",
+    "copiedCells": "{{count}}개 셀을 클립보드에 복사했습니다",
     "copyColumnName": "컬럼 이름 복사",
     "copyColumnNameQuoted": "`column` 형식으로 복사",
     "copyColumnNameTable": "table.column 형식으로 복사",
@@ -1946,5 +1978,94 @@
   "miniGrid": {
     "runningQuery": "쿼리를 실행하는 중...",
     "copyAll": "전체 복사"
+  },
+  "userManagement": {
+    "tabTitle": "사용자 및 권한",
+    "filterPlaceholder": "사용자 필터...",
+    "newUser": "새 사용자",
+    "create": "사용자 생성",
+    "userPlaceholder": "사용자 이름",
+    "passwordPlaceholder": "비밀번호",
+    "newPasswordPlaceholder": "새 비밀번호",
+    "changePassword": "비밀번호 변경",
+    "dropUser": "사용자 삭제",
+    "dropTitle": "사용자 삭제",
+    "dropConfirm": "사용자 {{account}}을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+    "locked": "잠김",
+    "loadError": "사용자를 불러오지 못했습니다:",
+    "noUsers": "사용자를 찾을 수 없습니다",
+    "selectPrompt": "권한을 보려면 사용자를 선택하세요",
+    "currentGrants": "현재 권한",
+    "scope": "데이터베이스",
+    "scopePlaceholder": "비워두면 전역 (*.*)",
+    "revokeTitle": "권한 취소",
+    "revokeConfirm": "{{scope}}에서 {{account}}의 {{privileges}} 권한을 취소하시겠습니까?",
+    "add": "추가",
+    "apply": "적용",
+    "privileges": "권한",
+    "globalScope": "전역 (*.*)",
+    "addScope": "데이터베이스 / 테이블 추가",
+    "databasePlaceholder": "데이터베이스",
+    "tablePlaceholder": "테이블 (선택 사항)",
+    "initialPrivilegesHint": "선택 사항: 생성 직후 부여할 초기 권한입니다. 데이터베이스를 선택하거나, 비워두면 전역으로 부여됩니다."
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "SSH 인증 실패",
+      "recovery": "SSH 탭에서 사용자, 비밀번호 또는 개인 키를 확인하세요."
+    },
+    "ssh-unreachable": {
+      "summary": "SSH 서버에 연결할 수 없음",
+      "recovery": "SSH 호스트와 포트, 서버 연결 가능 여부를 확인하세요. 터널이 연결되면 SSH 서버에서 본 데이터베이스 호스트와 포트를 확인하세요."
+    },
+    "ssh": {
+      "summary": "SSH 터널 실패",
+      "recovery": "SSH 탭의 설정을 확인하세요."
+    },
+    "db-auth": {
+      "summary": "데이터베이스 인증 실패",
+      "recovery": "데이터베이스 사용자 이름과 비밀번호를 확인하세요."
+    },
+    "network": {
+      "summary": "데이터베이스 서버에 연결할 수 없음",
+      "recovery": "호스트와 포트, 서버 실행 여부를 확인하세요."
+    },
+    "db-not-found": {
+      "summary": "데이터베이스를 찾을 수 없음",
+      "recovery": "데이터베이스 이름을 확인하세요."
+    },
+    "unknown": {
+      "summary": "연결 실패"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "테스트 로그",
+    "noLog": "이 테스트에 기록된 단계가 없습니다.",
+    "rawError": "오류 세부 정보",
+    "copyDiagnostics": "진단 정보 복사",
+    "copied": "복사되었습니다!",
+    "steps": {
+      "cancelled": "사용자가 테스트를 중지했습니다",
+      "resolve": {
+        "error": "연결 매개변수 준비 실패"
+      },
+      "sshTunnel": {
+        "start": "SSH 터널 여는 중",
+        "ok": "SSH 터널이 설정되었습니다",
+        "error": "SSH 터널 실패"
+      },
+      "k8sForward": {
+        "start": "Kubernetes 포트 포워드 시작 중",
+        "ok": "포트 포워드 준비 완료",
+        "error": "Kubernetes 포트 포워드 실패"
+      },
+      "dbConnect": {
+        "start": "데이터베이스에 연결 중",
+        "ok": "데이터베이스 연결이 설정되었습니다",
+        "error": "데이터베이스 연결 실패"
+      }
+    },
+    "title": "연결 테스트 로그",
+    "showLog": "로그 보기"
   }
 }

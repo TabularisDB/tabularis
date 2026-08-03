@@ -204,7 +204,8 @@
     "removeFromSplitGroup": "Remover do Grupo",
     "movePanel": "Mover painel",
     "refreshDatabaseList": "Atualizar lista de bancos de dados",
-    "databaseListUpToDate": "A lista de bancos de dados está atualizada"
+    "databaseListUpToDate": "A lista de bancos de dados está atualizada",
+    "allDatabasesRefreshed": "Bancos de dados atualizados: {{names}}"
   },
   "mcp": {
     "title": "Integração com Servidor MCP",
@@ -347,7 +348,9 @@
       },
       "betaNotice": "Importar de Aplicativo está em beta. Se encontrar um problema,",
       "reportIssue": "relate no GitHub."
-    }
+    },
+    "databaseCount_one": "{{count}} banco de dados",
+    "databaseCount_other": "{{count}} bancos de dados"
   },
   "connectionAppearance": {
     "section": "Aparência",
@@ -936,7 +939,16 @@
     "useIamAuth": "Usar Autenticação IAM da AWS (RDS)",
     "useIamAuthHint": "O campo de senha é tratado como um token de autenticação RDS (de `aws rds generate-db-auth-token`). Requer TLS. Os tokens expiram a cada 15 minutos.",
     "useIamAuthTlsRequired": "Ative um modo SSL acima para usar a autenticação IAM da AWS.",
-    "changeDatabase": "Trocar banco de dados"
+    "changeDatabase": "Trocar banco de dados",
+    "testSsh": "Testar SSH",
+    "testSshHint": "Verifica apenas o túnel SSH (host e credenciais), sem conectar ao banco de dados.",
+    "sshTestSuccess": "Conexão SSH com {{target}} estabelecida",
+    "stopTest": "Parar",
+    "allDatabases": "Todos os bancos de dados",
+    "chooseDatabases": "Escolher bancos de dados",
+    "allDatabasesHint": "Ao conectar, todos os bancos de dados do servidor são carregados automaticamente. Bancos criados ou removidos no servidor aparecem sozinhos — sem editar esta conexão.",
+    "selectDatabasesHint": "Selecione os bancos de dados a incluir nesta conexão.",
+    "loadDatabasesHint": "Clique em Carregar bancos de dados para buscar os disponíveis."
   },
   "sshConnections": {
     "title": "Conexões SSH",
@@ -962,7 +974,14 @@
     "savedInKeychain": "Senha salva no chaveiro do sistema",
     "manageDesc": "Túneis SSH reutilizáveis para suas conexões de banco de dados. Senhas e frases-senha são armazenadas no chaveiro do sistema.",
     "deleteInUse_one": "É usada por {{count}} conexão de banco de dados salva, que não se conectará mais através deste túnel.",
-    "deleteInUse_other": "É usada por {{count}} conexões de banco de dados salvas, que não se conectarão mais através deste túnel."
+    "deleteInUse_other": "É usada por {{count}} conexões de banco de dados salvas, que não se conectarão mais através deste túnel.",
+    "errors": {
+      "connectionRequired": "Selecione uma conexão SSH ou configure uma inline",
+      "connectionMissing": "A conexão SSH selecionada não existe mais",
+      "hostRequired": "O host SSH é obrigatório",
+      "userRequired": "O usuário SSH é obrigatório",
+      "portInvalid": "A porta SSH deve estar entre 1 e 65535"
+    }
   },
   "sshAskpass": {
     "title": "Autenticação SSH",
@@ -989,7 +1008,19 @@
     "clearSort": "Limpar ordenação",
     "copyCell": "Copiar Célula",
     "copyRow": "Copiar Linha",
-    "copySelectedRows": "Copiar linha(s) selecionada(s)",
+    "selectAll": "Selecionar Tudo",
+    "selectAllN": "Selecionar Tudo ({{count}})",
+    "deselectAll": "Desmarcar Tudo",
+    "copySelectedN": "Copiar Selecionadas ({{count}})",
+    "selectColumn": "Selecionar Coluna",
+    "deselectColumn": "Desmarcar Coluna",
+    "copySelectedColumns": "Copiar Colunas Selecionadas ({{count}})",
+    "copyRangeN": "Copiar Intervalo ({{rows}}×{{cols}})",
+    "copyAllRows": "Copiar Tudo ({{count}})",
+    "copyAll": "Copiar Tudo",
+    "copiedRows": "{{count}} linha(s) copiada(s) para a área de transferência",
+    "copiedRowsOfTotal": "Copiadas {{loaded}} de {{total}} linhas para a área de transferência",
+    "copiedCells": "{{count}} célula(s) copiada(s) para a área de transferência",
     "copyColumnName": "Copiar nome da coluna",
     "copyColumnNameQuoted": "Copiar como `column`",
     "copyColumnNameTable": "Copiar como table.column",
@@ -1995,6 +2026,36 @@
     "runningQuery": "Executando consulta...",
     "copyAll": "Copiar tudo"
   },
+  "userManagement": {
+    "tabTitle": "Usuários e privilégios",
+    "filterPlaceholder": "Filtrar usuários...",
+    "newUser": "Novo usuário",
+    "create": "Criar usuário",
+    "userPlaceholder": "nome de usuário",
+    "passwordPlaceholder": "Senha",
+    "newPasswordPlaceholder": "Nova senha",
+    "changePassword": "Alterar senha",
+    "dropUser": "Excluir usuário",
+    "dropTitle": "Excluir usuário",
+    "dropConfirm": "Excluir o usuário {{account}}? Esta ação não pode ser desfeita.",
+    "locked": "Bloqueado",
+    "loadError": "Falha ao carregar os usuários:",
+    "noUsers": "Nenhum usuário encontrado",
+    "selectPrompt": "Selecione um usuário para ver seus privilégios",
+    "currentGrants": "Privilégios atuais",
+    "scope": "Banco de dados",
+    "scopePlaceholder": "Vazio = global (*.*)",
+    "revokeTitle": "Revogar privilégios",
+    "revokeConfirm": "Revogar {{privileges}} de {{account}} em {{scope}}?",
+    "add": "Adicionar",
+    "apply": "Aplicar",
+    "privileges": "Privilégios",
+    "globalScope": "Global (*.*)",
+    "addScope": "Adicionar banco de dados / tabela",
+    "databasePlaceholder": "banco de dados",
+    "tablePlaceholder": "tabela (opcional)",
+    "initialPrivilegesHint": "Opcional: privilégios iniciais concedidos logo após a criação. Escolha um banco de dados ou deixe vazio para conceder globalmente."
+  },
   "deepLink": {
     "installTitle": "Instalar plugin do registro",
     "installSubtitle": "Um registro Tabularium pediu ao Tabularis para instalar um plugin.",
@@ -2035,5 +2096,64 @@
     "installVersion": "Instalar v{{version}}",
     "installingVersion": "Instalando v{{version}}…",
     "retryInstall": "Tentar instalação novamente"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "Falha na autenticação SSH",
+      "recovery": "Verifique o usuário, a senha ou a chave privada na aba SSH."
+    },
+    "ssh-unreachable": {
+      "summary": "Servidor SSH inacessível",
+      "recovery": "Verifique o host e a porta SSH e se o servidor está acessível. Se o túnel conectar, verifique o host e a porta do banco de dados vistos do servidor SSH."
+    },
+    "ssh": {
+      "summary": "Falha no túnel SSH",
+      "recovery": "Verifique as configurações na aba SSH."
+    },
+    "db-auth": {
+      "summary": "Falha na autenticação do banco de dados",
+      "recovery": "Verifique o nome de usuário e a senha do banco de dados."
+    },
+    "network": {
+      "summary": "Servidor de banco de dados inacessível",
+      "recovery": "Verifique o host e a porta e se o servidor está em execução."
+    },
+    "db-not-found": {
+      "summary": "Banco de dados não encontrado",
+      "recovery": "Verifique o nome do banco de dados."
+    },
+    "unknown": {
+      "summary": "Falha na conexão"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Log do teste",
+    "noLog": "Nenhuma etapa foi registrada para este teste.",
+    "rawError": "Detalhes do erro",
+    "copyDiagnostics": "Copiar diagnóstico",
+    "copied": "Copiado!",
+    "steps": {
+      "cancelled": "Teste interrompido pelo usuário",
+      "resolve": {
+        "error": "Falha ao preparar os parâmetros de conexão"
+      },
+      "sshTunnel": {
+        "start": "Abrindo o túnel SSH",
+        "ok": "Túnel SSH estabelecido",
+        "error": "Falha no túnel SSH"
+      },
+      "k8sForward": {
+        "start": "Iniciando o port-forward do Kubernetes",
+        "ok": "Port-forward pronto",
+        "error": "Falha no port-forward do Kubernetes"
+      },
+      "dbConnect": {
+        "start": "Conectando ao banco de dados",
+        "ok": "Conexão com o banco de dados estabelecida",
+        "error": "Falha na conexão com o banco de dados"
+      }
+    },
+    "title": "Log do teste de conexão",
+    "showLog": "Mostrar log"
   }
 }

@@ -190,7 +190,8 @@
     "removeFromSplitGroup": "从组中移除",
     "movePanel": "移动面板",
     "refreshDatabaseList": "刷新数据库列表",
-    "databaseListUpToDate": "数据库列表已是最新"
+    "databaseListUpToDate": "数据库列表已是最新",
+    "allDatabasesRefreshed": "数据库已更新:{{names}}"
   },
   "mcp": {
     "title": "MCP 服务器集成",
@@ -339,7 +340,9 @@
       },
       "betaNotice": "从应用导入功能处于测试阶段。如果遇到问题，",
       "reportIssue": "请在 GitHub 上反馈。"
-    }
+    },
+    "databaseCount_one": "{{count}} 个数据库",
+    "databaseCount_other": "{{count}} 个数据库"
   },
   "connectionAppearance": {
     "section": "外观",
@@ -776,6 +779,7 @@
     "namePlaceholder": "输入您的连接名称",
     "nameRequired": "连接名称是必需的",
     "dbNameRequired": "数据库名称是必需的",
+    "connectionUriRequiresKeychain": "连接 URI 必须保存在操作系统密钥链中。请启用“在密钥链中保存密码”后继续。",
     "dbType": "数据库类型",
     "host": "主机",
     "port": "端口",
@@ -868,7 +872,16 @@
     "useIamAuth": "使用 AWS IAM 身份验证 (RDS)",
     "useIamAuthHint": "密码字段将被视为 RDS 身份验证令牌（由 `aws rds generate-db-auth-token` 生成）。需要 TLS。令牌每 15 分钟过期。",
     "useIamAuthTlsRequired": "请在上方启用 SSL 模式以使用 AWS IAM 身份验证。",
-    "changeDatabase": "更换数据库"
+    "changeDatabase": "更换数据库",
+    "testSsh": "测试 SSH",
+    "testSshHint": "仅验证 SSH 隧道(主机和凭据),不连接数据库。",
+    "sshTestSuccess": "已建立到 {{target}} 的 SSH 连接",
+    "stopTest": "停止",
+    "allDatabases": "所有数据库",
+    "chooseDatabases": "选择数据库",
+    "allDatabasesHint": "连接时自动加载服务器上的所有数据库。在服务器上创建或删除的数据库会自动出现,无需编辑此连接。",
+    "selectDatabasesHint": "选择要包含在此连接中的数据库。",
+    "loadDatabasesHint": "点击“加载数据库”以获取可用的数据库。"
   },
   "sshConnections": {
     "title": "SSH 连接",
@@ -893,7 +906,14 @@
     "testFailed": "连接测试失败",
     "savedInKeychain": "密码已保存到系统密钥链",
     "manageDesc": "可在数据库连接中复用的 SSH 隧道。密码和口令保存在系统钥匙串中。",
-    "deleteInUse_other": "有 {{count}} 个已保存的数据库连接正在使用它，删除后这些连接将不再通过此隧道连接。"
+    "deleteInUse_other": "有 {{count}} 个已保存的数据库连接正在使用它，删除后这些连接将不再通过此隧道连接。",
+    "errors": {
+      "connectionRequired": "请选择一个 SSH 连接或内联配置",
+      "connectionMissing": "所选的 SSH 连接已不存在",
+      "hostRequired": "SSH 主机为必填项",
+      "userRequired": "SSH 用户为必填项",
+      "portInvalid": "SSH 端口必须在 1 到 65535 之间"
+    }
   },
   "sshAskpass": {
     "title": "SSH 身份验证",
@@ -918,7 +938,19 @@
     "clearSort": "清除排序",
     "copyCell": "复制单元格",
     "copyRow": "复制行",
-    "copySelectedRows": "复制选中的行",
+    "selectAll": "全选",
+    "selectAllN": "全选（{{count}}）",
+    "deselectAll": "取消全选",
+    "copySelectedN": "复制选中（{{count}}）",
+    "selectColumn": "选择列",
+    "deselectColumn": "取消选择列",
+    "copySelectedColumns": "复制选中列（{{count}}）",
+    "copyRangeN": "复制范围（{{rows}}×{{cols}}）",
+    "copyAllRows": "复制全部（{{count}}）",
+    "copyAll": "复制全部",
+    "copiedRows": "已复制 {{count}} 行到剪贴板",
+    "copiedRowsOfTotal": "已复制 {{total}} 行中的 {{loaded}} 行到剪贴板",
+    "copiedCells": "已复制 {{count}} 个单元格到剪贴板",
     "copyColumnName": "复制列名",
     "copyColumnNameQuoted": "复制为 `列`",
     "copyColumnNameTable": "复制为 表.列",
@@ -1860,6 +1892,36 @@
     "runningQuery": "正在执行查询...",
     "copyAll": "全部复制"
   },
+  "userManagement": {
+    "tabTitle": "用户与权限",
+    "filterPlaceholder": "筛选用户...",
+    "newUser": "新建用户",
+    "create": "创建用户",
+    "userPlaceholder": "用户名",
+    "passwordPlaceholder": "密码",
+    "newPasswordPlaceholder": "新密码",
+    "changePassword": "修改密码",
+    "dropUser": "删除用户",
+    "dropTitle": "删除用户",
+    "dropConfirm": "删除用户 {{account}}？此操作无法撤销。",
+    "locked": "已锁定",
+    "loadError": "加载用户失败:",
+    "noUsers": "未找到用户",
+    "selectPrompt": "选择一个用户以查看其权限",
+    "currentGrants": "当前授权",
+    "scope": "数据库",
+    "scopePlaceholder": "留空 = 全局 (*.*)",
+    "revokeTitle": "撤销权限",
+    "revokeConfirm": "撤销 {{account}} 在 {{scope}} 上的 {{privileges}} 权限？",
+    "add": "添加",
+    "apply": "应用",
+    "privileges": "权限",
+    "globalScope": "全局 (*.*)",
+    "addScope": "添加数据库 / 表",
+    "databasePlaceholder": "数据库",
+    "tablePlaceholder": "表（可选）",
+    "initialPrivilegesHint": "可选：创建后立即授予的初始权限。选择一个数据库，或留空以全局授予。"
+  },
   "deepLink": {
     "installTitle": "从注册表安装插件",
     "installSubtitle": "Tabularium 注册表请求 Tabularis 安装一个插件。",
@@ -1900,5 +1962,64 @@
     "installVersion": "安装 v{{version}}",
     "installingVersion": "正在安装 v{{version}}…",
     "retryInstall": "重试安装"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "SSH 认证失败",
+      "recovery": "请在 SSH 标签页中检查用户、密码或私钥。"
+    },
+    "ssh-unreachable": {
+      "summary": "无法连接 SSH 服务器",
+      "recovery": "请检查 SSH 主机和端口,并确认服务器可达。如果隧道能连接,请检查从 SSH 服务器看到的数据库主机和端口。"
+    },
+    "ssh": {
+      "summary": "SSH 隧道失败",
+      "recovery": "请检查 SSH 标签页中的设置。"
+    },
+    "db-auth": {
+      "summary": "数据库认证失败",
+      "recovery": "请检查数据库用户名和密码。"
+    },
+    "network": {
+      "summary": "无法连接数据库服务器",
+      "recovery": "请检查主机和端口,并确认服务器正在运行。"
+    },
+    "db-not-found": {
+      "summary": "未找到数据库",
+      "recovery": "请检查数据库名称。"
+    },
+    "unknown": {
+      "summary": "连接失败"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "测试日志",
+    "noLog": "此测试未记录任何步骤。",
+    "rawError": "错误详情",
+    "copyDiagnostics": "复制诊断信息",
+    "copied": "已复制!",
+    "steps": {
+      "cancelled": "测试已被用户停止",
+      "resolve": {
+        "error": "准备连接参数失败"
+      },
+      "sshTunnel": {
+        "start": "正在打开 SSH 隧道",
+        "ok": "SSH 隧道已建立",
+        "error": "SSH 隧道失败"
+      },
+      "k8sForward": {
+        "start": "正在启动 Kubernetes 端口转发",
+        "ok": "端口转发就绪",
+        "error": "Kubernetes 端口转发失败"
+      },
+      "dbConnect": {
+        "start": "正在连接数据库",
+        "ok": "数据库连接已建立",
+        "error": "数据库连接失败"
+      }
+    },
+    "title": "连接测试日志",
+    "showLog": "显示日志"
   }
 }

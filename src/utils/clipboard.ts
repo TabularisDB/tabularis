@@ -54,6 +54,36 @@ export function rowsToMarkdown(rows: unknown[][], columns: string[], nullLabel: 
   return [header, separator, ...body].join("\n");
 }
 
+export type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
+
+/** Format result rows for clipboard copy in the user's chosen copy format. */
+export function formatRowsForCopy(
+  rows: unknown[][],
+  columns: string[],
+  copyFormat: CopyFormat,
+  options: {
+    withHeaders?: boolean;
+    csvIncludeHeaders?: boolean;
+    csvDelimiter?: string;
+    tableName?: string | null;
+  } = {},
+): string {
+  const {
+    withHeaders = false,
+    csvIncludeHeaders = true,
+    csvDelimiter = ",",
+    tableName,
+  } = options;
+  if (copyFormat === "json") return rowsToJSON(rows, columns);
+  if (copyFormat === "sql-insert")
+    return rowsToSqlInsert(rows, columns, tableName ?? "table");
+  if (copyFormat === "markdown")
+    return rowsToMarkdown(rows, columns, "null", withHeaders && csvIncludeHeaders);
+  if (withHeaders && csvIncludeHeaders)
+    return rowsToCSVWithHeaders(rows, columns, "null", csvDelimiter);
+  return rowsToCSV(rows, "null", csvDelimiter);
+}
+
 export function getSelectedRows(
   data: unknown[][],
   selectedIndices: Set<number>
@@ -62,7 +92,18 @@ export function getSelectedRows(
   return sortedIndices.map((idx) => data[idx]);
 }
 
-type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
+/** Project rows/columns down to the selected column indices, in column order. */
+export function projectColumns(
+  rows: unknown[][],
+  columns: string[],
+  colIndices: Set<number>,
+): { rows: unknown[][]; columns: string[] } {
+  const sorted = Array.from(colIndices).sort((a, b) => a - b);
+  return {
+    rows: rows.map((row) => sorted.map((idx) => row[idx])),
+    columns: sorted.map((idx) => columns[idx]),
+  };
+}
 
 interface ColumnCopyOptions {
   format: CopyFormat;

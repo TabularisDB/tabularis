@@ -48,6 +48,27 @@ pub fn delete_db_password(connection_id: &str) -> Result<(), String> {
     }
 }
 
+pub fn set_connection_uri(connection_id: &str, connection_uri: &str) -> Result<(), String> {
+    let entry = Entry::new(SERVICE_NAME, &format!("{}:connection_uri", connection_id))
+        .map_err(|e| e.to_string())?;
+    entry.set_password(connection_uri).map_err(|e| e.to_string())
+}
+
+pub fn get_connection_uri(connection_id: &str) -> Result<String, String> {
+    let entry = Entry::new(SERVICE_NAME, &format!("{}:connection_uri", connection_id))
+        .map_err(|e| e.to_string())?;
+    entry.get_password().map_err(|e| e.to_string())
+}
+
+pub fn delete_connection_uri(connection_id: &str) -> Result<(), String> {
+    let entry = Entry::new(SERVICE_NAME, &format!("{}:connection_uri", connection_id))
+        .map_err(|e| e.to_string())?;
+    match entry.delete_credential() {
+        Ok(_) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 pub fn set_ssh_password(connection_id: &str, password: &str) -> Result<(), String> {
     eprintln!("[Keychain] Setting SSH password for {}", connection_id);
     let entry =

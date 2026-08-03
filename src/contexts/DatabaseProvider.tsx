@@ -21,7 +21,7 @@ import { toErrorMessage } from '../utils/errors';
 import { useSettings } from '../hooks/useSettings';
 import { useToast } from '../hooks/useToast';
 import { findConnectionsForDrivers } from '../utils/connectionManager';
-import { isMultiDatabaseCapable, getEffectiveDatabase, getDatabaseList, reconcileDatabaseSelection } from '../utils/database';
+import { isMultiDatabaseCapable, usesMultiDatabaseLayout, getEffectiveDatabase, getDatabaseList, reconcileDatabaseSelection } from '../utils/database';
 
 /** Label of the main window; Tauri defaults to this when none is configured. */
 const MAIN_WINDOW_LABEL = 'main';
@@ -47,6 +47,7 @@ const createEmptyConnectionData = (driver: string = '', name: string = '', dbNam
   needsSchemaSelection: false,
   selectedDatabases: [],
   databaseDataMap: {},
+  allDatabasesMode: false,
   isConnecting: false,
   isConnected: false,
 });
@@ -114,7 +115,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         if (activeConnectionName && activeDatabaseName) {
           const schemaSuffix = activeSchema && activeCapabilities?.schemas === true ? `/${activeSchema}` : '';
           const dbDisplay =
-            isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1
+            usesMultiDatabaseLayout(activeCapabilities, selectedDatabases)
               ? (activeSchema ?? activeDatabaseName)
               : activeDatabaseName;
           title = `tabularis - ${activeConnectionName} (${dbDisplay}${schemaSuffix})`;
@@ -150,8 +151,43 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     { notifyWhenUnchanged = true }: { notifyWhenUnchanged?: boolean } = {},
   ) => {
     const conn = connections.find(c => c.id === connectionId);
-    const current = connectionDataMap[connectionId]?.selectedDatabases ?? [];
+    const data = connectionDataMap[connectionId];
+    const current = data?.selectedDatabases ?? [];
     if (!conn || current.length === 0) return;
+
+    // "All databases" mode: the server list IS the selection — replace it
+    // wholesale (nothing is persisted) so new databases appear and dropped
+    // ones disappear.
+    if (data?.allDatabasesMode) {
+      try {
+        const available = await invoke<string[]>('get_available_databases', { connectionId });
+        const added = available.filter(db => !current.includes(db));
+        const removed = current.filter(db => !available.includes(db));
+        if (added.length > 0 || removed.length > 0) {
+          const prunedDataMap = Object.fromEntries(
+            Object.entries(data.databaseDataMap).filter(([db]) => available.includes(db))
+          );
+          updateConnectionData(connectionId, {
+            selectedDatabases: available,
+            databaseDataMap: prunedDataMap,
+          });
+          const changes = [
+            ...added.map(db => `+${db}`),
+            ...removed.map(db => `-${db}`),
+          ].join(', ');
+          showToast(t('sidebar.allDatabasesRefreshed', { names: changes }), {
+            title: t('sidebar.databaseSelectionUpdated'),
+            kind: 'info',
+          });
+        } else if (notifyWhenUnchanged) {
+          showToast(t('sidebar.databaseListUpToDate'), { kind: 'info' });
+        }
+      } catch (e) {
+        console.error('Failed to refresh database list:', e);
+        showToast(String(e), { kind: 'error' });
+      }
+      return;
+    }
 
     try {
       const available = await invoke<string[]>('get_available_databases', { connectionId });
@@ -541,6 +577,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     updateConnectionData(connId, {
       selectedDatabases: newDatabases,
       databaseDataMap: prunedDataMap,
+      // Picking an explicit subset persists it and leaves "all databases"
+      // mode; the connection modal is the way back.
+      allDatabasesMode: false,
     });
 
     if (newDatabases.length > 0) {
@@ -634,10 +673,34 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       // Register for health-check pinging.
       await invoke('register_active_connection', { connectionId });
 
-      let isMultiDb = isMultiDatabaseCapable(capabilities) && Array.isArray(dbParam) && dbParam.length > 1;
-      let dbList = isMultiDb ? getDatabaseList(dbParam) : [];
+      const savedDbList = isMultiDatabaseCapable(capabilities) ? getDatabaseList(dbParam) : [];
+      // Empty selection on a multi-db driver = "all databases" mode: the list
+      // comes from the server on every connect, so databases created/dropped
+      // outside the app show up without editing the connection.
+      const allDatabasesMode = isMultiDatabaseCapable(capabilities) && savedDbList.length === 0;
+      let isMultiDb = savedDbList.length > 1;
+      let dbList = isMultiDb ? savedDbList : [];
 
-      if (isMultiDb) {
+      if (allDatabasesMode) {
+        try {
+          dbList = await invoke<string[]>('get_available_databases', { connectionId });
+          isMultiDb = dbList.length > 0;
+        } catch (e) {
+          // Without a database list the connection is unusable (it has no
+          // default schema) — fail the connect with the real error.
+          const errorMsg = toErrorMessage(e);
+          updateConnectionData(connectionId, {
+            isConnecting: false,
+            isConnected: false,
+            isLoadingTables: false,
+            isLoadingViews: false,
+            isLoadingRoutines: false,
+            error: errorMsg,
+          });
+          setOpenConnectionIds(prev => prev.filter(id => id !== connectionId));
+          throw new Error(errorMsg);
+        }
+      } else if (isMultiDb) {
         // Reconcile the saved selection against the server so databases
         // dropped outside the app don't linger in the sidebar (#518).
         try {
@@ -704,6 +767,8 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         updateConnectionData(connectionId, {
           selectedDatabases: dbList,
           databaseDataMap: initialDbMap,
+          allDatabasesMode,
+          ...(allDatabasesMode ? { databaseName: firstDb } : {}),
           isLoadingTables: false,
           isLoadingViews: false,
           isLoadingRoutines: false,
