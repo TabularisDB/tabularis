@@ -294,9 +294,10 @@ impl DatabaseDriver for RpcDriver {
     }
 
     fn map_inferred_type(&self, kind: &str) -> String {
+        // Manifest keys are documented as uppercase; the lookup is case-insensitive.
         self.manifest
             .type_mappings
-            .get(kind)
+            .get(&kind.to_uppercase())
             .cloned()
             .unwrap_or_else(|| kind.to_string())
     }
@@ -1769,7 +1770,8 @@ mod tests {
             assert_eq!(request.params["pk_map"]["id"], 7);
             assert_eq!(request.params["schema"], "public");
             assert_eq!(request.params["params"]["driver"], "test-plugin");
-            json!("data:image/png;base64,iVBORw0KGgo=")
+            // The documented BLOB wire format (see drivers/common/blob.rs)
+            json!("BLOB:12:image/png:iVBORw0KGgo=")
         });
 
         let mut pk_map = HashMap::new();
@@ -1786,7 +1788,7 @@ mod tests {
             .await
             .expect("fetch_blob_as_data_url");
 
-        assert_eq!(url, "data:image/png;base64,iVBORw0KGgo=");
+        assert_eq!(url, "BLOB:12:image/png:iVBORw0KGgo=");
     }
 
     #[tokio::test]
@@ -1972,6 +1974,8 @@ mod tests {
         // Mapped types
         assert_eq!(driver.map_inferred_type("DATETIME"), "TIMESTAMP");
         assert_eq!(driver.map_inferred_type("JSON"), "JSONB");
+        // Lookup is case-insensitive (input is uppercased before matching)
+        assert_eq!(driver.map_inferred_type("datetime"), "TIMESTAMP");
         // Unmapped types pass through unchanged
         assert_eq!(driver.map_inferred_type("INTEGER"), "INTEGER");
         assert_eq!(driver.map_inferred_type("TEXT"), "TEXT");

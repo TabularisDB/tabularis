@@ -101,6 +101,7 @@ The manifest tells Tabularis everything about your plugin.
 |------|------|-------------|
 | `schemas` | bool | `true` if the database supports named schemas (like PostgreSQL). Controls whether the schema selector is shown in the UI. |
 | `views` | bool | `true` if the database supports views. Enables the views section in the explorer. |
+| `materialized_views` | bool | `true` if the database supports materialized views. Enables the materialized views section in the explorer (see [Materialized Views](#materialized-views)). Defaults to `false`. |
 | `routines` | bool | `true` if the database supports stored procedures/functions. |
 | `triggers` | bool | `true` if the database supports triggers. Enables trigger-related UI for drivers that implement the trigger RPCs. |
 | `file_based` | bool | `true` for local file databases (e.g., SQLite, DuckDB). Replaces host/port with a file path input in the connection form. |
@@ -789,7 +790,7 @@ Drop a view.
 
 ### Materialized Views
 
-These methods are optional. If your plugin returns `-32601` (method not found), the host falls back to empty results. Declare `materialized_views: true` in capabilities to enable the UI.
+These methods are optional. Declare `materialized_views: true` in capabilities to enable the UI. If your plugin returns `-32601` (method not found), the host falls back to empty results for `get_materialized_views` and `get_materialized_view_columns`; `get_materialized_view_definition` and `refresh_materialized_view` surface a "not supported by this driver" error instead.
 
 #### `get_materialized_views`
 
