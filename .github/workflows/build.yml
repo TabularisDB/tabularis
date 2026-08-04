@@ -1,7 +1,8 @@
 name: Build
 
-# Reusable build matrix used by nightly.yml (cron). Centralises the
-# signing/notarization config in one place so callers can't drift from it.
+# Reusable build matrix used by nightly.yml (cron) and release.yml (tags).
+# Centralises the signing/notarization config in one place so callers can't
+# drift from it.
 on:
   workflow_call:
     inputs:
@@ -33,6 +34,16 @@ on:
         required: false
         type: string
         default: ""
+      release_body:
+        description: "Body of the GitHub Release."
+        required: false
+        type: string
+        default: "See the assets to download this version and install."
+      experimental_appimage:
+        description: "Build the AppImage with the experimental sharun-based format (tauri PR #12491) instead of the official linuxdeploy bundler. Nightly-only until the PR stabilises."
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   publish-tauri:
@@ -122,9 +133,32 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Override tauri-cli with custom AppImage format (Linux)
-        if: matrix.platform == 'ubuntu-24.04'
+      - name: Override tauri-cli with custom AppImage format (Linux, experimental only)
+        if: matrix.platform == 'ubuntu-24.04' && inputs.experimental_appimage
         run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --branch feat/truly-portable-appimage --force
+
+      # The official tauri-cli AppImage bundler (linuxdeploy) bundles the build
+      # container's libwayland-*; on hosts with a newer Mesa the host libEGL
+      # binds to that stale bundled libwayland-client and WebKit aborts with
+      # EGL_BAD_PARAMETER (issue #423). libwayland must always come from the
+      # host — the AppImage excludelist prescribes exactly that:
+      # https://github.com/AppImageCommunity/pkg2appimage/pull/559
+      # tauri-bundler only downloads linuxdeploy-plugin-gtk.sh when it's
+      # missing from its tools cache, so pre-seed a patched copy that strips
+      # libwayland from the AppDir before the squashfs is packed (the updater
+      # signature is computed afterwards, so it stays valid).
+      - name: Patch AppImage bundling to strip bundled libwayland (Linux)
+        if: matrix.platform == 'ubuntu-24.04' && !inputs.experimental_appimage
+        run: |
+          mkdir -p ~/.cache/tauri
+          curl -fsSL https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh \
+            -o ~/.cache/tauri/linuxdeploy-plugin-gtk.sh
+          cat >> ~/.cache/tauri/linuxdeploy-plugin-gtk.sh <<'EOF'
+
+          # tabularis #423: libwayland must come from the host, never bundled.
+          find "$APPDIR" -name 'libwayland-*.so*' -delete
+          EOF
+          chmod +x ~/.cache/tauri/linuxdeploy-plugin-gtk.sh
 
       # Notarization needs the App Store Connect API key on disk. The .p8 is stored
       # base64-encoded in APPLE_API_KEY_CONTENT and decoded into a temp file (macOS only).
@@ -150,7 +184,7 @@ jobs:
       - uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa # v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: "true"
+          TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: ${{ inputs.experimental_appimage && 'true' || '' }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           # macOS code signing (Developer ID Application certificate)
@@ -164,10 +198,11 @@ jobs:
         with:
           tagName: ${{ inputs.tag }}
           releaseName: ${{ inputs.release_name }}
-          releaseBody: "See the assets to download this version and install."
+          releaseBody: ${{ inputs.release_body }}
           releaseDraft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}
-          tauriScript: ${{ matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'pnpm tauri' }}
+          # The experimental AppImage format needs the cargo-installed CLI override.
+          tauriScript: ${{ inputs.experimental_appimage && matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'pnpm tauri' }}
           args: ${{ matrix.args }}
 
       - name: Upload portable executable (Windows only)

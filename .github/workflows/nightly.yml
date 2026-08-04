@@ -126,3 +126,6 @@ jobs:
       prerelease: true
       draft: false
       updater_version: ${{ needs.gate.outputs.updater_version }}
+      # Nightlies double as the daily canary for the sharun-based AppImage
+      # format (tauri PR #12491); releases stay on the official bundler.
+      experimental_appimage: true
