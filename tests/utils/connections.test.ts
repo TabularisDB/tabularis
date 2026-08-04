@@ -7,6 +7,7 @@ import {
   generateConnectionName,
   connectionSubtitle,
   getCardClass,
+  updateExtraField,
   type ConnectionParams,
   type DatabaseDriver,
 } from '../../src/utils/connections';
@@ -513,6 +514,54 @@ describe('connections', () => {
     it('should use localhost when host is missing for remote driver', () => {
       const params: ConnectionParams = { driver: 'duckdb-remote', database: 'analytics' };
       expect(generateConnectionName(params, makeRemoteCaps())).toBe('analytics@localhost');
+    });
+  });
+
+  describe('updateExtraField', () => {
+    it('should set a field on an undefined map', () => {
+      expect(updateExtraField(undefined, 'region', 'us-east-1')).toEqual({
+        region: 'us-east-1',
+      });
+    });
+
+    it('should set a field alongside existing entries', () => {
+      const result = updateExtraField({ profile: 'dev' }, 'region', 'eu-west-1');
+      expect(result).toEqual({ profile: 'dev', region: 'eu-west-1' });
+    });
+
+    it('should not mutate the input map', () => {
+      const input = { region: 'us-east-1' };
+      updateExtraField(input, 'region', 'eu-west-1');
+      expect(input).toEqual({ region: 'us-east-1' });
+    });
+
+    it('should remove the key when the value is empty', () => {
+      const result = updateExtraField(
+        { region: 'us-east-1', profile: 'dev' },
+        'region',
+        '',
+      );
+      expect(result).toEqual({ profile: 'dev' });
+    });
+
+    it('should return undefined when the last entry is removed', () => {
+      expect(updateExtraField({ region: 'us-east-1' }, 'region', '')).toBeUndefined();
+    });
+
+    it('should return undefined when removing from an undefined map', () => {
+      expect(updateExtraField(undefined, 'region', '')).toBeUndefined();
+    });
+
+    it('should ignore blank keys', () => {
+      const input = { region: 'us-east-1' };
+      expect(updateExtraField(input, '  ', 'value')).toBe(input);
+      expect(updateExtraField(undefined, '', 'value')).toBeUndefined();
+    });
+
+    it('should trim the key', () => {
+      expect(updateExtraField(undefined, ' region ', 'us-east-1')).toEqual({
+        region: 'us-east-1',
+      });
     });
   });
 });

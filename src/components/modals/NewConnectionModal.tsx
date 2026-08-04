@@ -53,6 +53,7 @@ import { useK8sPathOverrides } from "../../hooks/useK8sPathOverrides";
 import { useLatestAsync } from "../../hooks/useLatestAsync";
 import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
 import { isMultiDatabaseCapable } from "../../utils/database";
+import { updateExtraField } from "../../utils/connections";
 import { toErrorMessage } from "../../utils/errors";
 import {
   classifyConnectionError,
@@ -141,6 +142,9 @@ interface ConnectionParams {
   k8s_kubeconfig_path?: string;
   // SQL run on every new connection (e.g. SET / set_config)
   startup_script?: string;
+  // Opaque plugin-specific connection fields, forwarded verbatim to the
+  // driver/plugin and persisted as-is in connections.json.
+  extra?: Record<string, string>;
 }
 
 interface SavedConnection {
@@ -615,6 +619,24 @@ export const NewConnectionModal = ({
       "connection-modal.connection_content",
       dbFieldSlotContext,
     ).length > 0;
+
+  // ── plugin slot: connection-modal.extra_fields ──
+  // Plugins render their own connection fields (e.g. an AWS region select)
+  // and write them into the opaque `extra` map via `setExtraField`.
+  const setExtraField = useCallback((key: string, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      extra: updateExtraField(prev.extra, key, value),
+    }));
+  }, []);
+  const extraFieldsSlotContext = useMemo(
+    () => ({
+      driver,
+      extra: formData.extra ?? {},
+      setExtraField,
+    }),
+    [driver, formData.extra, setExtraField],
+  );
 
   // ── helpers ──
   const loadSshConnectionsList = async () => {
@@ -2482,6 +2504,13 @@ export const NewConnectionModal = ({
               placeholder={driver === "mysql" ? "3306" : "5432"}
             />
           </div>
+
+          {/* Plugin-owned extra connection fields (opaque `extra` map) */}
+          <SlotAnchor
+            name="connection-modal.extra_fields"
+            context={extraFieldsSlotContext}
+            className="flex flex-col gap-3"
+          />
 
           {/* User + Password */}
           <div className="grid grid-cols-2 gap-3">

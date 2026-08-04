@@ -262,6 +262,14 @@ pub struct ConnectionParams {
     /// pool hands out.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub startup_script: Option<String>,
+    /// Opaque, plugin-specific connection fields. The host does not interpret
+    /// these — they are persisted verbatim and forwarded to the driver plugin
+    /// as part of `params`, so plugins can carry custom connection settings
+    /// (e.g. an AWS region for DynamoDB) without core schema changes.
+    /// Rendered by plugins through the `connection-modal.extra_fields` slot.
+    /// Absent from the JSON when empty.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub extra: HashMap<String, String>,
     // Connection ID for stable pooling (not persisted, set at runtime)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
