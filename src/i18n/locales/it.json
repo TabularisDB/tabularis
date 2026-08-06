@@ -23,6 +23,29 @@
     "fromPlaceholder": "da",
     "toPlaceholder": "a"
   },
+  "tags": {
+    "label": "Tag",
+    "new": "Nuovo tag",
+    "add": "Aggiungi",
+    "namePlaceholder": "Nome del tag…",
+    "manage": "Gestisci tag",
+    "done": "Fatto",
+    "deleteTitle": "Elimina tag",
+    "deleteConfirm": "Eliminare il tag \"{{name}}\"? Verrà rimosso da tutte le connessioni."
+  },
+  "environment": {
+    "label": "Ambiente",
+    "none": "Nessun ambiente",
+    "development": "Sviluppo",
+    "staging": "Staging",
+    "production": "Produzione",
+    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "banner": "Produzione — {{name}}",
+    "warnTitle": "Database di produzione",
+    "warnMessage": "Stai per modificare dati di produzione su \"{{name}}\". Vuoi davvero continuare?",
+    "warnConfirm": "Esegui comunque",
+    "warnSnooze": "Non chiedere più per questa connessione (questa sessione)"
+  },
   "common": {
     "save": "Salva",
     "close": "Chiudi",
@@ -980,6 +1003,9 @@
     "waiting": "In attesa della security key — toccala per confermare."
   },
   "dataGrid": {
+    "noRowIdentity": "Impossibile modificare le righe: \"{{table}}\" non ha una chiave primaria, quindi la modifica richiede che il risultato includa tutte le colonne della tabella. Seleziona tutte le colonne (es. SELECT *) o aggiungi una chiave primaria.",
+    "keylessRowNotFound": "Nessuna riga corrisponde ai valori originali durante l'aggiornamento di \"{{column}}\". La tabella non ha una chiave primaria e i dati potrebbero essere cambiati: aggiorna e riprova.",
+    "keylessDeleteNotFound": "Nessuna riga corrisponde ai valori originali durante l'eliminazione. La tabella non ha una chiave primaria e i dati potrebbero essere cambiati: aggiorna e riprova.",
     "newRow": "NUOVA",
     "noData": "Nessun dato da visualizzare",
     "editRow": "Modifica riga",

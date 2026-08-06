@@ -990,6 +990,9 @@
     "waiting": "Aguardando sua chave de segurança — toque nela para confirmar."
   },
   "dataGrid": {
+    "noRowIdentity": "Não é possível editar as linhas: \"{{table}}\" não tem chave primária, então a edição exige que o resultado inclua todas as colunas da tabela. Selecione todas as colunas (ex.: SELECT *) ou adicione uma chave primária.",
+    "keylessRowNotFound": "Nenhuma linha correspondeu aos valores originais ao atualizar \"{{column}}\". A tabela não tem chave primária e os dados podem ter mudado: atualize e tente novamente.",
+    "keylessDeleteNotFound": "Nenhuma linha correspondeu aos valores originais ao excluir. A tabela não tem chave primária e os dados podem ter mudado: atualize e tente novamente.",
     "newRow": "NOVO",
     "noData": "Nenhum dado para exibir",
     "editRow": "Editar Linha",

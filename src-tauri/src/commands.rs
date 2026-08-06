@@ -691,7 +691,17 @@ pub(crate) fn merge_groups(existing: &mut Vec<ConnectionGroup>, incoming: Vec<Co
 
 /// Write the connections file and invalidate the in-memory connection cache so
 /// the next `find_connection_by_id` call re-reads fresh data from disk.
-fn save_connections_and_invalidate<R: Runtime>(
+/// Normalizes and validates a connection environment value. Empty selects
+/// "unclassified" (`None`); anything else must be one of the known tiers.
+fn validate_environment(env: Option<String>) -> Result<Option<String>, String> {
+    match env.as_deref() {
+        None | Some("") => Ok(None),
+        Some("development" | "staging" | "production") => Ok(env),
+        Some(other) => Err(format!("Invalid environment: {other}")),
+    }
+}
+
+pub(crate) fn save_connections_and_invalidate<R: Runtime>(
     app: &AppHandle<R>,
     path: &std::path::Path,
     file: &crate::models::ConnectionsFile,
@@ -976,6 +986,7 @@ pub async fn save_connection<R: Runtime>(
     name: String,
     params: ConnectionParams,
     detect_json_in_text_columns: Option<bool>,
+    environment: Option<String>,
 ) -> Result<SavedConnection, String> {
     log::info!("Saving new connection: {}", name);
     validate_connection_uri_persistence(&params)?;
@@ -1019,6 +1030,8 @@ pub async fn save_connection<R: Runtime>(
         sort_order: None,
         detect_json_in_text_columns,
         appearance: None,
+        tag_ids: None,
+        environment: validate_environment(environment)?,
     };
     conn_file.connections.push(new_conn.clone());
     persist_connection_uri_change(
@@ -1105,6 +1118,7 @@ pub async fn update_connection<R: Runtime>(
     name: String,
     params: ConnectionParams,
     detect_json_in_text_columns: Option<bool>,
+    environment: Option<String>,
 ) -> Result<SavedConnection, String> {
     validate_connection_uri_persistence(&params)?;
     let path = get_config_path(&app)?;
@@ -1183,6 +1197,8 @@ pub async fn update_connection<R: Runtime>(
     let original_db_selection = conn_file.connections[conn_idx].params.database.clone();
     // Preserve user's appearance customization across edits
     let original_appearance = conn_file.connections[conn_idx].appearance.clone();
+    // Tags are managed by set_connection_tags; preserve them across edits.
+    let original_tag_ids = conn_file.connections[conn_idx].tag_ids.clone();
 
     let updated = SavedConnection {
         id: id.clone(),
@@ -1192,6 +1208,8 @@ pub async fn update_connection<R: Runtime>(
         sort_order: original_sort_order,
         detect_json_in_text_columns,
         appearance: original_appearance,
+        tag_ids: original_tag_ids,
+        environment: validate_environment(environment)?,
     };
 
     conn_file.connections[conn_idx] = updated.clone();
@@ -1379,6 +1397,10 @@ pub async fn duplicate_connection<R: Runtime>(
         sort_order: None,                    // Will be placed at end of group
         detect_json_in_text_columns: original.detect_json_in_text_columns,
         appearance: new_appearance,
+        tag_ids: original.tag_ids.clone(),
+        // Normalize rather than fail: an invalid on-disk value must not
+        // block duplication, the copy just becomes "unclassified".
+        environment: validate_environment(original.environment.clone()).unwrap_or(None),
     };
 
     conn_file.connections.push(new_conn.clone());
@@ -2548,6 +2570,8 @@ mod tests {
             sort_order: None,
             detect_json_in_text_columns: None,
             appearance: None,
+            tag_ids: None,
+            environment: None,
         }
     }
 
@@ -2577,6 +2601,8 @@ mod tests {
                 accent_color: Some("#ff0000".to_string()),
                 icon: Some(IconOverride::Emoji { value: "🐘".to_string() }),
             }),
+            tag_ids: None,
+            environment: None,
         };
 
         // Simulate the pattern used in update_connection after the fix.
@@ -2590,6 +2616,8 @@ mod tests {
             sort_order: existing.sort_order,
             detect_json_in_text_columns: None,
             appearance: original_appearance,
+            tag_ids: None,
+            environment: None,
         };
 
         let app = updated.appearance.as_ref().expect("appearance must be preserved");
@@ -2607,10 +2635,13 @@ mod tests {
             sort_order: None,
             detect_json_in_text_columns: None,
             appearance,
+            tag_ids: None,
+            environment: None,
         };
         ConnectionsFile {
             groups: vec![],
             connections: vec![conn],
+            tags: vec![],
         }
     }
 
@@ -5827,6 +5858,14 @@ pub async fn export_connections_payload<R: Runtime>(
                 .filter_map(|c| c.group_id.as_deref()),
         );
         conn_file.groups.retain(|g| kept_groups.contains(&g.id));
+        // Same for tags: only export the ones the selection actually uses.
+        let kept_tags: std::collections::HashSet<String> = conn_file
+            .connections
+            .iter()
+            .flat_map(|c| c.tag_ids.iter().flatten())
+            .cloned()
+            .collect();
+        conn_file.tags.retain(|t| kept_tags.contains(&t.id));
     }
 
     let cache = app
@@ -5892,6 +5931,7 @@ pub async fn export_connections_payload<R: Runtime>(
         connections: conn_file.connections,
         ssh_connections,
         k8s_connections,
+        tags: conn_file.tags,
     })
 }
 
@@ -5947,8 +5987,38 @@ pub async fn apply_export_payload<R: Runtime>(
     // Merge groups (preserves hierarchy; demotes orphaned parent_ids to root)
     merge_groups(&mut current_file.groups, payload.groups);
 
+    // Merge tags (import wins on id collision, name matches are unified onto
+    // the existing tag) and remap the imported connections' tag_ids so
+    // name-merged tags keep resolving.
+    let tag_remap =
+        crate::connection_tags::merge_imported_tags(&mut current_file.tags, payload.tags);
+    let mut payload_connections = payload.connections;
+    if !tag_remap.is_empty() {
+        // Existing connections may reference a tag id that the merge unified
+        // onto another tag, so the remap applies to both sides.
+        for conn in payload_connections
+            .iter_mut()
+            .chain(current_file.connections.iter_mut())
+        {
+            if let Some(tag_ids) = &mut conn.tag_ids {
+                let mut seen = std::collections::HashSet::new();
+                *tag_ids = tag_ids
+                    .iter()
+                    .map(|id| tag_remap.get(id).unwrap_or(id).clone())
+                    .filter(|id| seen.insert(id.clone()))
+                    .collect();
+            }
+        }
+    }
+
+    // Environments come from an external file: normalize instead of failing
+    // the whole import — an unknown tier just becomes "unclassified".
+    for conn in &mut payload_connections {
+        conn.environment = validate_environment(conn.environment.take()).unwrap_or(None);
+    }
+
     // Merge connections and handle passwords
-    for mut new_conn in payload.connections {
+    for mut new_conn in payload_connections {
         // An imported payload is untrusted input and may carry an inline URI.
         // Hold it to the same rule as a save: keychain or nothing.
         validate_connection_uri_persistence(&new_conn.params)?;

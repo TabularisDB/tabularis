@@ -1,8 +1,11 @@
 import { Outlet, useLocation } from "react-router-dom";
+
 import { useAutoConnectFromUrl } from "../../hooks/useAutoConnectFromUrl";
 import { useConnectionLayoutContext } from "../../hooks/useConnectionLayoutContext";
 import { useConnectionWindowLifecycle } from "../../hooks/useConnectionWindowLifecycle";
 import { useGlobalShortcuts } from "../../hooks/useGlobalShortcuts";
+
+import { ProductionBanner } from "./ProductionBanner";
 import { RightSidebar } from "./RightSidebar";
 import { Sidebar } from "./Sidebar";
 import { SplitPaneLayout } from "./SplitPaneLayout";
@@ -25,6 +28,7 @@ export const MainLayout = () => {
 		<div className="flex h-screen bg-base text-primary overflow-hidden">
 			<Sidebar />
 			<main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+				<ProductionBanner />
 				{showSplit ? <SplitPaneLayout {...splitView} /> : <Outlet />}
 			</main>
 			<RightSidebar />

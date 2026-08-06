@@ -24,7 +24,7 @@ interface PluginSlotProviderProps {
  * Keep in sync with `packages/plugin-api/src/version.ts` (API_VERSION).
  * Bump when the host API shape changes in a way plugin bundles can observe.
  */
-const HOST_API_VERSION = "0.1.0";
+const HOST_API_VERSION = "0.1.1";
 
 let globalsExposed = false;
 function exposePluginGlobals() {

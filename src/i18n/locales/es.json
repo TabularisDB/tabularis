@@ -23,6 +23,29 @@
     "fromPlaceholder": "desde",
     "toPlaceholder": "hasta"
   },
+  "tags": {
+    "label": "Etiquetas",
+    "new": "Nueva etiqueta",
+    "add": "Añadir",
+    "namePlaceholder": "Nombre de la etiqueta…",
+    "manage": "Gestionar etiquetas",
+    "done": "Hecho",
+    "deleteTitle": "Eliminar etiqueta",
+    "deleteConfirm": "¿Eliminar la etiqueta \"{{name}}\"? Se quitará de todas las conexiones."
+  },
+  "environment": {
+    "label": "Entorno",
+    "none": "Sin entorno",
+    "development": "Desarrollo",
+    "staging": "Staging",
+    "production": "Producción",
+    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "banner": "Producción — {{name}}",
+    "warnTitle": "Base de datos de producción",
+    "warnMessage": "Está a punto de modificar datos de producción en \"{{name}}\". ¿Seguro que desea continuar?",
+    "warnConfirm": "Ejecutar de todos modos",
+    "warnSnooze": "No volver a preguntar para esta conexión (esta sesión)"
+  },
   "common": {
     "save": "Guardar",
     "close": "Cerrar",
@@ -980,6 +1003,9 @@
     "waiting": "Esperando tu llave de seguridad — tócala para confirmar."
   },
   "dataGrid": {
+    "noRowIdentity": "No se pueden editar las filas: \"{{table}}\" no tiene clave primaria, por lo que la edición requiere que el resultado incluya todas las columnas de la tabla. Selecciona todas las columnas (p. ej. SELECT *) o añade una clave primaria.",
+    "keylessRowNotFound": "Ninguna fila coincidió con los valores originales al actualizar \"{{column}}\". La tabla no tiene clave primaria y los datos pueden haber cambiado: actualiza y vuelve a intentarlo.",
+    "keylessDeleteNotFound": "Ninguna fila coincidió con los valores originales al eliminar. La tabla no tiene clave primaria y los datos pueden haber cambiado: actualiza y vuelve a intentarlo.",
     "newRow": "NUEVA",
     "noData": "No hay datos para mostrar",
     "editRow": "Editar Fila",

@@ -71,6 +71,11 @@
           "type": "boolean",
           "description": "true to enable the Views section in the database explorer."
         },
+        "materialized_views": {
+          "type": "boolean",
+          "default": false,
+          "description": "true to enable the Materialized Views section in the database explorer. The backing RPCs (get_materialized_views, get_materialized_view_columns, get_materialized_view_definition, refresh_materialized_view) are optional: listing falls back to empty results when the plugin does not implement them."
+        },
         "routines": {
           "type": "boolean",
           "description": "true to enable stored procedures and functions in the database explorer."
@@ -200,6 +205,11 @@
           "options": { "type": "array", "items": { "type": "string" } }
         }
       }
+    },
+    "type_mappings": {
+      "type": "object",
+      "description": "Optional map of generic inferred type names to driver-specific types. Used by the host to resolve map_inferred_type() locally without an RPC call. Keys are uppercase generic names (e.g. DATETIME, JSON), values are the driver-native equivalents (e.g. TIMESTAMP, JSONB).",
+      "additionalProperties": { "type": "string" }
     },
     "data_types": {
       "type": "array",

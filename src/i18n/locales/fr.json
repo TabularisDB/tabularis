@@ -23,6 +23,29 @@
     "fromPlaceholder": "de",
     "toPlaceholder": "à"
   },
+  "tags": {
+    "label": "Tags",
+    "new": "Nouveau tag",
+    "add": "Ajouter",
+    "namePlaceholder": "Nom du tag…",
+    "manage": "Gérer les tags",
+    "done": "Terminé",
+    "deleteTitle": "Supprimer le tag",
+    "deleteConfirm": "Supprimer le tag « {{name}} » ? Il sera retiré de toutes les connexions."
+  },
+  "environment": {
+    "label": "Environnement",
+    "none": "Aucun environnement",
+    "development": "Développement",
+    "staging": "Staging",
+    "production": "Production",
+    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "banner": "Production — {{name}}",
+    "warnTitle": "Base de production",
+    "warnMessage": "Vous êtes sur le point de modifier des données de production sur « {{name}} ». Voulez-vous vraiment continuer ?",
+    "warnConfirm": "Exécuter quand même",
+    "warnSnooze": "Ne plus demander pour cette connexion (cette session)"
+  },
   "common": {
     "save": "Enregistrer",
     "close": "Fermer",
@@ -989,6 +1012,9 @@
     "waiting": "En attente de votre clé de sécurité — touchez-la pour confirmer."
   },
   "dataGrid": {
+    "noRowIdentity": "Impossible de modifier les lignes : \"{{table}}\" n'a pas de clé primaire, la modification nécessite donc que le résultat inclue toutes les colonnes de la table. Sélectionnez toutes les colonnes (p. ex. SELECT *) ou ajoutez une clé primaire.",
+    "keylessRowNotFound": "Aucune ligne ne correspond aux valeurs d'origine lors de la mise à jour de \"{{column}}\". La table n'a pas de clé primaire et les données ont peut-être changé : actualisez puis réessayez.",
+    "keylessDeleteNotFound": "Aucune ligne ne correspond aux valeurs d'origine lors de la suppression. La table n'a pas de clé primaire et les données ont peut-être changé : actualisez puis réessayez.",
     "newRow": "NOUVELLE",
     "noData": "Aucune donnée à afficher",
     "editRow": "Modifier la ligne",

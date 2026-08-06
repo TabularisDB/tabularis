@@ -13,7 +13,8 @@ export type SlotName =
   | "sidebar.footer.actions"
   | "settings.plugin.actions"
   | "settings.plugin.before_settings"
-  | "connection-modal.connection_content";
+  | "connection-modal.connection_content"
+  | "connection-modal.extra_fields";
 
 /**
  * Set of all valid slot names derived from the SlotName union.
@@ -30,6 +31,7 @@ export const VALID_SLOTS: ReadonlySet<string> = new Set<SlotName>([
   "settings.plugin.actions",
   "settings.plugin.before_settings",
   "connection-modal.connection_content",
+  "connection-modal.extra_fields",
 ]);
 
 /**

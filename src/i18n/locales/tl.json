@@ -23,6 +23,29 @@
     "fromPlaceholder": "mula",
     "toPlaceholder": "hanggang"
   },
+  "tags": {
+    "label": "Mga tag",
+    "new": "Bagong tag",
+    "add": "Idagdag",
+    "namePlaceholder": "Pangalan ng tag…",
+    "manage": "Pamahalaan ang mga tag",
+    "done": "Tapos na",
+    "deleteTitle": "Tanggalin ang tag",
+    "deleteConfirm": "Tanggalin ang tag na \"{{name}}\"? Aalisin ito sa lahat ng koneksyon."
+  },
+  "environment": {
+    "label": "Kapaligiran",
+    "none": "Walang kapaligiran",
+    "development": "Development",
+    "staging": "Staging",
+    "production": "Production",
+    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "banner": "Production — {{name}}",
+    "warnTitle": "Production na database",
+    "warnMessage": "Malapit mo nang baguhin ang production data sa \"{{name}}\". Sigurado ka bang magpapatuloy?",
+    "warnConfirm": "Ituloy pa rin",
+    "warnSnooze": "Huwag nang itanong para sa koneksyong ito (ngayong session)"
+  },
   "common": {
     "save": "I-save",
     "close": "Isara",
@@ -984,6 +1007,9 @@
     "waiting": "Naghihintay sa iyong security key — hawakan ito para kumpirmahin."
   },
   "dataGrid": {
+    "noRowIdentity": "Hindi ma-edit ang mga row: walang primary key ang \"{{table}}\", kaya kailangang kasama sa resulta ang lahat ng column ng table. Piliin ang lahat ng column (hal. SELECT *) o magdagdag ng primary key.",
+    "keylessRowNotFound": "Walang row na tumugma sa mga orihinal na value habang ina-update ang \"{{column}}\". Walang primary key ang table at maaaring nagbago ang data — i-refresh at subukang muli.",
+    "keylessDeleteNotFound": "Walang row na tumugma sa mga orihinal na value habang nagde-delete. Walang primary key ang table at maaaring nagbago ang data — i-refresh at subukang muli.",
     "newRow": "BAGO",
     "noData": "Walang data na ipapakita",
     "editRow": "I-edit ang Row",

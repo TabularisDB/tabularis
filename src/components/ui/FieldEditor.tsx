@@ -18,6 +18,7 @@ import { isBlobColumn } from "../../utils/blob";
 import {
   isJsonColumn,
   isJsonContent,
+  isHstoreColumn,
   isStructuredValue,
 } from "../../utils/json";
 import {
@@ -75,7 +76,7 @@ export const FieldEditor = ({
   const { t } = useTranslation();
   const isGeometric = type && isGeometricType(type);
   const isBlob = type && isBlobColumn(type, characterMaximumLength);
-  const isJsonByType = !!(type && isJsonColumn(type));
+  const isJsonByType = !!(type && (isJsonColumn(type) || isHstoreColumn(type)));
   const detectedJson =
     !isBlob &&
     !isGeometric &&

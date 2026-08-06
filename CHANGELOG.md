@@ -1,3 +1,49 @@
+# [0.18.0](https://github.com/TabularisDB/tabularis/compare/v0.17.0...v0.18.0) (2026-08-03)
+
+
+### Bug Fixes
+
+* **ai:** add MiniMax regional endpoint metadata ([#498](https://github.com/TabularisDB/tabularis/issues/498)) ([ed9094e](https://github.com/TabularisDB/tabularis/commit/ed9094e46749d75965dd4b872262a9ea0cd94d47))
+* **connections:** restore the stored URI when reconnecting ([5e13eee](https://github.com/TabularisDB/tabularis/commit/5e13eee17964440a65244ba08cc74ed1a97b27cf))
+* **connections:** switch to all-databases mode when pasted URI has no database ([aa9fcea](https://github.com/TabularisDB/tabularis/commit/aa9fcea64071644ef77c1f8a1de6d5c273d78690))
+* **data-grid:** open dedicated editor for array cells on double-click ([#489](https://github.com/TabularisDB/tabularis/issues/489)) ([cae497e](https://github.com/TabularisDB/tabularis/commit/cae497ee23cecb25c79dee542d826e90d01d5de9))
+* **datagrid:** address review — drop duplicate CopyFormat, toggle # tooltip ([1f6682d](https://github.com/TabularisDB/tabularis/commit/1f6682db675ea5ef225476968845560376d6c53f))
+* **datagrid:** Ctrl+click column toggle on macOS; 'Select All (N)' label ([87f7695](https://github.com/TabularisDB/tabularis/commit/87f76957d17cf7fddfdb6e92a37d6e08e569ce76))
+* **datagrid:** group context-menu copy actions; pair the two scopes ([6b86341](https://github.com/TabularisDB/tabularis/commit/6b8634124d9270d8ca9dfb81822d71a1a7aed4fd))
+* **datagrid:** offer copy-all when the row total is unknown ([d2f7d85](https://github.com/TabularisDB/tabularis/commit/d2f7d858061d99ca79cf4844e2ae74a285255970))
+* **editor:** render editor panes in stable order ([7488159](https://github.com/TabularisDB/tabularis/commit/7488159ef1ee0cd0e6858a85ce8c795728f49acc))
+* **editor:** resolve a caret above the first statement to that statement ([9ab4c38](https://github.com/TabularisDB/tabularis/commit/9ab4c38f5cfbc1cbec3f379c350a719e73efd937))
+* **er-diagram:** prevent node overlap and add node lock toggle ([#558](https://github.com/TabularisDB/tabularis/issues/558)) ([f5f9e34](https://github.com/TabularisDB/tabularis/commit/f5f9e34abfe417e8ec71ae7482a9c708ab8e0d0d))
+* **mcp:** parse preflight explain output in the approval modal ([1361192](https://github.com/TabularisDB/tabularis/commit/13611924c5204274c8890e1ae7b8ea4b67ff5c21)), closes [#566](https://github.com/TabularisDB/tabularis/issues/566)
+* **mysql:** include MariaDB SYSTEM VERSIONED tables in table list ([e707682](https://github.com/TabularisDB/tabularis/commit/e7076825bd85b6ad529d2b3cf6e4ea04e5988d52))
+* **nightly:** scope the prerelease counter to the version base ([525b938](https://github.com/TabularisDB/tabularis/commit/525b9380d5967a65c9eaac9d82cdb5ce6f09e855))
+* **notebook:** harden SQL generation for params and cell references ([#559](https://github.com/TabularisDB/tabularis/issues/559)) ([946f3db](https://github.com/TabularisDB/tabularis/commit/946f3dbf1bbbe50525aecd57ae3c89dc7dd8347c))
+* **review:** escape NUL byte in scopeKey, complete userManagement i18n ([9f88079](https://github.com/TabularisDB/tabularis/commit/9f880796b411d89e4c5071fb4df771d6234cc2ad))
+* **review:** include table in privilege log scope, add 'users' to CleanedTab type ([77c9235](https://github.com/TabularisDB/tabularis/commit/77c9235f344743295ce991ad2dac4afe3fa03d6c))
+
+
+### Features
+
+* **connections:** all-databases mode (empty selection = browse everything) ([4441615](https://github.com/TabularisDB/tabularis/commit/4441615b215447588998c7e5aaf701d7afcc4b80))
+* **connections:** forward raw connection URIs to plugin drivers ([93d59d3](https://github.com/TabularisDB/tabularis/commit/93d59d3c20a0b55f728aef8eabe30606c4df15cb)), closes [#494](https://github.com/TabularisDB/tabularis/issues/494)
+* **connections:** SSH test progress log, cancel, and diagnostics modal ([f422942](https://github.com/TabularisDB/tabularis/commit/f4229427a5bb64df49427c98ceaa87e881fb77a0))
+* **connections:** SSH tunnel test, classified errors, and test diagnostics ([04fbbe6](https://github.com/TabularisDB/tabularis/commit/04fbbe659f537450115c94131a19f95f1c04f93d))
+* **data-grid:** navigate cells with the arrow keys ([3f87b5a](https://github.com/TabularisDB/tabularis/commit/3f87b5ad5da9fa7b51d7679b290ab2fb41255be8))
+* **datagrid:** 'Copy All (N)' menu item; copy-all ignores tab LIMIT ([729a9d9](https://github.com/TabularisDB/tabularis/commit/729a9d9e227b3bbb9a8cc9ee495e6112632ef3d8))
+* **datagrid:** confirm before copying rows beyond the loaded page ([d1ef9ca](https://github.com/TabularisDB/tabularis/commit/d1ef9ca3577952df32f0e9dcf280d464b955f347))
+* **datagrid:** DBeaver-style cell range selection via Shift+click ([a0247b0](https://github.com/TabularisDB/tabularis/commit/a0247b0b5d23963af119aabd8cbaa55306245de3))
+* **datagrid:** DBeaver-style multi-column selection and copy ([4870441](https://github.com/TabularisDB/tabularis/commit/4870441aff8f1a3f7887555f500423b1c72b9e24))
+* **datagrid:** expose select-all via Cmd/Ctrl+A and context menu ([b02fc35](https://github.com/TabularisDB/tabularis/commit/b02fc35d0d3b11fd227ba30b3c3926fe856c6d24))
+* **datagrid:** toast with row count after copying rows ([198afb3](https://github.com/TabularisDB/tabularis/commit/198afb34942f2f05e4e6b70d5f83c131f468fcf9))
+* **editor:** allow reordering tabs via drag-and-drop ([53ea0fa](https://github.com/TabularisDB/tabularis/commit/53ea0fa8f91b0f5065b343de06d73f3297939d19))
+* **editor:** label the Run button with what it will actually run ([21ed928](https://github.com/TabularisDB/tabularis/commit/21ed9286bfb9d58630401e1091321fc0044b8a6c))
+* **er-diagram:** export the schema as Mermaid or DBML ([#521](https://github.com/TabularisDB/tabularis/issues/521)) ([9e91a7a](https://github.com/TabularisDB/tabularis/commit/9e91a7a20c14fefd9fe56271ba985f1de581f17e))
+* **indexes:** render functional/expression indexes across drivers ([#499](https://github.com/TabularisDB/tabularis/issues/499)) ([b66c737](https://github.com/TabularisDB/tabularis/commit/b66c737524d6486397ece1d8d24cf589b2337f1c))
+* **mcp:** compact plan summary and read-aware title in approval modal ([e044e1f](https://github.com/TabularisDB/tabularis/commit/e044e1f79f9ca5538e6f78ee9982f0e44ece699c))
+* **postgres:** support editing hstore columns ([#427](https://github.com/TabularisDB/tabularis/issues/427)) ([fcee3d5](https://github.com/TabularisDB/tabularis/commit/fcee3d540f6f29c4138d65aa68aadeb80561000b)), closes [#395](https://github.com/TabularisDB/tabularis/issues/395)
+* **sqlite:** add sqlite database creation workflows ([#523](https://github.com/TabularisDB/tabularis/issues/523)) ([9bba294](https://github.com/TabularisDB/tabularis/commit/9bba294d8378fb1178c061a91eba1587452d4608))
+* **users:** database user & privilege management (MySQL/MariaDB) ([d4813a1](https://github.com/TabularisDB/tabularis/commit/d4813a1b87ba086d0d3f312b0fc1ecd32ede9497))
+
 # [0.17.0](https://github.com/TabularisDB/tabularis/compare/v0.16.0...v0.17.0) (2026-07-27)
 
 

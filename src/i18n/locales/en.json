@@ -23,6 +23,29 @@
     "fromPlaceholder": "from",
     "toPlaceholder": "to"
   },
+  "tags": {
+    "label": "Tags",
+    "new": "New tag",
+    "add": "Add",
+    "namePlaceholder": "Tag name…",
+    "manage": "Manage tags",
+    "done": "Done",
+    "deleteTitle": "Delete tag",
+    "deleteConfirm": "Delete tag \"{{name}}\"? It will be removed from all connections."
+  },
+  "environment": {
+    "label": "Environment",
+    "none": "No environment",
+    "development": "Development",
+    "staging": "Staging",
+    "production": "Production",
+    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "banner": "Production — {{name}}",
+    "warnTitle": "Production database",
+    "warnMessage": "You are about to modify production data on “{{name}}”. Are you sure you want to continue?",
+    "warnConfirm": "Run anyway",
+    "warnSnooze": "Don't ask again for this connection (this session)"
+  },
   "common": {
     "save": "Save",
     "close": "Close",
@@ -999,6 +1022,9 @@
     "waiting": "Waiting for your security key — touch it to confirm."
   },
   "dataGrid": {
+    "noRowIdentity": "Rows can't be edited: \"{{table}}\" has no primary key, so editing requires the result to include all table columns. Select all columns (e.g. SELECT *) or add a primary key.",
+    "keylessRowNotFound": "No row matched the original values while updating \"{{column}}\". The table has no primary key and its data may have changed — refresh and retry.",
+    "keylessDeleteNotFound": "No row matched the original values while deleting. The table has no primary key and its data may have changed — refresh and retry.",
     "newRow": "NEW",
     "noData": "No data to display",
     "editRow": "Edit Row",

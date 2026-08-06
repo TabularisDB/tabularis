@@ -100,6 +100,9 @@ export interface PluginManifest {
   icon?: string;
   /** Plugin-declared setting definitions. Empty/absent for built-in drivers. */
   settings?: PluginSettingDefinition[];
+  /** Optional map of generic inferred type names to driver-specific types.
+   * Used during paste/import to resolve map_inferred_type() locally. */
+  type_mappings?: Record<string, string>;
   /** UI extension declarations for slot-based rendering (Phase 2). */
   ui_extensions?: UIExtensionManifestEntry[];
 }

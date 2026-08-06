@@ -108,7 +108,7 @@ pub async fn create_sqlite_database<R: Runtime>(
         ..ConnectionParams::default()
     };
 
-    match crate::commands::save_connection(app, name, params, None).await {
+    match crate::commands::save_connection(app, name, params, None, None).await {
         Ok(connection) => Ok(connection),
         Err(error) => {
             if let Err(cleanup_error) = fs::remove_file(&path) {

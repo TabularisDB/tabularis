@@ -1032,6 +1032,15 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   // Persist the full set of open connections so the app can reopen all of them
   // on next launch. Skip the empty startup state so the saved list isn't wiped
   // before the startup auto-connect gets a chance to read it.
+  //
+  // Disconnecting the *last* connection is covered by the explicit persist
+  // call inside `disconnect()` — the reactive effect below skips the empty
+  // list, so we persist the cleared state directly from the user action.
+  // (#467 — the Rust `save_config` merge treats any `Some` as authoritative,
+  // which used to let `SettingsProvider` clobber the session list on the next
+  // settings change. The clobber chain is now severed by stripping the
+  // session fields in `SettingsProvider.updateSetting`, so this effect no
+  // longer needs to chase the empty state for correctness.)
   useEffect(() => {
     if (openConnectionIds.length === 0) return;
     invoke('set_last_open_connections', { connectionIds: openConnectionIds }).catch(() => {});

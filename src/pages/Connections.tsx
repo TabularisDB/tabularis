@@ -40,6 +40,7 @@ import { flattenGroupTree } from "../utils/groupTree";
 import { toErrorMessage } from "../utils/errors";
 import { fuzzyFilter } from "../utils/fuzzy";
 import { useOpenConnectionInNewWindow } from "../hooks/useOpenConnectionInNewWindow";
+import { useConnectionTags } from "../hooks/useConnectionTags";
 import { GroupHeader } from "../components/connections/GroupHeader";
 import { ConnectionCard } from "../components/connections/ConnectionCard";
 import { ConnectionListItem } from "../components/connections/ConnectionListItem";
@@ -72,6 +73,7 @@ export const Connections = () => {
     connections: contextConnections,
   } = useDatabase();
   const { drivers, allDrivers } = useDrivers();
+  const { tags, refresh: refreshTags } = useConnectionTags();
   const openConnectionInNewWindow = useOpenConnectionInNewWindow();
   const { createSqliteDatabase, isCreating: isCreatingSqliteDatabase } =
     useCreateSqliteDatabase();
@@ -549,7 +551,16 @@ export const Connections = () => {
     }
   };
 
-  // Filter grouped/ungrouped based on search
+  // Filter grouped/ungrouped based on search. Tag names take part in the
+  // match so typing a tag (e.g. "prod") narrows the list to tagged connections.
+  const searchTarget = useMemo(() => {
+    const tagNameById = new Map(tags.map((t) => [t.id, t.name]));
+    return (c: SavedConnection) =>
+      `${c.name} ${c.params.driver} ${(c.tag_ids ?? [])
+        .map((id) => tagNameById.get(id) ?? "")
+        .join(" ")}`;
+  }, [tags]);
+
   const filteredGroupedConnections = useMemo(() => {
     if (!search.trim()) return groupedConnections;
     const result: Record<string, SavedConnection[]> = {};
@@ -557,22 +568,18 @@ export const Connections = () => {
       const filteredConns = fuzzyFilter(
         groupedConnections[groupId],
         search,
-        (c) => `${c.name} ${c.params.driver}`,
+        searchTarget,
       );
       if (filteredConns.length > 0) {
         result[groupId] = filteredConns;
       }
     }
     return result;
-  }, [groupedConnections, search]);
+  }, [groupedConnections, search, searchTarget]);
 
   const filteredUngroupedConnections = useMemo(() => {
-    return fuzzyFilter(
-      ungroupedConnections,
-      search,
-      (c) => `${c.name} ${c.params.driver}`,
-    );
-  }, [ungroupedConnections, search]);
+    return fuzzyFilter(ungroupedConnections, search, searchTarget);
+  }, [ungroupedConnections, search, searchTarget]);
 
   const openCount = connections.filter((c) => isConnectionOpenAnywhere(c.id)).length;
   // Connections open in THIS window — gates the "Open in New Window" action,
@@ -593,6 +600,7 @@ export const Connections = () => {
     connectingId,
     allDrivers,
     enabledDrivers: drivers,
+    tags,
     onConnect: () => handleConnect(conn),
     onDisconnect: () => handleDisconnect(conn.id),
     onEdit: () => void openEdit(conn),
@@ -1288,6 +1296,9 @@ export const Connections = () => {
         onClose={() => {
           setIsModalOpen(false);
           setEditingConnection(null);
+          // Tag renames/deletions apply immediately, even when the modal is
+          // cancelled, so re-fetch for the chips and the search filter.
+          void refreshTags();
         }}
         onSave={handleSave}
         initialConnection={editingConnection}

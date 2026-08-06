@@ -216,6 +216,27 @@ mod sqlite_push_pk_where_tests {
         assert!(sqlite_push_pk_where(&mut qb, &pk_map).is_err());
     }
 
+    // Keyless tables (#598) identify rows by all comparable columns, so a
+    // pk_map entry may legitimately be NULL and must render as IS NULL.
+    #[test]
+    fn null_value_renders_is_null_without_binding() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("a_col".to_string(), serde_json::Value::Null);
+        pk_map.insert("b_col".to_string(), serde_json::json!("alice"));
+        let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new("");
+        sqlite_push_pk_where(&mut qb, &pk_map).unwrap();
+        assert_eq!(qb.sql(), "\"a_col\" IS NULL AND \"b_col\" = ?");
+    }
+
+    #[test]
+    fn bool_value_binds_with_equality() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("flag".to_string(), serde_json::json!(true));
+        let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new("");
+        sqlite_push_pk_where(&mut qb, &pk_map).unwrap();
+        assert_eq!(qb.sql(), "\"flag\" = ?");
+    }
+
     #[test]
     fn double_quote_in_column_name_is_escaped() {
         let mut pk_map = HashMap::new();

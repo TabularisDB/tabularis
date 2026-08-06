@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { X, Loader2, Plus } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDatabase } from "../../hooks/useDatabase";
+import { useProductionGuard } from "../../hooks/useProductionGuard";
 import { Modal } from "../ui/Modal";
 import { quoteTableRef } from "../../utils/identifiers";
 import { isGeometricType } from "../../utils/geometry";
@@ -33,6 +34,7 @@ export const NewRowModal = ({
 }: NewRowModalProps) => {
   const { t } = useTranslation();
   const { activeConnectionId, activeDriver, activeSchema } = useDatabase();
+  const guardProductionWrite = useProductionGuard();
   const [columns, setColumns] = useState<TableColumn[]>([]);
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(false);
@@ -177,6 +179,7 @@ export const NewRowModal = ({
 
   const handleSave = async () => {
     if (!activeConnectionId) return;
+    if (!(await guardProductionWrite(activeConnectionId))) return;
     setLoading(true);
     setError("");
 

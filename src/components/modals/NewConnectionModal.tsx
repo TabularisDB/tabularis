@@ -24,6 +24,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { ConnectionAppearance } from "../../contexts/DatabaseContext";
 import { AppearanceSection } from "./NewConnectionModal/AppearanceSection";
+import { TagSelector } from "./NewConnectionModal/TagSelector";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import { SshConnectionsModal } from "./SshConnectionsModal";
@@ -53,6 +54,7 @@ import { useK8sPathOverrides } from "../../hooks/useK8sPathOverrides";
 import { useLatestAsync } from "../../hooks/useLatestAsync";
 import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
 import { isMultiDatabaseCapable } from "../../utils/database";
+import { updateExtraField } from "../../utils/connections";
 import { toErrorMessage } from "../../utils/errors";
 import {
   classifyConnectionError,
@@ -141,6 +143,9 @@ interface ConnectionParams {
   k8s_kubeconfig_path?: string;
   // SQL run on every new connection (e.g. SET / set_config)
   startup_script?: string;
+  // Opaque plugin-specific connection fields, forwarded verbatim to the
+  // driver/plugin and persisted as-is in connections.json.
+  extra?: Record<string, string>;
 }
 
 interface SavedConnection {
@@ -149,6 +154,8 @@ interface SavedConnection {
   params: ConnectionParams;
   detect_json_in_text_columns?: boolean;
   appearance?: ConnectionAppearance;
+  tag_ids?: string[];
+  environment?: "development" | "staging" | "production";
 }
 
 interface NewConnectionModalProps {
@@ -498,6 +505,16 @@ export const NewConnectionModal = ({
   const [appearance, setAppearance] = useState<ConnectionAppearance>(
     initialConnection?.appearance ?? {},
   );
+
+  // ── tags ──
+  const [tagIds, setTagIds] = useState<string[]>(
+    initialConnection?.tag_ids ?? [],
+  );
+
+  // ── environment ── ("" = unclassified)
+  const [environment, setEnvironment] = useState<string>(
+    initialConnection?.environment ?? "",
+  );
   // Stable UUID used as connectionId for icon uploads on new connections.
   // The backend mints its own id on save_connection, so we use this temp id
   // for the icon filename. After save, set_connection_appearance persists the
@@ -615,6 +632,24 @@ export const NewConnectionModal = ({
       "connection-modal.connection_content",
       dbFieldSlotContext,
     ).length > 0;
+
+  // ── plugin slot: connection-modal.extra_fields ──
+  // Plugins render their own connection fields (e.g. an AWS region select)
+  // and write them into the opaque `extra` map via `setExtraField`.
+  const setExtraField = useCallback((key: string, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      extra: updateExtraField(prev.extra, key, value),
+    }));
+  }, []);
+  const extraFieldsSlotContext = useMemo(
+    () => ({
+      driver,
+      extra: formData.extra ?? {},
+      setExtraField,
+    }),
+    [driver, formData.extra, setExtraField],
+  );
 
   // ── helpers ──
   const loadSshConnectionsList = async () => {
@@ -1613,6 +1648,8 @@ export const NewConnectionModal = ({
           initialConnection.detect_json_in_text_columns === true,
         );
         setAppearance(initialConnection.appearance ?? {});
+        setTagIds(initialConnection.tag_ids ?? []);
+        setEnvironment(initialConnection.environment ?? "");
         const db = initialConnection.params.database;
         setSshMode(
           initialConnection.params.ssh_connection_id ? "existing" : "inline",
@@ -1732,6 +1769,8 @@ export const NewConnectionModal = ({
         resetK8sPathOverrides();
         setDetectJsonInTextColumns(false);
         setAppearance({});
+        setTagIds([]);
+        setEnvironment("");
       }
 
       const nextSshConnections = await loadSshConnections();
@@ -2120,6 +2159,7 @@ export const NewConnectionModal = ({
       setErrorFeedback(null);
       setTestResult(null);
       try {
+        let savedConnectionId: string;
         if (initialConnection) {
           if (!params.password?.trim()) delete params.password;
           if (!params.ssh_password?.trim()) delete params.ssh_password;
@@ -2128,7 +2168,9 @@ export const NewConnectionModal = ({
             name,
             params,
             detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
+            environment: environment || null,
           });
+          savedConnectionId = initialConnection.id;
           await invoke("set_connection_appearance", {
             id: initialConnection.id,
             appearance: appearancePayload ?? null,
@@ -2138,7 +2180,9 @@ export const NewConnectionModal = ({
             name,
             params,
             detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
+            environment: environment || null,
           });
+          savedConnectionId = saved.id;
           if (appearancePayload) {
             await invoke("set_connection_appearance", {
               id: saved.id,
@@ -2146,6 +2190,11 @@ export const NewConnectionModal = ({
             });
           }
         }
+
+        await invoke("set_connection_tags", {
+          connectionId: savedConnectionId,
+          tagIds,
+        });
 
         if (
           activeActionRef.current !== actionId ||
@@ -2483,6 +2532,13 @@ export const NewConnectionModal = ({
             />
           </div>
 
+          {/* Plugin-owned extra connection fields (opaque `extra` map) */}
+          <SlotAnchor
+            name="connection-modal.extra_fields"
+            context={extraFieldsSlotContext}
+            className="flex flex-col gap-3"
+          />
+
           {/* User + Password */}
           <div className="grid grid-cols-2 gap-3">
             <FieldInput
@@ -2608,14 +2664,17 @@ export const NewConnectionModal = ({
 
   // ── rendered Appearance tab content (per-connection icon + accent color) ──
   const appearanceTabContent = (
-    <AppearanceSection
-      value={appearance}
-      onChange={setAppearance}
-      connectionId={effectiveConnectionId}
-      driverManifest={activeDriver}
-      connectionName={name || t("newConnection.unnamedConnection", { defaultValue: "Unnamed connection" })}
-      onImageUploaded={handleImageUploaded}
-    />
+    <div className="space-y-5">
+      <AppearanceSection
+        value={appearance}
+        onChange={setAppearance}
+        connectionId={effectiveConnectionId}
+        driverManifest={activeDriver}
+        connectionName={name || t("newConnection.unnamedConnection", { defaultValue: "Unnamed connection" })}
+        onImageUploaded={handleImageUploaded}
+      />
+      <TagSelector selectedIds={tagIds} onChange={setTagIds} />
+    </div>
   );
 
   // ── rendered Advanced tab content (driver-specific options + startup SQL) ──
@@ -3750,6 +3809,38 @@ export const NewConnectionModal = ({
             </h2>
           )}
 
+          {step === "form" && (
+            <>
+              <select
+                value={environment}
+                onChange={(e) => setEnvironment(e.target.value)}
+                aria-label={t("environment.label")}
+                className={clsx(
+                  "text-xs bg-surface-secondary border border-strong rounded-full px-2 py-0.5 font-medium outline-none cursor-pointer",
+                  environment === "production"
+                    ? "text-red-400 border-red-400/40"
+                    : environment === "staging"
+                      ? "text-amber-400 border-amber-400/40"
+                      : environment === "development"
+                        ? "text-emerald-400 border-emerald-400/40"
+                        : "text-muted",
+                )}
+              >
+                <option value="">{t("environment.none")}</option>
+                <option value="development">
+                  {t("environment.development")}
+                </option>
+                <option value="staging">{t("environment.staging")}</option>
+                <option value="production">
+                  {t("environment.production")}
+                </option>
+              </select>
+              <span className="text-xs text-muted bg-surface-secondary px-2 py-0.5 rounded-full font-medium capitalize">
+                {activeDriver?.name ?? driver}
+              </span>
+            </>
+          )}
+
           {/* Progress indicator (new connection only) */}
           {!isEditing && (
             <div className="hidden items-center gap-2 shrink-0 sm:flex">
@@ -3796,7 +3887,6 @@ export const NewConnectionModal = ({
               </span>
             </div>
           )}
-
           <button
             onClick={handleClose}
             className="p-1.5 text-muted hover:text-primary hover:bg-surface-secondary rounded-md transition-colors cursor-pointer"

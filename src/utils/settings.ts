@@ -10,6 +10,10 @@ export const FONT_MAP: Record<string, string> = {
   "Open Sans": "Open Sans, system-ui, sans-serif",
   Roboto: "Roboto, RobotoDraft, Helvetica, Arial, sans-serif",
   "JetBrains Mono": "JetBrains Mono, Menlo, Monaco, Consolas, monospace",
+  "JetBrains Mono ExtraBold":
+    "JetBrains Mono ExtraBold, JetBrains Mono, Menlo, Monaco, Consolas, monospace",
+  "JetBrains Mono ExtraBold Italic":
+    "JetBrains Mono ExtraBold Italic, JetBrains Mono ExtraBold, JetBrains Mono, Menlo, Monaco, Consolas, monospace",
   Hack: "Hack, Menlo, Monaco, Consolas, monospace",
   Menlo: "Menlo, Monaco, Consolas, monospace",
   "DejaVu Sans Mono": "DejaVu Sans Mono, Menlo, Monaco, Consolas, monospace",
@@ -172,12 +176,43 @@ export function getLanguageForI18n(
   return language;
 }
 
+/**
+ * Session-persistence fields that the DatabaseProvider writes through
+ * dedicated backend commands (`set_last_open_connections`,
+ * `set_last_active_connection`). They ride in `get_config`'s response and
+ * therefore end up in the React `Settings` state, but settings saves
+ * (`save_config`) must NOT carry them — the Rust merge treats any `Some` as
+ * authoritative, so a stale list captured at app start would overwrite what
+ * the session code persisted. Strip them before every `save_config` call.
+ */
+export const SESSION_FIELDS = [
+  'lastOpenConnectionIds',
+  'lastActiveConnectionId',
+] as const;
+
+export type SessionField = (typeof SESSION_FIELDS)[number];
+
+export function stripSessionFields<T extends Record<string, unknown>>(
+  config: T,
+): Omit<T, SessionField> {
+  const out = { ...config };
+  for (const key of SESSION_FIELDS) {
+    delete (out as Record<string, unknown>)[key];
+  }
+  return out;
+}
+
 // Available fonts from public/fonts + System option
 export const AVAILABLE_FONTS = [
   { name: "System", label: "System Default (Automatic)" },
   { name: "DejaVu Sans Mono", label: "DejaVu Sans Mono" },
   { name: "Hack", label: "Hack" },
   { name: "JetBrains Mono", label: "JetBrains Mono" },
+  { name: "JetBrains Mono ExtraBold", label: "JetBrains Mono ExtraBold" },
+  {
+    name: "JetBrains Mono ExtraBold Italic",
+    label: "JetBrains Mono ExtraBold Italic",
+  },
   { name: "Open Sans", label: "Open Sans" },
   { name: "Roboto", label: "Roboto" },
 ] as const;

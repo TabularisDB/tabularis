@@ -302,6 +302,7 @@ pub async fn get_plugin_manifest(plugin_id: String) -> Result<PluginManifest, St
         icon: config.icon,
         settings: config.settings,
         ui_extensions: config.ui_extensions,
+        type_mappings: config.type_mappings,
     })
 }
 

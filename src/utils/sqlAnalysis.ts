@@ -175,6 +175,47 @@ export const isDangerousQuery = (sql: string): boolean => classifyDangerousQuery
 export const isDestructiveWithoutWhere = (sql: string): boolean =>
   classifyDangerousQuery(sql) === 'no-where';
 
+// Statement types that never modify data. Everything else — including
+// anything unrecognized — is treated as a potential write, which is the safe
+// direction for the production-connection confirmation.
+const READ_ONLY_KEYWORDS = new Set([
+  'SELECT',
+  'SHOW',
+  'DESCRIBE',
+  'DESC',
+  'PRAGMA',
+  'TABLE',
+  'VALUES',
+]);
+
+// Resolves the effective statement keyword: unwraps EXPLAIN prefixes (on
+// Postgres, EXPLAIN ANALYZE actually EXECUTES the target statement, so an
+// EXPLAIN ANALYZE UPDATE must classify as UPDATE) and data-modifying CTEs.
+function effectiveStatementKeyword(cleaned: string): string | null {
+  const unwrapped = cleaned
+    .trim()
+    .replace(/^explain\s+(\([^)]*\)\s+|analyze\s+|analyse\s+|verbose\s+|query\s+plan\s+)*/i, '');
+  if (!unwrapped.trim()) return 'SELECT'; // bare EXPLAIN — nothing to run
+  let keyword = leadingKeyword(unwrapped);
+  if (keyword === 'WITH') {
+    keyword = finalCteStatementKeyword(unwrapped) ?? keyword;
+  }
+  return keyword;
+}
+
+// True when every statement in `sql` is clearly read-only (SELECT/SHOW/
+// EXPLAIN-of-a-SELECT/...). Used by the production write warning: a `false`
+// here means "may write", so unknown statement types err on prompting.
+export const isReadOnlyQuery = (sql: string): boolean =>
+  stripCommentsAndLiterals(sql)
+    .split(';')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .every((s) => {
+      const keyword = effectiveStatementKeyword(s);
+      return keyword !== null && READ_ONLY_KEYWORDS.has(keyword);
+    });
+
 // Optimized statement extractor - avoid full text scan when possible
 export const getCurrentStatement = (model: { getValue: () => string; getOffsetAt: (position: { lineNumber: number; column: number }) => number }, position: { lineNumber: number; column: number }): string => {
   const fullText = model.getValue();

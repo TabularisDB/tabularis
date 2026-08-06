@@ -262,6 +262,14 @@ pub struct ConnectionParams {
     /// pool hands out.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub startup_script: Option<String>,
+    /// Opaque, plugin-specific connection fields. The host does not interpret
+    /// these — they are persisted verbatim and forwarded to the driver plugin
+    /// as part of `params`, so plugins can carry custom connection settings
+    /// (e.g. an AWS region for DynamoDB) without core schema changes.
+    /// Rendered by plugins through the `connection-modal.extra_fields` slot.
+    /// Absent from the JSON when empty.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub extra: HashMap<String, String>,
     // Connection ID for stable pooling (not persisted, set at runtime)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
@@ -297,6 +305,25 @@ pub struct SavedConnection {
     pub detect_json_in_text_columns: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub appearance: Option<ConnectionAppearance>,
+    /// Ids of [`ConnectionTag`]s attached to this connection. Unknown ids
+    /// (e.g. after a partial import) are ignored by the UI.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag_ids: Option<Vec<String>>,
+    /// Deployment environment: `"development"`, `"staging"` or
+    /// `"production"`. `None` means unclassified. Production drives the
+    /// write-confirmation warning and the visual identity in the UI.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub environment: Option<String>,
+}
+
+/// A user-defined colored label. Tags are purely organizational: a
+/// connection can carry any number of them and they never drive behavior.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+pub struct ConnectionTag {
+    pub id: String,
+    pub name: String,
+    /// CSS hex color, e.g. `"#f97316"`.
+    pub color: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
@@ -319,6 +346,8 @@ pub struct ConnectionsFile {
     pub groups: Vec<ConnectionGroup>,
     #[serde(default)]
     pub connections: Vec<SavedConnection>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<ConnectionTag>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -370,6 +399,8 @@ pub struct ExportPayload {
     pub ssh_connections: Vec<SshConnection>,
     #[serde(default)]
     pub k8s_connections: Vec<K8sConnection>,
+    #[serde(default)]
+    pub tags: Vec<ConnectionTag>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

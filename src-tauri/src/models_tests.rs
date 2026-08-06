@@ -139,4 +139,61 @@ mod tests {
         );
         assert_eq!(params.connection_uri_in_keychain, Some(true));
     }
+
+    /// `extra` is optional on the wire: connections persisted before the
+    /// field existed must deserialize with an empty map, not an error.
+    #[test]
+    fn connection_params_default_extra_when_absent() {
+        let stored = r#"{
+            "driver": "mysql",
+            "host": "localhost",
+            "database": "app"
+        }"#;
+
+        let params: ConnectionParams =
+            serde_json::from_str(stored).expect("legacy params without extra");
+        assert!(params.extra.is_empty());
+    }
+
+    /// `extra` entries survive a persist round-trip untouched — the host must
+    /// not interpret or rewrite plugin-specific values.
+    #[test]
+    fn connection_params_round_trip_extra_fields() {
+        let params = ConnectionParams {
+            driver: "dynamodb".to_string(),
+            database: DatabaseSelection::Single(String::new()),
+            extra: [
+                ("region".to_string(), "eu-west-1".to_string()),
+                ("endpoint".to_string(), "http://localhost:8000".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+            ..Default::default()
+        };
+
+        let json = serde_json::to_string(&params).expect("serialize params");
+        assert!(json.contains("\"extra\""));
+
+        let restored: ConnectionParams =
+            serde_json::from_str(&json).expect("deserialize params");
+        assert_eq!(restored.extra.get("region").map(String::as_str), Some("eu-west-1"));
+        assert_eq!(
+            restored.extra.get("endpoint").map(String::as_str),
+            Some("http://localhost:8000")
+        );
+    }
+
+    /// An empty `extra` map is omitted from the persisted JSON so legacy
+    /// connections.json files stay byte-identical.
+    #[test]
+    fn connection_params_omit_empty_extra() {
+        let params = ConnectionParams {
+            driver: "mysql".to_string(),
+            database: DatabaseSelection::Single("app".to_string()),
+            ..Default::default()
+        };
+
+        let json = serde_json::to_string(&params).expect("serialize params");
+        assert!(!json.contains("extra"));
+    }
 }

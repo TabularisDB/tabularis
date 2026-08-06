@@ -46,6 +46,37 @@ export interface ConnectionParams {
   k8s_port?: number;
   /** SQL run on every new connection to this data source (e.g. SET / set_config). */
   startup_script?: string;
+  /** Opaque plugin-specific connection fields (e.g. `region` for a DynamoDB
+   * plugin). Persisted as-is and forwarded verbatim to the driver/plugin. */
+  extra?: Record<string, string>;
+}
+
+/**
+ * Update one entry of the opaque `extra` connection fields map.
+ *
+ * Pure function — returns a new map, never mutates its input.
+ * - Blank keys are ignored (the input is returned unchanged).
+ * - An empty value removes the key, and the map collapsing to empty yields
+ *   `undefined` so nothing extra is persisted or sent to the backend.
+ *
+ * @param extra - Current extra fields map (may be undefined)
+ * @param key - Field name owned by the plugin
+ * @param value - New value; empty string clears the field
+ */
+export function updateExtraField(
+  extra: Record<string, string> | undefined,
+  key: string,
+  value: string,
+): Record<string, string> | undefined {
+  const trimmedKey = key.trim();
+  if (!trimmedKey) return extra;
+  const next = { ...(extra ?? {}) };
+  if (value === "") {
+    delete next[trimmedKey];
+  } else {
+    next[trimmedKey] = value;
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
 }
 
 /**

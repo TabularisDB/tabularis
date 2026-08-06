@@ -230,7 +230,32 @@ fn push_pk_value(
                 qb.push_bind(s.clone());
             }
         }
+        serde_json::Value::Bool(b) => {
+            if text.enabled {
+                qb.push(if *b { "TRUE" } else { "FALSE" });
+            } else {
+                qb.push_bind(*b);
+            }
+        }
         _ => return Err("Unsupported PK type".into()),
+    }
+    Ok(())
+}
+
+/// Appends a full `col = <val>` (or `col IS NULL`) comparison for one pk_map
+/// entry. Keyless tables identify rows by all comparable columns, so the map
+/// may legitimately carry NULLs — `= NULL` never matches, hence IS NULL.
+fn push_pk_condition(
+    qb: &mut sqlx::QueryBuilder<'_, sqlx::MySql>,
+    col: &str,
+    val: &serde_json::Value,
+    text: TextProto,
+) -> Result<(), String> {
+    if val.is_null() {
+        qb.push(format!("`{}` IS NULL", escape_identifier(col)));
+    } else {
+        qb.push(format!("`{}` = ", escape_identifier(col)));
+        push_pk_value(qb, val, text)?;
     }
     Ok(())
 }
@@ -664,8 +689,7 @@ async fn mysql_fetch_one_with_pk(
         if !first {
             qb3.push(" AND ");
         }
-        qb3.push(format!("`{}` = ", escape_identifier(col)));
-        push_pk_value(&mut qb3, val, text)?;
+        push_pk_condition(&mut qb3, col, val, text)?;
         first = false;
     }
     if text.enabled {
@@ -694,10 +718,13 @@ async fn mysql_execute_with_pk(
         if !first {
             qb.push(" AND ");
         }
-        qb.push(format!("`{}` = ", escape_identifier(col)));
-        push_pk_value(&mut qb, val, text)?;
+        push_pk_condition(&mut qb, col, val, text)?;
         first = false;
     }
+    // With a real primary key the WHERE already matches at most one row; for
+    // keyless tables (all-columns identity) LIMIT 1 keeps duplicate rows from
+    // being swept by the same statement.
+    qb.push(" LIMIT 1");
     let result = if text.enabled {
         exec_stmt(&pool, text, &qb.into_sql()).await?
     } else {
@@ -819,10 +846,13 @@ pub async fn update_record(
         if !first {
             qb.push(" AND ");
         }
-        qb.push(format!("`{}` = ", escape_identifier(col)));
-        push_pk_value(&mut qb, val, text)?;
+        push_pk_condition(&mut qb, col, val, text)?;
         first = false;
     }
+    // With a real primary key the WHERE already matches at most one row; for
+    // keyless tables (all-columns identity) LIMIT 1 keeps duplicate rows from
+    // being swept by the same statement.
+    qb.push(" LIMIT 1");
 
     let result = if text.enabled {
         exec_stmt(&pool, text, &qb.into_sql()).await?
@@ -1816,6 +1846,7 @@ impl MysqlDriver {
                     },
                 ],
                 ui_extensions: None,
+                type_mappings: std::collections::HashMap::new(),
             },
         }
     }

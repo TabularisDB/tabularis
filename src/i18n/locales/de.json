@@ -23,6 +23,29 @@
     "fromPlaceholder": "von",
     "toPlaceholder": "bis"
   },
+  "tags": {
+    "label": "Tags",
+    "new": "Neues Tag",
+    "add": "Hinzufügen",
+    "namePlaceholder": "Tag-Name…",
+    "manage": "Tags verwalten",
+    "done": "Fertig",
+    "deleteTitle": "Tag löschen",
+    "deleteConfirm": "Tag \"{{name}}\" löschen? Es wird von allen Verbindungen entfernt."
+  },
+  "environment": {
+    "label": "Umgebung",
+    "none": "Keine Umgebung",
+    "development": "Entwicklung",
+    "staging": "Staging",
+    "production": "Produktion",
+    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "banner": "Produktion — {{name}}",
+    "warnTitle": "Produktionsdatenbank",
+    "warnMessage": "Sie sind dabei, Produktionsdaten auf \"{{name}}\" zu ändern. Wirklich fortfahren?",
+    "warnConfirm": "Trotzdem ausführen",
+    "warnSnooze": "Für diese Verbindung nicht mehr fragen (diese Sitzung)"
+  },
   "common": {
     "save": "Speichern",
     "close": "Schließen",
@@ -955,6 +978,9 @@
     "waiting": "Warten auf Ihren Sicherheitsschlüssel — zum Bestätigen berühren."
   },
   "dataGrid": {
+    "noRowIdentity": "Zeilen können nicht bearbeitet werden: \"{{table}}\" hat keinen Primärschlüssel, daher muss das Ergebnis alle Spalten der Tabelle enthalten. Wählen Sie alle Spalten aus (z. B. SELECT *) oder fügen Sie einen Primärschlüssel hinzu.",
+    "keylessRowNotFound": "Beim Aktualisieren von \"{{column}}\" stimmte keine Zeile mit den ursprünglichen Werten überein. Die Tabelle hat keinen Primärschlüssel und die Daten haben sich möglicherweise geändert – aktualisieren und erneut versuchen.",
+    "keylessDeleteNotFound": "Beim Löschen stimmte keine Zeile mit den ursprünglichen Werten überein. Die Tabelle hat keinen Primärschlüssel und die Daten haben sich möglicherweise geändert – aktualisieren und erneut versuchen.",
     "newRow": "NEU",
     "noData": "Keine Daten zum Anzeigen",
     "editRow": "Zeile bearbeiten",

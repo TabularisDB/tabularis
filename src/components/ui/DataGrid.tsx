@@ -73,6 +73,7 @@ import {
 } from "../../utils/dateInput";
 import { useRightSidebar } from "../../hooks/useRightSidebar";
 import { useDatabase } from "../../hooks/useDatabase";
+import { useProductionGuard } from "../../hooks/useProductionGuard";
 import {
   columnValuesForCopy,
   columnValuesToInClause,
@@ -194,6 +195,7 @@ export const DataGrid = React.memo(
   }: DataGridProps) => {
     const { t } = useTranslation();
     const { activeSchema, connections } = useDatabase();
+    const guardProductionWrite = useProductionGuard();
     const { showAlert } = useAlert();
     const { showToast } = useToast();
     const { settings } = useSettings();
@@ -783,12 +785,23 @@ export const DataGrid = React.memo(
 
       const mergedRow = mergedRows[rowIndex];
       if (!mergedRow) return;
-      // No primary key defined for the table at all → editing impossible.
+      // No usable row identity (no primary key and no safe all-columns
+      // fallback, see resolveRowIdentity) → explain instead of silently
+      // ignoring the double-click (#598).
       if (
         mergedRow.type !== "insertion" &&
         (!pkColumns || pkColumns.length === 0)
-      )
+      ) {
+        showAlert(
+          t("dataGrid.noRowIdentity", {
+            table: tableName,
+            defaultValue:
+              'Rows can\'t be edited: "{{table}}" has no primary key, so editing requires the result to include all table columns. Select all columns (e.g. SELECT *) or add a primary key.',
+          }),
+          { title: t("common.error"), kind: "warning" },
+        );
         return;
+      }
 
       const colName = columns[colIndex];
 
@@ -875,6 +888,11 @@ export const DataGrid = React.memo(
         value !== undefined
       ) {
         editValue = formatGeometricValue(value);
+      } else if (
+        value !== null &&
+        typeof value === "object"
+      ) {
+        editValue = JSON.stringify(value);
       }
 
       const doubleClickAction = settings.cellDoubleClickAction ?? "inline";
@@ -981,6 +999,13 @@ export const DataGrid = React.memo(
 
         if (!connectionId) return;
 
+        // Production safety: this path writes immediately, without the
+        // staged-changes commit (which has its own guard upstream).
+        if (!(await guardProductionWrite(connectionId))) {
+          setEditingCell(null);
+          return;
+        }
+
         // Legacy immediate update
         try {
           await invoke("update_record", {
@@ -1016,6 +1041,7 @@ export const DataGrid = React.memo(
       onRefresh,
       showAlert,
       t,
+      guardProductionWrite,
     ]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

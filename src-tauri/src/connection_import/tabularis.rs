@@ -102,6 +102,9 @@ pub fn apply(
         connections: Vec::new(),
         ssh_connections: Vec::new(),
         k8s_connections: Vec::new(),
+        // Carried through wholesale so any tag_ids on imported connections
+        // keep resolving; the merge in apply_export_payload dedups by id.
+        tags: payload.tags.clone(),
     };
     let mut group_ids: HashMap<String, String> = HashMap::new();
     // Original payload group ids to preserve verbatim (with their ancestor
@@ -241,6 +244,8 @@ mod tests {
             sort_order: Some(3),
             detect_json_in_text_columns: None,
             appearance: None,
+            tag_ids: None,
+            environment: None,
         }
     }
 
@@ -262,6 +267,7 @@ mod tests {
             connections,
             ssh_connections: Vec::new(),
             k8s_connections: Vec::new(),
+            tags: Vec::new(),
         }
     }
 

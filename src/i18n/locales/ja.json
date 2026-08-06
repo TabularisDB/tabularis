@@ -23,6 +23,29 @@
     "fromPlaceholder": "開始",
     "toPlaceholder": "終了"
   },
+  "tags": {
+    "label": "タグ",
+    "new": "新しいタグ",
+    "add": "追加",
+    "namePlaceholder": "タグ名…",
+    "manage": "タグを管理",
+    "done": "完了",
+    "deleteTitle": "タグを削除",
+    "deleteConfirm": "タグ「{{name}}」を削除しますか？すべての接続から削除されます。"
+  },
+  "environment": {
+    "label": "環境",
+    "none": "環境なし",
+    "development": "開発",
+    "staging": "ステージング",
+    "production": "本番",
+    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "banner": "本番 — {{name}}",
+    "warnTitle": "本番データベース",
+    "warnMessage": "「{{name}}」の本番データを変更しようとしています。続行しますか？",
+    "warnConfirm": "実行する",
+    "warnSnooze": "この接続では今後確認しない（このセッション中）"
+  },
   "common": {
     "save": "保存",
     "close": "閉じる",
@@ -968,6 +991,9 @@
     "waiting": "セキュリティキーを待っています — タッチして確認してください。"
   },
   "dataGrid": {
+    "noRowIdentity": "行を編集できません: \"{{table}}\" には主キーがないため、編集には結果にテーブルの全列が含まれている必要があります。すべての列を選択する(例: SELECT *)か、主キーを追加してください。",
+    "keylessRowNotFound": "\"{{column}}\" の更新時に元の値に一致する行が見つかりませんでした。テーブルに主キーがなく、データが変更された可能性があります。再読み込みして再試行してください。",
+    "keylessDeleteNotFound": "削除時に元の値に一致する行が見つかりませんでした。テーブルに主キーがなく、データが変更された可能性があります。再読み込みして再試行してください。",
     "noData": "表示するデータがありません",
     "editRow": "行を編集",
     "deleteRow": "行を削除",

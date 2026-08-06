@@ -7,6 +7,7 @@ import {
   OLD_SETTINGS_KEY,
   AVAILABLE_FONTS,
   ROADMAP,
+  SESSION_FIELDS,
   getFontCSS,
   createFontCSSVariables,
   loadFontCache,
@@ -17,6 +18,7 @@ import {
   shouldDetectAIProvider,
   applyFontToDocument,
   getLanguageForI18n,
+  stripSessionFields,
   type FontCache,
   type DetectedAIConfig,
 } from '../../src/utils/settings';
@@ -464,7 +466,59 @@ describe('settings', () => {
     });
   });
 
-  describe('getLanguageForI18n', () => {
+  describe('stripSessionFields', () => {
+  it('removes lastOpenConnectionIds and lastActiveConnectionId', () => {
+    const input = {
+      resultPageSize: 500,
+      lastOpenConnectionIds: ['conn-1', 'conn-2'],
+      lastActiveConnectionId: 'conn-1',
+      fontFamily: 'JetBrains Mono',
+    };
+    const stripped = stripSessionFields(input);
+    expect(stripped).toEqual({
+      resultPageSize: 500,
+      fontFamily: 'JetBrains Mono',
+    });
+    expect(stripped).not.toHaveProperty('lastOpenConnectionIds');
+    expect(stripped).not.toHaveProperty('lastActiveConnectionId');
+  });
+
+  it('is a no-op when session fields are absent', () => {
+    const input = { resultPageSize: 1000, language: 'en' as const };
+    const stripped = stripSessionFields(input);
+    expect(stripped).toEqual({ resultPageSize: 1000, language: 'en' });
+  });
+
+  it('does not mutate the original object', () => {
+    const input = {
+      resultPageSize: 500,
+      lastOpenConnectionIds: ['conn-1'],
+    };
+    const stripped = stripSessionFields(input);
+    expect(input.lastOpenConnectionIds).toEqual(['conn-1']);
+    expect(stripped).not.toBe(input);
+  });
+
+  it('strips undefined session fields cleanly', () => {
+    const input = {
+      resultPageSize: 500,
+      lastOpenConnectionIds: undefined,
+      lastActiveConnectionId: undefined,
+    };
+    const stripped = stripSessionFields(input);
+    expect(stripped).toEqual({ resultPageSize: 500 });
+  });
+});
+
+describe('SESSION_FIELDS', () => {
+  it('covers the two session-persistence keys', () => {
+    expect(SESSION_FIELDS).toContain('lastOpenConnectionIds');
+    expect(SESSION_FIELDS).toContain('lastActiveConnectionId');
+    expect(SESSION_FIELDS).toHaveLength(2);
+  });
+});
+
+describe('getLanguageForI18n', () => {
     it('should return undefined for auto language', () => {
       const result = getLanguageForI18n('auto');
       

@@ -247,6 +247,76 @@ mod build_mysql_pk_where_tests {
     }
 }
 
+mod push_pk_condition_tests {
+    use super::super::{push_pk_condition, TextProto};
+
+    fn render(val: serde_json::Value) -> String {
+        let mut qb = sqlx::QueryBuilder::<sqlx::MySql>::new("");
+        push_pk_condition(&mut qb, "col", &val, TextProto::PREPARED).unwrap();
+        qb.sql().to_string()
+    }
+
+    #[test]
+    fn number_binds_with_equality() {
+        assert_eq!(render(serde_json::json!(42)), "`col` = ?");
+    }
+
+    #[test]
+    fn string_binds_with_equality() {
+        assert_eq!(render(serde_json::json!("alice")), "`col` = ?");
+    }
+
+    #[test]
+    fn bool_binds_with_equality() {
+        assert_eq!(render(serde_json::json!(true)), "`col` = ?");
+    }
+
+    // Keyless tables (#598) identify rows by all comparable columns, so a
+    // pk_map entry may legitimately be NULL and must render as IS NULL.
+    #[test]
+    fn null_renders_is_null_without_binding() {
+        assert_eq!(render(serde_json::Value::Null), "`col` IS NULL");
+    }
+
+    #[test]
+    fn bool_inlines_literal_in_text_protocol() {
+        let mut qb = sqlx::QueryBuilder::<sqlx::MySql>::new("");
+        push_pk_condition(
+            &mut qb,
+            "col",
+            &serde_json::json!(true),
+            TextProto::protocol_only(true),
+        )
+        .unwrap();
+        assert_eq!(qb.sql(), "`col` = TRUE");
+    }
+
+    #[test]
+    fn array_value_is_rejected() {
+        let mut qb = sqlx::QueryBuilder::<sqlx::MySql>::new("");
+        assert!(push_pk_condition(
+            &mut qb,
+            "col",
+            &serde_json::json!([1, 2]),
+            TextProto::PREPARED
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn backtick_in_column_name_is_escaped() {
+        let mut qb = sqlx::QueryBuilder::<sqlx::MySql>::new("");
+        push_pk_condition(
+            &mut qb,
+            "a`b",
+            &serde_json::Value::Null,
+            TextProto::PREPARED,
+        )
+        .unwrap();
+        assert_eq!(qb.sql(), "`a``b` IS NULL");
+    }
+}
+
 mod multi_result_collector {
     use super::super::multi_result::ResultSetCollector;
     use serde_json::json;

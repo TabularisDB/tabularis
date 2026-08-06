@@ -174,6 +174,11 @@ export const OpenConnectionItem = ({
             />
           )}
 
+          {/* Production ring: unmistakable red outline around the icon */}
+          {savedConnection?.environment === "production" && (
+            <div className="absolute inset-0.5 rounded-lg ring-2 ring-red-500/70 pointer-events-none" />
+          )}
+
           {/* SSH badge */}
           {sshEnabled && !showShortcutHint && !connection.k8sEnabled && (
             <div className="absolute top-1 right-1">

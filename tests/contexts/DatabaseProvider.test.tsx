@@ -94,6 +94,46 @@ describe('DatabaseProvider', () => {
     vi.restoreAllMocks();
   });
 
+  it('should persist empty connection list after connections have been opened', async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(DatabaseProvider, null, children);
+
+    const { result } = renderHook(() => useDatabase(), { wrapper });
+
+    // Initially, should not persist empty state
+    await waitFor(() => {
+      expect(result.current.openConnectionIds).toEqual([]);
+    });
+    expect(vi.mocked(invoke)).not.toHaveBeenCalledWith('set_last_open_connections', expect.anything());
+
+    // Connect to a database
+    await act(async () => {
+      await result.current.connect('conn-123');
+    });
+
+    await waitFor(() => {
+      expect(result.current.openConnectionIds).toEqual(['conn-123']);
+    });
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('set_last_open_connections', {
+      connectionIds: ['conn-123'],
+    });
+
+    // Clear mock to track next call
+    vi.mocked(invoke).mockClear();
+
+    // Disconnect - should persist empty list
+    await act(async () => {
+      await result.current.disconnect();
+    });
+
+    await waitFor(() => {
+      expect(result.current.openConnectionIds).toEqual([]);
+    });
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('set_last_open_connections', {
+      connectionIds: [],
+    });
+  });
+
   it('should provide initial state', () => {
     const wrapper = ({ children }: { children: React.ReactNode }) =>
       React.createElement(DatabaseProvider, null, children);

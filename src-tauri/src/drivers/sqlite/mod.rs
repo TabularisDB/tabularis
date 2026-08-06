@@ -388,6 +388,9 @@ fn sqlite_push_pk_val(
                 qb.push_bind(s.clone());
             }
         }
+        serde_json::Value::Bool(b) => {
+            qb.push_bind(*b);
+        }
         _ => return Err("Unsupported PK type".into()),
     }
     Ok(())
@@ -407,8 +410,14 @@ fn sqlite_push_pk_where(
         if !first {
             qb.push(" AND ");
         }
-        qb.push(format!("\"{}\" = ", escape_identifier(col)));
-        sqlite_push_pk_val(qb, val)?;
+        // Keyless tables identify rows by all comparable columns, so the map
+        // may legitimately carry NULLs — `= NULL` never matches, use IS NULL.
+        if val.is_null() {
+            qb.push(format!("\"{}\" IS NULL", escape_identifier(col)));
+        } else {
+            qb.push(format!("\"{}\" = ", escape_identifier(col)));
+            sqlite_push_pk_val(qb, val)?;
+        }
         first = false;
     }
     Ok(())
@@ -1017,6 +1026,7 @@ impl SqliteDriver {
                 icon: "sqlite".to_string(),
                 settings: vec![],
                 ui_extensions: None,
+                type_mappings: std::collections::HashMap::new(),
             },
         }
     }

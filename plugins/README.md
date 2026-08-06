@@ -2,6 +2,8 @@
 
 This directory contains the official plugin registry and documentation for the Tabularis external plugin system.
 
+> 📚 The canonical, browsable plugin documentation lives on the website: [tabularis.dev/wiki/plugins](https://tabularis.dev/wiki/plugins) (protocol reference) and [tabularis.dev/wiki/building-plugins](https://tabularis.dev/wiki/building-plugins) (walkthrough). The files here are the in-repo working copies.
+
 ## Quick start — build a plugin
 
 **First time?** Read [`PLUGIN_TUTORIAL.md`](./PLUGIN_TUTORIAL.md) — a 20-minute walkthrough that ends with a working Google Sheets driver in your local Tabularis.
