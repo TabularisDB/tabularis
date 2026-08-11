@@ -182,6 +182,7 @@ pub async fn get_columns(
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
+                is_generated: false,
                 default_value,
                 character_maximum_length,
             }
@@ -327,6 +328,7 @@ pub async fn get_all_columns_batch(
             is_pk,
             is_nullable: null_str == "YES",
             is_auto_increment: is_auto,
+            is_generated: false,
             default_value,
             character_maximum_length,
         };
@@ -559,6 +561,33 @@ LIMIT 1",
     }))
 }
 
+/// Resolves the real OID of the `hstore` type for a specific column, confirming in
+/// the same query that the column actually is hstore. hstore is an extension type
+/// (not a well-known Postgres OID), so its OID varies per installation and — unlike
+/// `information_schema.columns.data_type`, which reports it only as the generic
+/// "USER-DEFINED" — the concrete type name has to come from the catalog directly.
+/// `None` means either the extension isn't installed or the column isn't hstore.
+async fn get_hstore_oid_for_column(
+    pool: &deadpool_postgres::Pool,
+    schema: &str,
+    table: &str,
+    col_name: &str,
+) -> Result<Option<u32>, String> {
+    let rows = query_all(
+        pool,
+        "SELECT a.atttypid::oid \
+         FROM pg_attribute a \
+         JOIN pg_class c ON c.oid = a.attrelid \
+         JOIN pg_namespace n ON n.oid = c.relnamespace \
+         JOIN pg_type t ON t.oid = a.atttypid \
+         WHERE n.nspname = $1 AND c.relname = $2 AND a.attname = $3 AND t.typname = 'hstore' \
+         LIMIT 1",
+        &[&schema, &table, &col_name],
+    )
+    .await?;
+    Ok(rows.first().map(|row| row.get::<usize, u32>(0)))
+}
+
 /// Resolve the declared type of every column in `pk_map`, so each PK member binds
 /// against its real column type (uuid vs varchar etc. — #392). Columns whose type
 /// cannot be loaded are simply omitted, leaving `build_pk_map_predicate` to fall back
@@ -720,6 +749,16 @@ pub async fn update_record(
             None
         }
     };
+    // get_column_data_type already unfolds 'USER-DEFINED' to the real udt_name,
+    // so hstore columns report as plain "hstore" here.
+    let hstore_oid = if column_data_type.as_deref() == Some("hstore") {
+        get_hstore_oid_for_column(&pool, schema, table, col_name)
+            .await
+            .unwrap_or(None)
+    } else {
+        None
+    };
+
     let enum_types = get_enum_column_types(&pool, schema, table).await;
     let new_val_for_context = new_val.clone();
     let pk_map_for_context = pk_map.clone();
@@ -742,6 +781,7 @@ pub async fn update_record(
             enum_type: enum_types.get(col_name).map(|s| s.as_str()),
             max_blob_size,
             allow_default: true,
+            hstore_oid,
         },
     )?;
     query.push_str(&bound.sql);
@@ -842,6 +882,15 @@ pub async fn insert_record(
 
     for (col_name, val) in entries.drain(..) {
         let column_type = col_types.get(&col_name).map(|s| s.as_str());
+        // get_columns already unfolds 'USER-DEFINED' to the real udt_name,
+        // so hstore columns report as plain "hstore" here.
+        let hstore_oid = if column_type == Some("hstore") {
+            get_hstore_oid_for_column(&pool, schema, table, &col_name)
+                .await
+                .unwrap_or(None)
+        } else {
+            None
+        };
         let bound = bind_pg_value(
             val,
             params.len() + 1,
@@ -850,6 +899,7 @@ pub async fn insert_record(
                 enum_type: enum_types.get(&col_name).map(|s| s.as_str()),
                 max_blob_size,
                 allow_default: false,
+                hstore_oid,
             },
         )?;
         vals_set.push(bound.sql);
@@ -1277,6 +1327,7 @@ pub async fn get_view_columns(
                 is_pk,
                 is_nullable: null_str == "YES",
                 is_auto_increment: is_auto,
+                is_generated: false,
                 default_value,
                 character_maximum_length,
             }
@@ -1342,6 +1393,7 @@ pub async fn get_materialized_view_columns(
             is_pk: false,
             is_nullable: !r.try_get::<_, bool>("not_null").unwrap_or(false),
             is_auto_increment: false,
+            is_generated: false,
             default_value: None,
             character_maximum_length: None,
         })
@@ -1741,6 +1793,7 @@ impl PostgresDriver {
                 icon: "postgres".to_string(),
                 settings: vec![],
                 ui_extensions: None,
+                type_mappings: std::collections::HashMap::new(),
             },
         }
     }

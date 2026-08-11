@@ -23,6 +23,29 @@
     "fromPlaceholder": "mula",
     "toPlaceholder": "hanggang"
   },
+  "tags": {
+    "label": "Mga tag",
+    "new": "Bagong tag",
+    "add": "Idagdag",
+    "namePlaceholder": "Pangalan ng tag…",
+    "manage": "Pamahalaan ang mga tag",
+    "done": "Tapos na",
+    "deleteTitle": "Tanggalin ang tag",
+    "deleteConfirm": "Tanggalin ang tag na \"{{name}}\"? Aalisin ito sa lahat ng koneksyon."
+  },
+  "environment": {
+    "label": "Kapaligiran",
+    "none": "Walang kapaligiran",
+    "development": "Development",
+    "staging": "Staging",
+    "production": "Production",
+    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "banner": "Production — {{name}}",
+    "warnTitle": "Production na database",
+    "warnMessage": "Malapit mo nang baguhin ang production data sa \"{{name}}\". Sigurado ka bang magpapatuloy?",
+    "warnConfirm": "Ituloy pa rin",
+    "warnSnooze": "Huwag nang itanong para sa koneksyong ito (ngayong session)"
+  },
   "common": {
     "save": "I-save",
     "close": "Isara",
@@ -204,7 +227,8 @@
     "removeFromSplitGroup": "Alisin sa Grupo",
     "movePanel": "Ilipat ang panel",
     "refreshDatabaseList": "I-refresh ang listahan ng database",
-    "databaseListUpToDate": "Up to date na ang listahan ng database"
+    "databaseListUpToDate": "Up to date na ang listahan ng database",
+    "allDatabasesRefreshed": "Na-update ang mga database: {{names}}"
   },
   "mcp": {
     "title": "Integrasyon ng MCP Server",
@@ -353,7 +377,9 @@
       },
       "betaNotice": "Ang Import from App ay nasa beta. Kung may problema ka,",
       "reportIssue": "i-report ito sa GitHub."
-    }
+    },
+    "databaseCount_one": "{{count}} database",
+    "databaseCount_other": "{{count}} database"
   },
   "connectionAppearance": {
     "section": "Hitsura",
@@ -384,6 +410,22 @@
   "settings": {
     "title": "Mga Setting",
     "general": "Pangkalahatan",
+    "privacy": "Privacy",
+    "columnMasking": "Pag-mask ng mga column",
+    "columnMaskingDesc": "Itinatago ang nilalaman ng mga sensitibong column (mga password, email, token…) sa results grid. Gumagamit pa rin ng totoong mga value ang pag-copy at pag-export.",
+    "columnMaskingEnabled": "I-mask ang mga sensitibong column",
+    "columnMaskingEnabledDesc": "Nagpapakita ng placeholder sa halip na totoong value para sa mga column na tumutugma ang pangalan sa sensitibong pattern.",
+    "maskingPatterns": "Mga pattern ng pangalan ng sensitibong column",
+    "maskingPatternsDesc": "Isang pattern bawat linya. Nama-mask ang column kapag naglalaman ang pangalan nito ng alinmang pattern (hindi case-sensitive).",
+    "maskingOverrides": "Mga override bawat connection",
+    "maskingOverridesDesc": "Pilit na i-mask (include) o huwag i-mask (exclude) ang mga partikular na column para sa isang connection. Isang entry na table.column bawat linya; may prayoridad ang exclude kaysa sa include at mga pattern.",
+    "maskingConnection": "Connection",
+    "maskingConnectionDesc": "Piliin kung aling connection ang pinapatawan ng mga override na ito.",
+    "maskingInclude": "Laging i-mask",
+    "maskingIncludeDesc": "Mga column na laging naka-mask para sa connection na ito, kahit hindi tumutugma ang pangalan sa anumang pattern.",
+    "maskingExclude": "Huwag kailanman i-mask",
+    "maskingExcludeDesc": "Mga column na hindi kailanman nama-mask para sa connection na ito, kahit tumutugma ang pangalan sa isang pattern.",
+    "maskingOverridePlaceholder": "hal. users.password",
     "info": "Impormasyon",
     "dataEditor": "Data Editor",
     "pageSize": "Laki ng Result Page (Limit)",
@@ -659,12 +701,14 @@
       "confirmRemove": "Sigurado ka bang gusto mong alisin ang \"{{name}}\"? Mabubura ang mga plugin file.",
       "enabled": "Naka-enable",
       "disabled": "Naka-disable",
+      "openFolder": "Buksan ang folder ng mga plugin",
       "installError": {
         "title": "Nabigo ang Pag-install",
         "subtitle": "May error habang ini-install ang plugin. Tingnan ang mga detalye sa ibaba.",
         "details": "Mga Detalye ng Error",
         "copy": "Kopyahin",
-        "copied": "Nakopya!"
+        "copied": "Nakopya!",
+        "reload": "I-reload ang mga plugin"
       },
       "uninstallError": {
         "title": "Nabigo ang Pag-uninstall",
@@ -930,7 +974,16 @@
     "scrollTabsRight": "I-scroll ang mga tab pakanan",
     "useIamAuth": "Gumamit ng AWS IAM Authentication (RDS)",
     "useIamAuthHint": "Ang password field ay itinuturing na RDS auth token (mula sa `aws rds generate-db-auth-token`). Kailangan ng TLS. Nag-e-expire ang mga token bawat 15 minuto.",
-    "useIamAuthTlsRequired": "I-enable ang SSL mode sa itaas para magamit ang AWS IAM authentication."
+    "useIamAuthTlsRequired": "I-enable ang SSL mode sa itaas para magamit ang AWS IAM authentication.",
+    "testSsh": "Subukan ang SSH",
+    "testSshHint": "Sinusuri lamang ang SSH tunnel (host at mga kredensyal), nang hindi kumokonekta sa database.",
+    "sshTestSuccess": "Naitatag ang koneksyong SSH sa {{target}}",
+    "stopTest": "Ihinto",
+    "allDatabases": "Lahat ng database",
+    "chooseDatabases": "Pumili ng mga database",
+    "allDatabasesHint": "Sa pagkonekta, awtomatikong nilo-load ang lahat ng database sa server. Ang mga database na ginawa o tinanggal sa server ay lalabas nang kusa — hindi na kailangang i-edit ang koneksyong ito.",
+    "selectDatabasesHint": "Piliin ang mga database na isasama sa koneksyong ito.",
+    "loadDatabasesHint": "I-click ang I-load ang mga database para kunin ang mga available."
   },
   "sshConnections": {
     "title": "Mga SSH Connection",
@@ -956,7 +1009,14 @@
     "savedInKeychain": "Naka-save ang password sa system keychain",
     "manageDesc": "Maaaring gamitin ulit na SSH tunnel para sa iyong mga database connection. Ang mga password at passphrase ay naka-store sa system keychain.",
     "deleteInUse_one": "Ginagamit ito ng {{count}} naka-save na database connection, na hindi na makakakonekta sa tunnel na ito.",
-    "deleteInUse_other": "Ginagamit ito ng {{count}} naka-save na database connection, na hindi na makakakonekta sa tunnel na ito."
+    "deleteInUse_other": "Ginagamit ito ng {{count}} naka-save na database connection, na hindi na makakakonekta sa tunnel na ito.",
+    "errors": {
+      "connectionRequired": "Pumili ng koneksyong SSH o mag-configure ng inline",
+      "connectionMissing": "Wala na ang napiling koneksyong SSH",
+      "hostRequired": "Kinakailangan ang SSH host",
+      "userRequired": "Kinakailangan ang SSH user",
+      "portInvalid": "Ang SSH port ay dapat nasa pagitan ng 1 at 65535"
+    }
   },
   "sshAskpass": {
     "title": "SSH Authentication",
@@ -965,6 +1025,9 @@
     "waiting": "Naghihintay sa iyong security key — hawakan ito para kumpirmahin."
   },
   "dataGrid": {
+    "noRowIdentity": "Hindi ma-edit ang mga row: walang primary key ang \"{{table}}\", kaya kailangang kasama sa resulta ang lahat ng column ng table. Piliin ang lahat ng column (hal. SELECT *) o magdagdag ng primary key.",
+    "keylessRowNotFound": "Walang row na tumugma sa mga orihinal na value habang ina-update ang \"{{column}}\". Walang primary key ang table at maaaring nagbago ang data — i-refresh at subukang muli.",
+    "keylessDeleteNotFound": "Walang row na tumugma sa mga orihinal na value habang nagde-delete. Walang primary key ang table at maaaring nagbago ang data — i-refresh at subukang muli.",
     "newRow": "BAGO",
     "noData": "Walang data na ipapakita",
     "editRow": "I-edit ang Row",
@@ -1011,7 +1074,11 @@
     "setEmpty": "I-set ang EMPTY",
     "setServerNow": "Ipasok ang Kasalukuyang Timestamp",
     "previewReferenced": "I-preview ang kaugnay na record",
-    "openReferenced": "Buksan ang naka-reference na row sa {{table}}"
+    "openReferenced": "Buksan ang naka-reference na row sa {{table}}",
+    "revealCell": "Ipakita ang cell",
+    "maskCell": "I-mask ang cell",
+    "revealColumn": "Ipakita ang column",
+    "maskColumn": "I-mask ang column"
   },
   "editRow": {
     "title": "I-edit ang Row",
@@ -2032,5 +2099,64 @@
     "databasePlaceholder": "database",
     "tablePlaceholder": "talahanayan (opsyonal)",
     "initialPrivilegesHint": "Opsyonal: mga paunang pribilehiyong ibibigay agad pagkatapos gumawa. Pumili ng database, o iwanang walang laman para ibigay ito nang global."
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "Nabigo ang SSH authentication",
+      "recovery": "Suriin ang SSH user, password, o private key sa tab na SSH."
+    },
+    "ssh-unreachable": {
+      "summary": "Hindi maabot ang SSH server",
+      "recovery": "Suriin ang SSH host at port, at kung maaabot ang server. Kung kumokonekta ang tunnel, suriin ang host at port ng database mula sa SSH server."
+    },
+    "ssh": {
+      "summary": "Nabigo ang SSH tunnel",
+      "recovery": "Suriin ang mga setting sa tab na SSH."
+    },
+    "db-auth": {
+      "summary": "Nabigo ang authentication sa database",
+      "recovery": "Suriin ang username at password ng database."
+    },
+    "network": {
+      "summary": "Hindi maabot ang database server",
+      "recovery": "Suriin ang host at port, at kung tumatakbo ang server."
+    },
+    "db-not-found": {
+      "summary": "Hindi natagpuan ang database",
+      "recovery": "Suriin ang pangalan ng database."
+    },
+    "unknown": {
+      "summary": "Nabigo ang koneksyon"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Log ng pagsubok",
+    "noLog": "Walang naitalang hakbang para sa pagsubok na ito.",
+    "rawError": "Mga detalye ng error",
+    "copyDiagnostics": "Kopyahin ang diagnostics",
+    "copied": "Nakopya!",
+    "steps": {
+      "cancelled": "Inihinto ng user ang pagsubok",
+      "resolve": {
+        "error": "Nabigo ang paghahanda ng mga parameter ng koneksyon"
+      },
+      "sshTunnel": {
+        "start": "Binubuksan ang SSH tunnel",
+        "ok": "Naitatag ang SSH tunnel",
+        "error": "Nabigo ang SSH tunnel"
+      },
+      "k8sForward": {
+        "start": "Sinisimulan ang Kubernetes port-forward",
+        "ok": "Handa na ang port-forward",
+        "error": "Nabigo ang Kubernetes port-forward"
+      },
+      "dbConnect": {
+        "start": "Kumokonekta sa database",
+        "ok": "Naitatag ang koneksyon sa database",
+        "error": "Nabigo ang koneksyon sa database"
+      }
+    },
+    "title": "Log ng pagsubok ng koneksyon",
+    "showLog": "Ipakita ang log"
   }
 }

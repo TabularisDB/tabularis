@@ -142,7 +142,7 @@ const SidebarTableItemImpl = ({
         data-table-name={table.name}
         data-schema={schema ?? ''}
         onPointerDown={(e) => {
-          dragState.start(table.name);
+          dragState.start(table.name, schema);
           const ghost = document.createElement('div');
           ghost.id = '__drag-ghost__';
           ghost.textContent = table.name;

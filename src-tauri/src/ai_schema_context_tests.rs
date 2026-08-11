@@ -8,6 +8,7 @@ fn column(name: &str, data_type: &str, is_pk: bool, is_nullable: bool) -> TableC
         is_pk,
         is_nullable,
         is_auto_increment: false,
+        is_generated: false,
         default_value: None,
         character_maximum_length: None,
     }

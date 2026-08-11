@@ -100,6 +100,9 @@ export interface PluginManifest {
   icon?: string;
   /** Plugin-declared setting definitions. Empty/absent for built-in drivers. */
   settings?: PluginSettingDefinition[];
+  /** Optional map of generic inferred type names to driver-specific types.
+   * Used during paste/import to resolve map_inferred_type() locally. */
+  type_mappings?: Record<string, string>;
   /** UI extension declarations for slot-based rendering (Phase 2). */
   ui_extensions?: UIExtensionManifestEntry[];
 }
@@ -111,6 +114,21 @@ export interface UIExtensionManifestEntry {
   order?: number;
   /** If set, the contribution is only active when context.driver matches this value. */
   driver?: string;
+}
+
+/**
+ * Locale-aware README payload from the `fetch_plugin_readme` command.
+ * `html` is the registry's server-rendered README; `locale` is the locale
+ * actually served, which can differ from the requested one when the plugin
+ * has no translation for it.
+ */
+export interface PluginReadme {
+  html: string | null;
+  locale: string | null;
+  available_locales?: string[];
+  documentation_url?: string | null;
+  /** Repository URL, used to resolve relative image/link paths in the README. */
+  repo_url?: string | null;
 }
 
 export interface RegistryReleaseWithStatus {
@@ -137,7 +155,7 @@ export interface RegistryPluginWithStatus {
   tags?: string[];
   category?: string | null;
   downloads?: number | null;
-  /** Base URL of the registry that served this plugin (e.g. https://registry.spitzli.dev). */
+  /** Base URL of the registry that served this plugin (e.g. https://registry.tabularis.dev). */
   registry_base_url?: string | null;
   /** Concrete database the driver connects to (registry manifest extensions.engine). */
   engine?: string | null;

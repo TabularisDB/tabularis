@@ -18,7 +18,7 @@ use std::collections::HashMap;
 
 use tabularium_sdk::Client;
 
-use crate::plugins::registry::{PluginRelease, RegistryPlugin};
+use crate::plugins::registry::{PluginReadme, PluginRelease, RegistryPlugin};
 
 /// Strips a trailing `/` so the SDK doesn't end up with `//api/...` URLs.
 fn normalise_base(base: &str) -> &str {
@@ -76,6 +76,34 @@ pub async fn fetch_plugin_detail(
         .await
         .map_err(|e| format!("Tabularium get_plugin '{}' failed: {}", slug, e))?;
     Ok(detail_to_plugin(resp.into_inner()))
+}
+
+/// Fetch a plugin's README from the registry, asking for a specific locale.
+/// The registry resolves the closest available translation itself and reports
+/// which locale it actually served, so callers can surface a "shown in
+/// English" note instead of guessing.
+pub async fn fetch_plugin_readme(
+    base_url: &str,
+    slug: &str,
+    locale: Option<&str>,
+) -> Result<PluginReadme, String> {
+    let client = make_client(base_url);
+    let mut request = client.get_plugin().slug(slug);
+    if let Some(locale) = locale.filter(|l| !l.is_empty()) {
+        request = request.locale(locale);
+    }
+    let resp = request
+        .send()
+        .await
+        .map_err(|e| format!("Tabularium get_plugin '{}' failed: {}", slug, e))?;
+    let detail = resp.into_inner();
+    Ok(PluginReadme {
+        html: detail.readme_html.filter(|h| !h.is_empty()),
+        locale: detail.readme_locale,
+        available_locales: detail.readme_available_locales,
+        documentation_url: detail.documentation_url.filter(|u| !u.is_empty()),
+        repo_url: nonempty(detail.repo_url),
+    })
 }
 
 /// Splits a platform key (`{os}-{arch}`, e.g. `linux-x64`) into the separate

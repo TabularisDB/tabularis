@@ -2,6 +2,8 @@
 
 This directory contains the official plugin registry and documentation for the Tabularis external plugin system.
 
+> 📚 The canonical, browsable plugin documentation lives on the website: [tabularis.dev/wiki/plugins](https://tabularis.dev/wiki/plugins) (protocol reference) and [tabularis.dev/wiki/building-plugins](https://tabularis.dev/wiki/building-plugins) (walkthrough). Registry and manifest docs live at [docs.tabularium.wiki](https://docs.tabularium.wiki) (`/manifest/`, `/publishing/`, `/consuming/`). The files here are the in-repo working copies.
+
 ## Quick start — build a plugin
 
 **First time?** Read [`PLUGIN_TUTORIAL.md`](./PLUGIN_TUTORIAL.md) — a 20-minute walkthrough that ends with a working Google Sheets driver in your local Tabularis.
@@ -33,7 +35,7 @@ Built-in drivers (MySQL, PostgreSQL, SQLite) are compiled into the binary. All a
 
 ### How It Works
 
-1. At startup, Tabularis scans the user's plugins directory for subdirectories containing a `manifest.json`.
+1. At startup, Tabularis scans the user's plugins directory for subdirectories containing a `.tabularium` manifest (or a legacy `manifest.json`).
 2. For each valid plugin, it creates an RPC bridge to the plugin executable and registers it as a driver.
 3. When the user connects to a database using a plugin driver, Tabularis spawns the executable and routes all requests through JSON-RPC.
 4. Plugins can be installed, updated, and uninstalled from **Settings → Available Plugins** without restarting the app.
@@ -51,7 +53,7 @@ Each plugin lives in its own subdirectory:
 ```
 plugins/
 └── duckdb/
-    ├── manifest.json
+    ├── .tabularium  (or legacy manifest.json)
     └── duckdb-plugin-executable
 ```
 
@@ -103,7 +105,7 @@ The registry file is fetched from this repository by the app to display availabl
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | string | Unique driver identifier, must match the `id` in `manifest.json` |
+| `id` | string | Unique driver identifier, must match the plugin's manifest identity (`name` in a `.tabularium`, `id` in a legacy `manifest.json`) |
 | `name` | string | Display name shown in the UI |
 | `description` | string | Short description shown in the plugins list |
 | `author` | string | Author name and URL in the format `"Name <https://url>"` |
@@ -130,10 +132,10 @@ Omit a platform key if your plugin does not support that platform. The app will 
 
 To add your plugin to the official registry:
 
-1. Build and release your plugin as a `.zip` file for each supported platform. The ZIP must extract to a directory containing `manifest.json` and the executable.
-2. Host the release assets (e.g., GitHub Releases).
-3. Open a pull request adding your plugin entry to `registry.json`.
-4. Ensure your `manifest.json` matches the format described in [PLUGIN_GUIDE.md](./PLUGIN_GUIDE.md).
+1. Build and release your plugin as a `.zip` file for each supported platform. The ZIP must extract to a directory containing the `.tabularium` manifest and the executable.
+2. Host the release assets (e.g., GitHub Releases) and upload `.tabularium` as a **standalone release asset** too — GitHub renames the dotfile to `default.tabularium`; the registry accepts both.
+3. Submit at [registry.tabularis.dev/submit](https://registry.tabularis.dev/submit). Manifest validation is enforced: a manifest that fails the schema is rejected with **HTTP 422**. Format reference: [PLUGIN_GUIDE.md](./PLUGIN_GUIDE.md) and [docs.tabularium.wiki/manifest](https://docs.tabularium.wiki/manifest/).
+4. Legacy path: a pull request adding your plugin entry to `registry.json` still works during the transition, but new plugins should use the hosted registry.
 
 ---
 

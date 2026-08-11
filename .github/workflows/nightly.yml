@@ -32,7 +32,7 @@ jobs:
       tag: ${{ steps.decide.outputs.tag }}
       updater_version: ${{ steps.decide.outputs.updater_version }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Decide whether a nightly is due
         id: decide
@@ -85,12 +85,23 @@ jobs:
           #
           # The prerelease identifier MUST be a SINGLE NUMERIC value: Tauri's MSI
           # (WiX) and NSIS bundlers reject non-numeric or multi-part prerelease
-          # identifiers (tauri-apps/tauri#8038, #5286). github.run_number is
-          # monotonic and small, so `0.15.1-<run>` orders correctly across
-          # nightlies and stays bundler-safe. The human-readable date/sha lives
-          # in the tag (nightly-YYYYMMDD-sha) and the release name, not here.
+          # identifiers (tauri-apps/tauri#8038, #5286). The human-readable
+          # date/sha lives in the tag (nightly-YYYYMMDD-sha) and the release
+          # name, not here.
           next=$(node -e "const v=require('./src-tauri/tauri.conf.json').version.split('-')[0].split('.').map(Number); v[2]++; console.log(v.join('.'))")
-          updater_version="${next}-${{ github.run_number }}"
+
+          # Counter is scoped to the base: it increments while the base stays
+          # put and restarts at 1 as soon as a stable release moves it (0.17.1-3
+          # -> stable 0.18.0 -> 0.18.1-1). SemVer only compares prerelease
+          # identifiers between versions sharing a base, so restarting is safe;
+          # what matters is that it never goes backwards *within* one base.
+          # Hence max-of-existing + 1, read from the release names this same
+          # workflow writes ("Nightly (v<base>-<n>)").
+          next_re=${next//./\\.}
+          last_n=$(gh release list --limit 200 --json name --jq '.[].name' \
+            | sed -n "s/^Nightly (v${next_re}-\([0-9]\{1,\}\))$/\1/p" \
+            | sort -n | tail -1)
+          updater_version="${next}-$(( ${last_n:-0} + 1 ))"
 
           {
             echo "should_build=true"
@@ -115,3 +126,6 @@ jobs:
       prerelease: true
       draft: false
       updater_version: ${{ needs.gate.outputs.updater_version }}
+      # Nightlies double as the daily canary for the sharun-based AppImage
+      # format (tauri PR #12491); releases stay on the official bundler.
+      experimental_appimage: true

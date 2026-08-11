@@ -60,7 +60,7 @@ pub struct AppConfig {
     /// GitHub-hosted file when unset.
     #[serde(default)]
     pub legacy_registry_url: Option<String>,
-    /// Base URL of the Tabularium plugin registry (https://tabularium.wiki).
+    /// Base URL of the Tabularium plugin registry (e.g. https://registry.tabularis.dev).
     /// Defaults to the built-in instance when unset.
     pub tabularium_registry_url: Option<String>,
     /// Update channel: "stable" (default) or "nightly". None ⇒ stable.

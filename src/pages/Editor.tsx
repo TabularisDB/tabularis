@@ -4,13 +4,22 @@ import { useTranslation } from "react-i18next";
 import { reconstructTableQuery } from "../utils/editor";
 import { formatRowsForCopy, copyTextToClipboard } from "../utils/clipboard";
 import { serializePkKey, buildPkMap } from "../utils/dataGrid";
-import { getTableDataChangeScope, isMultiDatabaseCapable } from "../utils/database";
+import {
+  buildKeylessUpdatePlan,
+  resolveRowIdentity,
+} from "../utils/rowIdentity";
+import {
+  getTableDataChangeScope,
+  isMultiDatabaseCapable,
+  usesMultiDatabaseLayout,
+} from "../utils/database";
 import { isReadonly, supportsExplain } from "../utils/driverCapabilities";
 import { useClickOutside } from "../hooks/useClickOutside";
 import {
   useDangerousQueryGuard,
   DANGEROUS_QUERY_I18N,
 } from "../hooks/useDangerousQueryGuard";
+import { useProductionGuard } from "../hooks/useProductionGuard";
 import {
   generateTempId,
   initializeNewRow,
@@ -344,7 +353,7 @@ export const Editor = () => {
     parameters: string[];
     pendingPageNum: number;
     pendingTabId?: string;
-    mode: "run" | "save";
+    mode: "run" | "save" | "explain";
     pendingMultiQueries?: string[];
   }>({
     isOpen: false,
@@ -401,6 +410,7 @@ export const Editor = () => {
     guardQuery: guardDangerousQuery,
     resolve: resolveDangerousQuery,
   } = useDangerousQueryGuard();
+  const guardProductionWrite = useProductionGuard();
   const [isTabSwitcherOpen, setIsTabSwitcherOpen] = useState(false);
   const [isRunDropdownOpen, setIsRunDropdownOpen] = useState(false);
   const [isDbDropdownOpen, setIsDbDropdownOpen] = useState(false);
@@ -451,8 +461,7 @@ export const Editor = () => {
   const isNotebookTab = activeTab?.type === "notebook";
   // Users tabs render full-height like notebooks: no SQL toolbar, no results panel.
   const isUsersTab = activeTab?.type === "users";
-  const isMultiDb =
-    isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1;
+  const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
   const isEditorOpen =
     !isTableTab && (activeTab?.isEditorOpen ?? activeTab?.type !== "table");
 
@@ -700,6 +709,19 @@ export const Editor = () => {
     Record<string, { sql: string; page: number }>
   >({});
 
+  // Identity used to address rows in UPDATE/DELETE statements: the primary
+  // key when the table has one, otherwise a fallback on all comparable
+  // columns (keyless tables, see resolveRowIdentity).
+  const rowIdentity = useMemo(
+    () =>
+      resolveRowIdentity(
+        activeTab?.pkColumns,
+        activeTab?.columnMetadata,
+        activeTab?.result?.columns,
+      ),
+    [activeTab?.pkColumns, activeTab?.columnMetadata, activeTab?.result?.columns],
+  );
+
   const selectionHasPending = useMemo(() => {
     if (!activeTab) return false;
     const {
@@ -708,8 +730,8 @@ export const Editor = () => {
       pendingInsertions,
       selectedRows,
       result,
-      pkColumns,
     } = activeTab;
+    const pkColumns = rowIdentity?.columns ?? null;
     const hasGlobalPending =
       (pendingChanges && Object.keys(pendingChanges).length > 0) ||
       (pendingDeletions && Object.keys(pendingDeletions).length > 0) ||
@@ -739,7 +761,7 @@ export const Editor = () => {
         (pendingDeletions && pendingDeletions[pkKey])
       );
     });
-  }, [activeTab]);
+  }, [activeTab, rowIdentity]);
 
   const hasPendingChanges = useMemo(() => {
     return (
@@ -904,6 +926,7 @@ export const Editor = () => {
       if (!textToRun || !textToRun.trim()) return;
 
       if (!(await guardDangerousQuery(textToRun))) return;
+      if (!(await guardProductionWrite(activeConnectionId, textToRun))) return;
 
       // Check for parameters
       const params = extractQueryParams(textToRun, activeDialect);
@@ -1131,6 +1154,7 @@ export const Editor = () => {
       activeDatabaseName,
       addHistoryEntry,
       guardDangerousQuery,
+      guardProductionWrite,
       activeDialect,
     ],
   );
@@ -1144,6 +1168,9 @@ export const Editor = () => {
       if (!targetTab) return;
 
       if (!(await guardDangerousQuery(queries))) return;
+      if (!(await guardProductionWrite(activeConnectionId, queries.join(";\n")))) {
+        return;
+      }
 
       // Collect all unique parameters across all queries
       const allParams = [
@@ -1317,7 +1344,20 @@ export const Editor = () => {
       });
       updateTab(targetTabId, { isLoading: false });
     },
-    [activeConnectionId, updateTab, patchResultEntry, settings.resultPageSize, activeSchema, t, isMultiDb, activeDatabaseName, addHistoryEntry, guardDangerousQuery, activeDialect],
+    [
+      activeConnectionId,
+      updateTab,
+      patchResultEntry,
+      settings.resultPageSize,
+      activeSchema,
+      t,
+      isMultiDb,
+      activeDatabaseName,
+      addHistoryEntry,
+      guardDangerousQuery,
+      guardProductionWrite,
+      activeDialect,
+    ],
   );
 
   // Auto-run entry point for navigation-initiated executions (sidebar "open
@@ -1794,10 +1834,41 @@ export const Editor = () => {
     }
   }, [activeTab, activeDialect, runQuery, runMultipleQueries, settings.runStatementUnderCursor]);
 
-  const openExplainForQuery = useCallback((query: string) => {
-    setVisualExplainQuery(query);
+  const openExplainForQuery = useCallback((query: string, tabId?: string) => {
+    let queryToExplain = query;
+    const params = extractQueryParams(queryToExplain, activeDialect);
+    const targetTabId = tabId ?? activeTabIdRef.current;
+
+    if (params.length > 0 && targetTabId) {
+      const targetTab = tabsRef.current.find((tab) => tab.id === targetTabId);
+      const storedParams = targetTab?.queryParams || {};
+      const missingParams = params.filter(
+        (param) =>
+          storedParams[param] === undefined || storedParams[param].trim() === "",
+      );
+
+      if (missingParams.length > 0) {
+        setQueryParamsModal({
+          isOpen: true,
+          sql: queryToExplain,
+          parameters: params,
+          pendingPageNum: 1,
+          pendingTabId: targetTabId,
+          mode: "explain",
+        });
+        return;
+      }
+
+      queryToExplain = interpolateQueryParams(
+        queryToExplain,
+        storedParams,
+        activeDialect,
+      );
+    }
+
+    setVisualExplainQuery(queryToExplain);
     setIsVisualExplainOpen(true);
-  }, []);
+  }, [activeDialect]);
 
   const handleExplainButton = useCallback(() => {
     if (!activeTab || !activeConnectionId) return;
@@ -2178,8 +2249,8 @@ export const Editor = () => {
     activeTab.selectedRows.forEach((rowIndex) => {
       if (rowIndex < existingRowCount) {
         // Existing row - add to pending deletions
-        if (activeTab.result && activeTab.pkColumns && activeTab.pkColumns.length > 0) {
-          const pkCols = activeTab.pkColumns;
+        if (activeTab.result && rowIdentity && rowIdentity.columns.length > 0) {
+          const pkCols = rowIdentity.columns;
           const pkIndices = pkCols.map((c) => activeTab.result!.columns.indexOf(c));
           if (pkIndices.every((i) => i !== -1)) {
             const row = activeTab.result.rows[rowIndex];
@@ -2208,7 +2279,7 @@ export const Editor = () => {
       pendingInsertions: newPendingInsertions,
       selectedRows: [],
     });
-  }, [activeTab, updateActiveTab]);
+  }, [activeTab, updateActiveTab, rowIdentity]);
 
   const handlePendingInsertionChange = useCallback(
     (tempId: string, colName: string, value: unknown) => {
@@ -2474,17 +2545,19 @@ export const Editor = () => {
   const handleSubmitChanges = useCallback(async () => {
     if (!activeTab || !activeTab.activeTable || !activeConnectionId) return;
 
-    // pkColumns is required for updates/deletions but not for insertions-only
-    const hasPkColumns = !!(activeTab.pkColumns && activeTab.pkColumns.length > 0);
-
     const {
       pendingChanges,
       pendingDeletions,
       pendingInsertions,
       activeTable,
-      pkColumns,
       selectedRows,
     } = activeTab;
+
+    // A row identity is required for updates/deletions but not for
+    // insertions-only. Keyless tables fall back to all-columns identity.
+    const pkColumns = rowIdentity?.columns ?? null;
+    const hasPkColumns = !!(pkColumns && pkColumns.length > 0);
+    const isKeyless = rowIdentity?.isKeyless ?? false;
     const updates: { pkVal: Record<string, unknown>; colName: string; newVal: unknown }[] = [];
     const deletions: Record<string, unknown>[] = [];
     const insertions: { tempId: string; data: Record<string, unknown> }[] = [];
@@ -2590,6 +2663,9 @@ export const Editor = () => {
     )
       return;
 
+    // Production safety: grid edits are writes, confirm before committing.
+    if (!(await guardProductionWrite(activeConnectionId))) return;
+
     updateActiveTab({ isLoading: true });
 
     try {
@@ -2603,32 +2679,120 @@ export const Editor = () => {
 
       // Deletions
       if (deletions.length > 0) {
-        promises.push(
-          ...deletions.map((pkMap) =>
-            invoke("delete_record", {
-              connectionId: activeConnectionId,
-              table: activeTable,
-              pkMap,
-              ...dataChangeScope,
+        if (isKeyless) {
+          // Every grid row sharing an identity is marked for deletion
+          // together (pendingDeletions is keyed by the serialized identity),
+          // but drivers differ in how many duplicates one DELETE removes
+          // (MySQL appends LIMIT 1, PostgreSQL/SQLite sweep them all).
+          // Repeat each DELETE until the number of copies the grid showed is
+          // gone, and surface a clear error when the row no longer matches.
+          const countByKey = new Map<string, number>();
+          if (activeTab.result && pkColumns) {
+            const pkIndices = pkColumns.map((c) =>
+              activeTab.result!.columns.indexOf(c),
+            );
+            if (pkIndices.every((i) => i !== -1)) {
+              for (const row of activeTab.result.rows) {
+                const key = serializePkKey(buildPkMap(pkColumns, row, pkIndices));
+                countByKey.set(key, (countByKey.get(key) ?? 0) + 1);
+              }
+            }
+          }
+          promises.push(
+            ...deletions.map(async (pkMap) => {
+              let remaining = countByKey.get(serializePkKey(pkMap)) ?? 1;
+              while (remaining > 0) {
+                const affected = await invoke<number>("delete_record", {
+                  connectionId: activeConnectionId,
+                  table: activeTable,
+                  pkMap,
+                  ...dataChangeScope,
+                });
+                if (affected === 0) {
+                  throw new Error(
+                    t("dataGrid.keylessDeleteNotFound", {
+                      defaultValue:
+                        "No row matched the original values while deleting. The table has no primary key and its data may have changed — refresh and retry.",
+                    }),
+                  );
+                }
+                remaining -= affected;
+              }
             }),
-          ),
-        );
+          );
+        } else {
+          promises.push(
+            ...deletions.map((pkMap) =>
+              invoke("delete_record", {
+                connectionId: activeConnectionId,
+                table: activeTable,
+                pkMap,
+                ...dataChangeScope,
+              }),
+            ),
+          );
+        }
       }
 
       // Updates
       if (updates.length > 0) {
-        promises.push(
-          ...updates.map((u) =>
-            invoke("update_record", {
-              connectionId: activeConnectionId,
-              table: activeTable,
-              pkMap: u.pkVal,
-              colName: u.colName,
-              newVal: u.newVal,
-              ...dataChangeScope,
+        if (isKeyless) {
+          // Without a primary key the WHERE clause matches every identity
+          // column, so each UPDATE invalidates the previous values used to
+          // address the row. Group changes per row and run them in order,
+          // threading the already-applied values into each WHERE map.
+          const updatesByRow = new Map<
+            string,
+            { pkVal: Record<string, unknown>; changes: Record<string, unknown> }
+          >();
+          for (const u of updates) {
+            const rowKey = serializePkKey(u.pkVal);
+            const entry = updatesByRow.get(rowKey) ?? {
+              pkVal: u.pkVal,
+              changes: {},
+            };
+            entry.changes[u.colName] = u.newVal;
+            updatesByRow.set(rowKey, entry);
+          }
+
+          promises.push(
+            ...Array.from(updatesByRow.values()).map(async (row) => {
+              const plan = buildKeylessUpdatePlan(row.pkVal, row.changes);
+              for (const step of plan) {
+                const affected = await invoke<number>("update_record", {
+                  connectionId: activeConnectionId,
+                  table: activeTable,
+                  pkMap: step.pkMap,
+                  colName: step.colName,
+                  newVal: step.newVal,
+                  ...dataChangeScope,
+                });
+                if (affected === 0) {
+                  throw new Error(
+                    t("dataGrid.keylessRowNotFound", {
+                      column: step.colName,
+                      defaultValue:
+                        'No row matched the original values while updating "{{column}}". The table has no primary key and its data may have changed — refresh and retry.',
+                    }),
+                  );
+                }
+              }
             }),
-          ),
-        );
+          );
+        } else {
+          promises.push(
+            ...updates.map((u) =>
+              invoke("update_record", {
+                connectionId: activeConnectionId,
+                table: activeTable,
+                pkMap: u.pkVal,
+                colName: u.colName,
+                newVal: u.newVal,
+                ...dataChangeScope,
+              }),
+            ),
+          );
+        }
       }
 
       // Insertions
@@ -2714,6 +2878,8 @@ export const Editor = () => {
     activeSchema,
     activeCapabilities,
     showAlert,
+    rowIdentity,
+    guardProductionWrite,
   ]);
 
   // Cmd/Ctrl+S: commit the active tab's pending grid changes (like TablePlus).
@@ -2758,9 +2924,18 @@ export const Editor = () => {
         } else {
           runQuery(sql, pendingPageNum, pendingTabId, newParams);
         }
+      } else if (mode === "explain") {
+        setVisualExplainQuery(interpolateQueryParams(sql, newParams, activeDialect));
+        setIsVisualExplainOpen(true);
       }
     },
-    [queryParamsModal, updateTab, runQuery, runMultipleQueries],
+    [
+      activeDialect,
+      queryParamsModal,
+      updateTab,
+      runQuery,
+      runMultipleQueries,
+    ],
   );
 
   const handleEditParams = useCallback(() => {
@@ -2794,11 +2969,11 @@ export const Editor = () => {
     const {
       selectedRows,
       result,
-      pkColumns,
       pendingChanges,
       pendingDeletions,
       pendingInsertions,
     } = activeTab;
+    const pkColumns = rowIdentity?.columns ?? null;
 
     // If applyToAll is true OR no selection, rollback everything
     if (applyToAll || !selectedRows || selectedRows.length === 0) {
@@ -2866,7 +3041,7 @@ export const Editor = () => {
           ? newPendingInsertions
           : undefined,
     });
-  }, [activeTab, updateActiveTab, applyToAll]);
+  }, [activeTab, updateActiveTab, applyToAll, rowIdentity]);
 
   const handleEditorMount = (
     editor: Parameters<OnMount>[0],
@@ -4373,7 +4548,7 @@ export const Editor = () => {
                       columns={activeTab.result?.columns || []}
                       data={activeTab.result?.rows || []}
                       tableName={activeTab.activeTable}
-                      pkColumns={activeTab.pkColumns}
+                      pkColumns={rowIdentity?.columns ?? null}
                       autoIncrementColumns={activeTab.autoIncrementColumns}
                       defaultValueColumns={activeTab.defaultValueColumns}
                       nullableColumns={activeTab.nullableColumns}

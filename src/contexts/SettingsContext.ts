@@ -1,5 +1,6 @@
 import { createContext } from "react";
 import type { AppLanguage } from "../i18n/config";
+import { DEFAULT_MASKING_PATTERNS } from "../utils/columnMasking";
 
 export type { AppLanguage };
 export type CopyFormat = "csv" | "json" | "sql-insert" | "markdown";
@@ -104,6 +105,16 @@ export interface Settings {
   backupWebdavUrl?: string;
   /** WebDAV username; the password lives in the OS keychain. */
   backupWebdavUsername?: string;
+  // Privacy
+  /** Mask values of sensitive columns in the results grid (display only). Default: true. */
+  columnMaskingEnabled?: boolean;
+  /** Column-name patterns (case-insensitive substring) that trigger masking. */
+  columnMaskingPatterns?: string[];
+  /** Per-connection `table.column` include/exclude overrides, keyed by connection id. */
+  columnMaskingOverrides?: Record<
+    string,
+    { include?: string[]; exclude?: string[] }
+  >;
 }
 
 export interface SettingsContextType {
@@ -176,4 +187,7 @@ export const DEFAULT_SETTINGS: Settings = {
   backupDirectory: "",
   backupIntervalMinutes: 1440,
   backupRetention: 10,
+  columnMaskingEnabled: true,
+  columnMaskingPatterns: DEFAULT_MASKING_PATTERNS,
+  columnMaskingOverrides: {},
 };

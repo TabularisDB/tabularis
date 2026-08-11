@@ -39,7 +39,7 @@ interface TableColumn {
 }
 
 const VisualQueryBuilderContent = () => {
-  const { activeConnectionId, activeSchema } = useDatabase();
+  const { activeConnectionId, activeDriver, activeSchema } = useDatabase();
   const { activeTab, activeTabId, updateTab } = useEditor();
   const { screenToFlowPosition } = useReactFlow();
   
@@ -165,13 +165,14 @@ const VisualQueryBuilderContent = () => {
       whereConditions,
       orderBy,
       groupBy,
-      limit
+      limit,
+      activeDriver,
     );
 
     if (sql) {
       updateTab(activeTabId, { query: sql });
     }
-  }, [nodes, edges, activeTabId, updateTab, whereConditions, orderBy, groupBy, limit]);
+  }, [nodes, edges, activeTabId, updateTab, whereConditions, orderBy, groupBy, limit, activeDriver]);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -189,6 +190,7 @@ const VisualQueryBuilderContent = () => {
   const onPointerUp = useCallback(
     async (event: React.PointerEvent) => {
       const tableName = dragState.table;
+      const tableSchema = dragState.schema ?? activeSchema;
       if (!tableName || !activeConnectionId) return;
 
       const position = screenToFlowPosition({
@@ -197,7 +199,7 @@ const VisualQueryBuilderContent = () => {
       });
 
       try {
-        const columns = await invoke<TableColumn[]>("get_columns", { connectionId: activeConnectionId, tableName, ...(activeSchema ? { schema: activeSchema } : {}) });
+        const columns = await invoke<TableColumn[]>("get_columns", { connectionId: activeConnectionId, tableName, ...(tableSchema ? { schema: tableSchema } : {}) });
         const newNodeId = `${tableName}-${Date.now()}`;
 
         const newNode: Node = {
@@ -206,6 +208,7 @@ const VisualQueryBuilderContent = () => {
           position,
           data: {
             label: tableName,
+            schema: tableSchema,
             columns: columns.map(c => ({ name: c.name, type: c.data_type })),
             selectedColumns: {},
             columnAggregations: {},

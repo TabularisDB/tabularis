@@ -69,6 +69,16 @@ vi.mock("../../src/hooks/useSettings", () => ({
   useSettings: () => ({ settings: mocks.settings }),
 }));
 
+vi.mock("../../src/hooks/useConnectionTags", () => ({
+  useConnectionTags: () => ({
+    tags: [],
+    refresh: vi.fn().mockResolvedValue(undefined),
+    createTag: vi.fn(),
+    updateTag: vi.fn(),
+    deleteTag: vi.fn(),
+  }),
+}));
+
 vi.mock("../../src/hooks/useOpenConnectionInNewWindow", () => ({
   useOpenConnectionInNewWindow: () => mocks.openConnectionInNewWindow,
 }));

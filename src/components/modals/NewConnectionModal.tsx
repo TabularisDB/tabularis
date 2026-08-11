@@ -21,8 +21,12 @@ import {
   Plus,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { ConnectionAppearance } from "../../contexts/DatabaseContext";
 import { AppearanceSection } from "./NewConnectionModal/AppearanceSection";
+import { MaskingOverridesEditor } from "../settings/MaskingOverridesEditor";
+import { TagSelector } from "./NewConnectionModal/TagSelector";
+import { EnvironmentSelect } from "./NewConnectionModal/EnvironmentSelect";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import { SshConnectionsModal } from "./SshConnectionsModal";
@@ -34,7 +38,11 @@ import { useSettings } from "../../hooks/useSettings";
 import { usePluginSlotRegistry } from "../../hooks/usePluginSlotRegistry";
 import { Modal } from "../ui/Modal";
 import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
-import { loadSshConnections, type SshConnection } from "../../utils/ssh";
+import {
+  loadSshConnections,
+  testSshConnection,
+  type SshConnection,
+} from "../../utils/ssh";
 import {
   loadK8sConnections,
   getK8sContexts,
@@ -48,7 +56,18 @@ import { useK8sPathOverrides } from "../../hooks/useK8sPathOverrides";
 import { useLatestAsync } from "../../hooks/useLatestAsync";
 import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
 import { isMultiDatabaseCapable } from "../../utils/database";
+import { updateExtraField } from "../../utils/connections";
 import { toErrorMessage } from "../../utils/errors";
+import {
+  classifyConnectionError,
+  type ClassifiedConnectionError,
+} from "../../utils/connectionErrors";
+import { ConnectionDiagnosticsModal } from "./connection/ConnectionDiagnosticsModal";
+import {
+  testStepLabelKey,
+  type ConnectionTestLogEntry,
+  type ConnectionTestProgressPayload,
+} from "../../utils/connectionTest";
 import { fetchConnectionWithCredentials } from "../../utils/credentials";
 import { getDriverIcon, getDriverColorStyle } from "../../utils/driverUI";
 import {
@@ -126,6 +145,9 @@ interface ConnectionParams {
   k8s_kubeconfig_path?: string;
   // SQL run on every new connection (e.g. SET / set_config)
   startup_script?: string;
+  // Opaque plugin-specific connection fields, forwarded verbatim to the
+  // driver/plugin and persisted as-is in connections.json.
+  extra?: Record<string, string>;
 }
 
 interface SavedConnection {
@@ -134,6 +156,8 @@ interface SavedConnection {
   params: ConnectionParams;
   detect_json_in_text_columns?: boolean;
   appearance?: ConnectionAppearance;
+  tag_ids?: string[];
+  environment?: "development" | "staging" | "production";
 }
 
 interface NewConnectionModalProps {
@@ -316,6 +340,10 @@ export const NewConnectionModal = ({
   const [selectedDatabasesState, setSelectedDatabasesState] = useState<
     string[]
   >([]);
+  // Multi-db drivers: true = no explicit selection, every database on the
+  // server is loaded automatically at connect (persisted as an empty
+  // database param). Default for new connections.
+  const [loadAllDatabases, setLoadAllDatabases] = useState(true);
   const [dbSearchQuery, setDbSearchQuery] = useState("");
   const [detectJsonInTextColumns, setDetectJsonInTextColumns] = useState(false);
   const [passwordDirty, setPasswordDirty] = useState(false);
@@ -327,7 +355,14 @@ export const NewConnectionModal = ({
 
   // ── tab ──
   const [activeTab, setActiveTab] = useState<
-    "general" | "databases" | "ssh" | "ssl" | "k8s" | "advanced" | "appearance"
+    | "general"
+    | "databases"
+    | "ssh"
+    | "ssl"
+    | "k8s"
+    | "advanced"
+    | "appearance"
+    | "privacy"
   >("general");
 
   // ── Tab bar horizontal scroll affordance ──
@@ -377,6 +412,20 @@ export const NewConnectionModal = ({
   const [sshConnections, setSshConnections] = useState<SshConnection[]>([]);
   const [isSshModalOpen, setIsSshModalOpen] = useState(false);
   const [sshMode, setSshMode] = useState<"existing" | "inline">("existing");
+  const [sshTestStatus, setSshTestStatus] = useState<
+    "idle" | "testing" | "success" | "error"
+  >("idle");
+  const [sshTestMessage, setSshTestMessage] = useState<string | null>(null);
+  const [sshTestError, setSshTestError] =
+    useState<ClassifiedConnectionError | null>(null);
+  const [sshTestLog, setSshTestLog] = useState<ConnectionTestLogEntry[]>([]);
+  const [isSshDiagnosticsOpen, setIsSshDiagnosticsOpen] = useState(false);
+  const sshTestProgressIdRef = useRef<string | null>(null);
+  const [sshSelectionError, setSshSelectionError] = useState<string | null>(
+    null,
+  );
+  const [sshTabError, setSshTabError] = useState(false);
+  const sshTestSequenceRef = useRef(0);
 
   // ── K8s ──
   const [k8sConnections, setK8sConnections] = useState<K8sConnection[]>([]);
@@ -420,6 +469,11 @@ export const NewConnectionModal = ({
     "idle" | "testing" | "saving" | "success" | "error"
   >("idle");
   const [message, setMessage] = useState("");
+  const [errorFeedback, setErrorFeedback] =
+    useState<ClassifiedConnectionError | null>(null);
+  const [testLog, setTestLog] = useState<ConnectionTestLogEntry[]>([]);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const testProgressIdRef = useRef<string | null>(null);
   const [testResult, setTestResult] = useState<"success" | "error" | null>(
     null,
   );
@@ -459,6 +513,16 @@ export const NewConnectionModal = ({
   // ── appearance ──
   const [appearance, setAppearance] = useState<ConnectionAppearance>(
     initialConnection?.appearance ?? {},
+  );
+
+  // ── tags ──
+  const [tagIds, setTagIds] = useState<string[]>(
+    initialConnection?.tag_ids ?? [],
+  );
+
+  // ── environment ── ("" = unclassified)
+  const [environment, setEnvironment] = useState<string>(
+    initialConnection?.environment ?? "",
   );
   // Stable UUID used as connectionId for icon uploads on new connections.
   // The backend mints its own id on save_connection, so we use this temp id
@@ -578,6 +642,24 @@ export const NewConnectionModal = ({
       dbFieldSlotContext,
     ).length > 0;
 
+  // ── plugin slot: connection-modal.extra_fields ──
+  // Plugins render their own connection fields (e.g. an AWS region select)
+  // and write them into the opaque `extra` map via `setExtraField`.
+  const setExtraField = useCallback((key: string, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      extra: updateExtraField(prev.extra, key, value),
+    }));
+  }, []);
+  const extraFieldsSlotContext = useMemo(
+    () => ({
+      driver,
+      extra: formData.extra ?? {},
+      setExtraField,
+    }),
+    [driver, formData.extra, setExtraField],
+  );
+
   // ── helpers ──
   const loadSshConnectionsList = async () => {
     const result = await loadSshConnections();
@@ -613,6 +695,7 @@ export const NewConnectionModal = ({
     inlineK8sTestActiveRef.current = false;
     setStatus("idle");
     setMessage("");
+    setErrorFeedback(null);
     setTestResult(null);
   }, [invalidateK8sAsync]);
 
@@ -823,8 +906,20 @@ export const NewConnectionModal = ({
         }
         setStatus("idle");
         setMessage("");
+        setErrorFeedback(null);
         setTestResult(null);
         setIsCreatingSqliteFile(false);
+        setSshTestStatus("idle");
+        setSshTestMessage(null);
+        setSshTestError(null);
+        setSshTestLog([]);
+        setIsSshDiagnosticsOpen(false);
+        sshTestProgressIdRef.current = null;
+        setSshSelectionError(null);
+        setSshTabError(false);
+        setTestLog([]);
+        setIsDiagnosticsOpen(false);
+        testProgressIdRef.current = null;
       });
     }
   }, [cancelInlineK8sWork, isOpen]);
@@ -958,6 +1053,156 @@ export const NewConnectionModal = ({
     k8sMode,
     t,
   ]);
+
+  const validateInlineSshSelection = useCallback((): boolean => {
+    if (!formData.ssh_enabled) {
+      setSshSelectionError(null);
+      setSshTabError(false);
+      return true;
+    }
+
+    let errorKey: string | null = null;
+    if (sshMode === "existing") {
+      if (!formData.ssh_connection_id) {
+        errorKey = "sshConnections.errors.connectionRequired";
+      }
+    } else if (!formData.ssh_host?.trim()) {
+      errorKey = "sshConnections.errors.hostRequired";
+    } else if (!formData.ssh_user?.trim()) {
+      errorKey = "sshConnections.errors.userRequired";
+    } else if (
+      formData.ssh_port == null ||
+      !Number.isInteger(formData.ssh_port) ||
+      formData.ssh_port < 1 ||
+      formData.ssh_port > 65535
+    ) {
+      errorKey = "sshConnections.errors.portInvalid";
+    }
+
+    if (errorKey) {
+      setSshSelectionError(t(errorKey));
+      setSshTabError(true);
+      setActiveTab("ssh");
+      return false;
+    }
+
+    setSshSelectionError(null);
+    setSshTabError(false);
+    return true;
+  }, [
+    formData.ssh_connection_id,
+    formData.ssh_enabled,
+    formData.ssh_host,
+    formData.ssh_port,
+    formData.ssh_user,
+    sshMode,
+    t,
+  ]);
+
+  const testSshTunnel = async () => {
+    if (!validateInlineSshSelection()) return;
+
+    const sequence = ++sshTestSequenceRef.current;
+    setSshTestStatus("testing");
+    setSshTestMessage(null);
+    setSshTestError(null);
+    setSshTestLog([]);
+    setIsSshDiagnosticsOpen(false);
+    const progressId = crypto.randomUUID();
+    sshTestProgressIdRef.current = progressId;
+    let unlistenProgress: (() => void) | null = null;
+
+    try {
+      unlistenProgress = await listen<ConnectionTestProgressPayload>(
+        "connection-test-progress",
+        (event) => {
+          if (event.payload.id !== sshTestProgressIdRef.current) return;
+          const entry: ConnectionTestLogEntry = {
+            step: event.payload.step,
+            status: event.payload.status,
+            detail: event.payload.detail ?? null,
+            timestamp: Date.now(),
+          };
+          setSshTestLog((previous) => [...previous, entry]);
+        },
+      );
+
+      let target: string;
+      if (sshMode === "existing") {
+        const selected = sshConnections.find(
+          (conn) => conn.id === formData.ssh_connection_id,
+        );
+        if (!selected) {
+          setSshTestStatus("idle");
+          setSshSelectionError(
+            t("sshConnections.errors.connectionMissing"),
+          );
+          setSshTabError(true);
+          return;
+        }
+        await testSshConnection(selected, { progressId });
+        target = `${selected.user}@${selected.host}:${selected.port}`;
+      } else {
+        const port = formData.ssh_port || 22;
+        await testSshConnection(
+          {
+            host: formData.ssh_host,
+            port,
+            user: formData.ssh_user,
+            password: formData.ssh_password,
+            key_file: formData.ssh_key_file,
+            key_passphrase: formData.ssh_key_passphrase,
+            allow_passphrase_prompt: formData.ssh_allow_passphrase_prompt,
+          },
+          {
+            // Keychain fallback only when the password field was left
+            // untouched: a dirty (even cleared) field expresses intent to
+            // test with exactly what is typed.
+            dbConnectionId: sshPasswordDirty
+              ? undefined
+              : initialConnection?.id,
+            progressId,
+          },
+        );
+        target = `${formData.ssh_user}@${formData.ssh_host}:${port}`;
+      }
+      if (sshTestSequenceRef.current !== sequence) return;
+      setSshTestStatus("success");
+      setSshTestMessage(t("newConnection.sshTestSuccess", { target }));
+    } catch (err) {
+      if (sshTestSequenceRef.current !== sequence) return;
+      setSshTestStatus("error");
+      setSshTestError(classifyConnectionError(toErrorMessage(err)));
+      setIsSshDiagnosticsOpen(true);
+    } finally {
+      // The failing step's event can arrive after the invoke rejects — keep
+      // the subscription alive briefly; stale ids are filtered regardless.
+      const unlisten = unlistenProgress;
+      if (unlisten) {
+        setTimeout(unlisten, 1000);
+      }
+    }
+  };
+
+  // Abandons the in-flight SSH test: the invoke keeps running in the backend
+  // but its result and any late progress events are discarded.
+  const cancelSshTest = () => {
+    if (sshTestStatus !== "testing") return;
+    sshTestSequenceRef.current += 1;
+    sshTestProgressIdRef.current = null;
+    setSshTestStatus("idle");
+    setSshTestMessage(null);
+    setSshTestLog((previous) => [
+      ...previous,
+      {
+        step: "cancelled",
+        status: "cancelled",
+        detail: null,
+        timestamp: Date.now(),
+      },
+    ]);
+    setIsSshDiagnosticsOpen(true);
+  };
 
   const handleInlineContextChange = useCallback(
     (value: string) => {
@@ -1235,6 +1480,28 @@ export const NewConnectionModal = ({
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Any change to the SSH configuration invalidates a previous SSH test
+  // result: a stale green check must not survive an edit.
+  const invalidateSshTest = useCallback(() => {
+    sshTestSequenceRef.current += 1;
+    sshTestProgressIdRef.current = null;
+    setSshTestStatus("idle");
+    setSshTestMessage(null);
+    setSshTestError(null);
+    setSshTestLog([]);
+    setIsSshDiagnosticsOpen(false);
+    setSshSelectionError(null);
+    setSshTabError(false);
+  }, []);
+
+  const updateSshField = (
+    field: keyof ConnectionParams,
+    value: string | number | boolean | undefined,
+  ) => {
+    invalidateSshTest();
+    updateField(field, value);
+  };
+
   const handleCreateSqliteFile = async () => {
     const actionId = beginFormAction();
     if (actionId === null) return;
@@ -1390,6 +1657,8 @@ export const NewConnectionModal = ({
           initialConnection.detect_json_in_text_columns === true,
         );
         setAppearance(initialConnection.appearance ?? {});
+        setTagIds(initialConnection.tag_ids ?? []);
+        setEnvironment(initialConnection.environment ?? "");
         const db = initialConnection.params.database;
         setSshMode(
           initialConnection.params.ssh_connection_id ? "existing" : "inline",
@@ -1424,11 +1693,26 @@ export const NewConnectionModal = ({
             };
         setK8sMode(isInlineK8s ? "inline" : "existing");
         initializeK8sPathOverrides(pathOptions);
+        const editDriverForDb = drivers.find(
+          (d) => d.id === initialConnection.params.driver,
+        );
+        const editIsMultiDb = isMultiDatabaseCapable(
+          editDriverForDb?.capabilities,
+        );
         if (Array.isArray(db)) {
           setSelectedDatabasesState(db);
+          setLoadAllDatabases(false);
           setFormData({ ...paramsForForm, database: db[0] ?? "" });
+        } else if (editIsMultiDb && db.trim()) {
+          // A saved single database on a multi-db driver is an explicit
+          // one-element selection.
+          setSelectedDatabasesState([db]);
+          setLoadAllDatabases(false);
+          setFormData({ ...paramsForForm });
         } else {
           setSelectedDatabasesState([]);
+          // Empty database on a multi-db driver = "all databases" mode.
+          setLoadAllDatabases(editIsMultiDb);
           setFormData({ ...paramsForForm });
         }
 
@@ -1467,10 +1751,12 @@ export const NewConnectionModal = ({
         }
 
         // Auto-load available databases when editing a multi-db connection
-        const editDriver = drivers.find(
-          (d) => d.id === initialConnection.params.driver,
-        );
-        if (isMultiDatabaseCapable(editDriver?.capabilities)) {
+        // with an explicit selection. Skipped in "all databases" mode: there
+        // is nothing to preselect, and the fetch can spawn SSH/K8s tunnels as
+        // a side effect of merely opening the dialog.
+        const editHasExplicitSelection =
+          Array.isArray(db) || (typeof db === "string" && db.trim() !== "");
+        if (editIsMultiDb && editHasExplicitSelection) {
           void loadDatabases(params, isCurrentInit);
         }
       } else {
@@ -1486,11 +1772,14 @@ export const NewConnectionModal = ({
           k8s_enabled: false,
         });
         setSelectedDatabasesState([]);
+        setLoadAllDatabases(true);
         setSshMode("existing");
         setK8sMode("existing");
         resetK8sPathOverrides();
         setDetectJsonInTextColumns(false);
         setAppearance({});
+        setTagIds([]);
+        setEnvironment("");
       }
 
       const nextSshConnections = await loadSshConnections();
@@ -1545,11 +1834,17 @@ export const NewConnectionModal = ({
     setK8sPathActionError(null);
     setK8sSelectionError(null);
     setSelectedDatabasesState([]);
+    setLoadAllDatabases(true);
     setDbSearchQuery("");
     setAvailableDatabases([]);
     setDatabaseLoadError(null);
     setStatus("idle");
     setMessage("");
+    setErrorFeedback(null);
+    setTestLog([]);
+    setIsDiagnosticsOpen(false);
+    testProgressIdRef.current = null;
+    invalidateSshTest();
     setActiveTab("general");
     setConnectionString("");
     setConnectionStringError(null);
@@ -1602,6 +1897,7 @@ export const NewConnectionModal = ({
 
     try {
       if (!validateInlineK8sSelection()) return false;
+      if (!validateInlineSshSelection()) return false;
 
       const usesK8s = formData.k8s_enabled === true;
       const k8sTestSequence = usesK8s
@@ -1611,16 +1907,39 @@ export const NewConnectionModal = ({
 
       setStatus("testing");
       setMessage("");
+      setErrorFeedback(null);
       setTestResult(null);
+      setTestLog([]);
+      setIsDiagnosticsOpen(false);
+      const progressId = crypto.randomUUID();
+      testProgressIdRef.current = progressId;
+      let unlistenProgress: (() => void) | null = null;
       try {
+        unlistenProgress = await listen<ConnectionTestProgressPayload>(
+          "connection-test-progress",
+          (event) => {
+            if (event.payload.id !== testProgressIdRef.current) return;
+            const entry: ConnectionTestLogEntry = {
+              step: event.payload.step,
+              status: event.payload.status,
+              detail: event.payload.detail ?? null,
+              timestamp: Date.now(),
+            };
+            setTestLog((previous) => [...previous, entry]);
+          },
+        );
         const testParamsBase: Partial<ConnectionParams> = {
           driver,
           ...formData,
           port: formData.port != null ? Number(formData.port) : undefined,
           k8s_port: effectiveK8sPort,
           database: isMultiDb
-            ? (selectedDatabasesState[0] ??
-              (typeof formData.database === "string" ? formData.database : ""))
+            ? loadAllDatabases
+              ? ""
+              : (selectedDatabasesState[0] ??
+                (typeof formData.database === "string"
+                  ? formData.database
+                  : ""))
             : formData.database,
         };
         const testParams = withInlineK8sPaths(
@@ -1632,6 +1951,7 @@ export const NewConnectionModal = ({
             request: {
               params: { ...testParams },
               connection_id: initialConnection?.id,
+              progress_id: progressId,
             },
           });
 
@@ -1653,6 +1973,7 @@ export const NewConnectionModal = ({
             inlineK8sTestActiveRef.current = false;
             setStatus("idle");
             setMessage("");
+            setErrorFeedback(null);
             setTestResult(null);
           }
           return false;
@@ -1682,36 +2003,67 @@ export const NewConnectionModal = ({
             inlineK8sTestActiveRef.current = false;
             setStatus("idle");
             setMessage("");
+            setErrorFeedback(null);
             setTestResult(null);
           }
           return false;
         }
         setStatus("error");
-        const msg =
-          typeof err === "string"
-            ? err
-            : err instanceof Error
-              ? err.message
-              : JSON.stringify(err);
-        setMessage(msg);
+        const classified = classifyConnectionError(toErrorMessage(err), {
+          sshEnabled: formData.ssh_enabled === true,
+        });
+        setMessage("");
+        setErrorFeedback(classified);
         setTestResult("error");
-        setTimeout(() => {
-          if (
-            k8sTestSequence !== undefined &&
-            inlineK8sTestSequenceRef.current !== k8sTestSequence
-          ) {
-            return;
-          }
-          inlineK8sTestActiveRef.current = false;
-          setTestResult(null);
-          setStatus("idle");
-        }, 3000);
+        if (classified.kind.startsWith("ssh")) {
+          setSshTabError(true);
+        }
+        setIsDiagnosticsOpen(true);
+        // The error stays visible until the user acts again: no auto-reset
+        // racing against read time.
+        inlineK8sTestActiveRef.current = false;
         return false;
+      } finally {
+        // The failing step's event can be delivered after the invoke
+        // rejects — keep the subscription alive briefly so the log gets its
+        // closing entry. Cancel/new-test invalidate the id, so late events
+        // for a superseded run are filtered out regardless.
+        const unlisten = unlistenProgress;
+        if (unlisten) {
+          setTimeout(unlisten, 1000);
+        }
       }
     } finally {
       finishFormAction(actionId);
     }
   };
+
+  // Abandons the in-flight test: the invoke keeps running in the backend but
+  // its result and any late progress events are discarded.
+  const cancelTest = () => {
+    if (activeActionRef.current === null || status !== "testing") return;
+    testProgressIdRef.current = null;
+    activeActionRef.current = null;
+    setIsActionPending(false);
+    inlineK8sTestActiveRef.current = false;
+    setStatus("idle");
+    setMessage("");
+    setTestResult(null);
+    setTestLog((previous) => [
+      ...previous,
+      {
+        step: "cancelled",
+        status: "cancelled",
+        detail: null,
+        timestamp: Date.now(),
+      },
+    ]);
+    // Show what the test had done up to the interruption.
+    setIsDiagnosticsOpen(true);
+  };
+
+  // Last progress entry, shown live next to the Test button while testing.
+  const liveTestStep = testLog.length > 0 ? testLog[testLog.length - 1] : null;
 
   const saveConnection = async () => {
     if (step === "catalogue") return;
@@ -1732,6 +2084,9 @@ export const NewConnectionModal = ({
       invalidateK8sAsync("new-k8s-test");
       inlineK8sTestSequenceRef.current += 1;
       inlineK8sTestActiveRef.current = false;
+      setErrorFeedback(null);
+      setTestLog([]);
+      setIsDiagnosticsOpen(false);
 
       if (!name.trim()) {
         setStatus("error");
@@ -1750,7 +2105,7 @@ export const NewConnectionModal = ({
         return;
       }
       if (isMultiDb) {
-        if (selectedDatabasesState.length === 0) {
+        if (!loadAllDatabases && selectedDatabasesState.length === 0) {
           setStatus("error");
           setMessage(t("newConnection.noDatabasesSelected"));
           setTestResult("error");
@@ -1771,6 +2126,7 @@ export const NewConnectionModal = ({
         return;
       }
       if (!validateInlineK8sSelection()) return;
+      if (!validateInlineSshSelection()) return;
 
       const paramsBase: Partial<ConnectionParams> = {
         driver,
@@ -1778,9 +2134,13 @@ export const NewConnectionModal = ({
         port: formData.port != null ? Number(formData.port) : undefined,
         k8s_port: effectiveK8sPort,
         database: isMultiDb
-          ? selectedDatabasesState.length === 1
-            ? selectedDatabasesState[0]
-            : selectedDatabasesState
+          ? loadAllDatabases
+            ? // "All databases" mode: persisted as an empty database so the
+              // list is fetched from the server on every connect.
+              ""
+            : selectedDatabasesState.length === 1
+              ? selectedDatabasesState[0]
+              : selectedDatabasesState
           : singleDatabase
             ? typeof formData.database === "string" && formData.database.trim()
               ? formData.database
@@ -1805,8 +2165,10 @@ export const NewConnectionModal = ({
       setIsPersistencePending(true);
       setStatus("saving");
       setMessage("");
+      setErrorFeedback(null);
       setTestResult(null);
       try {
+        let savedConnectionId: string;
         if (initialConnection) {
           if (!params.password?.trim()) delete params.password;
           if (!params.ssh_password?.trim()) delete params.ssh_password;
@@ -1815,7 +2177,9 @@ export const NewConnectionModal = ({
             name,
             params,
             detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
+            environment: environment || null,
           });
+          savedConnectionId = initialConnection.id;
           await invoke("set_connection_appearance", {
             id: initialConnection.id,
             appearance: appearancePayload ?? null,
@@ -1825,7 +2189,9 @@ export const NewConnectionModal = ({
             name,
             params,
             detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
+            environment: environment || null,
           });
+          savedConnectionId = saved.id;
           if (appearancePayload) {
             await invoke("set_connection_appearance", {
               id: saved.id,
@@ -1834,6 +2200,11 @@ export const NewConnectionModal = ({
           }
         }
 
+        await invoke("set_connection_tags", {
+          connectionId: savedConnectionId,
+          tagIds,
+        });
+
         if (
           activeActionRef.current !== actionId ||
           actionSnapshotRef.current !== startingSnapshot
@@ -1841,6 +2212,7 @@ export const NewConnectionModal = ({
           if (activeActionRef.current === actionId) {
             setStatus("idle");
             setMessage("");
+            setErrorFeedback(null);
             setTestResult(null);
           }
           return;
@@ -1882,13 +2254,24 @@ export const NewConnectionModal = ({
           actionSnapshotRef.current === startingSnapshot
         ) {
           setStatus("error");
-          setMessage(
-            typeof err === "string" ? err : t("newConnection.failSave"),
+          const classified = classifyConnectionError(toErrorMessage(err), {
+            sshEnabled: formData.ssh_enabled === true,
+          });
+          setMessage("");
+          setErrorFeedback(
+            classified.kind === "unknown"
+              ? { ...classified, summaryKey: "newConnection.failSave" }
+              : classified,
           );
           setTestResult("error");
+          if (classified.kind.startsWith("ssh")) {
+            setSshTabError(true);
+          }
+          setIsDiagnosticsOpen(true);
         } else if (activeActionRef.current === actionId) {
           setStatus("idle");
           setMessage("");
+          setErrorFeedback(null);
           setTestResult(null);
         }
       }
@@ -1946,8 +2329,16 @@ export const NewConnectionModal = ({
         parsedFields.password = parsed.password || "";
       }
 
-      if (parsedIsMultiDb && parsed.database) {
-        setSelectedDatabasesState([parsed.database]);
+      if (parsedIsMultiDb) {
+        // A URI without a database means "browse everything": switch to
+        // all-databases mode instead of keeping whatever the form held before.
+        if (parsed.database) {
+          setSelectedDatabasesState([parsed.database]);
+          setLoadAllDatabases(false);
+        } else {
+          setSelectedDatabasesState([]);
+          setLoadAllDatabases(true);
+        }
       }
 
       if (newDriver !== driver) {
@@ -1959,7 +2350,11 @@ export const NewConnectionModal = ({
         ...parsedFields,
       }));
 
-      void loadDatabases(parsedFields);
+      // In all-databases mode there is no picker to fill, and the fetch can
+      // spawn SSH/K8s tunnels — same reasoning as the edit-dialog init above.
+      if (!parsedIsMultiDb || parsed.database) {
+        void loadDatabases(parsedFields);
+      }
     } else {
       setConnectionStringError(result.error);
     }
@@ -2146,6 +2541,13 @@ export const NewConnectionModal = ({
             />
           </div>
 
+          {/* Plugin-owned extra connection fields (opaque `extra` map) */}
+          <SlotAnchor
+            name="connection-modal.extra_fields"
+            context={extraFieldsSlotContext}
+            className="flex flex-col gap-3"
+          />
+
           {/* User + Password */}
           <div className="grid grid-cols-2 gap-3">
             <FieldInput
@@ -2271,15 +2673,33 @@ export const NewConnectionModal = ({
 
   // ── rendered Appearance tab content (per-connection icon + accent color) ──
   const appearanceTabContent = (
-    <AppearanceSection
-      value={appearance}
-      onChange={setAppearance}
-      connectionId={effectiveConnectionId}
-      driverManifest={activeDriver}
-      connectionName={name || t("newConnection.unnamedConnection", { defaultValue: "Unnamed connection" })}
-      onImageUploaded={handleImageUploaded}
-    />
+    <div className="space-y-5">
+      <AppearanceSection
+        value={appearance}
+        onChange={setAppearance}
+        connectionId={effectiveConnectionId}
+        driverManifest={activeDriver}
+        connectionName={name || t("newConnection.unnamedConnection", { defaultValue: "Unnamed connection" })}
+        onImageUploaded={handleImageUploaded}
+      />
+      <TagSelector selectedIds={tagIds} onChange={setTagIds} />
+    </div>
   );
+
+  // ── rendered Privacy tab content (per-connection masking overrides, #485) ──
+  // Only meaningful for saved connections: the override lists are keyed by
+  // the connection id, which new connections only get on save.
+  const privacyTabContent = initialConnection ? (
+    <div className="space-y-4">
+      <p className="text-sm text-secondary leading-relaxed">
+        {t("settings.maskingOverridesDesc")}
+      </p>
+      <MaskingOverridesEditor
+        key={initialConnection.id}
+        connectionId={initialConnection.id}
+      />
+    </div>
+  ) : null;
 
   // ── rendered Advanced tab content (driver-specific options + startup SQL) ──
   const advancedTabContent = (
@@ -2346,6 +2766,46 @@ export const NewConnectionModal = ({
   // ── rendered Databases tab content (multi-db selection) ──
   const databasesTabContent = (
     <div className="space-y-3">
+      {/* Mode switch: automatic (all databases) vs explicit selection */}
+      <div className="flex rounded-md border border-strong overflow-hidden w-fit">
+        {([true, false] as const).map((allMode) => (
+          <button
+            key={String(allMode)}
+            type="button"
+            onClick={() => {
+              setLoadAllDatabases(allMode);
+              if (allMode) setDatabasesTabError(false);
+            }}
+            className={clsx(
+              "px-3 py-1.5 text-xs font-medium transition-colors",
+              loadAllDatabases === allMode
+                ? "bg-blue-600 text-white"
+                : "bg-elevated text-secondary hover:text-primary",
+            )}
+          >
+            {allMode
+              ? t("newConnection.allDatabases", {
+                  defaultValue: "All databases",
+                })
+              : t("newConnection.chooseDatabases", {
+                  defaultValue: "Choose databases",
+                })}
+          </button>
+        ))}
+      </div>
+
+      {loadAllDatabases ? (
+        <div className="flex items-start gap-2.5 p-3 border border-strong rounded-md bg-base">
+          <Database size={14} className="text-blue-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-secondary leading-relaxed">
+            {t("newConnection.allDatabasesHint", {
+              defaultValue:
+                "Every database on the server is loaded automatically when connecting. Databases created or dropped on the server show up on their own — no need to edit this connection.",
+            })}
+          </p>
+        </div>
+      ) : (
+        <>
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted">
           {t("newConnection.selectDatabasesHint", {
@@ -2473,6 +2933,8 @@ export const NewConnectionModal = ({
             })}
           </p>
         </div>
+      )}
+        </>
       )}
     </div>
   );
@@ -2805,6 +3267,7 @@ export const NewConnectionModal = ({
           checked={!!formData.ssh_enabled}
           onChange={(event) => {
             const enabled = event.target.checked;
+            invalidateSshTest();
             setFormData((previous) => ({
               ...previous,
               ssh_enabled: enabled,
@@ -2836,6 +3299,7 @@ export const NewConnectionModal = ({
                 key={mode}
                 type="button"
                 onClick={() => {
+                  invalidateSshTest();
                   setSshMode(mode);
                   if (mode === "existing") {
                     updateField("ssh_host", undefined);
@@ -2878,7 +3342,7 @@ export const NewConnectionModal = ({
                       `${conn.name} (${conn.user}@${conn.host}:${conn.port})`,
                     ]),
                   )}
-                  onChange={(val) => updateField("ssh_connection_id", val)}
+                  onChange={(val) => updateSshField("ssh_connection_id", val)}
                   placeholder={
                     sshConnections.length === 0
                       ? t("newConnection.noSshConnections")
@@ -2906,13 +3370,13 @@ export const NewConnectionModal = ({
                   className="col-span-2"
                   label={t("newConnection.sshHost")}
                   value={formData.ssh_host}
-                  onChange={(v) => updateField("ssh_host", v)}
+                  onChange={(v) => updateSshField("ssh_host", v)}
                   placeholder="ssh.example.com"
                 />
                 <FieldInput
                   label={t("newConnection.sshPort")}
                   value={formData.ssh_port}
-                  onChange={(v) => updateField("ssh_port", Number(v))}
+                  onChange={(v) => updateSshField("ssh_port", Number(v))}
                   type="number"
                   placeholder="22"
                 />
@@ -2921,7 +3385,7 @@ export const NewConnectionModal = ({
                 <FieldInput
                   label={t("newConnection.sshUser")}
                   value={formData.ssh_user}
-                  onChange={(v) => updateField("ssh_user", v)}
+                  onChange={(v) => updateSshField("ssh_user", v)}
                   placeholder="user"
                 />
                 <div className="flex flex-col gap-1">
@@ -2933,7 +3397,7 @@ export const NewConnectionModal = ({
                     value={formData.ssh_password ?? ""}
                     onChange={(e) => {
                       setSshPasswordDirty(true);
-                      updateField("ssh_password", e.target.value);
+                      updateSshField("ssh_password", e.target.value);
                     }}
                     placeholder={
                       initialConnection &&
@@ -2961,13 +3425,13 @@ export const NewConnectionModal = ({
               <FieldInput
                 label={t("newConnection.sshKeyFile")}
                 value={formData.ssh_key_file}
-                onChange={(v) => updateField("ssh_key_file", v)}
+                onChange={(v) => updateSshField("ssh_key_file", v)}
                 placeholder={t("newConnection.sshKeyFilePlaceholder")}
               />
               <FieldInput
                 label={t("newConnection.sshKeyPassphrase")}
                 value={formData.ssh_key_passphrase}
-                onChange={(v) => updateField("ssh_key_passphrase", v)}
+                onChange={(v) => updateSshField("ssh_key_passphrase", v)}
                 type="password"
                 placeholder={t("newConnection.sshKeyPassphrasePlaceholder")}
               />
@@ -2977,7 +3441,10 @@ export const NewConnectionModal = ({
                   id="ssh-prompt-toggle"
                   checked={!!formData.ssh_allow_passphrase_prompt}
                   onChange={(e) =>
-                    updateField("ssh_allow_passphrase_prompt", e.target.checked)
+                    updateSshField(
+                      "ssh_allow_passphrase_prompt",
+                      e.target.checked,
+                    )
                   }
                   className="accent-blue-500 w-3.5 h-3.5 rounded cursor-pointer"
                 />
@@ -2990,6 +3457,81 @@ export const NewConnectionModal = ({
               </div>
             </div>
           )}
+
+          {/* SSH-only test: verifies the tunnel without touching the database */}
+          <div className="pt-3 border-t border-default space-y-2">
+            {sshSelectionError && (
+              <p
+                role="alert"
+                className="text-xs text-red-400 flex items-center gap-1.5"
+              >
+                <AlertCircle size={12} /> {sshSelectionError}
+              </p>
+            )}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={testSshTunnel}
+                disabled={sshTestStatus === "testing" || isActionPending}
+                className={clsx(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors disabled:opacity-50",
+                  sshTestStatus === "success"
+                    ? "border-green-600/50 bg-green-900/20 text-green-400"
+                    : sshTestStatus === "error"
+                      ? "border-red-600/50 bg-red-900/20 text-red-400"
+                      : "border-strong bg-elevated text-secondary hover:text-primary hover:bg-surface-secondary",
+                )}
+              >
+                {sshTestStatus === "testing" ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : sshTestStatus === "success" ? (
+                  <Check size={13} />
+                ) : sshTestStatus === "error" ? (
+                  <XCircle size={13} />
+                ) : (
+                  <Plug size={13} />
+                )}
+                {t("newConnection.testSsh")}
+              </button>
+              {sshTestStatus === "testing" && (
+                <button
+                  type="button"
+                  onClick={cancelSshTest}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-strong bg-elevated text-xs font-medium text-secondary hover:text-red-400 hover:border-red-600/50 transition-colors"
+                >
+                  <Square size={11} />
+                  {t("newConnection.stopTest")}
+                </button>
+              )}
+              {sshTestStatus === "success" && sshTestMessage && (
+                <p
+                  aria-live="polite"
+                  className="text-xs text-green-400 truncate"
+                >
+                  {sshTestMessage}
+                </p>
+              )}
+            </div>
+            <p className="text-[11px] text-muted">
+              {t("newConnection.testSshHint")}
+            </p>
+            {sshTestStatus === "error" && sshTestError && (
+              <div
+                role="alert"
+                className="flex items-center gap-2 text-xs text-red-400"
+              >
+                <AlertCircle size={13} className="shrink-0" />
+                <span className="truncate">{t(sshTestError.summaryKey)}</span>
+                <button
+                  type="button"
+                  onClick={() => setIsSshDiagnosticsOpen(true)}
+                  className="shrink-0 underline underline-offset-2 hover:text-red-300 transition-colors"
+                >
+                  {t("common.showDetails")}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -3251,7 +3793,15 @@ export const NewConnectionModal = ({
       >
         {/* ── Top bar: step-aware title / name + progress + close ── */}
         <div className="flex items-center gap-3 px-5 py-3 border-b border-default bg-base">
-          {step === "form" ? (
+          {step === "form" && activeDriverNotInstalled ? (
+            /* Install gate: there is no connection to name or classify yet,
+               so the header shows a plain title instead of name/environment. */
+            <h2 className="flex-1 truncate text-base font-semibold text-primary">
+              {t("connectionCatalogue.installTitle", {
+                defaultValue: "Install driver",
+              })}
+            </h2>
+          ) : step === "form" ? (
             <>
               <div
                 className="w-2 h-2 rounded-full shrink-0"
@@ -3289,6 +3839,15 @@ export const NewConnectionModal = ({
                     defaultValue: "Choose a database",
                   })}
             </h2>
+          )}
+
+          {step === "form" && !activeDriverNotInstalled && (
+            <>
+              <EnvironmentSelect value={environment} onChange={setEnvironment} />
+              <span className="text-xs text-muted bg-surface-secondary px-2 py-0.5 rounded-full font-medium capitalize">
+                {activeDriver?.name ?? driver}
+              </span>
+            </>
           )}
 
           {/* Progress indicator (new connection only) */}
@@ -3337,7 +3896,6 @@ export const NewConnectionModal = ({
               </span>
             </div>
           )}
-
           <button
             onClick={handleClose}
             className="p-1.5 text-muted hover:text-primary hover:bg-surface-secondary rounded-md transition-colors cursor-pointer"
@@ -3484,6 +4042,11 @@ export const NewConnectionModal = ({
                       defaultValue: "Appearance",
                     }),
                   },
+                  // Masking overrides are keyed by the saved connection id,
+                  // so the Privacy tab only exists when editing.
+                  ...(isEditing
+                    ? [{ id: "privacy", label: t("settings.privacy") }]
+                    : []),
                 ] as {
                   id:
                     | "general"
@@ -3492,7 +4055,8 @@ export const NewConnectionModal = ({
                     | "ssl"
                     | "k8s"
                     | "advanced"
-                    | "appearance";
+                    | "appearance"
+                    | "privacy";
                   label: string;
                 }[]
               ).map((tab) => (
@@ -3509,6 +4073,7 @@ export const NewConnectionModal = ({
                 >
                   {tab.label}
                   {tab.id === "databases" &&
+                    !loadAllDatabases &&
                     selectedDatabasesState.length > 0 && (
                       <span className="ml-1.5 text-[9px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full">
                         {selectedDatabasesState.length}
@@ -3519,6 +4084,9 @@ export const NewConnectionModal = ({
                     selectedDatabasesState.length === 0 && (
                       <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-red-500" />
                     )}
+                  {tab.id === "ssh" && sshTabError && (
+                    <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full bg-red-500" />
+                  )}
                 </button>
               ))}
             </div>
@@ -3558,13 +4126,16 @@ export const NewConnectionModal = ({
                         ? sshTabContent
                         : activeTab === "advanced"
                           ? advancedTabContent
-                          : appearanceTabContent}
+                          : activeTab === "privacy"
+                            ? privacyTabContent
+                            : appearanceTabContent}
             </div>
           </div>
         )}
 
         {/* ── Footer: test status + actions (form step only) ── */}
-        {step === "form" && !activeDriverNotInstalled && <div className="border-t border-default bg-base px-5 py-3 flex items-center gap-3">
+        {step === "form" && !activeDriverNotInstalled && <div className="border-t border-default bg-base">
+          <div className="px-5 py-3 flex items-center gap-3">
           {/* Test button */}
           <button
             onClick={testConnection}
@@ -3592,17 +4163,65 @@ export const NewConnectionModal = ({
             {t("newConnection.testConnection")}
           </button>
 
-          {/* Status message */}
-          <p
-            aria-live="polite"
-            aria-atomic="true"
-            className={clsx(
-              "flex-1 text-xs truncate",
-              testResult === "success" ? "text-green-400" : "text-red-400",
-            )}
-          >
-            {message ?? ""}
-          </p>
+          {/* Stop button (only while a test is running) */}
+          {status === "testing" && (
+            <button
+              type="button"
+              onClick={cancelTest}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-strong bg-elevated text-sm font-medium text-secondary hover:text-red-400 hover:border-red-600/50 transition-colors"
+            >
+              <Square size={11} />
+              {t("newConnection.stopTest")}
+            </button>
+          )}
+
+          {/* Compact error / live progress / status message */}
+          {errorFeedback ? (
+            <div
+              role="alert"
+              className="flex-1 min-w-0 flex items-center gap-2 text-xs text-red-400"
+            >
+              <AlertCircle size={13} className="shrink-0" />
+              <span className="truncate">{t(errorFeedback.summaryKey)}</span>
+              <button
+                type="button"
+                onClick={() => setIsDiagnosticsOpen(true)}
+                className="shrink-0 underline underline-offset-2 hover:text-red-300 transition-colors"
+              >
+                {t("common.showDetails")}
+              </button>
+            </div>
+          ) : (
+            <div className="flex-1 min-w-0 flex items-center gap-2">
+              <p
+                aria-live="polite"
+                aria-atomic="true"
+                className={clsx(
+                  "flex-1 min-w-0 text-xs truncate",
+                  testResult === "success"
+                    ? "text-green-400"
+                    : status === "testing"
+                      ? "text-secondary"
+                      : "text-red-400",
+                )}
+              >
+                {status === "testing" && liveTestStep
+                  ? `${t(testStepLabelKey(liveTestStep), {
+                      defaultValue: liveTestStep.step,
+                    })}${liveTestStep.detail ? ` (${liveTestStep.detail})` : ""}`
+                  : (message ?? "")}
+              </p>
+              {status !== "testing" && testLog.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsDiagnosticsOpen(true)}
+                  className="shrink-0 text-xs text-muted hover:text-secondary underline underline-offset-2 transition-colors"
+                >
+                  {t("connectionTest.showLog")}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Cancel + Save */}
           <div className="flex items-center gap-2">
@@ -3623,6 +4242,7 @@ export const NewConnectionModal = ({
               {t("newConnection.save")}
             </button>
           </div>
+          </div>
         </div>}
       </fieldset>
 
@@ -3641,6 +4261,18 @@ export const NewConnectionModal = ({
           await loadK8sConnectionsList();
         }}
         defaultPort={k8sDefaultPort}
+      />
+      <ConnectionDiagnosticsModal
+        isOpen={isDiagnosticsOpen}
+        onClose={() => setIsDiagnosticsOpen(false)}
+        error={errorFeedback}
+        log={testLog}
+      />
+      <ConnectionDiagnosticsModal
+        isOpen={isSshDiagnosticsOpen}
+        onClose={() => setIsSshDiagnosticsOpen(false)}
+        error={sshTestError}
+        log={sshTestLog}
       />
     </Modal>
   );

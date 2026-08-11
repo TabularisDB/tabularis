@@ -6,7 +6,7 @@ import {
   DEFAULT_SETTINGS,
   type Settings,
 } from "./SettingsContext";
-import { getFontCSS } from "../utils/settings";
+import { getFontCSS, stripSessionFields } from "../utils/settings";
 
 const LANGUAGE_APPLICATION_TIMEOUT_MS = 3000;
 
@@ -146,8 +146,9 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
             resultPageSize: localData.queryLimit || 500,
             language: localData.language || "auto",
           };
-          // Save migrated data to backend
-          await invoke("save_config", { config: finalSettings });
+          // Save migrated data to backend. Strip session-persistence fields —
+          // those belong to the DatabaseProvider's own write path.
+          await invoke("save_config", { config: stripSessionFields(finalSettings) });
         } else {
           // Use backend config
           finalSettings = {
@@ -368,8 +369,12 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     setSettings((prev) => {
       const newSettings = { ...prev, [key]: value };
 
-      // Persist to backend
-      persistPromise = invoke<void>("save_config", { config: newSettings }).catch((err) => {
+      // Persist to backend. Strip session-persistence fields — they are
+      // managed by DatabaseProvider through dedicated backend commands
+      // (set_last_open_connections, set_last_active_connection); the Rust
+      // merge treats any Some as authoritative, so forwarding a stale copy
+      // captured at app start would clobber what the session code wrote.
+      persistPromise = invoke<void>("save_config", { config: stripSessionFields(newSettings) }).catch((err) => {
         console.error("Failed to save settings:", err);
       });
 

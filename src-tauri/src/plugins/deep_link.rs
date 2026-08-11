@@ -207,12 +207,12 @@ mod tests {
     fn parses_query_based_install_url() {
         // Format emitted by the Tabularium frontend's "Open in App" button.
         let req = parse_install_url(
-            "tabularis://install?registry=https%3A%2F%2Fregistry.spitzli.dev&slug=firestore-tabularis&version=0.2.0",
+            "tabularis://install?registry=https%3A%2F%2Fregistry.tabularis.dev&slug=firestore-tabularis&version=0.2.0",
         )
         .expect("valid URL");
         assert_eq!(req.slug, "firestore-tabularis");
         assert_eq!(req.version.as_deref(), Some("0.2.0"));
-        assert_eq!(req.registry.as_deref(), Some("https://registry.spitzli.dev"));
+        assert_eq!(req.registry.as_deref(), Some("https://registry.tabularis.dev"));
     }
 
     #[test]

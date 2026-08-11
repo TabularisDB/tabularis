@@ -204,7 +204,8 @@
     "removeFromSplitGroup": "Remover do Grupo",
     "movePanel": "Mover painel",
     "refreshDatabaseList": "Atualizar lista de bancos de dados",
-    "databaseListUpToDate": "A lista de bancos de dados está atualizada"
+    "databaseListUpToDate": "A lista de bancos de dados está atualizada",
+    "allDatabasesRefreshed": "Bancos de dados atualizados: {{names}}"
   },
   "mcp": {
     "title": "Integração com Servidor MCP",
@@ -347,7 +348,9 @@
       },
       "betaNotice": "Importar de Aplicativo está em beta. Se encontrar um problema,",
       "reportIssue": "relate no GitHub."
-    }
+    },
+    "databaseCount_one": "{{count}} banco de dados",
+    "databaseCount_other": "{{count}} bancos de dados"
   },
   "connectionAppearance": {
     "section": "Aparência",
@@ -378,6 +381,22 @@
   "settings": {
     "title": "Configurações",
     "general": "Geral",
+    "privacy": "Privacidade",
+    "columnMasking": "Mascaramento de colunas",
+    "columnMaskingDesc": "Oculta o conteúdo de colunas sensíveis (senhas, e-mails, tokens…) na grade de resultados. Copiar e exportar continuam usando os valores reais.",
+    "columnMaskingEnabled": "Mascarar colunas sensíveis",
+    "columnMaskingEnabledDesc": "Mostra um placeholder em vez do valor real para colunas cujo nome corresponde a um padrão sensível.",
+    "maskingPatterns": "Padrões de nomes de colunas sensíveis",
+    "maskingPatternsDesc": "Um padrão por linha. Uma coluna é mascarada quando seu nome contém qualquer padrão (sem distinção de maiúsculas).",
+    "maskingOverrides": "Substituições por conexão",
+    "maskingOverridesDesc": "Força o mascaramento (incluir) ou o não mascaramento (excluir) de colunas específicas de uma conexão. Uma entrada tabela.coluna por linha; as exclusões têm prioridade sobre inclusões e padrões.",
+    "maskingConnection": "Conexão",
+    "maskingConnectionDesc": "Escolha a qual conexão essas substituições se aplicam.",
+    "maskingInclude": "Sempre mascarar",
+    "maskingIncludeDesc": "Colunas sempre mascaradas nesta conexão, mesmo que o nome não corresponda a nenhum padrão.",
+    "maskingExclude": "Nunca mascarar",
+    "maskingExcludeDesc": "Colunas nunca mascaradas nesta conexão, mesmo que o nome corresponda a um padrão.",
+    "maskingOverridePlaceholder": "ex. usuarios.password",
     "info": "Informações",
     "dataEditor": "Editor de Dados",
     "pageSize": "Tamanho da Página de Resultados (Limite)",
@@ -661,12 +680,14 @@
       "confirmRemove": "Tem certeza que deseja remover \"{{name}}\"? Isso excluirá os arquivos do plugin.",
       "enabled": "Ativado",
       "disabled": "Desativado",
+      "openFolder": "Abrir pasta de plugins",
       "installError": {
         "title": "Falha na Instalação",
         "subtitle": "Ocorreu um erro ao instalar o plugin. Veja os detalhes abaixo.",
         "details": "Detalhes do Erro",
         "copy": "Copiar",
-        "copied": "Copiado!"
+        "copied": "Copiado!",
+        "reload": "Recarregar plugins"
       },
       "uninstallError": {
         "title": "Falha na desinstalação",
@@ -936,7 +957,16 @@
     "useIamAuth": "Usar Autenticação IAM da AWS (RDS)",
     "useIamAuthHint": "O campo de senha é tratado como um token de autenticação RDS (de `aws rds generate-db-auth-token`). Requer TLS. Os tokens expiram a cada 15 minutos.",
     "useIamAuthTlsRequired": "Ative um modo SSL acima para usar a autenticação IAM da AWS.",
-    "changeDatabase": "Trocar banco de dados"
+    "changeDatabase": "Trocar banco de dados",
+    "testSsh": "Testar SSH",
+    "testSshHint": "Verifica apenas o túnel SSH (host e credenciais), sem conectar ao banco de dados.",
+    "sshTestSuccess": "Conexão SSH com {{target}} estabelecida",
+    "stopTest": "Parar",
+    "allDatabases": "Todos os bancos de dados",
+    "chooseDatabases": "Escolher bancos de dados",
+    "allDatabasesHint": "Ao conectar, todos os bancos de dados do servidor são carregados automaticamente. Bancos criados ou removidos no servidor aparecem sozinhos — sem editar esta conexão.",
+    "selectDatabasesHint": "Selecione os bancos de dados a incluir nesta conexão.",
+    "loadDatabasesHint": "Clique em Carregar bancos de dados para buscar os disponíveis."
   },
   "sshConnections": {
     "title": "Conexões SSH",
@@ -962,7 +992,14 @@
     "savedInKeychain": "Senha salva no chaveiro do sistema",
     "manageDesc": "Túneis SSH reutilizáveis para suas conexões de banco de dados. Senhas e frases-senha são armazenadas no chaveiro do sistema.",
     "deleteInUse_one": "É usada por {{count}} conexão de banco de dados salva, que não se conectará mais através deste túnel.",
-    "deleteInUse_other": "É usada por {{count}} conexões de banco de dados salvas, que não se conectarão mais através deste túnel."
+    "deleteInUse_other": "É usada por {{count}} conexões de banco de dados salvas, que não se conectarão mais através deste túnel.",
+    "errors": {
+      "connectionRequired": "Selecione uma conexão SSH ou configure uma inline",
+      "connectionMissing": "A conexão SSH selecionada não existe mais",
+      "hostRequired": "O host SSH é obrigatório",
+      "userRequired": "O usuário SSH é obrigatório",
+      "portInvalid": "A porta SSH deve estar entre 1 e 65535"
+    }
   },
   "sshAskpass": {
     "title": "Autenticação SSH",
@@ -971,6 +1008,9 @@
     "waiting": "Aguardando sua chave de segurança — toque nela para confirmar."
   },
   "dataGrid": {
+    "noRowIdentity": "Não é possível editar as linhas: \"{{table}}\" não tem chave primária, então a edição exige que o resultado inclua todas as colunas da tabela. Selecione todas as colunas (ex.: SELECT *) ou adicione uma chave primária.",
+    "keylessRowNotFound": "Nenhuma linha correspondeu aos valores originais ao atualizar \"{{column}}\". A tabela não tem chave primária e os dados podem ter mudado: atualize e tente novamente.",
+    "keylessDeleteNotFound": "Nenhuma linha correspondeu aos valores originais ao excluir. A tabela não tem chave primária e os dados podem ter mudado: atualize e tente novamente.",
     "newRow": "NOVO",
     "noData": "Nenhum dado para exibir",
     "editRow": "Editar Linha",
@@ -1019,7 +1059,11 @@
     "setEmpty": "Definir VAZIO",
     "setServerNow": "Inserir Data/Hora Atual",
     "previewReferenced": "Pré-visualizar registro relacionado",
-    "openReferenced": "Abrir linha referenciada em {{table}}"
+    "openReferenced": "Abrir linha referenciada em {{table}}",
+    "revealCell": "Revelar célula",
+    "maskCell": "Mascarar célula",
+    "revealColumn": "Revelar coluna",
+    "maskColumn": "Mascarar coluna"
   },
   "editRow": {
     "title": "Editar Linha",
@@ -2067,6 +2111,7 @@
     "driverCount_other": "{{count}} drivers",
     "connectTo": "Conectar a {{name}}",
     "unavailableOnPlatform": "Indisponível na sua plataforma",
+    "unavailable": "Indisponível",
     "backToCatalogue": "Voltar ao catálogo",
     "pickDriver": "Vários drivers se conectam a {{name}}. Escolha um:",
     "latestVersion": "Mais recente v{{version}}",
@@ -2076,6 +2121,72 @@
     "notInstalled": "Este driver ainda não está instalado. Instale-o para configurar uma conexão.",
     "installVersion": "Instalar v{{version}}",
     "installingVersion": "Instalando v{{version}}…",
-    "retryInstall": "Tentar instalação novamente"
+    "retryInstall": "Tentar instalação novamente",
+    "viewDetails": "Mais detalhes",
+    "installTitle": "Instalar driver",
+    "readmeSubtitle": "README do plugin",
+    "readmeLoading": "Carregando README…",
+    "readmeUnavailable": "Nenhum README disponível para este plugin.",
+    "readmeFallbackLocale": "Este README ainda não está disponível no seu idioma — exibido em “{{locale}}”.",
+    "openDocumentation": "Abrir a documentação completa"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "Falha na autenticação SSH",
+      "recovery": "Verifique o usuário, a senha ou a chave privada na aba SSH."
+    },
+    "ssh-unreachable": {
+      "summary": "Servidor SSH inacessível",
+      "recovery": "Verifique o host e a porta SSH e se o servidor está acessível. Se o túnel conectar, verifique o host e a porta do banco de dados vistos do servidor SSH."
+    },
+    "ssh": {
+      "summary": "Falha no túnel SSH",
+      "recovery": "Verifique as configurações na aba SSH."
+    },
+    "db-auth": {
+      "summary": "Falha na autenticação do banco de dados",
+      "recovery": "Verifique o nome de usuário e a senha do banco de dados."
+    },
+    "network": {
+      "summary": "Servidor de banco de dados inacessível",
+      "recovery": "Verifique o host e a porta e se o servidor está em execução."
+    },
+    "db-not-found": {
+      "summary": "Banco de dados não encontrado",
+      "recovery": "Verifique o nome do banco de dados."
+    },
+    "unknown": {
+      "summary": "Falha na conexão"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Log do teste",
+    "noLog": "Nenhuma etapa foi registrada para este teste.",
+    "rawError": "Detalhes do erro",
+    "copyDiagnostics": "Copiar diagnóstico",
+    "copied": "Copiado!",
+    "steps": {
+      "cancelled": "Teste interrompido pelo usuário",
+      "resolve": {
+        "error": "Falha ao preparar os parâmetros de conexão"
+      },
+      "sshTunnel": {
+        "start": "Abrindo o túnel SSH",
+        "ok": "Túnel SSH estabelecido",
+        "error": "Falha no túnel SSH"
+      },
+      "k8sForward": {
+        "start": "Iniciando o port-forward do Kubernetes",
+        "ok": "Port-forward pronto",
+        "error": "Falha no port-forward do Kubernetes"
+      },
+      "dbConnect": {
+        "start": "Conectando ao banco de dados",
+        "ok": "Conexão com o banco de dados estabelecida",
+        "error": "Falha na conexão com o banco de dados"
+      }
+    },
+    "title": "Log do teste de conexão",
+    "showLog": "Mostrar log"
   }
 }

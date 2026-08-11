@@ -15,6 +15,7 @@ interface RowEditorPanelProps {
 		name: string;
 		type?: string;
 		characterMaximumLength?: number;
+		isGenerated?: boolean;
 	}>;
 	autoIncrementColumns?: string[];
 	defaultValueColumns?: string[];
@@ -143,11 +144,12 @@ export const RowEditorPanel = ({
 			<div className="flex-1 overflow-y-auto p-6 space-y-6">
 				{columns.map((column) => {
 					const value = editedData[column.name];
+					const isGenerated = column.isGenerated ?? false;
 
 					return (
 						<div
 							key={column.name}
-							className="space-y-2"
+							className={`space-y-2 ${isGenerated ? "opacity-60 pointer-events-none" : ""}`}
 							ref={(el) => {
 								fieldRefs.current[column.name] = el;
 							}}
@@ -168,7 +170,9 @@ export const RowEditorPanel = ({
 								value={value}
 								originalValue={originalRowData?.[column.name]}
 								detectJsonInTextColumns={detectJsonInTextColumns}
-								onChange={(newValue) => updateField(column.name, newValue)}
+								onChange={(newValue) => {
+									if (!isGenerated) updateField(column.name, newValue);
+								}}
 								placeholder={t("rowEditor.enterValue")}
 								isInsertion={isInsertion}
 								isAutoIncrement={autoIncrementColumns?.includes(column.name)}

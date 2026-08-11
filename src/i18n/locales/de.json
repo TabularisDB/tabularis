@@ -23,6 +23,29 @@
     "fromPlaceholder": "von",
     "toPlaceholder": "bis"
   },
+  "tags": {
+    "label": "Tags",
+    "new": "Neues Tag",
+    "add": "Hinzufügen",
+    "namePlaceholder": "Tag-Name…",
+    "manage": "Tags verwalten",
+    "done": "Fertig",
+    "deleteTitle": "Tag löschen",
+    "deleteConfirm": "Tag \"{{name}}\" löschen? Es wird von allen Verbindungen entfernt."
+  },
+  "environment": {
+    "label": "Umgebung",
+    "none": "Keine Umgebung",
+    "development": "Entwicklung",
+    "staging": "Staging",
+    "production": "Produktion",
+    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "banner": "Produktion — {{name}}",
+    "warnTitle": "Produktionsdatenbank",
+    "warnMessage": "Sie sind dabei, Produktionsdaten auf \"{{name}}\" zu ändern. Wirklich fortfahren?",
+    "warnConfirm": "Trotzdem ausführen",
+    "warnSnooze": "Für diese Verbindung nicht mehr fragen (diese Sitzung)"
+  },
   "common": {
     "save": "Speichern",
     "close": "Schließen",
@@ -191,7 +214,8 @@
     "removeFromSplitGroup": "Aus der Gruppe entfernen",
     "movePanel": "Panel verschieben",
     "refreshDatabaseList": "Datenbankliste aktualisieren",
-    "databaseListUpToDate": "Datenbankliste ist aktuell"
+    "databaseListUpToDate": "Datenbankliste ist aktuell",
+    "allDatabasesRefreshed": "Datenbanken aktualisiert: {{names}}"
   },
   "mcp": {
     "title": "MCP-Server-Integration",
@@ -340,7 +364,9 @@
       },
       "betaNotice": "Der Import aus einer App befindet sich in der Beta-Phase. Falls ein Problem auftritt,",
       "reportIssue": "melde es auf GitHub."
-    }
+    },
+    "databaseCount_one": "{{count}} Datenbank",
+    "databaseCount_other": "{{count}} Datenbanken"
   },
   "connectionAppearance": {
     "section": "Darstellung",
@@ -366,6 +392,22 @@
   "settings": {
     "title": "Einstellungen",
     "general": "Allgemein",
+    "privacy": "Datenschutz",
+    "columnMasking": "Spaltenmaskierung",
+    "columnMaskingDesc": "Blendet den Inhalt sensibler Spalten (Passwörter, E-Mails, Tokens …) im Ergebnisraster aus. Kopieren und Exportieren verwenden weiterhin die echten Werte.",
+    "columnMaskingEnabled": "Sensible Spalten maskieren",
+    "columnMaskingEnabledDesc": "Zeigt einen Platzhalter statt des echten Werts für Spalten, deren Name auf ein sensibles Muster passt.",
+    "maskingPatterns": "Muster für sensible Spaltennamen",
+    "maskingPatternsDesc": "Ein Muster pro Zeile. Eine Spalte wird maskiert, wenn ihr Name ein Muster enthält (Groß-/Kleinschreibung wird ignoriert).",
+    "maskingOverrides": "Ausnahmen pro Verbindung",
+    "maskingOverridesDesc": "Erzwingt das Maskieren (Einschließen) oder Nicht-Maskieren (Ausschließen) bestimmter Spalten für eine Verbindung. Ein Eintrag tabelle.spalte pro Zeile; Ausschlüsse haben Vorrang vor Einschlüssen und Mustern.",
+    "maskingConnection": "Verbindung",
+    "maskingConnectionDesc": "Wählen Sie, für welche Verbindung diese Ausnahmen gelten.",
+    "maskingInclude": "Immer maskieren",
+    "maskingIncludeDesc": "Spalten, die für diese Verbindung immer maskiert werden, auch wenn ihr Name auf kein Muster passt.",
+    "maskingExclude": "Nie maskieren",
+    "maskingExcludeDesc": "Spalten, die für diese Verbindung nie maskiert werden, auch wenn ihr Name auf ein Muster passt.",
+    "maskingOverridePlaceholder": "z. B. benutzer.password",
     "info": "Info",
     "dataEditor": "Dateneditor",
     "pageSize": "Ergebnisse pro Seite (Limit)",
@@ -626,12 +668,14 @@
       "confirmRemove": "Möchtest du \"{{name}}\" wirklich entfernen? Dadurch werden die Plugin-Dateien gelöscht.",
       "enabled": "Aktiviert",
       "disabled": "Deaktiviert",
+      "openFolder": "Plugin-Ordner öffnen",
       "installError": {
         "title": "Installation fehlgeschlagen",
         "subtitle": "Bei der Installation des Plugins ist ein Fehler aufgetreten. Siehe Details unten.",
         "details": "Fehlerdetails",
         "copy": "Kopieren",
-        "copied": "Kopiert!"
+        "copied": "Kopiert!",
+        "reload": "Plugins neu laden"
       },
       "uninstallError": {
         "title": "Deinstallation fehlgeschlagen",
@@ -901,7 +945,16 @@
     "useIamAuth": "AWS-IAM-Authentifizierung verwenden (RDS)",
     "useIamAuthHint": "Das Passwortfeld wird als RDS-Auth-Token verwendet (aus `aws rds generate-db-auth-token`). Erfordert TLS. Tokens laufen alle 15 Minuten ab.",
     "useIamAuthTlsRequired": "Aktiviere oben einen SSL-Modus, um die AWS-IAM-Authentifizierung zu nutzen.",
-    "changeDatabase": "Datenbank ändern"
+    "changeDatabase": "Datenbank ändern",
+    "testSsh": "SSH testen",
+    "testSshHint": "Prüft nur den SSH-Tunnel (Host und Anmeldedaten), ohne Verbindung zur Datenbank.",
+    "sshTestSuccess": "SSH-Verbindung zu {{target}} hergestellt",
+    "stopTest": "Stopp",
+    "allDatabases": "Alle Datenbanken",
+    "chooseDatabases": "Datenbanken auswählen",
+    "allDatabasesHint": "Beim Verbinden werden automatisch alle Datenbanken des Servers geladen. Auf dem Server erstellte oder gelöschte Datenbanken erscheinen von selbst — ohne diese Verbindung zu bearbeiten.",
+    "selectDatabasesHint": "Die Datenbanken auswählen, die diese Verbindung enthalten soll.",
+    "loadDatabasesHint": "Auf „Datenbanken laden“ klicken, um die verfügbaren Datenbanken abzurufen."
   },
   "sshConnections": {
     "title": "SSH-Verbindungen",
@@ -927,7 +980,14 @@
     "savedInKeychain": "Passwort im System-Keychain gespeichert",
     "manageDesc": "Wiederverwendbare SSH-Tunnel für deine Datenbankverbindungen. Passwörter und Passphrasen werden im System-Schlüsselbund gespeichert.",
     "deleteInUse_one": "Sie wird von {{count}} gespeicherten Verbindung verwendet, die sich nicht mehr über diesen Tunnel verbinden wird.",
-    "deleteInUse_other": "Sie wird von {{count}} gespeicherten Verbindungen verwendet, die sich nicht mehr über diesen Tunnel verbinden werden."
+    "deleteInUse_other": "Sie wird von {{count}} gespeicherten Verbindungen verwendet, die sich nicht mehr über diesen Tunnel verbinden werden.",
+    "errors": {
+      "connectionRequired": "SSH-Verbindung auswählen oder inline konfigurieren",
+      "connectionMissing": "Die ausgewählte SSH-Verbindung existiert nicht mehr",
+      "hostRequired": "SSH-Host ist erforderlich",
+      "userRequired": "SSH-Benutzer ist erforderlich",
+      "portInvalid": "SSH-Port muss zwischen 1 und 65535 liegen"
+    }
   },
   "sshAskpass": {
     "title": "SSH-Authentifizierung",
@@ -936,6 +996,9 @@
     "waiting": "Warten auf Ihren Sicherheitsschlüssel — zum Bestätigen berühren."
   },
   "dataGrid": {
+    "noRowIdentity": "Zeilen können nicht bearbeitet werden: \"{{table}}\" hat keinen Primärschlüssel, daher muss das Ergebnis alle Spalten der Tabelle enthalten. Wählen Sie alle Spalten aus (z. B. SELECT *) oder fügen Sie einen Primärschlüssel hinzu.",
+    "keylessRowNotFound": "Beim Aktualisieren von \"{{column}}\" stimmte keine Zeile mit den ursprünglichen Werten überein. Die Tabelle hat keinen Primärschlüssel und die Daten haben sich möglicherweise geändert – aktualisieren und erneut versuchen.",
+    "keylessDeleteNotFound": "Beim Löschen stimmte keine Zeile mit den ursprünglichen Werten überein. Die Tabelle hat keinen Primärschlüssel und die Daten haben sich möglicherweise geändert – aktualisieren und erneut versuchen.",
     "newRow": "NEU",
     "noData": "Keine Daten zum Anzeigen",
     "editRow": "Zeile bearbeiten",
@@ -980,7 +1043,11 @@
     "setEmpty": "EMPTY setzen",
     "setServerNow": "Aktuellen Zeitstempel einfügen",
     "previewReferenced": "Verknüpften Datensatz anzeigen",
-    "openReferenced": "Referenzierte Zeile in {{table}} öffnen"
+    "openReferenced": "Referenzierte Zeile in {{table}} öffnen",
+    "revealCell": "Zelle anzeigen",
+    "maskCell": "Zelle maskieren",
+    "revealColumn": "Spalte anzeigen",
+    "maskColumn": "Spalte maskieren"
   },
   "editRow": {
     "title": "Zeile bearbeiten",
@@ -1993,6 +2060,7 @@
     "driverCount_other": "{{count}} Treiber",
     "connectTo": "Mit {{name}} verbinden",
     "unavailableOnPlatform": "Auf deiner Plattform nicht verfügbar",
+    "unavailable": "Nicht verfügbar",
     "backToCatalogue": "Zurück zum Katalog",
     "pickDriver": "Mehrere Treiber verbinden sich mit {{name}}. Wähle einen:",
     "latestVersion": "Neueste v{{version}}",
@@ -2002,6 +2070,72 @@
     "notInstalled": "Dieser Treiber ist noch nicht installiert. Installiere ihn, um eine Verbindung einzurichten.",
     "installVersion": "v{{version}} installieren",
     "installingVersion": "v{{version}} wird installiert…",
-    "retryInstall": "Installation wiederholen"
+    "retryInstall": "Installation wiederholen",
+    "viewDetails": "Mehr Details",
+    "installTitle": "Treiber installieren",
+    "readmeSubtitle": "Plugin-README",
+    "readmeLoading": "README wird geladen…",
+    "readmeUnavailable": "Für dieses Plugin ist kein README verfügbar.",
+    "readmeFallbackLocale": "Dieses README ist in deiner Sprache noch nicht verfügbar — angezeigt in „{{locale}}“.",
+    "openDocumentation": "Vollständige Dokumentation öffnen"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "SSH-Authentifizierung fehlgeschlagen",
+      "recovery": "Benutzer, Passwort oder privaten Schlüssel im SSH-Tab prüfen."
+    },
+    "ssh-unreachable": {
+      "summary": "SSH-Server nicht erreichbar",
+      "recovery": "SSH-Host und -Port prüfen und ob der Server erreichbar ist. Wenn der Tunnel steht, Host und Port der Datenbank aus Sicht des SSH-Servers prüfen."
+    },
+    "ssh": {
+      "summary": "SSH-Tunnel fehlgeschlagen",
+      "recovery": "Die Einstellungen im SSH-Tab prüfen."
+    },
+    "db-auth": {
+      "summary": "Datenbank-Authentifizierung fehlgeschlagen",
+      "recovery": "Benutzername und Passwort der Datenbank prüfen."
+    },
+    "network": {
+      "summary": "Datenbankserver nicht erreichbar",
+      "recovery": "Host und Port prüfen und ob der Server läuft."
+    },
+    "db-not-found": {
+      "summary": "Datenbank nicht gefunden",
+      "recovery": "Den Datenbanknamen prüfen."
+    },
+    "unknown": {
+      "summary": "Verbindung fehlgeschlagen"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Testprotokoll",
+    "noLog": "Für diesen Test wurden keine Schritte aufgezeichnet.",
+    "rawError": "Fehlerdetails",
+    "copyDiagnostics": "Diagnose kopieren",
+    "copied": "Kopiert!",
+    "steps": {
+      "cancelled": "Test vom Benutzer abgebrochen",
+      "resolve": {
+        "error": "Vorbereitung der Verbindungsparameter fehlgeschlagen"
+      },
+      "sshTunnel": {
+        "start": "SSH-Tunnel wird geöffnet",
+        "ok": "SSH-Tunnel hergestellt",
+        "error": "SSH-Tunnel fehlgeschlagen"
+      },
+      "k8sForward": {
+        "start": "Kubernetes-Port-Forward wird gestartet",
+        "ok": "Port-Forward bereit",
+        "error": "Kubernetes-Port-Forward fehlgeschlagen"
+      },
+      "dbConnect": {
+        "start": "Verbindung zur Datenbank wird hergestellt",
+        "ok": "Datenbankverbindung hergestellt",
+        "error": "Datenbankverbindung fehlgeschlagen"
+      }
+    },
+    "title": "Protokoll des Verbindungstests",
+    "showLog": "Protokoll anzeigen"
   }
 }

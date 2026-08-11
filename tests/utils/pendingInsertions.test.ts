@@ -303,6 +303,35 @@ describe("pendingInsertions", () => {
       const backendData = insertionToBackendData(insertion, columns);
       expect(Object.keys(backendData)).toHaveLength(2); // name + email (id excluded)
     });
+
+    it("should exclude generated columns", () => {
+      const columnsWithGenerated: TableColumn[] = [
+        ...columns,
+        {
+          name: "display_name",
+          data_type: "TEXT",
+          is_pk: false,
+          is_nullable: true,
+          is_auto_increment: false,
+          is_generated: true,
+        },
+      ];
+      const insertion: PendingInsertion = {
+        tempId: "temp_123",
+        data: {
+          id: null,
+          name: "John",
+          email: null,
+          display_name: "John",
+        },
+        displayIndex: 0,
+      };
+
+      const backendData = insertionToBackendData(insertion, columnsWithGenerated);
+
+      expect(backendData.display_name).toBeUndefined();
+      expect(backendData.name).toBe("John");
+    });
   });
 
   describe("filterInsertionsBySelection", () => {

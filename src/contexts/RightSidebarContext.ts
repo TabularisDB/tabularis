@@ -14,6 +14,7 @@ export interface RowEditorPanelData {
 		name: string;
 		type?: string;
 		characterMaximumLength?: number;
+		isGenerated?: boolean;
 	}>;
 	autoIncrementColumns?: string[];
 	defaultValueColumns?: string[];

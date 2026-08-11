@@ -59,5 +59,9 @@ export const versionLinks: Record<string, string> = {
   "0.16.0":
     "https://tabularis.dev/blog/v0160-hosted-plugin-registry-k8s-overrides-encrypted-backups",
   "0.17.0":
-    "https://tabularis.dev/blog/v0170-visual-explain-diagnostics-row-editor-sidebar-sql-formatting"
+    "https://tabularis.dev/blog/v0170-visual-explain-diagnostics-row-editor-sidebar-sql-formatting",
+  "0.18.0":
+    "https://tabularis.dev/blog/v0180-user-privileges-connection-diagnostics-grid-selection",
+  "0.19.0":
+    "https://tabularis.dev/blog/v0190-connection-tags-column-masking-keyless-editing"
 };

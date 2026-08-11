@@ -81,15 +81,18 @@ npx @tabularis/create-plugin migrate ./my-driver
 
 This writes `.tabularium` from your `manifest.json`, removes the old file, and
 updates the `manifest.json` references in `release.yml`, `justfile`, and
-`README.md`. It keeps a `id` that differs from `name` (the host uses it as the
-plugin identity) and refuses to run if the manifest has no semver `version`,
-which the registry requires.
+`README.md`. A legacy `id` that differs from `name` is kept for the host's
+benefit only — the registry has no `id` field and keys everything off `name`
+(the pinned lowercase slug). The command refuses to run if the manifest has no
+semver `version`, which the registry requires — without a leading `v`, and it
+must equal the release tag stripped of any `v` prefix.
 
 By default the release workflow is left as-is (only its `manifest.json`
 reference is renamed so the build keeps working). The hosted Tabularium registry
 resolves the manifest from the **release assets**, so it needs `.tabularium`
-published as a standalone asset. Add `--ci` to regenerate `release.yml` from the
-registry-ready template:
+published as a standalone asset (GitHub renames the dotfile to
+`default.tabularium` on upload — the registry accepts either name). Add `--ci`
+to regenerate `release.yml` from the registry-ready template:
 
 ```bash
 npx @tabularis/create-plugin migrate ./my-driver --ci
@@ -139,6 +142,7 @@ my-driver/ui/
 ## Related
 
 - **[Plugin guide](https://github.com/TabularisDB/tabularis/blob/main/plugins/PLUGIN_GUIDE.md)** — authoritative reference for JSON-RPC methods, capabilities, slots.
+- **[Manifest reference](https://docs.tabularium.wiki/manifest/)** — every `.tabularium` field with constraints; invalid manifests are rejected at submit (HTTP 422).
 - **[`@tabularis/plugin-api`](https://www.npmjs.com/package/@tabularis/plugin-api)** — TypeScript types + hooks for UI extensions.
 - **[Tabularis repo](https://github.com/TabularisDB/tabularis)** — the host app.
 

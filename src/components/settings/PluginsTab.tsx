@@ -29,6 +29,8 @@ import {
   Boxes,
   Search,
   Home,
+  FolderOpen,
+  BookOpen,
 } from "lucide-react";
 import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
@@ -41,6 +43,7 @@ import { findConnectionsForDrivers } from "../../utils/connectionManager";
 import { APP_VERSION } from "../../version";
 import type { PluginManifest } from "../../types/plugins";
 import { PluginInstallErrorModal } from "../modals/PluginInstallErrorModal";
+import { PluginReadmeModal } from "../modals/PluginReadmeModal";
 import { PluginRemoveModal } from "../modals/PluginRemoveModal";
 import { PluginStartErrorModal } from "../modals/PluginStartErrorModal";
 import { SlotAnchor } from "../ui/SlotAnchor";
@@ -93,6 +96,8 @@ interface PluginCardProps {
   accent?: CardAccent;
   pulse?: boolean;
   showBand?: boolean;
+  /** Opens the WordPress-style README/details modal. Absent for plugins the registry doesn't know. */
+  onShowReadme?: () => void;
 }
 
 function PluginCard({
@@ -111,6 +116,7 @@ function PluginCard({
   accent,
   pulse,
   showBand,
+  onShowReadme,
 }: PluginCardProps) {
   const { t } = useTranslation();
   const parsedAuthor = author ? parseAuthor(author) : null;
@@ -231,6 +237,21 @@ function PluginCard({
                   className="text-muted hover:text-primary cursor-pointer transition-colors"
                 >
                   <Home size={11} />
+                </button>
+              )}
+              {onShowReadme && (
+                <button
+                  type="button"
+                  onClick={onShowReadme}
+                  title={t("connectionCatalogue.viewDetails", {
+                    defaultValue: "More details",
+                  })}
+                  aria-label={t("connectionCatalogue.viewDetails", {
+                    defaultValue: "More details",
+                  })}
+                  className="text-muted hover:text-primary cursor-pointer transition-colors"
+                >
+                  <BookOpen size={11} />
                 </button>
               )}
               {version && (
@@ -576,6 +597,11 @@ export function PluginsTab({
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<AvailableFilter>("all");
+  const [readmePlugin, setReadmePlugin] = useState<{
+    slug: string;
+    name: string;
+    registryUrl: string | null;
+  } | null>(null);
 
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -669,6 +695,12 @@ export function PluginsTab({
       .catch(() => {
         /* ignore */
       });
+  }, []);
+
+  const openPluginsFolder = useCallback(() => {
+    invoke("open_plugins_dir").catch(() => {
+      /* best-effort — the folder may still be reachable manually */
+    });
   }, []);
 
   const handleOpenPluginSettings = useCallback(
@@ -957,14 +989,24 @@ export function PluginsTab({
                 </button>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={() => refreshRegistry()}
-              className="mb-px flex items-center gap-1 text-xs text-muted transition-colors hover:text-primary"
-            >
-              <RefreshCw size={12} />
-              {t("settings.plugins.refresh")}
-            </button>
+            <div className="mb-px flex items-center gap-4">
+              <button
+                type="button"
+                onClick={openPluginsFolder}
+                className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-primary"
+              >
+                <FolderOpen size={12} />
+                {t("settings.plugins.openFolder")}
+              </button>
+              <button
+                type="button"
+                onClick={() => refreshRegistry()}
+                className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-primary"
+              >
+                <RefreshCw size={12} />
+                {t("settings.plugins.refresh")}
+              </button>
+            </div>
           </div>
 
           <div className="pt-4">
@@ -1032,6 +1074,17 @@ export function PluginsTab({
                           }
                           accent={accent}
                           status={statusNode}
+                          onShowReadme={
+                            !isBuiltin && registryPlugin
+                              ? () =>
+                                  setReadmePlugin({
+                                    slug: registryPlugin.id,
+                                    name: driver.name,
+                                    registryUrl:
+                                      registryPlugin.registry_base_url ?? null,
+                                  })
+                              : undefined
+                          }
                           actions={
                             <div className="flex items-center justify-end gap-3 w-full">
                               {!isBuiltin && (
@@ -1113,6 +1166,17 @@ export function PluginsTab({
                           author={registryPlugin?.author}
                           homepage={registryPlugin?.homepage}
                           accent={null}
+                          onShowReadme={
+                            registryPlugin
+                              ? () =>
+                                  setReadmePlugin({
+                                    slug: registryPlugin.id,
+                                    name: plugin.name,
+                                    registryUrl:
+                                      registryPlugin.registry_base_url ?? null,
+                                  })
+                              : undefined
+                          }
                           status={
                             <PluginToggle
                               enabled={false}
@@ -1314,6 +1378,13 @@ export function PluginsTab({
                       showBand
                       status={installedBadge}
                       meta={tagMeta}
+                      onShowReadme={() =>
+                        setReadmePlugin({
+                          slug: plugin.id,
+                          name: plugin.name,
+                          registryUrl: plugin.registry_base_url ?? null,
+                        })
+                      }
                       actions={
                         !selectedPlatformSupported ? (
                           <span className="text-xs text-muted italic text-right">
@@ -1480,6 +1551,10 @@ export function PluginsTab({
         pluginId={pluginInstallError?.pluginId ?? ""}
         error={pluginInstallError?.error ?? ""}
         operation={pluginInstallError?.operation ?? "install"}
+        onOpenPluginsFolder={openPluginsFolder}
+        onReload={async () => {
+          await Promise.all([refreshDrivers(), refreshRegistry()]);
+        }}
       />
       <PluginRemoveModal
         isOpen={pluginRemoveConfirm !== null}
@@ -1487,6 +1562,15 @@ export function PluginsTab({
         pluginName={pluginRemoveConfirm?.pluginName ?? ""}
         onConfirm={() => pluginRemoveConfirm?.onConfirm()}
       />
+      {readmePlugin && (
+        <PluginReadmeModal
+          isOpen
+          onClose={() => setReadmePlugin(null)}
+          slug={readmePlugin.slug}
+          pluginName={readmePlugin.name}
+          registryUrl={readmePlugin.registryUrl}
+        />
+      )}
       <PluginStartErrorModal
         isOpen={pluginStartError !== null}
         onClose={() => setPluginStartError(null)}

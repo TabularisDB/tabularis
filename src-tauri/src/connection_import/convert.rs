@@ -52,6 +52,7 @@ pub fn build_payload(
         connections: Vec::new(),
         ssh_connections: Vec::new(),
         k8s_connections: Vec::new(),
+        tags: Vec::new(),
     };
 
     // Resolve group name -> group id, reusing an existing group when the name
@@ -222,6 +223,8 @@ fn build_connection(
         sort_order: None,
         detect_json_in_text_columns: None,
         appearance: None,
+        tag_ids: None,
+        environment: None,
     };
     (saved, ssh_record)
 }

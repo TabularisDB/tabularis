@@ -220,6 +220,8 @@ mod tests {
             sort_order: None,
             detect_json_in_text_columns: None,
             appearance: None,
+            tag_ids: None,
+            environment: None,
         }
     }
 

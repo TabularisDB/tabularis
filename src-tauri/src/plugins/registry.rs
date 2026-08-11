@@ -182,6 +182,24 @@ pub struct RegistryPluginWithStatus {
     pub signature: Option<SignatureStatus>,
 }
 
+/// Locale-aware README payload served by the Tabularium
+/// `GET /api/plugins/{slug}/?locale=` endpoint. `html` is the registry's
+/// server-rendered README; `locale` is the locale actually served (which can
+/// differ from the requested one when no translation exists).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PluginReadme {
+    pub html: Option<String>,
+    pub locale: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub available_locales: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub documentation_url: Option<String>,
+    /// Repository URL, used by the frontend to resolve relative image/link
+    /// paths inside the README against the plugin's repo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repo_url: Option<String>,
+}
+
 pub fn get_current_platform() -> String {
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;

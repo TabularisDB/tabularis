@@ -5,7 +5,9 @@ import { useTranslation } from "react-i18next";
 
 import type { PluginManifest } from "../../../types/plugins";
 import type { CatalogueDriver, EngineGroup } from "../../../utils/connectionCatalogue";
+import { labelForParadigm } from "../../../utils/connectionCatalogue";
 import { getDriverIcon } from "../../../utils/driverUI";
+import { RegistryDriverIcon } from "./RegistryDriverIcon";
 
 interface EngineCardProps {
   group: EngineGroup;
@@ -32,7 +34,7 @@ function accentFor(group: EngineGroup, rep: CatalogueDriver): string {
 function renderIcon(rep: CatalogueDriver) {
   const icon = rep.icon ?? "";
   if (/^https?:\/\//.test(icon) || icon.startsWith("data:")) {
-    return <img src={icon} alt="" className="h-6 w-6 rounded object-contain" />;
+    return <RegistryDriverIcon src={icon} size={24} fallback={<Database size={20} />} />;
   }
   if (rep.isBuiltin) {
     return getDriverIcon({ icon, color: rep.color ?? undefined } as PluginManifest, 22);
@@ -63,11 +65,10 @@ export function EngineCard({ group, onSelect }: EngineCardProps) {
       onClick={() => onSelect(group)}
       style={{ "--accent": accent } as CSSProperties}
       className={clsx(
-        "group relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-xl border p-3 text-left",
+        "group relative flex cursor-pointer flex-col gap-2 overflow-hidden rounded-xl border p-3 text-left",
         "border-default bg-surface-secondary transition-all duration-150",
         "hover:-translate-y-px hover:border-[var(--accent)] hover:bg-surface hover:shadow-md hover:shadow-black/5",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/50",
-        unsupported && "opacity-60",
       )}
     >
       {/* accent rail */}
@@ -77,21 +78,28 @@ export function EngineCard({ group, onSelect }: EngineCardProps) {
         style={{ backgroundColor: accent }}
       />
 
-      {/* icon tile */}
-      <span
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
-        style={{ backgroundColor: `${accent}1f`, color: accent }}
-      >
-        {renderIcon(rep)}
-      </span>
+      {/* header row: icon · name · status */}
+      <span className="flex w-full items-center gap-2.5">
+        {/* icon tile — dimmed instead of the whole card so the text stays readable */}
+        <span
+          className={clsx(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+            unsupported && "opacity-50 grayscale",
+          )}
+          style={{ backgroundColor: `${accent}1f`, color: accent }}
+        >
+          {renderIcon(rep)}
+        </span>
 
-      {/* body */}
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex items-center gap-1.5">
-          <span className="truncate font-semibold text-primary capitalize">{group.displayName}</span>
+        {/* name wraps (up to 2 lines) instead of truncating; icon stays glued to the last word */}
+        <span
+          className="line-clamp-2 min-w-0 flex-1 font-semibold leading-snug text-primary [overflow-wrap:anywhere]"
+          title={group.displayName}
+        >
+          {group.displayName}
           {group.verified && (
             <span
-              className="inline-flex shrink-0 items-center text-blue-400"
+              className="ml-1.5 inline-flex translate-y-px items-center align-baseline text-blue-400"
               title={t("connectionCatalogue.verified", { defaultValue: "Verified" })}
             >
               <ShieldCheck size={13} aria-hidden />
@@ -99,42 +107,44 @@ export function EngineCard({ group, onSelect }: EngineCardProps) {
             </span>
           )}
         </span>
-        <span className="flex items-center gap-1 text-[11px] text-muted">
-          <span className="capitalize">{group.primaryParadigm}</span>
-          {group.secondaryParadigms.length > 0 && (
-            <span className="text-muted/70">· +{group.secondaryParadigms.length}</span>
-          )}
-          {driverCount > 1 && (
-            <span className="text-muted/70">
-              · {t("connectionCatalogue.driverCount", { count: driverCount, defaultValue: "{{count}} drivers" })}
-            </span>
-          )}
-        </span>
-      </span>
 
-      {/* trailing status */}
-      <span className="flex shrink-0 flex-col items-end gap-1">
+        {/* trailing status */}
         {group.installed ? (
-          <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+          <span className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
             {t("connectionCatalogue.installed", { defaultValue: "Installed" })}
           </span>
         ) : unsupported ? (
           <span
-            className="flex items-center gap-1 rounded-full border border-amber-500/30 px-2 py-0.5 text-[10px] font-medium text-amber-400"
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-amber-500/30 px-2 py-0.5 text-[10px] font-medium text-amber-400"
             title={t("connectionCatalogue.unavailableOnPlatform", { defaultValue: "Unavailable on your platform" })}
           >
             <MonitorOff size={10} aria-hidden />
-            {t("connectionCatalogue.unavailableOnPlatform", { defaultValue: "Unavailable on your platform" })}
+            {t("connectionCatalogue.unavailable", { defaultValue: "Unavailable" })}
           </span>
         ) : (
-          <span className="rounded-full border border-default px-2 py-0.5 text-[10px] font-medium text-muted opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="shrink-0 whitespace-nowrap rounded-full border border-default px-2 py-0.5 text-[10px] font-medium text-muted transition-colors group-hover:border-[var(--accent)] group-hover:text-primary">
             {t("connectionCatalogue.install", { defaultValue: "Install" })}
           </span>
         )}
+      </span>
+
+      {/* meta row, full card width: paradigm (+n) · drivers · downloads */}
+      <span className="block w-full truncate text-[11px] text-muted">
+        {labelForParadigm(group.primaryParadigm)}
+        {group.secondaryParadigms.length > 0 && (
+          <span className="text-muted/70"> +{group.secondaryParadigms.length}</span>
+        )}
+        {driverCount > 1 && (
+          <span className="text-muted/70">
+            {" · "}
+            {t("connectionCatalogue.driverCount", { count: driverCount, defaultValue: "{{count}} drivers" })}
+          </span>
+        )}
         {group.downloads != null && (
-          <span className="flex items-center gap-0.5 text-[10px] text-muted">
-            <Download size={10} />
+          <span className="text-muted/70">
+            {" · "}
+            <Download size={10} className="inline -translate-y-px" aria-hidden />
             {formatCount(group.downloads)}
           </span>
         )}

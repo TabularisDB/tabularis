@@ -3,6 +3,7 @@ import {
   toCatalogueDriver,
   builtinToCatalogueDriver,
   localPluginToCatalogueDriver,
+  engineDisplayName,
   groupByEngine,
   paradigmFacets,
   filterCatalogue,
@@ -141,6 +142,27 @@ describe('connectionCatalogue', () => {
       const d = toCatalogueDriver(registryPlugin({ id: 'weird', engine: 'weird', paradigms: [] }));
       const groups = groupByEngine([d]);
       expect(groups[0].primaryParadigm).toBe('other');
+    });
+
+    it('titles the group after the engine, not the first driver name', () => {
+      const d = toCatalogueDriver(
+        registryPlugin({ id: 'mongodb-atlas-driver', name: 'mongodb-atlas', engine: 'mongodb' }),
+      );
+      expect(groupByEngine([d])[0].displayName).toBe('MongoDB');
+    });
+  });
+
+  describe('engineDisplayName', () => {
+    it('uses the proper-noun spelling for known engines', () => {
+      expect(engineDisplayName('postgres')).toBe('PostgreSQL');
+      expect(engineDisplayName('mongodb-atlas')).toBe('MongoDB Atlas');
+      expect(engineDisplayName('MSSQL')).toBe('SQL Server');
+    });
+
+    it('title-cases unknown slugs word by word', () => {
+      expect(engineDisplayName('qdrant')).toBe('Qdrant');
+      expect(engineDisplayName('vector-db')).toBe('Vector Db');
+      expect(engineDisplayName('time_series')).toBe('Time Series');
     });
   });
 

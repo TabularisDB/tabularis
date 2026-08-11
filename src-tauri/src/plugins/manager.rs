@@ -65,6 +65,10 @@ pub struct ConfigManifest {
     pub settings: Vec<PluginSettingDefinition>,
     #[serde(default)]
     pub ui_extensions: Option<Vec<crate::drivers::driver_trait::UIExtensionEntry>>,
+    /// Static type mappings for `map_inferred_type`. Keys are generic inferred
+    /// types (e.g. `"DATETIME"`), values are driver-specific types (e.g. `"TIMESTAMP"`).
+    #[serde(default)]
+    pub type_mappings: HashMap<String, String>,
 }
 
 /// Load installed plugins at startup.
@@ -185,6 +189,7 @@ pub async fn load_plugin_from_dir(
         icon: config.icon,
         settings: config.settings,
         ui_extensions: config.ui_extensions,
+        type_mappings: config.type_mappings,
     };
 
     // UI-only plugins (no executable) register only their manifest.

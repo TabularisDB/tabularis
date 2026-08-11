@@ -32,6 +32,8 @@ import {
   FileDigit,
   ExternalLink,
   PanelBottomOpen,
+  Eye,
+  EyeOff,
   ListChecks,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
@@ -73,6 +75,7 @@ import {
 } from "../../utils/dateInput";
 import { useRightSidebar } from "../../hooks/useRightSidebar";
 import { useDatabase } from "../../hooks/useDatabase";
+import { useProductionGuard } from "../../hooks/useProductionGuard";
 import {
   columnValuesForCopy,
   columnValuesToInClause,
@@ -81,6 +84,10 @@ import {
   projectColumns,
   copyTextToClipboard,
 } from "../../utils/clipboard";
+import {
+  DEFAULT_MASKING_PATTERNS,
+  isColumnMasked,
+} from "../../utils/columnMasking";
 import type {
   PendingInsertion,
   TableColumn,
@@ -194,12 +201,50 @@ export const DataGrid = React.memo(
   }: DataGridProps) => {
     const { t } = useTranslation();
     const { activeSchema, connections } = useDatabase();
+    const guardProductionWrite = useProductionGuard();
     const { showAlert } = useAlert();
     const { showToast } = useToast();
     const { settings } = useSettings();
     const rightSidebar = useRightSidebar();
     const colorByType = settings.resultColorByType ?? false;
     const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
+
+    // Sensitive-column masking (#485): display-only — copy/export keep the
+    // real values; only the rendered grid masks them.
+    const maskingEnabled = settings.columnMaskingEnabled ?? true;
+    const maskingPatterns =
+      settings.columnMaskingPatterns ?? DEFAULT_MASKING_PATTERNS;
+    const maskingOverrides = settings.columnMaskingOverrides;
+    const maskedColIndices = useMemo(() => {
+      const masked = new Set<number>();
+      if (!maskingEnabled) return masked;
+      columns.forEach((colName, index) => {
+        if (
+          isColumnMasked(colName, tableName, connectionId, {
+            enabled: maskingEnabled,
+            patterns: maskingPatterns,
+            overrides: maskingOverrides,
+          })
+        ) {
+          masked.add(index);
+        }
+      });
+      return masked;
+    }, [
+      maskingEnabled,
+      maskingPatterns,
+      maskingOverrides,
+      columns,
+      tableName,
+      connectionId,
+    ]);
+
+    // Reveal state is grid-local and resets with the result data: eye toggle
+    // in the header reveals a whole column, eye on a cell reveals just it.
+    const [revealedColIndices, setRevealedColIndices] = useState<Set<number>>(
+      new Set(),
+    );
+    const [revealedCells, setRevealedCells] = useState<Set<string>>(new Set());
 
     const detectJsonInTextColumns = useMemo(() => {
       if (!connectionId) return false;
@@ -252,6 +297,8 @@ export const DataGrid = React.memo(
 
     useEffect(() => {
       setExpandedCell(null);
+      setRevealedColIndices(new Set());
+      setRevealedCells(new Set());
       setCellRange(null);
     }, [data]);
 
@@ -320,6 +367,15 @@ export const DataGrid = React.memo(
       if (!columnMetadata) return null;
       return new Map(
         columnMetadata.map((col) => [col.name, col.character_maximum_length]),
+      );
+    }, [columnMetadata]);
+
+    const generatedColumns = useMemo(() => {
+      if (!columnMetadata) return null;
+      return new Set(
+        columnMetadata
+          .filter((col) => col.is_generated)
+          .map((col) => col.name.toLowerCase()),
       );
     }, [columnMetadata]);
 
@@ -672,6 +728,7 @@ export const DataGrid = React.memo(
             name: colName,
             type: meta?.data_type,
             characterMaximumLength: meta?.character_maximum_length,
+            isGenerated: meta?.is_generated,
           };
         });
 
@@ -783,14 +840,29 @@ export const DataGrid = React.memo(
 
       const mergedRow = mergedRows[rowIndex];
       if (!mergedRow) return;
-      // No primary key defined for the table at all → editing impossible.
+      // No usable row identity (no primary key and no safe all-columns
+      // fallback, see resolveRowIdentity) → explain instead of silently
+      // ignoring the double-click (#598).
       if (
         mergedRow.type !== "insertion" &&
         (!pkColumns || pkColumns.length === 0)
-      )
+      ) {
+        showAlert(
+          t("dataGrid.noRowIdentity", {
+            table: tableName,
+            defaultValue:
+              'Rows can\'t be edited: "{{table}}" has no primary key, so editing requires the result to include all table columns. Select all columns (e.g. SELECT *) or add a primary key.',
+          }),
+          { title: t("common.error"), kind: "warning" },
+        );
         return;
+      }
 
       const colName = columns[colIndex];
+
+      if (generatedColumns?.has(colName.toLowerCase())) {
+        return;
+      }
 
       // For existing rows we must be able to build a safe UPDATE. Two guards,
       // each running whenever the data it depends on is available, so they
@@ -875,6 +947,11 @@ export const DataGrid = React.memo(
         value !== undefined
       ) {
         editValue = formatGeometricValue(value);
+      } else if (
+        value !== null &&
+        typeof value === "object"
+      ) {
+        editValue = JSON.stringify(value);
       }
 
       const doubleClickAction = settings.cellDoubleClickAction ?? "inline";
@@ -899,6 +976,7 @@ export const DataGrid = React.memo(
         columnTypeMap,
         columnLengthMap,
         columnMetadata,
+        generatedColumns,
         isJsonCellTarget,
         openInSidebar,
         openJsonViewerWindow,
@@ -981,6 +1059,13 @@ export const DataGrid = React.memo(
 
         if (!connectionId) return;
 
+        // Production safety: this path writes immediately, without the
+        // staged-changes commit (which has its own guard upstream).
+        if (!(await guardProductionWrite(connectionId))) {
+          setEditingCell(null);
+          return;
+        }
+
         // Legacy immediate update
         try {
           await invoke("update_record", {
@@ -1016,6 +1101,7 @@ export const DataGrid = React.memo(
       onRefresh,
       showAlert,
       t,
+      guardProductionWrite,
     ]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -1797,6 +1883,15 @@ export const DataGrid = React.memo(
           case "F2": {
             const mergedRow = mergedRows[rowIndex];
             if (!mergedRow) return;
+            // Masked cells must be revealed before editing, same as the
+            // double-click path.
+            if (
+              maskedColIndices.has(colIndex) &&
+              !revealedColIndices.has(colIndex) &&
+              !revealedCells.has(`${rowIndex}:${colIndex}`)
+            ) {
+              return;
+            }
             handleCellDoubleClick(
               rowIndex,
               colIndex,
@@ -1819,6 +1914,9 @@ export const DataGrid = React.memo(
         columns,
         editableCellValue,
         handleCellDoubleClick,
+        maskedColIndices,
+        revealedColIndices,
+        revealedCells,
       ],
     );
 
@@ -1895,6 +1993,19 @@ export const DataGrid = React.memo(
       return () => document.removeEventListener("keydown", handleKeyDown);
     }, [editingCell, selectedRowIndices, selectedColIndices, cellRange, focusedCell, copyCellValue, copySelectedCells, copySelectedColumns, copyCellRange, readonlyProp, deleteRowsByIndices, handleSelectAll]);
 
+    // Sensitive-column reveal actions (#485). Column toggling uses
+    // toggleSetValue like the other Set-based grid state.
+    const toggleRevealColumn = useCallback(
+      (index: number) =>
+        setRevealedColIndices((prev) => toggleSetValue(prev, index)),
+      [],
+    );
+    const toggleRevealCell = useCallback((rowIndex: number, colIndex: number) => {
+      setRevealedCells((prev) =>
+        toggleSetValue(prev, `${rowIndex}:${colIndex}`),
+      );
+    }, []);
+
     // Stable per-row dependency bundle. Memoizing it lets React.memo on MemoRow
     // skip re-rendering rows that didn't change during scroll.
     const rowCtx: RowCtx = useMemo(
@@ -1916,6 +2027,10 @@ export const DataGrid = React.memo(
         parentViewportWidth,
         readonly: readonlyProp,
         updateSelection,
+        maskedColIndices,
+        revealedColIndices,
+        revealedCells,
+        toggleRevealCell,
         selectedColIndices,
         clearColSelection,
         cellRange,
@@ -1956,6 +2071,10 @@ export const DataGrid = React.memo(
         parentViewportWidth,
         readonlyProp,
         updateSelection,
+        maskedColIndices,
+        revealedColIndices,
+        revealedCells,
+        toggleRevealCell,
         selectedColIndices,
         clearColSelection,
         cellRange,
@@ -2050,10 +2169,34 @@ export const DataGrid = React.memo(
                         });
                       }}
                     >
-                      {flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
+                      <div className="flex items-center gap-1">
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
+                        {maskedColIndices.has(headerColIndex) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleRevealColumn(headerColIndex);
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            title={
+                              revealedColIndices.has(headerColIndex)
+                                ? t("dataGrid.maskColumn")
+                                : t("dataGrid.revealColumn")
+                            }
+                            className="shrink-0 text-muted hover:text-primary transition-colors"
+                          >
+                            {revealedColIndices.has(headerColIndex) ? (
+                              <EyeOff size={13} />
+                            ) : (
+                              <Eye size={13} />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </th>
                   ))}
                 </tr>

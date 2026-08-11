@@ -23,6 +23,29 @@
     "fromPlaceholder": "開始",
     "toPlaceholder": "終了"
   },
+  "tags": {
+    "label": "タグ",
+    "new": "新しいタグ",
+    "add": "追加",
+    "namePlaceholder": "タグ名…",
+    "manage": "タグを管理",
+    "done": "完了",
+    "deleteTitle": "タグを削除",
+    "deleteConfirm": "タグ「{{name}}」を削除しますか？すべての接続から削除されます。"
+  },
+  "environment": {
+    "label": "環境",
+    "none": "環境なし",
+    "development": "開発",
+    "staging": "ステージング",
+    "production": "本番",
+    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "banner": "本番 — {{name}}",
+    "warnTitle": "本番データベース",
+    "warnMessage": "「{{name}}」の本番データを変更しようとしています。続行しますか？",
+    "warnConfirm": "実行する",
+    "warnSnooze": "この接続では今後確認しない（このセッション中）"
+  },
   "common": {
     "save": "保存",
     "close": "閉じる",
@@ -204,7 +227,8 @@
     "removeFromSplitGroup": "グループから削除",
     "movePanel": "パネルを移動",
     "refreshDatabaseList": "データベース一覧を更新",
-    "databaseListUpToDate": "データベース一覧は最新です"
+    "databaseListUpToDate": "データベース一覧は最新です",
+    "allDatabasesRefreshed": "データベースを更新しました: {{names}}"
   },
   "mcp": {
     "title": "MCP サーバー連携",
@@ -353,7 +377,9 @@
       },
       "betaNotice": "アプリからのインポートはベータ版です。問題が発生した場合は、",
       "reportIssue": "GitHub で報告してください。"
-    }
+    },
+    "databaseCount_one": "{{count}} 件のデータベース",
+    "databaseCount_other": "{{count}} 件のデータベース"
   },
   "connectionAppearance": {
     "section": "外観",
@@ -379,6 +405,22 @@
   "settings": {
     "title": "設定",
     "general": "一般",
+    "privacy": "プライバシー",
+    "columnMasking": "列のマスキング",
+    "columnMaskingDesc": "結果グリッドで機密列（パスワード、メール、トークンなど）の内容を非表示にします。コピーやエクスポートでは実際の値がそのまま使用されます。",
+    "columnMaskingEnabled": "機密列をマスク",
+    "columnMaskingEnabledDesc": "名前が機密パターンに一致する列に、実際の値の代わりにプレースホルダーを表示します。",
+    "maskingPatterns": "機密列名パターン",
+    "maskingPatternsDesc": "1行に1パターン。列名にいずれかのパターンが含まれるとマスクされます（大文字小文字を区別しません）。",
+    "maskingOverrides": "接続ごとの上書き",
+    "maskingOverridesDesc": "接続ごとに特定の列を必ずマスク（包含）またはマスクしない（除外）ように設定します。1行に1件、テーブル.列の形式。除外は包含とパターンより優先されます。",
+    "maskingConnection": "接続",
+    "maskingConnectionDesc": "これらの上書きを適用する接続を選択します。",
+    "maskingInclude": "常にマスク",
+    "maskingIncludeDesc": "この接続で常にマスクする列。名前がどのパターンにも一致しなくても適用されます。",
+    "maskingExclude": "マスクしない",
+    "maskingExcludeDesc": "この接続でマスクしない列。名前がパターンに一致しても適用されません。",
+    "maskingOverridePlaceholder": "例: users.password",
     "info": "情報",
     "dataEditor": "データエディタ",
     "pageSize": "結果ページサイズ (上限)",
@@ -640,12 +682,14 @@
       "confirmRemove": "「{{name}}」を削除してもよろしいですか？プラグインファイルが削除されます。",
       "enabled": "有効",
       "disabled": "無効",
+      "openFolder": "プラグインフォルダーを開く",
       "installError": {
         "title": "インストール失敗",
         "subtitle": "プラグインのインストール中にエラーが発生しました。詳細は下記を参照してください。",
         "details": "エラーの詳細",
         "copy": "コピー",
-        "copied": "コピーしました！"
+        "copied": "コピーしました！",
+        "reload": "プラグインを再読み込み"
       },
       "uninstallError": {
         "title": "アンインストール失敗",
@@ -915,7 +959,16 @@
     "useIamAuth": "AWS IAM 認証を使用する (RDS)",
     "useIamAuthHint": "パスワード欄は RDS 認証トークン (`aws rds generate-db-auth-token` の出力) として扱われます。TLS 必須。トークンの有効期限は 15 分です。",
     "useIamAuthTlsRequired": "AWS IAM 認証を使用するには、上記で SSL モードを有効にしてください。",
-    "changeDatabase": "データベースを変更"
+    "changeDatabase": "データベースを変更",
+    "testSsh": "SSH をテスト",
+    "testSshHint": "データベースに接続せず、SSH トンネル(ホストと認証情報)のみを検証します。",
+    "sshTestSuccess": "{{target}} への SSH 接続が確立されました",
+    "stopTest": "停止",
+    "allDatabases": "すべてのデータベース",
+    "chooseDatabases": "データベースを選択",
+    "allDatabasesHint": "接続時にサーバー上のすべてのデータベースが自動的に読み込まれます。サーバーで作成・削除されたデータベースは、この接続を編集しなくても自動的に反映されます。",
+    "selectDatabasesHint": "この接続に含めるデータベースを選択してください。",
+    "loadDatabasesHint": "「データベースを読み込む」をクリックすると利用可能なデータベースを取得します。"
   },
   "sshConnections": {
     "title": "SSH 接続",
@@ -940,7 +993,14 @@
     "testFailed": "接続テストに失敗しました",
     "savedInKeychain": "パスワードをシステムのキーチェーンに保存しました",
     "manageDesc": "データベース接続で再利用できるSSHトンネルです。パスワードとパスフレーズはシステムのキーチェーンに保存されます。",
-    "deleteInUse_other": "この接続は{{count}}件の保存済みデータベース接続で使用されており、削除するとこのトンネル経由で接続できなくなります。"
+    "deleteInUse_other": "この接続は{{count}}件の保存済みデータベース接続で使用されており、削除するとこのトンネル経由で接続できなくなります。",
+    "errors": {
+      "connectionRequired": "SSH 接続を選択するか、インラインで設定してください",
+      "connectionMissing": "選択された SSH 接続は存在しません",
+      "hostRequired": "SSH ホストは必須です",
+      "userRequired": "SSH ユーザーは必須です",
+      "portInvalid": "SSH ポートは 1〜65535 の範囲で指定してください"
+    }
   },
   "sshAskpass": {
     "title": "SSH認証",
@@ -949,6 +1009,9 @@
     "waiting": "セキュリティキーを待っています — タッチして確認してください。"
   },
   "dataGrid": {
+    "noRowIdentity": "行を編集できません: \"{{table}}\" には主キーがないため、編集には結果にテーブルの全列が含まれている必要があります。すべての列を選択する(例: SELECT *)か、主キーを追加してください。",
+    "keylessRowNotFound": "\"{{column}}\" の更新時に元の値に一致する行が見つかりませんでした。テーブルに主キーがなく、データが変更された可能性があります。再読み込みして再試行してください。",
+    "keylessDeleteNotFound": "削除時に元の値に一致する行が見つかりませんでした。テーブルに主キーがなく、データが変更された可能性があります。再読み込みして再試行してください。",
     "noData": "表示するデータがありません",
     "editRow": "行を編集",
     "deleteRow": "行を削除",
@@ -992,7 +1055,11 @@
     "setEmpty": "EMPTY に設定",
     "setServerNow": "現在のタイムスタンプを挿入",
     "previewReferenced": "関連レコードをプレビュー",
-    "openReferenced": "{{table}} で参照行を開く"
+    "openReferenced": "{{table}} で参照行を開く",
+    "revealCell": "セルを表示",
+    "maskCell": "セルをマスク",
+    "revealColumn": "列を表示",
+    "maskColumn": "列をマスク"
   },
   "editRow": {
     "title": "行を編集",
@@ -2011,6 +2078,7 @@
     "driverCount_other": "{{count}} 個のドライバー",
     "connectTo": "{{name}} に接続",
     "unavailableOnPlatform": "お使いのプラットフォームでは利用できません",
+    "unavailable": "利用不可",
     "backToCatalogue": "カタログに戻る",
     "pickDriver": "複数のドライバーが {{name}} に接続します。1つ選択してください：",
     "latestVersion": "最新 v{{version}}",
@@ -2020,6 +2088,72 @@
     "notInstalled": "このドライバーはまだインストールされていません。接続を設定するにはインストールしてください。",
     "installVersion": "v{{version}} をインストール",
     "installingVersion": "v{{version}} をインストール中…",
-    "retryInstall": "インストールを再試行"
+    "retryInstall": "インストールを再試行",
+    "viewDetails": "詳細を見る",
+    "installTitle": "ドライバーをインストール",
+    "readmeSubtitle": "プラグインのREADME",
+    "readmeLoading": "READMEを読み込み中…",
+    "readmeUnavailable": "このプラグインにはREADMEがありません。",
+    "readmeFallbackLocale": "このREADMEはまだお使いの言語では利用できません — “{{locale}}”で表示しています。",
+    "openDocumentation": "完全なドキュメントを開く"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "SSH 認証に失敗しました",
+      "recovery": "SSH タブでユーザー、パスワード、秘密鍵を確認してください。"
+    },
+    "ssh-unreachable": {
+      "summary": "SSH サーバーに接続できません",
+      "recovery": "SSH ホストとポート、サーバーに到達可能かを確認してください。トンネルが接続できる場合は、SSH サーバーから見たデータベースのホストとポートを確認してください。"
+    },
+    "ssh": {
+      "summary": "SSH トンネルに失敗しました",
+      "recovery": "SSH タブの設定を確認してください。"
+    },
+    "db-auth": {
+      "summary": "データベース認証に失敗しました",
+      "recovery": "データベースのユーザー名とパスワードを確認してください。"
+    },
+    "network": {
+      "summary": "データベースサーバーに接続できません",
+      "recovery": "ホストとポート、サーバーが起動しているかを確認してください。"
+    },
+    "db-not-found": {
+      "summary": "データベースが見つかりません",
+      "recovery": "データベース名を確認してください。"
+    },
+    "unknown": {
+      "summary": "接続に失敗しました"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "テストログ",
+    "noLog": "このテストではステップが記録されませんでした。",
+    "rawError": "エラーの詳細",
+    "copyDiagnostics": "診断情報をコピー",
+    "copied": "コピーしました!",
+    "steps": {
+      "cancelled": "ユーザーによりテストが停止されました",
+      "resolve": {
+        "error": "接続パラメータの準備に失敗しました"
+      },
+      "sshTunnel": {
+        "start": "SSH トンネルを開いています",
+        "ok": "SSH トンネルが確立されました",
+        "error": "SSH トンネルに失敗しました"
+      },
+      "k8sForward": {
+        "start": "Kubernetes ポートフォワードを開始しています",
+        "ok": "ポートフォワードの準備ができました",
+        "error": "Kubernetes ポートフォワードに失敗しました"
+      },
+      "dbConnect": {
+        "start": "データベースに接続しています",
+        "ok": "データベース接続が確立されました",
+        "error": "データベース接続に失敗しました"
+      }
+    },
+    "title": "接続テストのログ",
+    "showLog": "ログを表示"
   }
 }

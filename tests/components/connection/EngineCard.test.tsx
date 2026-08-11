@@ -31,7 +31,9 @@ describe('EngineCard', () => {
 
   it('marks a group with no platform build as unavailable', () => {
     render(<EngineCard group={{ ...group, installed: false, platformSupported: false }} onSelect={vi.fn()} />);
-    expect(screen.getByText(/connectionCatalogue\.unavailableOnPlatform/i)).toBeInTheDocument();
+    // Badge shows the short label; the full sentence lives in the tooltip.
+    expect(screen.getByText(/connectionCatalogue\.unavailable$/i)).toBeInTheDocument();
+    expect(screen.getByTitle(/connectionCatalogue\.unavailableOnPlatform/i)).toBeInTheDocument();
     expect(screen.queryByText(/connectionCatalogue\.install$/i)).not.toBeInTheDocument();
   });
 

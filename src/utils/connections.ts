@@ -6,6 +6,7 @@
 import type { DriverCapabilities } from "../types/plugins";
 import type { SavedConnection } from "../contexts/DatabaseContext";
 import { isLocalDriver } from "./driverCapabilities";
+import { isMultiDatabaseCapable } from "./database";
 
 export type DatabaseDriver = string;
 
@@ -45,6 +46,37 @@ export interface ConnectionParams {
   k8s_port?: number;
   /** SQL run on every new connection to this data source (e.g. SET / set_config). */
   startup_script?: string;
+  /** Opaque plugin-specific connection fields (e.g. `region` for a DynamoDB
+   * plugin). Persisted as-is and forwarded verbatim to the driver/plugin. */
+  extra?: Record<string, string>;
+}
+
+/**
+ * Update one entry of the opaque `extra` connection fields map.
+ *
+ * Pure function — returns a new map, never mutates its input.
+ * - Blank keys are ignored (the input is returned unchanged).
+ * - An empty value removes the key, and the map collapsing to empty yields
+ *   `undefined` so nothing extra is persisted or sent to the backend.
+ *
+ * @param extra - Current extra fields map (may be undefined)
+ * @param key - Field name owned by the plugin
+ * @param value - New value; empty string clears the field
+ */
+export function updateExtraField(
+  extra: Record<string, string> | undefined,
+  key: string,
+  value: string,
+): Record<string, string> | undefined {
+  const trimmedKey = key.trim();
+  if (!trimmedKey) return extra;
+  const next = { ...(extra ?? {}) };
+  if (value === "") {
+    delete next[trimmedKey];
+  } else {
+    next[trimmedKey] = value;
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
 }
 
 /**
@@ -195,17 +227,30 @@ export function getDriverLabel(driver: DatabaseDriver): string {
 
 /**
  * Build the subtitle shown below a connection name (host:port · db or file path).
+ *
+ * `labels` carries the translated strings the subtitle may need: the
+ * "all databases" label (multi-db connection with no explicit selection)
+ * and the "{{n}} databases" counter. Untranslated fallbacks apply when
+ * omitted.
  */
 export function connectionSubtitle(
   conn: SavedConnection,
   capabilities: DriverCapabilities | null | undefined,
+  labels?: { allDatabases?: string; databaseCount?: (count: number) => string },
 ): string {
   if (isLocalDriver(capabilities)) {
     const db = conn.params.database;
     return Array.isArray(db) ? db[0] ?? '' : db;
   }
   const db = conn.params.database;
-  const dbStr = Array.isArray(db) ? `${db.length} databases` : db;
+  const isAllDatabases =
+    isMultiDatabaseCapable(capabilities) &&
+    (Array.isArray(db) ? db.length === 0 : db.trim() === '');
+  const dbStr = isAllDatabases
+    ? labels?.allDatabases ?? 'All databases'
+    : Array.isArray(db)
+      ? labels?.databaseCount?.(db.length) ?? `${db.length} databases`
+      : db;
   return `${conn.params.host ?? 'localhost'}:${conn.params.port ?? ''}  ·  ${dbStr}`;
 }
 

@@ -86,7 +86,7 @@ import { groupRoutinesByType } from "../../utils/routines";
 import { formatObjectCount } from "../../utils/schema";
 import { groupByDate, formatHistoryTime } from "../../utils/dateGroups";
 import { SqlHighlight } from "../ui/SqlHighlight";
-import { isMultiDatabaseCapable, reconcileDatabaseSelection } from "../../utils/database";
+import { isMultiDatabaseCapable, usesMultiDatabaseLayout, reconcileDatabaseSelection } from "../../utils/database";
 import { supportsManageTables } from "../../utils/driverCapabilities";
 import { newConsoleForDatabase, newConsoleForTable } from "../../utils/newConsole";
 import {
@@ -544,7 +544,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     }
   };
 
-  const isMultiDb = isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1;
+  const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
 
   useEffect(() => {
     if (!activeTable) return;
@@ -1253,7 +1253,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                     </>
                   )}
                 </div>
-              ) : isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1 ? (
+              ) : usesMultiDatabaseLayout(activeCapabilities, selectedDatabases) ? (
                 /* Multi-database MySQL layout */
                 <div>
                   {/* Database header: label + manage button */}

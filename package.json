@@ -1,7 +1,7 @@
 {
   "name": "tabularis",
   "private": true,
-  "version": "0.17.0",
+  "version": "0.19.0",
   "type": "module",
   "links": {
     "discord": "https://discord.com/invite/K2hmhfHRSt",
@@ -35,10 +35,10 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@tabularis/explain": "workspace:*",
     "@tailwindcss/postcss": "^4.2.2",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.23",
-    "@tabularis/explain": "workspace:*",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-clipboard-manager": "~2.3.2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
@@ -51,6 +51,7 @@
     "buffer": "^6.0.3",
     "clsx": "^2.1.1",
     "dagre": "^0.8.5",
+    "dompurify": "^3.4.13",
     "emoji-picker-react": "^4.19.1",
     "fuse.js": "^7.4.2",
     "i18next": "^25.10.10",

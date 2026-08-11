@@ -59,7 +59,7 @@ import {
 } from "../../utils/notebookStore";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useSqlAutocompleteRegistration } from "../../hooks/useSqlAutocompleteRegistration";
-import { isMultiDatabaseCapable } from "../../utils/database";
+import { usesMultiDatabaseLayout } from "../../utils/database";
 import { useSettings } from "../../hooks/useSettings";
 import { useAlert } from "../../hooks/useAlert";
 import { useKeybindings } from "../../hooks/useKeybindings";
@@ -67,6 +67,7 @@ import {
   useDangerousQueryGuard,
   DANGEROUS_QUERY_I18N,
 } from "../../hooks/useDangerousQueryGuard";
+import { useProductionGuard } from "../../hooks/useProductionGuard";
 import { ConfirmModal } from "../modals/ConfirmModal";
 import { NotebookToolbar } from "./NotebookToolbar";
 import { NotebookHistoryPanel } from "./NotebookHistoryPanel";
@@ -93,8 +94,7 @@ export function NotebookView({
   const { t } = useTranslation();
   const { activeSchema, activeCapabilities, selectedDatabases, activeDriver } =
     useDatabase();
-  const isMultiDb =
-    isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1;
+  const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
   const effectiveSchema =
     tab.schema || activeSchema || (isMultiDb ? selectedDatabases[0] : null);
   useSqlAutocompleteRegistration(connectionId, {
@@ -109,6 +109,7 @@ export function NotebookView({
     guardQuery: guardDangerousQuery,
     resolve: resolveDangerousQuery,
   } = useDangerousQueryGuard();
+  const guardProductionWrite = useProductionGuard();
 
   // Local notebook state — loaded from store/disk, NOT from tab
   const [notebook, setNotebook] = useState<NotebookState | null>(() =>
@@ -373,6 +374,11 @@ export function NotebookView({
         return;
       }
 
+      if (!(await guardProductionWrite(connectionId, resolvedSql))) {
+        updateCell(cellId, { isLoading: false });
+        return;
+      }
+
       const start = performance.now();
       try {
         const res = await invoke<QueryResult>("execute_query", {
@@ -428,6 +434,7 @@ export function NotebookView({
       params,
       activeDriver,
       guardDangerousQuery,
+      guardProductionWrite,
     ],
   );
 

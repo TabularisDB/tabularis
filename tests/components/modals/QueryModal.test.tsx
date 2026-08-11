@@ -222,6 +222,10 @@ describe("QueryModal", () => {
     await waitFor(() => {
       expect(saveButton).toBeDisabled();
     });
+
+    await waitFor(() => {
+      expect(mockOnClose).toHaveBeenCalled();
+    });
   });
 
   it("resets state when reopening with different initial values", () => {

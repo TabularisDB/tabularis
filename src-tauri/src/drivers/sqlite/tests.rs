@@ -1,9 +1,11 @@
 use super::sqlite_push_pk_where;
 use super::{
-    alter_view, create_view, drop_view, get_indexes, get_view_columns, get_view_definition,
-    get_views, parse_sqlite_index_columns,
+    alter_view, create_view, drop_view, get_all_columns_batch, get_columns, get_indexes,
+    get_view_columns, get_view_definition, get_views, insert_record, parse_sqlite_index_columns,
+    update_record,
 };
 use crate::models::{ConnectionParams, DatabaseSelection};
+use std::collections::HashMap;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use tempfile::NamedTempFile;
 
@@ -186,9 +188,111 @@ async fn test_view_lifecycle() {
     crate::pool_manager::close_pool(&params).await;
 }
 
+#[tokio::test]
+async fn test_get_columns_includes_generated_table_columns() {
+    let (params, _file) = setup_test_db().await;
+
+    let path = params.database.primary().to_string();
+    let options = SqliteConnectOptions::new().filename(&path);
+    let pool = SqlitePoolOptions::new()
+        .connect_with(options)
+        .await
+        .expect("connect to test DB");
+
+    sqlx::query(
+        "CREATE TABLE generated_dates (
+            udate INTEGER,
+            display_date TEXT GENERATED ALWAYS AS (date(udate, 'unixepoch', '+12:00')) STORED
+        )",
+    )
+    .execute(&pool)
+    .await
+    .expect("create generated column table");
+
+    pool.close().await;
+
+    let cols = get_columns(&params, "generated_dates")
+        .await
+        .expect("get table columns");
+
+    let generated = cols
+        .iter()
+        .find(|col| col.name == "display_date")
+        .expect("generated column should be visible through table metadata");
+    assert_eq!(generated.data_type, "TEXT");
+    assert!(generated.is_generated);
+
+    let batch = get_all_columns_batch(&params, &["generated_dates".to_string()])
+        .await
+        .expect("get batch columns");
+    let batch_generated = batch["generated_dates"]
+        .iter()
+        .find(|col| col.name == "display_date")
+        .expect("generated column should be visible through batch metadata");
+    assert!(batch_generated.is_generated);
+
+    crate::pool_manager::close_pool(&params).await;
+}
+
+#[tokio::test]
+async fn test_generated_table_columns_are_not_inserted_or_updated() {
+    let (params, _file) = setup_test_db().await;
+
+    let path = params.database.primary().to_string();
+    let options = SqliteConnectOptions::new().filename(&path);
+    let pool = SqlitePoolOptions::new()
+        .connect_with(options)
+        .await
+        .expect("connect to test DB");
+
+    sqlx::query(
+        "CREATE TABLE generated_dates (
+            id INTEGER PRIMARY KEY,
+            udate INTEGER,
+            display_date TEXT GENERATED ALWAYS AS (date(udate, 'unixepoch', '+12:00')) STORED
+        )",
+    )
+    .execute(&pool)
+    .await
+    .expect("create generated column table");
+
+    sqlx::query("INSERT INTO generated_dates (id, udate) VALUES (1, 0)")
+        .execute(&pool)
+        .await
+        .expect("insert base row");
+
+    pool.close().await;
+
+    let mut data = HashMap::new();
+    data.insert("udate".to_string(), serde_json::json!(0));
+    data.insert(
+        "display_date".to_string(),
+        serde_json::json!("1970-01-01"),
+    );
+    let insert_err = insert_record(&params, "generated_dates", data, 1024)
+        .await
+        .expect_err("generated columns should be rejected on insert");
+    assert!(insert_err.contains("Cannot insert into generated column: display_date"));
+
+    let mut pk_map = HashMap::new();
+    pk_map.insert("id".to_string(), serde_json::json!(1));
+    let update_err = update_record(
+        &params,
+        "generated_dates",
+        &pk_map,
+        "display_date",
+        serde_json::json!("1970-01-01"),
+        1024,
+    )
+    .await
+    .expect_err("generated columns should be rejected on update");
+    assert!(update_err.contains("Cannot update generated column: display_date"));
+
+    crate::pool_manager::close_pool(&params).await;
+}
+
 mod sqlite_push_pk_where_tests {
     use super::*;
-    use std::collections::HashMap;
 
     #[test]
     fn single_column_generates_correct_predicate() {
@@ -214,6 +318,27 @@ mod sqlite_push_pk_where_tests {
         let pk_map: HashMap<String, serde_json::Value> = HashMap::new();
         let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new("");
         assert!(sqlite_push_pk_where(&mut qb, &pk_map).is_err());
+    }
+
+    // Keyless tables (#598) identify rows by all comparable columns, so a
+    // pk_map entry may legitimately be NULL and must render as IS NULL.
+    #[test]
+    fn null_value_renders_is_null_without_binding() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("a_col".to_string(), serde_json::Value::Null);
+        pk_map.insert("b_col".to_string(), serde_json::json!("alice"));
+        let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new("");
+        sqlite_push_pk_where(&mut qb, &pk_map).unwrap();
+        assert_eq!(qb.sql(), "\"a_col\" IS NULL AND \"b_col\" = ?");
+    }
+
+    #[test]
+    fn bool_value_binds_with_equality() {
+        let mut pk_map = HashMap::new();
+        pk_map.insert("flag".to_string(), serde_json::json!(true));
+        let mut qb = sqlx::QueryBuilder::<sqlx::Sqlite>::new("");
+        sqlite_push_pk_where(&mut qb, &pk_map).unwrap();
+        assert_eq!(qb.sql(), "\"flag\" = ?");
     }
 
     #[test]

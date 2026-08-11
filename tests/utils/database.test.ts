@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   isMultiDatabaseCapable,
+  usesMultiDatabaseLayout,
   isMultiDatabaseSelection,
   getTableDataChangeScope,
   getDatabaseList,
@@ -38,6 +39,21 @@ describe('isMultiDatabaseCapable', () => {
 
   it('returns false for a single_database store (Meilisearch)', () => {
     expect(isMultiDatabaseCapable({ ...baseCapabilities, single_database: true })).toBe(false);
+  });
+});
+
+describe('usesMultiDatabaseLayout', () => {
+  it('is on for a multi-db driver with any populated selection', () => {
+    expect(usesMultiDatabaseLayout(baseCapabilities, ['a', 'b'])).toBe(true);
+    // A single database still needs the multi-db presentation: all-databases
+    // connections have no default schema, so queries must stay db-qualified.
+    expect(usesMultiDatabaseLayout(baseCapabilities, ['a'])).toBe(true);
+  });
+
+  it('is off with an empty selection or a non multi-db driver', () => {
+    expect(usesMultiDatabaseLayout(baseCapabilities, [])).toBe(false);
+    expect(usesMultiDatabaseLayout({ ...baseCapabilities, schemas: true }, ['a'])).toBe(false);
+    expect(usesMultiDatabaseLayout(null, ['a'])).toBe(false);
   });
 
   it('returns false when both schemas and file_based are true', () => {

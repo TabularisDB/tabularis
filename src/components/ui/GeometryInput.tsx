@@ -22,6 +22,7 @@ interface GeometryInputProps {
   inputRef?: React.RefObject<HTMLInputElement | null>;
   className?: string;
   onSqlFunctionsClick?: () => void; // Callback when SQL Functions button is clicked
+  disabled?: boolean;
 }
 
 /**
@@ -38,6 +39,7 @@ export const GeometryInput = ({
   inputRef,
   className = "",
   onSqlFunctionsClick,
+  disabled = false,
 }: GeometryInputProps) => {
   const { t } = useTranslation();
   const isRawSqlMode = isRawSqlFunction(value);
@@ -126,6 +128,7 @@ export const GeometryInput = ({
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         className={className}
+        disabled={disabled}
       />
     );
   }
@@ -142,6 +145,7 @@ export const GeometryInput = ({
           placeholder={getPlaceholderText()}
           className={`flex-1 bg-base text-primary border-none outline-none p-0 m-0 font-mono ${className}`}
           style={{ minWidth: 0 }}
+          disabled={disabled}
         />
         <div className="relative">
           <button
@@ -153,6 +157,7 @@ export const GeometryInput = ({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              if (disabled) return;
               setShowTooltip(false);
               
               // If callback is provided, call it and close inline editing
@@ -164,6 +169,7 @@ export const GeometryInput = ({
               }
             }}
             ref={buttonRef}
+            disabled={disabled}
             onMouseEnter={() => !showDropdown && setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
             className={`flex-shrink-0 p-1.5 rounded transition-colors flex items-center gap-0.5 ${

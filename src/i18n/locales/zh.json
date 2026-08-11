@@ -23,6 +23,29 @@
     "fromPlaceholder": "从",
     "toPlaceholder": "到"
   },
+  "tags": {
+    "label": "标签",
+    "new": "新建标签",
+    "add": "添加",
+    "namePlaceholder": "标签名称…",
+    "manage": "管理标签",
+    "done": "完成",
+    "deleteTitle": "删除标签",
+    "deleteConfirm": "删除标签“{{name}}”？它将从所有连接中移除。"
+  },
+  "environment": {
+    "label": "环境",
+    "none": "无环境",
+    "development": "开发",
+    "staging": "预发布",
+    "production": "生产",
+    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "banner": "生产 — {{name}}",
+    "warnTitle": "生产数据库",
+    "warnMessage": "您即将修改“{{name}}”上的生产数据。确定要继续吗？",
+    "warnConfirm": "仍然执行",
+    "warnSnooze": "此连接不再询问（本次会话）"
+  },
   "common": {
     "save": "保存",
     "close": "关闭",
@@ -190,7 +213,8 @@
     "removeFromSplitGroup": "从组中移除",
     "movePanel": "移动面板",
     "refreshDatabaseList": "刷新数据库列表",
-    "databaseListUpToDate": "数据库列表已是最新"
+    "databaseListUpToDate": "数据库列表已是最新",
+    "allDatabasesRefreshed": "数据库已更新:{{names}}"
   },
   "mcp": {
     "title": "MCP 服务器集成",
@@ -339,7 +363,9 @@
       },
       "betaNotice": "从应用导入功能处于测试阶段。如果遇到问题，",
       "reportIssue": "请在 GitHub 上反馈。"
-    }
+    },
+    "databaseCount_one": "{{count}} 个数据库",
+    "databaseCount_other": "{{count}} 个数据库"
   },
   "connectionAppearance": {
     "section": "外观",
@@ -365,6 +391,22 @@
   "settings": {
     "title": "设置",
     "general": "通用",
+    "privacy": "隐私",
+    "columnMasking": "列掩码",
+    "columnMaskingDesc": "在结果网格中隐藏敏感列（密码、邮箱、令牌等）的内容。复制和导出仍使用真实值。",
+    "columnMaskingEnabled": "掩码敏感列",
+    "columnMaskingEnabledDesc": "对名称匹配敏感模式的列显示占位符而非真实值。",
+    "maskingPatterns": "敏感列名模式",
+    "maskingPatternsDesc": "每行一个模式。列名包含任一模式时即被掩码（不区分大小写）。",
+    "maskingOverrides": "按连接覆盖",
+    "maskingOverridesDesc": "对某个连接强制掩码（包含）或从不掩码（排除）指定列。每行一条“表.列”；排除优先于包含和模式。",
+    "maskingConnection": "连接",
+    "maskingConnectionDesc": "选择这些覆盖规则应用的连接。",
+    "maskingInclude": "始终掩码",
+    "maskingIncludeDesc": "在此连接中始终掩码的列，即使其名称不匹配任何模式。",
+    "maskingExclude": "从不掩码",
+    "maskingExcludeDesc": "在此连接中从不掩码的列，即使其名称匹配某个模式。",
+    "maskingOverridePlaceholder": "例如 users.password",
     "info": "信息",
     "dataEditor": "数据编辑器",
     "pageSize": "结果页面大小（限制）",
@@ -592,12 +634,14 @@
       "confirmRemove": "确定要移除 \"{{name}}\" 吗？这将删除插件文件。",
       "enabled": "已启用",
       "disabled": "已禁用",
+      "openFolder": "打开插件文件夹",
       "installError": {
         "title": "安装失败",
         "subtitle": "安装插件时发生错误。请参阅下面的详细信息。",
         "details": "错误详情",
         "copy": "复制",
-        "copied": "已复制！"
+        "copied": "已复制！",
+        "reload": "重新加载插件"
       },
       "uninstallError": {
         "title": "卸载失败",
@@ -869,7 +913,16 @@
     "useIamAuth": "使用 AWS IAM 身份验证 (RDS)",
     "useIamAuthHint": "密码字段将被视为 RDS 身份验证令牌（由 `aws rds generate-db-auth-token` 生成）。需要 TLS。令牌每 15 分钟过期。",
     "useIamAuthTlsRequired": "请在上方启用 SSL 模式以使用 AWS IAM 身份验证。",
-    "changeDatabase": "更换数据库"
+    "changeDatabase": "更换数据库",
+    "testSsh": "测试 SSH",
+    "testSshHint": "仅验证 SSH 隧道(主机和凭据),不连接数据库。",
+    "sshTestSuccess": "已建立到 {{target}} 的 SSH 连接",
+    "stopTest": "停止",
+    "allDatabases": "所有数据库",
+    "chooseDatabases": "选择数据库",
+    "allDatabasesHint": "连接时自动加载服务器上的所有数据库。在服务器上创建或删除的数据库会自动出现,无需编辑此连接。",
+    "selectDatabasesHint": "选择要包含在此连接中的数据库。",
+    "loadDatabasesHint": "点击“加载数据库”以获取可用的数据库。"
   },
   "sshConnections": {
     "title": "SSH 连接",
@@ -894,7 +947,14 @@
     "testFailed": "连接测试失败",
     "savedInKeychain": "密码已保存到系统密钥链",
     "manageDesc": "可在数据库连接中复用的 SSH 隧道。密码和口令保存在系统钥匙串中。",
-    "deleteInUse_other": "有 {{count}} 个已保存的数据库连接正在使用它，删除后这些连接将不再通过此隧道连接。"
+    "deleteInUse_other": "有 {{count}} 个已保存的数据库连接正在使用它，删除后这些连接将不再通过此隧道连接。",
+    "errors": {
+      "connectionRequired": "请选择一个 SSH 连接或内联配置",
+      "connectionMissing": "所选的 SSH 连接已不存在",
+      "hostRequired": "SSH 主机为必填项",
+      "userRequired": "SSH 用户为必填项",
+      "portInvalid": "SSH 端口必须在 1 到 65535 之间"
+    }
   },
   "sshAskpass": {
     "title": "SSH 身份验证",
@@ -903,6 +963,9 @@
     "waiting": "正在等待您的安全密钥 — 触摸以确认。"
   },
   "dataGrid": {
+    "noRowIdentity": "无法编辑行:\"{{table}}\" 没有主键,因此编辑要求结果包含表的所有列。请选择所有列(例如 SELECT *)或添加主键。",
+    "keylessRowNotFound": "更新 \"{{column}}\" 时没有行与原始值匹配。该表没有主键,数据可能已更改,请刷新后重试。",
+    "keylessDeleteNotFound": "删除时没有行与原始值匹配。该表没有主键,数据可能已更改,请刷新后重试。",
     "newRow": "新建",
     "noData": "无数据显示",
     "editRow": "编辑行",
@@ -947,7 +1010,11 @@
     "setEmpty": "设为空",
     "setServerNow": "插入当前时间戳",
     "previewReferenced": "预览相关记录",
-    "openReferenced": "在 {{table}} 中打开引用的行"
+    "openReferenced": "在 {{table}} 中打开引用的行",
+    "revealCell": "显示单元格",
+    "maskCell": "掩码单元格",
+    "revealColumn": "显示列",
+    "maskColumn": "掩码列"
   },
   "editRow": {
     "title": "编辑行",
@@ -1933,6 +2000,7 @@
     "driverCount_other": "{{count}} 个驱动程序",
     "connectTo": "连接到 {{name}}",
     "unavailableOnPlatform": "在您的平台上不可用",
+    "unavailable": "不可用",
     "backToCatalogue": "返回目录",
     "pickDriver": "多个驱动程序可连接到 {{name}}。请选择一个：",
     "latestVersion": "最新 v{{version}}",
@@ -1942,6 +2010,72 @@
     "notInstalled": "此驱动程序尚未安装。请安装以配置连接。",
     "installVersion": "安装 v{{version}}",
     "installingVersion": "正在安装 v{{version}}…",
-    "retryInstall": "重试安装"
+    "retryInstall": "重试安装",
+    "viewDetails": "更多详情",
+    "installTitle": "安装驱动程序",
+    "readmeSubtitle": "插件 README",
+    "readmeLoading": "正在加载 README…",
+    "readmeUnavailable": "此插件没有可用的 README。",
+    "readmeFallbackLocale": "此 README 尚不支持您的语言 — 以“{{locale}}”显示。",
+    "openDocumentation": "打开完整文档"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "SSH 认证失败",
+      "recovery": "请在 SSH 标签页中检查用户、密码或私钥。"
+    },
+    "ssh-unreachable": {
+      "summary": "无法连接 SSH 服务器",
+      "recovery": "请检查 SSH 主机和端口,并确认服务器可达。如果隧道能连接,请检查从 SSH 服务器看到的数据库主机和端口。"
+    },
+    "ssh": {
+      "summary": "SSH 隧道失败",
+      "recovery": "请检查 SSH 标签页中的设置。"
+    },
+    "db-auth": {
+      "summary": "数据库认证失败",
+      "recovery": "请检查数据库用户名和密码。"
+    },
+    "network": {
+      "summary": "无法连接数据库服务器",
+      "recovery": "请检查主机和端口,并确认服务器正在运行。"
+    },
+    "db-not-found": {
+      "summary": "未找到数据库",
+      "recovery": "请检查数据库名称。"
+    },
+    "unknown": {
+      "summary": "连接失败"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "测试日志",
+    "noLog": "此测试未记录任何步骤。",
+    "rawError": "错误详情",
+    "copyDiagnostics": "复制诊断信息",
+    "copied": "已复制!",
+    "steps": {
+      "cancelled": "测试已被用户停止",
+      "resolve": {
+        "error": "准备连接参数失败"
+      },
+      "sshTunnel": {
+        "start": "正在打开 SSH 隧道",
+        "ok": "SSH 隧道已建立",
+        "error": "SSH 隧道失败"
+      },
+      "k8sForward": {
+        "start": "正在启动 Kubernetes 端口转发",
+        "ok": "端口转发就绪",
+        "error": "Kubernetes 端口转发失败"
+      },
+      "dbConnect": {
+        "start": "正在连接数据库",
+        "ok": "数据库连接已建立",
+        "error": "数据库连接失败"
+      }
+    },
+    "title": "连接测试日志",
+    "showLog": "显示日志"
   }
 }

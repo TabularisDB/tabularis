@@ -27,6 +27,7 @@ pub mod config;
 pub mod connection_cache;
 #[cfg(test)]
 pub mod connection_cache_tests;
+pub mod connection_tags;
 pub mod connection_window;
 #[cfg(test)]
 pub mod connection_window_tests;
@@ -451,6 +452,11 @@ pub fn run() {
             commands::move_connection_to_group,
             commands::reorder_groups,
             commands::reorder_connections_in_group,
+            connection_tags::list_connection_tags,
+            connection_tags::create_connection_tag,
+            connection_tags::update_connection_tag,
+            connection_tags::delete_connection_tag,
+            connection_tags::set_connection_tags,
             commands::export_connections_payload,
             commands::encrypt_export_payload,
             backup::get_connections_backup_status,
@@ -647,8 +653,10 @@ pub fn run() {
             plugins::commands::enable_plugin,
             plugins::commands::get_plugin_manifest,
             plugins::commands::get_plugin_dir,
+            plugins::commands::open_plugins_dir,
             plugins::commands::read_plugin_file,
             plugins::commands::fetch_tabularium_plugin_preview,
+            plugins::commands::fetch_plugin_readme,
             plugins::deep_link::consume_pending_deep_link_install,
             plugins::manager::get_plugin_startup_errors,
             // JSON Viewer

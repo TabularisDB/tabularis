@@ -1,13 +1,30 @@
-use crate::sqlite_database::{create_sqlite_file, normalize_sqlite_path};
+use crate::sqlite_database::{
+    create_sqlite_file, expand_sqlite_filename_with_home, normalize_sqlite_path,
+};
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::{Connection, SqliteConnection};
 use std::fs;
+use std::path::PathBuf;
 
 #[test]
 fn appends_db_extension_when_missing() {
     let path = normalize_sqlite_path("/tmp/customer-data").unwrap();
 
     assert_eq!(path.to_string_lossy(), "/tmp/customer-data.db");
+}
+
+#[test]
+fn normalizes_home_relative_sqlite_paths() {
+    let home = PathBuf::from("/home/dev");
+
+    assert_eq!(
+        expand_sqlite_filename_with_home("~/customer-data", Some(&home)),
+        home.join("customer-data")
+    );
+    assert_eq!(
+        expand_sqlite_filename_with_home("~\\customer-data", Some(&home)),
+        home.join("customer-data")
+    );
 }
 
 #[test]

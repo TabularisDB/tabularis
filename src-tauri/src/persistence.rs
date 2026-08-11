@@ -23,6 +23,7 @@ pub fn load_connections_file(path: &Path) -> Result<ConnectionsFile, String> {
     Ok(ConnectionsFile {
         groups: Vec::new(),
         connections,
+        tags: Vec::new(),
     })
 }
 
@@ -54,6 +55,7 @@ pub fn save_connections_file(path: &Path, file: &ConnectionsFile) -> Result<(), 
     let to_save = ConnectionsFile {
         groups: file.groups.clone(),
         connections: connections_to_save,
+        tags: file.tags.clone(),
     };
 
     let json = serde_json::to_string_pretty(&to_save).map_err(|e| e.to_string())?;
@@ -67,6 +69,7 @@ pub fn save_connections(path: &Path, connections: &[SavedConnection]) -> Result<
     let file = ConnectionsFile {
         groups: existing.groups,
         connections: connections.to_vec(),
+        tags: existing.tags,
     };
     save_connections_file(path, &file)
 }

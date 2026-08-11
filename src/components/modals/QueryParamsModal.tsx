@@ -9,7 +9,7 @@ interface QueryParamsModalProps {
   onSubmit: (values: Record<string, string>) => void;
   parameters: string[];
   initialValues: Record<string, string>;
-  mode?: "run" | "save";
+  mode?: "run" | "save" | "explain";
 }
 
 export const QueryParamsModal = ({
@@ -38,7 +38,7 @@ const QueryParamsForm = ({ parameters, initialValues, onSubmit, onClose, mode }:
   initialValues: Record<string, string>;
   onSubmit: (values: Record<string, string>) => void;
   onClose: () => void;
-  mode: "run" | "save";
+  mode: "run" | "save" | "explain";
 }) => {
   const { t } = useTranslation();
   const [values, setValues] = useState<Record<string, string>>(initialValues || {});
@@ -102,12 +102,16 @@ const QueryParamsForm = ({ parameters, initialValues, onSubmit, onClose, mode }:
               disabled={!isFormValid}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {mode === "run" ? (
+              {mode === "run" || mode === "explain" ? (
                 <Play size={16} fill="currentColor" />
               ) : (
                 <Save size={16} fill="currentColor" />
               )}
-              {mode === "run" ? t("editor.run") : t("common.save")}
+              {mode === "explain"
+                ? t("editor.visualExplain.buttonShort")
+                : mode === "run"
+                  ? t("editor.run")
+                  : t("common.save")}
             </button>
           </div>
         </form>

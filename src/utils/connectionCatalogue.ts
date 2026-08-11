@@ -118,6 +118,39 @@ export interface EngineSelection {
   driver?: CatalogueDriver;
 }
 
+/** Proper-noun spellings for engines whose names simple title-casing gets wrong. */
+const ENGINE_DISPLAY_NAMES: Record<string, string> = {
+  csv: 'CSV',
+  postgres: 'PostgreSQL',
+  postgresql: 'PostgreSQL',
+  mysql: 'MySQL',
+  sqlite: 'SQLite',
+  mariadb: 'MariaDB',
+  mongodb: 'MongoDB',
+  'mongodb-atlas': 'MongoDB Atlas',
+  mssql: 'SQL Server',
+  sqlserver: 'SQL Server',
+  clickhouse: 'ClickHouse',
+  cockroachdb: 'CockroachDB',
+  duckdb: 'DuckDB',
+  dynamodb: 'DynamoDB',
+  couchdb: 'CouchDB',
+};
+
+/**
+ * Human-readable name for an engine slug: known proper noun when we have one,
+ * otherwise title-cased words ("vector-db" → "Vector Db").
+ */
+export function engineDisplayName(engine: string): string {
+  const known = ENGINE_DISPLAY_NAMES[engine.toLowerCase()];
+  if (known) return known;
+  return engine
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
 export function groupByEngine(drivers: CatalogueDriver[]): EngineGroup[] {
   const map = new Map<string, CatalogueDriver[]>();
   for (const d of drivers) {
@@ -138,7 +171,9 @@ export function groupByEngine(drivers: CatalogueDriver[]): EngineGroup[] {
     );
     groups.push({
       engine,
-      displayName: representative.name,
+      // The card represents the engine, not whichever plugin happens to be
+      // first in the group — driver names show up in the driver picker.
+      displayName: engineDisplayName(engine),
       primaryParadigm,
       secondaryParadigms: [...allParadigms],
       drivers: list,
@@ -175,7 +210,7 @@ export function paradigmFacets(groups: EngineGroup[]): ParadigmFacet[] {
     .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
 }
 
-function labelForParadigm(key: string): string {
+export function labelForParadigm(key: string): string {
   if (key === 'sql') return 'SQL';
   if (key === 'nosql') return 'NoSQL';
   return key.charAt(0).toUpperCase() + key.slice(1);

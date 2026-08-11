@@ -798,3 +798,139 @@ describe("DataGrid cell range selection", () => {
     expect(copied).not.toContain("Cara");
   });
 });
+
+describe("DataGrid sensitive-column masking (#485)", () => {
+  // The file-level useSettings mock returns `{}`, so masking defaults to ON
+  // with DEFAULT_MASKING_PATTERNS — a column named "email" masks by default.
+  beforeAll(() => {
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(800);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(400);
+  });
+  afterAll(() => {
+    vi.restoreAllMocks();
+  });
+
+  const cellAt = (container: HTMLElement, rowIndex: number, colIndex: number) =>
+    container.querySelector(
+      `tr[data-row-index="${rowIndex}"] td[data-col-index="${colIndex}"]`,
+    )!;
+
+  const renderMaskedGrid = () =>
+    render(
+      <DataGrid
+        columns={["id", "email"]}
+        data={[
+          [1, "alice@example.com"],
+          [2, "bob@example.com"],
+        ]}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+        readonly
+      />,
+    );
+
+  it("masks sensitive columns with a placeholder and hides the real value", () => {
+    const { container } = renderMaskedGrid();
+
+    expect(cellAt(container, 0, 1)).toHaveTextContent("••••••");
+    expect(cellAt(container, 1, 1)).toHaveTextContent("••••••");
+    expect(container).not.toHaveTextContent("alice@example.com");
+    // Non-sensitive columns are untouched.
+    expect(cellAt(container, 0, 0)).toHaveTextContent("1");
+  });
+
+  it("reveals a whole column from the header eye toggle", () => {
+    const { container } = renderMaskedGrid();
+
+    const headerToggle = container.querySelector(
+      'button[title="dataGrid.revealColumn"]',
+    )!;
+    expect(headerToggle).toBeInTheDocument();
+    fireEvent.click(headerToggle);
+
+    expect(cellAt(container, 0, 1)).toHaveTextContent("alice@example.com");
+    expect(cellAt(container, 1, 1)).toHaveTextContent("bob@example.com");
+    // Toggling again re-masks the column.
+    fireEvent.click(
+      container.querySelector('button[title="dataGrid.maskColumn"]')!,
+    );
+    expect(cellAt(container, 0, 1)).toHaveTextContent("••••••");
+  });
+
+  it("reveals only a single cell from its eye button", () => {
+    const { container } = renderMaskedGrid();
+
+    const cellToggle = cellAt(container, 1, 1).querySelector(
+      'button[title="dataGrid.revealCell"]',
+    )!;
+    fireEvent.click(cellToggle);
+
+    expect(cellAt(container, 1, 1)).toHaveTextContent("bob@example.com");
+    expect(cellAt(container, 0, 1)).toHaveTextContent("••••••");
+
+    // The revealed cell offers an eye-off toggle to re-mask just that cell.
+    fireEvent.click(
+      cellAt(container, 1, 1).querySelector('button[title="dataGrid.maskCell"]')!,
+    );
+    expect(cellAt(container, 1, 1)).toHaveTextContent("••••••");
+  });
+
+  it("copies the real value from a masked cell (display-only masking)", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    const { container } = renderMaskedGrid();
+
+    fireEvent.click(cellAt(container, 0, 1));
+    fireEvent.keyDown(document, { key: "c", metaKey: true });
+
+    await vi.waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith("alice@example.com"),
+    );
+  });
+
+  it("does not open the editor on double-click while a cell is masked", () => {
+    const { container } = render(
+      <DataGrid
+        columns={["id", "email"]}
+        data={[[1, "alice@example.com"]]}
+        tableName="users"
+        pkColumns={["id"]}
+        columnMetadata={[
+          {
+            name: "id",
+            data_type: "integer",
+            is_pk: true,
+            is_nullable: false,
+            is_auto_increment: false,
+          },
+          {
+            name: "email",
+            data_type: "character varying(255)",
+            is_pk: false,
+            is_nullable: true,
+            is_auto_increment: false,
+          },
+        ]}
+        onPendingChange={vi.fn()}
+        selectedRows={new Set()}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.doubleClick(cellAt(container, 0, 1));
+
+    expect(container.querySelector("textarea")).toBeNull();
+
+    // After revealing the cell, editing works again.
+    fireEvent.click(
+      cellAt(container, 0, 1).querySelector(
+        'button[title="dataGrid.revealCell"]',
+      )!,
+    );
+    fireEvent.doubleClick(cellAt(container, 0, 1));
+    expect(container.querySelector("textarea")).toBeInTheDocument();
+  });
+});

@@ -23,6 +23,35 @@ fn escape_identifier(name: &str) -> String {
     name.replace('"', "\"\"")
 }
 
+fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> TableColumn {
+    let pk: i32 = row.try_get("pk").unwrap_or(0);
+    let notnull: i32 = row.try_get("notnull").unwrap_or(0);
+    let dflt_value: Option<String> = row.try_get("dflt_value").ok();
+    let hidden: i32 = row.try_get("hidden").unwrap_or(0);
+
+    TableColumn {
+        name: row.try_get("name").unwrap_or_default(),
+        data_type: row.try_get("type").unwrap_or_default(),
+        is_pk: pk > 0,
+        is_nullable: notnull == 0,
+        is_auto_increment: false,
+        is_generated: hidden == 2 || hidden == 3,
+        default_value: dflt_value,
+        character_maximum_length: None,
+    }
+}
+
+async fn is_generated_column(
+    params: &ConnectionParams,
+    table: &str,
+    column: &str,
+) -> Result<bool, String> {
+    Ok(get_columns(params, table)
+        .await?
+        .iter()
+        .any(|col| col.name == column && col.is_generated))
+}
+
 pub async fn get_schemas(_params: &ConnectionParams) -> Result<Vec<String>, String> {
     Ok(vec![])
 }
@@ -61,37 +90,14 @@ pub async fn get_columns(
 ) -> Result<Vec<TableColumn>, String> {
     let pool = get_sqlite_pool(params).await?;
 
-    // PRAGMA table_info doesn't explicitly say "AUTO_INCREMENT"
-    // But INTEGER PRIMARY KEY is implicitly so in sqlite.
-    // Also if 'pk' > 0 and type is INTEGER.
-    let query = format!("PRAGMA table_info('{}')", table_name);
+    let query = format!("PRAGMA table_xinfo('{}')", table_name);
 
     let rows = sqlx::query(&query)
         .fetch_all(&pool)
         .await
         .map_err(|e| e.to_string())?;
 
-    Ok(rows
-        .iter()
-        .map(|r| {
-            let pk: i32 = r.try_get("pk").unwrap_or(0);
-            let notnull: i32 = r.try_get("notnull").unwrap_or(0);
-            let dtype: String = r.try_get("type").unwrap_or_default();
-            let dflt_value: Option<String> = r.try_get("dflt_value").ok();
-
-            let _is_auto = pk > 0 && dtype.to_uppercase().contains("INT");
-
-            TableColumn {
-                name: r.try_get("name").unwrap_or_default(),
-                data_type: r.try_get("type").unwrap_or_default(),
-                is_pk: pk > 0,
-                is_nullable: notnull == 0,
-                is_auto_increment: false,
-                default_value: dflt_value,
-                character_maximum_length: None,
-            }
-        })
-        .collect())
+    Ok(rows.iter().map(sqlite_column_from_row).collect())
 }
 
 pub async fn get_routines(_params: &ConnectionParams) -> Result<Vec<RoutineInfo>, String> {
@@ -157,29 +163,13 @@ pub async fn get_all_columns_batch(
     let mut result: HashMap<String, Vec<TableColumn>> = HashMap::new();
 
     for table_name in table_names {
-        let query = format!("PRAGMA table_info('{}')", table_name);
+        let query = format!("PRAGMA table_xinfo('{}')", table_name);
         let rows = sqlx::query(&query)
             .fetch_all(&pool)
             .await
             .map_err(|e| e.to_string())?;
 
-        let columns: Vec<TableColumn> = rows
-            .iter()
-            .map(|r| {
-                let pk: i32 = r.try_get("pk").unwrap_or(0);
-                let notnull: i32 = r.try_get("notnull").unwrap_or(0);
-                let dflt_value: Option<String> = r.try_get("dflt_value").ok();
-                TableColumn {
-                    name: r.try_get("name").unwrap_or_default(),
-                    data_type: r.try_get("type").unwrap_or_default(),
-                    is_pk: pk > 0,
-                    is_nullable: notnull == 0,
-                    is_auto_increment: false, // SQLite doesn't expose this via table_info easily, typically AUTOINCREMENT on INTEGER PRIMARY KEY
-                    default_value: dflt_value,
-                    character_maximum_length: None,
-                }
-            })
-            .collect();
+        let columns: Vec<TableColumn> = rows.iter().map(sqlite_column_from_row).collect();
 
         result.insert(table_name.clone(), columns);
     }
@@ -388,6 +378,9 @@ fn sqlite_push_pk_val(
                 qb.push_bind(s.clone());
             }
         }
+        serde_json::Value::Bool(b) => {
+            qb.push_bind(*b);
+        }
         _ => return Err("Unsupported PK type".into()),
     }
     Ok(())
@@ -407,8 +400,14 @@ fn sqlite_push_pk_where(
         if !first {
             qb.push(" AND ");
         }
-        qb.push(format!("\"{}\" = ", escape_identifier(col)));
-        sqlite_push_pk_val(qb, val)?;
+        // Keyless tables identify rows by all comparable columns, so the map
+        // may legitimately carry NULLs — `= NULL` never matches, use IS NULL.
+        if val.is_null() {
+            qb.push(format!("\"{}\" IS NULL", escape_identifier(col)));
+        } else {
+            qb.push(format!("\"{}\" = ", escape_identifier(col)));
+            sqlite_push_pk_val(qb, val)?;
+        }
         first = false;
     }
     Ok(())
@@ -486,6 +485,10 @@ pub async fn update_record(
     new_val: serde_json::Value,
     max_blob_size: u64,
 ) -> Result<u64, String> {
+    if is_generated_column(params, table, col_name).await? {
+        return Err(format!("Cannot update generated column: {col_name}"));
+    }
+
     let pool = get_sqlite_pool(params).await?;
 
     let mut qb = sqlx::QueryBuilder::new(format!(
@@ -538,11 +541,20 @@ pub async fn insert_record(
     max_blob_size: u64,
 ) -> Result<u64, String> {
     let pool = get_sqlite_pool(params).await?;
+    let generated_columns: std::collections::HashSet<String> = get_columns(params, table)
+        .await?
+        .into_iter()
+        .filter(|col| col.is_generated)
+        .map(|col| col.name)
+        .collect();
 
     let mut cols = Vec::new();
     let mut vals = Vec::new();
 
     for (k, v) in data {
+        if generated_columns.contains(&k) {
+            return Err(format!("Cannot insert into generated column: {k}"));
+        }
         cols.push(format!("\"{}\"", k));
         vals.push(v);
     }
@@ -838,30 +850,14 @@ pub async fn get_view_columns(
 ) -> Result<Vec<TableColumn>, String> {
     let pool = get_sqlite_pool(params).await?;
 
-    let query = format!("PRAGMA table_info('{}')", view_name);
+    let query = format!("PRAGMA table_xinfo('{}')", view_name);
 
     let rows = sqlx::query(&query)
         .fetch_all(&pool)
         .await
         .map_err(|e| e.to_string())?;
 
-    Ok(rows
-        .iter()
-        .map(|r| {
-            let pk: i32 = r.try_get("pk").unwrap_or(0);
-            let notnull: i32 = r.try_get("notnull").unwrap_or(0);
-            let dflt_value: Option<String> = r.try_get("dflt_value").ok();
-            TableColumn {
-                name: r.try_get("name").unwrap_or_default(),
-                data_type: r.try_get("type").unwrap_or_default(),
-                is_pk: pk > 0,
-                is_nullable: notnull == 0,
-                is_auto_increment: false,
-                default_value: dflt_value,
-                character_maximum_length: None,
-            }
-        })
-        .collect())
+    Ok(rows.iter().map(sqlite_column_from_row).collect())
 }
 
 pub async fn get_triggers(params: &ConnectionParams) -> Result<Vec<TriggerInfo>, String> {
@@ -1017,6 +1013,7 @@ impl SqliteDriver {
                 icon: "sqlite".to_string(),
                 settings: vec![],
                 ui_extensions: None,
+                type_mappings: std::collections::HashMap::new(),
             },
         }
     }

@@ -16,6 +16,7 @@ export interface ColumnAlias {
 
 export interface TableNodeData extends Record<string, unknown> {
   label: string;
+  schema?: string | null;
   columns: { name: string; type: string }[];
   selectedColumns: Record<string, boolean>;
   columnAggregations: Record<string, ColumnAggregation>;

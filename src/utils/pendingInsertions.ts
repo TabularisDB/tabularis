@@ -16,6 +16,11 @@ export function initializeNewRow(
   const data: Record<string, unknown> = {};
 
   columns.forEach((col) => {
+    if (col.is_generated) {
+      data[col.name] = null;
+      return;
+    }
+
     if (col.is_auto_increment) {
       data[col.name] = null; // Auto-increment handled by the DB
     } else if (col.is_nullable) {
@@ -39,8 +44,8 @@ export function validatePendingInsertion(
   const errors: Record<string, string> = {};
 
   columns.forEach((col) => {
-    // Skip auto-increment columns (they're optional - can be provided or auto-generated)
-    if (col.is_auto_increment) {
+    // Skip values managed by the database.
+    if (col.is_auto_increment || col.is_generated) {
       return;
     }
 
@@ -71,6 +76,10 @@ export function insertionToBackendData(
 
   columns.forEach((col) => {
     const value = insertion.data[col.name];
+
+    if (col.is_generated) {
+      return;
+    }
 
     // Skip auto-increment columns if no value provided (let DB generate it)
     if (

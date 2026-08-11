@@ -63,7 +63,7 @@ sudo snap install tabularis                                      # Linux
 
 Ou baixe um instalador diretamente:
 
-[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.17.0/tabularis_0.17.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.17.0/tabularis_0.17.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.17.0/tabularis_0.17.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.17.0/tabularis_0.17.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.17.0/tabularis_0.17.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.17.0/tabularis-0.17.0-1.x86_64.rpm)
+[![Windows](https://img.shields.io/badge/Windows-Download-blue?logo=windows)](https://github.com/TabularisDB/tabularis/releases/download/v0.19.0/tabularis_0.19.0_x64-setup.exe) [![macOS (Apple Silicon)](https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.19.0/tabularis_0.19.0_aarch64.dmg) [![macOS (Intel)](https://img.shields.io/badge/macOS-Intel-black?logo=apple)](https://github.com/TabularisDB/tabularis/releases/download/v0.19.0/tabularis_0.19.0_x64.dmg) [![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-green?logo=linux)](https://github.com/TabularisDB/tabularis/releases/download/v0.19.0/tabularis_0.19.0_amd64.AppImage) [![Linux .deb](https://img.shields.io/badge/Linux-.deb-orange?logo=debian)](https://github.com/TabularisDB/tabularis/releases/download/v0.19.0/tabularis_0.19.0_amd64.deb) [![Linux .rpm](https://img.shields.io/badge/Linux-.rpm-red?logo=redhat)](https://github.com/TabularisDB/tabularis/releases/download/v0.19.0/tabularis-0.19.0-1.x86_64.rpm)
 
 A interface do aplicativo está disponível em inglês, italiano, espanhol, chinês (simplificado), francês, alemão, japonês, russo, tagalo e português (Brasil).
 
@@ -101,7 +101,6 @@ A interface do aplicativo está disponível em inglês, italiano, espanhol, chin
 - [Desenvolvimento](#desenvolvimento)
 - [Roadmap](#roadmap)
 - [Contribuindo](#contribuindo)
-- [Patrocinadores](#patrocinadores)
 - [História de Origem](#história-de-origem)
 - [Licença](#licença)
 
@@ -397,25 +396,6 @@ Contribuições são bem-vindas — veja [CONTRIBUTING.md](./CONTRIBUTING.md). B
 - [SQL Server driver — implementation roadmap & call for contributors](https://github.com/TabularisDB/tabularis/issues/150)
 - [UI design system & visual identity — call for contributors](https://github.com/TabularisDB/tabularis/issues/195)
 - Escreva um plugin de driver em qualquer linguagem — veja o [Guia de Plugins](./plugins/PLUGIN_GUIDE.md)
-
-<!-- SPONSORS:START -->
-
-## Patrocinadores
-
-- <a href="https://www.serversmtp.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/turbosmtp_compact.png" height="28" alt="turboSMTP" /></a> **[turboSMTP](https://www.serversmtp.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Relay SMTP profissional — seus e-mails entregues direto na caixa de entrada, nunca no spam
-- <a href="https://www.kilo.ai/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/kilocode_compact.png" height="28" alt="Kilo Code" /></a> **[Kilo Code](https://www.kilo.ai/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Agente de codificação com IA de código aberto — construa, publique e itere mais rápido com mais de 500 modelos
-- <a href="https://m.do.co/c/f6ab3d158275?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/digitalocean_compact.png" height="28" alt="DigitalOcean" /></a> **[DigitalOcean](https://m.do.co/c/f6ab3d158275?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Infraestrutura em nuvem simples e previsível para desenvolvedores e equipes em crescimento.
-- <a href="https://vercel.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/vercel_compact.svg" height="28" alt="Vercel" /></a> **[Vercel](https://vercel.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — A plataforma para a web moderna — publique, visualize e escale aplicações frontend sem configuração.
-- <a href="https://usero.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/usero_compact.png" height="28" alt="Usero" /></a> **[Usero](https://usero.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Feedback vira código. Automaticamente.
-- <a href="https://devglobe.app/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/devglobe_compact.png" height="28" alt="DevGlobe" /></a> **[DevGlobe](https://devglobe.app/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Conecte seu IDE, apareça no globo e mostre seus projetos para uma comunidade de desenvolvedores.
-- <a href="https://tolgee.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/tolgee_compact.svg" height="28" alt="Tolgee" /></a> **[Tolgee](https://tolgee.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Plataforma de localização de código aberto — traduza seu aplicativo em contexto, sem o caos de planilhas.
-- <a href="https://1password.com/developers?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/1password_compact.png" height="28" alt="1Password" /></a> **[1Password](https://1password.com/developers?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — O gerenciador de senhas e segredos em que os desenvolvedores confiam — gratuito para projetos de código aberto.
-- <a href="https://www.jetbrains.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/jetbrains_compact.png" height="28" alt="JetBrains" /></a> **[JetBrains](https://www.jetbrains.com/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Ferramentas profissionais para desenvolvedores — IntelliJ IDEA, WebStorm, DataGrip e o restante do All Products Pack.
-- <a href="https://signpath.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor" target="_blank"><img src="https://tabularis.dev/img/sponsors/signpath_compact.png" height="28" alt="SignPath" /></a> **[SignPath](https://signpath.io/?utm_source=tabularis&utm_medium=referral&utm_campaign=sponsor)** — Assinatura de código para projetos de código aberto — releases assinados para Windows sem a conta do certificado.
-
-_[Torne-se um patrocinador →](https://tabularis.dev/sponsors)_
-
-<!-- SPONSORS:END -->
 
 ## História de Origem
 

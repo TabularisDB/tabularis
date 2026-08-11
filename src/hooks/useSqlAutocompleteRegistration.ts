@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import type { Monaco } from "@monaco-editor/react";
 import { loader } from "@monaco-editor/react";
 import { useDatabase } from "./useDatabase";
-import { isMultiDatabaseCapable } from "../utils/database";
+import { usesMultiDatabaseLayout } from "../utils/database";
 import { registerSqlAutocomplete, disposeSqlAutocomplete } from "../utils/autocomplete";
 
 type Options = {
@@ -31,8 +31,7 @@ export function useSqlAutocompleteRegistration(
   } = useDatabase();
 
   const schema = options?.schema ?? activeSchema;
-  const isMultiDb =
-    isMultiDatabaseCapable(activeCapabilities) && selectedDatabases.length > 1;
+  const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
 
   const enabled = options?.enabled ?? true;
 

@@ -23,6 +23,29 @@
     "fromPlaceholder": "from",
     "toPlaceholder": "to"
   },
+  "tags": {
+    "label": "Tags",
+    "new": "New tag",
+    "add": "Add",
+    "namePlaceholder": "Tag name…",
+    "manage": "Manage tags",
+    "done": "Done",
+    "deleteTitle": "Delete tag",
+    "deleteConfirm": "Delete tag \"{{name}}\"? It will be removed from all connections."
+  },
+  "environment": {
+    "label": "Environment",
+    "none": "No environment",
+    "development": "Development",
+    "staging": "Staging",
+    "production": "Production",
+    "short": { "development": "DEV", "staging": "STAGING", "production": "PROD" },
+    "banner": "Production — {{name}}",
+    "warnTitle": "Production database",
+    "warnMessage": "You are about to modify production data on “{{name}}”. Are you sure you want to continue?",
+    "warnConfirm": "Run anyway",
+    "warnSnooze": "Don't ask again for this connection (this session)"
+  },
   "common": {
     "save": "Save",
     "close": "Close",
@@ -204,7 +227,8 @@
     "removeFromSplitGroup": "Remove from Group",
     "movePanel": "Move panel",
     "refreshDatabaseList": "Refresh database list",
-    "databaseListUpToDate": "Database list is up to date"
+    "databaseListUpToDate": "Database list is up to date",
+    "allDatabasesRefreshed": "Databases updated: {{names}}"
   },
   "mcp": {
     "title": "MCP Server Integration",
@@ -353,7 +377,9 @@
       },
       "betaNotice": "Import from App is in beta. If you run into a problem,",
       "reportIssue": "report it on GitHub."
-    }
+    },
+    "databaseCount_one": "{{count}} database",
+    "databaseCount_other": "{{count}} databases"
   },
   "connectionAppearance": {
     "section": "Appearance",
@@ -384,6 +410,22 @@
   "settings": {
     "title": "Settings",
     "general": "General",
+    "privacy": "Privacy",
+    "columnMasking": "Column masking",
+    "columnMaskingDesc": "Hide the contents of sensitive columns (passwords, emails, tokens…) in the results grid. Copying and exporting still use the real values.",
+    "columnMaskingEnabled": "Mask sensitive columns",
+    "columnMaskingEnabledDesc": "Show a placeholder instead of the real value for columns whose name matches a sensitive pattern.",
+    "maskingPatterns": "Sensitive column name patterns",
+    "maskingPatternsDesc": "One pattern per line. A column is masked when its name contains any pattern (case-insensitive).",
+    "maskingOverrides": "Per-connection overrides",
+    "maskingOverridesDesc": "Force specific columns to be masked (include) or never masked (exclude) for a connection. One table.column entry per line; exclude wins over include and patterns.",
+    "maskingConnection": "Connection",
+    "maskingConnectionDesc": "Choose which connection these overrides apply to.",
+    "maskingInclude": "Always mask",
+    "maskingIncludeDesc": "Columns that are always masked for this connection, even if their name matches no pattern.",
+    "maskingExclude": "Never mask",
+    "maskingExcludeDesc": "Columns that are never masked for this connection, even if their name matches a pattern.",
+    "maskingOverridePlaceholder": "e.g. users.password",
     "info": "Info",
     "dataEditor": "Data Editor",
     "pageSize": "Result Page Size (Limit)",
@@ -668,12 +710,14 @@
       "confirmRemove": "Are you sure you want to remove \"{{name}}\"? This will delete the plugin files.",
       "enabled": "Enabled",
       "disabled": "Disabled",
+      "openFolder": "Open plugins folder",
       "installError": {
         "title": "Installation Failed",
         "subtitle": "An error occurred while installing the plugin. See the details below.",
         "details": "Error Details",
         "copy": "Copy",
-        "copied": "Copied!"
+        "copied": "Copied!",
+        "reload": "Reload plugins"
       },
       "uninstallError": {
         "title": "Uninstallation failed",
@@ -945,7 +989,16 @@
     "useIamAuth": "Use AWS IAM Authentication (RDS)",
     "useIamAuthHint": "The password field is treated as an RDS auth token (from `aws rds generate-db-auth-token`). Requires TLS. Tokens expire every 15 minutes.",
     "useIamAuthTlsRequired": "Enable an SSL mode above to use AWS IAM authentication.",
-    "changeDatabase": "Change database"
+    "changeDatabase": "Change database",
+    "testSsh": "Test SSH",
+    "testSshHint": "Verifies only the SSH tunnel (host and credentials), without connecting to the database.",
+    "sshTestSuccess": "SSH connection to {{target}} established",
+    "stopTest": "Stop",
+    "allDatabases": "All databases",
+    "chooseDatabases": "Choose databases",
+    "allDatabasesHint": "Every database on the server is loaded automatically when connecting. Databases created or dropped on the server show up on their own — no need to edit this connection.",
+    "selectDatabasesHint": "Select the databases to include in this connection.",
+    "loadDatabasesHint": "Click Load Databases to fetch available databases."
   },
   "sshConnections": {
     "title": "SSH Connections",
@@ -971,7 +1024,14 @@
     "savedInKeychain": "Password saved in system keychain",
     "manageDesc": "Reusable SSH tunnels for your database connections. Passwords and passphrases are stored in the system keychain.",
     "deleteInUse_one": "It is used by {{count}} saved database connection, which will no longer connect through this tunnel.",
-    "deleteInUse_other": "It is used by {{count}} saved database connections, which will no longer connect through this tunnel."
+    "deleteInUse_other": "It is used by {{count}} saved database connections, which will no longer connect through this tunnel.",
+    "errors": {
+      "connectionRequired": "Select an SSH connection or configure one inline",
+      "connectionMissing": "The selected SSH connection no longer exists",
+      "hostRequired": "SSH host is required",
+      "userRequired": "SSH user is required",
+      "portInvalid": "SSH port must be between 1 and 65535"
+    }
   },
   "sshAskpass": {
     "title": "SSH Authentication",
@@ -980,6 +1040,9 @@
     "waiting": "Waiting for your security key — touch it to confirm."
   },
   "dataGrid": {
+    "noRowIdentity": "Rows can't be edited: \"{{table}}\" has no primary key, so editing requires the result to include all table columns. Select all columns (e.g. SELECT *) or add a primary key.",
+    "keylessRowNotFound": "No row matched the original values while updating \"{{column}}\". The table has no primary key and its data may have changed — refresh and retry.",
+    "keylessDeleteNotFound": "No row matched the original values while deleting. The table has no primary key and its data may have changed — refresh and retry.",
     "newRow": "NEW",
     "noData": "No data to display",
     "editRow": "Edit Row",
@@ -1028,7 +1091,11 @@
     "setEmpty": "Set EMPTY",
     "setServerNow": "Insert Current Timestamp",
     "previewReferenced": "Preview related record",
-    "openReferenced": "Open referenced row in {{table}}"
+    "openReferenced": "Open referenced row in {{table}}",
+    "revealCell": "Reveal cell",
+    "maskCell": "Mask cell",
+    "revealColumn": "Reveal column",
+    "maskColumn": "Mask column"
   },
   "editRow": {
     "title": "Edit Row",
@@ -2082,6 +2149,7 @@
     "driverCount_other": "{{count}} drivers",
     "connectTo": "Connect to {{name}}",
     "unavailableOnPlatform": "Unavailable on your platform",
+    "unavailable": "Unavailable",
     "backToCatalogue": "Back to catalogue",
     "pickDriver": "Multiple drivers connect to {{name}}. Pick one:",
     "latestVersion": "Latest v{{version}}",
@@ -2091,6 +2159,72 @@
     "notInstalled": "This driver isn't installed yet. Install it to configure a connection.",
     "installVersion": "Install v{{version}}",
     "installingVersion": "Installing v{{version}}…",
-    "retryInstall": "Retry install"
+    "retryInstall": "Retry install",
+    "viewDetails": "More details",
+    "installTitle": "Install driver",
+    "readmeSubtitle": "Plugin README",
+    "readmeLoading": "Loading README…",
+    "readmeUnavailable": "No README is available for this plugin.",
+    "readmeFallbackLocale": "This README isn't available in your language yet — showing “{{locale}}”.",
+    "openDocumentation": "Open full documentation"
+  },
+  "connectionErrors": {
+    "ssh-auth": {
+      "summary": "SSH authentication failed",
+      "recovery": "Check the SSH user, password, or private key in the SSH tab."
+    },
+    "ssh-unreachable": {
+      "summary": "SSH server unreachable",
+      "recovery": "Check the SSH host and port, and that the server is reachable. If the tunnel connects, verify the database host and port as seen from the SSH server."
+    },
+    "ssh": {
+      "summary": "SSH tunnel failed",
+      "recovery": "Check the settings in the SSH tab."
+    },
+    "db-auth": {
+      "summary": "Database authentication failed",
+      "recovery": "Check the database username and password."
+    },
+    "network": {
+      "summary": "Database server unreachable",
+      "recovery": "Check the host and port, and that the server is running."
+    },
+    "db-not-found": {
+      "summary": "Database not found",
+      "recovery": "Check the database name."
+    },
+    "unknown": {
+      "summary": "Connection failed"
+    }
+  },
+  "connectionTest": {
+    "logTitle": "Test log",
+    "noLog": "No steps were recorded for this test.",
+    "rawError": "Error details",
+    "copyDiagnostics": "Copy diagnostics",
+    "copied": "Copied!",
+    "steps": {
+      "cancelled": "Test stopped by user",
+      "resolve": {
+        "error": "Failed to prepare connection parameters"
+      },
+      "sshTunnel": {
+        "start": "Opening SSH tunnel",
+        "ok": "SSH tunnel established",
+        "error": "SSH tunnel failed"
+      },
+      "k8sForward": {
+        "start": "Starting Kubernetes port-forward",
+        "ok": "Port-forward ready",
+        "error": "Kubernetes port-forward failed"
+      },
+      "dbConnect": {
+        "start": "Connecting to the database",
+        "ok": "Database connection established",
+        "error": "Database connection failed"
+      }
+    },
+    "title": "Connection test log",
+    "showLog": "Show log"
   }
 }

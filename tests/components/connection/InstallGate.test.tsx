@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { invoke } from "@tauri-apps/api/core";
 import { InstallGate } from "../../../src/components/modals/connection/InstallGate";
 import type { CatalogueDriver } from "../../../src/utils/connectionCatalogue";
 
@@ -49,6 +50,39 @@ describe("InstallGate", () => {
     );
     expect(screen.getByText(/connectionCatalogue\.noReleaseTitle/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /installVersion/i })).not.toBeInTheDocument();
+  });
+
+  it("opens the README modal from the More details link", async () => {
+    vi.mocked(invoke).mockResolvedValue({
+      html: "<p>readme body</p>",
+      locale: "en",
+      available_locales: ["en"],
+      documentation_url: null,
+    });
+    render(
+      <InstallGate driver={driver()} status="idle" onInstall={vi.fn()} onBack={vi.fn()} />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /connectionCatalogue\.viewDetails/i }),
+    );
+    expect(
+      await screen.findByText(/connectionCatalogue\.readmeSubtitle/i),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("readme body")).toBeInTheDocument();
+  });
+
+  it("hides the More details link for built-in drivers", () => {
+    render(
+      <InstallGate
+        driver={driver({ isBuiltin: true })}
+        status="idle"
+        onInstall={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /connectionCatalogue\.viewDetails/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a retry label on error", () => {

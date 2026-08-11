@@ -1,7 +1,15 @@
 let _table: string | null = null;
+let _schema: string | null = null;
 
 export const dragState = {
   get table() { return _table; },
-  start(name: string) { _table = name; },
-  clear() { _table = null; },
+  get schema() { return _schema; },
+  start(name: string, schema?: string | null) {
+    _table = name;
+    _schema = schema || null;
+  },
+  clear() {
+    _table = null;
+    _schema = null;
+  },
 };

@@ -1,5 +1,6 @@
 import React from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Eye, EyeOff } from "lucide-react";
+import { MASKED_PLACEHOLDER } from "../../utils/columnMasking";
 import {
   formatCellValue,
   resolveInsertionCellDisplay,
@@ -64,6 +65,13 @@ export interface RowCtx {
   parentViewportWidth: number;
   readonly: boolean | undefined;
   updateSelection: (s: Set<number>) => void;
+  /** Sensitive-column masking (#485): columns rendered masked until revealed. */
+  maskedColIndices: Set<number>;
+  /** Columns revealed wholesale via the header eye toggle. */
+  revealedColIndices: Set<number>;
+  /** Individually revealed cells, keyed `${rowIndex}:${colIndex}`. */
+  revealedCells: Set<string>;
+  toggleRevealCell: (rowIndex: number, colIndex: number) => void;
   /** Currently selected column indices (DBeaver-style column selection). */
   selectedColIndices: Set<number>;
   /** Clears the column selection (row/column selection are exclusive). */
@@ -186,6 +194,10 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
     pkIndexMaps,
     parentViewportWidth,
     readonly: readonlyProp,
+    maskedColIndices,
+    revealedColIndices,
+    revealedCells,
+    toggleRevealCell,
     selectedColIndices,
     cellRange,
     handleCellClick,
@@ -348,6 +360,20 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
             focusedCell?.rowIndex === rowIndex &&
             focusedCell?.colIndex === colIndex;
 
+          // Sensitive-column masking (#485): the real value stays in `data`
+          // (copy/export unaffected); only the render is replaced.
+          const isCellRevealed = revealedCells.has(`${rowIndex}:${colIndex}`);
+          const isMasked =
+            maskedColIndices.has(colIndex) &&
+            !revealedColIndices.has(colIndex) &&
+            !isCellRevealed;
+          // An individually revealed cell in a still-masked column gets an
+          // eye-off toggle so it can be re-masked.
+          const showCellMaskToggle =
+            maskedColIndices.has(colIndex) &&
+            !revealedColIndices.has(colIndex) &&
+            isCellRevealed;
+
           const fkForPreview = getForeignKeyForPreview(
             colName,
             rawCellValue,
@@ -391,7 +417,10 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                 }
               }}
               onDoubleClick={() =>
+                // Masked cells must be revealed before they can be edited —
+                // the inline editor would otherwise expose the real value.
                 !isPendingDelete &&
+                !isMasked &&
                 handleCellDoubleClick(
                   rowIndex,
                   colIndex,
@@ -405,11 +434,30 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
               }
               className={`px-4 py-1.5 text-sm border-b border-r border-default last:border-r-0 font-mono ${isEditing ? "relative" : "whitespace-nowrap truncate max-w-[300px]"} ${fkForPreview ? "cursor-pointer" : "cursor-text"} ${stateClass} ${selectedColIndices.has(colIndex) || (rangeColBounds !== null && colIndex >= rangeColBounds.minCol && colIndex <= rangeColBounds.maxCol) ? "bg-blue-500/15" : ""} ${isFocused ? "ring-2 ring-inset ring-blue-400" : ""}`}
               title={
-                !isEditing ? truncateCellPreview(formattedDisplay).text : ""
+                // The hover tooltip would leak the real value of a masked cell.
+                !isEditing && !isMasked
+                  ? truncateCellPreview(formattedDisplay).text
+                  : ""
               }
             >
-              {isEditing
-                ? (() => {
+              {isMasked ? (
+                <span className="flex items-center gap-1.5 select-none">
+                  <span className="text-muted tracking-widest">
+                    {MASKED_PLACEHOLDER}
+                  </span>
+                  <button
+                    type="button"
+                    title={t("dataGrid.revealCell")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleRevealCell(rowIndex, colIndex);
+                    }}
+                    className="text-muted hover:text-primary transition-colors"
+                  >
+                    <Eye size={12} />
+                  </button>
+                </span>
+              ) : isEditing ? (() => {
                     const colType = columnTypeMap?.get(colName);
                     if (colType && isGeometricType(colType)) {
                       return (
@@ -554,7 +602,7 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                       </>
                     );
                   })()
-                : (() => {
+                : (<>{(() => {
                     if (isJsonCell) {
                       const isExpanded =
                         expandedCell?.kind === "json" &&
@@ -691,6 +739,20 @@ export const MemoRow = React.memo(function MemoRow(rowCtx: MemoRowProps) {
                       valueColorClass,
                     );
                   })()}
+                  {showCellMaskToggle && !isEditing && (
+                    <button
+                      type="button"
+                      title={t("dataGrid.maskCell")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleRevealCell(rowIndex, colIndex);
+                      }}
+                      className="ml-1 shrink-0 text-muted hover:text-primary transition-colors"
+                    >
+                      <EyeOff size={12} />
+                    </button>
+                  )}
+                </>)}
             </td>
           );
         })}

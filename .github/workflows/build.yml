@@ -1,7 +1,8 @@
 name: Build
 
-# Reusable build matrix used by nightly.yml (cron). Centralises the
-# signing/notarization config in one place so callers can't drift from it.
+# Reusable build matrix used by nightly.yml (cron) and release.yml (tags).
+# Centralises the signing/notarization config in one place so callers can't
+# drift from it.
 on:
   workflow_call:
     inputs:
@@ -33,6 +34,16 @@ on:
         required: false
         type: string
         default: ""
+      release_body:
+        description: "Body of the GitHub Release."
+        required: false
+        type: string
+        default: "See the assets to download this version and install."
+      experimental_appimage:
+        description: "Build the AppImage with the experimental sharun-based format (tauri PR #12491) instead of the official linuxdeploy bundler. Nightly-only until the PR stabilises."
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   publish-tauri:
@@ -61,22 +72,25 @@ jobs:
     container: ${{ matrix.container }}
     steps:
       # The bare ubuntu:22.04 image ships neither git nor curl, which checkout
-      # and later steps need. Runs only inside the container.
+      # and later steps need. libatomic1 is required by the standalone pnpm
+      # binary (@pnpm/exe), which pnpm/action-setup bootstraps here because it
+      # runs before setup-node and finds no Node in the container.
+      # Runs only inside the container.
       - name: Install container prerequisites (ubuntu container only)
         if: matrix.container
         run: |
           apt-get update
-          apt-get install -y git ca-certificates curl
+          apt-get install -y git ca-certificates curl libatomic1
 
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref }}
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
 
       - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: "pnpm"
@@ -119,9 +133,32 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Override tauri-cli with custom AppImage format (Linux)
-        if: matrix.platform == 'ubuntu-24.04'
+      - name: Override tauri-cli with custom AppImage format (Linux, experimental only)
+        if: matrix.platform == 'ubuntu-24.04' && inputs.experimental_appimage
         run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --branch feat/truly-portable-appimage --force
+
+      # The official tauri-cli AppImage bundler (linuxdeploy) bundles the build
+      # container's libwayland-*; on hosts with a newer Mesa the host libEGL
+      # binds to that stale bundled libwayland-client and WebKit aborts with
+      # EGL_BAD_PARAMETER (issue #423). libwayland must always come from the
+      # host — the AppImage excludelist prescribes exactly that:
+      # https://github.com/AppImageCommunity/pkg2appimage/pull/559
+      # tauri-bundler only downloads linuxdeploy-plugin-gtk.sh when it's
+      # missing from its tools cache, so pre-seed a patched copy that strips
+      # libwayland from the AppDir before the squashfs is packed (the updater
+      # signature is computed afterwards, so it stays valid).
+      - name: Patch AppImage bundling to strip bundled libwayland (Linux)
+        if: matrix.platform == 'ubuntu-24.04' && !inputs.experimental_appimage
+        run: |
+          mkdir -p ~/.cache/tauri
+          curl -fsSL https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh \
+            -o ~/.cache/tauri/linuxdeploy-plugin-gtk.sh
+          cat >> ~/.cache/tauri/linuxdeploy-plugin-gtk.sh <<'EOF'
+
+          # tabularis #423: libwayland must come from the host, never bundled.
+          find "$APPDIR" -name 'libwayland-*.so*' -delete
+          EOF
+          chmod +x ~/.cache/tauri/linuxdeploy-plugin-gtk.sh
 
       # Notarization needs the App Store Connect API key on disk. The .p8 is stored
       # base64-encoded in APPLE_API_KEY_CONTENT and decoded into a temp file (macOS only).
@@ -147,7 +184,7 @@ jobs:
       - uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa # v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: "true"
+          TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: ${{ inputs.experimental_appimage && 'true' || '' }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           # macOS code signing (Developer ID Application certificate)
@@ -161,10 +198,11 @@ jobs:
         with:
           tagName: ${{ inputs.tag }}
           releaseName: ${{ inputs.release_name }}
-          releaseBody: "See the assets to download this version and install."
+          releaseBody: ${{ inputs.release_body }}
           releaseDraft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}
-          tauriScript: ${{ matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'pnpm tauri' }}
+          # The experimental AppImage format needs the cargo-installed CLI override.
+          tauriScript: ${{ inputs.experimental_appimage && matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'pnpm tauri' }}
           args: ${{ matrix.args }}
 
       - name: Upload portable executable (Windows only)

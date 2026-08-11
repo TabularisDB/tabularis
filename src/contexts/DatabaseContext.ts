@@ -56,6 +56,10 @@ export interface SavedConnection {
   /** Per-connection opt-in: detect JSON in plain text columns. */
   detect_json_in_text_columns?: boolean;
   appearance?: ConnectionAppearance;
+  /** Ids of connection tags attached to this connection. */
+  tag_ids?: string[];
+  /** Deployment environment; production drives warnings and visuals. */
+  environment?: "development" | "staging" | "production";
 }
 
 export interface ConnectionGroup {
@@ -104,6 +108,10 @@ export interface ConnectionData {
   needsSchemaSelection: boolean;
   selectedDatabases: string[];
   databaseDataMap: Record<string, SchemaData>;
+  /** Multi-db drivers with no explicit selection: the database list is
+   * fetched from the server on every connect/refresh instead of being
+   * persisted. */
+  allDatabasesMode: boolean;
   isConnecting: boolean;
   isConnected: boolean;
   error?: string;

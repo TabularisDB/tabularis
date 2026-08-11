@@ -16,6 +16,7 @@ export interface TableColumn {
   is_pk: boolean;
   is_nullable: boolean;
   is_auto_increment: boolean;
+  is_generated?: boolean;
   default_value: string | null;
 }
 

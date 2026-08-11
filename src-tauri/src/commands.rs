@@ -691,7 +691,17 @@ pub(crate) fn merge_groups(existing: &mut Vec<ConnectionGroup>, incoming: Vec<Co
 
 /// Write the connections file and invalidate the in-memory connection cache so
 /// the next `find_connection_by_id` call re-reads fresh data from disk.
-fn save_connections_and_invalidate<R: Runtime>(
+/// Normalizes and validates a connection environment value. Empty selects
+/// "unclassified" (`None`); anything else must be one of the known tiers.
+fn validate_environment(env: Option<String>) -> Result<Option<String>, String> {
+    match env.as_deref() {
+        None | Some("") => Ok(None),
+        Some("development" | "staging" | "production") => Ok(env),
+        Some(other) => Err(format!("Invalid environment: {other}")),
+    }
+}
+
+pub(crate) fn save_connections_and_invalidate<R: Runtime>(
     app: &AppHandle<R>,
     path: &std::path::Path,
     file: &crate::models::ConnectionsFile,
@@ -976,6 +986,7 @@ pub async fn save_connection<R: Runtime>(
     name: String,
     params: ConnectionParams,
     detect_json_in_text_columns: Option<bool>,
+    environment: Option<String>,
 ) -> Result<SavedConnection, String> {
     log::info!("Saving new connection: {}", name);
     validate_connection_uri_persistence(&params)?;
@@ -1019,6 +1030,8 @@ pub async fn save_connection<R: Runtime>(
         sort_order: None,
         detect_json_in_text_columns,
         appearance: None,
+        tag_ids: None,
+        environment: validate_environment(environment)?,
     };
     conn_file.connections.push(new_conn.clone());
     persist_connection_uri_change(
@@ -1105,6 +1118,7 @@ pub async fn update_connection<R: Runtime>(
     name: String,
     params: ConnectionParams,
     detect_json_in_text_columns: Option<bool>,
+    environment: Option<String>,
 ) -> Result<SavedConnection, String> {
     validate_connection_uri_persistence(&params)?;
     let path = get_config_path(&app)?;
@@ -1183,6 +1197,8 @@ pub async fn update_connection<R: Runtime>(
     let original_db_selection = conn_file.connections[conn_idx].params.database.clone();
     // Preserve user's appearance customization across edits
     let original_appearance = conn_file.connections[conn_idx].appearance.clone();
+    // Tags are managed by set_connection_tags; preserve them across edits.
+    let original_tag_ids = conn_file.connections[conn_idx].tag_ids.clone();
 
     let updated = SavedConnection {
         id: id.clone(),
@@ -1192,6 +1208,8 @@ pub async fn update_connection<R: Runtime>(
         sort_order: original_sort_order,
         detect_json_in_text_columns,
         appearance: original_appearance,
+        tag_ids: original_tag_ids,
+        environment: validate_environment(environment)?,
     };
 
     conn_file.connections[conn_idx] = updated.clone();
@@ -1379,6 +1397,10 @@ pub async fn duplicate_connection<R: Runtime>(
         sort_order: None,                    // Will be placed at end of group
         detect_json_in_text_columns: original.detect_json_in_text_columns,
         appearance: new_appearance,
+        tag_ids: original.tag_ids.clone(),
+        // Normalize rather than fail: an invalid on-disk value must not
+        // block duplication, the copy just becomes "unclassified".
+        environment: validate_environment(original.environment.clone()).unwrap_or(None),
     };
 
     conn_file.connections.push(new_conn.clone());
@@ -1824,7 +1846,33 @@ pub async fn test_ssh_connection<R: Runtime>(
         },
     );
 
-    ssh_tunnel::test_ssh_connection(
+    // Inline SSH secrets of a saved DB connection live in the keychain under
+    // the DB connection id (not in the SSH connections file), so fall back
+    // there when the form did not re-enter them.
+    let (resolved_password, resolved_passphrase) = match ssh.db_connection_id.as_deref() {
+        Some(db_id) if resolved_password.is_none() || resolved_passphrase.is_none() => {
+            match find_connection_by_id(&app, db_id) {
+                Ok(saved) => apply_inline_ssh_secret_fallback(
+                    resolved_password,
+                    resolved_passphrase,
+                    &saved.params,
+                ),
+                Err(_) => (resolved_password, resolved_passphrase),
+            }
+        }
+        _ => (resolved_password, resolved_passphrase),
+    };
+
+    let progress_id = ssh.progress_id.as_deref();
+    emit_test_progress(
+        &app,
+        progress_id,
+        "sshTunnel",
+        "start",
+        Some(format!("{}@{}:{}", ssh.user, ssh.host, ssh.port)),
+    );
+
+    let result = ssh_tunnel::test_ssh_connection(
         &ssh.host,
         ssh.port,
         &ssh.user,
@@ -1832,7 +1880,12 @@ pub async fn test_ssh_connection<R: Runtime>(
         ssh.key_file.as_deref(),
         resolved_passphrase.as_deref(),
         ssh.allow_passphrase_prompt.unwrap_or(false),
-    )
+    );
+    match &result {
+        Ok(_) => emit_test_progress(&app, progress_id, "sshTunnel", "ok", None),
+        Err(e) => emit_test_progress(&app, progress_id, "sshTunnel", "error", Some(e.clone())),
+    }
+    result
 }
 
 // ---------------------------------------------------------------------------
@@ -2215,9 +2268,14 @@ pub async fn test_connection<R: Runtime>(
         "Testing connection to database: {}",
         request.params.database
     );
+    let progress_id = request.progress_id.as_deref();
 
-    let mut expanded_params = expand_ssh_connection_params(&app, &request.params).await?;
-    expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
+    let mut expanded_params = expand_ssh_connection_params(&app, &request.params)
+        .await
+        .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
+    expanded_params = expand_k8s_connection_params(&app, &expanded_params)
+        .await
+        .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
 
     // AWS RDS IAM auth tokens are short-lived (15 min) and must come from the
     // password field on every test/connect, never from the keychain. Skip the
@@ -2232,7 +2290,8 @@ pub async fn test_connection<R: Runtime>(
         iam_auth,
         request.params.password.as_deref(),
         expanded_params.password.as_deref(),
-    )?;
+    )
+    .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
 
     if !iam_auth && request.params.password.is_none() && expanded_params.password.is_none() {
         let saved_conn = match &request.connection_id {
@@ -2251,31 +2310,87 @@ pub async fn test_connection<R: Runtime>(
     if runtime_connection_uri(&expanded_params).is_none() {
         if let Some(conn_id) = &request.connection_id {
             let cache = app.state::<std::sync::Arc<credential_cache::CredentialCache>>();
-            restore_runtime_connection_uri(&cache, conn_id, &mut expanded_params)?;
+            restore_runtime_connection_uri(&cache, conn_id, &mut expanded_params)
+                .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
         }
     }
 
-    let resolved_params = if let Some(conn_id) = &request.connection_id {
-        resolve_connection_params_with_id(&expanded_params, conn_id)?
+    let ssh_enabled = expanded_params.ssh_enabled.unwrap_or(false);
+    let k8s_enabled = expanded_params.k8s_enabled.unwrap_or(false);
+    let tunnel_step = if ssh_enabled {
+        Some("sshTunnel")
+    } else if k8s_enabled {
+        Some("k8sForward")
     } else {
-        resolve_connection_params(&expanded_params)?
+        None
     };
+
+    if ssh_enabled {
+        emit_test_progress(
+            &app,
+            progress_id,
+            "sshTunnel",
+            "start",
+            Some(format!(
+                "{}@{}:{}",
+                expanded_params.ssh_user.as_deref().unwrap_or("?"),
+                expanded_params.ssh_host.as_deref().unwrap_or("?"),
+                expanded_params.ssh_port.unwrap_or(22)
+            )),
+        );
+    } else if k8s_enabled {
+        emit_test_progress(
+            &app,
+            progress_id,
+            "k8sForward",
+            "start",
+            expanded_params.k8s_resource_name.clone(),
+        );
+    }
+
+    let resolved_params = if let Some(conn_id) = &request.connection_id {
+        resolve_connection_params_with_id(&expanded_params, conn_id)
+    } else {
+        resolve_connection_params(&expanded_params)
+    }
+    .map_err(|e| emit_test_failure(&app, progress_id, tunnel_step.unwrap_or("resolve"), e))?;
     log::debug!(
         "Test connection params: Host={:?}, Port={:?}",
         resolved_params.host,
         resolved_params.port
     );
 
-    let drv = driver_for(&resolved_params.driver).await?;
+    if let Some(step) = tunnel_step {
+        emit_test_progress(
+            &app,
+            progress_id,
+            step,
+            "ok",
+            resolved_params.port.map(|port| format!("127.0.0.1:{port}")),
+        );
+    }
+
+    let drv = driver_for(&resolved_params.driver)
+        .await
+        .map_err(|e| emit_test_failure(&app, progress_id, "resolve", e))?;
+
+    let db_target = match (expanded_params.host.as_deref(), expanded_params.port) {
+        (Some(host), Some(port)) => format!("{host}:{port}"),
+        (Some(host), None) => host.to_string(),
+        _ => expanded_params.database.to_string(),
+    };
+    emit_test_progress(&app, progress_id, "dbConnect", "start", Some(db_target));
 
     // For file-based drivers, verify the database file exists before attempting connection
     if drv.manifest().capabilities.file_based {
-        let db_path = std::path::Path::new(resolved_params.database.primary());
+        let db_path = if resolved_params.driver == "sqlite" {
+            crate::sqlite_database::expand_sqlite_filename(resolved_params.database.primary())
+        } else {
+            PathBuf::from(resolved_params.database.primary())
+        };
         if !db_path.exists() {
-            return Err(format!(
-                "Database file not found: {}",
-                resolved_params.database
-            ));
+            let err = format!("Database file not found: {}", resolved_params.database);
+            return Err(emit_test_failure(&app, progress_id, "dbConnect", err));
         }
     }
 
@@ -2284,14 +2399,47 @@ pub async fn test_connection<R: Runtime>(
             "Connection test failed for database {}: {e}",
             request.params.database
         );
-        e
+        emit_test_failure(&app, progress_id, "dbConnect", e)
     })?;
 
+    emit_test_progress(&app, progress_id, "dbConnect", "ok", None);
     log::info!(
         "Connection test successful for database: {}",
         request.params.database
     );
     Ok("Connection successful!".to_string())
+}
+
+/// Emits one step of a connection test's live progress log. A no-op when the
+/// caller did not request progress (no id).
+fn emit_test_progress<R: Runtime>(
+    app: &AppHandle<R>,
+    progress_id: Option<&str>,
+    step: &str,
+    status: &str,
+    detail: Option<String>,
+) {
+    let Some(id) = progress_id else { return };
+    let _ = app.emit(
+        "connection-test-progress",
+        serde_json::json!({
+            "id": id,
+            "step": step,
+            "status": status,
+            "detail": detail,
+        }),
+    );
+}
+
+/// Emits a failed step and passes the error through, for use in `map_err`.
+fn emit_test_failure<R: Runtime>(
+    app: &AppHandle<R>,
+    progress_id: Option<&str>,
+    step: &str,
+    error: String,
+) -> String {
+    emit_test_progress(app, progress_id, step, "error", Some(error.clone()));
+    error
 }
 
 #[cfg(test)]
@@ -2426,6 +2574,8 @@ mod tests {
             sort_order: None,
             detect_json_in_text_columns: None,
             appearance: None,
+            tag_ids: None,
+            environment: None,
         }
     }
 
@@ -2455,6 +2605,8 @@ mod tests {
                 accent_color: Some("#ff0000".to_string()),
                 icon: Some(IconOverride::Emoji { value: "🐘".to_string() }),
             }),
+            tag_ids: None,
+            environment: None,
         };
 
         // Simulate the pattern used in update_connection after the fix.
@@ -2468,6 +2620,8 @@ mod tests {
             sort_order: existing.sort_order,
             detect_json_in_text_columns: None,
             appearance: original_appearance,
+            tag_ids: None,
+            environment: None,
         };
 
         let app = updated.appearance.as_ref().expect("appearance must be preserved");
@@ -2485,10 +2639,13 @@ mod tests {
             sort_order: None,
             detect_json_in_text_columns: None,
             appearance,
+            tag_ids: None,
+            environment: None,
         };
         ConnectionsFile {
             groups: vec![],
             connections: vec![conn],
+            tags: vec![],
         }
     }
 
@@ -2802,6 +2959,63 @@ mod tests {
                 |_| Ok("".to_string()),
             );
             assert_eq!(result, None);
+        }
+    }
+
+    mod apply_inline_ssh_secret_fallback_tests {
+        use super::*;
+
+        fn params_with_ssh(
+            password: Option<&str>,
+            passphrase: Option<&str>,
+        ) -> ConnectionParams {
+            ConnectionParams {
+                ssh_password: password.map(|p| p.to_string()),
+                ssh_key_passphrase: passphrase.map(|p| p.to_string()),
+                ..Default::default()
+            }
+        }
+
+        #[test]
+        fn fills_both_secrets_from_saved_params() {
+            let params = params_with_ssh(Some("pwd"), Some("phrase"));
+            let (password, passphrase) =
+                apply_inline_ssh_secret_fallback(None, None, &params);
+            assert_eq!(password, Some("pwd".to_string()));
+            assert_eq!(passphrase, Some("phrase".to_string()));
+        }
+
+        #[test]
+        fn resolved_secrets_keep_priority_over_saved() {
+            let params = params_with_ssh(Some("saved_pwd"), Some("saved_phrase"));
+            let (password, passphrase) = apply_inline_ssh_secret_fallback(
+                Some("request_pwd".to_string()),
+                Some("request_phrase".to_string()),
+                &params,
+            );
+            assert_eq!(password, Some("request_pwd".to_string()));
+            assert_eq!(passphrase, Some("request_phrase".to_string()));
+        }
+
+        #[test]
+        fn blank_saved_secrets_are_ignored() {
+            let params = params_with_ssh(Some("   "), Some(""));
+            let (password, passphrase) =
+                apply_inline_ssh_secret_fallback(None, None, &params);
+            assert_eq!(password, None);
+            assert_eq!(passphrase, None);
+        }
+
+        #[test]
+        fn fills_only_missing_secret() {
+            let params = params_with_ssh(Some("saved_pwd"), Some("saved_phrase"));
+            let (password, passphrase) = apply_inline_ssh_secret_fallback(
+                Some("request_pwd".to_string()),
+                None,
+                &params,
+            );
+            assert_eq!(password, Some("request_pwd".to_string()));
+            assert_eq!(passphrase, Some("saved_phrase".to_string()));
         }
     }
 
@@ -4387,6 +4601,24 @@ fn resolve_ssh_test_credential(
     extract_saved_credential(&saved)
 }
 
+/// Fills SSH secrets that are still unresolved from the inline SSH fields of
+/// a saved database connection (already hydrated from the keychain by
+/// `find_connection_by_id`). Secrets explicitly provided by the request keep
+/// priority; blank saved values are ignored.
+fn apply_inline_ssh_secret_fallback(
+    resolved_password: Option<String>,
+    resolved_passphrase: Option<String>,
+    saved_params: &ConnectionParams,
+) -> (Option<String>, Option<String>) {
+    fn non_blank(value: &Option<String>) -> Option<String> {
+        value.as_ref().filter(|v| !v.trim().is_empty()).cloned()
+    }
+    (
+        resolved_password.or_else(|| non_blank(&saved_params.ssh_password)),
+        resolved_passphrase.or_else(|| non_blank(&saved_params.ssh_key_passphrase)),
+    )
+}
+
 /// Helper for backward compatibility - resolves SSH password
 fn resolve_ssh_test_password(
     request_password: Option<&str>,
@@ -5630,6 +5862,14 @@ pub async fn export_connections_payload<R: Runtime>(
                 .filter_map(|c| c.group_id.as_deref()),
         );
         conn_file.groups.retain(|g| kept_groups.contains(&g.id));
+        // Same for tags: only export the ones the selection actually uses.
+        let kept_tags: std::collections::HashSet<String> = conn_file
+            .connections
+            .iter()
+            .flat_map(|c| c.tag_ids.iter().flatten())
+            .cloned()
+            .collect();
+        conn_file.tags.retain(|t| kept_tags.contains(&t.id));
     }
 
     let cache = app
@@ -5695,6 +5935,7 @@ pub async fn export_connections_payload<R: Runtime>(
         connections: conn_file.connections,
         ssh_connections,
         k8s_connections,
+        tags: conn_file.tags,
     })
 }
 
@@ -5750,8 +5991,38 @@ pub async fn apply_export_payload<R: Runtime>(
     // Merge groups (preserves hierarchy; demotes orphaned parent_ids to root)
     merge_groups(&mut current_file.groups, payload.groups);
 
+    // Merge tags (import wins on id collision, name matches are unified onto
+    // the existing tag) and remap the imported connections' tag_ids so
+    // name-merged tags keep resolving.
+    let tag_remap =
+        crate::connection_tags::merge_imported_tags(&mut current_file.tags, payload.tags);
+    let mut payload_connections = payload.connections;
+    if !tag_remap.is_empty() {
+        // Existing connections may reference a tag id that the merge unified
+        // onto another tag, so the remap applies to both sides.
+        for conn in payload_connections
+            .iter_mut()
+            .chain(current_file.connections.iter_mut())
+        {
+            if let Some(tag_ids) = &mut conn.tag_ids {
+                let mut seen = std::collections::HashSet::new();
+                *tag_ids = tag_ids
+                    .iter()
+                    .map(|id| tag_remap.get(id).unwrap_or(id).clone())
+                    .filter(|id| seen.insert(id.clone()))
+                    .collect();
+            }
+        }
+    }
+
+    // Environments come from an external file: normalize instead of failing
+    // the whole import — an unknown tier just becomes "unclassified".
+    for conn in &mut payload_connections {
+        conn.environment = validate_environment(conn.environment.take()).unwrap_or(None);
+    }
+
     // Merge connections and handle passwords
-    for mut new_conn in payload.connections {
+    for mut new_conn in payload_connections {
         // An imported payload is untrusted input and may carry an inline URI.
         // Hold it to the same rule as a save: keychain or nothing.
         validate_connection_uri_persistence(&new_conn.params)?;

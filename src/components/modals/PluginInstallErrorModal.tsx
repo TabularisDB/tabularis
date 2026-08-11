@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "../ui/Modal";
-import { X, AlertTriangle, Copy, Check } from "lucide-react";
+import { X, AlertTriangle, Copy, Check, FolderOpen, RefreshCw, Loader2 } from "lucide-react";
 
 interface PluginInstallErrorModalProps {
   isOpen: boolean;
@@ -9,6 +9,10 @@ interface PluginInstallErrorModalProps {
   pluginId: string;
   error: string;
   operation: "install" | "uninstall";
+  /** Opens the plugins directory in the OS file manager for manual cleanup. */
+  onOpenPluginsFolder?: () => void;
+  /** Re-scans installed plugins + registry after manual changes, then closes. */
+  onReload?: () => Promise<void> | void;
 }
 
 export const PluginInstallErrorModal = ({
@@ -17,14 +21,28 @@ export const PluginInstallErrorModal = ({
   pluginId,
   error,
   operation,
+  onOpenPluginsFolder,
+  onReload,
 }: PluginInstallErrorModalProps) => {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const [reloading, setReloading] = useState(false);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(error);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleReload = async () => {
+    if (!onReload) return;
+    setReloading(true);
+    try {
+      await onReload();
+      onClose();
+    } finally {
+      setReloading(false);
+    }
   };
 
   return (
@@ -84,13 +102,40 @@ export const PluginInstallErrorModal = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-default bg-base/50 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            {t("common.close")}
-          </button>
+        <div className="p-4 border-t border-default bg-base/50 flex items-center justify-between gap-3">
+          <div>
+            {onOpenPluginsFolder && (
+              <button
+                onClick={onOpenPluginsFolder}
+                className="flex items-center gap-1.5 px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
+              >
+                <FolderOpen size={14} />
+                {t("settings.plugins.openFolder")}
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {onReload && (
+              <button
+                onClick={handleReload}
+                disabled={reloading}
+                className="flex items-center gap-1.5 px-4 py-2 text-secondary hover:text-primary disabled:opacity-50 transition-colors text-sm"
+              >
+                {reloading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <RefreshCw size={14} />
+                )}
+                {t("settings.plugins.installError.reload")}
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              {t("common.close")}
+            </button>
+          </div>
         </div>
       </div>
     </Modal>

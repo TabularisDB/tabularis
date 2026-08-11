@@ -248,6 +248,12 @@ pub struct PluginManifest {
     /// UI extension slot declarations. Absent for built-in drivers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ui_extensions: Option<Vec<UIExtensionEntry>>,
+    /// Static type mappings applied by `map_inferred_type`. Keys are generic
+    /// inferred types (uppercase, e.g. `"DATETIME"`), values are driver-specific
+    /// types (e.g. `"TIMESTAMP"`). Empty for built-in drivers which override the
+    /// trait method directly.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub type_mappings: HashMap<String, String>,
 }
 
 /// The complete interface every database driver plugin must implement.

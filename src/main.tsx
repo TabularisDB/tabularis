@@ -14,6 +14,7 @@ import { QueryHistoryProvider } from './contexts/QueryHistoryProvider';
 import { EditorProvider } from './contexts/EditorProvider';
 import { ThemeProvider } from './contexts/ThemeProvider';
 import { UpdateProvider } from './contexts/UpdateProvider';
+import { ProductionGuardProvider } from './contexts/ProductionGuardContext';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
@@ -25,7 +26,9 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
               <SavedQueriesProvider>
               <QueryHistoryProvider>
                 <EditorProvider>
-                  <App />
+                  <ProductionGuardProvider>
+                    <App />
+                  </ProductionGuardProvider>
                 </EditorProvider>
               </QueryHistoryProvider>
             </SavedQueriesProvider>
