@@ -876,7 +876,21 @@ pub fn save_config_json(app: AppHandle, json: String) -> Result<(), String> {
     }
 }
 
+/// Returns true when running under a Wayland compositor.
+pub fn is_wayland() -> bool {
+    std::env::var("WAYLAND_DISPLAY").is_ok()
+}
+
 /// Save the main window's size and position to config.
+///
+/// When `maximized` is true, only the maximized flag is persisted — size/position
+/// are intentionally skipped because a maximized window's dimensions are the
+/// screen size, not the pre-maximize geometry. Restoring from those dimensions
+/// would open the window fullscreen on the next launch.
+///
+/// On Wayland, position is always ignored (the compositor decides placement) and
+/// size is skipped because `inner_size()` includes CSD margins, causing the
+/// window to inflate by ~50×100 px each session.
 pub fn save_window_state(app: &AppHandle, width: u32, height: u32, x: i32, y: i32, maximized: bool) -> Result<(), String> {
     if let Some(config_dir) = get_config_dir(app) {
         if !config_dir.exists() {
@@ -884,11 +898,20 @@ pub fn save_window_state(app: &AppHandle, width: u32, height: u32, x: i32, y: i3
         }
         let config_path = config_dir.join("config.json");
         let mut config = load_config_internal(app);
-        config.window_width = Some(width);
-        config.window_height = Some(height);
-        config.window_x = Some(x);
-        config.window_y = Some(y);
-        config.window_maximized = Some(maximized);
+        // Only persist size/position when the window is not maximized.
+        if !maximized {
+            config.window_maximized = Some(false);
+            // On Wayland skip position (compositor-controlled) and size
+            // (GTK includes CSD margins in inner_size, inflating the window).
+            if !is_wayland() {
+                config.window_width = Some(width);
+                config.window_height = Some(height);
+                config.window_x = Some(x);
+                config.window_y = Some(y);
+            }
+        } else {
+            config.window_maximized = Some(true);
+        }
         let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
         fs::write(config_path, content).map_err(|e| e.to_string())?;
         cache_config(&config);
@@ -1209,5 +1232,11 @@ mod tests {
         assert_eq!(reparsed.window_x, Some(100));
         assert_eq!(reparsed.window_y, Some(200));
         assert_eq!(reparsed.window_maximized, Some(true));
+    }
+
+    #[test]
+    fn is_wayland_returns_false_without_wayland_display() {
+        // On most test runners WAYLAND_DISPLAY is not set, so this should be false.
+        assert!(!is_wayland());
     }
 }
