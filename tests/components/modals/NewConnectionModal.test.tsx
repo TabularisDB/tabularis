@@ -16,6 +16,13 @@ interface MockSelectProps {
 const driverState = vi.hoisted(() => ({
   defaultPort: 15432 as number | null,
   catalogueDriver: "mysql" as "mysql" | "sqlite",
+  connectionFields: undefined as
+    | Record<string, { hidden?: boolean; label?: string; placeholder?: string }>
+    | undefined,
+}));
+
+const slotMocks = vi.hoisted(() => ({
+  renderSecureField: false,
 }));
 
 const k8sMocks = vi.hoisted(() => ({
@@ -84,6 +91,7 @@ vi.mock("../../../src/hooks/useDrivers", () => ({
         name: "MySQL",
         version: "1.0.0",
         default_port: driverState.defaultPort,
+        connection_fields: driverState.connectionFields,
         is_builtin: true,
         capabilities: {
           file_based: false,
@@ -119,6 +127,40 @@ vi.mock("../../../src/hooks/usePluginSlotRegistry", () => ({
     getSlotContributions: () => [],
   }),
 }));
+
+vi.mock("../../../src/components/ui/SlotAnchor", () => ({
+  SlotAnchor: ({
+    name,
+    context,
+  }: {
+    name: string;
+    context: {
+      secretFields?: Record<
+        string,
+        { value: string; hasStoredValue: boolean; dirty: boolean }
+      >;
+      setSecretField?: (key: string, value: string) => void;
+    };
+  }) => {
+    if (name !== "connection-modal.extra_fields" || !slotMocks.renderSecureField) {
+      return null;
+    }
+    const state = context.secretFields?.credential;
+    return (
+      <input
+        aria-label="plugin-credential"
+        value={state?.value ?? ""}
+        placeholder={state?.hasStoredValue && !state.dirty ? "stored-secret" : "new-secret"}
+        onChange={(event) => context.setSecretField?.("credential", event.target.value)}
+      />
+    );
+  },
+}));
+
+afterEach(() => {
+  driverState.connectionFields = undefined;
+  slotMocks.renderSecureField = false;
+});
 
 vi.mock("../../../src/hooks/useSettings", () => ({
   useSettings: () => ({
@@ -326,6 +368,49 @@ describe("NewConnectionModal layout", () => {
     expect(shell).toHaveClass("overflow-hidden");
     expect(shell).toHaveClass("flex");
     expect(shell).toHaveClass("flex-col");
+  });
+
+  it("applies additive hide and label overrides to common fields", () => {
+    driverState.connectionFields = {
+      host: { hidden: true },
+      port: { hidden: true },
+      username: { hidden: true },
+      password: { label: "Credential" },
+      database: { label: "GCP Project ID", placeholder: "billing-project" },
+    };
+
+    renderModal(createInitialConnection({ password: "", host: "", username: "" }));
+
+    expect(screen.queryByText("newConnection.host")).not.toBeInTheDocument();
+    expect(screen.queryByText("newConnection.port")).not.toBeInTheDocument();
+    expect(screen.queryByText("newConnection.username")).not.toBeInTheDocument();
+    expect(screen.getByText("Credential")).toBeInTheDocument();
+    expect(screen.getByText("GCP Project ID")).toBeInTheDocument();
+  });
+
+  it("passes secret tri-state mutations without exposing the stored value", async () => {
+    slotMocks.renderSecureField = true;
+    const connection = createInitialConnection({});
+    connection.plugin_secret_keys = ["credential"];
+    renderModal(connection);
+
+    const input = screen.getByLabelText("plugin-credential");
+    expect(input).toHaveValue("");
+    expect(input).toHaveAttribute("placeholder", "stored-secret");
+
+    fireEvent.change(input, { target: { value: "replacement" } });
+    fireEvent.click(screen.getByText("newConnection.testConnection"));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(
+        "test_connection",
+        expect.objectContaining({
+          request: expect.objectContaining({
+            plugin_secret_changes: { credential: "replacement" },
+          }),
+        }),
+      );
+    });
   });
 });
 

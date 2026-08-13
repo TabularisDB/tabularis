@@ -297,6 +297,11 @@ pub struct SavedConnection {
     pub id: String,
     pub name: String,
     pub params: ConnectionParams,
+    /// Names of plugin-owned `extra` values stored in the OS keychain. Only
+    /// the names are persisted; values are resolved into `params.extra` at
+    /// runtime and are never written to the connections file.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub plugin_secret_keys: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -401,6 +406,11 @@ pub struct ExportPayload {
     pub k8s_connections: Vec<K8sConnection>,
     #[serde(default)]
     pub tags: Vec<ConnectionTag>,
+    /// Export-only secret material keyed by connection id and plugin field.
+    /// This remains empty for metadata-only exports and never appears in
+    /// `connections.json`.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub plugin_secrets: HashMap<String, HashMap<String, String>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -408,6 +418,10 @@ pub struct TestConnectionRequest {
     pub params: ConnectionParams,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
+    /// Per-field secret mutations. Missing keys preserve stored values,
+    /// strings set values, and null explicitly clears values.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub plugin_secret_changes: HashMap<String, Option<String>>,
     /// When set, the test emits "connection-test-progress" events tagged with
     /// this id so the caller can render a live step log.
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -196,4 +196,19 @@ mod tests {
         let json = serde_json::to_string(&params).expect("serialize params");
         assert!(!json.contains("extra"));
     }
+
+    #[test]
+    fn saved_connection_defaults_plugin_secret_markers_for_legacy_json() {
+        let stored = r#"{
+            "id": "legacy",
+            "name": "Legacy",
+            "params": { "driver": "mysql", "database": "app" }
+        }"#;
+        let connection: crate::models::SavedConnection =
+            serde_json::from_str(stored).expect("legacy connection deserializes");
+        assert!(connection.plugin_secret_keys.is_empty());
+
+        let json = serde_json::to_string(&connection).expect("serialize connection");
+        assert!(!json.contains("plugin_secret_keys"));
+    }
 }

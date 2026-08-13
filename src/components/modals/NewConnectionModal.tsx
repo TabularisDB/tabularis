@@ -155,6 +155,7 @@ interface SavedConnection {
   id: string;
   name: string;
   params: ConnectionParams;
+  plugin_secret_keys?: string[];
   detect_json_in_text_columns?: boolean;
   appearance?: ConnectionAppearance;
   tag_ids?: string[];
@@ -349,6 +350,9 @@ export const NewConnectionModal = ({
   const [detectJsonInTextColumns, setDetectJsonInTextColumns] = useState(false);
   const [passwordDirty, setPasswordDirty] = useState(false);
   const [sshPasswordDirty, setSshPasswordDirty] = useState(false);
+  const [pluginSecretChanges, setPluginSecretChanges] = useState<
+    Record<string, string | null>
+  >({});
   const [connectionString, setConnectionString] = useState("");
   const [connectionStringError, setConnectionStringError] = useState<
     string | null
@@ -625,6 +629,11 @@ export const NewConnectionModal = ({
   // Flat single-database store (e.g. Meilisearch): no database to select or name.
   const singleDatabase =
     activeDriver?.capabilities?.single_database === true;
+  const hostField = activeDriver?.connection_fields?.host;
+  const portField = activeDriver?.connection_fields?.port;
+  const usernameField = activeDriver?.connection_fields?.username;
+  const passwordField = activeDriver?.connection_fields?.password;
+  const databaseField = activeDriver?.connection_fields?.database;
 
   // ── plugin slot: connection-modal.connection_content ──
   const slotRegistry = usePluginSlotRegistry();
@@ -656,13 +665,44 @@ export const NewConnectionModal = ({
       extra: updateExtraField(prev.extra, key, value),
     }));
   }, []);
+  const setSecretField = useCallback((key: string, value: string) => {
+    const normalizedKey = key.trim();
+    if (!normalizedKey) return;
+    setPluginSecretChanges((previous) => ({
+      ...previous,
+      [normalizedKey]: value === "" ? null : value,
+    }));
+  }, []);
+  const secretFields = useMemo(() => {
+    const storedKeys =
+      initialConnection?.params.driver === driver
+        ? (initialConnection.plugin_secret_keys ?? [])
+        : [];
+    const keys = new Set([...storedKeys, ...Object.keys(pluginSecretChanges)]);
+    return Object.fromEntries(
+      Array.from(keys).map((key) => {
+        const dirty = Object.hasOwn(pluginSecretChanges, key);
+        const pendingValue = pluginSecretChanges[key];
+        return [
+          key,
+          {
+            value: typeof pendingValue === "string" ? pendingValue : "",
+            hasStoredValue: storedKeys.includes(key),
+            dirty,
+          },
+        ];
+      }),
+    );
+  }, [driver, initialConnection, pluginSecretChanges]);
   const extraFieldsSlotContext = useMemo(
     () => ({
       driver,
       extra: formData.extra ?? {},
       setExtraField,
+      secretFields,
+      setSecretField,
     }),
-    [driver, formData.extra, setExtraField],
+    [driver, formData.extra, secretFields, setExtraField, setSecretField],
   );
 
   // ── helpers ──
@@ -1634,6 +1674,7 @@ export const NewConnectionModal = ({
       setDatabaseLoadError(null);
       setPasswordDirty(false);
       setSshPasswordDirty(false);
+      setPluginSecretChanges({});
       setDbSearchQuery("");
       setConnectionString("");
       setConnectionStringError(null);
@@ -1801,6 +1842,7 @@ export const NewConnectionModal = ({
 
   const handleDriverChange = (newDriver: string) => {
     setDriver(newDriver);
+    setPluginSecretChanges({});
     setFormData({
       driver: newDriver,
       host: "",
@@ -1957,6 +1999,7 @@ export const NewConnectionModal = ({
               params: { ...testParams },
               connection_id: initialConnection?.id,
               progress_id: progressId,
+              plugin_secret_changes: pluginSecretChanges,
             },
           });
 
@@ -2127,6 +2170,7 @@ export const NewConnectionModal = ({
       } else if (
         !noConnectionRequired &&
         !singleDatabase &&
+        !databaseField?.hidden &&
         !hasConnectionUri &&
         (!formData.database ||
           (typeof formData.database === "string" && !formData.database.trim()))
@@ -2187,6 +2231,7 @@ export const NewConnectionModal = ({
             id: initialConnection.id,
             name,
             params,
+            pluginSecretChanges,
             detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
             environment: environment || null,
           });
@@ -2199,6 +2244,7 @@ export const NewConnectionModal = ({
           const saved = await invoke<{ id: string }>("save_connection", {
             name,
             params,
+            pluginSecretChanges,
             detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
             environment: environment || null,
           });
@@ -2529,27 +2575,39 @@ export const NewConnectionModal = ({
             </div>
           )}
 
-          {!isUriPassthrough && (
+          {!isUriPassthrough &&
+            (!hostField?.hidden || !portField?.hidden) && (
             <div
               className={clsx(
                 "grid gap-3",
-                driver === "postgres" ? "grid-cols-4" : "grid-cols-3",
+                !hostField?.hidden && !portField?.hidden
+                  ? driver === "postgres"
+                    ? "grid-cols-4"
+                    : "grid-cols-3"
+                  : "grid-cols-1",
               )}
             >
-              <FieldInput
-                className="col-span-2"
-                label={t("newConnection.host")}
-                value={formData.host}
-                onChange={(v) => updateField("host", v)}
-                placeholder="localhost"
-              />
-              <FieldInput
-                label={t("newConnection.port")}
-                value={formData.port}
-                onChange={(v) => updateField("port", v)}
-                type="number"
-                placeholder={driver === "mysql" ? "3306" : "5432"}
-              />
+              {!hostField?.hidden && (
+                <FieldInput
+                  className={!portField?.hidden ? "col-span-2" : undefined}
+                  label={hostField?.label ?? t("newConnection.host")}
+                  value={formData.host}
+                  onChange={(v) => updateField("host", v)}
+                  placeholder={hostField?.placeholder ?? "localhost"}
+                />
+              )}
+              {!portField?.hidden && (
+                <FieldInput
+                  label={portField?.label ?? t("newConnection.port")}
+                  value={formData.port}
+                  onChange={(v) => updateField("port", v)}
+                  type="number"
+                  placeholder={
+                    portField?.placeholder ??
+                    (driver === "mysql" ? "3306" : "5432")
+                  }
+                />
+              )}
             </div>
           )}
 
@@ -2561,60 +2619,78 @@ export const NewConnectionModal = ({
           />
 
           {/* User + Password */}
-          <div
-            className={clsx(
-              "grid gap-3",
-              isUriPassthrough ? "grid-cols-1" : "grid-cols-2",
-            )}
-          >
-            {!isUriPassthrough && (
-              <FieldInput
-                label={t("newConnection.username")}
-                value={formData.username}
-                onChange={(v) => updateField("username", v)}
-                placeholder={t("newConnection.usernamePlaceholder")}
-              />
-            )}
-            <FieldInput
-              label={t("newConnection.password")}
-              value={formData.password}
-              onChange={(v) => {
-                setPasswordDirty(true);
-                updateField("password", v);
-              }}
-              type="password"
-              placeholder={
-                initialConnection && !passwordDirty && !formData.password
-                  ? "••••••••"
-                  : t("newConnection.passwordPlaceholder")
-              }
-            />
-          </div>
+          {(!passwordField?.hidden ||
+            (!isUriPassthrough && !usernameField?.hidden)) && (
+            <div
+              className={clsx(
+                "grid gap-3",
+                !passwordField?.hidden &&
+                  !isUriPassthrough &&
+                  !usernameField?.hidden
+                  ? "grid-cols-2"
+                  : "grid-cols-1",
+              )}
+            >
+              {!isUriPassthrough && !usernameField?.hidden && (
+                <FieldInput
+                  label={usernameField?.label ?? t("newConnection.username")}
+                  value={formData.username}
+                  onChange={(v) => updateField("username", v)}
+                  placeholder={
+                    usernameField?.placeholder ??
+                    t("newConnection.usernamePlaceholder")
+                  }
+                />
+              )}
+              {!passwordField?.hidden && (
+                <FieldInput
+                  label={passwordField?.label ?? t("newConnection.password")}
+                  value={formData.password}
+                  onChange={(v) => {
+                    setPasswordDirty(true);
+                    updateField("password", v);
+                  }}
+                  type="password"
+                  placeholder={
+                    initialConnection && !passwordDirty && !formData.password
+                      ? "••••••••"
+                      : passwordField?.placeholder ??
+                        t("newConnection.passwordPlaceholder")
+                  }
+                />
+              )}
+            </div>
+          )}
 
           {/* Database (single) — only shown for non-multi-db drivers */}
-          {!isUriPassthrough && !isMultiDb && !singleDatabase && (
+          {!isUriPassthrough &&
+            !isMultiDb &&
+            !singleDatabase &&
+            !databaseField?.hidden && (
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-[10px] uppercase font-semibold tracking-wider text-muted">
-                  {t("newConnection.dbName")}
+                  {databaseField?.label ?? t("newConnection.dbName")}
                 </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void loadDatabases();
-                  }}
-                  disabled={loadingDatabases || !formData.host}
-                  className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 disabled:text-muted disabled:cursor-not-allowed transition-colors"
-                >
-                  {loadingDatabases ? (
-                    <Loader2 size={11} className="animate-spin" />
-                  ) : (
-                    <Database size={11} />
-                  )}
-                  {loadingDatabases
-                    ? t("newConnection.loadingDatabases")
-                    : t("newConnection.loadDatabases")}
-                </button>
+                {!hostField?.hidden && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void loadDatabases();
+                    }}
+                    disabled={loadingDatabases || !formData.host}
+                    className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 disabled:text-muted disabled:cursor-not-allowed transition-colors"
+                  >
+                    {loadingDatabases ? (
+                      <Loader2 size={11} className="animate-spin" />
+                    ) : (
+                      <Database size={11} />
+                    )}
+                    {loadingDatabases
+                      ? t("newConnection.loadingDatabases")
+                      : t("newConnection.loadDatabases")}
+                  </button>
+                )}
               </div>
               {availableDatabases.length > 0 ? (
                 <Select
@@ -2643,7 +2719,10 @@ export const NewConnectionModal = ({
                   autoComplete="off"
                   spellCheck={false}
                   className="w-full px-3 py-2 bg-base border border-strong rounded-md text-sm text-primary placeholder:text-muted placeholder:italic focus:border-blue-500 focus:outline-none transition-colors"
-                  placeholder={t("newConnection.dbNamePlaceholder")}
+                  placeholder={
+                    databaseField?.placeholder ??
+                    t("newConnection.dbNamePlaceholder")
+                  }
                 />
               )}
               {databaseLoadError && (

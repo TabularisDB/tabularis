@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::config::PluginConfig;
-use crate::drivers::driver_trait::{DriverCapabilities, PluginManifest, PluginSettingDefinition};
+use crate::drivers::driver_trait::{
+    ConnectionFieldOverrides, DriverCapabilities, PluginManifest, PluginSettingDefinition,
+};
 use crate::models::DataTypeInfo;
 use crate::plugins::driver::RpcDriver;
 
@@ -64,6 +66,8 @@ pub struct ConfigManifest {
     pub settings: Vec<PluginSettingDefinition>,
     #[serde(default)]
     pub ui_extensions: Option<Vec<crate::drivers::driver_trait::UIExtensionEntry>>,
+    #[serde(default)]
+    pub connection_fields: Option<ConnectionFieldOverrides>,
     /// Static type mappings for `map_inferred_type`. Keys are generic inferred
     /// types (e.g. `"DATETIME"`), values are driver-specific types (e.g. `"TIMESTAMP"`).
     #[serde(default)]
@@ -186,6 +190,7 @@ pub async fn load_plugin_from_dir(
         icon: config.icon,
         settings: config.settings,
         ui_extensions: config.ui_extensions,
+        connection_fields: config.connection_fields,
         type_mappings: config.type_mappings,
     };
 

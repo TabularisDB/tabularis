@@ -27,6 +27,7 @@ mod tests {
                     save_in_keychain: Some(true),
                     ..Default::default()
                 },
+                plugin_secret_keys: vec![],
                 group_id: Some("group1".to_string()),
                 sort_order: Some(0),
                 detect_json_in_text_columns: None,
@@ -49,6 +50,7 @@ mod tests {
             }],
             k8s_connections: vec![],
             tags: vec![],
+            plugin_secrets: std::collections::HashMap::new(),
         };
 
         let json = serde_json::to_string(&payload).unwrap();
@@ -113,6 +115,7 @@ mod tests {
             ssh_connections: vec![],
             k8s_connections: vec![],
             tags: vec![],
+            plugin_secrets: std::collections::HashMap::new(),
         };
 
         let json = serde_json::to_string(&payload).unwrap();

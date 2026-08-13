@@ -105,6 +105,28 @@ fn preserves_ui_extension_driver_filter_from_manifest() {
 }
 
 #[test]
+fn parses_optional_connection_field_overrides() {
+    let manifest: ConfigManifest = serde_json::from_str(
+        r#"{
+  "name": "bigquery",
+  "version": "1.0.0",
+  "description": "BigQuery driver",
+  "connection_fields": {
+    "host": { "hidden": true },
+    "database": { "label": "GCP Project ID", "placeholder": "billing-project" }
+  }
+}"#,
+    )
+    .expect("parse manifest");
+
+    let fields = manifest.connection_fields.expect("connection fields");
+    assert!(fields.host.expect("host override").hidden);
+    let database = fields.database.expect("database override");
+    assert_eq!(database.label.as_deref(), Some("GCP Project ID"));
+    assert_eq!(database.placeholder.as_deref(), Some("billing-project"));
+}
+
+#[test]
 fn returns_error_for_invalid_manifest() {
     let dir = tempdir().expect("temp dir");
     fs::write(dir.path().join(".tabularium"), "{ invalid json").expect("write manifest");

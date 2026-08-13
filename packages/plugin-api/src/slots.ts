@@ -80,6 +80,13 @@ export type SlotContextMap = {
     extra: Record<string, string>;
     /** Update one extra field. Pass an empty string to clear it. */
     setExtraField: (key: string, value: string) => void;
+    /** Plugin-owned secrets. Existing values are represented by metadata only. */
+    secretFields?: Record<
+      string,
+      { value: string; hasStoredValue: boolean; dirty: boolean }
+    >;
+    /** Set a secret for Test/Save. An empty value explicitly clears it. */
+    setSecretField?: (key: string, value: string) => void;
   };
 };
 

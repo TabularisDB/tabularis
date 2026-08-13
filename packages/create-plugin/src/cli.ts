@@ -7,7 +7,7 @@ import { scaffold } from "./scaffold";
 import { titleCase, validateDbType, validateName, validateQuote } from "./validate";
 
 const PACKAGE_VERSION = "0.1.0";
-const PLUGIN_API_VERSION = "0.1.0";
+const PLUGIN_API_VERSION = "0.2.0";
 const MIN_TABULARIS_VERSION = "0.9.20";
 
 function main(argv: string[]): number {
