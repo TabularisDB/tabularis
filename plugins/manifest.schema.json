@@ -180,6 +180,34 @@
         }
       }
     },
+    "connection_fields": {
+      "type": "object",
+      "description": "Optional presentation overrides for host-owned connection fields. Omitted fields keep the standard Tabularis behavior.",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(host|port|username|password|database)$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "hidden": {
+              "type": "boolean",
+              "default": false,
+              "description": "Hide this field for the driver."
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 80,
+              "description": "Driver-specific label."
+            },
+            "placeholder": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Driver-specific input placeholder."
+            }
+          }
+        }
+      }
+    },
     "interpreter": {
       "type": "string",
       "description": "Optional interpreter for script-based plugins (e.g. python3)."

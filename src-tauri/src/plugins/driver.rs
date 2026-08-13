@@ -1315,6 +1315,7 @@ mod tests {
             icon: String::new(),
             settings: Vec::new(),
             ui_extensions: None,
+            connection_fields: None,
             type_mappings: HashMap::new(),
         }
     }

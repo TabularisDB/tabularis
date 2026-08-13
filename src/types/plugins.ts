@@ -77,6 +77,20 @@ export interface PluginSettingDefinition {
   options?: string[]; // only when type === "select"
 }
 
+export interface ConnectionFieldOverride {
+  hidden?: boolean;
+  label?: string;
+  placeholder?: string;
+}
+
+export interface ConnectionFieldOverrides {
+  host?: ConnectionFieldOverride;
+  port?: ConnectionFieldOverride;
+  username?: ConnectionFieldOverride;
+  password?: ConnectionFieldOverride;
+  database?: ConnectionFieldOverride;
+}
+
 export interface PluginManifest {
   id: string;
   name: string;
@@ -105,6 +119,8 @@ export interface PluginManifest {
   type_mappings?: Record<string, string>;
   /** UI extension declarations for slot-based rendering (Phase 2). */
   ui_extensions?: UIExtensionManifestEntry[];
+  /** Optional presentation overrides for host-owned connection fields. */
+  connection_fields?: ConnectionFieldOverrides;
 }
 
 /** Manifest-level entry for a UI extension slot. */

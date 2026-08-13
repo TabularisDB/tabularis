@@ -64,6 +64,7 @@ pub mod paths; // Added
 #[cfg(test)]
 pub mod paths_tests;
 pub mod persistence;
+pub mod plugin_secrets;
 pub mod plugins;
 pub mod pool_manager;
 #[cfg(test)]

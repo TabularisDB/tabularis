@@ -58,6 +58,7 @@ assertHostCompat(); // throws if the running Tabularis is older than MIN_HOST_VE
 | Package version | Minimum Tabularis | Notes |
 |-----------------|-------------------|-------|
 | `0.1.0`         | `0.1.0` (see host `HOST_API_VERSION`) | Initial release |
+| `0.2.0`         | `0.2.0` | Secure per-connection plugin fields in the connection modal |
 
 ## Slot reference
 

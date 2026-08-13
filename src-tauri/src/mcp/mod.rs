@@ -297,6 +297,17 @@ async fn resolve_db_params(
         }
     }
 
+    if !conn.plugin_secret_keys.is_empty() {
+        let cache = credential_cache::CredentialCache::default();
+        crate::plugin_secrets::hydrate_connection(&cache, &mut conn).map_err(|message| {
+            JsonRpcError {
+                code: -32000,
+                message,
+                data: None,
+            }
+        })?;
+    }
+
     let expanded = expand_ssh_params_for_mcp(&conn.params).await?;
     let expanded = expand_k8s_params_for_mcp(&expanded).await?;
     let db_params = commands::resolve_connection_params(&expanded).map_err(|e| JsonRpcError {

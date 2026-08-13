@@ -95,6 +95,7 @@ One manifest tells Tabularis everything about your plugin — and, when you publ
 | `capabilities` | object | Feature flags (see below). |
 | `data_types` | array | List of supported data types (see below). |
 | `type_mappings` | object \| null | Optional map of generic inferred type names to driver-specific types. Used during paste/import to map generic types (e.g. `DATETIME`) to driver-native equivalents (e.g. `TIMESTAMP`). See [Type Mappings](#type-mappings) below. |
+| `connection_fields` | object | Optional hide, label, and placeholder overrides for the common `host`, `port`, `username`, `password`, and `database` fields. Omitted fields preserve the standard UI. |
 
 ### Capabilities
 
@@ -338,7 +339,7 @@ Add an optional `ui_extensions` array to your manifest:
 | `settings.plugin.actions` | Per-plugin actions in Settings modal | `targetPluginId` | Diagnostics, re-auth buttons |
 | `settings.plugin.before_settings` | Content above plugin settings form | `targetPluginId` | OAuth panels, status banners |
 | `connection-modal.connection_content` | Inside the connection form | `driver` | Custom connection fields |
-| `connection-modal.extra_fields` | Below host/port in the connection form | `driver`, `extra`, `setExtraField` | Plugin-specific connection fields (e.g. AWS region) |
+| `connection-modal.extra_fields` | Below host/port in the connection form | `driver`, `extra`, `setExtraField`, `secretFields`, `setSecretField` | Plugin-specific connection fields, including values stored per connection in the OS keychain |
 
 ### SlotContext
 
@@ -357,6 +358,17 @@ interface SlotContext {
   targetPluginId?: string;
 }
 ```
+
+For `connection-modal.extra_fields`, `setSecretField(key, value)` keeps the
+value out of `connections.json` and stores it under the saved connection in the
+OS keychain. Passing an empty value explicitly clears the entry. On edit,
+`secretFields[key]` exposes only `{ value, hasStoredValue, dirty }`: an existing
+secret is represented by `hasStoredValue` and is never returned to plugin UI.
+At runtime the host resolves stored values into `ConnectionParams.extra` before
+calling the driver, so the JSON-RPC method shapes remain backward compatible.
+Both properties are optional in the public TypeScript contract. A plugin that
+also supports older hosts must guard their presence; a plugin that requires
+secure fields can call `assertHostCompat()` before rendering.
 
 ### Building UI Extension Bundles
 

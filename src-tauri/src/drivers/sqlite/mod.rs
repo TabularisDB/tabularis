@@ -1013,6 +1013,7 @@ impl SqliteDriver {
                 icon: "sqlite".to_string(),
                 settings: vec![],
                 ui_extensions: None,
+                connection_fields: None,
                 type_mappings: std::collections::HashMap::new(),
             },
         }
