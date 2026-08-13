@@ -878,7 +878,19 @@ pub fn save_config_json(app: AppHandle, json: String) -> Result<(), String> {
 
 /// Returns true when running under a Wayland compositor.
 pub fn is_wayland() -> bool {
-    std::env::var("WAYLAND_DISPLAY").is_ok()
+    // Wrap in a closure: passing `std::env::var` as a bare fn item fails
+    // the higher-ranked lifetime bound on the injected lookup.
+    is_wayland_with_env(|key| std::env::var(key))
+}
+
+/// Wayland detection with an injectable env lookup, so tests do not depend
+/// on the host session (`WAYLAND_DISPLAY` may or may not be set on dev
+/// machines and CI runners).
+fn is_wayland_with_env<F>(env_lookup: F) -> bool
+where
+    F: FnOnce(&str) -> Result<String, std::env::VarError>,
+{
+    env_lookup("WAYLAND_DISPLAY").is_ok()
 }
 
 /// Save the main window's size and position to config.
@@ -1235,8 +1247,11 @@ mod tests {
     }
 
     #[test]
-    fn is_wayland_returns_false_without_wayland_display() {
-        // On most test runners WAYLAND_DISPLAY is not set, so this should be false.
-        assert!(!is_wayland());
+    fn is_wayland_detects_wayland_display_from_env_lookup() {
+        // Deterministic regardless of the host session: the env lookup is
+        // injected, so the test never assumes WAYLAND_DISPLAY is (or isn't)
+        // set on the machine running it.
+        assert!(is_wayland_with_env(|_| Ok("wayland-0".to_string())));
+        assert!(!is_wayland_with_env(|_| Err(std::env::VarError::NotPresent)));
     }
 }
