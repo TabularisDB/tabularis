@@ -286,6 +286,7 @@ describe('settings', () => {
         anthropic: false,
         openrouter: false,
         minimax: false,
+        orcarouter: false,
       };
       const models: Record<string, string[]> = {
         openai: ['gpt-4', 'gpt-3.5'],
@@ -303,6 +304,7 @@ describe('settings', () => {
         anthropic: true,
         openrouter: false,
         minimax: false,
+        orcarouter: false,
       };
       const models: Record<string, string[]> = {
         anthropic: ['claude-3'],
@@ -330,12 +332,31 @@ describe('settings', () => {
       expect(result.model).toBe('MiniMax-M3');
     });
 
+    it('should detect orcarouter when no earlier provider key exists', () => {
+      const keyStatus: Record<AiProvider, boolean> = {
+        openai: false,
+        anthropic: false,
+        openrouter: false,
+        minimax: false,
+        orcarouter: true,
+      };
+      const models: Record<string, string[]> = {
+        orcarouter: ['orcarouter/auto', 'openai/gpt-5.5'],
+      };
+
+      const result = detectAIProviderFromKeys(keyStatus, models);
+
+      expect(result.provider).toBe('orcarouter');
+      expect(result.model).toBe('orcarouter/auto');
+    });
+
     it('should return null when no keys available', () => {
       const keyStatus: Record<AiProvider, boolean> = {
         openai: false,
         anthropic: false,
         openrouter: false,
         minimax: false,
+        orcarouter: false,
       };
       const models: Record<string, string[]> = {};
 
@@ -351,6 +372,7 @@ describe('settings', () => {
         anthropic: false,
         openrouter: false,
         minimax: false,
+        orcarouter: false,
       };
       const models: Record<string, string[]> = {};
 
