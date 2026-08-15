@@ -9,18 +9,17 @@ import { invoke } from "@tauri-apps/api/core";
 import { ThemeContext } from "./ThemeContext";
 import { themeRegistry } from "../themes/themeRegistry";
 import { applyThemeToCSS } from "../themes/themeUtils";
-import type { Theme, ThemeSettings } from "../types/theme";
-
-const DEFAULT_THEME_SETTINGS: ThemeSettings = {
-  activeThemeId: "tabularis-dark",
-  followSystemTheme: false,
-  lightThemeId: "tabularis-light",
-  darkThemeId: "tabularis-dark",
-  customThemes: [],
-};
+import {
+  DEFAULT_THEME_SETTINGS,
+  type Theme,
+  type ThemeSettings,
+} from "../types/theme";
 
 interface AppConfig {
   theme?: string;
+  followSystemTheme?: boolean;
+  lightThemeId?: string;
+  darkThemeId?: string;
   language?: string;
   resultPageSize?: number;
   fontFamily?: string;
@@ -78,12 +77,18 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
+        const followSystemTheme = config.followSystemTheme ?? false;
+        const lightThemeId =
+          config.lightThemeId ?? DEFAULT_THEME_SETTINGS.lightThemeId;
+        const darkThemeId =
+          config.darkThemeId ?? DEFAULT_THEME_SETTINGS.darkThemeId;
+
         // If still no theme, detect from system preferences
         if (!activeThemeId) {
           const prefersDark = window.matchMedia(
             "(prefers-color-scheme: dark)",
           ).matches;
-          activeThemeId = prefersDark ? "tabularis-dark" : "tabularis-light";
+          activeThemeId = prefersDark ? darkThemeId : lightThemeId;
 
           // Save the detected theme
           await invoke("save_config", {
@@ -110,6 +115,12 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
         setSettings({
           ...DEFAULT_THEME_SETTINGS,
           activeThemeId: initialTheme.id,
+          followSystemTheme,
+          lightThemeId,
+          darkThemeId,
+          customThemes: loadedCustomThemes
+            .filter((t) => !t.isPreset)
+            .map((t) => t.id),
         });
       } catch (error) {
         console.error("Failed to load themes:", error);
@@ -132,12 +143,23 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!isLoading && currentTheme) {
       invoke("save_config", {
-        config: { theme: currentTheme.id },
+        config: {
+          theme: currentTheme.id,
+          followSystemTheme: settings.followSystemTheme,
+          lightThemeId: settings.lightThemeId,
+          darkThemeId: settings.darkThemeId,
+        },
       }).catch((error) => {
         console.error("Failed to save theme to config:", error);
       });
     }
-  }, [currentTheme, isLoading]);
+  }, [
+    currentTheme,
+    isLoading,
+    settings.followSystemTheme,
+    settings.lightThemeId,
+    settings.darkThemeId,
+  ]);
 
   // Optional: Listen for system theme changes and auto-switch if using system theme
   useEffect(() => {
@@ -145,7 +167,9 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleChange = (e: MediaQueryListEvent) => {
-      const newThemeId = e.matches ? "tabularis-dark" : "tabularis-light";
+      const newThemeId = e.matches
+        ? settings.darkThemeId
+        : settings.lightThemeId;
       const newTheme = allThemes.find((t) => t.id === newThemeId);
       if (newTheme) {
         setCurrentTheme(newTheme);
@@ -153,9 +177,15 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
+    handleChange({ matches: mediaQuery.matches } as MediaQueryListEvent);
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [settings.followSystemTheme, allThemes]);
+  }, [
+    settings.followSystemTheme,
+    settings.lightThemeId,
+    settings.darkThemeId,
+    allThemes,
+  ]);
 
   const setTheme = useCallback(
     async (themeId: string) => {
@@ -324,9 +354,6 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const updateSettings = useCallback(
     async (newSettings: Partial<ThemeSettings>) => {
       setSettings((prev) => ({ ...prev, ...newSettings }));
-
-      // If followSystemTheme is enabled, we would need to set up a media query listener
-      // This is handled separately in a dedicated effect
     },
     [],
   );

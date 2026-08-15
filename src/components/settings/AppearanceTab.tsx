@@ -16,11 +16,18 @@ import {
 import { FontPicker } from "./FontPicker";
 import { ThemePicker } from "./ThemePicker";
 import { ResultColorsSection } from "./ResultColorsSection";
+import { themeRegistry } from "../../themes/themeRegistry";
 
 export function AppearanceTab() {
   const { t } = useTranslation();
   const { settings, updateSetting } = useSettings();
-  const { currentTheme, allThemes, setTheme } = useTheme();
+  const {
+    currentTheme,
+    allThemes,
+    setTheme,
+    settings: themeSettings,
+    updateSettings: updateThemeSettings,
+  } = useTheme();
   const [subTab, setSubTab] = useState<"general" | "editor">("general");
 
   return (
@@ -57,6 +64,41 @@ export function AppearanceTab() {
       {subTab === "general" && (
         <>
           <SettingSection title={t("settings.themeSelection")}>
+            <SettingRow
+              label={t("settings.appearance_followSystemTheme")}
+              description={t("settings.appearance_followSystemThemeDesc")}
+            >
+              <SettingToggle
+                checked={themeSettings.followSystemTheme}
+                onChange={(followSystemTheme) =>
+                  updateThemeSettings({ followSystemTheme })
+                }
+              />
+            </SettingRow>
+            <div className="py-3">
+              <p className="text-sm text-primary mb-3">
+                {t("settings.appearance_lightTheme")}
+              </p>
+              <ThemePicker
+                value={themeSettings.lightThemeId}
+                onChange={(lightThemeId) => updateThemeSettings({ lightThemeId })}
+                themes={allThemes.filter((theme) =>
+                  themeRegistry.isLightTheme(theme),
+                )}
+              />
+            </div>
+            <div className="py-3">
+              <p className="text-sm text-primary mb-3">
+                {t("settings.appearance_darkTheme")}
+              </p>
+              <ThemePicker
+                value={themeSettings.darkThemeId}
+                onChange={(darkThemeId) => updateThemeSettings({ darkThemeId })}
+                themes={allThemes.filter((theme) =>
+                  themeRegistry.isDarkTheme(theme),
+                )}
+              />
+            </div>
             <div className="py-3">
               <ThemePicker
                 value={currentTheme.id}

@@ -21,6 +21,9 @@ pub struct PluginConfig {
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub theme: Option<String>,
+    pub follow_system_theme: Option<bool>,
+    pub light_theme_id: Option<String>,
+    pub dark_theme_id: Option<String>,
     pub language: Option<String>,
     pub result_page_size: Option<u32>,
     pub font_family: Option<String>,
@@ -262,6 +265,15 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         // Merge: only update fields that are Some in the new config
         if config.theme.is_some() {
             existing_config.theme = config.theme;
+        }
+        if config.follow_system_theme.is_some() {
+            existing_config.follow_system_theme = config.follow_system_theme;
+        }
+        if config.light_theme_id.is_some() {
+            existing_config.light_theme_id = config.light_theme_id;
+        }
+        if config.dark_theme_id.is_some() {
+            existing_config.dark_theme_id = config.dark_theme_id;
         }
         if config.language.is_some() {
             existing_config.language = config.language;
