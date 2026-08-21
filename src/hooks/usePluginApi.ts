@@ -1,5 +1,4 @@
 import { useState, useCallback, useContext, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
 import { openUrl as openExternal } from "@tauri-apps/plugin-opener";
 import { useTranslation } from "react-i18next";
@@ -10,11 +9,13 @@ import { SettingsContext } from "../contexts/SettingsContext";
 import { PluginModalContext } from "../contexts/PluginModalContext";
 import type { PluginModalOptions } from "../contexts/PluginModalContext";
 import { toErrorMessage } from "../utils/errors";
+import { useTabularisClient } from "./useTabularisClient";
 
 /**
  * Hook for plugin components to execute read-only database queries.
  */
 export function usePluginQuery() {
+  const client = useTabularisClient();
   const dbCtx = useContext(DatabaseContext);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +30,7 @@ export function usePluginQuery() {
       setError(null);
 
       try {
-        const result = await invoke<{ columns: string[]; rows: unknown[][] }>("execute_query", {
+        const result = await client.call("execute_query", {
           connectionId: dbCtx.activeConnectionId,
           query,
           ...(dbCtx.activeSchema ? { schema: dbCtx.activeSchema } : {}),
@@ -43,7 +44,7 @@ export function usePluginQuery() {
         setLoading(false);
       }
     },
-    [dbCtx?.activeConnectionId, dbCtx?.activeSchema],
+    [client, dbCtx?.activeConnectionId, dbCtx?.activeSchema],
   );
 
   return { executeQuery, loading, error };

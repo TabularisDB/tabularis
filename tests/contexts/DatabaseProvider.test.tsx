@@ -18,6 +18,12 @@ vi.mock('../../src/utils/autocomplete', () => ({
   clearAutocompleteCache: vi.fn(),
 }));
 
+vi.mock('../../src/hooks/useTabularisClient', () => ({
+  useTabularisClient: () => ({
+    call: (command: string, request: unknown) => invoke(command, request),
+  }),
+}));
+
 vi.mock('../../src/hooks/useSettings', () => ({
   useSettings: () => ({
     settings: { activeExternalDrivers: [] },
@@ -189,7 +195,7 @@ describe('DatabaseProvider', () => {
       expect(result.current.isLoadingViews).toBe(false);
     });
 
-    expect(invoke).toHaveBeenCalledWith('get_connections');
+    expect(invoke).toHaveBeenCalledWith('get_connections', undefined);
     expect(invoke).toHaveBeenCalledWith('get_tables', { connectionId: 'conn-123' });
     expect(invoke).toHaveBeenCalledWith('get_views', { connectionId: 'conn-123' });
   });

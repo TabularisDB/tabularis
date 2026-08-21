@@ -11,6 +11,7 @@ import { Select } from "../ui/Select";
 import { supportsAlterColumn } from "../../utils/driverCapabilities";
 import { parseColumnType, buildColumnDefinition } from "../../utils/columnTypes";
 import type { ColumnFormData } from "../../utils/columnTypes";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 
 type ColumnDef = ColumnFormData;
 
@@ -40,6 +41,7 @@ export const ModifyColumnModal = ({
   driver,
   column,
 }: ModifyColumnModalProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { activeSchema } = useDatabase();
   const { dataTypes } = useDataTypes(driver);
@@ -178,7 +180,7 @@ export const ModifyColumnModal = ({
       }
 
       for (const sql of stmts) {
-        await invoke("execute_query", {
+        await client.call("execute_query", {
           connectionId,
           query: sql,
           ...(activeSchema ? { schema: activeSchema } : {}),

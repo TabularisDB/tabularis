@@ -7,6 +7,7 @@ import { useDatabase } from '../../hooks/useDatabase';
 import { useDrivers } from '../../hooks/useDrivers';
 import { Modal } from '../ui/Modal';
 import { supportsCreateForeignKeys, getCapabilitiesForDriver } from '../../utils/driverCapabilities';
+import { useTabularisClient } from '../../hooks/useTabularisClient';
 
 interface CreateForeignKeyModalProps {
   isOpen: boolean;
@@ -35,6 +36,7 @@ export const CreateForeignKeyModal = ({
   tableName,
   driver
 }: CreateForeignKeyModalProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { activeSchema } = useDatabase();
   const { allDrivers } = useDrivers();
@@ -66,7 +68,7 @@ export const CreateForeignKeyModal = ({
 
         const schemaParam = activeSchema ? { schema: activeSchema } : {};
         Promise.all([
-            invoke<TableInfo[]>('get_tables', { connectionId, ...schemaParam }),
+            client.call('get_tables', { connectionId, ...schemaParam }),
             invoke<TableColumn[]>('get_columns', { connectionId, tableName, ...schemaParam })
         ]).then(([tbls, cols]) => {
             setTables(tbls);
@@ -75,7 +77,7 @@ export const CreateForeignKeyModal = ({
             if (tbls.length > 0) setRefTable(tbls[0].name);
         }).catch(e => setError(String(e)));
     }
-  }, [isOpen, connectionId, tableName, activeSchema]);
+  }, [client, isOpen, connectionId, tableName, activeSchema]);
 
   useEffect(() => {
       if (refTable && isOpen) {
@@ -144,7 +146,7 @@ export const CreateForeignKeyModal = ({
             ...(activeSchema ? { schema: activeSchema } : {}),
           });
           for (const sql of stmts) {
-            await invoke('execute_query', {
+            await client.call('execute_query', {
               connectionId,
               query: sql,
               ...(activeSchema ? { schema: activeSchema } : {}),

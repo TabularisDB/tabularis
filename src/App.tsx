@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { invoke } from "@tauri-apps/api/core";
 import { MainLayout } from "./components/layout/MainLayout";
 import { ConnectionLayoutProvider } from "./contexts/ConnectionLayoutProvider";
 import { RightSidebarProvider } from "./contexts/RightSidebarProvider";
@@ -32,10 +31,12 @@ import { useDeepLinkInstall } from "./hooks/useDeepLinkInstall";
 import { useResultTypeColors } from "./hooks/useResultTypeColors";
 import { APP_VERSION } from "./version";
 import { isVersionAtMost, isVersionNewer } from "./utils/versionCompare";
+import { useTabularisClient } from "./hooks/useTabularisClient";
 
 const WHATS_NEW_VERSION_KEY = "tabularis_last_seen_version";
 
 export function App() {
+  const client = useTabularisClient();
   const {
     updateInfo,
     isDownloading,
@@ -91,10 +92,10 @@ export function App() {
   }, [isSettingsLoading, settings.showWelcome]);
 
   useEffect(() => {
-    invoke<boolean>("is_debug_mode").then((debugMode) => {
+    client.call("is_debug_mode", undefined).then((debugMode) => {
       setIsDebugMode(debugMode);
     });
-  }, []);
+  }, [client]);
 
   useEffect(() => {
     if (isDebugMode) return;

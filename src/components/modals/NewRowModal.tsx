@@ -10,6 +10,7 @@ import { isGeometricType } from "../../utils/geometry";
 import { GeometryInput } from "../ui/GeometryInput";
 import type { ForeignKey } from "../../types/schema";
 import { SlotAnchor } from "../ui/SlotAnchor";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 
 interface TableColumn {
   name: string;
@@ -33,6 +34,7 @@ export const NewRowModal = ({
   tableName,
   onSaveSuccess,
 }: NewRowModalProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { activeConnectionId, activeDriver, activeSchema } = useDatabase();
   const guardProductionWrite = useProductionGuard();
@@ -59,7 +61,7 @@ export const NewRowModal = ({
       // Select * from referenced table to get context
       const query = `SELECT * FROM ${quotedTable} LIMIT 100`;
 
-      const result = await invoke<{ columns: string[], rows: unknown[][] }>("execute_query", {
+      const result = await client.call("execute_query", {
         connectionId: activeConnectionId,
         query,
         ...(activeSchema ? { schema: activeSchema } : {}),
@@ -106,7 +108,7 @@ export const NewRowModal = ({
     } finally {
       setLoadingFk((prev) => ({ ...prev, [fk.column_name]: false }));
     }
-  }, [activeConnectionId, activeDriver, activeSchema]);
+  }, [client, activeConnectionId, activeDriver, activeSchema]);
 
   useEffect(() => {
     if (isOpen && activeConnectionId && tableName) {

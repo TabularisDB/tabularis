@@ -10,6 +10,7 @@ import { formatSql } from "../../utils/sqlFormat";
 import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
 import { useDatabase } from "../../hooks/useDatabase";
 import { Modal } from "../ui/Modal";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 
 interface ViewEditorModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export const ViewEditorModal = ({
   isNewView = false,
   onSuccess,
 }: ViewEditorModalProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { activeSchema, activeCapabilities } = useDatabase();
   const { showAlert } = useAlert();
@@ -93,11 +95,7 @@ export const ViewEditorModal = ({
     setPreviewLoading(true);
     setError(null);
     try {
-      const result = await invoke<{
-        columns: string[];
-        rows: unknown[][];
-        affected_rows: number;
-      }>("execute_query", {
+      const result = await client.call("execute_query", {
         connectionId,
         query: definition,
         limit: 10,

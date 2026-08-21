@@ -17,6 +17,12 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
+vi.mock("../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({
+    call: (command: string, request: unknown) => invoke(command, request),
+  }),
+}));
+
 // The global setup mock doesn't cover every icon this component uses.
 vi.mock("lucide-react", () => ({
   Plus: () => null,

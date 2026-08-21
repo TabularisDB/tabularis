@@ -10,6 +10,7 @@ import { useDrivers } from "../../../src/hooks/useDrivers";
 import { useEditor } from "../../../src/hooks/useEditor";
 import { useSettings } from "../../../src/hooks/useSettings";
 import { useDatabaseObjectNavigation } from "../../../src/hooks/useDatabaseObjectNavigation";
+import { invoke } from "@tauri-apps/api/core";
 
 const translateMock = vi.hoisted(() => (key: string) => key);
 
@@ -27,6 +28,11 @@ vi.mock("../../../src/hooks/useEditor", () => ({ useEditor: vi.fn() }));
 vi.mock("../../../src/hooks/useSettings", () => ({ useSettings: vi.fn() }));
 vi.mock("../../../src/hooks/useDatabaseObjectNavigation", () => ({
   useDatabaseObjectNavigation: vi.fn(),
+}));
+vi.mock("../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({
+    call: (command: string, request: unknown) => invoke(command, request),
+  }),
 }));
 vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
 vi.mock("../../../src/utils/notebookStore", async (importOriginal) => {

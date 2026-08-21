@@ -93,6 +93,7 @@ import { isMultiDatabaseCapable, usesMultiDatabaseLayout, reconcileDatabaseSelec
 import { supportsManageTables } from "../../utils/driverCapabilities";
 import { newConsoleForDatabase } from "../../utils/newConsole";
 import { openEditor } from "../../utils/editorNavigation";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 import {
   DEFAULT_CREATE_TABLE_TARGET,
   getCreateTableRefreshPlan,
@@ -110,6 +111,7 @@ interface ExplorerSidebarProps {
 }
 
 export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebarTab, onSidebarTabChange }: ExplorerSidebarProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { settings } = useSettings();
   const {
@@ -1967,6 +1969,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       icon: Trash2,
                       danger: true,
                       action: async () => {
+                        if (!activeConnectionId) return;
                         const quotedTable = quoteTableRef(contextMenu.id, activeCapabilities ?? activeDriver, ctxSchema);
                         if (
                           await ask(
@@ -1975,7 +1978,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           )
                         ) {
                           try {
-                            await invoke("execute_query", {
+                            await client.call("execute_query", {
                               connectionId: activeConnectionId,
                               query: `DROP TABLE ${quotedTable}`,
                               ...(ctxSchema ? { schema: ctxSchema } : {}),

@@ -21,7 +21,6 @@ import {
   Plus,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import type { ConnectionAppearance } from "../../contexts/DatabaseContext";
 import { AppearanceSection } from "./NewConnectionModal/AppearanceSection";
 import { MaskingOverridesEditor } from "../settings/MaskingOverridesEditor";
@@ -66,7 +65,6 @@ import { ConnectionDiagnosticsModal } from "./connection/ConnectionDiagnosticsMo
 import {
   testStepLabelKey,
   type ConnectionTestLogEntry,
-  type ConnectionTestProgressPayload,
 } from "../../utils/connectionTest";
 import { fetchConnectionWithCredentials } from "../../utils/credentials";
 import { getDriverIcon, getDriverColorStyle, isUrlIcon } from "../../utils/driverUI";
@@ -79,6 +77,7 @@ import { useConnectionCatalogue } from "../../hooks/useConnectionCatalogue";
 import { ConnectionCatalogue } from "./connection/ConnectionCatalogue";
 import { DriverVersionPicker } from "./connection/DriverVersionPicker";
 import { InstallGate } from "./connection/InstallGate";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 import {
   resolveEngineSelection,
   type EngineGroup,
@@ -248,6 +247,7 @@ export const NewConnectionModal = ({
   onSave,
   initialConnection,
 }: NewConnectionModalProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { drivers, refresh: refreshDrivers } = useDrivers();
   const { settings, updateSetting } = useSettings();
@@ -1128,14 +1128,14 @@ export const NewConnectionModal = ({
     let unlistenProgress: (() => void) | null = null;
 
     try {
-      unlistenProgress = await listen<ConnectionTestProgressPayload>(
+      unlistenProgress = await client.subscribe(
         "connection-test-progress",
-        (event) => {
-          if (event.payload.id !== sshTestProgressIdRef.current) return;
+        (payload) => {
+          if (payload.id !== sshTestProgressIdRef.current) return;
           const entry: ConnectionTestLogEntry = {
-            step: event.payload.step,
-            status: event.payload.status,
-            detail: event.payload.detail ?? null,
+            step: payload.step,
+            status: payload.status,
+            detail: payload.detail ?? null,
             timestamp: Date.now(),
           };
           setSshTestLog((previous) => [...previous, entry]);
@@ -1930,14 +1930,14 @@ export const NewConnectionModal = ({
       testProgressIdRef.current = progressId;
       let unlistenProgress: (() => void) | null = null;
       try {
-        unlistenProgress = await listen<ConnectionTestProgressPayload>(
+        unlistenProgress = await client.subscribe(
           "connection-test-progress",
-          (event) => {
-            if (event.payload.id !== testProgressIdRef.current) return;
+          (payload) => {
+            if (payload.id !== testProgressIdRef.current) return;
             const entry: ConnectionTestLogEntry = {
-              step: event.payload.step,
-              status: event.payload.status,
-              detail: event.payload.detail ?? null,
+              step: payload.step,
+              status: payload.status,
+              detail: payload.detail ?? null,
               timestamp: Date.now(),
             };
             setTestLog((previous) => [...previous, entry]);
@@ -1962,9 +1962,13 @@ export const NewConnectionModal = ({
           inlinePaths.options,
         );
         const invokeTest = () =>
-          invoke<string>("test_connection", {
+          client.call("test_connection", {
             request: {
-              params: { ...testParams },
+              params: {
+                ...testParams,
+                driver: testParams.driver ?? driver,
+                database: testParams.database ?? "",
+              },
               connection_id: initialConnection?.id,
               progress_id: progressId,
             },

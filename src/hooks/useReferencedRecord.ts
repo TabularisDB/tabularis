@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import type { ForeignKey, QueryResult } from '../types/editor';
 import type { DriverCapabilities, PluginManifest } from '../types/plugins';
 import { quoteTableRef } from '../utils/identifiers';
@@ -7,6 +6,8 @@ import {
   isForeignKeyValueNavigable,
   buildForeignKeyFilterClause,
 } from '../utils/foreignKeys';
+import type { TypedCommandCaller } from '../api/contract';
+import { useTabularisClient } from './useTabularisClient';
 
 type DriverArg = string | PluginManifest | DriverCapabilities | null | undefined;
 
@@ -22,14 +23,17 @@ export interface FetchReferencedRecordParams {
 /**
  * Fetches rows from the referenced table that match the foreign key value.
  */
-export async function fetchReferencedRecord({
-  connectionId,
-  fk,
-  value,
-  driver,
-  schema,
-  sourceColumnType,
-}: FetchReferencedRecordParams): Promise<QueryResult> {
+export async function fetchReferencedRecord(
+  {
+    connectionId,
+    fk,
+    value,
+    driver,
+    schema,
+    sourceColumnType,
+  }: FetchReferencedRecordParams,
+  client: TypedCommandCaller,
+): Promise<QueryResult> {
   if (!isForeignKeyValueNavigable(value)) {
     return { columns: [], rows: [], affected_rows: 0 };
   }
@@ -43,7 +47,7 @@ export async function fetchReferencedRecord({
 
   const query = `SELECT * FROM ${quotedTable} WHERE ${filterClause}`;
 
-  return invoke<QueryResult>('execute_query', {
+  return client.call('execute_query', {
     connectionId,
     query,
     limit: 100,
@@ -69,6 +73,7 @@ export function useReferencedRecord({
   schema,
   sourceColumnType,
 }: UseReferencedRecordParams) {
+  const client = useTabularisClient();
   const [result, setResult] = useState<QueryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -84,14 +89,17 @@ export function useReferencedRecord({
     setError(null);
 
     try {
-      const res = await fetchReferencedRecord({
-        connectionId,
-        fk,
-        value,
-        driver,
-        schema,
-        sourceColumnType,
-      });
+      const res = await fetchReferencedRecord(
+        {
+          connectionId,
+          fk,
+          value,
+          driver,
+          schema,
+          sourceColumnType,
+        },
+        client,
+      );
       setResult(res);
     } catch (err) {
       console.error('Failed to fetch referenced record:', err);
@@ -100,7 +108,7 @@ export function useReferencedRecord({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, fk, value, driver, schema, sourceColumnType]);
+  }, [client, connectionId, fk, value, driver, schema, sourceColumnType]);
 
   useEffect(() => {
     loadRecord();

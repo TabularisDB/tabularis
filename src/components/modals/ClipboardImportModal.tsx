@@ -26,6 +26,7 @@ import { ParseSummary } from './ClipboardImport/ParseSummary';
 import { ModeToggle } from './ClipboardImport/ModeToggle';
 import { useDataTypes } from '../../hooks/useDataTypes';
 import type { TableColumn } from '../../utils/sqlGenerator';
+import { useTabularisClient } from '../../hooks/useTabularisClient';
 import {
   parseClipboardText,
   reParseWithHeaderOption,
@@ -48,6 +49,7 @@ interface ImportResult {
 }
 
 export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardImportModalProps) {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const titleId = useId();
   const descriptionId = useId();
@@ -130,7 +132,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
   const loadTables = useCallback(async () => {
     if (!activeConnectionId) return;
     try {
-      const tables = await invoke<{ name: string }[]>('get_tables', {
+      const tables = await client.call('get_tables', {
         connectionId: activeConnectionId,
         ...(activeSchema ? { schema: activeSchema } : {}),
       });
@@ -138,7 +140,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
     } catch {
       // Non-critical
     }
-  }, [activeConnectionId, activeSchema]);
+  }, [client, activeConnectionId, activeSchema]);
 
   useEffect(() => {
     if (isOpen) {

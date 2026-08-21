@@ -9,6 +9,12 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
+vi.mock("../../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({
+    call: (command: string, request: unknown) => invoke(command, request),
+  }),
+}));
+
 // Mock i18n
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({

@@ -1,10 +1,9 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { BookOpen, Loader2 } from "lucide-react";
-import type { Tab, QueryResult } from "../../types/editor";
+import type { Tab } from "../../types/editor";
 import type {
   NotebookCell,
   NotebookCellType,
@@ -73,6 +72,7 @@ import { AddCellButton } from "./AddCellButton";
 import { RunAllSummary } from "./RunAllSummary";
 import { ParamsPanel } from "./ParamsPanel";
 import { NotebookOutline } from "./NotebookOutline";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 
 interface NotebookViewProps {
   tab: Tab;
@@ -88,6 +88,7 @@ export function NotebookView({
   connectionId,
   isActive,
 }: NotebookViewProps) {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { activeSchema, activeCapabilities, selectedDatabases, activeDriver } =
     useDatabase();
@@ -373,7 +374,7 @@ export function NotebookView({
 
       const start = performance.now();
       try {
-        const res = await invoke<QueryResult>("execute_query", {
+        const res = await client.call("execute_query", {
           connectionId,
           query: resolvedSql,
           limit: pageSize,
@@ -419,6 +420,7 @@ export function NotebookView({
       }
     },
     [
+      client,
       connectionId,
       effectiveSchema,
       settings.resultPageSize,

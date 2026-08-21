@@ -12,7 +12,6 @@ import {
   EyeOff,
   X,
 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import {
   loadSshConnections,
   saveSshConnection,
@@ -22,11 +21,11 @@ import {
   validateSshConnection,
   type SshConnection,
 } from "../../utils/ssh";
-import type { SavedConnection } from "../../contexts/DatabaseContext";
 import { toErrorMessage } from "../../utils/errors";
 import { ConfirmModal } from "../modals/ConfirmModal";
 import { Select } from "../ui/Select";
 import clsx from "clsx";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 
 const InputClass =
   "w-full px-3 pt-2 pb-1 bg-base border border-strong rounded-lg text-primary focus:border-blue-500 focus:outline-none leading-tight";
@@ -98,6 +97,7 @@ interface SshConnectionsManagerProps {
 export function SshConnectionsManager({
   confirmOverlayClassName,
 }: SshConnectionsManagerProps) {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const [connections, setConnections] = useState<SshConnection[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -284,7 +284,7 @@ export function SshConnectionsManager({
     setDeleteTargetId(id);
     setDeleteUsageCount(0);
     try {
-      const saved = await invoke<SavedConnection[]>("get_connections");
+      const saved = await client.call("get_connections", undefined);
       setDeleteUsageCount(
         saved.filter((c) => c.params.ssh_connection_id === id).length,
       );

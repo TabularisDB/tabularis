@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import { ShieldCheck, Lock } from "lucide-react";
 import { useSettings } from "../../../hooks/useSettings";
 import {
@@ -11,6 +10,7 @@ import {
   SettingNumberInput,
 } from "../../settings/SettingControls";
 import type { McpApprovalMode } from "../../../types/ai";
+import { useTabularisClient } from "../../../hooks/useTabularisClient";
 
 interface ConnectionItem {
   id: string;
@@ -19,15 +19,16 @@ interface ConnectionItem {
 
 /// Settings block embedded in McpModal: read-only + approval gate controls.
 export function McpSafetySection() {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { settings, updateSetting } = useSettings();
   const [connections, setConnections] = useState<ConnectionItem[]>([]);
 
   useEffect(() => {
-    invoke<ConnectionItem[]>("get_connections")
+    client.call("get_connections", undefined)
       .then((list) => setConnections(list.map((c) => ({ id: c.id, name: c.name }))))
       .catch(() => setConnections([]));
-  }, []);
+  }, [client]);
 
   const readonlyDefault = settings.mcpReadonlyDefault ?? false;
   const overrideList = settings.mcpReadonlyConnections ?? [];

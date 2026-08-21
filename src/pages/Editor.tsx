@@ -135,7 +135,6 @@ import { useConnectionLayoutContext } from "../hooks/useConnectionLayoutContext"
 import { useKeybindings } from "../hooks/useKeybindings";
 import type {
   BatchStatementResult,
-  QueryResult,
   Tab,
   PendingInsertion,
   TableColumn,
@@ -159,6 +158,7 @@ import {
 } from "../utils/tabScroll";
 import { computeAutoScrollSpeed } from "../utils/notebookDnd";
 import clsx from "clsx";
+import { useTabularisClient } from "../hooks/useTabularisClient";
 
 interface ExportProgress {
   rows_processed: number;
@@ -193,6 +193,7 @@ interface EditorProps {
 }
 
 export const Editor = ({ commandScopeId }: EditorProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const {
     activeConnectionId,
@@ -864,12 +865,12 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const stopQuery = useCallback(async () => {
     if (!activeConnectionId) return;
     try {
-      await invoke("cancel_query", { connectionId: activeConnectionId });
+      await client.call("cancel_query", { connectionId: activeConnectionId });
       updateActiveTab({ isLoading: false });
     } catch (e) {
       console.error("Failed to stop:", e);
     }
-  }, [activeConnectionId, updateActiveTab]);
+  }, [client, activeConnectionId, updateActiveTab]);
 
   const runQuery = useCallback(
     async (
@@ -1011,7 +1012,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           pageSizeOverride ?? targetTab.pageSize,
           settings.resultPageSize,
         );
-        const res = await invoke<QueryResult>("execute_query", {
+        const res = await client.call("execute_query", {
           connectionId: activeConnectionId,
           query: textToRun,
           limit: pageSize,
@@ -1150,6 +1151,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       }
     },
     [
+      client,
       activeConnectionId,
       updateTab,
       settings.resultPageSize,
@@ -1284,12 +1286,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       // events from any other batch executing concurrently.
       const batchId = `batch-${targetTabId}-${performance.now()}`;
       // Registered before `invoke` so no early statement event is missed.
-      const unlisten = await listen<{
-        batch_id: string;
-        index: number;
-        statement: BatchStatementResult;
-      }>("batch-statement-complete", (event) => {
-        const p = event.payload;
+      const unlisten = await client.subscribe("batch-statement-complete", (p) => {
         if (p.batch_id !== batchId || applied.has(p.index)) return;
         applied.add(p.index);
         applyStatement(p.index, p.statement);
@@ -1353,6 +1350,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       updateTab(targetTabId, { isLoading: false });
     },
     [
+      client,
       activeConnectionId,
       updateTab,
       patchResultEntry,
@@ -1448,7 +1446,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
       try {
         const start = performance.now();
-        const res = await invoke<QueryResult>("execute_query", {
+        const res = await client.call("execute_query", {
           connectionId: activeConnectionId,
           query: entry.query,
           limit: pageSize,
@@ -1496,7 +1494,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         }
       }
     },
-    [activeConnectionId, updateTab, settings.resultPageSize, activeSchema, t],
+    [client, activeConnectionId, updateTab, settings.resultPageSize, activeSchema, t],
   );
 
   const handlePageSizeChange = useCallback(
@@ -3416,7 +3414,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     const schema = activeTab?.schema ?? activeSchema;
 
     try {
-      const res = await invoke<QueryResult>("execute_query", {
+      const res = await client.call("execute_query", {
         connectionId: activeConnectionId,
         query,
         // When the total is unknown (no row count requested yet), fall back to
@@ -3442,6 +3440,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       });
     }
   }, [
+    client,
     activeTab,
     activeConnectionId,
     activeCapabilities,

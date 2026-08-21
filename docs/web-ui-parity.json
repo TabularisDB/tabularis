@@ -53,8 +53,8 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 227,
-    "literalCallSiteCount": 367,
+    "literalCommandCount": 221,
+    "literalCallSiteCount": 334,
     "dynamicCallSiteCount": 3,
     "handlerRegistrationCount": 255,
     "registeredCommandCount": 254,
@@ -62,7 +62,7 @@
       "cancel_dump"
     ],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 27
+    "registeredCommandsWithoutFrontendCall": 33
   },
   "commands": [
     {
@@ -89,7 +89,7 @@
       "callSites": [
         {
           "file": "src/components/modals/ViewEditorModal.tsx",
-          "line": 155
+          "line": 153
         }
       ]
     },
@@ -195,7 +195,7 @@
       "callSites": [
         {
           "file": "src/pages/Editor.tsx",
-          "line": 3303
+          "line": 3301
         }
       ]
     },
@@ -224,20 +224,6 @@
         {
           "file": "src/components/settings/PluginsTab.tsx",
           "line": 771
-        }
-      ]
-    },
-    {
-      "name": "cancel_query",
-      "featureGroup": "queries",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "src/pages/Editor.tsx",
-          "line": 867
         }
       ]
     },
@@ -363,11 +349,11 @@
       "callSites": [
         {
           "file": "src/pages/Editor.tsx",
-          "line": 1602
+          "line": 1600
         },
         {
           "file": "src/pages/Editor.tsx",
-          "line": 1646
+          "line": 1644
         }
       ]
     },
@@ -409,7 +395,7 @@
       "callSites": [
         {
           "file": "src/pages/Editor.tsx",
-          "line": 1558
+          "line": 1556
         }
       ]
     },
@@ -423,7 +409,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1188
+          "line": 1189
         }
       ]
     },
@@ -465,7 +451,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1200
+          "line": 1201
         }
       ]
     },
@@ -539,7 +525,7 @@
       "callSites": [
         {
           "file": "src/components/modals/ViewEditorModal.tsx",
-          "line": 135
+          "line": 133
         }
       ]
     },
@@ -613,7 +599,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1238
+          "line": 1239
         }
       ]
     },
@@ -631,7 +617,7 @@
         },
         {
           "file": "src/components/modals/NewConnectionModal.tsx",
-          "line": 2259
+          "line": 2263
         }
       ]
     },
@@ -715,11 +701,11 @@
       "callSites": [
         {
           "file": "src/pages/Editor.tsx",
-          "line": 2788
+          "line": 2786
         },
         {
           "file": "src/pages/Editor.tsx",
-          "line": 2809
+          "line": 2807
         }
       ]
     },
@@ -783,7 +769,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 972
+          "line": 973
         }
       ]
     },
@@ -825,19 +811,19 @@
       "callSites": [
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 1190
+          "line": 1192
         },
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 1449
+          "line": 1451
         },
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 1624
+          "line": 1626
         },
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 2055
+          "line": 2058
         }
       ]
     },
@@ -851,19 +837,19 @@
       "callSites": [
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 1167
+          "line": 1169
         },
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 1426
+          "line": 1428
         },
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 1602
+          "line": 1604
         },
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 2015
+          "line": 2018
         }
       ]
     },
@@ -877,7 +863,7 @@
       "callSites": [
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 464
+          "line": 466
         }
       ]
     },
@@ -891,7 +877,7 @@
       "callSites": [
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 2374
+          "line": 2377
         },
         {
           "file": "src/components/modals/TriggerEditorModal.tsx",
@@ -909,7 +895,7 @@
       "callSites": [
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 2146
+          "line": 2149
         }
       ]
     },
@@ -991,73 +977,7 @@
       "callSites": [
         {
           "file": "src/components/modals/ClipboardImportModal.tsx",
-          "line": 305
-        }
-      ]
-    },
-    {
-      "name": "execute_query",
-      "featureGroup": "queries",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 1978
-        },
-        {
-          "file": "src/components/layout/sidebar/SidebarColumnItem.tsx",
-          "line": 71
-        },
-        {
-          "file": "src/components/modals/CreateForeignKeyModal.tsx",
-          "line": 147
-        },
-        {
-          "file": "src/components/modals/CreateIndexModal.tsx",
-          "line": 105
-        },
-        {
-          "file": "src/components/modals/CreateTableModal.tsx",
-          "line": 139
-        },
-        {
-          "file": "src/components/modals/ModifyColumnModal.tsx",
-          "line": 181
-        },
-        {
-          "file": "src/components/modals/NewRowModal.tsx",
-          "line": 62
-        },
-        {
-          "file": "src/components/modals/ViewEditorModal.tsx",
-          "line": 96
-        },
-        {
-          "file": "src/components/notebook/NotebookView.tsx",
-          "line": 376
-        },
-        {
-          "file": "src/hooks/usePluginApi.ts",
-          "line": 32
-        },
-        {
-          "file": "src/hooks/useReferencedRecord.ts",
-          "line": 46
-        },
-        {
-          "file": "src/pages/Editor.tsx",
-          "line": 1014
-        },
-        {
-          "file": "src/pages/Editor.tsx",
-          "line": 1451
-        },
-        {
-          "file": "src/pages/Editor.tsx",
-          "line": 3419
+          "line": 307
         }
       ]
     },
@@ -1071,7 +991,7 @@
       "callSites": [
         {
           "file": "src/pages/Editor.tsx",
-          "line": 1304
+          "line": 1301
         }
       ]
     },
@@ -1187,7 +1107,7 @@
       "callSites": [
         {
           "file": "src/pages/Editor.tsx",
-          "line": 3363
+          "line": 3361
         }
       ]
     },
@@ -1307,7 +1227,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1145
+          "line": 1146
         }
       ]
     },
@@ -1321,11 +1241,11 @@
       "callSites": [
         {
           "file": "src/components/modals/ModifyColumnModal.tsx",
-          "line": 123
+          "line": 125
         },
         {
           "file": "src/components/modals/ModifyColumnModal.tsx",
-          "line": 172
+          "line": 174
         }
       ]
     },
@@ -1427,11 +1347,11 @@
       "callSites": [
         {
           "file": "src/components/modals/ModifyColumnModal.tsx",
-          "line": 114
+          "line": 116
         },
         {
           "file": "src/components/modals/ModifyColumnModal.tsx",
-          "line": 163
+          "line": 165
         }
       ]
     },
@@ -1445,23 +1365,23 @@
       "callSites": [
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 1232
+          "line": 1234
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 202
+          "line": 203
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 232
+          "line": 233
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 742
+          "line": 743
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 763
+          "line": 764
         }
       ]
     },
@@ -1493,19 +1413,19 @@
         },
         {
           "file": "src/components/modals/ClipboardImportModal.tsx",
-          "line": 167
+          "line": 169
         },
         {
           "file": "src/components/modals/CreateForeignKeyModal.tsx",
-          "line": 70
+          "line": 72
         },
         {
           "file": "src/components/modals/CreateForeignKeyModal.tsx",
-          "line": 83
+          "line": 85
         },
         {
           "file": "src/components/modals/CreateIndexModal.tsx",
-          "line": 47
+          "line": 49
         },
         {
           "file": "src/components/modals/GenerateSQLModal.tsx",
@@ -1513,7 +1433,7 @@
         },
         {
           "file": "src/components/modals/NewRowModal.tsx",
-          "line": 118
+          "line": 120
         },
         {
           "file": "src/components/modals/SchemaModal.tsx",
@@ -1525,15 +1445,15 @@
         },
         {
           "file": "src/pages/Editor.tsx",
-          "line": 812
+          "line": 813
         },
         {
           "file": "src/pages/Editor.tsx",
-          "line": 2516
+          "line": 2514
         },
         {
           "file": "src/pages/Editor.tsx",
-          "line": 2686
+          "line": 2684
         },
         {
           "file": "src/utils/autocomplete.ts",
@@ -1605,33 +1525,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1206
-        }
-      ]
-    },
-    {
-      "name": "get_connections",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "src/components/modals/mcp/McpSafetySection.tsx",
-          "line": 27
-        },
-        {
-          "file": "src/components/ssh/SshConnectionsManager.tsx",
-          "line": 287
-        },
-        {
-          "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 675
-        },
-        {
-          "file": "src/hooks/useOpenConnectionInNewWindow.ts",
-          "line": 28
+          "line": 1207
         }
       ]
     },
@@ -1659,11 +1553,11 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1041
+          "line": 1042
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1239
+          "line": 1240
         }
       ]
     },
@@ -1677,11 +1571,11 @@
       "callSites": [
         {
           "file": "src/components/modals/CreateForeignKeyModal.tsx",
-          "line": 107
+          "line": 109
         },
         {
           "file": "src/components/modals/CreateForeignKeyModal.tsx",
-          "line": 135
+          "line": 137
         }
       ]
     },
@@ -1695,11 +1589,11 @@
       "callSites": [
         {
           "file": "src/components/modals/CreateIndexModal.tsx",
-          "line": 70
+          "line": 72
         },
         {
           "file": "src/components/modals/CreateIndexModal.tsx",
-          "line": 96
+          "line": 98
         }
       ]
     },
@@ -1713,11 +1607,11 @@
       "callSites": [
         {
           "file": "src/components/modals/CreateTableModal.tsx",
-          "line": 72
+          "line": 74
         },
         {
           "file": "src/components/modals/CreateTableModal.tsx",
-          "line": 131
+          "line": 134
         }
       ]
     },
@@ -1801,7 +1695,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 686
+          "line": 687
         }
       ]
     },
@@ -1851,11 +1745,11 @@
         },
         {
           "file": "src/components/modals/NewRowModal.tsx",
-          "line": 123
+          "line": 125
         },
         {
           "file": "src/pages/Editor.tsx",
-          "line": 817
+          "line": 818
         }
       ]
     },
@@ -2077,7 +1971,7 @@
       "callSites": [
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 2212
+          "line": 2215
         }
       ]
     },
@@ -2091,15 +1985,15 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 363
+          "line": 364
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 423
+          "line": 424
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 872
+          "line": 873
         }
       ]
     },
@@ -2223,7 +2117,7 @@
       "callSites": [
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 443
+          "line": 445
         }
       ]
     },
@@ -2251,7 +2145,7 @@
       "callSites": [
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 2277
+          "line": 2280
         }
       ]
     },
@@ -2287,7 +2181,7 @@
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 313
+          "line": 314
         }
       ]
     },
@@ -2315,7 +2209,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 860
+          "line": 861
         }
       ]
     },
@@ -2343,7 +2237,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 845
+          "line": 846
         }
       ]
     },
@@ -2357,7 +2251,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 850
+          "line": 851
         }
       ]
     },
@@ -2418,56 +2312,6 @@
       ]
     },
     {
-      "name": "get_tables",
-      "featureGroup": "metadata",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "src/components/modals/ClipboardImportModal.tsx",
-          "line": 133
-        },
-        {
-          "file": "src/components/modals/CreateForeignKeyModal.tsx",
-          "line": 69
-        },
-        {
-          "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 287
-        },
-        {
-          "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 360
-        },
-        {
-          "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 420
-        },
-        {
-          "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 483
-        },
-        {
-          "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 539
-        },
-        {
-          "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 803
-        },
-        {
-          "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 869
-        },
-        {
-          "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 932
-        }
-      ]
-    },
-    {
       "name": "get_tabrename_prompt",
       "featureGroup": "ai",
       "eventUse": "none",
@@ -2523,35 +2367,35 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 333
+          "line": 334
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 366
+          "line": 367
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 426
+          "line": 427
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 486
+          "line": 487
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 542
+          "line": 543
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 806
+          "line": 807
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 875
+          "line": 876
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 935
+          "line": 936
         }
       ]
     },
@@ -2565,7 +2409,7 @@
       "callSites": [
         {
           "file": "src/components/modals/ViewEditorModal.tsx",
-          "line": 51
+          "line": 53
         }
       ]
     },
@@ -2579,35 +2423,35 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 300
+          "line": 301
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 361
+          "line": 362
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 421
+          "line": 422
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 484
+          "line": 485
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 540
+          "line": 541
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 804
+          "line": 805
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 870
+          "line": 871
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 933
+          "line": 934
         }
       ]
     },
@@ -2635,11 +2479,11 @@
       "callSites": [
         {
           "file": "src/components/modals/NewRowModal.tsx",
-          "line": 212
+          "line": 214
         },
         {
           "file": "src/pages/Editor.tsx",
-          "line": 2885
+          "line": 2883
         }
       ]
     },
@@ -2680,20 +2524,6 @@
         {
           "file": "src/hooks/useDeepLinkInstall.ts",
           "line": 92
-        }
-      ]
-    },
-    {
-      "name": "is_debug_mode",
-      "featureGroup": "application",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "local-admin",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "src/App.tsx",
-          "line": 94
         }
       ]
     },
@@ -2847,11 +2677,11 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 260
+          "line": 261
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 781
+          "line": 782
         }
       ]
     },
@@ -2865,7 +2695,7 @@
       "callSites": [
         {
           "file": "src/components/modals/ClipboardImportModal.tsx",
-          "line": 90
+          "line": 92
         }
       ]
     },
@@ -2879,7 +2709,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1248
+          "line": 1249
         }
       ]
     },
@@ -2893,7 +2723,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1225
+          "line": 1226
         }
       ]
     },
@@ -2907,7 +2737,7 @@
       "callSites": [
         {
           "file": "src/hooks/useOpenConnectionInNewWindow.ts",
-          "line": 36
+          "line": 37
         }
       ]
     },
@@ -2921,23 +2751,23 @@
       "callSites": [
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 627
+          "line": 629
         },
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 678
+          "line": 680
         },
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 1473
+          "line": 1475
         },
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 1924
+          "line": 1926
         },
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 2415
+          "line": 2418
         }
       ]
     },
@@ -2983,7 +2813,7 @@
       "callSites": [
         {
           "file": "src/pages/Editor.tsx",
-          "line": 1590
+          "line": 1588
         }
       ]
     },
@@ -3071,7 +2901,7 @@
       "callSites": [
         {
           "file": "src/components/layout/ExplorerSidebar.tsx",
-          "line": 2193
+          "line": 2196
         }
       ]
     },
@@ -3085,7 +2915,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 724
+          "line": 725
         }
       ]
     },
@@ -3131,7 +2961,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1270
+          "line": 1271
         }
       ]
     },
@@ -3145,7 +2975,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1257
+          "line": 1258
         }
       ]
     },
@@ -3249,7 +3079,7 @@
       "callSites": [
         {
           "file": "src/components/modals/NewConnectionModal.tsx",
-          "line": 2209
+          "line": 2213
         }
       ]
     },
@@ -3405,11 +3235,11 @@
       "callSites": [
         {
           "file": "src/components/modals/NewConnectionModal.tsx",
-          "line": 2204
+          "line": 2208
         },
         {
           "file": "src/components/modals/NewConnectionModal.tsx",
-          "line": 2217
+          "line": 2221
         }
       ]
     },
@@ -3423,7 +3253,7 @@
       "callSites": [
         {
           "file": "src/components/modals/NewConnectionModal.tsx",
-          "line": 2224
+          "line": 2228
         }
       ]
     },
@@ -3479,11 +3309,11 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 999
+          "line": 1000
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1093
+          "line": 1094
         }
       ]
     },
@@ -3497,11 +3327,11 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 991
+          "line": 992
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1110
+          "line": 1111
         }
       ]
     },
@@ -3543,11 +3373,11 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 611
+          "line": 612
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1034
+          "line": 1035
         }
       ]
     },
@@ -3561,15 +3391,15 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 252
+          "line": 253
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 636
+          "line": 637
         },
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 773
+          "line": 774
         }
       ]
     },
@@ -3583,7 +3413,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 592
+          "line": 593
         }
       ]
     },
@@ -3597,11 +3427,11 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 149
+          "line": 150
         },
         {
           "file": "src/pages/Editor.tsx",
-          "line": 498
+          "line": 499
         }
       ]
     },
@@ -3615,29 +3445,7 @@
       "callSites": [
         {
           "file": "src/components/modals/ClipboardImportModal.tsx",
-          "line": 237
-        }
-      ]
-    },
-    {
-      "name": "test_connection",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "src/components/modals/NewConnectionModal.tsx",
-          "line": 1965
-        },
-        {
-          "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 703
-        },
-        {
-          "file": "src/hooks/useOpenConnectionInNewWindow.ts",
-          "line": 31
+          "line": 239
         }
       ]
     },
@@ -3693,7 +3501,7 @@
       "callSites": [
         {
           "file": "src/components/modals/NewConnectionModal.tsx",
-          "line": 2196
+          "line": 2200
         }
       ]
     },
@@ -3707,7 +3515,7 @@
       "callSites": [
         {
           "file": "src/contexts/DatabaseProvider.tsx",
-          "line": 1215
+          "line": 1216
         }
       ]
     },
@@ -3753,11 +3561,11 @@
         },
         {
           "file": "src/pages/Editor.tsx",
-          "line": 2845
+          "line": 2843
         },
         {
           "file": "src/pages/Editor.tsx",
-          "line": 2868
+          "line": 2866
         }
       ]
     },
@@ -3858,18 +3666,23 @@
     }
   ],
   "registeredCommandsWithoutFrontendCall": [
+    "cancel_query",
     "close_devtools",
     "delete_editor_preferences",
     "detect_blob_mime",
     "detect_mime_type",
+    "execute_query",
     "export_theme",
+    "get_connections",
     "get_file_stats",
     "get_materialized_view_columns",
     "get_plugin_dir",
+    "get_tables",
     "get_theme",
     "get_view_columns",
     "import_connections_payload",
     "import_theme",
+    "is_debug_mode",
     "list_all_preferences",
     "open_devtools",
     "open_visual_explain_window",
@@ -3884,6 +3697,7 @@
     "save_explainplan_prompt",
     "save_system_prompt",
     "save_tabrename_prompt",
+    "test_connection",
     "test_log"
   ]
 }

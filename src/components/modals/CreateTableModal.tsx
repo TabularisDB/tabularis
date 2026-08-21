@@ -9,6 +9,7 @@ import { Modal } from '../ui/Modal';
 import { Select } from '../ui/Select';
 import { getRequiredExtensions } from '../../utils/columnTypes';
 import { resolveCreateTableSchema } from '../../utils/createTable';
+import { useTabularisClient } from '../../hooks/useTabularisClient';
 
 interface ColumnDef {
   id: string; // Internal ID for React keys
@@ -29,6 +30,7 @@ interface CreateTableModalProps {
 }
 
 export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateTableModalProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { activeConnectionId, activeDriver, activeSchema } = useDatabase();
   const targetSchema = resolveCreateTableSchema(schema, activeSchema);
@@ -111,6 +113,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
   };
 
   const handleCreate = async () => {
+    if (!activeConnectionId) return;
     if (!tableName.trim()) {
         setError(t('createTable.nameRequired'));
         return;
@@ -136,7 +139,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
         });
 
         for (const sql of stmts) {
-          await invoke('execute_query', {
+          await client.call('execute_query', {
             connectionId: activeConnectionId,
             query: sql,
             ...(targetSchema ? { schema: targetSchema } : {}),

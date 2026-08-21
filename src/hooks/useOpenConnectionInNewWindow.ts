@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDatabase } from "./useDatabase";
-import type { SavedConnection } from "../contexts/DatabaseContext";
+import { useTabularisClient } from "./useTabularisClient";
 
 /**
  * Open a connection in its own dedicated window.
@@ -17,6 +17,7 @@ import type { SavedConnection } from "../contexts/DatabaseContext";
  * stays alive and is reused by the new window, which disconnects it on close).
  */
 export function useOpenConnectionInNewWindow() {
+  const client = useTabularisClient();
   const { detachConnection, isConnectionOpen, isConnectionOpenAnywhere } = useDatabase();
 
   return useCallback(
@@ -25,10 +26,10 @@ export function useOpenConnectionInNewWindow() {
       // is already open somewhere (then it's known-good and the window either
       // reuses the warm pool or just gets focused).
       if (!isConnectionOpenAnywhere(connectionId)) {
-        const connections = await invoke<SavedConnection[]>("get_connections");
+        const connections = await client.call("get_connections", undefined);
         const conn = connections.find((c) => c.id === connectionId);
         if (!conn) throw new Error("Connection not found");
-        await invoke<string>("test_connection", {
+        await client.call("test_connection", {
           request: { params: conn.params, connection_id: connectionId },
         });
       }
@@ -42,6 +43,6 @@ export function useOpenConnectionInNewWindow() {
         detachConnection(connectionId);
       }
     },
-    [detachConnection, isConnectionOpen, isConnectionOpenAnywhere],
+    [client, detachConnection, isConnectionOpen, isConnectionOpenAnywhere],
   );
 }

@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { SqlPreview } from '../ui/SqlPreview';
 import { useDatabase } from '../../hooks/useDatabase';
 import { Modal } from '../ui/Modal';
+import { useTabularisClient } from '../../hooks/useTabularisClient';
 
 interface CreateIndexModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const CreateIndexModal = ({
   connectionId,
   tableName,
 }: CreateIndexModalProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { activeSchema } = useDatabase();
   const [indexName, setIndexName] = useState('');
@@ -102,7 +104,7 @@ export const CreateIndexModal = ({
             ...(activeSchema ? { schema: activeSchema } : {}),
           });
           for (const sql of stmts) {
-            await invoke('execute_query', {
+            await client.call('execute_query', {
               connectionId,
               query: sql,
               ...(activeSchema ? { schema: activeSchema } : {}),

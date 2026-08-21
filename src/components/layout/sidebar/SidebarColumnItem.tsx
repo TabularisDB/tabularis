@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../../../hooks/useAlert";
 import { Key, Columns, Edit, Copy, Trash2 } from "lucide-react";
@@ -9,6 +8,7 @@ import { ContextMenu } from "../../ui/ContextMenu";
 import type { TableColumn } from "../../../types/schema";
 import type { DriverCapabilities } from "../../../types/plugins";
 import { quoteIdentifier, quoteTableRef } from "../../../utils/identifiers";
+import { useTabularisClient } from "../../../hooks/useTabularisClient";
 
 interface SidebarColumnItemProps {
   column: TableColumn;
@@ -39,6 +39,7 @@ export const SidebarColumnItem = ({
   schema,
   canManage,
 }: SidebarColumnItemProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { showAlert } = useAlert();
   const [contextMenu, setContextMenu] = useState<{
@@ -68,7 +69,7 @@ export const SidebarColumnItem = ({
         const quotedColumn = quoteIdentifier(column.name, quotingDriver);
         const query = `ALTER TABLE ${quotedTable} DROP COLUMN ${quotedColumn}`;
 
-        await invoke("execute_query", {
+        await client.call("execute_query", {
           connectionId,
           query,
           ...(schema ? { schema } : {}),

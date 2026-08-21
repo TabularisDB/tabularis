@@ -2,10 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import type { ForeignKey } from '../../src/types/schema';
 import { fetchReferencedRecord } from '../../src/hooks/useReferencedRecord';
+import { TabularisClient } from '../../src/api/client';
+import { TauriTransport } from '../../src/api/transports/tauriTransport';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
+
+const client = new TabularisClient(new TauriTransport());
 
 const fk = (
   name: string,
@@ -33,7 +37,7 @@ describe('useReferencedRecord hook integration', () => {
         fk: fk('fk_org', 'org_id', 'organizations', 'id'),
         value: 42,
         driver: 'mysql',
-      });
+      }, client);
 
       expect(mockInvoke).toHaveBeenCalledWith('execute_query', {
         connectionId: 'conn-123',
@@ -58,7 +62,7 @@ describe('useReferencedRecord hook integration', () => {
         value: 42,
         driver: 'postgres',
         schema: 'public',
-      });
+      }, client);
 
       expect(mockInvoke).toHaveBeenCalledWith('execute_query', {
         connectionId: 'conn-123',
@@ -75,7 +79,7 @@ describe('useReferencedRecord hook integration', () => {
         connectionId: 'conn-123',
         fk: fk('fk_org', 'org_id', 'organizations', 'id'),
         value: null,
-      });
+      }, client);
 
       expect(mockInvoke).not.toHaveBeenCalled();
       expect(res).toEqual({ columns: [], rows: [], affected_rows: 0 });

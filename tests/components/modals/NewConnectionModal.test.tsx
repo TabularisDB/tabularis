@@ -41,6 +41,16 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: eventMocks.listen,
 }));
 
+vi.mock("../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({
+    call: (command: string, request: unknown) => invoke(command, request),
+    subscribe: (
+      event: string,
+      handler: (payload: unknown) => void,
+    ) => eventMocks.listen(event, ({ payload }: { payload: unknown }) => handler(payload)),
+  }),
+}));
+
 vi.mock("../../../src/components/ui/Modal", () => ({
   Modal: ({
     isOpen,

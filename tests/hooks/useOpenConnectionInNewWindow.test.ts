@@ -15,6 +15,12 @@ vi.mock("../../src/hooks/useDatabase", () => ({
   }),
 }));
 
+vi.mock("../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({
+    call: (command: string, request: unknown) => invoke(command, request),
+  }),
+}));
+
 const invokeMock = vi.mocked(invoke);
 
 const conn = { id: "conn-1", name: "My DB", params: { driver: "mysql" } };
