@@ -1,0 +1,3885 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "pnpm web:inventory:write",
+  "sources": {
+    "frontend": "src",
+    "tauriHandler": "src-tauri/src/lib.rs"
+  },
+  "classifications": {
+    "featureGroup": [
+      "ai",
+      "application",
+      "backup",
+      "configuration",
+      "connections",
+      "data",
+      "database-objects",
+      "drivers",
+      "files",
+      "k8s",
+      "logs",
+      "metadata",
+      "notebooks",
+      "plugins",
+      "queries",
+      "saved-queries",
+      "ssh",
+      "tasks",
+      "themes",
+      "users",
+      "windows"
+    ],
+    "eventUse": [
+      "none",
+      "emits",
+      "event-coordinated"
+    ],
+    "filesystemUse": [
+      "none",
+      "read",
+      "write",
+      "read-write"
+    ],
+    "authorizationLevel": [
+      "session",
+      "database",
+      "sensitive",
+      "local-admin"
+    ]
+  },
+  "classificationNotes": {
+    "eventUse": "Whether command completion or progress participates in the frontend event bus.",
+    "filesystemUse": "User-visible host filesystem access only; internal application persistence is classified as none.",
+    "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
+  },
+  "summary": {
+    "literalCommandCount": 227,
+    "literalCallSiteCount": 366,
+    "dynamicCallSiteCount": 3,
+    "handlerRegistrationCount": 255,
+    "registeredCommandCount": 254,
+    "duplicateHandlerRegistrations": [
+      "cancel_dump"
+    ],
+    "frontendCommandsMissingRegistration": [],
+    "registeredCommandsWithoutFrontendCall": 27
+  },
+  "commands": [
+    {
+      "name": "add_query_history_entry",
+      "featureGroup": "saved-queries",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/QueryHistoryProvider.tsx",
+          "line": 68
+        }
+      ]
+    },
+    {
+      "name": "alter_view",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ViewEditorModal.tsx",
+          "line": 155
+        }
+      ]
+    },
+    {
+      "name": "analyze_ai_explain_plan",
+      "featureGroup": "ai",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/visual-explain/ExplainAiAnalysis.tsx",
+          "line": 39
+        }
+      ]
+    },
+    {
+      "name": "apply_connection_import",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ImportFromAppModal.tsx",
+          "line": 294
+        }
+      ]
+    },
+    {
+      "name": "apply_db_user_privileges",
+      "featureGroup": "users",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/users/UserManagementView.tsx",
+          "line": 324
+        },
+        {
+          "file": "src/components/users/UserManagementView.tsx",
+          "line": 411
+        },
+        {
+          "file": "src/components/users/UserManagementView.tsx",
+          "line": 418
+        }
+      ]
+    },
+    {
+      "name": "apply_tabularis_import",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ImportFromAppModal.tsx",
+          "line": 289
+        }
+      ]
+    },
+    {
+      "name": "build_routine_call_sql",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/RunRoutineModal.tsx",
+          "line": 91
+        }
+      ]
+    },
+    {
+      "name": "cancel_dump",
+      "featureGroup": "files",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/DumpDatabaseModal.tsx",
+          "line": 165
+        }
+      ]
+    },
+    {
+      "name": "cancel_export",
+      "featureGroup": "files",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 3303
+        }
+      ]
+    },
+    {
+      "name": "cancel_import",
+      "featureGroup": "files",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ImportDatabaseModal.tsx",
+          "line": 138
+        }
+      ]
+    },
+    {
+      "name": "cancel_plugin_install",
+      "featureGroup": "plugins",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/PluginsTab.tsx",
+          "line": 771
+        }
+      ]
+    },
+    {
+      "name": "cancel_query",
+      "featureGroup": "queries",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 867
+        }
+      ]
+    },
+    {
+      "name": "check_ai_key",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/SettingsProvider.tsx",
+          "line": 186
+        },
+        {
+          "file": "src/contexts/SettingsProvider.tsx",
+          "line": 192
+        },
+        {
+          "file": "src/contexts/SettingsProvider.tsx",
+          "line": 198
+        },
+        {
+          "file": "src/contexts/SettingsProvider.tsx",
+          "line": 203
+        }
+      ]
+    },
+    {
+      "name": "check_ai_key_status",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/AiTab.tsx",
+          "line": 123
+        },
+        {
+          "file": "src/components/settings/AiTab.tsx",
+          "line": 126
+        },
+        {
+          "file": "src/components/settings/AiTab.tsx",
+          "line": 129
+        },
+        {
+          "file": "src/components/settings/AiTab.tsx",
+          "line": 132
+        },
+        {
+          "file": "src/components/settings/AiTab.tsx",
+          "line": 135
+        }
+      ]
+    },
+    {
+      "name": "check_for_updates",
+      "featureGroup": "application",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/UpdateProvider.tsx",
+          "line": 37
+        }
+      ]
+    },
+    {
+      "name": "clear_ai_activity",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useAiActivity.ts",
+          "line": 223
+        }
+      ]
+    },
+    {
+      "name": "clear_logs",
+      "featureGroup": "logs",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/LogsTab.tsx",
+          "line": 82
+        }
+      ]
+    },
+    {
+      "name": "clear_query_history",
+      "featureGroup": "saved-queries",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/QueryHistoryProvider.tsx",
+          "line": 109
+        }
+      ]
+    },
+    {
+      "name": "close_results_window",
+      "featureGroup": "windows",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 1602
+        },
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 1646
+        }
+      ]
+    },
+    {
+      "name": "complete_json_viewer_session",
+      "featureGroup": "windows",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/JsonViewerPage.tsx",
+          "line": 40
+        }
+      ]
+    },
+    {
+      "name": "consume_pending_deep_link_install",
+      "featureGroup": "application",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useDeepLinkInstall.ts",
+          "line": 66
+        }
+      ]
+    },
+    {
+      "name": "count_query",
+      "featureGroup": "queries",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 1558
+        }
+      ]
+    },
+    {
+      "name": "create_connection_group",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1188
+        }
+      ]
+    },
+    {
+      "name": "create_connection_tag",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useConnectionTags.ts",
+          "line": 28
+        }
+      ]
+    },
+    {
+      "name": "create_db_user",
+      "featureGroup": "users",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/users/UserManagementView.tsx",
+          "line": 315
+        }
+      ]
+    },
+    {
+      "name": "create_group_path",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1200
+        }
+      ]
+    },
+    {
+      "name": "create_notebook",
+      "featureGroup": "notebooks",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/notebookStore.ts",
+          "line": 157
+        },
+        {
+          "file": "src/utils/notebookStore.ts",
+          "line": 176
+        }
+      ]
+    },
+    {
+      "name": "create_sqlite_database",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "write",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useCreateSqliteDatabase.ts",
+          "line": 30
+        }
+      ]
+    },
+    {
+      "name": "create_sqlite_file",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "write",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/NewConnectionModal.tsx",
+          "line": 1541
+        }
+      ]
+    },
+    {
+      "name": "create_trigger",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/TriggerEditorModal.tsx",
+          "line": 181
+        }
+      ]
+    },
+    {
+      "name": "create_view",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ViewEditorModal.tsx",
+          "line": 135
+        }
+      ]
+    },
+    {
+      "name": "decide_pending_approval",
+      "featureGroup": "ai",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useAiActivity.ts",
+          "line": 202
+        }
+      ]
+    },
+    {
+      "name": "decrypt_export_payload",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ImportFromAppModal.tsx",
+          "line": 239
+        }
+      ]
+    },
+    {
+      "name": "delete_ai_key",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/AiTab.tsx",
+          "line": 347
+        }
+      ]
+    },
+    {
+      "name": "delete_connection",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Connections.tsx",
+          "line": 410
+        },
+        {
+          "file": "src/pages/Connections.tsx",
+          "line": 524
+        }
+      ]
+    },
+    {
+      "name": "delete_connection_group",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1238
+        }
+      ]
+    },
+    {
+      "name": "delete_connection_icon",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/NewConnectionModal.tsx",
+          "line": 589
+        },
+        {
+          "file": "src/components/modals/NewConnectionModal.tsx",
+          "line": 2259
+        }
+      ]
+    },
+    {
+      "name": "delete_connection_tag",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useConnectionTags.ts",
+          "line": 48
+        }
+      ]
+    },
+    {
+      "name": "delete_custom_theme",
+      "featureGroup": "themes",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/ThemeProvider.tsx",
+          "line": 235
+        }
+      ]
+    },
+    {
+      "name": "delete_k8s_connection",
+      "featureGroup": "k8s",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/k8s.ts",
+          "line": 87
+        }
+      ]
+    },
+    {
+      "name": "delete_notebook",
+      "featureGroup": "notebooks",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/notebookStore.ts",
+          "line": 195
+        }
+      ]
+    },
+    {
+      "name": "delete_query_history_entry",
+      "featureGroup": "saved-queries",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/QueryHistoryProvider.tsx",
+          "line": 95
+        }
+      ]
+    },
+    {
+      "name": "delete_record",
+      "featureGroup": "data",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 2788
+        },
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 2809
+        }
+      ]
+    },
+    {
+      "name": "delete_saved_query",
+      "featureGroup": "saved-queries",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/SavedQueriesProvider.tsx",
+          "line": 55
+        }
+      ]
+    },
+    {
+      "name": "delete_ssh_connection",
+      "featureGroup": "ssh",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/ssh.ts",
+          "line": 88
+        }
+      ]
+    },
+    {
+      "name": "disable_plugin",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/PluginSettingsPage.tsx",
+          "line": 157
+        },
+        {
+          "file": "src/components/settings/PluginsTab.tsx",
+          "line": 840
+        },
+        {
+          "file": "src/hooks/useTaskManager.ts",
+          "line": 83
+        }
+      ]
+    },
+    {
+      "name": "disconnect_connection",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 972
+        }
+      ]
+    },
+    {
+      "name": "download_and_install_update",
+      "featureGroup": "application",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "write",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/UpdateProvider.tsx",
+          "line": 79
+        }
+      ]
+    },
+    {
+      "name": "drop_db_user",
+      "featureGroup": "users",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/users/UserManagementView.tsx",
+          "line": 353
+        }
+      ]
+    },
+    {
+      "name": "drop_foreign_key_action",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 1190
+        },
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 1449
+        },
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 1624
+        },
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 2055
+        }
+      ]
+    },
+    {
+      "name": "drop_index_action",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 1167
+        },
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 1426
+        },
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 1602
+        },
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 2015
+        }
+      ]
+    },
+    {
+      "name": "drop_routine",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 464
+        }
+      ]
+    },
+    {
+      "name": "drop_trigger",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 2374
+        },
+        {
+          "file": "src/components/modals/TriggerEditorModal.tsx",
+          "line": 166
+        }
+      ]
+    },
+    {
+      "name": "drop_view",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 2146
+        }
+      ]
+    },
+    {
+      "name": "dump_database",
+      "featureGroup": "files",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "write",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/DumpDatabaseModal.tsx",
+          "line": 140
+        }
+      ]
+    },
+    {
+      "name": "duplicate_connection",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Connections.tsx",
+          "line": 543
+        }
+      ]
+    },
+    {
+      "name": "enable_plugin",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/PluginSettingsPage.tsx",
+          "line": 158
+        },
+        {
+          "file": "src/components/settings/PluginsTab.tsx",
+          "line": 846
+        },
+        {
+          "file": "src/components/settings/PluginsTab.tsx",
+          "line": 1210
+        },
+        {
+          "file": "src/hooks/useTaskManager.ts",
+          "line": 84
+        }
+      ]
+    },
+    {
+      "name": "encrypt_export_payload",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Connections.tsx",
+          "line": 329
+        }
+      ]
+    },
+    {
+      "name": "execute_clipboard_import",
+      "featureGroup": "data",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ClipboardImportModal.tsx",
+          "line": 305
+        }
+      ]
+    },
+    {
+      "name": "execute_query",
+      "featureGroup": "queries",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 1978
+        },
+        {
+          "file": "src/components/layout/sidebar/SidebarColumnItem.tsx",
+          "line": 71
+        },
+        {
+          "file": "src/components/modals/CreateForeignKeyModal.tsx",
+          "line": 147
+        },
+        {
+          "file": "src/components/modals/CreateIndexModal.tsx",
+          "line": 105
+        },
+        {
+          "file": "src/components/modals/CreateTableModal.tsx",
+          "line": 139
+        },
+        {
+          "file": "src/components/modals/ModifyColumnModal.tsx",
+          "line": 181
+        },
+        {
+          "file": "src/components/modals/NewRowModal.tsx",
+          "line": 62
+        },
+        {
+          "file": "src/components/modals/ViewEditorModal.tsx",
+          "line": 96
+        },
+        {
+          "file": "src/components/notebook/NotebookView.tsx",
+          "line": 376
+        },
+        {
+          "file": "src/hooks/usePluginApi.ts",
+          "line": 32
+        },
+        {
+          "file": "src/hooks/useReferencedRecord.ts",
+          "line": 46
+        },
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 1014
+        },
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 1451
+        },
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 3419
+        }
+      ]
+    },
+    {
+      "name": "execute_query_batch",
+      "featureGroup": "queries",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 1304
+        }
+      ]
+    },
+    {
+      "name": "explain_ai_query",
+      "featureGroup": "ai",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/AiExplainModal.tsx",
+          "line": 57
+        }
+      ]
+    },
+    {
+      "name": "explain_query_plan",
+      "featureGroup": "queries",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/VisualExplainModal.tsx",
+          "line": 82
+        },
+        {
+          "file": "src/pages/VisualExplainPage.tsx",
+          "line": 77
+        }
+      ]
+    },
+    {
+      "name": "export_ai_activity_csv",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "write",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useAiActivity.ts",
+          "line": 231
+        }
+      ]
+    },
+    {
+      "name": "export_ai_activity_json",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "write",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useAiActivity.ts",
+          "line": 227
+        }
+      ]
+    },
+    {
+      "name": "export_ai_session_as_notebook",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useAiActivity.ts",
+          "line": 237
+        }
+      ]
+    },
+    {
+      "name": "export_connections_payload",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Connections.tsx",
+          "line": 320
+        }
+      ]
+    },
+    {
+      "name": "export_logs",
+      "featureGroup": "logs",
+      "eventUse": "none",
+      "filesystemUse": "write",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/LogsTab.tsx",
+          "line": 96
+        }
+      ]
+    },
+    {
+      "name": "export_query_to_file",
+      "featureGroup": "queries",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "write",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 3363
+        }
+      ]
+    },
+    {
+      "name": "fetch_blob_as_data_url",
+      "featureGroup": "data",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/ui/BlobInput.tsx",
+          "line": 119
+        }
+      ]
+    },
+    {
+      "name": "fetch_plugin_readme",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/PluginReadmeModal.tsx",
+          "line": 74
+        }
+      ]
+    },
+    {
+      "name": "fetch_plugin_registry",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useConnectionCatalogue.ts",
+          "line": 49
+        },
+        {
+          "file": "src/hooks/usePluginRegistry.ts",
+          "line": 18
+        }
+      ]
+    },
+    {
+      "name": "fetch_tabularium_plugin_preview",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/PluginInstallConfirmModal.tsx",
+          "line": 69
+        }
+      ]
+    },
+    {
+      "name": "generate_ai_query",
+      "featureGroup": "ai",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/AiQueryModal.tsx",
+          "line": 116
+        }
+      ]
+    },
+    {
+      "name": "generate_cell_name",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/notebook/CellNameAiButton.tsx",
+          "line": 27
+        },
+        {
+          "file": "src/components/notebook/NotebookOutline.tsx",
+          "line": 37
+        }
+      ]
+    },
+    {
+      "name": "generate_tab_rename",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/ui/MultiResultPanel.tsx",
+          "line": 329
+        }
+      ]
+    },
+    {
+      "name": "get_active_connections",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1145
+        }
+      ]
+    },
+    {
+      "name": "get_add_column_sql",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ModifyColumnModal.tsx",
+          "line": 123
+        },
+        {
+          "file": "src/components/modals/ModifyColumnModal.tsx",
+          "line": 172
+        }
+      ]
+    },
+    {
+      "name": "get_ai_activity",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useAiActivity.ts",
+          "line": 43
+        }
+      ]
+    },
+    {
+      "name": "get_ai_models",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/AiTab.tsx",
+          "line": 99
+        },
+        {
+          "file": "src/contexts/SettingsProvider.tsx",
+          "line": 214
+        }
+      ]
+    },
+    {
+      "name": "get_ai_schema_context",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/AiQueryModal.tsx",
+          "line": 60
+        }
+      ]
+    },
+    {
+      "name": "get_ai_session_events",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useAiActivity.ts",
+          "line": 120
+        }
+      ]
+    },
+    {
+      "name": "get_ai_sessions",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useAiActivity.ts",
+          "line": 81
+        }
+      ]
+    },
+    {
+      "name": "get_all_themes",
+      "featureGroup": "themes",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/ThemeProvider.tsx",
+          "line": 95
+        }
+      ]
+    },
+    {
+      "name": "get_alter_column_sql",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ModifyColumnModal.tsx",
+          "line": 114
+        },
+        {
+          "file": "src/components/modals/ModifyColumnModal.tsx",
+          "line": 163
+        }
+      ]
+    },
+    {
+      "name": "get_available_databases",
+      "featureGroup": "metadata",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 1232
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 202
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 232
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 742
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 763
+        }
+      ]
+    },
+    {
+      "name": "get_cellname_prompt",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/AiTab.tsx",
+          "line": 162
+        }
+      ]
+    },
+    {
+      "name": "get_columns",
+      "featureGroup": "metadata",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/sidebar/SidebarTableItem.tsx",
+          "line": 90
+        },
+        {
+          "file": "src/components/modals/ClipboardImportModal.tsx",
+          "line": 167
+        },
+        {
+          "file": "src/components/modals/CreateForeignKeyModal.tsx",
+          "line": 70
+        },
+        {
+          "file": "src/components/modals/CreateForeignKeyModal.tsx",
+          "line": 83
+        },
+        {
+          "file": "src/components/modals/CreateIndexModal.tsx",
+          "line": 47
+        },
+        {
+          "file": "src/components/modals/GenerateSQLModal.tsx",
+          "line": 71
+        },
+        {
+          "file": "src/components/modals/NewRowModal.tsx",
+          "line": 118
+        },
+        {
+          "file": "src/components/modals/SchemaModal.tsx",
+          "line": 35
+        },
+        {
+          "file": "src/components/ui/VisualQueryBuilder.tsx",
+          "line": 202
+        },
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 812
+        },
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 2516
+        },
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 2686
+        },
+        {
+          "file": "src/utils/autocomplete.ts",
+          "line": 65
+        }
+      ]
+    },
+    {
+      "name": "get_config",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/SettingsProvider.tsx",
+          "line": 135
+        },
+        {
+          "file": "src/contexts/ThemeProvider.tsx",
+          "line": 55
+        },
+        {
+          "file": "src/contexts/UpdateProvider.tsx",
+          "line": 47
+        },
+        {
+          "file": "src/contexts/UpdateProvider.tsx",
+          "line": 106
+        }
+      ]
+    },
+    {
+      "name": "get_config_json",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ConfigJsonModal.tsx",
+          "line": 30
+        }
+      ]
+    },
+    {
+      "name": "get_connection_by_id",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/credentials.ts",
+          "line": 39
+        }
+      ]
+    },
+    {
+      "name": "get_connection_groups",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1206
+        }
+      ]
+    },
+    {
+      "name": "get_connections",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/mcp/McpSafetySection.tsx",
+          "line": 27
+        },
+        {
+          "file": "src/components/ssh/SshConnectionsManager.tsx",
+          "line": 287
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 675
+        },
+        {
+          "file": "src/hooks/useOpenConnectionInNewWindow.ts",
+          "line": 28
+        }
+      ]
+    },
+    {
+      "name": "get_connections_backup_status",
+      "featureGroup": "backup",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/BackupTab.tsx",
+          "line": 59
+        }
+      ]
+    },
+    {
+      "name": "get_connections_with_groups",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1041
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1239
+        }
+      ]
+    },
+    {
+      "name": "get_create_foreign_key_sql",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/CreateForeignKeyModal.tsx",
+          "line": 107
+        },
+        {
+          "file": "src/components/modals/CreateForeignKeyModal.tsx",
+          "line": 135
+        }
+      ]
+    },
+    {
+      "name": "get_create_index_sql",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/CreateIndexModal.tsx",
+          "line": 70
+        },
+        {
+          "file": "src/components/modals/CreateIndexModal.tsx",
+          "line": 96
+        }
+      ]
+    },
+    {
+      "name": "get_create_table_sql",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/CreateTableModal.tsx",
+          "line": 72
+        },
+        {
+          "file": "src/components/modals/CreateTableModal.tsx",
+          "line": 131
+        }
+      ]
+    },
+    {
+      "name": "get_data_types",
+      "featureGroup": "drivers",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useDataTypes.ts",
+          "line": 30
+        }
+      ]
+    },
+    {
+      "name": "get_db_privilege_catalog",
+      "featureGroup": "users",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/users/UserManagementView.tsx",
+          "line": 214
+        }
+      ]
+    },
+    {
+      "name": "get_db_user_grants",
+      "featureGroup": "users",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/users/UserManagementView.tsx",
+          "line": 244
+        }
+      ]
+    },
+    {
+      "name": "get_db_user_privileges",
+      "featureGroup": "users",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/users/UserManagementView.tsx",
+          "line": 245
+        }
+      ]
+    },
+    {
+      "name": "get_db_users",
+      "featureGroup": "users",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/users/UserManagementView.tsx",
+          "line": 224
+        }
+      ]
+    },
+    {
+      "name": "get_driver_manifest",
+      "featureGroup": "drivers",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 686
+        }
+      ]
+    },
+    {
+      "name": "get_explain_prompt",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/AiTab.tsx",
+          "line": 159
+        }
+      ]
+    },
+    {
+      "name": "get_explainplan_prompt",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/AiTab.tsx",
+          "line": 168
+        }
+      ]
+    },
+    {
+      "name": "get_foreign_keys",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/sidebar/SidebarTableItem.tsx",
+          "line": 95
+        },
+        {
+          "file": "src/components/modals/GenerateSQLModal.tsx",
+          "line": 76
+        },
+        {
+          "file": "src/components/modals/NewRowModal.tsx",
+          "line": 123
+        },
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 817
+        }
+      ]
+    },
+    {
+      "name": "get_indexes",
+      "featureGroup": "metadata",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/sidebar/SidebarTableItem.tsx",
+          "line": 100
+        },
+        {
+          "file": "src/components/layout/sidebar/SidebarViewItem.tsx",
+          "line": 79
+        },
+        {
+          "file": "src/components/modals/GenerateSQLModal.tsx",
+          "line": 81
+        }
+      ]
+    },
+    {
+      "name": "get_installation_source",
+      "featureGroup": "application",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/UpdateProvider.tsx",
+          "line": 102
+        }
+      ]
+    },
+    {
+      "name": "get_installed_plugins",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useDrivers.ts",
+          "line": 143
+        }
+      ]
+    },
+    {
+      "name": "get_json_viewer_session",
+      "featureGroup": "windows",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/JsonViewerPage.tsx",
+          "line": 26
+        }
+      ]
+    },
+    {
+      "name": "get_k8s_connections",
+      "featureGroup": "k8s",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/k8s.ts",
+          "line": 57
+        }
+      ]
+    },
+    {
+      "name": "get_k8s_contexts_cmd",
+      "featureGroup": "k8s",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/k8s.ts",
+          "line": 113
+        },
+        {
+          "file": "src/utils/k8s.ts",
+          "line": 114
+        }
+      ]
+    },
+    {
+      "name": "get_k8s_namespaces_cmd",
+      "featureGroup": "k8s",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/k8s.ts",
+          "line": 124
+        }
+      ]
+    },
+    {
+      "name": "get_k8s_resource_ports_cmd",
+      "featureGroup": "k8s",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/k8s.ts",
+          "line": 157
+        }
+      ]
+    },
+    {
+      "name": "get_k8s_resources_cmd",
+      "featureGroup": "k8s",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/k8s.ts",
+          "line": 139
+        }
+      ]
+    },
+    {
+      "name": "get_keybindings",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/KeybindingsProvider.tsx",
+          "line": 20
+        }
+      ]
+    },
+    {
+      "name": "get_last_active_connection",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Connections.tsx",
+          "line": 154
+        }
+      ]
+    },
+    {
+      "name": "get_last_open_connections",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Connections.tsx",
+          "line": 153
+        }
+      ]
+    },
+    {
+      "name": "get_log_settings",
+      "featureGroup": "logs",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/LogsTab.tsx",
+          "line": 62
+        }
+      ]
+    },
+    {
+      "name": "get_logs",
+      "featureGroup": "logs",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/LogsTab.tsx",
+          "line": 54
+        }
+      ]
+    },
+    {
+      "name": "get_materialized_view_definition",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 2212
+        }
+      ]
+    },
+    {
+      "name": "get_materialized_views",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 363
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 423
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 872
+        }
+      ]
+    },
+    {
+      "name": "get_mcp_status",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/McpModal.tsx",
+          "line": 95
+        },
+        {
+          "file": "src/pages/McpPage.tsx",
+          "line": 174
+        }
+      ]
+    },
+    {
+      "name": "get_pending_explain_file",
+      "featureGroup": "files",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/VisualExplainPage.tsx",
+          "line": 111
+        }
+      ]
+    },
+    {
+      "name": "get_plugin_manifest",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/PluginSettingsPage.tsx",
+          "line": 37
+        },
+        {
+          "file": "src/contexts/PluginSlotProvider.tsx",
+          "line": 180
+        }
+      ]
+    },
+    {
+      "name": "get_plugin_startup_errors",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/PluginsTab.tsx",
+          "line": 682
+        }
+      ]
+    },
+    {
+      "name": "get_process_list",
+      "featureGroup": "tasks",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useTaskManager.ts",
+          "line": 32
+        }
+      ]
+    },
+    {
+      "name": "get_query_history",
+      "featureGroup": "saved-queries",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/QueryHistoryProvider.tsx",
+          "line": 33
+        }
+      ]
+    },
+    {
+      "name": "get_registered_drivers",
+      "featureGroup": "drivers",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useConnectionCatalogue.ts",
+          "line": 43
+        },
+        {
+          "file": "src/hooks/useDrivers.ts",
+          "line": 142
+        }
+      ]
+    },
+    {
+      "name": "get_routine_create_template",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 443
+        }
+      ]
+    },
+    {
+      "name": "get_routine_definition",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/databaseObjectActions.ts",
+          "line": 268
+        }
+      ]
+    },
+    {
+      "name": "get_routine_edit_script",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 2277
+        }
+      ]
+    },
+    {
+      "name": "get_routine_parameters",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/sidebar/SidebarRoutineItem.tsx",
+          "line": 54
+        },
+        {
+          "file": "src/components/modals/RunRoutineModal.tsx",
+          "line": 46
+        }
+      ]
+    },
+    {
+      "name": "get_routines",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 46
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 313
+        }
+      ]
+    },
+    {
+      "name": "get_saved_queries",
+      "featureGroup": "saved-queries",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/SavedQueriesProvider.tsx",
+          "line": 19
+        }
+      ]
+    },
+    {
+      "name": "get_schema_preference",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 860
+        }
+      ]
+    },
+    {
+      "name": "get_schema_snapshot",
+      "featureGroup": "metadata",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/EditorProvider.tsx",
+          "line": 395
+        }
+      ]
+    },
+    {
+      "name": "get_schemas",
+      "featureGroup": "metadata",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 845
+        }
+      ]
+    },
+    {
+      "name": "get_selected_schemas",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 850
+        }
+      ]
+    },
+    {
+      "name": "get_server_now",
+      "featureGroup": "queries",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/ui/DataGrid.tsx",
+          "line": 1569
+        }
+      ]
+    },
+    {
+      "name": "get_ssh_connections",
+      "featureGroup": "ssh",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/ssh.ts",
+          "line": 27
+        }
+      ]
+    },
+    {
+      "name": "get_system_prompt",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/AiTab.tsx",
+          "line": 156
+        }
+      ]
+    },
+    {
+      "name": "get_system_stats",
+      "featureGroup": "tasks",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useTaskManager.ts",
+          "line": 33
+        }
+      ]
+    },
+    {
+      "name": "get_tables",
+      "featureGroup": "metadata",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ClipboardImportModal.tsx",
+          "line": 133
+        },
+        {
+          "file": "src/components/modals/CreateForeignKeyModal.tsx",
+          "line": 69
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 287
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 360
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 420
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 483
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 539
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 803
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 869
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 932
+        }
+      ]
+    },
+    {
+      "name": "get_tabrename_prompt",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/AiTab.tsx",
+          "line": 165
+        }
+      ]
+    },
+    {
+      "name": "get_tabularis_children",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/TaskManagerPage.tsx",
+          "line": 108
+        }
+      ]
+    },
+    {
+      "name": "get_trigger_definition",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/TriggerEditorModal.tsx",
+          "line": 84
+        },
+        {
+          "file": "src/utils/databaseObjectActions.ts",
+          "line": 279
+        }
+      ]
+    },
+    {
+      "name": "get_triggers",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 333
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 366
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 426
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 486
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 542
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 806
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 875
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 935
+        }
+      ]
+    },
+    {
+      "name": "get_view_definition",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ViewEditorModal.tsx",
+          "line": 51
+        }
+      ]
+    },
+    {
+      "name": "get_views",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 300
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 361
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 421
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 484
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 540
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 804
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 870
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 933
+        }
+      ]
+    },
+    {
+      "name": "import_database",
+      "featureGroup": "files",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "read",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ImportDatabaseModal.tsx",
+          "line": 61
+        }
+      ]
+    },
+    {
+      "name": "insert_record",
+      "featureGroup": "data",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/NewRowModal.tsx",
+          "line": 212
+        },
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 2885
+        }
+      ]
+    },
+    {
+      "name": "install_mcp_config",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "write",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/McpModal.tsx",
+          "line": 115
+        },
+        {
+          "file": "src/pages/McpPage.tsx",
+          "line": 190
+        }
+      ]
+    },
+    {
+      "name": "install_plugin",
+      "featureGroup": "plugins",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "write",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/NewConnectionModal.tsx",
+          "line": 291
+        },
+        {
+          "file": "src/components/settings/PluginsTab.tsx",
+          "line": 725
+        },
+        {
+          "file": "src/hooks/useDeepLinkInstall.ts",
+          "line": 92
+        }
+      ]
+    },
+    {
+      "name": "is_debug_mode",
+      "featureGroup": "application",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/App.tsx",
+          "line": 94
+        }
+      ]
+    },
+    {
+      "name": "kill_plugin_process",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useTaskManager.ts",
+          "line": 64
+        }
+      ]
+    },
+    {
+      "name": "list_connection_import_sources",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ImportFromAppModal.tsx",
+          "line": 124
+        }
+      ]
+    },
+    {
+      "name": "list_connection_tags",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useConnectionTags.ts",
+          "line": 14
+        }
+      ]
+    },
+    {
+      "name": "list_databases",
+      "featureGroup": "metadata",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/NewConnectionModal.tsx",
+          "line": 1591
+        }
+      ]
+    },
+    {
+      "name": "list_notebooks",
+      "featureGroup": "notebooks",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/notebookStore.ts",
+          "line": 203
+        }
+      ]
+    },
+    {
+      "name": "list_pending_approvals",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useAiActivity.ts",
+          "line": 175
+        }
+      ]
+    },
+    {
+      "name": "load_blob_from_file",
+      "featureGroup": "data",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/ui/BlobInput.tsx",
+          "line": 155
+        }
+      ]
+    },
+    {
+      "name": "load_editor_preferences",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/editor.ts",
+          "line": 33
+        }
+      ]
+    },
+    {
+      "name": "load_explain_from_file",
+      "featureGroup": "files",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/VisualExplainPage.tsx",
+          "line": 56
+        }
+      ]
+    },
+    {
+      "name": "load_notebook",
+      "featureGroup": "notebooks",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/notebookStore.ts",
+          "line": 125
+        }
+      ]
+    },
+    {
+      "name": "log_frontend_event",
+      "featureGroup": "logs",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 260
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 781
+        }
+      ]
+    },
+    {
+      "name": "map_inferred_column_types",
+      "featureGroup": "drivers",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ClipboardImportModal.tsx",
+          "line": 90
+        }
+      ]
+    },
+    {
+      "name": "move_connection_to_group",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1248
+        }
+      ]
+    },
+    {
+      "name": "move_group_to_parent",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1225
+        }
+      ]
+    },
+    {
+      "name": "open_connection_window",
+      "featureGroup": "windows",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useOpenConnectionInNewWindow.ts",
+          "line": 36
+        }
+      ]
+    },
+    {
+      "name": "open_er_diagram_window",
+      "featureGroup": "windows",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 627
+        },
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 678
+        },
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 1473
+        },
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 1924
+        },
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 2415
+        }
+      ]
+    },
+    {
+      "name": "open_json_viewer_window",
+      "featureGroup": "windows",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/ui/DataGrid.tsx",
+          "line": 487
+        },
+        {
+          "file": "src/components/ui/JsonInput.tsx",
+          "line": 159
+        }
+      ]
+    },
+    {
+      "name": "open_plugins_dir",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/PluginsTab.tsx",
+          "line": 709
+        }
+      ]
+    },
+    {
+      "name": "open_results_window",
+      "featureGroup": "windows",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 1590
+        }
+      ]
+    },
+    {
+      "name": "open_task_manager_window",
+      "featureGroup": "windows",
+      "eventUse": "emits",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/InfoTab.tsx",
+          "line": 298
+        }
+      ]
+    },
+    {
+      "name": "preview_connection_import",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ImportFromAppModal.tsx",
+          "line": 221
+        }
+      ]
+    },
+    {
+      "name": "preview_tabularis_import",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ImportFromAppModal.tsx",
+          "line": 174
+        }
+      ]
+    },
+    {
+      "name": "read_file_as_data_url",
+      "featureGroup": "files",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/ui/BlobInput.tsx",
+          "line": 98
+        }
+      ]
+    },
+    {
+      "name": "read_plugin_file",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/PluginSlotProvider.tsx",
+          "line": 50
+        },
+        {
+          "file": "src/contexts/PluginSlotProvider.tsx",
+          "line": 90
+        }
+      ]
+    },
+    {
+      "name": "refresh_materialized_view",
+      "featureGroup": "database-objects",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "line": 2193
+        }
+      ]
+    },
+    {
+      "name": "register_active_connection",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 724
+        }
+      ]
+    },
+    {
+      "name": "relaunch_app",
+      "featureGroup": "application",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ConfigJsonModal.tsx",
+          "line": 55
+        }
+      ]
+    },
+    {
+      "name": "rename_notebook",
+      "featureGroup": "notebooks",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/notebookStore.ts",
+          "line": 221
+        }
+      ]
+    },
+    {
+      "name": "reorder_connections_in_group",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1270
+        }
+      ]
+    },
+    {
+      "name": "reorder_groups",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1257
+        }
+      ]
+    },
+    {
+      "name": "respond_ssh_askpass",
+      "featureGroup": "ssh",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useSshAskpass.ts",
+          "line": 43
+        }
+      ]
+    },
+    {
+      "name": "run_connections_backup",
+      "featureGroup": "backup",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "write",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/BackupTab.tsx",
+          "line": 116
+        }
+      ]
+    },
+    {
+      "name": "save_blob_to_file",
+      "featureGroup": "data",
+      "eventUse": "none",
+      "filesystemUse": "write",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/ui/BlobInput.tsx",
+          "line": 187
+        }
+      ]
+    },
+    {
+      "name": "save_config",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/SettingsProvider.tsx",
+          "line": 151
+        },
+        {
+          "file": "src/contexts/SettingsProvider.tsx",
+          "line": 377
+        },
+        {
+          "file": "src/contexts/ThemeProvider.tsx",
+          "line": 70
+        },
+        {
+          "file": "src/contexts/ThemeProvider.tsx",
+          "line": 89
+        },
+        {
+          "file": "src/contexts/ThemeProvider.tsx",
+          "line": 134
+        },
+        {
+          "file": "src/contexts/UpdateProvider.tsx",
+          "line": 90
+        }
+      ]
+    },
+    {
+      "name": "save_config_json",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ConfigJsonModal.tsx",
+          "line": 45
+        }
+      ]
+    },
+    {
+      "name": "save_connection",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/NewConnectionModal.tsx",
+          "line": 2209
+        }
+      ]
+    },
+    {
+      "name": "save_connection_icon",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/NewConnectionModal/AppearanceSection.tsx",
+          "line": 103
+        }
+      ]
+    },
+    {
+      "name": "save_custom_theme",
+      "featureGroup": "themes",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/ThemeProvider.tsx",
+          "line": 190
+        },
+        {
+          "file": "src/contexts/ThemeProvider.tsx",
+          "line": 214
+        },
+        {
+          "file": "src/contexts/ThemeProvider.tsx",
+          "line": 270
+        },
+        {
+          "file": "src/contexts/ThemeProvider.tsx",
+          "line": 301
+        }
+      ]
+    },
+    {
+      "name": "save_editor_preferences",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/editor.ts",
+          "line": 68
+        }
+      ]
+    },
+    {
+      "name": "save_k8s_connection",
+      "featureGroup": "k8s",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/k8s.ts",
+          "line": 70
+        }
+      ]
+    },
+    {
+      "name": "save_keybindings",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/KeybindingsProvider.tsx",
+          "line": 50
+        },
+        {
+          "file": "src/contexts/KeybindingsProvider.tsx",
+          "line": 60
+        }
+      ]
+    },
+    {
+      "name": "save_notebook",
+      "featureGroup": "notebooks",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/notebookStore.ts",
+          "line": 55
+        }
+      ]
+    },
+    {
+      "name": "save_query",
+      "featureGroup": "saved-queries",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/SavedQueriesProvider.tsx",
+          "line": 35
+        }
+      ]
+    },
+    {
+      "name": "save_ssh_connection",
+      "featureGroup": "ssh",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/ssh.ts",
+          "line": 63
+        }
+      ]
+    },
+    {
+      "name": "set_ai_key",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/AiTab.tsx",
+          "line": 176
+        }
+      ]
+    },
+    {
+      "name": "set_connection_appearance",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/NewConnectionModal.tsx",
+          "line": 2204
+        },
+        {
+          "file": "src/components/modals/NewConnectionModal.tsx",
+          "line": 2217
+        }
+      ]
+    },
+    {
+      "name": "set_connection_tags",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/NewConnectionModal.tsx",
+          "line": 2224
+        }
+      ]
+    },
+    {
+      "name": "set_connections_backup_password",
+      "featureGroup": "backup",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/BackupTab.tsx",
+          "line": 82
+        }
+      ]
+    },
+    {
+      "name": "set_connections_backup_target_password",
+      "featureGroup": "backup",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/BackupTab.tsx",
+          "line": 98
+        }
+      ]
+    },
+    {
+      "name": "set_db_user_password",
+      "featureGroup": "users",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/users/UserManagementView.tsx",
+          "line": 368
+        }
+      ]
+    },
+    {
+      "name": "set_last_active_connection",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 999
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1093
+        }
+      ]
+    },
+    {
+      "name": "set_last_open_connections",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 991
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1110
+        }
+      ]
+    },
+    {
+      "name": "set_log_enabled",
+      "featureGroup": "logs",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/LogsTab.tsx",
+          "line": 109
+        }
+      ]
+    },
+    {
+      "name": "set_log_max_size",
+      "featureGroup": "logs",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/LogsTab.tsx",
+          "line": 122
+        }
+      ]
+    },
+    {
+      "name": "set_schema_preference",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 611
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1034
+        }
+      ]
+    },
+    {
+      "name": "set_selected_databases",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 252
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 636
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 773
+        }
+      ]
+    },
+    {
+      "name": "set_selected_schemas",
+      "featureGroup": "configuration",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "session",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 592
+        }
+      ]
+    },
+    {
+      "name": "set_window_title",
+      "featureGroup": "windows",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "local-admin",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 149
+        },
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 498
+        }
+      ]
+    },
+    {
+      "name": "suggest_table_name",
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/ClipboardImportModal.tsx",
+          "line": 237
+        }
+      ]
+    },
+    {
+      "name": "test_connection",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/NewConnectionModal.tsx",
+          "line": 1965
+        },
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 703
+        },
+        {
+          "file": "src/hooks/useOpenConnectionInNewWindow.ts",
+          "line": 31
+        }
+      ]
+    },
+    {
+      "name": "test_k8s_connection_cmd",
+      "featureGroup": "k8s",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/k8s.ts",
+          "line": 98
+        }
+      ]
+    },
+    {
+      "name": "test_ssh_connection",
+      "featureGroup": "ssh",
+      "eventUse": "event-coordinated",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/ssh.ts",
+          "line": 103
+        }
+      ]
+    },
+    {
+      "name": "uninstall_plugin",
+      "featureGroup": "plugins",
+      "eventUse": "none",
+      "filesystemUse": "write",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/settings/PluginsTab.tsx",
+          "line": 797
+        }
+      ]
+    },
+    {
+      "name": "update_connection",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/modals/NewConnectionModal.tsx",
+          "line": 2196
+        }
+      ]
+    },
+    {
+      "name": "update_connection_group",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/DatabaseProvider.tsx",
+          "line": 1215
+        }
+      ]
+    },
+    {
+      "name": "update_connection_tag",
+      "featureGroup": "connections",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/hooks/useConnectionTags.ts",
+          "line": 40
+        }
+      ]
+    },
+    {
+      "name": "update_k8s_connection",
+      "featureGroup": "k8s",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/k8s.ts",
+          "line": 80
+        }
+      ]
+    },
+    {
+      "name": "update_record",
+      "featureGroup": "data",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/components/ui/DataGrid.tsx",
+          "line": 1112
+        },
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 2845
+        },
+        {
+          "file": "src/pages/Editor.tsx",
+          "line": 2868
+        }
+      ]
+    },
+    {
+      "name": "update_saved_query",
+      "featureGroup": "saved-queries",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/contexts/SavedQueriesProvider.tsx",
+          "line": 45
+        }
+      ]
+    },
+    {
+      "name": "update_ssh_connection",
+      "featureGroup": "ssh",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/ssh.ts",
+          "line": 77
+        }
+      ]
+    },
+    {
+      "name": "validate_k8s_path_cmd",
+      "featureGroup": "k8s",
+      "eventUse": "none",
+      "filesystemUse": "read",
+      "authorizationLevel": "sensitive",
+      "registered": true,
+      "callSites": [
+        {
+          "file": "src/utils/k8s.ts",
+          "line": 173
+        }
+      ]
+    }
+  ],
+  "dynamicInvocations": [
+    {
+      "expression": "materialized ? \"get_materialized_view_columns\" : \"get_view_columns\"",
+      "file": "src/components/layout/sidebar/SidebarViewItem.tsx",
+      "line": 69,
+      "context": "SidebarViewItem",
+      "possibleCommands": [
+        "get_materialized_view_columns",
+        "get_view_columns"
+      ],
+      "featureGroup": "metadata",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "database",
+      "unregisteredPossibleCommands": []
+    },
+    {
+      "expression": "cmd",
+      "file": "src/components/settings/AiTab.tsx",
+      "line": 195,
+      "context": "handleSavePrompt",
+      "possibleCommands": [
+        "save_cellname_prompt",
+        "save_explain_prompt",
+        "save_explainplan_prompt",
+        "save_system_prompt",
+        "save_tabrename_prompt"
+      ],
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "unregisteredPossibleCommands": []
+    },
+    {
+      "expression": "cmd",
+      "file": "src/components/settings/AiTab.tsx",
+      "line": 211,
+      "context": "handleResetPrompt",
+      "possibleCommands": [
+        "reset_cellname_prompt",
+        "reset_explain_prompt",
+        "reset_explainplan_prompt",
+        "reset_system_prompt",
+        "reset_tabrename_prompt"
+      ],
+      "featureGroup": "ai",
+      "eventUse": "none",
+      "filesystemUse": "none",
+      "authorizationLevel": "sensitive",
+      "unregisteredPossibleCommands": []
+    }
+  ],
+  "registeredCommandsWithoutFrontendCall": [
+    "close_devtools",
+    "delete_editor_preferences",
+    "detect_blob_mime",
+    "detect_mime_type",
+    "export_theme",
+    "get_file_stats",
+    "get_materialized_view_columns",
+    "get_plugin_dir",
+    "get_theme",
+    "get_view_columns",
+    "import_connections_payload",
+    "import_theme",
+    "list_all_preferences",
+    "open_devtools",
+    "open_visual_explain_window",
+    "reset_cellname_prompt",
+    "reset_explain_prompt",
+    "reset_explainplan_prompt",
+    "reset_system_prompt",
+    "reset_tabrename_prompt",
+    "restart_plugin_process",
+    "save_cellname_prompt",
+    "save_explain_prompt",
+    "save_explainplan_prompt",
+    "save_system_prompt",
+    "save_tabrename_prompt",
+    "test_log"
+  ]
+}

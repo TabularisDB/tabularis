@@ -21,6 +21,8 @@
     "test:coverage": "vitest run --coverage",
     "test:rust": "cd src-tauri && cargo test",
     "test:all": "pnpm test:rust && pnpm test:coverage",
+    "web:inventory": "node scripts/generate-web-ui-api-inventory.mjs --check",
+    "web:inventory:write": "node scripts/generate-web-ui-api-inventory.mjs --write",
     "tauri": "tauri",
     "build:explain": "pnpm --filter @tabularis/explain build",
     "typecheck:explain": "pnpm --filter @tabularis/explain typecheck",

@@ -13,6 +13,8 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'tsconfig.json'
+      - 'scripts/generate-web-ui-api-inventory.mjs'
+      - 'docs/web-ui-parity.json'
       - '.github/workflows/**'
   pull_request:
     branches: [main, feat/web-ui]
@@ -22,6 +24,8 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'tsconfig.json'
+      - 'scripts/generate-web-ui-api-inventory.mjs'
+      - 'docs/web-ui-parity.json'
       - '.github/workflows/**'
 
 jobs:
@@ -53,6 +57,9 @@ jobs:
 
       - name: Lint
         run: pnpm run lint
+
+      - name: Check web API inventory
+        run: pnpm run web:inventory
 
       - name: Build
         run: pnpm run build
