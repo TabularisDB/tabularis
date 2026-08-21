@@ -53,8 +53,8 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 194,
-    "literalCallSiteCount": 302,
+    "literalCommandCount": 178,
+    "literalCallSiteCount": 285,
     "dynamicCallSiteCount": 3,
     "handlerRegistrationCount": 255,
     "registeredCommandCount": 254,
@@ -62,7 +62,7 @@
       "cancel_dump"
     ],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 60
+    "registeredCommandsWithoutFrontendCall": 76
   },
   "commands": [
     {
@@ -455,7 +455,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 1541
+          "line": 1546
         }
       ]
     },
@@ -544,20 +544,6 @@
       ]
     },
     {
-      "name": "delete_k8s_connection",
-      "featureGroup": "k8s",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/k8s.ts",
-          "line": 87
-        }
-      ]
-    },
-    {
       "name": "delete_notebook",
       "featureGroup": "notebooks",
       "eventUse": "none",
@@ -614,20 +600,6 @@
         {
           "file": "packages/web-ui/src/contexts/SavedQueriesProvider.tsx",
           "line": 55
-        }
-      ]
-    },
-    {
-      "name": "delete_ssh_connection",
-      "featureGroup": "ssh",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/ssh.ts",
-          "line": 88
         }
       ]
     },
@@ -1610,80 +1582,6 @@
       ]
     },
     {
-      "name": "get_k8s_connections",
-      "featureGroup": "k8s",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/k8s.ts",
-          "line": 57
-        }
-      ]
-    },
-    {
-      "name": "get_k8s_contexts_cmd",
-      "featureGroup": "k8s",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/k8s.ts",
-          "line": 113
-        },
-        {
-          "file": "packages/web-ui/src/utils/k8s.ts",
-          "line": 114
-        }
-      ]
-    },
-    {
-      "name": "get_k8s_namespaces_cmd",
-      "featureGroup": "k8s",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/k8s.ts",
-          "line": 124
-        }
-      ]
-    },
-    {
-      "name": "get_k8s_resource_ports_cmd",
-      "featureGroup": "k8s",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/k8s.ts",
-          "line": 157
-        }
-      ]
-    },
-    {
-      "name": "get_k8s_resources_cmd",
-      "featureGroup": "k8s",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/k8s.ts",
-          "line": 139
-        }
-      ]
-    },
-    {
       "name": "get_keybindings",
       "featureGroup": "configuration",
       "eventUse": "none",
@@ -2044,20 +1942,6 @@
       ]
     },
     {
-      "name": "get_ssh_connections",
-      "featureGroup": "ssh",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/ssh.ts",
-          "line": 27
-        }
-      ]
-    },
-    {
       "name": "get_system_prompt",
       "featureGroup": "ai",
       "eventUse": "none",
@@ -2339,7 +2223,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 1591
+          "line": 1596
         }
       ]
     },
@@ -2670,20 +2554,6 @@
       ]
     },
     {
-      "name": "respond_ssh_askpass",
-      "featureGroup": "ssh",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useSshAskpass.ts",
-          "line": 43
-        }
-      ]
-    },
-    {
       "name": "run_connections_backup",
       "featureGroup": "backup",
       "eventUse": "event-coordinated",
@@ -2814,20 +2684,6 @@
       ]
     },
     {
-      "name": "save_k8s_connection",
-      "featureGroup": "k8s",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/k8s.ts",
-          "line": 70
-        }
-      ]
-    },
-    {
       "name": "save_keybindings",
       "featureGroup": "configuration",
       "eventUse": "none",
@@ -2870,20 +2726,6 @@
         {
           "file": "packages/web-ui/src/contexts/SavedQueriesProvider.tsx",
           "line": 35
-        }
-      ]
-    },
-    {
-      "name": "save_ssh_connection",
-      "featureGroup": "ssh",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/ssh.ts",
-          "line": 63
         }
       ]
     },
@@ -3094,34 +2936,6 @@
       ]
     },
     {
-      "name": "test_k8s_connection_cmd",
-      "featureGroup": "k8s",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/k8s.ts",
-          "line": 98
-        }
-      ]
-    },
-    {
-      "name": "test_ssh_connection",
-      "featureGroup": "ssh",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/ssh.ts",
-          "line": 103
-        }
-      ]
-    },
-    {
       "name": "uninstall_plugin",
       "featureGroup": "plugins",
       "eventUse": "none",
@@ -3132,20 +2946,6 @@
         {
           "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
           "line": 797
-        }
-      ]
-    },
-    {
-      "name": "update_k8s_connection",
-      "featureGroup": "k8s",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/k8s.ts",
-          "line": 80
         }
       ]
     },
@@ -3182,34 +2982,6 @@
         {
           "file": "packages/web-ui/src/contexts/SavedQueriesProvider.tsx",
           "line": 45
-        }
-      ]
-    },
-    {
-      "name": "update_ssh_connection",
-      "featureGroup": "ssh",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/ssh.ts",
-          "line": 77
-        }
-      ]
-    },
-    {
-      "name": "validate_k8s_path_cmd",
-      "featureGroup": "k8s",
-      "eventUse": "none",
-      "filesystemUse": "read",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/k8s.ts",
-          "line": 173
         }
       ]
     }
@@ -3278,6 +3050,8 @@
     "delete_connection_icon",
     "delete_connection_tag",
     "delete_editor_preferences",
+    "delete_k8s_connection",
+    "delete_ssh_connection",
     "detect_blob_mime",
     "detect_mime_type",
     "disconnect_connection",
@@ -3291,9 +3065,15 @@
     "get_connections_with_groups",
     "get_driver_manifest",
     "get_file_stats",
+    "get_k8s_connections",
+    "get_k8s_contexts_cmd",
+    "get_k8s_namespaces_cmd",
+    "get_k8s_resource_ports_cmd",
+    "get_k8s_resources_cmd",
     "get_materialized_view_columns",
     "get_plugin_dir",
     "get_registered_drivers",
+    "get_ssh_connections",
     "get_tables",
     "get_theme",
     "get_view_columns",
@@ -3314,19 +3094,27 @@
     "reset_explainplan_prompt",
     "reset_system_prompt",
     "reset_tabrename_prompt",
+    "respond_ssh_askpass",
     "restart_plugin_process",
     "save_cellname_prompt",
     "save_connection",
     "save_explain_prompt",
     "save_explainplan_prompt",
+    "save_k8s_connection",
+    "save_ssh_connection",
     "save_system_prompt",
     "save_tabrename_prompt",
     "set_connection_appearance",
     "set_connection_tags",
     "test_connection",
+    "test_k8s_connection_cmd",
     "test_log",
+    "test_ssh_connection",
     "update_connection",
     "update_connection_group",
-    "update_connection_tag"
+    "update_connection_tag",
+    "update_k8s_connection",
+    "update_ssh_connection",
+    "validate_k8s_path_cmd"
   ]
 }

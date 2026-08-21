@@ -17,6 +17,11 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     deadlineMs: 30_000,
     cancellationId: "startup-debug",
   });
+  const sshProfiles = caller.call("get_ssh_connections", undefined);
+  const askpassResponse = caller.call("respond_ssh_askpass", {
+    id: 7,
+    response: null,
+  });
   const queryResult: Promise<QueryResult> = caller.call("execute_query", {
     connectionId: "connection-1",
     query: "SELECT 1",
@@ -52,7 +57,14 @@ function assertCommandContract(caller: TypedCommandCaller): void {
   // @ts-expect-error Every unmigrated call must include tracking metadata.
   caller.callUnmigrated("get_unmigrated_data", {});
 
-  void [debugMode, queryResult, wrongResponse, unmigratedResult];
+  void [
+    debugMode,
+    sshProfiles,
+    askpassResponse,
+    queryResult,
+    wrongResponse,
+    unmigratedResult,
+  ];
 }
 
 function assertEventContract(subscriber: EventSubscriber): void {
@@ -60,6 +72,12 @@ function assertEventContract(subscriber: EventSubscriber): void {
     const connectionId: string = payload.connectionId;
     const database: string = payload.database;
     void [connectionId, database];
+  });
+
+  subscriber.subscribe("ssh-askpass://request", (payload) => {
+    const id: number = payload.id;
+    const prompt: string = payload.prompt;
+    void [id, prompt];
   });
 
   // @ts-expect-error database-dropped does not carry a batch id.
@@ -73,6 +91,8 @@ type ExecuteQueryResponse = CommandResponse<"execute_query">;
 type DatabaseDroppedEnvelope = EventEnvelope<"database-dropped">;
 
 const executeQueryAuthorization: CommandAuthorization<"execute_query"> = "database";
+const sshAuthorization: CommandAuthorization<"get_ssh_connections"> = "local-admin";
+const askpassAuthorization: CommandAuthorization<"respond_ssh_askpass"> = "sensitive";
 // @ts-expect-error execute_query is not a local-admin operation.
 const wrongAuthorization: CommandAuthorization<"execute_query"> = "local-admin";
 const rpcFailure: RpcFailure = {
@@ -100,6 +120,8 @@ void (null as unknown as ExecuteQueryRequest);
 void (null as unknown as ExecuteQueryResponse);
 void (null as unknown as DatabaseDroppedEnvelope);
 void executeQueryAuthorization;
+void sshAuthorization;
+void askpassAuthorization;
 void wrongAuthorization;
 void rpcFailure;
 void failureWithoutRequestId;

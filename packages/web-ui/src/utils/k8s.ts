@@ -3,34 +3,24 @@
  * Manages kubectl port-forward tunnel configurations
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { TauriTransport } from "../api/transports/tauriTransport";
+import type {
+  K8sCommandOptions,
+  K8sConnection,
+  K8sConnectionInput,
+  TypedCommandCaller,
+} from "../api/contract";
 
-export interface K8sConnection {
-  id: string;
-  name: string;
-  context: string;
-  namespace: string;
-  resource_type: "service" | "pod";
-  resource_name: string;
-  port: number;
-  kubectl_path?: string;
-  kubeconfig_path?: string;
-}
+export type {
+  K8sCommandOptions,
+  K8sConnection,
+  K8sConnectionInput,
+} from "../api/contract";
 
-export interface K8sConnectionInput {
-  name: string;
-  context: string;
-  namespace: string;
-  resource_type: string;
-  resource_name: string;
-  port: number;
-  kubectl_path?: string;
-  kubeconfig_path?: string;
-}
+const legacyTauriClient = new TauriTransport();
 
-export interface K8sCommandOptions {
-  kubectl_path?: string;
-  kubeconfig_path?: string;
+function commandClient(client?: TypedCommandCaller): TypedCommandCaller {
+  return client ?? legacyTauriClient;
 }
 
 export type K8sPathValidationKind = "kubectl" | "kubeconfig";
@@ -52,9 +42,11 @@ function toK8sCommandPayload(options?: K8sCommandOptions): {
 /**
  * Load all saved K8s connections
  */
-export async function loadK8sConnections(): Promise<K8sConnection[]> {
+export async function loadK8sConnections(
+  client?: TypedCommandCaller,
+): Promise<K8sConnection[]> {
   try {
-    return await invoke<K8sConnection[]>("get_k8s_connections");
+    return await commandClient(client).call("get_k8s_connections", undefined);
   } catch (error) {
     console.error("Failed to load K8s connections:", error);
     return [];
@@ -65,9 +57,10 @@ export async function loadK8sConnections(): Promise<K8sConnection[]> {
  * Save a new K8s connection
  */
 export async function saveK8sConnection(
-  k8s: K8sConnectionInput
+  k8s: K8sConnectionInput,
+  client?: TypedCommandCaller,
 ): Promise<K8sConnection> {
-  return await invoke<K8sConnection>("save_k8s_connection", { k8s });
+  return await commandClient(client).call("save_k8s_connection", { k8s });
 }
 
 /**
@@ -75,16 +68,20 @@ export async function saveK8sConnection(
  */
 export async function updateK8sConnection(
   id: string,
-  k8s: K8sConnectionInput
+  k8s: K8sConnectionInput,
+  client?: TypedCommandCaller,
 ): Promise<K8sConnection> {
-  return await invoke<K8sConnection>("update_k8s_connection", { id, k8s });
+  return await commandClient(client).call("update_k8s_connection", { id, k8s });
 }
 
 /**
  * Delete a K8s connection
  */
-export async function deleteK8sConnection(id: string): Promise<void> {
-  await invoke("delete_k8s_connection", { id });
+export async function deleteK8sConnection(
+  id: string,
+  client?: TypedCommandCaller,
+): Promise<void> {
+  await commandClient(client).call("delete_k8s_connection", { id });
 }
 
 /**
@@ -93,9 +90,10 @@ export async function deleteK8sConnection(id: string): Promise<void> {
 export async function testK8sConnection(
   context: string,
   namespace: string,
-  options?: K8sCommandOptions,
+  options: K8sCommandOptions | undefined,
+  client?: TypedCommandCaller,
 ): Promise<string> {
-  return await invoke<string>("test_k8s_connection_cmd", {
+  return await commandClient(client).call("test_k8s_connection_cmd", {
     context,
     namespace,
     ...toK8sCommandPayload(options),
@@ -106,12 +104,14 @@ export async function testK8sConnection(
  * List available kubectl contexts
  */
 export async function getK8sContexts(
-  options?: K8sCommandOptions,
+  options: K8sCommandOptions | undefined,
+  client?: TypedCommandCaller,
 ): Promise<string[]> {
   const payload = toK8sCommandPayload(options);
-  return Object.keys(payload).length === 0
-    ? await invoke<string[]>("get_k8s_contexts_cmd")
-    : await invoke<string[]>("get_k8s_contexts_cmd", payload);
+  return commandClient(client).call(
+    "get_k8s_contexts_cmd",
+    Object.keys(payload).length === 0 ? undefined : payload,
+  );
 }
 
 /**
@@ -119,9 +119,10 @@ export async function getK8sContexts(
  */
 export async function getK8sNamespaces(
   context: string,
-  options?: K8sCommandOptions,
+  options: K8sCommandOptions | undefined,
+  client?: TypedCommandCaller,
 ): Promise<string[]> {
-  return await invoke<string[]>("get_k8s_namespaces_cmd", {
+  return await commandClient(client).call("get_k8s_namespaces_cmd", {
     context,
     ...toK8sCommandPayload(options),
   });
@@ -134,9 +135,10 @@ export async function getK8sResources(
   context: string,
   namespace: string,
   resourceType: string,
-  options?: K8sCommandOptions,
+  options: K8sCommandOptions | undefined,
+  client?: TypedCommandCaller,
 ): Promise<string[]> {
-  return await invoke<string[]>("get_k8s_resources_cmd", {
+  return await commandClient(client).call("get_k8s_resources_cmd", {
     context,
     namespace,
     resourceType,
@@ -152,9 +154,10 @@ export async function getK8sResourcePorts(
   namespace: string,
   resourceType: string,
   resourceName: string,
-  options?: K8sCommandOptions,
+  options: K8sCommandOptions | undefined,
+  client?: TypedCommandCaller,
 ): Promise<number[]> {
-  return await invoke<number[]>("get_k8s_resource_ports_cmd", {
+  return await commandClient(client).call("get_k8s_resource_ports_cmd", {
     context,
     namespace,
     resourceType,
@@ -169,8 +172,9 @@ export async function getK8sResourcePorts(
 export async function validateK8sPath(
   path: string,
   kind: K8sPathValidationKind,
+  client?: TypedCommandCaller,
 ): Promise<void> {
-  await invoke("validate_k8s_path_cmd", { path, kind });
+  await commandClient(client).call("validate_k8s_path_cmd", { path, kind });
 }
 
 /**

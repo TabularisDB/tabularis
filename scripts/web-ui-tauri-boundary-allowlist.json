@@ -83,7 +83,6 @@
     "packages/web-ui/src/hooks/useOpenConnectionInNewWindow.ts": 1,
     "packages/web-ui/src/hooks/usePluginApi.ts": 2,
     "packages/web-ui/src/hooks/usePluginRegistry.ts": 1,
-    "packages/web-ui/src/hooks/useSshAskpass.ts": 2,
     "packages/web-ui/src/hooks/useTaskManager.ts": 1,
     "packages/web-ui/src/pages/Connections.tsx": 3,
     "packages/web-ui/src/pages/Editor.tsx": 3,
@@ -95,10 +94,8 @@
     "packages/web-ui/src/utils/autocomplete.ts": 1,
     "packages/web-ui/src/utils/databaseObjectActions.ts": 1,
     "packages/web-ui/src/utils/editor.ts": 1,
-    "packages/web-ui/src/utils/k8s.ts": 1,
     "packages/web-ui/src/utils/mcpApprovalAttention.ts": 2,
-    "packages/web-ui/src/utils/notebookStore.ts": 1,
-    "packages/web-ui/src/utils/ssh.ts": 1
+    "packages/web-ui/src/utils/notebookStore.ts": 1
   },
   "legacyDirectInvokes": {
     "packages/web-ui/src/components/layout/ExplorerSidebar.tsx": 21,
@@ -159,7 +156,6 @@
     "packages/web-ui/src/hooks/useDrivers.ts": 1,
     "packages/web-ui/src/hooks/useOpenConnectionInNewWindow.ts": 1,
     "packages/web-ui/src/hooks/usePluginRegistry.ts": 1,
-    "packages/web-ui/src/hooks/useSshAskpass.ts": 1,
     "packages/web-ui/src/hooks/useTaskManager.ts": 5,
     "packages/web-ui/src/pages/Connections.tsx": 4,
     "packages/web-ui/src/pages/Editor.tsx": 17,
@@ -170,8 +166,6 @@
     "packages/web-ui/src/utils/autocomplete.ts": 1,
     "packages/web-ui/src/utils/databaseObjectActions.ts": 2,
     "packages/web-ui/src/utils/editor.ts": 2,
-    "packages/web-ui/src/utils/k8s.ts": 11,
-    "packages/web-ui/src/utils/notebookStore.ts": 7,
-    "packages/web-ui/src/utils/ssh.ts": 5
+    "packages/web-ui/src/utils/notebookStore.ts": 7
   }
 }

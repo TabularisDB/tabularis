@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import type { SshAskpassRequest } from "../types/askpass";
+import { useTabularisClient } from "./useTabularisClient";
 
-const REQUEST_EVENT = "ssh-askpass://request";
-const DISMISS_EVENT = "ssh-askpass://dismiss";
+const REQUEST_EVENT = "ssh-askpass://request" as const;
+const DISMISS_EVENT = "ssh-askpass://dismiss" as const;
 
 export interface UseSshAskpassResult {
   /** Oldest pending prompt, shown one at a time. */
@@ -21,27 +20,28 @@ export interface UseSshAskpassResult {
  * notifications). Mounted once at the App level via `SshAskpassGate`.
  */
 export function useSshAskpass(): UseSshAskpassResult {
+  const client = useTabularisClient();
   const [queue, setQueue] = useState<SshAskpassRequest[]>([]);
 
   useEffect(() => {
-    const unlistenRequest = listen<SshAskpassRequest>(REQUEST_EVENT, (event) => {
-      setQueue((prev) => [...prev, event.payload]);
+    const unlistenRequest = client.subscribe(REQUEST_EVENT, (payload) => {
+      setQueue((prev) => [...prev, payload]);
     });
     // The backend dismisses prompts that timed out or whose security-key
     // notification was satisfied (key touched).
-    const unlistenDismiss = listen<number>(DISMISS_EVENT, (event) => {
-      setQueue((prev) => prev.filter((r) => r.id !== event.payload));
+    const unlistenDismiss = client.subscribe(DISMISS_EVENT, (id) => {
+      setQueue((prev) => prev.filter((request) => request.id !== id));
     });
     return () => {
       unlistenRequest.then((fn) => fn()).catch(() => {});
       unlistenDismiss.then((fn) => fn()).catch(() => {});
     };
-  }, []);
+  }, [client]);
 
   const respond = useCallback(async (id: number, response: string | null) => {
-    setQueue((prev) => prev.filter((r) => r.id !== id));
-    await invoke("respond_ssh_askpass", { id, response });
-  }, []);
+    setQueue((prev) => prev.filter((request) => request.id !== id));
+    await client.call("respond_ssh_askpass", { id, response });
+  }, [client]);
 
   const dismiss = useCallback((id: number) => {
     setQueue((prev) => prev.filter((r) => r.id !== id));

@@ -127,6 +127,15 @@ pub async fn execute(
     state: &Arc<ApplicationState>,
     command: ConnectionCommand,
 ) -> Result<Value, String> {
+    execute_for_session(runtime, state, None, command).await
+}
+
+pub async fn execute_for_session(
+    runtime: &RuntimeContext,
+    state: &Arc<ApplicationState>,
+    session_id: Option<Uuid>,
+    command: ConnectionCommand,
+) -> Result<Value, String> {
     match command {
         ConnectionCommand::GetConnections => {
             json(redacted_connections(load_file(runtime)?.connections))
@@ -295,7 +304,7 @@ pub async fn execute(
             Ok(Value::Null)
         }
         ConnectionCommand::TestConnection { request } => {
-            json(test_connection(runtime, request).await?)
+            json(test_connection(runtime, session_id, request).await?)
         }
     }
 }
@@ -913,36 +922,17 @@ async fn disconnect_connection(
     connection_id: &str,
 ) -> Result<(), String> {
     crate::health_check::unregister_connection(connection_id).await;
-    let mut connection = find_connection(&load_file(runtime)?, connection_id)?;
-    if connection.params.ssh_enabled.unwrap_or(false)
-        || connection.params.k8s_enabled.unwrap_or(false)
-    {
-        return Err("Tunnel-backed web connections are migrated in WEB-051".to_string());
-    }
-    restore_secrets(runtime, connection_id, &mut connection.params)?;
-    let params =
-        crate::commands::resolve_connection_params_with_id(&connection.params, connection_id)?;
-    crate::pool_manager::close_pool_with_id(&params, Some(connection_id)).await;
+    let connection = find_connection(&load_file(runtime)?, connection_id)?;
+    crate::pool_manager::close_pool_with_id(&connection.params, Some(connection_id)).await;
     Ok(())
 }
 
 async fn test_connection(
     runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
     mut request: TestConnectionRequest,
 ) -> Result<String, String> {
     let progress_id = request.progress_id.clone();
-    if request.params.ssh_enabled.unwrap_or(false)
-        || request.params.k8s_enabled.unwrap_or(false)
-        || request.params.ssh_connection_id.is_some()
-        || request.params.k8s_connection_id.is_some()
-    {
-        return Err(emit_test_failure(
-            runtime,
-            progress_id.as_deref(),
-            "resolve",
-            "Tunnel-backed web connections are migrated in WEB-051".to_string(),
-        ));
-    }
     if let Some(connection_id) = request.connection_id.as_deref() {
         let saved = find_connection(&load_file(runtime)?, connection_id)?;
         if request.params.password.as_deref().is_none_or(str::is_empty) {
@@ -950,18 +940,84 @@ async fn test_connection(
         }
         restore_secrets(runtime, connection_id, &mut request.params)?;
     }
-    let resolved = match request.connection_id.as_deref() {
-        Some(connection_id) => {
-            crate::commands::resolve_connection_params_with_id(&request.params, connection_id)
-        }
-        None => crate::commands::resolve_connection_params(&request.params),
+
+    let expanded = crate::application::tunnels::expand_connection_params(runtime, &request.params)
+        .map_err(|error| {
+            emit_test_failure(
+                runtime,
+                session_id,
+                progress_id.as_deref(),
+                "resolve",
+                error,
+            )
+        })?;
+    let tunnel_step = if expanded.ssh_enabled.unwrap_or(false) {
+        Some("sshTunnel")
+    } else if expanded.k8s_enabled.unwrap_or(false) {
+        Some("k8sForward")
+    } else {
+        None
+    };
+    if let Some(step) = tunnel_step {
+        emit_test_progress(
+            runtime,
+            session_id,
+            progress_id.as_deref(),
+            step,
+            "start",
+            if step == "sshTunnel" {
+                Some(format!(
+                    "{}@{}:{}",
+                    expanded.ssh_user.as_deref().unwrap_or("?"),
+                    expanded.ssh_host.as_deref().unwrap_or("?"),
+                    expanded.ssh_port.unwrap_or(22),
+                ))
+            } else {
+                expanded.k8s_resource_name.clone()
+            },
+        );
     }
-    .map_err(|error| emit_test_failure(runtime, progress_id.as_deref(), "resolve", error))?;
+
+    let runtime_for_tunnel = runtime.clone();
+    let expanded_for_tunnel = expanded.clone();
+    let mut resolved = tokio::task::spawn_blocking(move || {
+        crate::application::tunnels::resolve_connection_params(
+            &runtime_for_tunnel,
+            &expanded_for_tunnel,
+            session_id,
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())?
+    .map_err(|error| {
+        emit_test_failure(
+            runtime,
+            session_id,
+            progress_id.as_deref(),
+            tunnel_step.unwrap_or("resolve"),
+            error,
+        )
+    })?;
+    if let Some(connection_id) = request.connection_id.as_deref() {
+        resolved.connection_id = Some(connection_id.to_string());
+    }
+    if let Some(step) = tunnel_step {
+        emit_test_progress(
+            runtime,
+            session_id,
+            progress_id.as_deref(),
+            step,
+            "ok",
+            resolved.port.map(|port| format!("127.0.0.1:{port}")),
+        );
+    }
+
     let driver = crate::drivers::registry::get_driver(&resolved.driver)
         .await
         .ok_or_else(|| format!("Driver not found: {}", resolved.driver))?;
     emit_test_progress(
         runtime,
+        session_id,
         progress_id.as_deref(),
         "dbConnect",
         "start",
@@ -976,22 +1032,36 @@ async fn test_connection(
         if !path.exists() {
             return Err(emit_test_failure(
                 runtime,
+                session_id,
                 progress_id.as_deref(),
                 "dbConnect",
                 format!("Database file not found: {}", resolved.database),
             ));
         }
     }
-    driver
-        .test_connection(&resolved)
-        .await
-        .map_err(|error| emit_test_failure(runtime, progress_id.as_deref(), "dbConnect", error))?;
-    emit_test_progress(runtime, progress_id.as_deref(), "dbConnect", "ok", None);
+    driver.test_connection(&resolved).await.map_err(|error| {
+        emit_test_failure(
+            runtime,
+            session_id,
+            progress_id.as_deref(),
+            "dbConnect",
+            error,
+        )
+    })?;
+    emit_test_progress(
+        runtime,
+        session_id,
+        progress_id.as_deref(),
+        "dbConnect",
+        "ok",
+        None,
+    );
     Ok("Connection successful!".to_string())
 }
 
 fn emit_test_progress(
     runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
     progress_id: Option<&str>,
     step: &str,
     status: &str,
@@ -1000,24 +1070,35 @@ fn emit_test_progress(
     let Some(id) = progress_id else {
         return;
     };
-    let _ = runtime.events.emit(
-        "connection-test-progress",
-        serde_json::json!({
-            "id": id,
-            "step": step,
-            "status": status,
-            "detail": detail,
-        }),
-    );
+    let payload = serde_json::json!({
+        "id": id,
+        "step": step,
+        "status": status,
+        "detail": detail,
+    });
+    let _ = match session_id {
+        Some(session_id) => runtime
+            .events
+            .emit_to(session_id, "connection-test-progress", payload),
+        None => runtime.events.emit("connection-test-progress", payload),
+    };
 }
 
 fn emit_test_failure(
     runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
     progress_id: Option<&str>,
     step: &str,
     error: String,
 ) -> String {
-    emit_test_progress(runtime, progress_id, step, "error", Some(error.clone()));
+    emit_test_progress(
+        runtime,
+        session_id,
+        progress_id,
+        step,
+        "error",
+        Some(error.clone()),
+    );
     error
 }
 

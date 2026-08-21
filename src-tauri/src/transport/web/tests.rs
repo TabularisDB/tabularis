@@ -540,6 +540,139 @@ async fn executes_representative_commands_over_versioned_rpc() {
     );
     assert!(listed["data"]["connections"][0]["params"]["password"].is_null());
 
+    let saved_ssh = client
+        .post(format!("{base_url}/api/v1/rpc/save_ssh_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "name": "Browser bastion",
+            "ssh": {
+                "host": "bastion.example.com",
+                "port": 22,
+                "user": "browser-user",
+                "auth_type": "password",
+                "password": "write-only-secret",
+                "save_in_keychain": false
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(saved_ssh.status(), reqwest::StatusCode::OK);
+    let saved_ssh = saved_ssh.json::<serde_json::Value>().await.unwrap();
+    assert!(saved_ssh["data"]["password"].is_null());
+    let ssh_id = saved_ssh["data"]["id"].as_str().unwrap().to_string();
+
+    let listed_ssh = client
+        .post(format!("{base_url}/api/v1/rpc/get_ssh_connections"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::Value::Null)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(listed_ssh.status(), reqwest::StatusCode::OK);
+    let listed_ssh = listed_ssh.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(listed_ssh["data"][0]["name"], "Browser bastion");
+    assert!(listed_ssh["data"][0]["password"].is_null());
+
+    let updated_ssh = client
+        .post(format!("{base_url}/api/v1/rpc/update_ssh_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "id": ssh_id,
+            "name": "Updated bastion",
+            "ssh": {
+                "host": "updated.example.com",
+                "port": 2222,
+                "user": "browser-user",
+                "auth_type": "password",
+                "save_in_keychain": false
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(updated_ssh.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        updated_ssh.json::<serde_json::Value>().await.unwrap()["data"]["host"],
+        "updated.example.com"
+    );
+
+    let deleted_ssh = client
+        .post(format!("{base_url}/api/v1/rpc/delete_ssh_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({"id": ssh_id}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(deleted_ssh.status(), reqwest::StatusCode::OK);
+
+    let saved_k8s = client
+        .post(format!("{base_url}/api/v1/rpc/save_k8s_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "k8s": {
+                "name": "Browser cluster",
+                "context": "local",
+                "namespace": "database",
+                "resource_type": "service",
+                "resource_name": "postgres",
+                "port": 5432
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(saved_k8s.status(), reqwest::StatusCode::OK);
+    let saved_k8s = saved_k8s.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(saved_k8s["data"]["name"], "Browser cluster");
+    let k8s_id = saved_k8s["data"]["id"].as_str().unwrap().to_string();
+
+    let updated_k8s = client
+        .post(format!("{base_url}/api/v1/rpc/update_k8s_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "id": k8s_id,
+            "k8s": {
+                "name": "Updated cluster",
+                "context": "local",
+                "namespace": "database",
+                "resource_type": "service",
+                "resource_name": "postgres-primary",
+                "port": 5432
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(updated_k8s.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        updated_k8s.json::<serde_json::Value>().await.unwrap()["data"]["resource_name"],
+        "postgres-primary"
+    );
+
+    let deleted_k8s = client
+        .post(format!("{base_url}/api/v1/rpc/delete_k8s_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({"id": k8s_id}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(deleted_k8s.status(), reqwest::StatusCode::OK);
+
     let query_task = tokio::spawn(std::future::pending::<()>());
     crate::commands::register_abort_handle(
         &application_state.query_cancellation.handles,

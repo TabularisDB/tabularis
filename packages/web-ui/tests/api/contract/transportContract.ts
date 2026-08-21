@@ -54,10 +54,16 @@ export function defineTransportContractSuite(
       ).resolves.toBe(true);
     });
 
-    it("preserves connection-management contracts", async () => {
+    it("preserves connection and tunnel profile contracts", async () => {
       await expect(
         harness.transport.call("get_connections_with_groups", undefined),
       ).resolves.toEqual({ groups: [], connections: [] });
+      await expect(
+        harness.transport.call("get_ssh_connections", undefined),
+      ).resolves.toEqual([]);
+      await expect(
+        harness.transport.call("get_k8s_connections", undefined),
+      ).resolves.toEqual([]);
     });
 
     it("preserves complex JSON serialization without coercion", async () => {
@@ -161,6 +167,13 @@ async function handleRequest(
   }
   if (command === "get_connections_with_groups" && body === "null") {
     sendSuccess(response, { groups: [], connections: [] }, requestId);
+    return;
+  }
+  if (
+    (command === "get_ssh_connections" || command === "get_k8s_connections") &&
+    body === "null"
+  ) {
+    sendSuccess(response, [], requestId);
     return;
   }
   if (

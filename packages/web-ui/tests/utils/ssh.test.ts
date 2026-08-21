@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { TypedCommandCaller } from "../../src/api/contract";
 import {
   validateSshConnection,
   formatSshConnectionString,
@@ -391,6 +392,29 @@ describe("ssh", () => {
   describe("testSshConnection", () => {
     beforeEach(() => {
       vi.clearAllMocks();
+    });
+
+    it("routes through the injected typed client", async () => {
+      const call = vi.fn().mockResolvedValue("SSH connection successful");
+      const client = { call } as unknown as TypedCommandCaller;
+
+      await testSshConnection(
+        {
+          host: "example.com",
+          port: 22,
+          user: "testuser",
+          auth_type: "password",
+          password: "secret",
+        },
+        {},
+        client,
+      );
+
+      expect(call).toHaveBeenCalledWith(
+        "test_ssh_connection",
+        { ssh: expect.objectContaining({ host: "example.com" }) },
+        { deadlineMs: 180_000 },
+      );
     });
 
     it("should call invoke with correct parameters", async () => {

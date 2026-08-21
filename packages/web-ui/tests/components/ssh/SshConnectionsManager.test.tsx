@@ -41,11 +41,14 @@ vi.mock("lucide-react", () => ({
 }));
 
 vi.mock("../../../src/utils/ssh", () => ({
-  loadSshConnections: sshMocks.loadSshConnections,
-  saveSshConnection: sshMocks.saveSshConnection,
-  updateSshConnection: sshMocks.updateSshConnection,
-  deleteSshConnection: sshMocks.deleteSshConnection,
-  testSshConnection: sshMocks.testSshConnection,
+  loadSshConnections: () => sshMocks.loadSshConnections(),
+  saveSshConnection: (name: string, ssh: unknown) =>
+    sshMocks.saveSshConnection(name, ssh),
+  updateSshConnection: (id: string, name: string, ssh: unknown) =>
+    sshMocks.updateSshConnection(id, name, ssh),
+  deleteSshConnection: (id: string) => sshMocks.deleteSshConnection(id),
+  testSshConnection: (ssh: unknown, options: unknown) =>
+    sshMocks.testSshConnection(ssh, options),
   validateSshConnection: sshMocks.validateSshConnection,
 }));
 

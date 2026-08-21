@@ -677,12 +677,12 @@ export const NewConnectionModal = ({
 
   // ── helpers ──
   const loadSshConnectionsList = async () => {
-    const result = await loadSshConnections();
+    const result = await loadSshConnections(client);
     setSshConnections(result);
   };
 
   const loadK8sConnectionsList = async () => {
-    const result = await loadK8sConnections();
+    const result = await loadK8sConnections(client);
     setK8sConnections(result);
   };
 
@@ -723,8 +723,8 @@ export const NewConnectionModal = ({
     async (options: K8sCommandOptions) => {
       const result = await runK8sAsync("new-k8s-contexts", () =>
         hasK8sCommandOverrides(options)
-          ? getK8sContexts(options)
-          : getK8sContexts(),
+          ? getK8sContexts(options, client)
+          : getK8sContexts(undefined, client),
       );
       if (result.status === "success") {
         setK8sContexts(result.value);
@@ -734,15 +734,15 @@ export const NewConnectionModal = ({
         setK8sDiscoveryError("contexts", toErrorMessage(result.error));
       }
     },
-    [runK8sAsync, setK8sDiscoveryError],
+    [client, runK8sAsync, setK8sDiscoveryError],
   );
 
   const loadK8sNamespacesList = useCallback(
     async (context: string, options: K8sCommandOptions) => {
       const result = await runK8sAsync("new-k8s-namespaces", () =>
         hasK8sCommandOverrides(options)
-          ? getK8sNamespaces(context, options)
-          : getK8sNamespaces(context),
+          ? getK8sNamespaces(context, options, client)
+          : getK8sNamespaces(context, undefined, client),
       );
       if (result.status === "success") {
         setK8sNamespaces(result.value);
@@ -752,7 +752,7 @@ export const NewConnectionModal = ({
         setK8sDiscoveryError("namespaces", toErrorMessage(result.error));
       }
     },
-    [runK8sAsync, setK8sDiscoveryError],
+    [client, runK8sAsync, setK8sDiscoveryError],
   );
 
   const loadK8sResourcesList = useCallback(
@@ -764,8 +764,8 @@ export const NewConnectionModal = ({
     ) => {
       const result = await runK8sAsync("new-k8s-resources", () =>
         hasK8sCommandOverrides(options)
-          ? getK8sResources(context, namespace, resourceType, options)
-          : getK8sResources(context, namespace, resourceType),
+          ? getK8sResources(context, namespace, resourceType, options, client)
+          : getK8sResources(context, namespace, resourceType, undefined, client),
       );
       if (result.status === "success") {
         setK8sResources(result.value);
@@ -775,7 +775,7 @@ export const NewConnectionModal = ({
         setK8sDiscoveryError("resources", toErrorMessage(result.error));
       }
     },
-    [runK8sAsync, setK8sDiscoveryError],
+    [client, runK8sAsync, setK8sDiscoveryError],
   );
 
   const loadK8sResourcePorts = useCallback(
@@ -794,12 +794,15 @@ export const NewConnectionModal = ({
               resourceType,
               resourceName,
               options,
+              client,
             )
           : getK8sResourcePorts(
               context,
               namespace,
               resourceType,
               resourceName,
+              undefined,
+              client,
             ),
       );
       if (result.status === "success") {
@@ -816,7 +819,7 @@ export const NewConnectionModal = ({
         );
       }
     },
-    [runK8sAsync],
+    [client, runK8sAsync],
   );
 
   const handleInlinePathsApplied = useCallback(
@@ -848,6 +851,7 @@ export const NewConnectionModal = ({
   );
 
   const pathOverrides = useK8sPathOverrides({
+    client,
     onApplied: handleInlinePathsApplied,
     onDraftChanged: invalidateInlineK8sTest,
   });
@@ -1155,7 +1159,7 @@ export const NewConnectionModal = ({
           setSshTabError(true);
           return;
         }
-        await testSshConnection(selected, { progressId });
+        await testSshConnection(selected, { progressId }, client);
         target = `${selected.user}@${selected.host}:${selected.port}`;
       } else {
         const port = formData.ssh_port || 22;
@@ -1178,6 +1182,7 @@ export const NewConnectionModal = ({
               : initialConnection?.id,
             progressId,
           },
+          client,
         );
         target = `${formData.ssh_user}@${formData.ssh_host}:${port}`;
       }
@@ -1798,11 +1803,11 @@ export const NewConnectionModal = ({
         setEnvironment("");
       }
 
-      const nextSshConnections = await loadSshConnections();
+      const nextSshConnections = await loadSshConnections(client);
       if (!isCurrentInit()) return;
       setSshConnections(nextSshConnections);
 
-      const nextK8sConnections = await loadK8sConnections();
+      const nextK8sConnections = await loadK8sConnections(client);
       if (!isCurrentInit()) return;
       setK8sConnections(nextK8sConnections);
     };

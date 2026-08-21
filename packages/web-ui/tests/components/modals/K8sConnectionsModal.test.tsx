@@ -75,17 +75,43 @@ vi.mock("../../../src/components/ui/Select", () => ({
   ),
 }));
 
+vi.mock("../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({ call: vi.fn(), subscribe: vi.fn() }),
+}));
+
 vi.mock("../../../src/utils/k8s", () => ({
-  loadK8sConnections: k8sMocks.loadK8sConnections,
-  saveK8sConnection: k8sMocks.saveK8sConnection,
-  updateK8sConnection: k8sMocks.updateK8sConnection,
-  deleteK8sConnection: k8sMocks.deleteK8sConnection,
-  testK8sConnection: k8sMocks.testK8sConnection,
-  getK8sContexts: k8sMocks.getK8sContexts,
-  getK8sNamespaces: k8sMocks.getK8sNamespaces,
-  getK8sResources: k8sMocks.getK8sResources,
-  getK8sResourcePorts: k8sMocks.getK8sResourcePorts,
-  validateK8sPath: k8sMocks.validateK8sPath,
+  loadK8sConnections: () => k8sMocks.loadK8sConnections(),
+  saveK8sConnection: (input: unknown) => k8sMocks.saveK8sConnection(input),
+  updateK8sConnection: (id: string, input: unknown) =>
+    k8sMocks.updateK8sConnection(id, input),
+  deleteK8sConnection: (id: string) => k8sMocks.deleteK8sConnection(id),
+  testK8sConnection: (context: string, namespace: string, options: unknown) =>
+    k8sMocks.testK8sConnection(context, namespace, options),
+  getK8sContexts: (options: unknown) => k8sMocks.getK8sContexts(options),
+  getK8sNamespaces: (context: string, options: unknown) =>
+    k8sMocks.getK8sNamespaces(context, options),
+  getK8sResources: (
+    context: string,
+    namespace: string,
+    resourceType: string,
+    options: unknown,
+  ) => k8sMocks.getK8sResources(context, namespace, resourceType, options),
+  getK8sResourcePorts: (
+    context: string,
+    namespace: string,
+    resourceType: string,
+    resourceName: string,
+    options: unknown,
+  ) =>
+    k8sMocks.getK8sResourcePorts(
+      context,
+      namespace,
+      resourceType,
+      resourceName,
+      options,
+    ),
+  validateK8sPath: (path: string, kind: string) =>
+    k8sMocks.validateK8sPath(path, kind),
   validateK8sConnection: k8sMocks.validateK8sConnection,
 }));
 

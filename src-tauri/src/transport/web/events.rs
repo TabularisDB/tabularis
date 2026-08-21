@@ -403,6 +403,10 @@ impl RuntimeEvents for WebEventBus {
     fn emit(&self, event: &str, payload: Value) -> Result<(), String> {
         self.publish(None, event, payload)
     }
+
+    fn emit_to(&self, session_id: Uuid, event: &str, payload: Value) -> Result<(), String> {
+        self.publish(Some(session_id), event, payload)
+    }
 }
 
 impl EventConnection {

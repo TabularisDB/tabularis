@@ -1,12 +1,17 @@
+import { createElement, type ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook as renderHookBase, act } from "@testing-library/react";
 import { listen, type EventCallback } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { TabularisClient } from "../../src/api/client";
+import { TauriTransport } from "../../src/api/transports/tauriTransport";
+import { TabularisClientProvider } from "../../src/contexts/TabularisClientProvider";
 import { useSshAskpass } from "../../src/hooks/useSshAskpass";
 import type { SshAskpassRequest } from "../../src/types/askpass";
 
 vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(),
+  emit: vi.fn(),
 }));
 
 const listenMock = vi.mocked(listen);
@@ -14,6 +19,11 @@ const invokeMock = vi.mocked(invoke);
 
 describe("useSshAskpass", () => {
   let handlers: Record<string, EventCallback<unknown>>;
+  const client = new TabularisClient(new TauriTransport());
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    createElement(TabularisClientProvider, { client }, children);
+  const renderHook = <Result,>(callback: () => Result) =>
+    renderHookBase(callback, { wrapper });
 
   beforeEach(() => {
     handlers = {};

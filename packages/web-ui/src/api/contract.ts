@@ -78,6 +78,61 @@ export interface TestConnectionRequest {
   progress_id?: string;
 }
 
+export interface SshConnection {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  user: string;
+  auth_type?: "password" | "ssh_key";
+  password?: string;
+  key_file?: string;
+  key_passphrase?: string;
+  allow_passphrase_prompt?: boolean;
+  save_in_keychain?: boolean;
+}
+
+export type SshConnectionInput = Partial<Omit<SshConnection, "id" | "name">>;
+
+export interface SshTestRequest extends Partial<SshConnection> {
+  connection_id?: string;
+  db_connection_id?: string;
+  progress_id?: string;
+}
+
+export interface K8sConnection {
+  id: string;
+  name: string;
+  context: string;
+  namespace: string;
+  resource_type: "service" | "pod";
+  resource_name: string;
+  port: number;
+  kubectl_path?: string;
+  kubeconfig_path?: string;
+}
+
+export interface K8sConnectionInput {
+  name: string;
+  context: string;
+  namespace: string;
+  resource_type: string;
+  resource_name: string;
+  port: number;
+  kubectl_path?: string;
+  kubeconfig_path?: string;
+}
+
+export interface K8sCommandOptions {
+  kubectl_path?: string;
+  kubeconfig_path?: string;
+}
+
+export interface K8sCommandRequest {
+  kubectlPath?: string;
+  kubeconfigPath?: string;
+}
+
 export interface SaveConnectionRequest {
   name: string;
   params: ConnectionParameters;
@@ -220,6 +275,77 @@ export interface CommandMap {
     "database"
   >;
   disconnect_connection: CommandDefinition<ConnectionIdRequest, void, "database">;
+
+  get_ssh_connections: CommandDefinition<undefined, SshConnection[], "local-admin">;
+  save_ssh_connection: CommandDefinition<
+    { name: string; ssh: SshConnectionInput },
+    SshConnection,
+    "local-admin"
+  >;
+  update_ssh_connection: CommandDefinition<
+    { id: string; name: string; ssh: SshConnectionInput },
+    SshConnection,
+    "local-admin"
+  >;
+  delete_ssh_connection: CommandDefinition<{ id: string }, void, "local-admin">;
+  test_ssh_connection: CommandDefinition<
+    { ssh: SshTestRequest },
+    string,
+    "local-admin"
+  >;
+  respond_ssh_askpass: CommandDefinition<
+    { id: number; response: string | null },
+    void,
+    "sensitive"
+  >;
+
+  get_k8s_connections: CommandDefinition<undefined, K8sConnection[], "local-admin">;
+  save_k8s_connection: CommandDefinition<
+    { k8s: K8sConnectionInput },
+    K8sConnection,
+    "local-admin"
+  >;
+  update_k8s_connection: CommandDefinition<
+    { id: string; k8s: K8sConnectionInput },
+    K8sConnection,
+    "local-admin"
+  >;
+  delete_k8s_connection: CommandDefinition<{ id: string }, void, "local-admin">;
+  test_k8s_connection_cmd: CommandDefinition<
+    { context: string; namespace: string } & K8sCommandRequest,
+    string,
+    "local-admin"
+  >;
+  get_k8s_contexts_cmd: CommandDefinition<
+    K8sCommandRequest | undefined,
+    string[],
+    "local-admin"
+  >;
+  get_k8s_namespaces_cmd: CommandDefinition<
+    { context: string } & K8sCommandRequest,
+    string[],
+    "local-admin"
+  >;
+  get_k8s_resources_cmd: CommandDefinition<
+    { context: string; namespace: string; resourceType: string } & K8sCommandRequest,
+    string[],
+    "local-admin"
+  >;
+  get_k8s_resource_ports_cmd: CommandDefinition<
+    {
+      context: string;
+      namespace: string;
+      resourceType: string;
+      resourceName: string;
+    } & K8sCommandRequest,
+    number[],
+    "local-admin"
+  >;
+  validate_k8s_path_cmd: CommandDefinition<
+    { path: string; kind: "kubectl" | "kubeconfig" },
+    void,
+    "local-admin"
+  >;
 
   get_available_databases: CommandDefinition<
     ConnectionIdRequest,

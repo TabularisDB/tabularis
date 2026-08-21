@@ -198,17 +198,53 @@ vi.mock("../../../src/hooks/useConnectionCatalogue", () => ({
 }));
 
 vi.mock("../../../src/utils/ssh", () => ({
-  loadSshConnections: sshMocks.loadSshConnections,
-  testSshConnection: sshMocks.testSshConnection,
+  loadSshConnections: () => sshMocks.loadSshConnections(),
+  testSshConnection: (ssh: unknown, options: unknown) =>
+    sshMocks.testSshConnection(ssh, options),
 }));
 
 vi.mock("../../../src/utils/k8s", () => ({
-  loadK8sConnections: k8sMocks.loadK8sConnections,
-  getK8sContexts: k8sMocks.getK8sContexts,
-  getK8sNamespaces: k8sMocks.getK8sNamespaces,
-  getK8sResources: k8sMocks.getK8sResources,
-  getK8sResourcePorts: k8sMocks.getK8sResourcePorts,
-  validateK8sPath: k8sMocks.validateK8sPath,
+  loadK8sConnections: () => k8sMocks.loadK8sConnections(),
+  getK8sContexts: (options?: unknown) =>
+    options === undefined
+      ? k8sMocks.getK8sContexts()
+      : k8sMocks.getK8sContexts(options),
+  getK8sNamespaces: (context: string, options?: unknown) =>
+    options === undefined
+      ? k8sMocks.getK8sNamespaces(context)
+      : k8sMocks.getK8sNamespaces(context, options),
+  getK8sResources: (
+    context: string,
+    namespace: string,
+    resourceType: string,
+    options?: unknown,
+  ) =>
+    options === undefined
+      ? k8sMocks.getK8sResources(context, namespace, resourceType)
+      : k8sMocks.getK8sResources(context, namespace, resourceType, options),
+  getK8sResourcePorts: (
+    context: string,
+    namespace: string,
+    resourceType: string,
+    resourceName: string,
+    options?: unknown,
+  ) =>
+    options === undefined
+      ? k8sMocks.getK8sResourcePorts(
+          context,
+          namespace,
+          resourceType,
+          resourceName,
+        )
+      : k8sMocks.getK8sResourcePorts(
+          context,
+          namespace,
+          resourceType,
+          resourceName,
+          options,
+        ),
+  validateK8sPath: (path: string, kind: string) =>
+    k8sMocks.validateK8sPath(path, kind),
 }));
 
 vi.mock("../../../src/components/modals/NewConnectionModal/AppearanceSection", () => ({

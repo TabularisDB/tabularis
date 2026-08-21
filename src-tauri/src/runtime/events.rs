@@ -3,6 +3,10 @@ use tauri::Emitter;
 
 pub trait RuntimeEvents: Send + Sync {
     fn emit(&self, event: &str, payload: Value) -> Result<(), String>;
+
+    fn emit_to(&self, _session_id: uuid::Uuid, event: &str, payload: Value) -> Result<(), String> {
+        self.emit(event, payload)
+    }
 }
 
 #[derive(Default)]

@@ -241,16 +241,18 @@ async fn connection_test_failures_emit_correlated_progress() {
     .await
     .unwrap_err();
 
-    assert!(error.contains("WEB-051"));
+    assert!(error.contains("Missing SSH Host"));
     let emitted = events
         .values
         .lock()
         .unwrap_or_else(|error| error.into_inner());
-    assert_eq!(emitted.len(), 1);
+    assert_eq!(emitted.len(), 2);
     assert_eq!(emitted[0].0, "connection-test-progress");
     assert_eq!(emitted[0].1["id"], "progress-1");
-    assert_eq!(emitted[0].1["step"], "resolve");
-    assert_eq!(emitted[0].1["status"], "error");
+    assert_eq!(emitted[0].1["step"], "sshTunnel");
+    assert_eq!(emitted[0].1["status"], "start");
+    assert_eq!(emitted[1].1["step"], "sshTunnel");
+    assert_eq!(emitted[1].1["status"], "error");
 }
 
 #[tokio::test]

@@ -1,8 +1,11 @@
 use crate::application::{
-    connections::ConnectionCommand, ApplicationApi, ApplicationError, ApplicationRequestContext,
-    AuthorizationLevel,
+    connections::ConnectionCommand, tunnels::TunnelCommand, ApplicationApi, ApplicationError,
+    ApplicationRequestContext, AuthorizationLevel,
 };
-use crate::models::{ConnectionAppearance, ConnectionParams, TestConnectionRequest};
+use crate::models::{
+    ConnectionAppearance, ConnectionParams, K8sConnectionInput, SshConnectionInput, SshTestParams,
+    TestConnectionRequest,
+};
 use axum::body::Bytes;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::http::{HeaderMap, StatusCode};
@@ -36,6 +39,27 @@ enum RpcCommand {
     GetConnections,
     CancelQuery,
     Connection(ConnectionRpcCommand),
+    Tunnel(TunnelRpcCommand),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TunnelRpcCommand {
+    GetSshConnections,
+    SaveSshConnection,
+    UpdateSshConnection,
+    DeleteSshConnection,
+    TestSshConnection,
+    RespondSshAskpass,
+    GetK8sConnections,
+    SaveK8sConnection,
+    UpdateK8sConnection,
+    DeleteK8sConnection,
+    TestK8sConnection,
+    GetK8sContexts,
+    GetK8sNamespaces,
+    GetK8sResources,
+    GetK8sResourcePorts,
+    ValidateK8sPath,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -217,6 +241,99 @@ struct DriverManifestRequest {
 #[serde(deny_unknown_fields)]
 struct TestRequest {
     request: TestConnectionRequest,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SaveSshRequest {
+    name: String,
+    ssh: SshConnectionInput,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UpdateSshRequest {
+    id: String,
+    name: String,
+    ssh: SshConnectionInput,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TestSshRequest {
+    ssh: SshTestParams,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AskpassResponseRequest {
+    id: u64,
+    response: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SaveK8sRequest {
+    k8s: K8sConnectionInput,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UpdateK8sRequest {
+    id: String,
+    k8s: K8sConnectionInput,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct K8sOptionsRequest {
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TestK8sRequest {
+    context: String,
+    namespace: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct K8sContextRequest {
+    context: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct K8sResourcesRequest {
+    context: String,
+    namespace: String,
+    resource_type: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct K8sPortsRequest {
+    context: String,
+    namespace: String,
+    resource_type: String,
+    resource_name: String,
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ValidateK8sPathRequest {
+    path: String,
+    kind: String,
 }
 
 #[derive(Serialize)]
@@ -414,6 +531,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::Tunnel(command) => {
+                let command = decode_tunnel_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_tunnel_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
         }
     }
 
@@ -445,7 +570,9 @@ impl RpcCommand {
             "is_debug_mode" => Some(Self::IsDebugMode),
             "get_connections" => Some(Self::GetConnections),
             "cancel_query" => Some(Self::CancelQuery),
-            name => ConnectionRpcCommand::parse(name).map(Self::Connection),
+            name => TunnelRpcCommand::parse(name)
+                .map(Self::Tunnel)
+                .or_else(|| ConnectionRpcCommand::parse(name).map(Self::Connection)),
         }
     }
 
@@ -471,7 +598,40 @@ impl RpcCommand {
                 application_error_code: "CONNECTION_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            Self::Tunnel(command) => CommandMetadata {
+                authorization: if command == TunnelRpcCommand::RespondSshAskpass {
+                    AuthorizationLevel::Sensitive
+                } else {
+                    AuthorizationLevel::LocalAdmin
+                },
+                application_error_code: "TUNNEL_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
         }
+    }
+}
+
+impl TunnelRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "get_ssh_connections" => Self::GetSshConnections,
+            "save_ssh_connection" => Self::SaveSshConnection,
+            "update_ssh_connection" => Self::UpdateSshConnection,
+            "delete_ssh_connection" => Self::DeleteSshConnection,
+            "test_ssh_connection" => Self::TestSshConnection,
+            "respond_ssh_askpass" => Self::RespondSshAskpass,
+            "get_k8s_connections" => Self::GetK8sConnections,
+            "save_k8s_connection" => Self::SaveK8sConnection,
+            "update_k8s_connection" => Self::UpdateK8sConnection,
+            "delete_k8s_connection" => Self::DeleteK8sConnection,
+            "test_k8s_connection_cmd" => Self::TestK8sConnection,
+            "get_k8s_contexts_cmd" => Self::GetK8sContexts,
+            "get_k8s_namespaces_cmd" => Self::GetK8sNamespaces,
+            "get_k8s_resources_cmd" => Self::GetK8sResources,
+            "get_k8s_resource_ports_cmd" => Self::GetK8sResourcePorts,
+            "validate_k8s_path_cmd" => Self::ValidateK8sPath,
+            _ => return None,
+        })
     }
 }
 
@@ -509,6 +669,132 @@ impl ConnectionRpcCommand {
             "test_connection" => Self::TestConnection,
             _ => return None,
         })
+    }
+}
+
+fn decode_tunnel_command(command: TunnelRpcCommand, body: &[u8]) -> Result<TunnelCommand, String> {
+    Ok(match command {
+        TunnelRpcCommand::GetSshConnections => {
+            decode_empty_payload(body)?;
+            TunnelCommand::GetSshConnections
+        }
+        TunnelRpcCommand::SaveSshConnection => {
+            let request: SaveSshRequest = decode_payload(body)?;
+            TunnelCommand::SaveSshConnection {
+                name: request.name,
+                ssh: request.ssh,
+            }
+        }
+        TunnelRpcCommand::UpdateSshConnection => {
+            let request: UpdateSshRequest = decode_payload(body)?;
+            TunnelCommand::UpdateSshConnection {
+                id: request.id,
+                name: request.name,
+                ssh: request.ssh,
+            }
+        }
+        TunnelRpcCommand::DeleteSshConnection => {
+            let request: IdRequest = decode_payload(body)?;
+            TunnelCommand::DeleteSshConnection { id: request.id }
+        }
+        TunnelRpcCommand::TestSshConnection => {
+            let request: TestSshRequest = decode_payload(body)?;
+            TunnelCommand::TestSshConnection { ssh: request.ssh }
+        }
+        TunnelRpcCommand::RespondSshAskpass => {
+            let request: AskpassResponseRequest = decode_payload(body)?;
+            TunnelCommand::RespondSshAskpass {
+                id: request.id,
+                response: request.response,
+            }
+        }
+        TunnelRpcCommand::GetK8sConnections => {
+            decode_empty_payload(body)?;
+            TunnelCommand::GetK8sConnections
+        }
+        TunnelRpcCommand::SaveK8sConnection => {
+            let request: SaveK8sRequest = decode_payload(body)?;
+            TunnelCommand::SaveK8sConnection { k8s: request.k8s }
+        }
+        TunnelRpcCommand::UpdateK8sConnection => {
+            let request: UpdateK8sRequest = decode_payload(body)?;
+            TunnelCommand::UpdateK8sConnection {
+                id: request.id,
+                k8s: request.k8s,
+            }
+        }
+        TunnelRpcCommand::DeleteK8sConnection => {
+            let request: IdRequest = decode_payload(body)?;
+            TunnelCommand::DeleteK8sConnection { id: request.id }
+        }
+        TunnelRpcCommand::TestK8sConnection => {
+            let request: TestK8sRequest = decode_payload(body)?;
+            TunnelCommand::TestK8sConnection {
+                context: request.context,
+                namespace: request.namespace,
+                options: k8s_options(request.kubectl_path, request.kubeconfig_path),
+            }
+        }
+        TunnelRpcCommand::GetK8sContexts => {
+            let request: K8sOptionsRequest = decode_optional_payload(body)?;
+            TunnelCommand::GetK8sContexts {
+                options: k8s_options(request.kubectl_path, request.kubeconfig_path),
+            }
+        }
+        TunnelRpcCommand::GetK8sNamespaces => {
+            let request: K8sContextRequest = decode_payload(body)?;
+            TunnelCommand::GetK8sNamespaces {
+                context: request.context,
+                options: k8s_options(request.kubectl_path, request.kubeconfig_path),
+            }
+        }
+        TunnelRpcCommand::GetK8sResources => {
+            let request: K8sResourcesRequest = decode_payload(body)?;
+            TunnelCommand::GetK8sResources {
+                context: request.context,
+                namespace: request.namespace,
+                resource_type: request.resource_type,
+                options: k8s_options(request.kubectl_path, request.kubeconfig_path),
+            }
+        }
+        TunnelRpcCommand::GetK8sResourcePorts => {
+            let request: K8sPortsRequest = decode_payload(body)?;
+            TunnelCommand::GetK8sResourcePorts {
+                context: request.context,
+                namespace: request.namespace,
+                resource_type: request.resource_type,
+                resource_name: request.resource_name,
+                options: k8s_options(request.kubectl_path, request.kubeconfig_path),
+            }
+        }
+        TunnelRpcCommand::ValidateK8sPath => {
+            let request: ValidateK8sPathRequest = decode_payload(body)?;
+            TunnelCommand::ValidateK8sPath {
+                path: request.path,
+                kind: request.kind,
+            }
+        }
+    })
+}
+
+fn k8s_options(
+    kubectl_path: Option<String>,
+    kubeconfig_path: Option<String>,
+) -> crate::k8s_tunnel::K8sCommandOptions {
+    crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path)
+}
+
+fn decode_optional_payload<T: for<'de> Deserialize<'de> + Default>(
+    body: &[u8],
+) -> Result<T, String> {
+    if body.is_empty() {
+        return Ok(T::default());
+    }
+    let value: Value = decode_payload(body)?;
+    if value.is_null() {
+        Ok(T::default())
+    } else {
+        serde_json::from_value(value).map_err(|error| format!("Invalid command payload: {error}"))
     }
 }
 

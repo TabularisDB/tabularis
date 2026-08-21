@@ -61,6 +61,15 @@ impl ApplicationApi for FixtureApplication {
         self.record(context).await;
         Ok(Value::Null)
     }
+
+    async fn execute_tunnel_command(
+        &self,
+        context: ApplicationRequestContext,
+        _command: TunnelCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(Value::Null)
+    }
 }
 
 fn json_headers() -> HeaderMap {
@@ -106,6 +115,18 @@ fn declares_authorization_for_each_registered_command() {
     assert_eq!(
         RpcCommand::CancelQuery.metadata().authorization,
         AuthorizationLevel::Database
+    );
+    assert_eq!(
+        RpcCommand::Tunnel(TunnelRpcCommand::GetSshConnections)
+            .metadata()
+            .authorization,
+        AuthorizationLevel::LocalAdmin
+    );
+    assert_eq!(
+        RpcCommand::Tunnel(TunnelRpcCommand::RespondSshAskpass)
+            .metadata()
+            .authorization,
+        AuthorizationLevel::Sensitive
     );
 }
 

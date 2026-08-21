@@ -123,15 +123,15 @@ export function SshConnectionsManager({
   const [deleteUsageCount, setDeleteUsageCount] = useState(0);
 
   const loadConnections = useCallback(async () => {
-    const result = await loadSshConnections();
+    const result = await loadSshConnections(client);
     setConnections(result);
-  }, []);
+  }, [client]);
 
   useEffect(() => {
     let cancelled = false;
 
     const fetchConnections = async () => {
-      const result = await loadSshConnections();
+      const result = await loadSshConnections(client);
       if (!cancelled) {
         setConnections(result);
       }
@@ -142,7 +142,7 @@ export function SshConnectionsManager({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [client]);
 
   const updateField = (
     field: keyof SshConnection,
@@ -199,7 +199,7 @@ export function SshConnectionsManager({
         }
       }
 
-      const result = await testSshConnection(testData);
+      const result = await testSshConnection(testData, {}, client);
       setTestStatus("success");
       setTestMessage(result);
     } catch (error) {
@@ -250,9 +250,9 @@ export function SshConnectionsManager({
             sshData.key_passphrase = "";
           }
         }
-        await updateSshConnection(editingId, formData.name!, sshData);
+        await updateSshConnection(editingId, formData.name!, sshData, client);
       } else {
-        await saveSshConnection(formData.name!, sshData);
+        await saveSshConnection(formData.name!, sshData, client);
       }
 
       await loadConnections();
@@ -297,7 +297,7 @@ export function SshConnectionsManager({
   const handleDelete = async (id: string) => {
     setDeleteTargetId(null);
     try {
-      await deleteSshConnection(id);
+      await deleteSshConnection(id, client);
       await loadConnections();
     } catch (error) {
       console.error("Failed to delete SSH connection:", error);
@@ -310,7 +310,7 @@ export function SshConnectionsManager({
     setTestingConnectionId(conn.id);
 
     try {
-      await testSshConnection(conn);
+      await testSshConnection(conn, {}, client);
       // Test successful - show success feedback
       setTestResults((prev) => ({ ...prev, [conn.id]: "success" }));
 

@@ -1,6 +1,7 @@
 import type { ConnectionTestProgressPayload } from "../utils/connectionTest";
 import type { BatchStatementResult } from "../types/editor";
 import type { AuthorizationLevel } from "./contract";
+import type { SshAskpassRequest } from "../types/askpass";
 import type { RequestId } from "./errors";
 
 export interface EventDefinition<
@@ -29,6 +30,8 @@ export interface EventMap {
     { batch_id: string; index: number; statement: BatchStatementResult },
     "database"
   >;
+  "ssh-askpass://request": EventDefinition<SshAskpassRequest, "sensitive">;
+  "ssh-askpass://dismiss": EventDefinition<number, "sensitive">;
 }
 
 export type EventName = keyof EventMap;

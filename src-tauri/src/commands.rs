@@ -16,7 +16,6 @@ use crate::models::{
     TableColumn, TableInfo, TestConnectionRequest, TriggerInfo,
 };
 use crate::persistence;
-use crate::ssh_tunnel::{get_tunnels, SshTunnel};
 
 // Constants
 /// Resolve the driver from the registry or return a descriptive error.
@@ -98,107 +97,14 @@ fn sanitize_user_query(query: &str) -> String {
 
 // --- Persistence Helpers ---
 
-/// Load a single SSH connection by ID, fetching only its credentials from
-/// keychain (via the in-memory cache). This is O(1) keychain calls versus the
-/// O(N) behaviour of `get_ssh_connections`, which loads every saved SSH
-/// connection and retrieves credentials for each one.
-async fn get_ssh_connection_by_id<R: Runtime>(
-    app: &AppHandle<R>,
-    ssh_id: &str,
-) -> Result<SshConnection, String> {
-    let path = get_ssh_config_path(app)?;
-    if !path.exists() {
-        return Err(format!("SSH connection with ID {} not found", ssh_id));
-    }
-
-    // File I/O off the Tokio executor thread
-    let content = tokio::task::spawn_blocking({
-        let path = path.clone();
-        move || std::fs::read_to_string(path).map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())??;
-
-    let mut ssh = serde_json::from_str::<Vec<SshConnection>>(&content)
-        .unwrap_or_default()
-        .into_iter()
-        .find(|s| s.id == ssh_id)
-        .ok_or_else(|| format!("SSH connection with ID {} not found", ssh_id))?;
-
-    // Backward compat: determine auth_type if absent (mirrors get_ssh_connections logic)
-    if ssh.auth_type.is_none() {
-        ssh.auth_type = Some(
-            if ssh
-                .key_file
-                .as_ref()
-                .map_or(false, |k| !k.trim().is_empty())
-            {
-                "ssh_key".to_string()
-            } else {
-                "password".to_string()
-            },
-        );
-    }
-
-    // Fetch credentials only for this connection, via the in-memory cache.
-    // On a warm cache hit this is a HashMap lookup (nanoseconds); on a cold miss
-    // it calls keychain once per credential and then caches the result.
-    if ssh.save_in_keychain.unwrap_or(false) {
-        // Clone the Arc out of the Tauri State so the closure owns it ('static bound)
-        let cache = app
-            .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
-            .inner()
-            .clone();
-        let id = ssh.id.clone();
-        let (pwd_r, pass_r) = tokio::task::spawn_blocking(move || {
-            let pwd = credential_cache::get_ssh_password_cached(&cache, &id);
-            let pass = credential_cache::get_ssh_key_passphrase_cached(&cache, &id);
-            (pwd, pass)
-        })
-        .await
-        .map_err(|e| e.to_string())?;
-
-        if let Ok(v) = pwd_r {
-            if !v.trim().is_empty() {
-                ssh.password = Some(v);
-            }
-        }
-        if let Ok(v) = pass_r {
-            if !v.trim().is_empty() {
-                ssh.key_passphrase = Some(v);
-            }
-        }
-    }
-
-    Ok(ssh)
-}
-
 pub async fn expand_ssh_connection_params<R: Runtime>(
     app: &AppHandle<R>,
     params: &ConnectionParams,
 ) -> Result<ConnectionParams, String> {
-    let mut expanded_params = params.clone();
-
-    // If ssh_connection_id is set and SSH is enabled, load the SSH connection and merge it
-    if params.ssh_enabled.unwrap_or(false) {
-        if let Some(ssh_id) = &params.ssh_connection_id {
-            // Use targeted lookup instead of loading all SSH connections:
-            // this calls keychain only for this specific connection (O(1)),
-            // and results are backed by the in-memory credential cache.
-            let ssh_conn = get_ssh_connection_by_id(app, ssh_id).await?;
-
-            // Populate legacy SSH fields from the SSH connection
-            expanded_params.ssh_host = Some(ssh_conn.host.clone());
-            expanded_params.ssh_port = Some(ssh_conn.port);
-            expanded_params.ssh_user = Some(ssh_conn.user.clone());
-            expanded_params.ssh_password = ssh_conn.password.clone();
-            expanded_params.ssh_key_file = ssh_conn.key_file.clone();
-            expanded_params.ssh_key_passphrase = ssh_conn.key_passphrase.clone();
-            expanded_params.ssh_allow_passphrase_prompt = ssh_conn.allow_passphrase_prompt;
-        }
-    }
-
-    Ok(expanded_params)
+    crate::application::tunnels::expand_connection_params(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        params,
+    )
 }
 
 /// Check if a string option is empty or contains only whitespace.
@@ -277,170 +183,13 @@ mod require_iam_token_tests {
     }
 }
 
-/// Build the SSH tunnel map key for caching tunnels.
-#[inline]
-fn build_tunnel_map_key(
-    ssh_user: &str,
-    ssh_host: &str,
-    ssh_port: u16,
-    remote_host: &str,
-    remote_port: u16,
-) -> String {
-    crate::ssh_tunnel::build_tunnel_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port)
-}
-
-/// Resolve K8s tunnel params synchronously (no saved-connection lookup; uses inline fields only).
-fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
-    let context = params
-        .k8s_context
-        .as_deref()
-        .ok_or("Missing K8s context")?;
-    let namespace = params
-        .k8s_namespace
-        .as_deref()
-        .ok_or("Missing K8s namespace")?;
-    let resource_type = params
-        .k8s_resource_type
-        .as_deref()
-        .ok_or("Missing K8s resource type")?;
-    let resource_name = params
-        .k8s_resource_name
-        .as_deref()
-        .ok_or("Missing K8s resource name")?;
-    let port = params.k8s_port.ok_or("Missing K8s port")?;
-
-    let options = crate::k8s_tunnel::K8sCommandOptions::new(
-        params.k8s_kubectl_path.clone(),
-        params.k8s_kubeconfig_path.clone(),
-    );
-    let map_key = crate::k8s_tunnel::build_tunnel_key(
-        context,
-        namespace,
-        resource_type,
-        resource_name,
-        port,
-        &options,
-    );
-
-    // Check for existing tunnel
-    {
-        let tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
-        if let Some(tunnel) = tunnels.get(&map_key) {
-            log::debug!("Reusing existing K8s tunnel on port {}", tunnel.local_port);
-            let mut new_params = params.clone();
-            new_params.k8s_enabled = Some(false);
-            new_params.host = Some("127.0.0.1".to_string());
-            new_params.port = Some(tunnel.local_port);
-            return Ok(new_params);
-        }
-    }
-
-    log::info!(
-        "Creating new K8s tunnel for {}/{} in {}:{} (context: {})",
-        resource_type, resource_name, namespace, port, context
-    );
-
-    let tunnel = crate::k8s_tunnel::K8sTunnel::new(
-        context,
-        namespace,
-        resource_type,
-        resource_name,
-        port,
-        &options,
-    )
-    .map_err(|e| {
-        eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);
-        e
-    })?;
-
-    let local_port = tunnel.local_port;
-    log::info!("K8s tunnel created successfully on port {}", local_port);
-
-    {
-        let mut tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
-        tunnels.insert(map_key, tunnel);
-    }
-
-    let mut new_params = params.clone();
-    new_params.k8s_enabled = Some(false);
-    new_params.host = Some("127.0.0.1".to_string());
-    new_params.port = Some(local_port);
-    Ok(new_params)
-}
-
 pub fn resolve_connection_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
-    // K8s and SSH are mutually exclusive
-    if params.k8s_enabled.unwrap_or(false) && params.ssh_enabled.unwrap_or(false) {
-        return Err(
-            "Kubernetes and SSH tunnel cannot both be enabled for the same connection".to_string()
-        );
-    }
+    crate::application::tunnels::resolve_expanded_connection_params(params, None)
+}
 
-    // Handle K8s tunnel
-    if params.k8s_enabled.unwrap_or(false) {
-        return resolve_k8s_params(params);
-    }
-
-    // Handle SSH tunnel (existing logic)
-    if !params.ssh_enabled.unwrap_or(false) {
-        return Ok(params.clone());
-    }
-
-    let ssh_host = params.ssh_host.as_deref().ok_or("Missing SSH Host")?;
-    let ssh_port = params.ssh_port.unwrap_or(22);
-    let ssh_user = params.ssh_user.as_deref().ok_or("Missing SSH User")?;
-    let remote_host = params.host.as_deref().unwrap_or("localhost");
-    let remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
-
-    let map_key = build_tunnel_map_key(ssh_user, ssh_host, ssh_port, remote_host, remote_port);
-
-    // Check for existing tunnel
-    {
-        let tunnels = get_tunnels().lock().unwrap();
-        if let Some(tunnel) = tunnels.get(&map_key) {
-            log::debug!("Reusing existing SSH tunnel on port {}", tunnel.local_port);
-            let mut new_params = params.clone();
-            new_params.host = Some("127.0.0.1".to_string());
-            new_params.port = Some(tunnel.local_port);
-            return Ok(new_params);
-        }
-    }
-
-    // Create new tunnel
-    log::info!(
-        "Creating new SSH tunnel for {}@{}:{}",
-        ssh_user,
-        ssh_host,
-        ssh_port
-    );
-    let tunnel = SshTunnel::new(
-        ssh_host,
-        ssh_port,
-        ssh_user,
-        params.ssh_password.as_deref(),
-        params.ssh_key_file.as_deref(),
-        params.ssh_key_passphrase.as_deref(),
-        params.ssh_allow_passphrase_prompt.unwrap_or(false),
-        remote_host,
-        remote_port,
-    )
-    .map_err(|e| {
-        eprintln!("[Connection Error] SSH Tunnel setup failed: {}", e);
-        e
-    })?;
-
-    let local_port = tunnel.local_port;
-    log::info!("SSH tunnel created successfully on port {}", local_port);
-
-    {
-        let mut tunnels = get_tunnels().lock().unwrap();
-        tunnels.insert(map_key, tunnel);
-    }
-
-    let mut new_params = params.clone();
-    new_params.host = Some("127.0.0.1".to_string());
-    new_params.port = Some(local_port);
-    Ok(new_params)
+#[cfg(test)]
+fn resolve_k8s_params(params: &ConnectionParams) -> Result<ConnectionParams, String> {
+    crate::application::tunnels::resolve_expanded_connection_params(params, None)
 }
 
 /// Resolve connection params and set connection_id for stable pooling
@@ -1599,84 +1348,10 @@ async fn migrate_postgres_ssl_mode_spelling<R: Runtime>(app: &AppHandle<R>) -> R
 pub async fn get_ssh_connections<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<Vec<SshConnection>, String> {
-    let path = get_ssh_config_path(&app)?;
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-
-    // File I/O off the Tokio executor thread
-    let content = tokio::task::spawn_blocking({
-        let path = path.clone();
-        move || std::fs::read_to_string(path).map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())??;
-
-    let mut ssh_connections: Vec<SshConnection> =
-        serde_json::from_str(&content).unwrap_or_default();
-
-    // Backward compatibility: determine auth_type if missing
-    for ssh in &mut ssh_connections {
-        if ssh.auth_type.is_none() {
-            ssh.auth_type = Some(
-                if ssh
-                    .key_file
-                    .as_ref()
-                    .map_or(false, |k| !k.trim().is_empty())
-                {
-                    "ssh_key".to_string()
-                } else {
-                    "password".to_string()
-                },
-            );
-        }
-    }
-
-    // Fetch credentials for all connections that use keychain, in a single
-    // spawn_blocking call. The cache is checked first (HashMap lookup), so
-    // subsequent calls (e.g. from the UI refreshing the list) are near-instant.
-    let ids_needing_creds: Vec<String> = ssh_connections
-        .iter()
-        .filter(|s| s.save_in_keychain.unwrap_or(false))
-        .map(|s| s.id.clone())
-        .collect();
-
-    if !ids_needing_creds.is_empty() {
-        // Clone the Arc out of the Tauri State so the closure owns it ('static bound)
-        let cache = app
-            .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
-            .inner()
-            .clone();
-        let credentials = tokio::task::spawn_blocking(move || {
-            ids_needing_creds
-                .into_iter()
-                .map(|id| {
-                    let pwd = credential_cache::get_ssh_password_cached(&cache, &id);
-                    let pass = credential_cache::get_ssh_key_passphrase_cached(&cache, &id);
-                    (id, pwd, pass)
-                })
-                .collect::<Vec<_>>()
-        })
-        .await
-        .map_err(|e| e.to_string())?;
-
-        for (id, pwd_r, pass_r) in credentials {
-            if let Some(ssh) = ssh_connections.iter_mut().find(|s| s.id == id) {
-                if let Ok(pwd) = pwd_r {
-                    if !pwd.trim().is_empty() {
-                        ssh.password = Some(pwd);
-                    }
-                }
-                if let Ok(pass) = pass_r {
-                    if !pass.trim().is_empty() {
-                        ssh.key_passphrase = Some(pass);
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(ssh_connections)
+    crate::application::tunnels::get_ssh_connections(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        true,
+    )
 }
 
 #[tauri::command]
@@ -1685,57 +1360,12 @@ pub async fn save_ssh_connection<R: Runtime>(
     name: String,
     ssh: SshConnectionInput,
 ) -> Result<SshConnection, String> {
-    let path = get_ssh_config_path(&app)?;
-    let mut ssh_connections: Vec<SshConnection> = if path.exists() {
-        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        serde_json::from_str(&content).unwrap_or_default()
-    } else {
-        Vec::new()
-    };
-
-    let id = Uuid::new_v4().to_string();
-    let ssh_to_save = SshConnection {
-        id: id.clone(),
-        name: name.clone(),
-        host: ssh.host,
-        port: ssh.port,
-        user: ssh.user,
-        auth_type: Some(ssh.auth_type.clone()),
-        password: if ssh.save_in_keychain.unwrap_or(false) {
-            let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-            if let Some(pwd) = &ssh.password {
-                keychain_utils::set_ssh_password(&id, pwd)?;
-                credential_cache::set_ssh_password_cached(&cache, &id, pwd);
-            }
-            None
-        } else {
-            ssh.password.clone()
-        },
-        key_file: ssh.key_file.clone(),
-        key_passphrase: if ssh.save_in_keychain.unwrap_or(false) {
-            let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-            if let Some(passphrase) = &ssh.key_passphrase {
-                if !passphrase.trim().is_empty() {
-                    keychain_utils::set_ssh_key_passphrase(&id, passphrase)?;
-                    credential_cache::set_ssh_key_passphrase_cached(&cache, &id, passphrase);
-                }
-            }
-            None
-        } else {
-            ssh.key_passphrase.clone()
-        },
-        allow_passphrase_prompt: ssh.allow_passphrase_prompt,
-        save_in_keychain: ssh.save_in_keychain,
-    };
-
-    ssh_connections.push(ssh_to_save.clone());
-    let json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
-
-    let mut returned_ssh = ssh_to_save;
-    returned_ssh.password = ssh.password;
-    returned_ssh.key_passphrase = ssh.key_passphrase;
-    Ok(returned_ssh)
+    crate::application::tunnels::save_ssh_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        name,
+        ssh,
+        true,
+    )
 }
 
 #[tauri::command]
@@ -1745,66 +1375,13 @@ pub async fn update_ssh_connection<R: Runtime>(
     name: String,
     ssh: SshConnectionInput,
 ) -> Result<SshConnection, String> {
-    let path = get_ssh_config_path(&app)?;
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let mut ssh_connections: Vec<SshConnection> =
-        serde_json::from_str(&content).unwrap_or_default();
-
-    let ssh_idx = ssh_connections
-        .iter()
-        .position(|s| s.id == id)
-        .ok_or("SSH connection not found")?;
-
-    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    if ssh.save_in_keychain.unwrap_or(false) {
-        if let Some(pwd) = &ssh.password {
-            keychain_utils::set_ssh_password(&id, pwd)?;
-            credential_cache::set_ssh_password_cached(&cache, &id, pwd);
-        }
-        if let Some(passphrase) = &ssh.key_passphrase {
-            if !passphrase.trim().is_empty() {
-                keychain_utils::set_ssh_key_passphrase(&id, passphrase)?;
-                credential_cache::set_ssh_key_passphrase_cached(&cache, &id, passphrase);
-            }
-        }
-    } else {
-        keychain_utils::delete_ssh_password(&id).ok();
-        keychain_utils::delete_ssh_key_passphrase(&id).ok();
-        credential_cache::invalidate_ssh_password(&cache, &id);
-        credential_cache::invalidate_ssh_key_passphrase(&cache, &id);
-    }
-
-    let ssh_to_save = SshConnection {
-        id: id.clone(),
-        name: name.clone(),
-        host: ssh.host,
-        port: ssh.port,
-        user: ssh.user,
-        auth_type: Some(ssh.auth_type.clone()),
-        password: if ssh.save_in_keychain.unwrap_or(false) {
-            None
-        } else {
-            ssh.password.clone()
-        },
-        key_file: ssh.key_file.clone(),
-        key_passphrase: if ssh.save_in_keychain.unwrap_or(false) {
-            None
-        } else {
-            ssh.key_passphrase.clone()
-        },
-        allow_passphrase_prompt: ssh.allow_passphrase_prompt,
-        save_in_keychain: ssh.save_in_keychain,
-    };
-
-    ssh_connections[ssh_idx] = ssh_to_save.clone();
-
-    let json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
-
-    let mut returned_ssh = ssh_to_save;
-    returned_ssh.password = ssh.password;
-    returned_ssh.key_passphrase = ssh.key_passphrase;
-    Ok(returned_ssh)
+    crate::application::tunnels::update_ssh_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        id,
+        name,
+        ssh,
+        true,
+    )
 }
 
 #[tauri::command]
@@ -1812,27 +1389,10 @@ pub async fn delete_ssh_connection<R: Runtime>(
     app: AppHandle<R>,
     id: String,
 ) -> Result<(), String> {
-    let path = get_ssh_config_path(&app)?;
-    if !path.exists() {
-        return Ok(());
-    }
-
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let mut ssh_connections: Vec<SshConnection> =
-        serde_json::from_str(&content).unwrap_or_default();
-
-    ssh_connections.retain(|s| s.id != id);
-
-    // Remove credentials from keychain and invalidate cache
-    keychain_utils::delete_ssh_password(&id).ok();
-    keychain_utils::delete_ssh_key_passphrase(&id).ok();
-    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    credential_cache::invalidate_ssh_password(&cache, &id);
-    credential_cache::invalidate_ssh_key_passphrase(&cache, &id);
-
-    let json = serde_json::to_string_pretty(&ssh_connections).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
-    Ok(())
+    crate::application::tunnels::delete_ssh_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &id,
+    )
 }
 
 #[tauri::command]
@@ -1840,141 +1400,25 @@ pub async fn test_ssh_connection<R: Runtime>(
     app: AppHandle<R>,
     ssh: SshTestParams,
 ) -> Result<String, String> {
-    use crate::ssh_tunnel;
-
-    // Resolve password using same logic as database connections
-    let resolved_password = resolve_ssh_test_password(
-        ssh.password.as_deref(),
-        ssh.connection_id.as_deref(),
-        |conn_id| {
-            let path = get_ssh_config_path(&app).ok()?;
-            if !path.exists() {
-                return None;
-            }
-            let content = fs::read_to_string(path).ok()?;
-            let connections: Vec<SshConnection> =
-                serde_json::from_str(&content).unwrap_or_default();
-            connections.into_iter().find(|c| c.id == conn_id)
-        },
-        |conn_id| keychain_utils::get_ssh_password(conn_id, ""),
-    );
-
-    // Resolve passphrase using same logic
-    let resolved_passphrase = resolve_ssh_test_credential(
-        ssh.key_passphrase.as_deref(),
-        ssh.connection_id.as_deref(),
-        |conn_id| {
-            let path = get_ssh_config_path(&app).ok()?;
-            if !path.exists() {
-                return None;
-            }
-            let content = fs::read_to_string(path).ok()?;
-            let connections: Vec<SshConnection> =
-                serde_json::from_str(&content).unwrap_or_default();
-            connections.into_iter().find(|c| c.id == conn_id)
-        },
-        |conn_id| keychain_utils::get_ssh_key_passphrase(conn_id, ""),
-        |conn| {
-            conn.key_passphrase
-                .as_ref()
-                .filter(|p| !p.trim().is_empty())
-                .cloned()
-        },
-    );
-
-    // Inline SSH secrets of a saved DB connection live in the keychain under
-    // the DB connection id (not in the SSH connections file), so fall back
-    // there when the form did not re-enter them.
-    let (resolved_password, resolved_passphrase) = match ssh.db_connection_id.as_deref() {
-        Some(db_id) if resolved_password.is_none() || resolved_passphrase.is_none() => {
-            match find_connection_by_id(&app, db_id) {
-                Ok(saved) => apply_inline_ssh_secret_fallback(
-                    resolved_password,
-                    resolved_passphrase,
-                    &saved.params,
-                ),
-                Err(_) => (resolved_password, resolved_passphrase),
-            }
-        }
-        _ => (resolved_password, resolved_passphrase),
-    };
-
-    let progress_id = ssh.progress_id.as_deref();
-    emit_test_progress(
-        &app,
-        progress_id,
-        "sshTunnel",
-        "start",
-        Some(format!("{}@{}:{}", ssh.user, ssh.host, ssh.port)),
-    );
-
-    let result = ssh_tunnel::test_ssh_connection(
-        &ssh.host,
-        ssh.port,
-        &ssh.user,
-        resolved_password.as_deref(),
-        ssh.key_file.as_deref(),
-        resolved_passphrase.as_deref(),
-        ssh.allow_passphrase_prompt.unwrap_or(false),
-    );
-    match &result {
-        Ok(_) => emit_test_progress(&app, progress_id, "sshTunnel", "ok", None),
-        Err(e) => emit_test_progress(&app, progress_id, "sshTunnel", "error", Some(e.clone())),
-    }
-    result
+    crate::application::tunnels::test_ssh_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        ssh,
+        None,
+    )
+    .await
 }
 
 // ---------------------------------------------------------------------------
 // Kubernetes Connections
 // ---------------------------------------------------------------------------
 
-fn validate_k8s_connection_paths(k8s: &K8sConnectionInput) -> Result<(), String> {
-    crate::k8s_tunnel::validate_k8s_path(
-        k8s.kubectl_path.as_deref().unwrap_or_default(),
-        "kubectl",
-    )?;
-    crate::k8s_tunnel::validate_k8s_path(
-        k8s.kubeconfig_path.as_deref().unwrap_or_default(),
-        "kubeconfig",
-    )
-}
-
-/// Load K8s connections synchronously from the config file.
-fn load_k8s_connections_sync<R: Runtime>(
-    app: &AppHandle<R>,
-) -> Result<Vec<K8sConnection>, String> {
-    let path = get_k8s_config_path(app)?;
-    if !path.exists() {
-        return Ok(vec![]);
-    }
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    Ok(serde_json::from_str(&content).unwrap_or_default())
-}
-
-/// Get the path to the k8s_connections.json file.
-fn get_k8s_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let config_dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| format!("Failed to get config dir: {}", e))?;
-    if !config_dir.exists() {
-        fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-    }
-    Ok(config_dir.join("k8s_connections.json"))
-}
-
 #[tauri::command]
 pub async fn get_k8s_connections<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<Vec<K8sConnection>, String> {
-    let path = get_k8s_config_path(&app)?;
-    if !path.exists() {
-        return Ok(vec![]);
-    }
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let connections: Vec<K8sConnection> =
-        serde_json::from_str(&content).unwrap_or_default();
-    Ok(connections)
+    crate::application::tunnels::get_k8s_connections(
+        &app.state::<crate::runtime::RuntimeContext>(),
+    )
 }
 
 #[tauri::command]
@@ -1982,34 +1426,10 @@ pub async fn save_k8s_connection<R: Runtime>(
     app: AppHandle<R>,
     k8s: K8sConnectionInput,
 ) -> Result<K8sConnection, String> {
-    validate_k8s_connection_paths(&k8s)?;
-    let path = get_k8s_config_path(&app)?;
-    let mut connections: Vec<K8sConnection> = if path.exists() {
-        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        serde_json::from_str(&content).unwrap_or_default()
-    } else {
-        vec![]
-    };
-
-    let id = Uuid::new_v4().to_string();
-    let connection = K8sConnection {
-        id: id.clone(),
-        name: k8s.name,
-        context: k8s.context,
-        namespace: k8s.namespace,
-        resource_type: k8s.resource_type,
-        resource_name: k8s.resource_name,
-        port: k8s.port,
-        kubectl_path: k8s.kubectl_path,
-        kubeconfig_path: k8s.kubeconfig_path,
-    };
-
-    connections.push(connection.clone());
-    let json =
-        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
-    fs::write(&path, json).map_err(|e| e.to_string())?;
-
-    Ok(connection)
+    crate::application::tunnels::save_k8s_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        k8s,
+    )
 }
 
 #[tauri::command]
@@ -2018,38 +1438,11 @@ pub async fn update_k8s_connection<R: Runtime>(
     id: String,
     k8s: K8sConnectionInput,
 ) -> Result<K8sConnection, String> {
-    validate_k8s_connection_paths(&k8s)?;
-    let path = get_k8s_config_path(&app)?;
-    let mut connections: Vec<K8sConnection> = if path.exists() {
-        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        serde_json::from_str(&content).unwrap_or_default()
-    } else {
-        return Err("No K8s connections file found".to_string());
-    };
-
-    let idx = connections
-        .iter()
-        .position(|c| c.id == id)
-        .ok_or_else(|| format!("K8s connection with ID {} not found", id))?;
-
-    let connection = K8sConnection {
-        id: id.clone(),
-        name: k8s.name,
-        context: k8s.context,
-        namespace: k8s.namespace,
-        resource_type: k8s.resource_type,
-        resource_name: k8s.resource_name,
-        port: k8s.port,
-        kubectl_path: k8s.kubectl_path,
-        kubeconfig_path: k8s.kubeconfig_path,
-    };
-
-    connections[idx] = connection.clone();
-    let json =
-        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
-    fs::write(&path, json).map_err(|e| e.to_string())?;
-
-    Ok(connection)
+    crate::application::tunnels::update_k8s_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        id,
+        k8s,
+    )
 }
 
 #[tauri::command]
@@ -2057,20 +1450,10 @@ pub async fn delete_k8s_connection<R: Runtime>(
     app: AppHandle<R>,
     id: String,
 ) -> Result<(), String> {
-    let path = get_k8s_config_path(&app)?;
-    let mut connections: Vec<K8sConnection> = if path.exists() {
-        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        serde_json::from_str(&content).unwrap_or_default()
-    } else {
-        return Ok(());
-    };
-
-    connections.retain(|c| c.id != id);
-    let json =
-        serde_json::to_string_pretty(&connections).map_err(|e| e.to_string())?;
-    fs::write(&path, json).map_err(|e| e.to_string())?;
-
-    Ok(())
+    crate::application::tunnels::delete_k8s_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &id,
+    )
 }
 
 #[tauri::command]
@@ -2148,151 +1531,33 @@ pub async fn validate_k8s_path_cmd<R: Runtime>(
     crate::k8s_tunnel::validate_k8s_path(&path, &kind)
 }
 
+fn load_k8s_connections_sync<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<Vec<K8sConnection>, String> {
+    crate::application::tunnels::get_k8s_connections(
+        &app.state::<crate::runtime::RuntimeContext>(),
+    )
+}
+
+fn get_k8s_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    Ok(app
+        .state::<crate::runtime::RuntimeContext>()
+        .paths
+        .config_dir()
+        .join("k8s_connections.json"))
+}
+
 /// Expand K8s connection params by loading saved config and creating/reusing a tunnel.
 pub async fn expand_k8s_connection_params<R: Runtime>(
     app: &AppHandle<R>,
     params: &ConnectionParams,
 ) -> Result<ConnectionParams, String> {
-    if !params.k8s_enabled.unwrap_or(false) {
-        return Ok(params.clone());
+    let runtime = app.state::<crate::runtime::RuntimeContext>();
+    let expanded = crate::application::tunnels::expand_connection_params(&runtime, params)?;
+    if !expanded.k8s_enabled.unwrap_or(false) {
+        return Ok(expanded);
     }
-
-    // Mutual exclusion: K8s and SSH cannot both be active
-    if params.ssh_enabled.unwrap_or(false) {
-        return Err(
-            "Kubernetes and SSH tunnel cannot both be enabled for the same connection".to_string()
-        );
-    }
-
-    // Resolve K8s params from saved connection if using connection_id
-    let (context, namespace, resource_type, resource_name, port, kubectl_path, kubeconfig_path) =
-        if let Some(k8s_id) = &params.k8s_connection_id {
-            let k8s_conn = get_k8s_connection_by_id(app, k8s_id).await?;
-            (
-                k8s_conn.context,
-                k8s_conn.namespace,
-                k8s_conn.resource_type,
-                k8s_conn.resource_name,
-                k8s_conn.port,
-                k8s_conn.kubectl_path,
-                k8s_conn.kubeconfig_path,
-            )
-        } else {
-            let ctx = params
-                .k8s_context
-                .as_deref()
-                .ok_or("Missing K8s context")?
-                .to_string();
-            let ns = params
-                .k8s_namespace
-                .as_deref()
-                .ok_or("Missing K8s namespace")?
-                .to_string();
-            let rt = params
-                .k8s_resource_type
-                .as_deref()
-                .ok_or("Missing K8s resource type")?
-                .to_string();
-            let rn = params
-                .k8s_resource_name
-                .as_deref()
-                .ok_or("Missing K8s resource name")?
-                .to_string();
-            let p = params.k8s_port.ok_or("Missing K8s port")?;
-            (
-                ctx,
-                ns,
-                rt,
-                rn,
-                p,
-                params.k8s_kubectl_path.clone(),
-                params.k8s_kubeconfig_path.clone(),
-            )
-        };
-
-    let _remote_host = params.host.as_deref().unwrap_or("localhost");
-    let _remote_port = params.port.unwrap_or(DEFAULT_MYSQL_PORT);
-
-    let options = crate::k8s_tunnel::K8sCommandOptions::new(kubectl_path, kubeconfig_path);
-    let map_key = crate::k8s_tunnel::build_tunnel_key(
-        &context,
-        &namespace,
-        &resource_type,
-        &resource_name,
-        port,
-        &options,
-    );
-
-    // Check for existing tunnel
-    {
-        let tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
-        if let Some(tunnel) = tunnels.get(&map_key) {
-            log::debug!(
-                "Reusing existing K8s tunnel on port {}",
-                tunnel.local_port
-            );
-            let mut new_params = params.clone();
-            new_params.k8s_enabled = Some(false);
-            new_params.host = Some("127.0.0.1".to_string());
-            new_params.port = Some(tunnel.local_port);
-            return Ok(new_params);
-        }
-    }
-
-    // Create new tunnel
-    log::info!(
-        "Creating new K8s tunnel for {}/{} in {}:{} (context: {})",
-        resource_type,
-        resource_name,
-        namespace,
-        port,
-        context
-    );
-
-    let tunnel = crate::k8s_tunnel::K8sTunnel::new(
-        &context,
-        &namespace,
-        &resource_type,
-        &resource_name,
-        port,
-        &options,
-    )
-    .map_err(|e| {
-        eprintln!("[Connection Error] K8s Tunnel setup failed: {}", e);
-        e
-    })?;
-
-    let local_port = tunnel.local_port;
-    log::info!("K8s tunnel created successfully on port {}", local_port);
-
-    {
-        let mut tunnels = crate::k8s_tunnel::get_tunnels().lock().unwrap();
-        tunnels.insert(map_key, tunnel);
-    }
-
-    let mut new_params = params.clone();
-    new_params.k8s_enabled = Some(false);
-    new_params.host = Some("127.0.0.1".to_string());
-    new_params.port = Some(local_port);
-    Ok(new_params)
-}
-
-/// Load a K8s connection by ID from the config file.
-async fn get_k8s_connection_by_id<R: Runtime>(
-    app: &AppHandle<R>,
-    k8s_id: &str,
-) -> Result<K8sConnection, String> {
-    let path = get_k8s_config_path(app)?;
-    if !path.exists() {
-        return Err(format!("K8s connection with ID {} not found", k8s_id));
-    }
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let connections: Vec<K8sConnection> =
-        serde_json::from_str(&content).unwrap_or_default();
-    connections
-        .into_iter()
-        .find(|c| c.id == k8s_id)
-        .ok_or_else(|| format!("K8s connection with ID {} not found", k8s_id))
+    crate::application::tunnels::resolve_expanded_connection_params(&expanded, None)
 }
 
 #[tauri::command]
@@ -4606,6 +3871,7 @@ fn resolve_test_connection_password(
 /// 1. Credential from request params (if provided, even if empty)
 /// 2. Credential from keychain (if save_in_keychain is enabled)
 /// 3. Credential from saved connection (as fallback)
+#[cfg(test)]
 fn resolve_ssh_test_credential(
     request_credential: Option<&str>,
     connection_id: Option<&str>,
@@ -4641,6 +3907,7 @@ fn resolve_ssh_test_credential(
 /// a saved database connection (already hydrated from the keychain by
 /// `find_connection_by_id`). Secrets explicitly provided by the request keep
 /// priority; blank saved values are ignored.
+#[cfg(test)]
 fn apply_inline_ssh_secret_fallback(
     resolved_password: Option<String>,
     resolved_passphrase: Option<String>,
@@ -4656,6 +3923,7 @@ fn apply_inline_ssh_secret_fallback(
 }
 
 /// Helper for backward compatibility - resolves SSH password
+#[cfg(test)]
 fn resolve_ssh_test_password(
     request_password: Option<&str>,
     connection_id: Option<&str>,

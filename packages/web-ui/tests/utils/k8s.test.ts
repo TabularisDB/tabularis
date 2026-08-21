@@ -221,7 +221,7 @@ describe("k8s", () => {
 
       const result = await getK8sContexts();
 
-      expect(invoke).toHaveBeenCalledWith("get_k8s_contexts_cmd");
+      expect(invoke).toHaveBeenCalledWith("get_k8s_contexts_cmd", undefined);
       expect(result).toEqual(["minikube", "gke_project_cluster"]);
     });
 

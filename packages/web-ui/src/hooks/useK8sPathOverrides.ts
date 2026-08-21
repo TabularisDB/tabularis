@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { TypedCommandCaller } from "../api/contract";
 import { toErrorMessage } from "../utils/errors";
 import {
   validateK8sPath,
@@ -44,6 +45,7 @@ interface PendingValidation {
 }
 
 export interface UseK8sPathOverridesOptions {
+  client?: TypedCommandCaller;
   onApplied?: (options: K8sCommandOptions) => void;
   onDraftChanged?: () => void;
 }
@@ -115,7 +117,7 @@ function validationKey(kind: K8sPathValidationKind): string {
 export function useK8sPathOverrides(
   options: UseK8sPathOverridesOptions = {},
 ): K8sPathOverrides {
-  const { onApplied, onDraftChanged } = options;
+  const { client, onApplied, onDraftChanged } = options;
   const { invalidate, run } = useLatestAsync();
   const [drafts, setDrafts] = useState<K8sPathDrafts>(() => toDrafts());
   const [appliedOptions, setAppliedOptions] = useState<K8sCommandOptions>({});
@@ -239,7 +241,7 @@ export function useK8sPathOverrides(
       setValidation(kind, { status: "validating" });
       const promise = (async (): Promise<K8sPathValidationResult> => {
         const result = await run(validationKey(kind), () =>
-          validateK8sPath(path, kind),
+          validateK8sPath(path, kind, client),
         );
 
         if (result.status === "stale" || draftsRef.current[kind] !== value) {
@@ -266,7 +268,7 @@ export function useK8sPathOverrides(
 
       return promise;
     },
-    [applyCurrentDrafts, invalidate, run, setValidation],
+    [applyCurrentDrafts, client, invalidate, run, setValidation],
   );
 
   const initialize = useCallback(

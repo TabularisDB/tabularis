@@ -3,28 +3,29 @@
  * Extracted for testability and reusability
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import type {
+  SshConnection,
+  SshConnectionInput,
+  TypedCommandCaller,
+} from "../api/contract";
+import { TauriTransport } from "../api/transports/tauriTransport";
 
-export interface SshConnection {
-  id: string;
-  name: string;
-  host: string;
-  port: number;
-  user: string;
-  auth_type?: "password" | "ssh_key";
-  password?: string;
-  key_file?: string;
-  key_passphrase?: string;
-  allow_passphrase_prompt?: boolean;
-  save_in_keychain?: boolean;
+export type { SshConnection, SshConnectionInput } from "../api/contract";
+
+const legacyTauriClient = new TauriTransport();
+
+function commandClient(client?: TypedCommandCaller): TypedCommandCaller {
+  return client ?? legacyTauriClient;
 }
 
 /**
  * Load all SSH connections
  */
-export async function loadSshConnections(): Promise<SshConnection[]> {
+export async function loadSshConnections(
+  client?: TypedCommandCaller,
+): Promise<SshConnection[]> {
   try {
-    return await invoke<SshConnection[]>("get_ssh_connections");
+    return await commandClient(client).call("get_ssh_connections", undefined);
   } catch (error) {
     console.error("Failed to load SSH connections:", error);
     return [];
@@ -58,11 +59,12 @@ function normalizeSshParams(ssh: Partial<SshConnection>): Partial<SshConnection>
  */
 export async function saveSshConnection(
   name: string,
-  ssh: Partial<SshConnection>
+  ssh: SshConnectionInput,
+  client?: TypedCommandCaller,
 ): Promise<SshConnection> {
-  return await invoke<SshConnection>("save_ssh_connection", {
+  return await commandClient(client).call("save_ssh_connection", {
     name,
-    ssh: normalizeSshParams(ssh)
+    ssh: normalizeSshParams(ssh),
   });
 }
 
@@ -72,20 +74,24 @@ export async function saveSshConnection(
 export async function updateSshConnection(
   id: string,
   name: string,
-  ssh: Partial<SshConnection>
+  ssh: SshConnectionInput,
+  client?: TypedCommandCaller,
 ): Promise<SshConnection> {
-  return await invoke<SshConnection>("update_ssh_connection", {
+  return await commandClient(client).call("update_ssh_connection", {
     id,
     name,
-    ssh: normalizeSshParams(ssh)
+    ssh: normalizeSshParams(ssh),
   });
 }
 
 /**
  * Delete an SSH connection
  */
-export async function deleteSshConnection(id: string): Promise<void> {
-  await invoke("delete_ssh_connection", { id });
+export async function deleteSshConnection(
+  id: string,
+  client?: TypedCommandCaller,
+): Promise<void> {
+  await commandClient(client).call("delete_ssh_connection", { id });
 }
 
 /**
@@ -98,16 +104,21 @@ export async function deleteSshConnection(id: string): Promise<void> {
  */
 export async function testSshConnection(
   ssh: Partial<SshConnection>,
-  options: { dbConnectionId?: string; progressId?: string } = {}
+  options: { dbConnectionId?: string; progressId?: string } = {},
+  client?: TypedCommandCaller,
 ): Promise<string> {
-  return await invoke<string>("test_ssh_connection", {
-    ssh: {
-      ...normalizeSshParams(ssh),
-      connection_id: ssh.id,
-      db_connection_id: options.dbConnectionId,
-      progress_id: options.progressId
-    }
-  });
+  return await commandClient(client).call(
+    "test_ssh_connection",
+    {
+      ssh: {
+        ...normalizeSshParams(ssh),
+        connection_id: ssh.id,
+        db_connection_id: options.dbConnectionId,
+        progress_id: options.progressId,
+      },
+    },
+    { deadlineMs: 180_000 },
+  );
 }
 
 /**

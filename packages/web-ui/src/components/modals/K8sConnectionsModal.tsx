@@ -35,6 +35,7 @@ import {
 import { toErrorMessage } from "../../utils/errors";
 import { useK8sPathOverrides } from "../../hooks/useK8sPathOverrides";
 import { useLatestAsync } from "../../hooks/useLatestAsync";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { Modal } from "../ui/Modal";
 import { Select } from "../ui/Select";
 import { K8sAdvancedSettings } from "../ui/K8sAdvancedSettings";
@@ -64,6 +65,7 @@ export function K8sConnectionsModal({
   defaultPort,
 }: K8sConnectionsModalProps) {
   const { t } = useTranslation();
+  const client = useTabularisClient();
   const { invalidate, run } = useLatestAsync();
   const [connections, setConnections] = useState<K8sConnection[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -146,15 +148,19 @@ export function K8sConnectionsModal({
   }, [invalidate]);
 
   const loadConnections = useCallback(async () => {
-    const result = await run("k8s-connections", () => loadK8sConnections());
+    const result = await run("k8s-connections", () =>
+      loadK8sConnections(client),
+    );
     if (result.status === "success") {
       setConnections(result.value);
     }
-  }, [run]);
+  }, [client, run]);
 
   const loadContexts = useCallback(
     async (options: K8sCommandOptions) => {
-      const result = await run("k8s-contexts", () => getK8sContexts(options));
+      const result = await run("k8s-contexts", () =>
+        getK8sContexts(options, client),
+      );
       if (result.status === "success") {
         setContexts(result.value);
         setDiscoveryError("contexts", null);
@@ -163,13 +169,13 @@ export function K8sConnectionsModal({
         setDiscoveryError("contexts", toErrorMessage(result.error));
       }
     },
-    [run, setDiscoveryError],
+    [client, run, setDiscoveryError],
   );
 
   const loadNamespaces = useCallback(
     async (selectedContext: string, options: K8sCommandOptions) => {
       const result = await run("k8s-namespaces", () =>
-        getK8sNamespaces(selectedContext, options),
+        getK8sNamespaces(selectedContext, options, client),
       );
       if (result.status === "success") {
         setNamespaces(result.value);
@@ -179,7 +185,7 @@ export function K8sConnectionsModal({
         setDiscoveryError("namespaces", toErrorMessage(result.error));
       }
     },
-    [run, setDiscoveryError],
+    [client, run, setDiscoveryError],
   );
 
   const loadResources = useCallback(
@@ -195,6 +201,7 @@ export function K8sConnectionsModal({
           selectedNamespace,
           selectedResourceType,
           options,
+          client,
         ),
       );
       if (result.status === "success") {
@@ -205,7 +212,7 @@ export function K8sConnectionsModal({
         setDiscoveryError("resources", toErrorMessage(result.error));
       }
     },
-    [run, setDiscoveryError],
+    [client, run, setDiscoveryError],
   );
 
   const loadResourcePorts = useCallback(
@@ -223,6 +230,7 @@ export function K8sConnectionsModal({
           selectedResourceType,
           selectedResourceName,
           options,
+          client,
         ),
       );
       if (result.status === "success" && result.value.length === 1) {
@@ -231,7 +239,7 @@ export function K8sConnectionsModal({
         );
       }
     },
-    [run],
+    [client, run],
   );
 
   const handlePathsApplied = useCallback(
@@ -256,6 +264,7 @@ export function K8sConnectionsModal({
   );
 
   const pathOverrides = useK8sPathOverrides({
+    client,
     onApplied: handlePathsApplied,
     onDraftChanged: invalidateConnectionTest,
   });
@@ -609,9 +618,9 @@ export function K8sConnectionsModal({
           return;
         }
         if (isCreating) {
-          await saveK8sConnection(input);
+          await saveK8sConnection(input, client);
         } else if (editingId) {
-          await updateK8sConnection(editingId, input);
+          await updateK8sConnection(editingId, input, client);
         }
         await loadConnections();
         if (
@@ -634,6 +643,7 @@ export function K8sConnectionsModal({
     }
   }, [
     beginFormAction,
+    client,
     context,
     editingId,
     effectivePort,
@@ -652,14 +662,14 @@ export function K8sConnectionsModal({
   const handleDelete = useCallback(
     async (id: string) => {
       try {
-        await deleteK8sConnection(id);
+        await deleteK8sConnection(id, client);
         await loadConnections();
         if (editingId === id) handleCancel();
       } catch (error) {
         console.error("Failed to delete K8s connection:", error);
       }
     },
-    [editingId, handleCancel, loadConnections],
+    [client, editingId, handleCancel, loadConnections],
   );
 
   const handleTest = useCallback(async () => {
@@ -685,7 +695,7 @@ export function K8sConnectionsModal({
       setTestStatus("testing");
       setTestMessage("");
       const result = await run("k8s-test", () =>
-        testK8sConnection(context, namespace, paths.options),
+        testK8sConnection(context, namespace, paths.options, client),
       );
       if (
         activeActionRef.current !== actionId ||
@@ -709,6 +719,7 @@ export function K8sConnectionsModal({
     }
   }, [
     beginFormAction,
+    client,
     context,
     ensureApplied,
     finishFormAction,

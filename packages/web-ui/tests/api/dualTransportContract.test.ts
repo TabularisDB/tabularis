@@ -21,6 +21,10 @@ defineTransportContractSuite(
         expect(request).toBeUndefined();
         return { groups: [], connections: [] };
       }
+      if (command === "get_ssh_connections" || command === "get_k8s_connections") {
+        expect(request).toBeUndefined();
+        return [];
+      }
       if (command === "contract_serialization_fixture") {
         expect(request).toEqual({ fixture: "complex-query-result" });
         return serializationFixture;

@@ -7,7 +7,8 @@ const k8sMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../src/utils/k8s", () => ({
-  validateK8sPath: k8sMocks.validateK8sPath,
+  validateK8sPath: (path: string, kind: string) =>
+    k8sMocks.validateK8sPath(path, kind),
 }));
 
 interface Deferred<T> {
