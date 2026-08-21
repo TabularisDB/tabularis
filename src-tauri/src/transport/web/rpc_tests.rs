@@ -65,6 +65,25 @@ async fn response_json(response: Response) -> Value {
     serde_json::from_slice(&body).unwrap()
 }
 
+#[tokio::test]
+async fn preserves_shared_serialization_fixture_in_success_envelopes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../../../packages/web-ui/tests/fixtures/transportSerialization.json"
+    ))
+    .unwrap();
+
+    let body = response_json(success(fixture.clone())).await;
+
+    assert_eq!(body, serde_json::json!({ "ok": true, "data": fixture }));
+    assert_eq!(
+        body["data"]["rows"][0][1],
+        "BLOB:4:application/octet-stream:AAECAw=="
+    );
+    assert_eq!(body["data"]["rows"][0][2], "12345678901234567890.123456789");
+    assert_eq!(body["data"]["rows"][0][3], "2026-08-21T19:20:21.123Z");
+    assert!(body["data"]["rows"][0][4].is_null());
+}
+
 #[test]
 fn declares_authorization_for_each_registered_command() {
     assert_eq!(

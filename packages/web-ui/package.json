@@ -9,6 +9,7 @@
     "lint": "cd ../.. && eslint .",
     "preview": "vite preview",
     "test": "cd ../.. && vitest --config packages/web-ui/vitest.config.ts",
+    "test:contract": "cd ../.. && vitest --config packages/web-ui/vitest.config.ts run packages/web-ui/tests/api/dualTransportContract.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test:coverage": "cd ../.. && vitest --config packages/web-ui/vitest.config.ts run --coverage"
   },

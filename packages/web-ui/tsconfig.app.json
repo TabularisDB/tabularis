@@ -28,6 +28,8 @@
     "./src",
     "./tests/setup.ts",
     "./tests/api/contract.type-test.ts",
+    "./tests/api/contract/**/*.ts",
+    "./tests/api/dualTransportContract.test.ts",
     "./tests/components/layout/Accordion.test.tsx",
     "./tests/components/layout/NavItem.test.tsx"
   ]

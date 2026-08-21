@@ -71,5 +71,8 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      - name: Check dual-transport contract
+        run: pnpm run test:web-contract
+
       - name: Test
         run: pnpm run test:all
