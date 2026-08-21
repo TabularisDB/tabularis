@@ -55,6 +55,7 @@ pub mod heartbeat_tests;
 pub mod json_viewer;
 pub mod keychain_utils;
 pub mod results_window;
+pub mod runtime;
 pub mod k8s_tunnel;
 pub mod log_commands;
 pub mod logger;
@@ -96,25 +97,13 @@ pub mod drivers {
     pub mod sqlite;
 }
 
-use logger::{create_log_buffer, init_logger, SharedLogBuffer};
-use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Manager;
 
-static DEBUG_MODE: AtomicBool = AtomicBool::new(false);
-
-// Global log buffer for capturing logs
-static LOG_BUFFER: std::sync::OnceLock<SharedLogBuffer> = std::sync::OnceLock::new();
-
-pub fn get_log_buffer() -> SharedLogBuffer {
-    LOG_BUFFER
-        .get()
-        .expect("Log buffer not initialized")
-        .clone()
-}
+pub use runtime::bootstrap::get_log_buffer;
 
 #[tauri::command]
 fn is_debug_mode() -> bool {
-    DEBUG_MODE.load(Ordering::Relaxed)
+    runtime::bootstrap::is_debug_mode()
 }
 
 #[tauri::command]
@@ -135,21 +124,7 @@ pub fn run() {
     // `askpass` module), serve the prompt and exit without booting the app.
     askpass::maybe_run_askpass_client();
 
-    // Install the rustls `ring` crypto provider as the process-wide default.
-    //
-    // Both `sqlx` (via the `tls-rustls-ring-native-roots` feature) and the
-    // workspace's direct `rustls` usage link against the same `rustls 0.23`
-    // crate, but `rustls 0.23` enables both the `ring` and the `aws-lc-rs`
-    // crypto providers when their respective feature flags are active in
-    // the dependency graph. With two providers linked, rustls refuses to
-    // pick one automatically and panics the first time someone tries a TLS
-    // handshake ("Could not automatically determine the process-level
-    // CryptoProvider"). We pin `ring` here because:
-    //   * `sqlx` is configured to use the `ring` provider.
-    //   * `ring` is pure-Rust and works on all our target platforms
-    //     (macOS, Linux, Windows) without a C toolchain at runtime.
-    // This must run before any sqlx pool is built.
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    runtime::bootstrap::install_process_prerequisites();
 
     // On Linux + Wayland, disable the DMA-BUF renderer in WebKitGTK to prevent
     // "Protocol error dispatching to Wayland display" crashes.
@@ -166,31 +141,26 @@ pub fn run() {
 
     let args = cli::parse();
 
+    // The capturing logger writes to stderr, keeping MCP's stdout JSON-RPC
+    // stream clean while providing the same diagnostics in every launch mode.
+    let log_buffer = runtime::bootstrap::initialize_logging(args.debug);
+
+    if args.web {
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+        rt.block_on(runtime::bootstrap::bootstrap_application(
+            runtime::RuntimeContext::system(),
+            runtime::bootstrap::BootstrapOptions::default(),
+        ))
+        .expect("Failed to bootstrap Tabularis Web services");
+        log::info!("Tabularis Web services initialized without a desktop window");
+        return;
+    }
+
     if args.mcp {
-        // Initialize the logger so plugin-loading and driver RPC errors (which
-        // use the `log` crate) are visible. The custom logger writes to stderr
-        // only, leaving the stdout JSON-RPC stream clean.
-        init_logger(create_log_buffer(1000), log::LevelFilter::Info);
         let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
         rt.block_on(mcp::run_mcp_server());
         return;
     }
-
-    // Configure log level based on debug flag
-    // Default to Info level so users can see application logs
-    let log_level = log::LevelFilter::Info;
-
-    // Store debug flag in global state
-    DEBUG_MODE.store(args.debug, Ordering::Relaxed);
-
-    // Create and initialize log buffer - MUST be before sqlx to capture all logs
-    let log_buffer = create_log_buffer(1000);
-    LOG_BUFFER
-        .set(log_buffer.clone())
-        .expect("Failed to initialize log buffer");
-
-    // Initialize custom logger that captures logs to buffer and prints to stderr
-    init_logger(log_buffer.clone(), log_level);
 
     // Log startup message
     log::info!("Tabularis application starting...");
@@ -200,8 +170,13 @@ pub fn run() {
         log::info!("Debug mode disabled - standard logging active");
     }
 
-    // Install default drivers for sqlx::Any
-    sqlx::any::install_default_drivers();
+    let application_state = runtime::state::ApplicationState::default();
+    let shutdown_hooks = runtime::lifecycle::ShutdownHooks::default();
+    shutdown_hooks.register(|| {
+        log::info!("Application exiting, stopping all active SSH tunnels...");
+        crate::ssh_tunnel::stop_all_tunnels();
+    });
+    let run_shutdown_hooks = shutdown_hooks.clone();
 
     tauri::Builder::default()
         // Singleton: a second launch (typically a `tabularis://...` URL
@@ -231,54 +206,45 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_deep_link::init())
-        .manage(crate::plugins::deep_link::PendingInstall::default())
-        .manage(commands::QueryCancellationState::default())
-        .manage(export::ExportCancellationState::default())
-        .manage(dump_commands::DumpCancellationState::default())
+        .manage(application_state.pending_install)
+        .manage(application_state.query_cancellation)
+        .manage(application_state.export_cancellation)
+        .manage(application_state.dump_cancellation)
         .manage(log_buffer)
-        .manage(std::sync::Arc::new(
-            credential_cache::CredentialCache::default(),
-        ))
-        .manage(std::sync::Arc::new(
-            connection_cache::ConnectionCache::default(),
-        ))
-        .manage(connection_import_commands::ImportEnvelopeCache::default())
-        .manage(explain_import::PendingExplainFile::default())
-        .manage(json_viewer::JsonViewerStore::default())
-        .manage(results_window::ResultsWindowStore::default())
-        .manage(query_history::QueryHistoryState::default())
+        .manage(application_state.credential_cache)
+        .manage(application_state.connection_cache)
+        .manage(application_state.import_envelope_cache)
+        .manage(application_state.pending_explain_file)
+        .manage(application_state.json_viewer_store)
+        .manage(application_state.results_window_store)
+        .manage(application_state.query_history_state)
         .setup(move |app| {
             // Allow the SSH tunnel code (which runs without a Tauri context)
             // to bridge askpass prompts to the frontend.
             askpass::set_app_handle(app.handle().clone());
 
-            // Read persisted config to know which external plugins are enabled.
-            // `None` means no preference has been saved yet → load all installed plugins.
-            let active_ext_drivers =
-                crate::config::load_config_internal(&app.handle()).active_external_drivers;
-
-            // Register built-in drivers
-            tauri::async_runtime::block_on(async {
-                drivers::registry::register_driver(drivers::mysql::MysqlDriver::new()).await;
-                drivers::registry::register_driver(drivers::postgres::PostgresDriver::new()).await;
-                drivers::registry::register_driver(drivers::sqlite::SqliteDriver::new()).await;
-
-                // Load only enabled external plugins (or all if no preference saved).
-                crate::plugins::manager::load_plugins(&app.handle(), active_ext_drivers.as_deref())
-                    .await;
-            });
-
-            // Start connection health-check ping loop.
-            {
-                let config = crate::config::load_config_internal(&app.handle());
-                let interval = config
-                    .ping_interval
-                    .unwrap_or(health_check::DEFAULT_PING_INTERVAL);
-                let handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    health_check::start_ping_loop(handle, interval as u64).await;
-                });
-            }
+            let app_paths = runtime::paths::FixedRuntimePaths::new(
+                app.path().app_config_dir()?,
+                crate::paths::get_app_data_dir(),
+            );
+            let runtime_context = runtime::RuntimeContext::new(
+                std::sync::Arc::new(app_paths),
+                std::sync::Arc::new(runtime::events::TauriRuntimeEvents::new(
+                    app.handle().clone(),
+                )),
+                std::sync::Arc::new(runtime::secrets::KeyringRuntimeSecrets),
+            );
+            let bootstrapped = tauri::async_runtime::block_on(
+                runtime::bootstrap::bootstrap_application(
+                    runtime_context,
+                    runtime::bootstrap::BootstrapOptions {
+                        load_external_plugins: true,
+                        run_connection_migrations: false,
+                    },
+                ),
+            )
+            .map_err(std::io::Error::other)?;
+            app.manage(bootstrapped.context);
 
             // Subscribe to `tabularis://` deep links so a registry's
             // "Open in App" button can hand us a plugin slug + version.
@@ -319,16 +285,14 @@ pub fn run() {
                 }
             }
 
-            // Watch for pending MCP approval requests and run periodic cleanup.
-            ai_approval_watcher::spawn(app.handle().clone());
-
-            // Periodic encrypted backup of the connections, when enabled.
-            backup::spawn_scheduler(app.handle().clone());
-
-            // Refresh the GUI heartbeat so the MCP subprocess can detect
-            // when Tabularis is closed and fail fast on approval-gated
-            // queries instead of waiting for the full approval timeout.
-            heartbeat::spawn();
+            // Start desktop health checks, event watchers, backups, and heartbeat.
+            let ping_interval = crate::config::load_config_internal(&app.handle())
+                .ping_interval
+                .unwrap_or(health_check::DEFAULT_PING_INTERVAL);
+            runtime::lifecycle::start_desktop_schedulers(
+                app.handle().clone(),
+                ping_interval as u64,
+            );
 
             // Maximize the window on startup if the user enabled it.
             if crate::config::load_config_internal(&app.handle())
@@ -652,13 +616,12 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app_handle, event| {
+        .run(move |app_handle, event| {
             if let tauri::RunEvent::Exit = event {
                 // Back up the freshest state before the process ends (no-op
                 // unless backups are enabled and due).
                 backup::run_exit_backup(app_handle);
-                log::info!("Application exiting, stopping all active SSH tunnels...");
-                crate::ssh_tunnel::stop_all_tunnels();
+                run_shutdown_hooks.run();
             }
         });
 }
