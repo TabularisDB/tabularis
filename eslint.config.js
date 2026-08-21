@@ -18,7 +18,13 @@ const tauriImportExceptions = [
 ];
 
 export default defineConfig([
-  globalIgnores(["dist", "tests", "coverage", "src-tauri/target/**"]),
+  globalIgnores([
+    "dist",
+    "packages/web-ui/tests",
+    "tests",
+    "coverage",
+    "src-tauri/target/**",
+  ]),
   {
     files: ["**/*.{ts,tsx}"],
     extends: [

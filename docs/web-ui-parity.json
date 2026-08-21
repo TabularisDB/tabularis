@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "generatedBy": "pnpm web:inventory:write",
   "sources": {
-    "frontend": "src",
+    "frontend": "packages/web-ui/src",
     "tauriHandler": "src-tauri/src/lib.rs"
   },
   "classifications": {
@@ -74,7 +74,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/QueryHistoryProvider.tsx",
+          "file": "packages/web-ui/src/contexts/QueryHistoryProvider.tsx",
           "line": 68
         }
       ]
@@ -88,7 +88,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ViewEditorModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ViewEditorModal.tsx",
           "line": 153
         }
       ]
@@ -102,7 +102,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/visual-explain/ExplainAiAnalysis.tsx",
+          "file": "packages/web-ui/src/components/modals/visual-explain/ExplainAiAnalysis.tsx",
           "line": 39
         }
       ]
@@ -116,7 +116,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ImportFromAppModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
           "line": 294
         }
       ]
@@ -130,15 +130,15 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/users/UserManagementView.tsx",
+          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
           "line": 324
         },
         {
-          "file": "src/components/users/UserManagementView.tsx",
+          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
           "line": 411
         },
         {
-          "file": "src/components/users/UserManagementView.tsx",
+          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
           "line": 418
         }
       ]
@@ -152,7 +152,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ImportFromAppModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
           "line": 289
         }
       ]
@@ -166,7 +166,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/RunRoutineModal.tsx",
+          "file": "packages/web-ui/src/components/modals/RunRoutineModal.tsx",
           "line": 91
         }
       ]
@@ -180,7 +180,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/DumpDatabaseModal.tsx",
+          "file": "packages/web-ui/src/components/modals/DumpDatabaseModal.tsx",
           "line": 165
         }
       ]
@@ -194,7 +194,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 3301
         }
       ]
@@ -208,7 +208,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ImportDatabaseModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ImportDatabaseModal.tsx",
           "line": 138
         }
       ]
@@ -222,7 +222,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/PluginsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
           "line": 771
         }
       ]
@@ -236,19 +236,19 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/SettingsProvider.tsx",
+          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
           "line": 186
         },
         {
-          "file": "src/contexts/SettingsProvider.tsx",
+          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
           "line": 192
         },
         {
-          "file": "src/contexts/SettingsProvider.tsx",
+          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
           "line": 198
         },
         {
-          "file": "src/contexts/SettingsProvider.tsx",
+          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
           "line": 203
         }
       ]
@@ -262,23 +262,23 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/AiTab.tsx",
+          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 123
         },
         {
-          "file": "src/components/settings/AiTab.tsx",
+          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 126
         },
         {
-          "file": "src/components/settings/AiTab.tsx",
+          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 129
         },
         {
-          "file": "src/components/settings/AiTab.tsx",
+          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 132
         },
         {
-          "file": "src/components/settings/AiTab.tsx",
+          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 135
         }
       ]
@@ -292,7 +292,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/UpdateProvider.tsx",
+          "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
           "line": 37
         }
       ]
@@ -306,7 +306,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useAiActivity.ts",
+          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
           "line": 223
         }
       ]
@@ -320,7 +320,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/LogsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
           "line": 82
         }
       ]
@@ -334,7 +334,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/QueryHistoryProvider.tsx",
+          "file": "packages/web-ui/src/contexts/QueryHistoryProvider.tsx",
           "line": 109
         }
       ]
@@ -348,11 +348,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 1600
         },
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 1644
         }
       ]
@@ -366,7 +366,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/JsonViewerPage.tsx",
+          "file": "packages/web-ui/src/pages/JsonViewerPage.tsx",
           "line": 40
         }
       ]
@@ -380,7 +380,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useDeepLinkInstall.ts",
+          "file": "packages/web-ui/src/hooks/useDeepLinkInstall.ts",
           "line": 66
         }
       ]
@@ -394,7 +394,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 1556
         }
       ]
@@ -408,7 +408,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1189
         }
       ]
@@ -422,7 +422,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useConnectionTags.ts",
+          "file": "packages/web-ui/src/hooks/useConnectionTags.ts",
           "line": 28
         }
       ]
@@ -436,7 +436,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/users/UserManagementView.tsx",
+          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
           "line": 315
         }
       ]
@@ -450,7 +450,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1201
         }
       ]
@@ -464,11 +464,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/notebookStore.ts",
+          "file": "packages/web-ui/src/utils/notebookStore.ts",
           "line": 157
         },
         {
-          "file": "src/utils/notebookStore.ts",
+          "file": "packages/web-ui/src/utils/notebookStore.ts",
           "line": 176
         }
       ]
@@ -482,7 +482,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useCreateSqliteDatabase.ts",
+          "file": "packages/web-ui/src/hooks/useCreateSqliteDatabase.ts",
           "line": 30
         }
       ]
@@ -496,7 +496,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/NewConnectionModal.tsx",
+          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
           "line": 1541
         }
       ]
@@ -510,7 +510,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/TriggerEditorModal.tsx",
+          "file": "packages/web-ui/src/components/modals/TriggerEditorModal.tsx",
           "line": 181
         }
       ]
@@ -524,7 +524,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ViewEditorModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ViewEditorModal.tsx",
           "line": 133
         }
       ]
@@ -538,7 +538,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useAiActivity.ts",
+          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
           "line": 202
         }
       ]
@@ -552,7 +552,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ImportFromAppModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
           "line": 239
         }
       ]
@@ -566,7 +566,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/AiTab.tsx",
+          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 347
         }
       ]
@@ -580,11 +580,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/Connections.tsx",
+          "file": "packages/web-ui/src/pages/Connections.tsx",
           "line": 410
         },
         {
-          "file": "src/pages/Connections.tsx",
+          "file": "packages/web-ui/src/pages/Connections.tsx",
           "line": 524
         }
       ]
@@ -598,7 +598,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1239
         }
       ]
@@ -612,11 +612,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/NewConnectionModal.tsx",
+          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
           "line": 589
         },
         {
-          "file": "src/components/modals/NewConnectionModal.tsx",
+          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
           "line": 2263
         }
       ]
@@ -630,7 +630,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useConnectionTags.ts",
+          "file": "packages/web-ui/src/hooks/useConnectionTags.ts",
           "line": 48
         }
       ]
@@ -644,7 +644,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/ThemeProvider.tsx",
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
           "line": 235
         }
       ]
@@ -658,7 +658,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/k8s.ts",
+          "file": "packages/web-ui/src/utils/k8s.ts",
           "line": 87
         }
       ]
@@ -672,7 +672,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/notebookStore.ts",
+          "file": "packages/web-ui/src/utils/notebookStore.ts",
           "line": 195
         }
       ]
@@ -686,7 +686,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/QueryHistoryProvider.tsx",
+          "file": "packages/web-ui/src/contexts/QueryHistoryProvider.tsx",
           "line": 95
         }
       ]
@@ -700,11 +700,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 2786
         },
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 2807
         }
       ]
@@ -718,7 +718,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/SavedQueriesProvider.tsx",
+          "file": "packages/web-ui/src/contexts/SavedQueriesProvider.tsx",
           "line": 55
         }
       ]
@@ -732,7 +732,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/ssh.ts",
+          "file": "packages/web-ui/src/utils/ssh.ts",
           "line": 88
         }
       ]
@@ -746,15 +746,15 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/PluginSettingsPage.tsx",
+          "file": "packages/web-ui/src/components/settings/PluginSettingsPage.tsx",
           "line": 157
         },
         {
-          "file": "src/components/settings/PluginsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
           "line": 840
         },
         {
-          "file": "src/hooks/useTaskManager.ts",
+          "file": "packages/web-ui/src/hooks/useTaskManager.ts",
           "line": 83
         }
       ]
@@ -768,7 +768,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 973
         }
       ]
@@ -782,7 +782,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/UpdateProvider.tsx",
+          "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
           "line": 79
         }
       ]
@@ -796,7 +796,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/users/UserManagementView.tsx",
+          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
           "line": 353
         }
       ]
@@ -810,19 +810,19 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 1192
         },
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 1451
         },
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 1626
         },
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 2058
         }
       ]
@@ -836,19 +836,19 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 1169
         },
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 1428
         },
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 1604
         },
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 2018
         }
       ]
@@ -862,7 +862,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 466
         }
       ]
@@ -876,11 +876,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 2377
         },
         {
-          "file": "src/components/modals/TriggerEditorModal.tsx",
+          "file": "packages/web-ui/src/components/modals/TriggerEditorModal.tsx",
           "line": 166
         }
       ]
@@ -894,7 +894,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 2149
         }
       ]
@@ -908,7 +908,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/DumpDatabaseModal.tsx",
+          "file": "packages/web-ui/src/components/modals/DumpDatabaseModal.tsx",
           "line": 140
         }
       ]
@@ -922,7 +922,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/Connections.tsx",
+          "file": "packages/web-ui/src/pages/Connections.tsx",
           "line": 543
         }
       ]
@@ -936,19 +936,19 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/PluginSettingsPage.tsx",
+          "file": "packages/web-ui/src/components/settings/PluginSettingsPage.tsx",
           "line": 158
         },
         {
-          "file": "src/components/settings/PluginsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
           "line": 846
         },
         {
-          "file": "src/components/settings/PluginsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
           "line": 1210
         },
         {
-          "file": "src/hooks/useTaskManager.ts",
+          "file": "packages/web-ui/src/hooks/useTaskManager.ts",
           "line": 84
         }
       ]
@@ -962,7 +962,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/Connections.tsx",
+          "file": "packages/web-ui/src/pages/Connections.tsx",
           "line": 329
         }
       ]
@@ -976,7 +976,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ClipboardImportModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
           "line": 307
         }
       ]
@@ -990,7 +990,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 1301
         }
       ]
@@ -1004,7 +1004,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/AiExplainModal.tsx",
+          "file": "packages/web-ui/src/components/modals/AiExplainModal.tsx",
           "line": 57
         }
       ]
@@ -1018,11 +1018,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/VisualExplainModal.tsx",
+          "file": "packages/web-ui/src/components/modals/VisualExplainModal.tsx",
           "line": 82
         },
         {
-          "file": "src/pages/VisualExplainPage.tsx",
+          "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
           "line": 77
         }
       ]
@@ -1036,7 +1036,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useAiActivity.ts",
+          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
           "line": 231
         }
       ]
@@ -1050,7 +1050,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useAiActivity.ts",
+          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
           "line": 227
         }
       ]
@@ -1064,7 +1064,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useAiActivity.ts",
+          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
           "line": 237
         }
       ]
@@ -1078,7 +1078,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/Connections.tsx",
+          "file": "packages/web-ui/src/pages/Connections.tsx",
           "line": 320
         }
       ]
@@ -1092,7 +1092,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/LogsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
           "line": 96
         }
       ]
@@ -1106,7 +1106,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 3361
         }
       ]
@@ -1120,7 +1120,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/ui/BlobInput.tsx",
+          "file": "packages/web-ui/src/components/ui/BlobInput.tsx",
           "line": 119
         }
       ]
@@ -1134,7 +1134,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/PluginReadmeModal.tsx",
+          "file": "packages/web-ui/src/components/modals/PluginReadmeModal.tsx",
           "line": 74
         }
       ]
@@ -1148,11 +1148,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useConnectionCatalogue.ts",
+          "file": "packages/web-ui/src/hooks/useConnectionCatalogue.ts",
           "line": 49
         },
         {
-          "file": "src/hooks/usePluginRegistry.ts",
+          "file": "packages/web-ui/src/hooks/usePluginRegistry.ts",
           "line": 18
         }
       ]
@@ -1166,7 +1166,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/PluginInstallConfirmModal.tsx",
+          "file": "packages/web-ui/src/components/modals/PluginInstallConfirmModal.tsx",
           "line": 69
         }
       ]
@@ -1180,7 +1180,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/AiQueryModal.tsx",
+          "file": "packages/web-ui/src/components/modals/AiQueryModal.tsx",
           "line": 116
         }
       ]
@@ -1194,11 +1194,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/notebook/CellNameAiButton.tsx",
+          "file": "packages/web-ui/src/components/notebook/CellNameAiButton.tsx",
           "line": 27
         },
         {
-          "file": "src/components/notebook/NotebookOutline.tsx",
+          "file": "packages/web-ui/src/components/notebook/NotebookOutline.tsx",
           "line": 37
         }
       ]
@@ -1212,7 +1212,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/ui/MultiResultPanel.tsx",
+          "file": "packages/web-ui/src/components/ui/MultiResultPanel.tsx",
           "line": 329
         }
       ]
@@ -1226,7 +1226,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1146
         }
       ]
@@ -1240,11 +1240,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ModifyColumnModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ModifyColumnModal.tsx",
           "line": 125
         },
         {
-          "file": "src/components/modals/ModifyColumnModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ModifyColumnModal.tsx",
           "line": 174
         }
       ]
@@ -1258,7 +1258,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useAiActivity.ts",
+          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
           "line": 43
         }
       ]
@@ -1272,11 +1272,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/AiTab.tsx",
+          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 99
         },
         {
-          "file": "src/contexts/SettingsProvider.tsx",
+          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
           "line": 214
         }
       ]
@@ -1290,7 +1290,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/AiQueryModal.tsx",
+          "file": "packages/web-ui/src/components/modals/AiQueryModal.tsx",
           "line": 60
         }
       ]
@@ -1304,7 +1304,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useAiActivity.ts",
+          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
           "line": 120
         }
       ]
@@ -1318,7 +1318,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useAiActivity.ts",
+          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
           "line": 81
         }
       ]
@@ -1332,7 +1332,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/ThemeProvider.tsx",
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
           "line": 95
         }
       ]
@@ -1346,11 +1346,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ModifyColumnModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ModifyColumnModal.tsx",
           "line": 116
         },
         {
-          "file": "src/components/modals/ModifyColumnModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ModifyColumnModal.tsx",
           "line": 165
         }
       ]
@@ -1364,23 +1364,23 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 1234
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 203
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 233
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 743
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 764
         }
       ]
@@ -1394,7 +1394,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/AiTab.tsx",
+          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 162
         }
       ]
@@ -1408,55 +1408,55 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/sidebar/SidebarTableItem.tsx",
+          "file": "packages/web-ui/src/components/layout/sidebar/SidebarTableItem.tsx",
           "line": 90
         },
         {
-          "file": "src/components/modals/ClipboardImportModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
           "line": 169
         },
         {
-          "file": "src/components/modals/CreateForeignKeyModal.tsx",
+          "file": "packages/web-ui/src/components/modals/CreateForeignKeyModal.tsx",
           "line": 72
         },
         {
-          "file": "src/components/modals/CreateForeignKeyModal.tsx",
+          "file": "packages/web-ui/src/components/modals/CreateForeignKeyModal.tsx",
           "line": 85
         },
         {
-          "file": "src/components/modals/CreateIndexModal.tsx",
+          "file": "packages/web-ui/src/components/modals/CreateIndexModal.tsx",
           "line": 49
         },
         {
-          "file": "src/components/modals/GenerateSQLModal.tsx",
+          "file": "packages/web-ui/src/components/modals/GenerateSQLModal.tsx",
           "line": 71
         },
         {
-          "file": "src/components/modals/NewRowModal.tsx",
+          "file": "packages/web-ui/src/components/modals/NewRowModal.tsx",
           "line": 120
         },
         {
-          "file": "src/components/modals/SchemaModal.tsx",
+          "file": "packages/web-ui/src/components/modals/SchemaModal.tsx",
           "line": 35
         },
         {
-          "file": "src/components/ui/VisualQueryBuilder.tsx",
+          "file": "packages/web-ui/src/components/ui/VisualQueryBuilder.tsx",
           "line": 202
         },
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 813
         },
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 2514
         },
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 2684
         },
         {
-          "file": "src/utils/autocomplete.ts",
+          "file": "packages/web-ui/src/utils/autocomplete.ts",
           "line": 65
         }
       ]
@@ -1470,19 +1470,19 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/SettingsProvider.tsx",
+          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
           "line": 135
         },
         {
-          "file": "src/contexts/ThemeProvider.tsx",
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
           "line": 55
         },
         {
-          "file": "src/contexts/UpdateProvider.tsx",
+          "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
           "line": 47
         },
         {
-          "file": "src/contexts/UpdateProvider.tsx",
+          "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
           "line": 106
         }
       ]
@@ -1496,7 +1496,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ConfigJsonModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ConfigJsonModal.tsx",
           "line": 30
         }
       ]
@@ -1510,7 +1510,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/credentials.ts",
+          "file": "packages/web-ui/src/utils/credentials.ts",
           "line": 39
         }
       ]
@@ -1524,7 +1524,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1207
         }
       ]
@@ -1538,7 +1538,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/BackupTab.tsx",
+          "file": "packages/web-ui/src/components/settings/BackupTab.tsx",
           "line": 59
         }
       ]
@@ -1552,11 +1552,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1042
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1240
         }
       ]
@@ -1570,11 +1570,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/CreateForeignKeyModal.tsx",
+          "file": "packages/web-ui/src/components/modals/CreateForeignKeyModal.tsx",
           "line": 109
         },
         {
-          "file": "src/components/modals/CreateForeignKeyModal.tsx",
+          "file": "packages/web-ui/src/components/modals/CreateForeignKeyModal.tsx",
           "line": 137
         }
       ]
@@ -1588,11 +1588,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/CreateIndexModal.tsx",
+          "file": "packages/web-ui/src/components/modals/CreateIndexModal.tsx",
           "line": 72
         },
         {
-          "file": "src/components/modals/CreateIndexModal.tsx",
+          "file": "packages/web-ui/src/components/modals/CreateIndexModal.tsx",
           "line": 98
         }
       ]
@@ -1606,11 +1606,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/CreateTableModal.tsx",
+          "file": "packages/web-ui/src/components/modals/CreateTableModal.tsx",
           "line": 74
         },
         {
-          "file": "src/components/modals/CreateTableModal.tsx",
+          "file": "packages/web-ui/src/components/modals/CreateTableModal.tsx",
           "line": 134
         }
       ]
@@ -1624,7 +1624,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useDataTypes.ts",
+          "file": "packages/web-ui/src/hooks/useDataTypes.ts",
           "line": 30
         }
       ]
@@ -1638,7 +1638,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/users/UserManagementView.tsx",
+          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
           "line": 214
         }
       ]
@@ -1652,7 +1652,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/users/UserManagementView.tsx",
+          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
           "line": 244
         }
       ]
@@ -1666,7 +1666,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/users/UserManagementView.tsx",
+          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
           "line": 245
         }
       ]
@@ -1680,7 +1680,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/users/UserManagementView.tsx",
+          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
           "line": 224
         }
       ]
@@ -1694,7 +1694,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 687
         }
       ]
@@ -1708,7 +1708,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/AiTab.tsx",
+          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 159
         }
       ]
@@ -1722,7 +1722,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/AiTab.tsx",
+          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 168
         }
       ]
@@ -1736,19 +1736,19 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/sidebar/SidebarTableItem.tsx",
+          "file": "packages/web-ui/src/components/layout/sidebar/SidebarTableItem.tsx",
           "line": 95
         },
         {
-          "file": "src/components/modals/GenerateSQLModal.tsx",
+          "file": "packages/web-ui/src/components/modals/GenerateSQLModal.tsx",
           "line": 76
         },
         {
-          "file": "src/components/modals/NewRowModal.tsx",
+          "file": "packages/web-ui/src/components/modals/NewRowModal.tsx",
           "line": 125
         },
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 818
         }
       ]
@@ -1762,15 +1762,15 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/sidebar/SidebarTableItem.tsx",
+          "file": "packages/web-ui/src/components/layout/sidebar/SidebarTableItem.tsx",
           "line": 100
         },
         {
-          "file": "src/components/layout/sidebar/SidebarViewItem.tsx",
+          "file": "packages/web-ui/src/components/layout/sidebar/SidebarViewItem.tsx",
           "line": 79
         },
         {
-          "file": "src/components/modals/GenerateSQLModal.tsx",
+          "file": "packages/web-ui/src/components/modals/GenerateSQLModal.tsx",
           "line": 81
         }
       ]
@@ -1784,7 +1784,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/UpdateProvider.tsx",
+          "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
           "line": 102
         }
       ]
@@ -1798,7 +1798,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useDrivers.ts",
+          "file": "packages/web-ui/src/hooks/useDrivers.ts",
           "line": 143
         }
       ]
@@ -1812,7 +1812,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/JsonViewerPage.tsx",
+          "file": "packages/web-ui/src/pages/JsonViewerPage.tsx",
           "line": 26
         }
       ]
@@ -1826,7 +1826,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/k8s.ts",
+          "file": "packages/web-ui/src/utils/k8s.ts",
           "line": 57
         }
       ]
@@ -1840,11 +1840,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/k8s.ts",
+          "file": "packages/web-ui/src/utils/k8s.ts",
           "line": 113
         },
         {
-          "file": "src/utils/k8s.ts",
+          "file": "packages/web-ui/src/utils/k8s.ts",
           "line": 114
         }
       ]
@@ -1858,7 +1858,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/k8s.ts",
+          "file": "packages/web-ui/src/utils/k8s.ts",
           "line": 124
         }
       ]
@@ -1872,7 +1872,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/k8s.ts",
+          "file": "packages/web-ui/src/utils/k8s.ts",
           "line": 157
         }
       ]
@@ -1886,7 +1886,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/k8s.ts",
+          "file": "packages/web-ui/src/utils/k8s.ts",
           "line": 139
         }
       ]
@@ -1900,7 +1900,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/KeybindingsProvider.tsx",
+          "file": "packages/web-ui/src/contexts/KeybindingsProvider.tsx",
           "line": 20
         }
       ]
@@ -1914,7 +1914,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/Connections.tsx",
+          "file": "packages/web-ui/src/pages/Connections.tsx",
           "line": 154
         }
       ]
@@ -1928,7 +1928,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/Connections.tsx",
+          "file": "packages/web-ui/src/pages/Connections.tsx",
           "line": 153
         }
       ]
@@ -1942,7 +1942,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/LogsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
           "line": 62
         }
       ]
@@ -1956,7 +1956,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/LogsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
           "line": 54
         }
       ]
@@ -1970,7 +1970,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 2215
         }
       ]
@@ -1984,15 +1984,15 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 364
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 424
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 873
         }
       ]
@@ -2006,11 +2006,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/McpModal.tsx",
+          "file": "packages/web-ui/src/components/modals/McpModal.tsx",
           "line": 95
         },
         {
-          "file": "src/pages/McpPage.tsx",
+          "file": "packages/web-ui/src/pages/McpPage.tsx",
           "line": 174
         }
       ]
@@ -2024,7 +2024,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/VisualExplainPage.tsx",
+          "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
           "line": 111
         }
       ]
@@ -2038,11 +2038,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/PluginSettingsPage.tsx",
+          "file": "packages/web-ui/src/components/settings/PluginSettingsPage.tsx",
           "line": 37
         },
         {
-          "file": "src/contexts/PluginSlotProvider.tsx",
+          "file": "packages/web-ui/src/contexts/PluginSlotProvider.tsx",
           "line": 180
         }
       ]
@@ -2056,7 +2056,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/PluginsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
           "line": 682
         }
       ]
@@ -2070,7 +2070,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useTaskManager.ts",
+          "file": "packages/web-ui/src/hooks/useTaskManager.ts",
           "line": 32
         }
       ]
@@ -2084,7 +2084,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/QueryHistoryProvider.tsx",
+          "file": "packages/web-ui/src/contexts/QueryHistoryProvider.tsx",
           "line": 33
         }
       ]
@@ -2098,11 +2098,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useConnectionCatalogue.ts",
+          "file": "packages/web-ui/src/hooks/useConnectionCatalogue.ts",
           "line": 43
         },
         {
-          "file": "src/hooks/useDrivers.ts",
+          "file": "packages/web-ui/src/hooks/useDrivers.ts",
           "line": 142
         }
       ]
@@ -2116,7 +2116,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 445
         }
       ]
@@ -2130,7 +2130,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/databaseObjectActions.ts",
+          "file": "packages/web-ui/src/utils/databaseObjectActions.ts",
           "line": 268
         }
       ]
@@ -2144,7 +2144,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 2280
         }
       ]
@@ -2158,11 +2158,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/sidebar/SidebarRoutineItem.tsx",
+          "file": "packages/web-ui/src/components/layout/sidebar/SidebarRoutineItem.tsx",
           "line": 54
         },
         {
-          "file": "src/components/modals/RunRoutineModal.tsx",
+          "file": "packages/web-ui/src/components/modals/RunRoutineModal.tsx",
           "line": 46
         }
       ]
@@ -2176,11 +2176,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 46
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 314
         }
       ]
@@ -2194,7 +2194,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/SavedQueriesProvider.tsx",
+          "file": "packages/web-ui/src/contexts/SavedQueriesProvider.tsx",
           "line": 19
         }
       ]
@@ -2208,7 +2208,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 861
         }
       ]
@@ -2222,7 +2222,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/EditorProvider.tsx",
+          "file": "packages/web-ui/src/contexts/EditorProvider.tsx",
           "line": 395
         }
       ]
@@ -2236,7 +2236,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 846
         }
       ]
@@ -2250,7 +2250,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 851
         }
       ]
@@ -2264,7 +2264,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/ui/DataGrid.tsx",
+          "file": "packages/web-ui/src/components/ui/DataGrid.tsx",
           "line": 1569
         }
       ]
@@ -2278,7 +2278,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/ssh.ts",
+          "file": "packages/web-ui/src/utils/ssh.ts",
           "line": 27
         }
       ]
@@ -2292,7 +2292,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/AiTab.tsx",
+          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 156
         }
       ]
@@ -2306,7 +2306,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useTaskManager.ts",
+          "file": "packages/web-ui/src/hooks/useTaskManager.ts",
           "line": 33
         }
       ]
@@ -2320,7 +2320,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/AiTab.tsx",
+          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 165
         }
       ]
@@ -2334,7 +2334,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/TaskManagerPage.tsx",
+          "file": "packages/web-ui/src/pages/TaskManagerPage.tsx",
           "line": 108
         }
       ]
@@ -2348,11 +2348,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/TriggerEditorModal.tsx",
+          "file": "packages/web-ui/src/components/modals/TriggerEditorModal.tsx",
           "line": 84
         },
         {
-          "file": "src/utils/databaseObjectActions.ts",
+          "file": "packages/web-ui/src/utils/databaseObjectActions.ts",
           "line": 279
         }
       ]
@@ -2366,35 +2366,35 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 334
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 367
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 427
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 487
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 543
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 807
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 876
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 936
         }
       ]
@@ -2408,7 +2408,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ViewEditorModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ViewEditorModal.tsx",
           "line": 53
         }
       ]
@@ -2422,35 +2422,35 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 301
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 362
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 422
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 485
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 541
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 805
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 871
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 934
         }
       ]
@@ -2464,7 +2464,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ImportDatabaseModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ImportDatabaseModal.tsx",
           "line": 61
         }
       ]
@@ -2478,11 +2478,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/NewRowModal.tsx",
+          "file": "packages/web-ui/src/components/modals/NewRowModal.tsx",
           "line": 214
         },
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 2883
         }
       ]
@@ -2496,11 +2496,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/McpModal.tsx",
+          "file": "packages/web-ui/src/components/modals/McpModal.tsx",
           "line": 115
         },
         {
-          "file": "src/pages/McpPage.tsx",
+          "file": "packages/web-ui/src/pages/McpPage.tsx",
           "line": 190
         }
       ]
@@ -2514,15 +2514,15 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/NewConnectionModal.tsx",
+          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
           "line": 291
         },
         {
-          "file": "src/components/settings/PluginsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
           "line": 725
         },
         {
-          "file": "src/hooks/useDeepLinkInstall.ts",
+          "file": "packages/web-ui/src/hooks/useDeepLinkInstall.ts",
           "line": 92
         }
       ]
@@ -2536,7 +2536,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useTaskManager.ts",
+          "file": "packages/web-ui/src/hooks/useTaskManager.ts",
           "line": 64
         }
       ]
@@ -2550,7 +2550,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ImportFromAppModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
           "line": 124
         }
       ]
@@ -2564,7 +2564,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useConnectionTags.ts",
+          "file": "packages/web-ui/src/hooks/useConnectionTags.ts",
           "line": 14
         }
       ]
@@ -2578,7 +2578,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/NewConnectionModal.tsx",
+          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
           "line": 1591
         }
       ]
@@ -2592,7 +2592,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/notebookStore.ts",
+          "file": "packages/web-ui/src/utils/notebookStore.ts",
           "line": 203
         }
       ]
@@ -2606,7 +2606,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useAiActivity.ts",
+          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
           "line": 175
         }
       ]
@@ -2620,7 +2620,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/ui/BlobInput.tsx",
+          "file": "packages/web-ui/src/components/ui/BlobInput.tsx",
           "line": 155
         }
       ]
@@ -2634,7 +2634,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/editor.ts",
+          "file": "packages/web-ui/src/utils/editor.ts",
           "line": 33
         }
       ]
@@ -2648,7 +2648,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/VisualExplainPage.tsx",
+          "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
           "line": 56
         }
       ]
@@ -2662,7 +2662,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/notebookStore.ts",
+          "file": "packages/web-ui/src/utils/notebookStore.ts",
           "line": 125
         }
       ]
@@ -2676,11 +2676,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 261
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 782
         }
       ]
@@ -2694,7 +2694,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ClipboardImportModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
           "line": 92
         }
       ]
@@ -2708,7 +2708,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1249
         }
       ]
@@ -2722,7 +2722,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1226
         }
       ]
@@ -2736,7 +2736,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useOpenConnectionInNewWindow.ts",
+          "file": "packages/web-ui/src/hooks/useOpenConnectionInNewWindow.ts",
           "line": 37
         }
       ]
@@ -2750,23 +2750,23 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 629
         },
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 680
         },
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 1475
         },
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 1926
         },
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 2418
         }
       ]
@@ -2780,11 +2780,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/ui/DataGrid.tsx",
+          "file": "packages/web-ui/src/components/ui/DataGrid.tsx",
           "line": 487
         },
         {
-          "file": "src/components/ui/JsonInput.tsx",
+          "file": "packages/web-ui/src/components/ui/JsonInput.tsx",
           "line": 159
         }
       ]
@@ -2798,7 +2798,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/PluginsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
           "line": 709
         }
       ]
@@ -2812,7 +2812,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 1588
         }
       ]
@@ -2826,7 +2826,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/InfoTab.tsx",
+          "file": "packages/web-ui/src/components/settings/InfoTab.tsx",
           "line": 298
         }
       ]
@@ -2840,7 +2840,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ImportFromAppModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
           "line": 221
         }
       ]
@@ -2854,7 +2854,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ImportFromAppModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
           "line": 174
         }
       ]
@@ -2868,7 +2868,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/ui/BlobInput.tsx",
+          "file": "packages/web-ui/src/components/ui/BlobInput.tsx",
           "line": 98
         }
       ]
@@ -2882,11 +2882,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/PluginSlotProvider.tsx",
+          "file": "packages/web-ui/src/contexts/PluginSlotProvider.tsx",
           "line": 50
         },
         {
-          "file": "src/contexts/PluginSlotProvider.tsx",
+          "file": "packages/web-ui/src/contexts/PluginSlotProvider.tsx",
           "line": 90
         }
       ]
@@ -2900,7 +2900,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/layout/ExplorerSidebar.tsx",
+          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
           "line": 2196
         }
       ]
@@ -2914,7 +2914,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 725
         }
       ]
@@ -2928,11 +2928,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ConfigJsonModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ConfigJsonModal.tsx",
           "line": 55
         },
         {
-          "file": "src/platform/tauriCapabilities.ts",
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
           "line": 135
         }
       ]
@@ -2946,7 +2946,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/notebookStore.ts",
+          "file": "packages/web-ui/src/utils/notebookStore.ts",
           "line": 221
         }
       ]
@@ -2960,7 +2960,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1271
         }
       ]
@@ -2974,7 +2974,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1258
         }
       ]
@@ -2988,7 +2988,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useSshAskpass.ts",
+          "file": "packages/web-ui/src/hooks/useSshAskpass.ts",
           "line": 43
         }
       ]
@@ -3002,7 +3002,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/BackupTab.tsx",
+          "file": "packages/web-ui/src/components/settings/BackupTab.tsx",
           "line": 116
         }
       ]
@@ -3016,7 +3016,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/ui/BlobInput.tsx",
+          "file": "packages/web-ui/src/components/ui/BlobInput.tsx",
           "line": 187
         }
       ]
@@ -3030,27 +3030,27 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/SettingsProvider.tsx",
+          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
           "line": 151
         },
         {
-          "file": "src/contexts/SettingsProvider.tsx",
+          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
           "line": 377
         },
         {
-          "file": "src/contexts/ThemeProvider.tsx",
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
           "line": 70
         },
         {
-          "file": "src/contexts/ThemeProvider.tsx",
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
           "line": 89
         },
         {
-          "file": "src/contexts/ThemeProvider.tsx",
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
           "line": 134
         },
         {
-          "file": "src/contexts/UpdateProvider.tsx",
+          "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
           "line": 90
         }
       ]
@@ -3064,7 +3064,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ConfigJsonModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ConfigJsonModal.tsx",
           "line": 45
         }
       ]
@@ -3078,7 +3078,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/NewConnectionModal.tsx",
+          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
           "line": 2213
         }
       ]
@@ -3092,7 +3092,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/NewConnectionModal/AppearanceSection.tsx",
+          "file": "packages/web-ui/src/components/modals/NewConnectionModal/AppearanceSection.tsx",
           "line": 103
         }
       ]
@@ -3106,19 +3106,19 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/ThemeProvider.tsx",
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
           "line": 190
         },
         {
-          "file": "src/contexts/ThemeProvider.tsx",
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
           "line": 214
         },
         {
-          "file": "src/contexts/ThemeProvider.tsx",
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
           "line": 270
         },
         {
-          "file": "src/contexts/ThemeProvider.tsx",
+          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
           "line": 301
         }
       ]
@@ -3132,7 +3132,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/editor.ts",
+          "file": "packages/web-ui/src/utils/editor.ts",
           "line": 68
         }
       ]
@@ -3146,7 +3146,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/k8s.ts",
+          "file": "packages/web-ui/src/utils/k8s.ts",
           "line": 70
         }
       ]
@@ -3160,11 +3160,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/KeybindingsProvider.tsx",
+          "file": "packages/web-ui/src/contexts/KeybindingsProvider.tsx",
           "line": 50
         },
         {
-          "file": "src/contexts/KeybindingsProvider.tsx",
+          "file": "packages/web-ui/src/contexts/KeybindingsProvider.tsx",
           "line": 60
         }
       ]
@@ -3178,7 +3178,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/notebookStore.ts",
+          "file": "packages/web-ui/src/utils/notebookStore.ts",
           "line": 55
         }
       ]
@@ -3192,7 +3192,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/SavedQueriesProvider.tsx",
+          "file": "packages/web-ui/src/contexts/SavedQueriesProvider.tsx",
           "line": 35
         }
       ]
@@ -3206,7 +3206,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/ssh.ts",
+          "file": "packages/web-ui/src/utils/ssh.ts",
           "line": 63
         }
       ]
@@ -3220,7 +3220,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/AiTab.tsx",
+          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 176
         }
       ]
@@ -3234,11 +3234,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/NewConnectionModal.tsx",
+          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
           "line": 2208
         },
         {
-          "file": "src/components/modals/NewConnectionModal.tsx",
+          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
           "line": 2221
         }
       ]
@@ -3252,7 +3252,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/NewConnectionModal.tsx",
+          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
           "line": 2228
         }
       ]
@@ -3266,7 +3266,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/BackupTab.tsx",
+          "file": "packages/web-ui/src/components/settings/BackupTab.tsx",
           "line": 82
         }
       ]
@@ -3280,7 +3280,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/BackupTab.tsx",
+          "file": "packages/web-ui/src/components/settings/BackupTab.tsx",
           "line": 98
         }
       ]
@@ -3294,7 +3294,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/users/UserManagementView.tsx",
+          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
           "line": 368
         }
       ]
@@ -3308,11 +3308,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1000
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1094
         }
       ]
@@ -3326,11 +3326,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 992
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1111
         }
       ]
@@ -3344,7 +3344,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/LogsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
           "line": 109
         }
       ]
@@ -3358,7 +3358,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/LogsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
           "line": 122
         }
       ]
@@ -3372,11 +3372,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 612
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1035
         }
       ]
@@ -3390,15 +3390,15 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 253
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 637
         },
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 774
         }
       ]
@@ -3412,7 +3412,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 593
         }
       ]
@@ -3426,11 +3426,11 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 150
         },
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 499
         }
       ]
@@ -3444,7 +3444,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/ClipboardImportModal.tsx",
+          "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
           "line": 239
         }
       ]
@@ -3458,7 +3458,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/k8s.ts",
+          "file": "packages/web-ui/src/utils/k8s.ts",
           "line": 98
         }
       ]
@@ -3472,7 +3472,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/ssh.ts",
+          "file": "packages/web-ui/src/utils/ssh.ts",
           "line": 103
         }
       ]
@@ -3486,7 +3486,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/settings/PluginsTab.tsx",
+          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
           "line": 797
         }
       ]
@@ -3500,7 +3500,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/modals/NewConnectionModal.tsx",
+          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
           "line": 2200
         }
       ]
@@ -3514,7 +3514,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/DatabaseProvider.tsx",
+          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
           "line": 1216
         }
       ]
@@ -3528,7 +3528,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/hooks/useConnectionTags.ts",
+          "file": "packages/web-ui/src/hooks/useConnectionTags.ts",
           "line": 40
         }
       ]
@@ -3542,7 +3542,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/k8s.ts",
+          "file": "packages/web-ui/src/utils/k8s.ts",
           "line": 80
         }
       ]
@@ -3556,15 +3556,15 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/components/ui/DataGrid.tsx",
+          "file": "packages/web-ui/src/components/ui/DataGrid.tsx",
           "line": 1112
         },
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 2843
         },
         {
-          "file": "src/pages/Editor.tsx",
+          "file": "packages/web-ui/src/pages/Editor.tsx",
           "line": 2866
         }
       ]
@@ -3578,7 +3578,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/contexts/SavedQueriesProvider.tsx",
+          "file": "packages/web-ui/src/contexts/SavedQueriesProvider.tsx",
           "line": 45
         }
       ]
@@ -3592,7 +3592,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/ssh.ts",
+          "file": "packages/web-ui/src/utils/ssh.ts",
           "line": 77
         }
       ]
@@ -3606,7 +3606,7 @@
       "registered": true,
       "callSites": [
         {
-          "file": "src/utils/k8s.ts",
+          "file": "packages/web-ui/src/utils/k8s.ts",
           "line": 173
         }
       ]
@@ -3615,7 +3615,7 @@
   "dynamicInvocations": [
     {
       "expression": "materialized ? \"get_materialized_view_columns\" : \"get_view_columns\"",
-      "file": "src/components/layout/sidebar/SidebarViewItem.tsx",
+      "file": "packages/web-ui/src/components/layout/sidebar/SidebarViewItem.tsx",
       "line": 69,
       "context": "SidebarViewItem",
       "possibleCommands": [
@@ -3630,7 +3630,7 @@
     },
     {
       "expression": "cmd",
-      "file": "src/components/settings/AiTab.tsx",
+      "file": "packages/web-ui/src/components/settings/AiTab.tsx",
       "line": 195,
       "context": "handleSavePrompt",
       "possibleCommands": [
@@ -3648,7 +3648,7 @@
     },
     {
       "expression": "cmd",
-      "file": "src/components/settings/AiTab.tsx",
+      "file": "packages/web-ui/src/components/settings/AiTab.tsx",
       "line": 211,
       "context": "handleResetPrompt",
       "possibleCommands": [

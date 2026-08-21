@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { parse } from "postcss";
 
 const stylesheet = parse(
-  readFileSync("src/index.css", "utf8"),
+  readFileSync("packages/web-ui/src/index.css", "utf8"),
 );
 
 function getDeclaration(selector: string, property: string): string | undefined {

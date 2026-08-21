@@ -4,12 +4,12 @@
   "version": "0.20.0",
   "type": "module",
   "scripts": {
-    "dev": "cd ../.. && vite --config packages/web-ui/vite.config.ts",
-    "build": "cd ../.. && tsc -b packages/web-ui/tsconfig.json && vite build --config packages/web-ui/vite.config.ts",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
     "lint": "cd ../.. && eslint .",
-    "preview": "cd ../.. && vite preview --config packages/web-ui/vite.config.ts",
+    "preview": "vite preview",
     "test": "cd ../.. && vitest --config packages/web-ui/vitest.config.ts",
-    "typecheck": "cd ../.. && tsc --noEmit -p packages/web-ui/tsconfig.app.json",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test:coverage": "cd ../.. && vitest --config packages/web-ui/vitest.config.ts run --coverage"
   },
   "devDependencies": {

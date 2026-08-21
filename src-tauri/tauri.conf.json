@@ -4,10 +4,10 @@
   "version": "0.20.0",
   "identifier": "tabularis",
   "build": {
-    "frontendDist": "../dist",
+    "frontendDist": "../packages/web-ui/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
   },
   "app": {
     "windows": [

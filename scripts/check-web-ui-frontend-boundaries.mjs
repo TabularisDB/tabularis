@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const FRONTEND_ROOT = "src";
+const FRONTEND_ROOT = "packages/web-ui/src";
 const ALLOWLIST_PATH = "scripts/web-ui-tauri-boundary-allowlist.json";
 
 function scriptKind(filePath) {

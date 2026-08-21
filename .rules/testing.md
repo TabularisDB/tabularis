@@ -5,23 +5,23 @@ This document defines the testing conventions and directory structure for the Ta
 ## Directory Structure
 
 ### Source Files
-All utility functions and testable logic must be placed in `src/utils/` with simple, descriptive names **without the "Utils" suffix**.
+All utility functions and testable logic must be placed in `packages/web-ui/src/utils/` with simple, descriptive names **without the "Utils" suffix**.
 
 **Correct:**
-- `src/utils/dataGrid.ts`
-- `src/utils/contextMenu.ts`
-- `src/utils/sqlGenerator.ts`
-- `src/utils/sql.ts`
+- `packages/web-ui/src/utils/dataGrid.ts`
+- `packages/web-ui/src/utils/contextMenu.ts`
+- `packages/web-ui/src/utils/sqlGenerator.ts`
+- `packages/web-ui/src/utils/sql.ts`
 
 **Incorrect:**
-- ~~`src/components/ui/dataGridUtils.ts`~~ (wrong location)
-- ~~`src/utils/dataGridUtils.ts`~~ (wrong naming - no Utils suffix)
+- ~~`packages/web-ui/src/components/ui/dataGridUtils.ts`~~ (wrong location)
+- ~~`packages/web-ui/src/utils/dataGridUtils.ts`~~ (wrong naming - no Utils suffix)
 
 ### Test Files
-All test files must be placed in a parallel `tests/` directory that mirrors the structure of `src/`.
+All frontend test files must be placed in `packages/web-ui/tests/`, mirroring `packages/web-ui/src/`.
 
 ```
-project-root/
+packages/web-ui/
 ├── src/
 │   ├── utils/
 │   │   ├── dataGrid.ts
@@ -58,13 +58,13 @@ import { splitQueries } from "@/utils/sql";
 ```
 
 ### In Test Files
-Always use relative imports from `tests/` to `src/`:
+Always use relative imports from `packages/web-ui/tests/` to `packages/web-ui/src/`:
 
 ```typescript
-// Correct - from tests/utils/dataGrid.test.ts
+// Correct - from packages/web-ui/tests/utils/dataGrid.test.ts
 import { formatCellValue } from "../../src/utils/dataGrid";
 
-// Correct - from tests/themes/colorUtils.test.ts  
+// Correct - from packages/web-ui/tests/themes/colorUtils.test.ts
 import { hexToRgb } from "../../src/themes/colorUtils";
 
 // Incorrect - relative to same directory (would fail after move)
@@ -78,9 +78,9 @@ Test files must follow the pattern: `[filename].test.ts`
 - `dataGrid.ts` → `dataGrid.test.ts`
 - `sqlGenerator.ts` → `sqlGenerator.test.ts`
 
-## What Belongs in `src/utils/`
+## What Belongs in `packages/web-ui/src/utils/`
 
-Extract pure, testable logic from components into `src/utils/`:
+Extract pure, testable logic from components into `packages/web-ui/src/utils/`:
 
 1. **Data transformation functions** - formatters, parsers, converters
 2. **Calculation functions** - positioning, sorting, filtering logic
@@ -101,7 +101,7 @@ const formatCellValue = (value: unknown): string => {
 
 **After (extracted):**
 ```typescript
-// In src/utils/dataGrid.ts
+// In packages/web-ui/src/utils/dataGrid.ts
 export function formatCellValue(value: unknown, nullLabel = "NULL"): string {
   if (value === null || value === undefined) return nullLabel;
   if (typeof value === "boolean") return value ? "true" : "false";
@@ -149,7 +149,7 @@ pnpm test
 pnpm test --watch
 
 # Run specific test file
-pnpm test tests/utils/dataGrid.test.ts
+pnpm test packages/web-ui/tests/utils/dataGrid.test.ts
 
 # Run with coverage
 pnpm test --coverage
@@ -159,5 +159,5 @@ pnpm test --coverage
 
 Tests are configured in `vitest.config.ts`:
 - Test files are discovered in `tests/` directory
-- Setup file: `./tests/setup.ts`
+- Setup file: `./packages/web-ui/tests/setup.ts`
 - Environment: `jsdom` for DOM-related tests

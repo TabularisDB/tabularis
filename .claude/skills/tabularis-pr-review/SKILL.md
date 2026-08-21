@@ -28,13 +28,13 @@ Read `.rules/*.md` for every changed file's domain before forming opinions. The 
 - **`react.md` #1** — exhaustive `useEffect`/`useMemo`/`useCallback` deps.
 - **`typescript.md`** — no `any`.
 - **`rust.md`** — pure helpers extracted + unit-tested; `mod.rs` stays orchestration-only; public APIs re-exported on refactor.
-- **`general.md`** — English-only comments; new user-facing strings need i18n keys in `src/i18n/locales/*`.
+- **`general.md`** — English-only comments; new user-facing strings need i18n keys in `packages/web-ui/src/i18n/locales/*`.
 
 ### 3. Verify the PR's claims — don't take them on faith
 For each factual assertion in the description, prove it:
-- "Uses `common.search` / `common.noResults` i18n keys" → `grep '"search"\|"noResults"' src/i18n/locales/en.json`.
-- "Removing `searchable={false}` enables search" → read the component default (`grep searchable src/components/ui/Select.tsx`).
-- "Reads `default_port` from the manifest" → check the type (`src/types/plugins.ts`) — is it nullable? What's the fallback?
+- "Uses `common.search` / `common.noResults` i18n keys" → `grep '"search"\|"noResults"' packages/web-ui/src/i18n/locales/en.json`.
+- "Removing `searchable={false}` enables search" → read the component default (`grep searchable packages/web-ui/src/components/ui/Select.tsx`).
+- "Reads `default_port` from the manifest" → check the type (`packages/web-ui/src/types/plugins.ts`) — is it nullable? What's the fallback?
 - New Tauri command → confirm it's registered in `src-tauri/src/lib.rs` `invoke_handler`.
 
 ### 4. Impact analysis (per AGENTS.md)

@@ -12,7 +12,7 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(),
 }));
 
-const SOURCE_ROOT = join(process.cwd(), "src");
+const SOURCE_ROOT = join(process.cwd(), "packages/web-ui/src");
 const MIGRATED_COMMANDS = new Set([
   "is_debug_mode",
   "get_connections",

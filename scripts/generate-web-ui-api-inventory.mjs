@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const FRONTEND_ROOT = "src";
+const FRONTEND_ROOT = "packages/web-ui/src";
 const TAURI_HANDLER_PATH = "src-tauri/src/lib.rs";
 const INVENTORY_PATH = "docs/web-ui-parity.json";
 

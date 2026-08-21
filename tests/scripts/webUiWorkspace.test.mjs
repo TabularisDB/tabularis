@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-const repositoryRoot = process.cwd();
+const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const webUiRoot = join(repositoryRoot, "packages/web-ui");
 const frontendConfigFiles = [
   "postcss.config.js",
@@ -22,6 +23,7 @@ const delegatedScripts = [
   "test:coverage",
   "typecheck",
 ];
+const frontendOwnedPaths = ["index.html", "public", "src", "tests/setup.ts"];
 
 function readPackageJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
@@ -42,6 +44,15 @@ describe("web UI workspace", () => {
     }
   });
 
+  it("owns the frontend source, assets, and tests", () => {
+    for (const ownedPath of frontendOwnedPaths) {
+      expect(existsSync(join(webUiRoot, ownedPath)), ownedPath).toBe(true);
+    }
+    for (const movedPath of ["index.html", "public", "src"]) {
+      expect(existsSync(join(repositoryRoot, movedPath)), movedPath).toBe(false);
+    }
+  });
+
   it("keeps root frontend scripts as compatibility delegators", () => {
     const rootPackage = readPackageJson(join(repositoryRoot, "package.json"));
 
@@ -50,5 +61,16 @@ describe("web UI workspace", () => {
         `pnpm --filter @tabularis/web-ui ${script}`,
       );
     }
+  });
+
+  it("configures desktop development and builds to use the web UI package", () => {
+    const tauriConfig = readPackageJson(
+      join(repositoryRoot, "src-tauri/tauri.conf.json"),
+    );
+
+    expect(tauriConfig.build.frontendDist).toBe("../packages/web-ui/dist");
+    expect(tauriConfig.build.devUrl).toBe("http://localhost:5173");
+    expect(tauriConfig.build.beforeDevCommand).toBe("pnpm dev");
+    expect(tauriConfig.build.beforeBuildCommand).toBe("pnpm build");
   });
 });

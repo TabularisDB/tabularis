@@ -1,7 +1,7 @@
 //! Maps a foreign app's database label to a Tabularis driver id.
 //!
 //! Built-in drivers are `postgres`, `mysql`, `sqlite` (see
-//! `src/utils/connections.ts`). MariaDB rides the MySQL driver. Anything else
+//! `packages/web-ui/src/utils/connections.ts`). MariaDB rides the MySQL driver. Anything else
 //! is only importable when a plugin driver with the same id is registered; the
 //! analyzer flags the rest with a "driver not installed" warning but still lets
 //! the user import the metadata.

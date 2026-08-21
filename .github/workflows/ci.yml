@@ -8,11 +8,10 @@ on:
   push:
     branches: [main, feat/web-ui]
     paths:
-      - 'src/**'
+      - 'packages/web-ui/**'
       - 'src-tauri/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
-      - 'tsconfig.json'
       - 'eslint.config.js'
       - 'scripts/check-web-ui-frontend-boundaries.mjs'
       - 'scripts/generate-web-ui-api-inventory.mjs'
@@ -22,11 +21,10 @@ on:
   pull_request:
     branches: [main, feat/web-ui]
     paths:
-      - 'src/**'
+      - 'packages/web-ui/**'
       - 'src-tauri/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
-      - 'tsconfig.json'
       - 'eslint.config.js'
       - 'scripts/check-web-ui-frontend-boundaries.mjs'
       - 'scripts/generate-web-ui-api-inventory.mjs'

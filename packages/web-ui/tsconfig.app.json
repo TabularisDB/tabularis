@@ -25,10 +25,10 @@
     "noUncheckedSideEffectImports": true
   },
   "include": [
-    "../../src",
-    "../../tests/setup.ts",
-    "../../tests/api/contract.type-test.ts",
-    "../../tests/components/layout/Accordion.test.tsx",
-    "../../tests/components/layout/NavItem.test.tsx"
+    "./src",
+    "./tests/setup.ts",
+    "./tests/api/contract.type-test.ts",
+    "./tests/components/layout/Accordion.test.tsx",
+    "./tests/components/layout/NavItem.test.tsx"
   ]
 }
