@@ -30,6 +30,9 @@ tauri = { version = "2.10.2", features = ["protocol-asset", "devtools"] }
 tauri-plugin-log = "2"
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "mysql", "postgres", "tls-rustls-ring-native-roots", "chrono", "uuid", "rust_decimal", "json"] }
 tokio = { version = "1.49.0", features = ["full"] }
+axum = "0.7.9"
+tower-http = { version = "0.6.8", features = ["fs"] }
+open = "5.3.3"
 openssl = { version = "0.10", features = ["vendored"] }
 uuid = { version = "1.20.0", features = ["v4", "serde"] }
 rust_decimal = { version = "1.36", features = ["db-tokio-postgres", "serde"] }

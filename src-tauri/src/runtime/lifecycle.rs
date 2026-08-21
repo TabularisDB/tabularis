@@ -27,6 +27,14 @@ impl ShutdownHooks {
     }
 }
 
+pub async fn shutdown_headless_runtime(state: &super::state::ApplicationState) {
+    state.abort_background_jobs();
+    crate::pool_manager::close_all_pools().await;
+    crate::ssh_tunnel::stop_all_tunnels();
+    crate::k8s_tunnel::stop_all_tunnels();
+    crate::drivers::registry::shutdown_external_drivers().await;
+}
+
 pub fn start_desktop_schedulers(app: tauri::AppHandle, ping_interval_secs: u64) {
     let health_check_app = app.clone();
     tauri::async_runtime::spawn(async move {

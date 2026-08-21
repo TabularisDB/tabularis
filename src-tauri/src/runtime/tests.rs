@@ -104,6 +104,42 @@ fn application_state_can_be_created_without_tauri() {
     let _state = ApplicationState::default();
 }
 
+#[tokio::test]
+async fn aborts_all_background_jobs_during_headless_shutdown() {
+    let state = ApplicationState::default();
+    let query = tokio::spawn(std::future::pending::<()>());
+    let export = tokio::spawn(std::future::pending::<()>());
+    let dump = tokio::spawn(std::future::pending::<()>());
+
+    state
+        .query_cancellation
+        .handles
+        .lock()
+        .unwrap()
+        .insert("query".to_string(), vec![Arc::new(query.abort_handle())]);
+    state
+        .export_cancellation
+        .handles
+        .lock()
+        .unwrap()
+        .insert("export".to_string(), vec![Arc::new(export.abort_handle())]);
+    state
+        .dump_cancellation
+        .handles
+        .lock()
+        .unwrap()
+        .insert("dump".to_string(), vec![Arc::new(dump.abort_handle())]);
+
+    state.abort_background_jobs();
+
+    assert!(query.await.unwrap_err().is_cancelled());
+    assert!(export.await.unwrap_err().is_cancelled());
+    assert!(dump.await.unwrap_err().is_cancelled());
+    assert!(state.query_cancellation.handles.lock().unwrap().is_empty());
+    assert!(state.export_cancellation.handles.lock().unwrap().is_empty());
+    assert!(state.dump_cancellation.handles.lock().unwrap().is_empty());
+}
+
 #[test]
 fn shutdown_hooks_run_without_a_tauri_runtime() {
     let calls = Arc::new(AtomicUsize::new(0));

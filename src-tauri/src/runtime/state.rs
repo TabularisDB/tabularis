@@ -1,5 +1,6 @@
+use crate::commands::AbortHandleMap;
 use crate::connection_import_commands::ImportEnvelopeCache;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub struct ApplicationState {
     pub pending_install: crate::plugins::deep_link::PendingInstall,
@@ -13,6 +14,28 @@ pub struct ApplicationState {
     pub json_viewer_store: crate::json_viewer::JsonViewerStore,
     pub results_window_store: crate::results_window::ResultsWindowStore,
     pub query_history_state: crate::query_history::QueryHistoryState,
+}
+
+impl ApplicationState {
+    pub fn abort_background_jobs(&self) {
+        abort_all(&self.query_cancellation.handles);
+        abort_all(&self.export_cancellation.handles);
+        abort_all(&self.dump_cancellation.handles);
+    }
+}
+
+fn abort_all(handles: &Arc<Mutex<AbortHandleMap>>) {
+    let pending = {
+        let mut handles = handles.lock().unwrap_or_else(|error| error.into_inner());
+        handles
+            .drain()
+            .flat_map(|(_, handles)| handles)
+            .collect::<Vec<_>>()
+    };
+
+    for handle in pending {
+        handle.abort();
+    }
 }
 
 impl Default for ApplicationState {

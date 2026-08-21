@@ -87,6 +87,7 @@ pub mod sqlite_database_tests;
 pub mod task_manager;
 pub mod theme_commands;
 pub mod theme_models;
+pub mod transport;
 pub mod updater;
 pub mod drivers {
     pub mod common;
@@ -147,12 +148,31 @@ pub fn run() {
 
     if args.web {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
-        rt.block_on(runtime::bootstrap::bootstrap_application(
-            runtime::RuntimeContext::system(),
-            runtime::bootstrap::BootstrapOptions::default(),
-        ))
-        .expect("Failed to bootstrap Tabularis Web services");
-        log::info!("Tabularis Web services initialized without a desktop window");
+        rt.block_on(async {
+            let web_root =
+                transport::web::static_assets::resolve_web_root(args.web_root.as_deref())
+                    .expect("Failed to locate Tabularis Web assets");
+            let _application = runtime::bootstrap::bootstrap_application(
+                runtime::RuntimeContext::system(),
+                runtime::bootstrap::BootstrapOptions::default(),
+            )
+            .await
+            .expect("Failed to bootstrap Tabularis Web services");
+            let application_state = runtime::state::ApplicationState::default();
+
+            let server_result = transport::web::server::run(
+                transport::web::server::WebServerOptions {
+                    host: args.host.clone(),
+                    port: args.port,
+                    web_root,
+                    open_browser: !args.no_open,
+                },
+            )
+            .await;
+
+            runtime::lifecycle::shutdown_headless_runtime(&application_state).await;
+            server_result.expect("Failed to run Tabularis Web server");
+        });
         return;
     }
 
