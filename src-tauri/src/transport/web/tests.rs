@@ -170,6 +170,15 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
     assert!(!session.csrf_token.is_empty());
     assert!(session.capabilities.rpc);
     assert!(session.capabilities.events);
+    assert_eq!(
+        session.query_response_policy.max_rows_per_page,
+        crate::application::queries::WEB_MAX_ROWS_PER_PAGE
+    );
+    assert_eq!(
+        session.query_response_policy.max_response_bytes,
+        crate::application::queries::WEB_MAX_RESPONSE_BYTES
+    );
+    assert!(!session.query_response_policy.streaming);
 
     let index = client
         .get(&base_url)
@@ -449,6 +458,7 @@ async fn executes_representative_commands_over_versioned_rpc() {
         bootstrap_token.expose()
     );
     let application_state = Arc::new(ApplicationState::default());
+    let session_security = security.clone();
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
     let server = tokio::spawn(server::serve(
         listener,
@@ -616,6 +626,104 @@ async fn executes_representative_commands_over_versioned_rpc() {
         .await,
         "main"
     );
+
+    let inserted = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "execute_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "query": "INSERT INTO teams (name) VALUES ('core')",
+            "limit": 100,
+            "page": 1
+        }),
+    )
+    .await;
+    assert_eq!(inserted["affected_rows"], 1);
+
+    let queried = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "execute_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "query": "SELECT id, name FROM teams ORDER BY id",
+            "limit": 100,
+            "page": 1
+        }),
+    )
+    .await;
+    assert_eq!(queried["rows"], serde_json::json!([[1, "core"]]));
+    assert_eq!(queried["pagination"]["page_size"], 100);
+
+    let batch = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "execute_query_batch",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "queries": [
+                "INSERT INTO teams (name) VALUES ('batch')",
+                "SELECT COUNT(*) AS total FROM teams"
+            ],
+            "limit": 100,
+            "page": 1,
+            "batchId": "http-batch-1"
+        }),
+    )
+    .await;
+    assert_eq!(batch.as_array().unwrap().len(), 2);
+    assert!(batch[0]["result"].is_object());
+    assert_eq!(batch[1]["result"]["rows"], serde_json::json!([[2]]));
+
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "count_query",
+            serde_json::json!({
+                "connectionId": "metadata-fixture",
+                "query": "SELECT * FROM teams"
+            }),
+        )
+        .await,
+        serde_json::json!(2)
+    );
+    assert!(!rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_server_now",
+        serde_json::json!({"connectionId": "metadata-fixture"}),
+    )
+    .await
+    .as_str()
+    .unwrap()
+    .is_empty());
+    let explain = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "explain_query_plan",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "query": "SELECT * FROM teams",
+            "analyze": false
+        }),
+    )
+    .await;
+    assert_eq!(explain["kind"], "raw");
+    assert_eq!(explain["raw"]["engine"], "sqlite");
 
     let debug = client
         .post(format!("{base_url}/api/v1/rpc/is_debug_mode"))
@@ -871,10 +979,20 @@ async fn executes_representative_commands_over_versioned_rpc() {
         .unwrap();
     assert_eq!(deleted_k8s.status(), reqwest::StatusCode::OK);
 
+    let cookie_value = cookie.split_once('=').unwrap().1;
+    let session_id = session_security
+        .authenticate(cookie_value)
+        .unwrap()
+        .event_scope();
+    let query_request_id = "query-request-1";
+    let cancellation_slot = format!(
+        "web-query:{session_id}:{}:connection-1:{query_request_id}",
+        "connection-1".len()
+    );
     let query_task = tokio::spawn(std::future::pending::<()>());
     crate::commands::register_abort_handle(
         &application_state.query_cancellation.handles,
-        "connection-1".to_string(),
+        cancellation_slot,
         Arc::new(query_task.abort_handle()),
     );
     let cancellation = client
@@ -884,7 +1002,10 @@ async fn executes_representative_commands_over_versioned_rpc() {
         .header(CSRF_HEADER, &session.csrf_token)
         .header(RPC_DEADLINE_HEADER_NAME, "1000")
         .header(RPC_CANCELLATION_HEADER_NAME, "query-1")
-        .json(&serde_json::json!({"connectionId": "connection-1"}))
+        .json(&serde_json::json!({
+            "connectionId": "connection-1",
+            "queryRequestId": query_request_id
+        }))
         .send()
         .await
         .unwrap();

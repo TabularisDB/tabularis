@@ -256,6 +256,80 @@ async fn connection_test_failures_emit_correlated_progress() {
 }
 
 #[tokio::test]
+async fn browser_active_connections_are_isolated_by_session() {
+    let (_temp, runtime, state) = fixture();
+    let session_a = Uuid::new_v4();
+    let session_b = Uuid::new_v4();
+
+    execute_for_session(
+        &runtime,
+        &state,
+        Some(session_a),
+        ConnectionCommand::RegisterActiveConnection {
+            connection_id: "connection-a".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    execute_for_session(
+        &runtime,
+        &state,
+        Some(session_b),
+        ConnectionCommand::RegisterActiveConnection {
+            connection_id: "connection-b".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let active_a = execute_for_session(
+        &runtime,
+        &state,
+        Some(session_a),
+        ConnectionCommand::GetActiveConnections,
+    )
+    .await
+    .unwrap();
+    let active_b = execute_for_session(
+        &runtime,
+        &state,
+        Some(session_b),
+        ConnectionCommand::GetActiveConnections,
+    )
+    .await
+    .unwrap();
+    assert_eq!(active_a, serde_json::json!(["connection-a"]));
+    assert_eq!(active_b, serde_json::json!(["connection-b"]));
+
+    register_active_connection(
+        &runtime,
+        Some(&state),
+        Some(session_a),
+        "shared-connection".to_string(),
+    )
+    .await;
+    register_active_connection(
+        &runtime,
+        Some(&state),
+        Some(session_b),
+        "shared-connection".to_string(),
+    )
+    .await;
+    disconnect_connection(&runtime, Some(&state), Some(session_a), "shared-connection")
+        .await
+        .unwrap();
+    let session_b_connections = active_connections(&state, Some(session_b)).await;
+    assert!(session_b_connections.contains(&"shared-connection".to_string()));
+    assert!(crate::health_check::active_connections()
+        .await
+        .contains(&"shared-connection".to_string()));
+
+    crate::health_check::unregister_connection("connection-a").await;
+    crate::health_check::unregister_connection("connection-b").await;
+    crate::health_check::unregister_connection("shared-connection").await;
+}
+
+#[tokio::test]
 async fn icon_upload_tokens_are_bound_to_the_authenticated_session() {
     let (_temp, runtime, state) = fixture();
     let owner = Uuid::new_v4();

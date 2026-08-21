@@ -3,6 +3,19 @@ import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TabularisTransport } from "../../../src/api/client";
 
+const QUERY_RESULT = {
+  columns: ["value"],
+  rows: [[1]],
+  affected_rows: 0,
+  truncated: false,
+  pagination: {
+    page: 1,
+    page_size: 100,
+    total_rows: null,
+    has_more: false,
+  },
+};
+
 const SESSION = {
   apiVersion: "v1",
   serverVersion: "contract-fixture",
@@ -14,6 +27,11 @@ const SESSION = {
     uploads: false,
     downloads: false,
     pluginAssets: false,
+  },
+  queryResponsePolicy: {
+    maxRowsPerPage: 10_000,
+    maxResponseBytes: 16_777_216,
+    streaming: false,
   },
 };
 
@@ -93,6 +111,64 @@ export function defineTransportContractSuite(
           connectionId: "metadata-fixture",
         }),
       ).resolves.toEqual(["public"]);
+    });
+
+    it("preserves query execution contracts and request-scoped cancellation", async () => {
+      await expect(
+        harness.transport.call(
+          "execute_query",
+          {
+            connectionId: "query-fixture",
+            query: "SELECT 1 AS value",
+            limit: 100,
+            page: 1,
+          },
+          { requestId: "query-request-1", cancellationId: "query-request-1" },
+        ),
+      ).resolves.toEqual(QUERY_RESULT);
+      await expect(
+        harness.transport.call("execute_query_batch", {
+          connectionId: "query-fixture",
+          queries: ["SELECT 1 AS value"],
+          limit: 100,
+          page: 1,
+          batchId: "batch-contract-1",
+        }),
+      ).resolves.toEqual([
+        { result: QUERY_RESULT, error: null, execution_time_ms: 1 },
+      ]);
+      await expect(
+        harness.transport.call("count_query", {
+          connectionId: "query-fixture",
+          query: "SELECT 1 AS value",
+        }),
+      ).resolves.toBe(1);
+      await expect(
+        harness.transport.call("get_server_now", {
+          connectionId: "query-fixture",
+        }),
+      ).resolves.toBe("2026-08-22 00:00:00");
+      await expect(
+        harness.transport.call("explain_query_plan", {
+          connectionId: "query-fixture",
+          query: "SELECT 1 AS value",
+          analyze: false,
+        }),
+      ).resolves.toEqual({
+        kind: "raw",
+        raw: {
+          engine: "sqlite",
+          format: "sqlite-eqp-rows",
+          payload: "[]",
+          original_query: "SELECT 1 AS value",
+        },
+      });
+      await expect(
+        harness.transport.call("cancel_query", {
+          connectionId: "query-fixture",
+          queryRequestId: "query-request-1",
+        }),
+      ).resolves.toBeNull();
     });
 
     it("preserves complex JSON serialization without coercion", async () => {
@@ -241,6 +317,65 @@ async function handleRequest(
     body === JSON.stringify({ connectionId: "metadata-fixture" })
   ) {
     sendSuccess(response, ["public"], requestId);
+    return;
+  }
+  const queryRequests: Record<string, unknown> = {
+    execute_query: {
+      request: {
+        connectionId: "query-fixture",
+        query: "SELECT 1 AS value",
+        limit: 100,
+        page: 1,
+      },
+      response: QUERY_RESULT,
+    },
+    execute_query_batch: {
+      request: {
+        connectionId: "query-fixture",
+        queries: ["SELECT 1 AS value"],
+        limit: 100,
+        page: 1,
+        batchId: "batch-contract-1",
+      },
+      response: [{ result: QUERY_RESULT, error: null, execution_time_ms: 1 }],
+    },
+    count_query: {
+      request: { connectionId: "query-fixture", query: "SELECT 1 AS value" },
+      response: 1,
+    },
+    get_server_now: {
+      request: { connectionId: "query-fixture" },
+      response: "2026-08-22 00:00:00",
+    },
+    explain_query_plan: {
+      request: {
+        connectionId: "query-fixture",
+        query: "SELECT 1 AS value",
+        analyze: false,
+      },
+      response: {
+        kind: "raw",
+        raw: {
+          engine: "sqlite",
+          format: "sqlite-eqp-rows",
+          payload: "[]",
+          original_query: "SELECT 1 AS value",
+        },
+      },
+    },
+    cancel_query: {
+      request: {
+        connectionId: "query-fixture",
+        queryRequestId: "query-request-1",
+      },
+      response: null,
+    },
+  };
+  const queryFixture = queryRequests[command] as
+    | { request: unknown; response: unknown }
+    | undefined;
+  if (queryFixture && body === JSON.stringify(queryFixture.request)) {
+    sendSuccess(response, queryFixture.response, requestId);
     return;
   }
   if (

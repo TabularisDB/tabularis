@@ -17,6 +17,11 @@ const SESSION = {
     downloads: false,
     pluginAssets: false,
   },
+  queryResponsePolicy: {
+    maxRowsPerPage: 10_000,
+    maxResponseBytes: 16_777_216,
+    streaming: false,
+  },
 };
 
 function jsonResponse(body: unknown, status = 200): Response {

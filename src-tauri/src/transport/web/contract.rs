@@ -10,6 +10,7 @@ pub struct SessionNegotiation {
     pub authenticated: bool,
     pub csrf_token: String,
     pub capabilities: WebTransportCapabilities,
+    pub query_response_policy: WebQueryResponsePolicy,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -20,6 +21,14 @@ pub struct WebTransportCapabilities {
     pub uploads: bool,
     pub downloads: bool,
     pub plugin_assets: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebQueryResponsePolicy {
+    pub max_rows_per_page: u32,
+    pub max_response_bytes: usize,
+    pub streaming: bool,
 }
 
 impl SessionNegotiation {
@@ -43,6 +52,11 @@ impl SessionNegotiation {
                 uploads: true,
                 downloads: false,
                 plugin_assets: false,
+            },
+            query_response_policy: WebQueryResponsePolicy {
+                max_rows_per_page: crate::application::queries::WEB_MAX_ROWS_PER_PAGE,
+                max_response_bytes: crate::application::queries::WEB_MAX_RESPONSE_BYTES,
+                streaming: false,
             },
         }
     }

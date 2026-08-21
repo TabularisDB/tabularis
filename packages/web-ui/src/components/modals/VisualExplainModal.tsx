@@ -6,7 +6,6 @@ import {
   RefreshCw,
   AlertTriangle,
 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { useSettings } from "../../hooks/useSettings";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useDrivers } from "../../hooks/useDrivers";
@@ -17,6 +16,7 @@ import { getConnectionIcon } from "../../utils/driverUI";
 import { Modal } from "../ui/Modal";
 import { VisualExplainView } from "../explain/VisualExplainView";
 import type { ExplainViewMode } from "@tabularis/explain/react";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 
 interface VisualExplainModalProps {
   isOpen: boolean;
@@ -39,6 +39,7 @@ export const VisualExplainModal = ({
   connectionLabel,
 }: VisualExplainModalProps) => {
   const { t } = useTranslation();
+  const client = useTabularisClient();
   const { settings } = useSettings();
   const { getConnectionData, connections } = useDatabase();
   const { allDrivers } = useDrivers();
@@ -79,12 +80,15 @@ export const VisualExplainModal = ({
     setPlan(null);
 
     try {
-      const result = await invoke<ExplainQueryOutput>("explain_query_plan", {
-        connectionId,
-        query,
-        analyze,
-        schema: schema || null,
-      });
+      const result: ExplainQueryOutput = await client.call(
+        "explain_query_plan",
+        {
+          connectionId,
+          query,
+          analyze,
+          ...(schema ? { schema } : {}),
+        },
+      );
       const parsedPlan = resolveExplainOutput(result);
       setPlan(parsedPlan);
       setSelectedNodeId(parsedPlan.root.id);
@@ -93,7 +97,7 @@ export const VisualExplainModal = ({
     } finally {
       setIsLoading(false);
     }
-  }, [query, connectionId, analyze, schema, t]);
+  }, [query, connectionId, analyze, schema, t, client]);
 
   useEffect(() => {
     if (isOpen && query?.trim() && connectionId) {

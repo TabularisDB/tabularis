@@ -48,9 +48,23 @@ impl ApplicationApi for FixtureApplication {
         &self,
         context: ApplicationRequestContext,
         _connection_id: String,
+        query_request_id: Option<String>,
     ) -> Result<(), ApplicationError> {
         self.record(context).await;
-        Err(ApplicationError::new("No running query found"))
+        if query_request_id.is_some() {
+            Ok(())
+        } else {
+            Err(ApplicationError::new("No running query found"))
+        }
+    }
+
+    async fn execute_query_command(
+        &self,
+        context: ApplicationRequestContext,
+        _command: QueryCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(Value::Null)
     }
 
     async fn execute_connection_command(
@@ -127,6 +141,12 @@ fn declares_authorization_for_each_registered_command() {
     );
     assert_eq!(
         RpcCommand::Metadata(MetadataRpcCommand::GetTables)
+            .metadata()
+            .authorization,
+        AuthorizationLevel::Database
+    );
+    assert_eq!(
+        RpcCommand::Query(QueryRpcCommand::Execute)
             .metadata()
             .authorization,
         AuthorizationLevel::Database
@@ -238,6 +258,61 @@ async fn routes_all_metadata_commands_through_the_shared_application_api() {
 }
 
 #[tokio::test]
+async fn routes_query_execution_commands_through_the_shared_application_api() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let commands = [
+        (
+            "execute_query",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "query": "SELECT 1",
+                "limit": 100,
+                "page": 1
+            }),
+        ),
+        (
+            "execute_query_batch",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "queries": ["SELECT 1"],
+                "limit": 100,
+                "page": 1,
+                "batchId": "batch-1"
+            }),
+        ),
+        (
+            "count_query",
+            serde_json::json!({"connectionId": "connection-1", "query": "SELECT 1"}),
+        ),
+        (
+            "explain_query_plan",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "query": "SELECT 1",
+                "analyze": false
+            }),
+        ),
+        (
+            "get_server_now",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+    ];
+
+    for (command, payload) in commands {
+        let response = dispatcher
+            .dispatch(
+                command,
+                RequestId(format!("request-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                Some(uuid::Uuid::new_v4()),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK, "{command}");
+    }
+}
+
+#[tokio::test]
 async fn rejects_invalid_payloads_with_a_stable_error_envelope() {
     let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
     let response = dispatcher
@@ -342,6 +417,40 @@ async fn rejects_duplicate_active_cancellation_identifiers() {
         response_json(duplicate).await["error"]["code"],
         "CANCELLATION_ID_IN_USE"
     );
+    assert_eq!(first.await.unwrap().status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn scopes_active_cancellation_identifiers_to_browser_sessions() {
+    let dispatcher =
+        RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::from_millis(20))));
+    let session_a = uuid::Uuid::new_v4();
+    let session_b = uuid::Uuid::new_v4();
+    let first_dispatcher = dispatcher.clone();
+    let first = tokio::spawn(async move {
+        first_dispatcher
+            .dispatch(
+                "is_debug_mode",
+                RequestId("request-session-a".to_string()),
+                &json_headers_with_cancellation("shared"),
+                Bytes::from_static(b"null"),
+                Some(session_a),
+            )
+            .await
+    });
+    tokio::time::sleep(Duration::from_millis(5)).await;
+
+    let second = dispatcher
+        .dispatch(
+            "is_debug_mode",
+            RequestId("request-session-b".to_string()),
+            &json_headers_with_cancellation("shared"),
+            Bytes::from_static(b"null"),
+            Some(session_b),
+        )
+        .await;
+
+    assert_eq!(second.status(), StatusCode::OK);
     assert_eq!(first.await.unwrap().status(), StatusCode::OK);
 }
 

@@ -1,4 +1,4 @@
-use super::{connections, metadata, tunnels};
+use super::{connections, metadata, queries, tunnels};
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use async_trait::async_trait;
 use serde_json::Value;
@@ -60,7 +60,14 @@ pub trait ApplicationApi: Send + Sync {
         &self,
         context: ApplicationRequestContext,
         connection_id: String,
+        query_request_id: Option<String>,
     ) -> Result<(), ApplicationError>;
+
+    async fn execute_query_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: queries::QueryCommand,
+    ) -> Result<Value, ApplicationError>;
 
     async fn execute_connection_command(
         &self,
@@ -114,11 +121,33 @@ impl ApplicationApi for RuntimeApplicationApi {
 
     async fn cancel_query(
         &self,
-        _context: ApplicationRequestContext,
+        context: ApplicationRequestContext,
         connection_id: String,
+        query_request_id: Option<String>,
     ) -> Result<(), ApplicationError> {
-        crate::commands::cancel_query_impl(&self.state.query_cancellation, &connection_id)
-            .map_err(ApplicationError::new)
+        queries::cancel_query(
+            &self.state.query_cancellation,
+            context.session_id,
+            &connection_id,
+            query_request_id.as_deref(),
+        )
+        .map_err(ApplicationError::new)
+    }
+
+    async fn execute_query_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: queries::QueryCommand,
+    ) -> Result<Value, ApplicationError> {
+        queries::execute(
+            &self.runtime,
+            &self.state,
+            context.session_id,
+            &context.request_id,
+            command,
+        )
+        .await
+        .map_err(ApplicationError::new)
     }
 
     async fn execute_connection_command(

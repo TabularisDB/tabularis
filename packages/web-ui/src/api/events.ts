@@ -30,6 +30,18 @@ export interface EventMap {
     { batch_id: string; index: number; statement: BatchStatementResult },
     "database"
   >;
+  "query-status": EventDefinition<
+    {
+      requestId: RequestId;
+      connectionId: string;
+      status: "started" | "completed" | "failed";
+    },
+    "database"
+  >;
+  "query-cancelled": EventDefinition<
+    { requestId: RequestId; connectionId: string },
+    "database"
+  >;
   "ssh-askpass://request": EventDefinition<SshAskpassRequest, "sensitive">;
   "ssh-askpass://dismiss": EventDefinition<number, "sensitive">;
 }

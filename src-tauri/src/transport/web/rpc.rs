@@ -1,6 +1,7 @@
 use crate::application::{
-    connections::ConnectionCommand, metadata::MetadataCommand, tunnels::TunnelCommand,
-    ApplicationApi, ApplicationError, ApplicationRequestContext, AuthorizationLevel,
+    connections::ConnectionCommand, metadata::MetadataCommand, queries::QueryCommand,
+    tunnels::TunnelCommand, ApplicationApi, ApplicationError, ApplicationRequestContext,
+    AuthorizationLevel,
 };
 use crate::models::{
     ConnectionAppearance, ConnectionParams, K8sConnectionInput, SshConnectionInput, SshTestParams,
@@ -40,7 +41,17 @@ enum RpcCommand {
     CancelQuery,
     Connection(ConnectionRpcCommand),
     Metadata(MetadataRpcCommand),
+    Query(QueryRpcCommand),
     Tunnel(TunnelRpcCommand),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum QueryRpcCommand {
+    Execute,
+    ExecuteBatch,
+    Count,
+    Explain,
+    GetServerNow,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -129,6 +140,7 @@ struct CommandMetadata {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CancelQueryRequest {
     connection_id: String,
+    query_request_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -178,6 +190,44 @@ struct SetSelectedSchemasRequest {
 struct SetSchemaPreferenceRequest {
     connection_id: String,
     schema: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ExecuteQueryRequest {
+    connection_id: String,
+    query: String,
+    limit: Option<u32>,
+    page: Option<u32>,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ExecuteQueryBatchRequest {
+    connection_id: String,
+    queries: Vec<String>,
+    limit: Option<u32>,
+    page: Option<u32>,
+    schema: Option<String>,
+    batch_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CountQueryRequest {
+    connection_id: String,
+    query: String,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ExplainQueryRequest {
+    connection_id: String,
+    query: String,
+    analyze: bool,
+    schema: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -498,7 +548,8 @@ impl RpcDispatcher {
                 )
             }
         };
-        let _registration = match self.register_cancellation(cancellation_id.as_deref()) {
+        let _registration = match self.register_cancellation(cancellation_id.as_deref(), session_id)
+        {
             Ok(registration) => registration,
             Err(message) => {
                 return failure(
@@ -577,11 +628,23 @@ impl RpcDispatcher {
             RpcCommand::CancelQuery => {
                 let request: CancelQueryRequest =
                     decode_payload(body).map_err(InvocationError::InvalidPayload)?;
+                if let Some(request_id) = request.query_request_id.as_deref() {
+                    validate_query_request_id(request_id)
+                        .map_err(InvocationError::InvalidPayload)?;
+                }
                 self.application
-                    .cancel_query(context, request.connection_id)
+                    .cancel_query(context, request.connection_id, request.query_request_id)
                     .await
                     .map_err(InvocationError::Application)?;
                 Ok(Value::Null)
+            }
+            RpcCommand::Query(command) => {
+                let command =
+                    decode_query_command(command, body).map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_query_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
             }
             RpcCommand::Connection(command) => {
                 let command = decode_connection_command(command, context.session_id, body)
@@ -613,20 +676,23 @@ impl RpcDispatcher {
     fn register_cancellation(
         &self,
         cancellation_id: Option<&str>,
+        session_id: Option<uuid::Uuid>,
     ) -> Result<Option<CancellationRegistration>, String> {
         let Some(id) = cancellation_id else {
             return Ok(None);
         };
+        let id =
+            session_id.map_or_else(|| id.to_string(), |session_id| format!("{session_id}:{id}"));
         let mut active = self
             .active_cancellations
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        if !active.insert(id.to_string()) {
+        if !active.insert(id.clone()) {
             return Err("The cancellation identifier is already active".to_string());
         }
         drop(active);
         Ok(Some(CancellationRegistration {
-            id: id.to_string(),
+            id,
             active: self.active_cancellations.clone(),
         }))
     }
@@ -638,8 +704,9 @@ impl RpcCommand {
             "is_debug_mode" => Some(Self::IsDebugMode),
             "get_connections" => Some(Self::GetConnections),
             "cancel_query" => Some(Self::CancelQuery),
-            name => TunnelRpcCommand::parse(name)
-                .map(Self::Tunnel)
+            name => QueryRpcCommand::parse(name)
+                .map(Self::Query)
+                .or_else(|| TunnelRpcCommand::parse(name).map(Self::Tunnel))
                 .or_else(|| MetadataRpcCommand::parse(name).map(Self::Metadata))
                 .or_else(|| ConnectionRpcCommand::parse(name).map(Self::Connection)),
         }
@@ -662,6 +729,11 @@ impl RpcCommand {
                 application_error_code: "QUERY_CANCELLATION_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            Self::Query(_) => CommandMetadata {
+                authorization: AuthorizationLevel::Database,
+                application_error_code: "QUERY_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
             Self::Connection(_) => CommandMetadata {
                 authorization: AuthorizationLevel::Database,
                 application_error_code: "CONNECTION_COMMAND_FAILED",
@@ -682,6 +754,19 @@ impl RpcCommand {
                 application_error_status: StatusCode::CONFLICT,
             },
         }
+    }
+}
+
+impl QueryRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "execute_query" => Self::Execute,
+            "execute_query_batch" => Self::ExecuteBatch,
+            "count_query" => Self::Count,
+            "explain_query_plan" => Self::Explain,
+            "get_server_now" => Self::GetServerNow,
+            _ => return None,
+        })
     }
 }
 
@@ -770,6 +855,55 @@ impl ConnectionRpcCommand {
             _ => return None,
         })
     }
+}
+
+fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCommand, String> {
+    Ok(match command {
+        QueryRpcCommand::Execute => {
+            let request: ExecuteQueryRequest = decode_payload(body)?;
+            QueryCommand::Execute {
+                connection_id: request.connection_id,
+                query: request.query,
+                limit: request.limit,
+                page: request.page,
+                schema: request.schema,
+            }
+        }
+        QueryRpcCommand::ExecuteBatch => {
+            let request: ExecuteQueryBatchRequest = decode_payload(body)?;
+            QueryCommand::ExecuteBatch {
+                connection_id: request.connection_id,
+                queries: request.queries,
+                limit: request.limit,
+                page: request.page,
+                schema: request.schema,
+                batch_id: request.batch_id,
+            }
+        }
+        QueryRpcCommand::Count => {
+            let request: CountQueryRequest = decode_payload(body)?;
+            QueryCommand::Count {
+                connection_id: request.connection_id,
+                query: request.query,
+                schema: request.schema,
+            }
+        }
+        QueryRpcCommand::Explain => {
+            let request: ExplainQueryRequest = decode_payload(body)?;
+            QueryCommand::Explain {
+                connection_id: request.connection_id,
+                query: request.query,
+                analyze: request.analyze,
+                schema: request.schema,
+            }
+        }
+        QueryRpcCommand::GetServerNow => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            QueryCommand::GetServerNow {
+                connection_id: request.connection_id,
+            }
+        }
+    })
 }
 
 fn decode_metadata_command(
@@ -1281,6 +1415,18 @@ fn cancellation_id(headers: &HeaderMap) -> Result<Option<String>, String> {
         return Err("The cancellation identifier has an invalid format".to_string());
     }
     Ok(Some(value.to_string()))
+}
+
+fn validate_query_request_id(request_id: &str) -> Result<(), String> {
+    if request_id.is_empty()
+        || request_id.len() > MAX_CANCELLATION_ID_LENGTH
+        || !request_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
+    {
+        return Err("The query request identifier has an invalid format".to_string());
+    }
+    Ok(())
 }
 
 fn has_json_content_type(headers: &HeaderMap) -> bool {

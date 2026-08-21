@@ -1,6 +1,8 @@
 use crate::commands::AbortHandleMap;
 use crate::connection_import_commands::ImportEnvelopeCache;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
+use uuid::Uuid;
 
 pub struct ApplicationState {
     pub pending_install: crate::plugins::deep_link::PendingInstall,
@@ -14,6 +16,7 @@ pub struct ApplicationState {
     pub json_viewer_store: crate::json_viewer::JsonViewerStore,
     pub results_window_store: crate::results_window::ResultsWindowStore,
     pub query_history_state: crate::query_history::QueryHistoryState,
+    pub web_active_connections: Mutex<HashMap<Uuid, HashSet<String>>>,
 }
 
 impl ApplicationState {
@@ -52,6 +55,7 @@ impl Default for ApplicationState {
             json_viewer_store: crate::json_viewer::JsonViewerStore::default(),
             results_window_store: crate::results_window::ResultsWindowStore::default(),
             query_history_state: crate::query_history::QueryHistoryState::default(),
+            web_active_connections: Mutex::new(HashMap::new()),
         }
     }
 }

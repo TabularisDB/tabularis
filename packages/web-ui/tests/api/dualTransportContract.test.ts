@@ -52,11 +52,65 @@ defineTransportContractSuite(
         expect(request).toEqual({ connectionId: "metadata-fixture" });
         return ["public"];
       }
+      if (command === "execute_query") {
+        expect(request).toEqual({
+          connectionId: "query-fixture",
+          query: "SELECT 1 AS value",
+          limit: 100,
+          page: 1,
+        });
+        return {
+          columns: ["value"],
+          rows: [[1]],
+          affected_rows: 0,
+          truncated: false,
+          pagination: {
+            page: 1,
+            page_size: 100,
+            total_rows: null,
+            has_more: false,
+          },
+        };
+      }
+      if (command === "execute_query_batch") {
+        return [
+          {
+            result: {
+              columns: ["value"],
+              rows: [[1]],
+              affected_rows: 0,
+              truncated: false,
+              pagination: {
+                page: 1,
+                page_size: 100,
+                total_rows: null,
+                has_more: false,
+              },
+            },
+            error: null,
+            execution_time_ms: 1,
+          },
+        ];
+      }
+      if (command === "count_query") return 1;
+      if (command === "get_server_now") return "2026-08-22 00:00:00";
+      if (command === "explain_query_plan") {
+        return {
+          kind: "raw",
+          raw: {
+            engine: "sqlite",
+            format: "sqlite-eqp-rows",
+            payload: "[]",
+            original_query: "SELECT 1 AS value",
+          },
+        };
+      }
       if (command === "contract_serialization_fixture") {
         expect(request).toEqual({ fixture: "complex-query-result" });
         return serializationFixture;
       }
       if (command === "cancel_query") {
+        if ("queryRequestId" in (request as Record<string, unknown>)) return null;
         expect(request).toEqual({ connectionId: "missing-connection" });
         throw new Error("No running query found");
       }

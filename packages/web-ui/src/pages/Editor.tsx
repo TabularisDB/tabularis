@@ -158,6 +158,7 @@ import {
 import { computeAutoScrollSpeed } from "../utils/notebookDnd";
 import clsx from "clsx";
 import { useTabularisClient } from "../hooks/useTabularisClient";
+import { createRequestId } from "../api/errors";
 
 interface ExportProgress {
   rows_processed: number;
@@ -547,6 +548,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   // two different statements/tables in quick succession) and skip applying
   // its (now wrong-table) column metadata over the newer run's.
   const queryGenerationRef = useRef<Record<string, number>>({});
+  const activeQueryRequestIdsRef = useRef<Set<string>>(new Set());
   // Stable refs for functions used inside Monaco actions (which capture closures at mount time)
   const runQueryRef = useRef<typeof runQuery>(null!);
   const runMultipleQueriesRef = useRef<typeof runMultipleQueries>(null!);
@@ -863,8 +865,20 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
   const stopQuery = useCallback(async () => {
     if (!activeConnectionId) return;
+    const requestIds = [...activeQueryRequestIdsRef.current];
     try {
-      await client.call("cancel_query", { connectionId: activeConnectionId });
+      if (requestIds.length === 0) {
+        await client.call("cancel_query", { connectionId: activeConnectionId });
+      } else {
+        await Promise.allSettled(
+          requestIds.map((queryRequestId) =>
+            client.call("cancel_query", {
+              connectionId: activeConnectionId,
+              queryRequestId,
+            }),
+          ),
+        );
+      }
       updateActiveTab({ isLoading: false });
     } catch (e) {
       console.error("Failed to stop:", e);
@@ -1001,6 +1015,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       const historyDb = schema
         || (isMultiDb ? activeDatabaseName : undefined)
         || undefined;
+      const queryRequestId = createRequestId();
+      activeQueryRequestIdsRef.current.add(queryRequestId);
 
       try {
         const start = performance.now();
@@ -1011,13 +1027,17 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           pageSizeOverride ?? targetTab.pageSize,
           settings.resultPageSize,
         );
-        const res = await client.call("execute_query", {
-          connectionId: activeConnectionId,
-          query: textToRun,
-          limit: pageSize,
-          page: pageNum,
-          ...(schema ? { schema } : {}),
-        });
+        const res = await client.call(
+          "execute_query",
+          {
+            connectionId: activeConnectionId,
+            query: textToRun,
+            limit: pageSize,
+            page: pageNum,
+            ...(schema ? { schema } : {}),
+          },
+          { requestId: queryRequestId, cancellationId: queryRequestId },
+        );
         const end = performance.now();
 
         // A single statement can return several result sets (e.g. a MySQL
@@ -1147,6 +1167,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             historyDb,
           );
         }
+      } finally {
+        activeQueryRequestIdsRef.current.delete(queryRequestId);
       }
     },
     [
@@ -1296,8 +1318,10 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       // TEMP TABLE).
       const batchStart = performance.now();
       let batchResults: BatchStatementResult[];
+      const queryRequestId = createRequestId();
+      activeQueryRequestIdsRef.current.add(queryRequestId);
       try {
-        batchResults = await invoke<BatchStatementResult[]>(
+        batchResults = await client.call(
           "execute_query_batch",
           {
             connectionId: activeConnectionId,
@@ -1307,6 +1331,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             batchId,
             ...(schema ? { schema } : {}),
           },
+          { requestId: queryRequestId, cancellationId: queryRequestId },
         );
       } catch (err) {
         unlisten();
@@ -1335,6 +1360,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         });
         updateTab(targetTabId, { isLoading: false });
         return;
+      } finally {
+        activeQueryRequestIdsRef.current.delete(queryRequestId);
       }
 
       unlisten();
@@ -1443,15 +1470,21 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         });
       }
 
+      const queryRequestId = createRequestId();
+      activeQueryRequestIdsRef.current.add(queryRequestId);
       try {
         const start = performance.now();
-        const res = await client.call("execute_query", {
-          connectionId: activeConnectionId,
-          query: entry.query,
-          limit: pageSize,
-          page: pageNum,
-          ...(schema ? { schema } : {}),
-        });
+        const res = await client.call(
+          "execute_query",
+          {
+            connectionId: activeConnectionId,
+            query: entry.query,
+            limit: pageSize,
+            page: pageNum,
+            ...(schema ? { schema } : {}),
+          },
+          { requestId: queryRequestId, cancellationId: queryRequestId },
+        );
         const end = performance.now();
 
         const latestTab = tabsRef.current.find((t) => t.id === targetTabId);
@@ -1491,6 +1524,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             }),
           });
         }
+      } finally {
+        activeQueryRequestIdsRef.current.delete(queryRequestId);
       }
     },
     [client, activeConnectionId, updateTab, settings.resultPageSize, activeSchema, t],
@@ -1552,10 +1587,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       const isDetached = detachedTabIdsRef.current.has(tab.id);
       if (!isDetached) setIsCountLoading(true);
       try {
-        const total = await invoke<number>("count_query", {
+        const schema = tab.schema ?? activeSchema;
+        const total = await client.call("count_query", {
           connectionId: activeConnectionId,
           query: countTarget,
-          schema: tab.schema ?? activeSchema,
+          ...(schema ? { schema } : {}),
         });
         const latest = tabsRef.current.find((t) => t.id === tab.id) ?? tab;
         if (!latest.result?.pagination) return;
@@ -1576,6 +1612,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       activeDriver,
       activeCapabilities,
       updateTab,
+      client,
     ],
   );
 

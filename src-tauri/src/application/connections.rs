@@ -291,16 +291,14 @@ pub async fn execute_for_session(
             json(manifest)
         }
         ConnectionCommand::GetActiveConnections => {
-            json(crate::health_check::active_connections().await)
+            json(active_connections(state, session_id).await)
         }
         ConnectionCommand::RegisterActiveConnection { connection_id } => {
-            crate::health_check::register_connection(connection_id).await;
-            emit_active_connections(runtime).await;
+            register_active_connection(runtime, Some(state), session_id, connection_id).await;
             Ok(Value::Null)
         }
         ConnectionCommand::DisconnectConnection { connection_id } => {
-            disconnect_connection(runtime, &connection_id).await?;
-            emit_active_connections(runtime).await;
+            disconnect_connection(runtime, Some(state), session_id, &connection_id).await?;
             Ok(Value::Null)
         }
         ConnectionCommand::TestConnection { request } => {
@@ -924,21 +922,88 @@ fn reorder_connections(
     save_file(runtime, state, &file)
 }
 
-async fn emit_active_connections(runtime: &RuntimeContext) {
-    let active = crate::health_check::active_connections().await;
-    let _ = runtime.events.emit(
-        "connections:active-changed",
-        serde_json::to_value(active).unwrap_or(Value::Null),
-    );
+async fn active_connections(state: &ApplicationState, session_id: Option<Uuid>) -> Vec<String> {
+    let Some(session_id) = session_id else {
+        return crate::health_check::active_connections().await;
+    };
+    state
+        .web_active_connections
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .get(&session_id)
+        .map(|connections| connections.iter().cloned().collect())
+        .unwrap_or_default()
 }
 
-async fn disconnect_connection(
+pub async fn register_active_connection(
     runtime: &RuntimeContext,
+    state: Option<&ApplicationState>,
+    session_id: Option<Uuid>,
+    connection_id: String,
+) {
+    if let (Some(state), Some(session_id)) = (state, session_id) {
+        state
+            .web_active_connections
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .entry(session_id)
+            .or_default()
+            .insert(connection_id.clone());
+    }
+    crate::health_check::register_connection(connection_id).await;
+    emit_active_connections(runtime, state, session_id).await;
+}
+
+async fn emit_active_connections(
+    runtime: &RuntimeContext,
+    state: Option<&ApplicationState>,
+    session_id: Option<Uuid>,
+) {
+    let active = if let (Some(state), Some(session_id)) = (state, session_id) {
+        active_connections(state, Some(session_id)).await
+    } else {
+        crate::health_check::active_connections().await
+    };
+    let payload = serde_json::to_value(active).unwrap_or(Value::Null);
+    let _ = if let Some(session_id) = session_id {
+        runtime
+            .events
+            .emit_to(session_id, "connections:active-changed", payload)
+    } else {
+        runtime.events.emit("connections:active-changed", payload)
+    };
+}
+
+pub async fn disconnect_connection(
+    runtime: &RuntimeContext,
+    state: Option<&ApplicationState>,
+    session_id: Option<Uuid>,
     connection_id: &str,
 ) -> Result<(), String> {
-    crate::health_check::unregister_connection(connection_id).await;
-    let connection = find_connection(&load_file(runtime)?, connection_id)?;
-    crate::pool_manager::close_pool_with_id(&connection.params, Some(connection_id)).await;
+    let still_owned = if let (Some(state), Some(session_id)) = (state, session_id) {
+        let mut sessions = state
+            .web_active_connections
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if let Some(connections) = sessions.get_mut(&session_id) {
+            connections.remove(connection_id);
+            if connections.is_empty() {
+                sessions.remove(&session_id);
+            }
+        }
+        sessions
+            .iter()
+            .any(|(_, connections)| connections.contains(connection_id))
+    } else {
+        false
+    };
+
+    if !still_owned {
+        crate::health_check::unregister_connection(connection_id).await;
+        let (_, params) = resolve_saved_connection_params(runtime, session_id, connection_id)?;
+        crate::pool_manager::close_pool_with_id(&params, Some(connection_id)).await;
+    }
+    emit_active_connections(runtime, state, session_id).await;
     Ok(())
 }
 

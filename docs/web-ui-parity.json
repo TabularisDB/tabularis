@@ -53,8 +53,8 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 163,
-    "literalCallSiteCount": 231,
+    "literalCommandCount": 159,
+    "literalCallSiteCount": 226,
     "dynamicCallSiteCount": 2,
     "handlerRegistrationCount": 255,
     "registeredCommandCount": 254,
@@ -62,7 +62,7 @@
       "cancel_dump"
     ],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 91
+    "registeredCommandsWithoutFrontendCall": 95
   },
   "commands": [
     {
@@ -195,7 +195,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 3302
+          "line": 3339
         }
       ]
     },
@@ -349,11 +349,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 1599
+          "line": 1636
         },
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 1643
+          "line": 1680
         }
       ]
     },
@@ -382,20 +382,6 @@
         {
           "file": "packages/web-ui/src/hooks/useDeepLinkInstall.ts",
           "line": 66
-        }
-      ]
-    },
-    {
-      "name": "count_query",
-      "featureGroup": "queries",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 1555
         }
       ]
     },
@@ -581,11 +567,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 2786
+          "line": 2823
         },
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 2807
+          "line": 2844
         }
       ]
     },
@@ -820,20 +806,6 @@
       ]
     },
     {
-      "name": "execute_query_batch",
-      "featureGroup": "queries",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 1300
-        }
-      ]
-    },
-    {
       "name": "explain_ai_query",
       "featureGroup": "ai",
       "eventUse": "event-coordinated",
@@ -844,24 +816,6 @@
         {
           "file": "packages/web-ui/src/components/modals/AiExplainModal.tsx",
           "line": 57
-        }
-      ]
-    },
-    {
-      "name": "explain_query_plan",
-      "featureGroup": "queries",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/VisualExplainModal.tsx",
-          "line": 82
-        },
-        {
-          "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
-          "line": 77
         }
       ]
     },
@@ -945,7 +899,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 3362
+          "line": 3399
         }
       ]
     },
@@ -1539,7 +1493,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
-          "line": 111
+          "line": 115
         }
       ]
     },
@@ -1678,20 +1632,6 @@
       ]
     },
     {
-      "name": "get_server_now",
-      "featureGroup": "queries",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/ui/DataGrid.tsx",
-          "line": 1569
-        }
-      ]
-    },
-    {
       "name": "get_system_prompt",
       "featureGroup": "ai",
       "eventUse": "none",
@@ -1807,7 +1747,7 @@
         },
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 2883
+          "line": 2920
         }
       ]
     },
@@ -1959,7 +1899,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
-          "line": 56
+          "line": 58
         }
       ]
     },
@@ -2063,7 +2003,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/ui/DataGrid.tsx",
-          "line": 487
+          "line": 489
         },
         {
           "file": "packages/web-ui/src/components/ui/JsonInput.tsx",
@@ -2095,7 +2035,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 1587
+          "line": 1624
         }
       ]
     },
@@ -2551,7 +2491,7 @@
         },
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 498
+          "line": 499
         }
       ]
     },
@@ -2593,15 +2533,15 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/ui/DataGrid.tsx",
-          "line": 1112
+          "line": 1114
         },
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 2843
+          "line": 2880
         },
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 2866
+          "line": 2903
         }
       ]
     },
@@ -2661,6 +2601,7 @@
   "registeredCommandsWithoutFrontendCall": [
     "cancel_query",
     "close_devtools",
+    "count_query",
     "create_connection_group",
     "create_connection_tag",
     "create_group_path",
@@ -2676,6 +2617,8 @@
     "disconnect_connection",
     "duplicate_connection",
     "execute_query",
+    "execute_query_batch",
+    "explain_query_plan",
     "export_theme",
     "get_active_connections",
     "get_available_databases",
@@ -2703,6 +2646,7 @@
     "get_schema_snapshot",
     "get_schemas",
     "get_selected_schemas",
+    "get_server_now",
     "get_ssh_connections",
     "get_tables",
     "get_theme",

@@ -62,6 +62,7 @@ import {
 } from "../../utils/dataGrid";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { useSettings } from "../../hooks/useSettings";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
 import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
 import {
@@ -206,6 +207,7 @@ export const DataGrid = React.memo(
     onCopyAllRows,
   }: DataGridProps) => {
     const { t } = useTranslation();
+    const client = useTabularisClient();
     const { activeSchema, connections } = useDatabase();
     const guardProductionWrite = useProductionGuard();
     const { showAlert } = useAlert();
@@ -1566,7 +1568,7 @@ export const DataGrid = React.memo(
       if (!dateMode) return;
 
       setContextMenu(null);
-      invoke<string>("get_server_now", { connectionId })
+      client.call("get_server_now", { connectionId })
         .then((raw) => {
           const formatted = formatDateTime(parseDateTime(raw), dateMode);
           if (isInsertion && onPendingInsertionChange && mergedRow?.tempId) {
@@ -1589,6 +1591,7 @@ export const DataGrid = React.memo(
       pkColumns,
       t,
       showAlert,
+      client,
     ]);
 
     const copyToClipboard = useCallback(

@@ -82,19 +82,6 @@ pub(crate) fn unregister_abort_handle(
     }
 }
 
-/// Trims trailing semicolons and normalises Unicode smart quotes that some
-/// editors insert when the user pastes a query. Called on every query the
-/// UI hands off to a driver.
-fn sanitize_user_query(query: &str) -> String {
-    query
-        .trim()
-        .trim_end_matches(';')
-        .replace('\u{2018}', "'")
-        .replace('\u{2019}', "'")
-        .replace('\u{201C}', "\"")
-        .replace('\u{201D}', "\"")
-}
-
 // --- Persistence Helpers ---
 
 pub async fn expand_ssh_connection_params<R: Runtime>(
@@ -3304,21 +3291,17 @@ pub async fn insert_record<R: Runtime>(
         .await
 }
 
+#[cfg(test)]
 pub(crate) fn cancel_query_impl(
     state: &QueryCancellationState,
     connection_id: &str,
 ) -> Result<(), String> {
-    let entries = {
-        let mut handles = state.handles.lock().unwrap();
-        handles.remove(connection_id).unwrap_or_default()
-    };
-    if entries.is_empty() {
-        return Err("No running query found".into());
-    }
-    for handle in entries {
-        handle.abort();
-    }
-    Ok(())
+    crate::application::queries::cancel_registered_queries(
+        state,
+        None,
+        connection_id,
+        None,
+    )
 }
 
 #[tauri::command]
@@ -3326,41 +3309,7 @@ pub async fn cancel_query(
     state: State<'_, QueryCancellationState>,
     connection_id: String,
 ) -> Result<(), String> {
-    cancel_query_impl(&state, &connection_id)
-}
-
-/// Payload for the `database-dropped` event, emitted after a `DROP DATABASE`
-/// statement succeeds so a listener can reconcile the connection's database
-/// selection instead of leaving the dropped database in the sidebar until the
-/// next reconnect (#525).
-// `connectionId` rather than `connection_id`: the `connection-health-failed`
-// event already carries this same field in camelCase, and matching the field
-// name for the same concept matters more than matching the neighbouring
-// `batch-statement-complete` payload, which happens to use snake_case.
-#[derive(serde::Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-struct DatabaseDroppedEvent<'a> {
-    connection_id: &'a str,
-    database: &'a str,
-}
-
-/// Announces that `database` no longer exists on the server behind
-/// `connection_id`. Emitting is best-effort: a listener that missed the event
-/// only means the sidebar stays stale until the next manual refresh, which is
-/// the pre-#525 behaviour, so a failed emit must not fail the query.
-fn emit_database_dropped<R: Runtime>(app: &AppHandle<R>, connection_id: &str, database: &str) {
-    log::info!(
-        "DROP DATABASE detected on connection {}: '{}'",
-        connection_id,
-        database
-    );
-    let _ = app.emit(
-        "database-dropped",
-        DatabaseDroppedEvent {
-            connection_id,
-            database,
-        },
-    );
+    crate::application::queries::cancel_query(&state, None, &connection_id, None)
 }
 
 #[tauri::command]
@@ -3373,75 +3322,18 @@ pub async fn execute_query<R: Runtime>(
     page: Option<u32>,
     schema: Option<String>,
 ) -> Result<QueryResult, String> {
-    log::info!(
-        "Executing query on connection: {} | Query: {}",
+    crate::application::queries::execute_query(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &state,
+        crate::application::queries::QueryRequestScope::DESKTOP,
+        crate::application::queries::QueryResponsePolicy::Unbounded,
         connection_id,
-        query
-    );
-
-    let sanitized_query = sanitize_user_query(&query);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    // Detected before the spawn, which takes ownership of `sanitized_query`.
-    // Cheap: only allocates when the statement really is a DROP DATABASE.
-    let dropped = crate::sql_database_statements::dropped_database(&sanitized_query);
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let task = tokio::spawn(async move {
-        drv.execute_query(
-            &params,
-            &sanitized_query,
-            limit,
-            page.unwrap_or(1),
-            schema.as_deref(),
-        )
-        .await
-    });
-
-    let abort_handle = Arc::new(task.abort_handle());
-    register_abort_handle(&state.handles, connection_id.clone(), abort_handle.clone());
-
-    let result = task.await;
-
-    unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
-
-    match result {
-        Ok(Ok(query_result)) => {
-            log::info!(
-                "Query executed successfully, returned {} rows",
-                query_result.rows.len()
-            );
-            if let Some(database) = &dropped {
-                emit_database_dropped(&app, &connection_id, database);
-            }
-            Ok(query_result)
-        }
-        Ok(Err(e)) => {
-            log::error!("Query execution failed: {}", e);
-            Err(e)
-        }
-        Err(_) => {
-            log::warn!("Query was cancelled");
-            Err("Query cancelled".into())
-        }
-    }
-}
-
-/// Payload for the `batch-statement-complete` event, emitted once per
-/// statement the instant it finishes so the frontend can mark that result tab
-/// done in real time instead of waiting for the whole batch. `batch_id` lets a
-/// listener ignore events from other concurrent runs; `index` maps back to the
-/// statement's slot. Borrows the result so no clone of the (potentially large)
-/// row set is needed.
-#[derive(serde::Serialize, Clone)]
-struct BatchStatementEvent<'a> {
-    batch_id: &'a str,
-    index: usize,
-    statement: &'a BatchStatementResult,
+        query,
+        limit,
+        page,
+        schema,
+    )
+    .await
 }
 
 /// Runs a sequence of statements that share a single physical database
@@ -3467,97 +3359,19 @@ pub async fn execute_query_batch<R: Runtime>(
     schema: Option<String>,
     batch_id: Option<String>,
 ) -> Result<Vec<BatchStatementResult>, String> {
-    log::info!(
-        "Executing query batch on connection: {} | {} statement(s)",
+    crate::application::queries::execute_query_batch(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &state,
+        crate::application::queries::QueryRequestScope::DESKTOP,
+        crate::application::queries::QueryResponsePolicy::Unbounded,
         connection_id,
-        queries.len()
-    );
-
-    let sanitized_queries: Vec<String> = queries.iter().map(|q| sanitize_user_query(q)).collect();
-
-    // One entry per statement, computed before the spawn takes ownership of
-    // `sanitized_queries`. Index-aligned with the results returned below, the
-    // same assumption the `batch-statement-complete` event already relies on.
-    let dropped_per_statement: Vec<Option<String>> = sanitized_queries
-        .iter()
-        .map(|q| crate::sql_database_statements::dropped_database(q))
-        .collect();
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-
-    // Build a Tauri-agnostic progress sink the driver invokes per statement.
-    // Each invocation emits one event so result tabs resolve as they finish.
-    let progress: Option<Arc<crate::drivers::driver_trait::BatchProgressFn>> =
-        batch_id.map(|bid| {
-            let app = app.clone();
-            let cb: Arc<crate::drivers::driver_trait::BatchProgressFn> =
-                Arc::new(move |index, statement: &BatchStatementResult| {
-                    let _ = app.emit(
-                        "batch-statement-complete",
-                        BatchStatementEvent {
-                            batch_id: &bid,
-                            index,
-                            statement,
-                        },
-                    );
-                });
-            cb
-        });
-
-    let task = tokio::spawn(async move {
-        drv.execute_batch(
-            &params,
-            &sanitized_queries,
-            limit,
-            page.unwrap_or(1),
-            schema.as_deref(),
-            progress.as_deref(),
-        )
-        .await
-    });
-
-    let abort_handle = Arc::new(task.abort_handle());
-    register_abort_handle(&state.handles, connection_id.clone(), abort_handle.clone());
-
-    let result = task.await;
-
-    unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
-
-    match result {
-        Ok(Ok(batch_results)) => {
-            let success_count = batch_results.iter().filter(|r| r.result.is_some()).count();
-            log::info!(
-                "Batch executed: {} succeeded, {} failed (of {} total)",
-                success_count,
-                batch_results.len() - success_count,
-                batch_results.len()
-            );
-            // A batch reports per-statement outcomes, so only announce drops
-            // whose own statement succeeded; a failed DROP leaves the database
-            // in place.
-            for (dropped, statement) in dropped_per_statement.iter().zip(&batch_results) {
-                if let Some(database) = dropped {
-                    if statement.result.is_some() {
-                        emit_database_dropped(&app, &connection_id, database);
-                    }
-                }
-            }
-            Ok(batch_results)
-        }
-        Ok(Err(e)) => {
-            log::error!("Batch execution failed at setup: {}", e);
-            Err(e)
-        }
-        Err(_) => {
-            log::warn!("Batch was cancelled");
-            Err("Query cancelled".into())
-        }
-    }
+        queries,
+        limit,
+        page,
+        schema,
+        batch_id,
+    )
+    .await
 }
 
 // --- Explain Query Plan ---
@@ -3571,54 +3385,16 @@ pub async fn explain_query_plan<R: Runtime>(
     analyze: bool,
     schema: Option<String>,
 ) -> Result<ExplainQueryOutput, String> {
-    log::info!(
-        "Explaining query on connection: {} | analyze: {} | Query: {}",
+    crate::application::queries::explain_query_plan(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &state,
+        crate::application::queries::QueryRequestScope::DESKTOP,
         connection_id,
+        query,
         analyze,
-        query
-    );
-
-    let sanitized_query = sanitize_user_query(&query);
-
-    if !crate::drivers::common::is_explainable_query(&sanitized_query) {
-        return Err(
-            "EXPLAIN is only supported for DML statements (SELECT, INSERT, UPDATE, DELETE, REPLACE). DDL statements like CREATE, DROP, or ALTER cannot be explained."
-                .into(),
-        );
-    }
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let task = tokio::spawn(async move {
-        drv.explain_query(&params, &sanitized_query, analyze, schema.as_deref())
-            .await
-    });
-
-    let abort_handle = Arc::new(task.abort_handle());
-    register_abort_handle(&state.handles, connection_id.clone(), abort_handle.clone());
-
-    let result = task.await;
-
-    unregister_abort_handle(&state.handles, &connection_id, &abort_handle);
-
-    match result {
-        Ok(Ok(plan)) => {
-            log::info!("Explain query completed successfully");
-            Ok(plan)
-        }
-        Ok(Err(e)) => {
-            log::error!("Explain query failed: {}", e);
-            Err(e)
-        }
-        Err(_) => {
-            log::warn!("Explain query was cancelled");
-            Err("Explain query cancelled".into())
-        }
-    }
+        schema,
+    )
+    .await
 }
 
 // --- Count Query ---
@@ -3630,29 +3406,14 @@ pub async fn count_query<R: Runtime>(
     query: String,
     schema: Option<String>,
 ) -> Result<u64, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let sanitized = query.trim().trim_end_matches(';').to_string();
-
-    let count_q = format!("SELECT COUNT(*) FROM ({}) as count_wrapper", sanitized);
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv
-        .execute_query(&params, &count_q, None, 1, schema.as_deref())
-        .await?;
-
-    let total: u64 = result
-        .rows
-        .first()
-        .and_then(|r| r.first())
-        .and_then(|v| v.as_i64())
-        .map(|n| n as u64)
-        .unwrap_or(0);
-
-    Ok(total)
+    crate::application::queries::count_query(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        connection_id,
+        query,
+        schema,
+    )
+    .await
 }
 
 // --- Window Title Management ---
@@ -4403,9 +4164,13 @@ pub async fn apply_db_user_privileges<R: Runtime>(
 /// Register a connection as active for health-check pinging.
 #[tauri::command]
 pub async fn register_active_connection<R: Runtime>(app: AppHandle<R>, connection_id: String) {
-    crate::health_check::register_connection(connection_id).await;
-    // Broadcast so every window learns this connection is now open.
-    crate::health_check::emit_active_changed(&app).await;
+    crate::application::connections::register_active_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        None,
+        connection_id,
+    )
+    .await;
 }
 
 /// Snapshot of connection ids currently open in the shared backend (across all
@@ -4421,27 +4186,13 @@ pub async fn disconnect_connection<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<(), String> {
-    log::info!("Disconnecting from connection: {}", connection_id);
-
-    // Unregister from health check before closing the pool.
-    crate::health_check::unregister_connection(&connection_id).await;
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    // Close the connection pool
-    crate::pool_manager::close_pool_with_id(&params, Some(&connection_id)).await;
-
-    // Broadcast so every window learns this connection is now closed.
-    crate::health_check::emit_active_changed(&app).await;
-
-    log::info!(
-        "Successfully disconnected from connection: {}",
-        connection_id
-    );
-    Ok(())
+    crate::application::connections::disconnect_connection(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        None,
+        &connection_id,
+    )
+    .await
 }
 
 // --- Type Registry ---
@@ -4977,28 +4728,12 @@ pub async fn get_server_now<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<String, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let query = match saved_conn.params.driver.as_str() {
-        "sqlite" => "SELECT datetime('now', 'localtime')",
-        _ => "SELECT NOW()",
-    };
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv.execute_query(&params, query, Some(1), 1, None).await?;
-
-    result
-        .rows
-        .first()
-        .and_then(|row| row.first())
-        .map(|v| match v {
-            serde_json::Value::String(s) => s.clone(),
-            other => other.to_string(),
-        })
-        .ok_or_else(|| "No timestamp returned from server".to_string())
+    crate::application::queries::get_server_now(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        connection_id,
+    )
+    .await
 }
 
 #[tauri::command]

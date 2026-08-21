@@ -16,6 +16,10 @@ vi.mock("../../../src/hooks/useAlert", () => ({
   useAlert: () => ({ showAlert: vi.fn() }),
 }));
 
+vi.mock("../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({ call: vi.fn() }),
+}));
+
 const { showToastMock } = vi.hoisted(() => ({ showToastMock: vi.fn() }));
 
 vi.mock("../../../src/hooks/useToast", () => ({

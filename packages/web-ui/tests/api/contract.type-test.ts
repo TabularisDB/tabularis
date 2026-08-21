@@ -22,11 +22,24 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     id: 7,
     response: null,
   });
-  const queryResult: Promise<QueryResult> = caller.call("execute_query", {
+  const queryResult: Promise<QueryResult> = caller.call(
+    "execute_query",
+    {
+      connectionId: "connection-1",
+      query: "SELECT 1",
+      limit: 100,
+      page: 1,
+    },
+    { requestId: "query-request-1", cancellationId: "query-request-1" },
+  );
+  const explainResult = caller.call("explain_query_plan", {
     connectionId: "connection-1",
     query: "SELECT 1",
-    limit: 100,
-    page: 1,
+    analyze: false,
+  });
+  const cancellation = caller.call("cancel_query", {
+    connectionId: "connection-1",
+    queryRequestId: "query-request-1",
   });
   const columns = caller.call("get_columns", {
     connectionId: "connection-1",
@@ -82,6 +95,8 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     columns,
     materializedViewDefinition,
     selectedSchemas,
+    explainResult,
+    cancellation,
     wrongResponse,
     unmigratedResult,
   ];
@@ -98,6 +113,12 @@ function assertEventContract(subscriber: EventSubscriber): void {
     const id: number = payload.id;
     const prompt: string = payload.prompt;
     void [id, prompt];
+  });
+
+  subscriber.subscribe("query-status", (payload) => {
+    const requestId: string = payload.requestId;
+    const status: "started" | "completed" | "failed" = payload.status;
+    void [requestId, status];
   });
 
   // @ts-expect-error database-dropped does not carry a batch id.

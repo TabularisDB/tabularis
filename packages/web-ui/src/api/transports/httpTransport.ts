@@ -528,8 +528,15 @@ function isIconUploadResponse(value: unknown): value is { token: string } {
 }
 
 function isSessionNegotiation(value: unknown): value is SessionNegotiation {
-  if (!isRecord(value) || !isRecord(value.capabilities)) return false;
+  if (
+    !isRecord(value) ||
+    !isRecord(value.capabilities) ||
+    !isRecord(value.queryResponsePolicy)
+  ) {
+    return false;
+  }
   const capabilities = value.capabilities;
+  const queryPolicy = value.queryResponsePolicy;
   return (
     typeof value.apiVersion === "string" &&
     typeof value.serverVersion === "string" &&
@@ -539,7 +546,14 @@ function isSessionNegotiation(value: unknown): value is SessionNegotiation {
     typeof capabilities.events === "boolean" &&
     typeof capabilities.uploads === "boolean" &&
     typeof capabilities.downloads === "boolean" &&
-    typeof capabilities.pluginAssets === "boolean"
+    typeof capabilities.pluginAssets === "boolean" &&
+    typeof queryPolicy.maxRowsPerPage === "number" &&
+    Number.isSafeInteger(queryPolicy.maxRowsPerPage) &&
+    queryPolicy.maxRowsPerPage > 0 &&
+    typeof queryPolicy.maxResponseBytes === "number" &&
+    Number.isSafeInteger(queryPolicy.maxResponseBytes) &&
+    queryPolicy.maxResponseBytes > 0 &&
+    typeof queryPolicy.streaming === "boolean"
   );
 }
 

@@ -23,6 +23,11 @@ const session: SessionNegotiation = {
     downloads: false,
     pluginAssets: false,
   },
+  queryResponsePolicy: {
+    maxRowsPerPage: 10_000,
+    maxResponseBytes: 16_777_216,
+    streaming: false,
+  },
 };
 
 describe("bootstrapTabularisClient", () => {

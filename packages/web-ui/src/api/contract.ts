@@ -10,6 +10,7 @@ import type {
 } from "../contexts/DatabaseContext";
 import type { PluginManifest } from "../types/plugins";
 import type { ConnectionTag } from "../types/tags";
+import type { ExplainQueryOutput } from "@tabularis/explain";
 import type {
   BatchStatementResult,
   QueryResult,
@@ -174,6 +175,15 @@ export interface ExecuteQueryBatchRequest extends MetadataRequest {
   limit?: number;
   page?: number;
   batchId?: string;
+}
+
+export interface ExplainQueryRequest extends MetadataRequest {
+  query: string;
+  analyze: boolean;
+}
+
+export interface CancelQueryRequest extends ConnectionIdRequest {
+  queryRequestId?: RequestId;
 }
 
 export interface CommandMap {
@@ -417,7 +427,12 @@ export interface CommandMap {
     number,
     "database"
   >;
-  cancel_query: CommandDefinition<ConnectionIdRequest, void, "database">;
+  explain_query_plan: CommandDefinition<
+    ExplainQueryRequest,
+    ExplainQueryOutput,
+    "database"
+  >;
+  cancel_query: CommandDefinition<CancelQueryRequest, void, "database">;
   get_server_now: CommandDefinition<ConnectionIdRequest, string, "database">;
 }
 

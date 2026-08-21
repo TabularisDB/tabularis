@@ -18,6 +18,7 @@ import {
 } from "../utils/explainImport";
 import { parseVisualExplainDeepLink } from "../utils/aiActivity";
 import { useSettings } from "../hooks/useSettings";
+import { useTabularisClient } from "../hooks/useTabularisClient";
 
 export interface VisualExplainPageProps {
   /// When provided, render in embedded mode: skip the page header, use the
@@ -32,6 +33,7 @@ export const VisualExplainPage = ({
   compactMode = false,
 }: VisualExplainPageProps = {}) => {
   const { t } = useTranslation();
+  const client = useTabularisClient();
   const { settings } = useSettings();
   const { search } = useLocation();
   const initialParamPath = parseExplainFileParam(search);
@@ -74,12 +76,14 @@ export const VisualExplainPage = ({
       setPlan(null);
       setSelectedNodeId(null);
       try {
-        const result = await invoke<ExplainQueryOutput>("explain_query_plan", {
-          connectionId,
-          query,
-          analyze: false,
-          schema: null,
-        });
+        const result: ExplainQueryOutput = await client.call(
+          "explain_query_plan",
+          {
+            connectionId,
+            query,
+            analyze: false,
+          },
+        );
         const parsedPlan = resolveExplainOutput(result);
         setPlan(parsedPlan);
         setSelectedNodeId(parsedPlan.root.id);
@@ -89,7 +93,7 @@ export const VisualExplainPage = ({
         setIsLoading(false);
       }
     },
-    [],
+    [client],
   );
 
   // On mount: prefer initialPlan (embedded mode), then deep link, then file
