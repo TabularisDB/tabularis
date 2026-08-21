@@ -1,7 +1,6 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
-import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
+import { usePlatformCapabilities } from "../../../hooks/usePlatformCapabilities";
 import { HexColorPicker, HexColorInput } from "react-colorful";
 import EmojiPicker, { Theme, EmojiStyle, SuggestionMode, SkinTonePickerLocation, type EmojiClickData } from "emoji-picker-react";
 import clsx from "clsx";
@@ -46,6 +45,7 @@ export function AppearanceSection({
   onImageUploaded,
 }: Props) {
   const { t } = useTranslation();
+  const platform = usePlatformCapabilities();
   const [customOpen, setCustomOpen] = useState(false);
 
   // Derive the active tab from the icon type. userTab holds an explicit user
@@ -91,22 +91,8 @@ export function AppearanceSection({
     setImageError(null);
     setImageBusy(true);
     try {
-      const picked = await openFileDialog({
-        multiple: false,
-        filters: [{ name: "Image", extensions: ["png", "jpg", "jpeg", "webp", "svg"] }],
-      }).catch((e: unknown) => {
-        throw new Error(`Failed to open file dialog: ${e}`);
-      });
-      if (typeof picked !== "string") return;
-      let stored: string;
-      try {
-        stored = await invoke<string>("save_connection_icon", {
-          connectionId,
-          sourcePath: picked,
-        });
-      } catch (e) {
-        throw new Error(`Failed to save icon: ${e}`);
-      }
+      const stored = await platform.chooseConnectionIcon(connectionId);
+      if (!stored) return;
       // Deletion of the previous image is deferred to the parent (save or cancel).
       // This prevents data loss when the user picks multiple images then cancels.
       onImageUploaded?.(stored);

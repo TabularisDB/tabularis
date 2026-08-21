@@ -1,4 +1,12 @@
-import type { SavedConnection, TableInfo } from "../contexts/DatabaseContext";
+import type {
+  ConnectionAppearance,
+  ConnectionGroup,
+  ConnectionsFile,
+  SavedConnection,
+  TableInfo,
+} from "../contexts/DatabaseContext";
+import type { PluginManifest } from "../types/plugins";
+import type { ConnectionTag } from "../types/tags";
 import type {
   BatchStatementResult,
   QueryResult,
@@ -70,6 +78,17 @@ export interface TestConnectionRequest {
   progress_id?: string;
 }
 
+export interface SaveConnectionRequest {
+  name: string;
+  params: ConnectionParameters;
+  detectJsonInTextColumns?: boolean;
+  environment?: string;
+}
+
+export interface UpdateConnectionRequest extends SaveConnectionRequest {
+  id: string;
+}
+
 interface ConnectionIdRequest {
   connectionId: string;
 }
@@ -109,7 +128,92 @@ export interface CommandMap {
     SavedConnection,
     "database"
   >;
+  get_connections_with_groups: CommandDefinition<
+    undefined,
+    ConnectionsFile,
+    "database"
+  >;
   get_active_connections: CommandDefinition<undefined, string[], "database">;
+  register_active_connection: CommandDefinition<ConnectionIdRequest, void, "database">;
+  save_connection: CommandDefinition<SaveConnectionRequest, SavedConnection, "database">;
+  update_connection: CommandDefinition<UpdateConnectionRequest, SavedConnection, "database">;
+  delete_connection: CommandDefinition<{ id: string }, void, "database">;
+  duplicate_connection: CommandDefinition<{ id: string }, SavedConnection, "database">;
+  set_connection_appearance: CommandDefinition<
+    { id: string; appearance?: ConnectionAppearance },
+    void,
+    "database"
+  >;
+  save_connection_icon: CommandDefinition<
+    { connectionId: string; uploadToken: string },
+    string,
+    "database"
+  >;
+  delete_connection_icon: CommandDefinition<{ relativePath: string }, void, "database">;
+
+  get_connection_groups: CommandDefinition<undefined, ConnectionGroup[], "database">;
+  create_connection_group: CommandDefinition<
+    { name: string; parentId?: string | null },
+    ConnectionGroup,
+    "database"
+  >;
+  create_group_path: CommandDefinition<
+    { path: string; parentId?: string | null },
+    ConnectionGroup,
+    "database"
+  >;
+  update_connection_group: CommandDefinition<
+    { id: string; name?: string; collapsed?: boolean; sortOrder?: number },
+    ConnectionGroup,
+    "database"
+  >;
+  move_group_to_parent: CommandDefinition<
+    { id: string; parentId: string | null },
+    ConnectionGroup,
+    "database"
+  >;
+  delete_connection_group: CommandDefinition<{ id: string }, void, "database">;
+  move_connection_to_group: CommandDefinition<
+    { connectionId: string; groupId: string | null; sortOrder?: number },
+    SavedConnection,
+    "database"
+  >;
+  reorder_groups: CommandDefinition<
+    { groupOrders: Array<[string, number]> },
+    void,
+    "database"
+  >;
+  reorder_connections_in_group: CommandDefinition<
+    { connectionOrders: Array<[string, number]> },
+    void,
+    "database"
+  >;
+
+  list_connection_tags: CommandDefinition<undefined, ConnectionTag[], "database">;
+  create_connection_tag: CommandDefinition<
+    { name: string; color: string },
+    ConnectionTag,
+    "database"
+  >;
+  update_connection_tag: CommandDefinition<
+    { id: string; name: string; color: string },
+    void,
+    "database"
+  >;
+  delete_connection_tag: CommandDefinition<{ id: string }, void, "database">;
+  set_connection_tags: CommandDefinition<
+    { connectionId: string; tagIds: string[] },
+    void,
+    "database"
+  >;
+
+  get_registered_drivers: CommandDefinition<undefined, PluginManifest[], "database">;
+  get_driver_manifest: CommandDefinition<
+    { driverId: string },
+    PluginManifest | null,
+    "database"
+  >;
+
   test_connection: CommandDefinition<
     { request: TestConnectionRequest },
     string,

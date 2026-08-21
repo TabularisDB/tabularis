@@ -452,6 +452,94 @@ async fn executes_representative_commands_over_versioned_rpc() {
         serde_json::json!({"ok": true, "data": direct_connections})
     );
 
+    let saved = client
+        .post(format!("{base_url}/api/v1/rpc/save_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "name": "Browser connection",
+            "params": {
+                "driver": "postgres",
+                "host": "127.0.0.1",
+                "port": 5432,
+                "username": "browser-user",
+                "password": "browser-secret",
+                "database": "browser-db",
+                "save_in_keychain": false
+            },
+            "environment": "development"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(saved.status(), reqwest::StatusCode::OK);
+    let saved = saved.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(saved["data"]["name"], "Browser connection");
+    assert!(saved["data"]["params"]["password"].is_null());
+    let saved_id = saved["data"]["id"].as_str().unwrap().to_string();
+
+    let upload = client
+        .post(format!("{base_url}/api/v1/uploads/connection-icons"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header("content-type", "image/png")
+        .body(vec![0x89, b'P', b'N', b'G'])
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(upload.status(), reqwest::StatusCode::CREATED);
+    let upload_token = upload.json::<serde_json::Value>().await.unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let icon = client
+        .post(format!("{base_url}/api/v1/rpc/save_connection_icon"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "connectionId": saved_id,
+            "uploadToken": upload_token
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(icon.status(), reqwest::StatusCode::OK);
+    let icon_path = icon.json::<serde_json::Value>().await.unwrap()["data"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let icon_asset = client
+        .get(format!("{base_url}/api/v1/assets/{icon_path}"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(icon_asset.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        icon_asset.bytes().await.unwrap().as_ref(),
+        &[0x89, b'P', b'N', b'G']
+    );
+
+    let listed = client
+        .post(format!("{base_url}/api/v1/rpc/get_connections_with_groups"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::Value::Null)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(listed.status(), reqwest::StatusCode::OK);
+    let listed = listed.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(
+        listed["data"]["connections"][0]["name"],
+        "Browser connection"
+    );
+    assert!(listed["data"]["connections"][0]["params"]["password"].is_null());
+
     let query_task = tokio::spawn(std::future::pending::<()>());
     crate::commands::register_abort_handle(
         &application_state.query_cancellation.handles,
@@ -536,6 +624,7 @@ async fn authenticates_websockets_and_delivers_scoped_events_with_heartbeat() {
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
     let server = tokio::spawn(server::serve_with_events(
         listener,
+        temp.path().to_path_buf(),
         temp.path().to_path_buf(),
         security,
         test_application(temp.path()),

@@ -47,11 +47,13 @@ import { ConnectionListItem } from "../components/connections/ConnectionListItem
 import { ConnectionErrorBanner } from "../components/ConnectionErrorBanner";
 import { BetaBadge } from "../components/ui/BetaBadge";
 import { useCreateSqliteDatabase } from "../hooks/useCreateSqliteDatabase";
+import { useTabularisClient } from "../hooks/useTabularisClient";
 
 let autoConnectAttempted = false;
 
 export const Connections = () => {
   const { t } = useTranslation();
+  const client = useTabularisClient();
   const { settings } = useSettings();
   const navigate = useNavigate();
   const location = useLocation();
@@ -407,7 +409,7 @@ export const Connections = () => {
         try {
           for (const id of ids) {
             if (isConnectionOpenAnywhere(id)) await disconnect(id);
-            await invoke("delete_connection", { id });
+            await client.call("delete_connection", { id });
           }
         } catch (e) {
           console.error(e);
@@ -521,7 +523,7 @@ export const Connections = () => {
         setConfirmModal(null);
         try {
           if (isConnectionOpenAnywhere(id)) await disconnect(id);
-          await invoke("delete_connection", { id });
+          await client.call("delete_connection", { id });
           void loadConnections();
         } catch (e) {
           console.error(e);
@@ -540,9 +542,7 @@ export const Connections = () => {
 
   const handleDuplicate = async (id: string) => {
     try {
-      const newConn = await invoke<SavedConnection>("duplicate_connection", {
-        id,
-      });
+      const newConn = await client.call("duplicate_connection", { id });
       await loadConnections();
       void openEdit(newConn);
     } catch (e) {

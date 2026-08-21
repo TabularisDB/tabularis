@@ -1,6 +1,8 @@
 use crate::application::{
-    ApplicationApi, ApplicationError, ApplicationRequestContext, AuthorizationLevel,
+    connections::ConnectionCommand, ApplicationApi, ApplicationError, ApplicationRequestContext,
+    AuthorizationLevel,
 };
+use crate::models::{ConnectionAppearance, ConnectionParams, TestConnectionRequest};
 use axum::body::Bytes;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::http::{HeaderMap, StatusCode};
@@ -33,6 +35,40 @@ enum RpcCommand {
     IsDebugMode,
     GetConnections,
     CancelQuery,
+    Connection(ConnectionRpcCommand),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ConnectionRpcCommand {
+    GetConnectionById,
+    GetConnectionsWithGroups,
+    SaveConnection,
+    UpdateConnection,
+    DeleteConnection,
+    DuplicateConnection,
+    SetConnectionAppearance,
+    SaveConnectionIcon,
+    DeleteConnectionIcon,
+    GetConnectionGroups,
+    CreateConnectionGroup,
+    CreateGroupPath,
+    UpdateConnectionGroup,
+    MoveGroupToParent,
+    DeleteConnectionGroup,
+    MoveConnectionToGroup,
+    ReorderGroups,
+    ReorderConnectionsInGroup,
+    ListConnectionTags,
+    CreateConnectionTag,
+    UpdateConnectionTag,
+    DeleteConnectionTag,
+    SetConnectionTags,
+    GetRegisteredDrivers,
+    GetDriverManifest,
+    GetActiveConnections,
+    RegisterActiveConnection,
+    DisconnectConnection,
+    TestConnection,
 }
 
 #[derive(Clone, Copy)]
@@ -46,6 +82,141 @@ struct CommandMetadata {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CancelQueryRequest {
     connection_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct IdRequest {
+    id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ConnectionIdRequest {
+    connection_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SaveConnectionRequest {
+    name: String,
+    params: ConnectionParams,
+    detect_json_in_text_columns: Option<bool>,
+    environment: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct UpdateConnectionRequest {
+    id: String,
+    name: String,
+    params: ConnectionParams,
+    detect_json_in_text_columns: Option<bool>,
+    environment: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AppearanceRequest {
+    id: String,
+    appearance: Option<ConnectionAppearance>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SaveIconRequest {
+    connection_id: String,
+    upload_token: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DeleteIconRequest {
+    relative_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreateGroupRequest {
+    name: String,
+    parent_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreateGroupPathRequest {
+    path: String,
+    parent_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct UpdateGroupRequest {
+    id: String,
+    name: Option<String>,
+    collapsed: Option<bool>,
+    sort_order: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MoveGroupRequest {
+    id: String,
+    parent_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MoveConnectionRequest {
+    connection_id: String,
+    group_id: Option<String>,
+    sort_order: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReorderGroupsRequest {
+    group_orders: Vec<(String, i32)>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReorderConnectionsRequest {
+    connection_orders: Vec<(String, i32)>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TagMutationRequest {
+    id: String,
+    name: String,
+    color: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreateTagRequest {
+    name: String,
+    color: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetTagsRequest {
+    connection_id: String,
+    tag_ids: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DriverManifestRequest {
+    driver_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TestRequest {
+    request: TestConnectionRequest,
 }
 
 #[derive(Serialize)]
@@ -93,6 +264,7 @@ impl RpcDispatcher {
         request_id: RequestId,
         headers: &HeaderMap,
         body: Bytes,
+        session_id: Option<uuid::Uuid>,
     ) -> Response {
         let Some(command) = RpcCommand::parse(command_name) else {
             return failure(
@@ -167,6 +339,7 @@ impl RpcDispatcher {
             deadline: Instant::now() + deadline,
             cancellation_id,
             authorization: metadata.authorization,
+            session_id,
         };
         let invocation = self.invoke(command, context, &body);
         match tokio::time::timeout(deadline, invocation).await {
@@ -233,6 +406,14 @@ impl RpcDispatcher {
                     .map_err(InvocationError::Application)?;
                 Ok(Value::Null)
             }
+            RpcCommand::Connection(command) => {
+                let command = decode_connection_command(command, context.session_id, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_connection_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
         }
     }
 
@@ -264,7 +445,7 @@ impl RpcCommand {
             "is_debug_mode" => Some(Self::IsDebugMode),
             "get_connections" => Some(Self::GetConnections),
             "cancel_query" => Some(Self::CancelQuery),
-            _ => None,
+            name => ConnectionRpcCommand::parse(name).map(Self::Connection),
         }
     }
 
@@ -285,8 +466,236 @@ impl RpcCommand {
                 application_error_code: "QUERY_CANCELLATION_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            Self::Connection(_) => CommandMetadata {
+                authorization: AuthorizationLevel::Database,
+                application_error_code: "CONNECTION_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
         }
     }
+}
+
+impl ConnectionRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "get_connection_by_id" => Self::GetConnectionById,
+            "get_connections_with_groups" => Self::GetConnectionsWithGroups,
+            "save_connection" => Self::SaveConnection,
+            "update_connection" => Self::UpdateConnection,
+            "delete_connection" => Self::DeleteConnection,
+            "duplicate_connection" => Self::DuplicateConnection,
+            "set_connection_appearance" => Self::SetConnectionAppearance,
+            "save_connection_icon" => Self::SaveConnectionIcon,
+            "delete_connection_icon" => Self::DeleteConnectionIcon,
+            "get_connection_groups" => Self::GetConnectionGroups,
+            "create_connection_group" => Self::CreateConnectionGroup,
+            "create_group_path" => Self::CreateGroupPath,
+            "update_connection_group" => Self::UpdateConnectionGroup,
+            "move_group_to_parent" => Self::MoveGroupToParent,
+            "delete_connection_group" => Self::DeleteConnectionGroup,
+            "move_connection_to_group" => Self::MoveConnectionToGroup,
+            "reorder_groups" => Self::ReorderGroups,
+            "reorder_connections_in_group" => Self::ReorderConnectionsInGroup,
+            "list_connection_tags" => Self::ListConnectionTags,
+            "create_connection_tag" => Self::CreateConnectionTag,
+            "update_connection_tag" => Self::UpdateConnectionTag,
+            "delete_connection_tag" => Self::DeleteConnectionTag,
+            "set_connection_tags" => Self::SetConnectionTags,
+            "get_registered_drivers" => Self::GetRegisteredDrivers,
+            "get_driver_manifest" => Self::GetDriverManifest,
+            "get_active_connections" => Self::GetActiveConnections,
+            "register_active_connection" => Self::RegisterActiveConnection,
+            "disconnect_connection" => Self::DisconnectConnection,
+            "test_connection" => Self::TestConnection,
+            _ => return None,
+        })
+    }
+}
+
+fn decode_connection_command(
+    command: ConnectionRpcCommand,
+    session_id: Option<uuid::Uuid>,
+    body: &[u8],
+) -> Result<ConnectionCommand, String> {
+    Ok(match command {
+        ConnectionRpcCommand::GetConnectionById => {
+            let request: IdRequest = decode_payload(body)?;
+            ConnectionCommand::GetConnectionById { id: request.id }
+        }
+        ConnectionRpcCommand::GetConnectionsWithGroups => {
+            decode_empty_payload(body)?;
+            ConnectionCommand::GetConnectionsWithGroups
+        }
+        ConnectionRpcCommand::SaveConnection => {
+            let request: SaveConnectionRequest = decode_payload(body)?;
+            ConnectionCommand::SaveConnection {
+                name: request.name,
+                params: request.params,
+                detect_json_in_text_columns: request.detect_json_in_text_columns,
+                environment: request.environment,
+            }
+        }
+        ConnectionRpcCommand::UpdateConnection => {
+            let request: UpdateConnectionRequest = decode_payload(body)?;
+            ConnectionCommand::UpdateConnection {
+                id: request.id,
+                name: request.name,
+                params: request.params,
+                detect_json_in_text_columns: request.detect_json_in_text_columns,
+                environment: request.environment,
+            }
+        }
+        ConnectionRpcCommand::DeleteConnection => {
+            let request: IdRequest = decode_payload(body)?;
+            ConnectionCommand::DeleteConnection { id: request.id }
+        }
+        ConnectionRpcCommand::DuplicateConnection => {
+            let request: IdRequest = decode_payload(body)?;
+            ConnectionCommand::DuplicateConnection { id: request.id }
+        }
+        ConnectionRpcCommand::SetConnectionAppearance => {
+            let request: AppearanceRequest = decode_payload(body)?;
+            ConnectionCommand::SetConnectionAppearance {
+                id: request.id,
+                appearance: request.appearance,
+            }
+        }
+        ConnectionRpcCommand::SaveConnectionIcon => {
+            let request: SaveIconRequest = decode_payload(body)?;
+            ConnectionCommand::SaveConnectionIcon {
+                connection_id: request.connection_id,
+                upload_token: request.upload_token,
+                session_id: session_id
+                    .ok_or_else(|| "An authenticated upload session is required".to_string())?,
+            }
+        }
+        ConnectionRpcCommand::DeleteConnectionIcon => {
+            let request: DeleteIconRequest = decode_payload(body)?;
+            ConnectionCommand::DeleteConnectionIcon {
+                relative_path: request.relative_path,
+            }
+        }
+        ConnectionRpcCommand::GetConnectionGroups => {
+            decode_empty_payload(body)?;
+            ConnectionCommand::GetConnectionGroups
+        }
+        ConnectionRpcCommand::CreateConnectionGroup => {
+            let request: CreateGroupRequest = decode_payload(body)?;
+            ConnectionCommand::CreateConnectionGroup {
+                name: request.name,
+                parent_id: request.parent_id,
+            }
+        }
+        ConnectionRpcCommand::CreateGroupPath => {
+            let request: CreateGroupPathRequest = decode_payload(body)?;
+            ConnectionCommand::CreateGroupPath {
+                path: request.path,
+                parent_id: request.parent_id,
+            }
+        }
+        ConnectionRpcCommand::UpdateConnectionGroup => {
+            let request: UpdateGroupRequest = decode_payload(body)?;
+            ConnectionCommand::UpdateConnectionGroup {
+                id: request.id,
+                name: request.name,
+                collapsed: request.collapsed,
+                sort_order: request.sort_order,
+            }
+        }
+        ConnectionRpcCommand::MoveGroupToParent => {
+            let request: MoveGroupRequest = decode_payload(body)?;
+            ConnectionCommand::MoveGroupToParent {
+                id: request.id,
+                parent_id: request.parent_id,
+            }
+        }
+        ConnectionRpcCommand::DeleteConnectionGroup => {
+            let request: IdRequest = decode_payload(body)?;
+            ConnectionCommand::DeleteConnectionGroup { id: request.id }
+        }
+        ConnectionRpcCommand::MoveConnectionToGroup => {
+            let request: MoveConnectionRequest = decode_payload(body)?;
+            ConnectionCommand::MoveConnectionToGroup {
+                connection_id: request.connection_id,
+                group_id: request.group_id,
+                sort_order: request.sort_order,
+            }
+        }
+        ConnectionRpcCommand::ReorderGroups => {
+            let request: ReorderGroupsRequest = decode_payload(body)?;
+            ConnectionCommand::ReorderGroups {
+                group_orders: request.group_orders,
+            }
+        }
+        ConnectionRpcCommand::ReorderConnectionsInGroup => {
+            let request: ReorderConnectionsRequest = decode_payload(body)?;
+            ConnectionCommand::ReorderConnectionsInGroup {
+                connection_orders: request.connection_orders,
+            }
+        }
+        ConnectionRpcCommand::ListConnectionTags => {
+            decode_empty_payload(body)?;
+            ConnectionCommand::ListConnectionTags
+        }
+        ConnectionRpcCommand::CreateConnectionTag => {
+            let request: CreateTagRequest = decode_payload(body)?;
+            ConnectionCommand::CreateConnectionTag {
+                name: request.name,
+                color: request.color,
+            }
+        }
+        ConnectionRpcCommand::UpdateConnectionTag => {
+            let request: TagMutationRequest = decode_payload(body)?;
+            ConnectionCommand::UpdateConnectionTag {
+                id: request.id,
+                name: request.name,
+                color: request.color,
+            }
+        }
+        ConnectionRpcCommand::DeleteConnectionTag => {
+            let request: IdRequest = decode_payload(body)?;
+            ConnectionCommand::DeleteConnectionTag { id: request.id }
+        }
+        ConnectionRpcCommand::SetConnectionTags => {
+            let request: SetTagsRequest = decode_payload(body)?;
+            ConnectionCommand::SetConnectionTags {
+                connection_id: request.connection_id,
+                tag_ids: request.tag_ids,
+            }
+        }
+        ConnectionRpcCommand::GetRegisteredDrivers => {
+            decode_empty_payload(body)?;
+            ConnectionCommand::GetRegisteredDrivers
+        }
+        ConnectionRpcCommand::GetDriverManifest => {
+            let request: DriverManifestRequest = decode_payload(body)?;
+            ConnectionCommand::GetDriverManifest {
+                driver_id: request.driver_id,
+            }
+        }
+        ConnectionRpcCommand::GetActiveConnections => {
+            decode_empty_payload(body)?;
+            ConnectionCommand::GetActiveConnections
+        }
+        ConnectionRpcCommand::RegisterActiveConnection => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            ConnectionCommand::RegisterActiveConnection {
+                connection_id: request.connection_id,
+            }
+        }
+        ConnectionRpcCommand::DisconnectConnection => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            ConnectionCommand::DisconnectConnection {
+                connection_id: request.connection_id,
+            }
+        }
+        ConnectionRpcCommand::TestConnection => {
+            let request: TestRequest = decode_payload(body)?;
+            ConnectionCommand::TestConnection {
+                request: request.request,
+            }
+        }
+    })
 }
 
 impl Drop for CancellationRegistration {

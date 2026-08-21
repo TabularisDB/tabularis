@@ -40,7 +40,7 @@ impl SessionNegotiation {
             capabilities: WebTransportCapabilities {
                 rpc: true,
                 events: true,
-                uploads: false,
+                uploads: true,
                 downloads: false,
                 plugin_assets: false,
             },

@@ -2,6 +2,15 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AppearanceSection } from "./AppearanceSection";
 
+const platformMocks = vi.hoisted(() => ({
+  chooseConnectionIcon: vi.fn().mockResolvedValue("connection-icons/1-abcd.png"),
+  resolveAppAsset: vi.fn(async (path: string) => `tauri://${path}`),
+}));
+
+vi.mock("../../../hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => platformMocks,
+}));
+
 // Mock react-i18next so the section renders predictably regardless of locale files
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k: string) => k, i18n: { language: "en" } }),
@@ -137,16 +146,12 @@ describe("AppearanceSection — icon tabs", () => {
 
   it("uploads an image and stores the returned path", async () => {
     const onChange = vi.fn();
-    const { invoke } = await import("@tauri-apps/api/core");
     render(<AppearanceSection value={{}} onChange={onChange} connectionId="conn1" />);
     fireEvent.click(screen.getByRole("tab", { name: /image/i }));
     fireEvent.click(screen.getByRole("button", { name: /choose image/i }));
     // Wait for the async upload to resolve
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("save_connection_icon", {
-        connectionId: "conn1",
-        sourcePath: "/tmp/picked.png",
-      });
+      expect(platformMocks.chooseConnectionIcon).toHaveBeenCalledWith("conn1");
     });
     await waitFor(() => {
       expect(onChange).toHaveBeenCalledWith({
@@ -158,8 +163,7 @@ describe("AppearanceSection — icon tabs", () => {
   it("does not eagerly delete previous image on pick", async () => {
     const onChange = vi.fn();
     const onImageUploaded = vi.fn();
-    const { invoke } = await import("@tauri-apps/api/core");
-    vi.mocked(invoke).mockClear();
+    platformMocks.chooseConnectionIcon.mockClear();
     render(
       <AppearanceSection
         value={{ icon: { type: "image", path: "connection-icons/old-1234.png" } }}
@@ -171,11 +175,10 @@ describe("AppearanceSection — icon tabs", () => {
     fireEvent.click(screen.getByRole("tab", { name: /image/i }));
     fireEvent.click(screen.getByRole("button", { name: /choose image/i }));
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("save_connection_icon", expect.any(Object));
+      expect(platformMocks.chooseConnectionIcon).toHaveBeenCalledWith("conn1");
     });
     // The previous image must NOT be deleted as part of the pick
-    const deleteCalls = vi.mocked(invoke).mock.calls.filter(c => c[0] === "delete_connection_icon");
-    expect(deleteCalls).toHaveLength(0);
+    expect(platformMocks.chooseConnectionIcon).toHaveBeenCalledTimes(1);
     // onImageUploaded callback should have been called with the new path
     expect(onImageUploaded).toHaveBeenCalledWith("connection-icons/1-abcd.png");
   });

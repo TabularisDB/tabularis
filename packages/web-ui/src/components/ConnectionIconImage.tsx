@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { appDataDir, join } from "@tauri-apps/api/path";
+import { usePlatformCapabilities } from "../hooks/usePlatformCapabilities";
 
 interface Props {
   path: string;       // relative path "connection-icons/foo-abcd.png"
@@ -9,6 +8,7 @@ interface Props {
 }
 
 export function ConnectionIconImage({ path, size, fallback }: Props) {
+  const platform = usePlatformCapabilities();
   // Reset src/failed when path changes by keying state to the current path.
   // This avoids calling setState inside an effect body (react-hooks/set-state-in-effect).
   const [loadedPath, setLoadedPath] = useState<string>(path);
@@ -28,14 +28,14 @@ export function ConnectionIconImage({ path, size, fallback }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const abs = await join(await appDataDir(), path);
-        if (!cancelled) setSrc(convertFileSrc(abs));
+        const assetSource = await platform.resolveAppAsset(path);
+        if (!cancelled) setSrc(assetSource);
       } catch {
         if (!cancelled) setFailed(true);
       }
     })();
     return () => { cancelled = true; };
-  }, [path]);
+  }, [path, platform]);
 
   if (failed) return <>{fallback}</>;
   if (!src) return <>{fallback}</>;

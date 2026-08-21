@@ -17,6 +17,10 @@ defineTransportContractSuite(
         expect(request).toBeUndefined();
         return true;
       }
+      if (command === "get_connections_with_groups") {
+        expect(request).toBeUndefined();
+        return { groups: [], connections: [] };
+      }
       if (command === "contract_serialization_fixture") {
         expect(request).toEqual({ fixture: "complex-query-result" });
         return serializationFixture;

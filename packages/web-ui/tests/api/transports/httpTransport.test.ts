@@ -99,6 +99,37 @@ describe("HttpTransport", () => {
     expect(headers.get("x-tabularis-cancellation-id")).toBe("startup-debug");
   });
 
+  it("uploads connection icons with the authenticated session", async () => {
+    const uploadSession = {
+      ...SESSION,
+      capabilities: { ...SESSION.capabilities, uploads: true },
+    };
+    const fetchRequest = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse(uploadSession))
+      .mockResolvedValueOnce(jsonResponse({ token: "opaque-upload-token" }, 201));
+    const transport = new HttpTransport({
+      baseUrl: "http://127.0.0.1:8080",
+      fetch: fetchRequest,
+    });
+    const icon = new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], {
+      type: "image/png",
+    });
+
+    await expect(transport.uploadConnectionIcon(icon)).resolves.toBe(
+      "opaque-upload-token",
+    );
+
+    const [url, request] = fetchRequest.mock.calls[1];
+    const headers = new Headers(request?.headers);
+    expect(url).toBe(
+      "http://127.0.0.1:8080/api/v1/uploads/connection-icons",
+    );
+    expect(request?.body).toBe(icon);
+    expect(headers.get("content-type")).toBe("image/png");
+    expect(headers.get("x-tabularis-csrf")).toBe("csrf-token");
+  });
+
   it("normalizes RPC envelopes and network failures", async () => {
     const fetchRequest = vi
       .fn<typeof fetch>()

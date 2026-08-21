@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import type { TypedCommandCaller } from "../api/contract";
 
 interface ConnectionParams {
   driver: string;
@@ -34,9 +34,8 @@ export interface SavedConnectionWithCredentials {
 }
 
 export async function fetchConnectionWithCredentials(
+  client: Pick<TypedCommandCaller, "call">,
   id: string,
 ): Promise<SavedConnectionWithCredentials> {
-  return await invoke<SavedConnectionWithCredentials>("get_connection_by_id", {
-    id,
-  });
+  return client.call("get_connection_by_id", { id });
 }

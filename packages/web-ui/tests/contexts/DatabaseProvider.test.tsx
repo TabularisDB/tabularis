@@ -18,11 +18,13 @@ vi.mock('../../src/utils/autocomplete', () => ({
   clearAutocompleteCache: vi.fn(),
 }));
 
-vi.mock('../../src/hooks/useTabularisClient', () => ({
-  useTabularisClient: () => ({
+vi.mock('../../src/hooks/useTabularisClient', () => {
+  const client = {
     call: (command: string, request: unknown) => invoke(command, request),
-  }),
-}));
+    subscribe: vi.fn(() => Promise.resolve(() => {})),
+  };
+  return { useTabularisClient: () => client };
+});
 
 vi.mock('../../src/hooks/useSettings', () => ({
   useSettings: () => ({

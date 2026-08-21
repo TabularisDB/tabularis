@@ -586,7 +586,7 @@ export const NewConnectionModal = ({
       const original = originalImagePath.current;
       const toDelete = uploadedPathsRef.current.filter(p => p !== original);
       toDelete.forEach(p =>
-        invoke("delete_connection_icon", { relativePath: p }).catch(() => {})
+        client.call("delete_connection_icon", { relativePath: p }).catch(() => {})
       );
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1681,6 +1681,7 @@ export const NewConnectionModal = ({
         let params = initialConnection.params;
         try {
           const fullConn = await fetchConnectionWithCredentials(
+            client,
             initialConnection.id,
           );
           // A response without params would blank the form, so keep the
@@ -2172,7 +2173,10 @@ export const NewConnectionModal = ({
               : driver
             : formData.database,
       };
-      const params = withInlineK8sPaths(paramsBase, inlinePaths.options);
+      const params = withInlineK8sPaths(
+        paramsBase,
+        inlinePaths.options,
+      ) as ConnectionParams;
       const appearancePayload =
         appearance.icon || appearance.accentColor ? appearance : undefined;
       const finalImagePath =
@@ -2197,35 +2201,35 @@ export const NewConnectionModal = ({
         if (initialConnection) {
           if (!params.password?.trim()) delete params.password;
           if (!params.ssh_password?.trim()) delete params.ssh_password;
-          await invoke("update_connection", {
+          await client.call("update_connection", {
             id: initialConnection.id,
             name,
             params,
-            detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
-            environment: environment || null,
+            detectJsonInTextColumns: detectJsonInTextColumns || undefined,
+            environment: environment || undefined,
           });
           savedConnectionId = initialConnection.id;
-          await invoke("set_connection_appearance", {
+          await client.call("set_connection_appearance", {
             id: initialConnection.id,
-            appearance: appearancePayload ?? null,
+            appearance: appearancePayload,
           });
         } else {
-          const saved = await invoke<{ id: string }>("save_connection", {
+          const saved = await client.call("save_connection", {
             name,
             params,
-            detectJsonInTextColumns: detectJsonInTextColumns ? true : null,
-            environment: environment || null,
+            detectJsonInTextColumns: detectJsonInTextColumns || undefined,
+            environment: environment || undefined,
           });
           savedConnectionId = saved.id;
           if (appearancePayload) {
-            await invoke("set_connection_appearance", {
+            await client.call("set_connection_appearance", {
               id: saved.id,
               appearance: appearancePayload,
             });
           }
         }
 
-        await invoke("set_connection_tags", {
+        await client.call("set_connection_tags", {
           connectionId: savedConnectionId,
           tagIds,
         });
@@ -2260,7 +2264,7 @@ export const NewConnectionModal = ({
         }
         await Promise.all(
           toDelete.map((path) =>
-            invoke("delete_connection_icon", { relativePath: path }).catch(
+            client.call("delete_connection_icon", { relativePath: path }).catch(
               () => {},
             ),
           ),

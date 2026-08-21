@@ -53,8 +53,8 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 221,
-    "literalCallSiteCount": 334,
+    "literalCommandCount": 194,
+    "literalCallSiteCount": 302,
     "dynamicCallSiteCount": 3,
     "handlerRegistrationCount": 255,
     "registeredCommandCount": 254,
@@ -62,7 +62,7 @@
       "cancel_dump"
     ],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 33
+    "registeredCommandsWithoutFrontendCall": 60
   },
   "commands": [
     {
@@ -400,34 +400,6 @@
       ]
     },
     {
-      "name": "create_connection_group",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1189
-        }
-      ]
-    },
-    {
-      "name": "create_connection_tag",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useConnectionTags.ts",
-          "line": 28
-        }
-      ]
-    },
-    {
       "name": "create_db_user",
       "featureGroup": "users",
       "eventUse": "none",
@@ -438,20 +410,6 @@
         {
           "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
           "line": 315
-        }
-      ]
-    },
-    {
-      "name": "create_group_path",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1201
         }
       ]
     },
@@ -568,70 +526,6 @@
         {
           "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 347
-        }
-      ]
-    },
-    {
-      "name": "delete_connection",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/Connections.tsx",
-          "line": 410
-        },
-        {
-          "file": "packages/web-ui/src/pages/Connections.tsx",
-          "line": 524
-        }
-      ]
-    },
-    {
-      "name": "delete_connection_group",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1239
-        }
-      ]
-    },
-    {
-      "name": "delete_connection_icon",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 589
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 2263
-        }
-      ]
-    },
-    {
-      "name": "delete_connection_tag",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useConnectionTags.ts",
-          "line": 48
         }
       ]
     },
@@ -756,20 +650,6 @@
         {
           "file": "packages/web-ui/src/hooks/useTaskManager.ts",
           "line": 83
-        }
-      ]
-    },
-    {
-      "name": "disconnect_connection",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 973
         }
       ]
     },
@@ -914,20 +794,6 @@
       ]
     },
     {
-      "name": "duplicate_connection",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/Connections.tsx",
-          "line": 543
-        }
-      ]
-    },
-    {
       "name": "enable_plugin",
       "featureGroup": "plugins",
       "eventUse": "none",
@@ -963,7 +829,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Connections.tsx",
-          "line": 329
+          "line": 331
         }
       ]
     },
@@ -1079,7 +945,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Connections.tsx",
-          "line": 320
+          "line": 322
         }
       ]
     },
@@ -1149,7 +1015,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useConnectionCatalogue.ts",
-          "line": 49
+          "line": 51
         },
         {
           "file": "packages/web-ui/src/hooks/usePluginRegistry.ts",
@@ -1214,20 +1080,6 @@
         {
           "file": "packages/web-ui/src/components/ui/MultiResultPanel.tsx",
           "line": 329
-        }
-      ]
-    },
-    {
-      "name": "get_active_connections",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1146
         }
       ]
     },
@@ -1369,19 +1221,19 @@
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 203
+          "line": 202
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 233
+          "line": 232
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 743
+          "line": 742
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 764
+          "line": 763
         }
       ]
     },
@@ -1502,34 +1354,6 @@
       ]
     },
     {
-      "name": "get_connection_by_id",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/credentials.ts",
-          "line": 39
-        }
-      ]
-    },
-    {
-      "name": "get_connection_groups",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1207
-        }
-      ]
-    },
-    {
       "name": "get_connections_backup_status",
       "featureGroup": "backup",
       "eventUse": "none",
@@ -1540,24 +1364,6 @@
         {
           "file": "packages/web-ui/src/components/settings/BackupTab.tsx",
           "line": 59
-        }
-      ]
-    },
-    {
-      "name": "get_connections_with_groups",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1042
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1240
         }
       ]
     },
@@ -1686,20 +1492,6 @@
       ]
     },
     {
-      "name": "get_driver_manifest",
-      "featureGroup": "drivers",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 687
-        }
-      ]
-    },
-    {
       "name": "get_explain_prompt",
       "featureGroup": "ai",
       "eventUse": "none",
@@ -1799,7 +1591,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useDrivers.ts",
-          "line": 143
+          "line": 145
         }
       ]
     },
@@ -1915,7 +1707,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Connections.tsx",
-          "line": 154
+          "line": 156
         }
       ]
     },
@@ -1929,7 +1721,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Connections.tsx",
-          "line": 153
+          "line": 155
         }
       ]
     },
@@ -1985,15 +1777,15 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 364
+          "line": 363
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 424
+          "line": 423
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 873
+          "line": 872
         }
       ]
     },
@@ -2090,24 +1882,6 @@
       ]
     },
     {
-      "name": "get_registered_drivers",
-      "featureGroup": "drivers",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useConnectionCatalogue.ts",
-          "line": 43
-        },
-        {
-          "file": "packages/web-ui/src/hooks/useDrivers.ts",
-          "line": 142
-        }
-      ]
-    },
-    {
       "name": "get_routine_create_template",
       "featureGroup": "database-objects",
       "eventUse": "none",
@@ -2177,11 +1951,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 46
+          "line": 45
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 314
+          "line": 313
         }
       ]
     },
@@ -2209,7 +1983,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 861
+          "line": 860
         }
       ]
     },
@@ -2237,7 +2011,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 846
+          "line": 845
         }
       ]
     },
@@ -2251,7 +2025,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 851
+          "line": 850
         }
       ]
     },
@@ -2367,35 +2141,35 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 334
+          "line": 333
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 367
+          "line": 366
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 427
+          "line": 426
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 487
+          "line": 486
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 543
+          "line": 542
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 807
+          "line": 806
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 876
+          "line": 875
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 936
+          "line": 935
         }
       ]
     },
@@ -2423,35 +2197,35 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 301
+          "line": 300
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 362
+          "line": 361
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 422
+          "line": 421
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 485
+          "line": 484
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 541
+          "line": 540
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 805
+          "line": 804
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 871
+          "line": 870
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 934
+          "line": 933
         }
       ]
     },
@@ -2552,20 +2326,6 @@
         {
           "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
           "line": 124
-        }
-      ]
-    },
-    {
-      "name": "list_connection_tags",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useConnectionTags.ts",
-          "line": 14
         }
       ]
     },
@@ -2677,11 +2437,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 261
+          "line": 260
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 782
+          "line": 781
         }
       ]
     },
@@ -2696,34 +2456,6 @@
         {
           "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
           "line": 92
-        }
-      ]
-    },
-    {
-      "name": "move_connection_to_group",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1249
-        }
-      ]
-    },
-    {
-      "name": "move_group_to_parent",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1226
         }
       ]
     },
@@ -2906,20 +2638,6 @@
       ]
     },
     {
-      "name": "register_active_connection",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 725
-        }
-      ]
-    },
-    {
       "name": "relaunch_app",
       "featureGroup": "application",
       "eventUse": "none",
@@ -2933,7 +2651,7 @@
         },
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 135
+          "line": 136
         }
       ]
     },
@@ -2948,34 +2666,6 @@
         {
           "file": "packages/web-ui/src/utils/notebookStore.ts",
           "line": 221
-        }
-      ]
-    },
-    {
-      "name": "reorder_connections_in_group",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1271
-        }
-      ]
-    },
-    {
-      "name": "reorder_groups",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1258
         }
       ]
     },
@@ -3070,20 +2760,6 @@
       ]
     },
     {
-      "name": "save_connection",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 2213
-        }
-      ]
-    },
-    {
       "name": "save_connection_icon",
       "featureGroup": "connections",
       "eventUse": "none",
@@ -3092,8 +2768,8 @@
       "registered": true,
       "callSites": [
         {
-          "file": "packages/web-ui/src/components/modals/NewConnectionModal/AppearanceSection.tsx",
-          "line": 103
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 205
         }
       ]
     },
@@ -3226,38 +2902,6 @@
       ]
     },
     {
-      "name": "set_connection_appearance",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 2208
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 2221
-        }
-      ]
-    },
-    {
-      "name": "set_connection_tags",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 2228
-        }
-      ]
-    },
-    {
       "name": "set_connections_backup_password",
       "featureGroup": "backup",
       "eventUse": "none",
@@ -3309,11 +2953,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1000
+          "line": 999
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1094
+          "line": 1093
         }
       ]
     },
@@ -3327,11 +2971,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 992
+          "line": 991
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1111
+          "line": 1110
         }
       ]
     },
@@ -3373,11 +3017,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 612
+          "line": 611
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1035
+          "line": 1034
         }
       ]
     },
@@ -3391,15 +3035,15 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 253
+          "line": 252
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 637
+          "line": 636
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 774
+          "line": 773
         }
       ]
     },
@@ -3413,7 +3057,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 593
+          "line": 592
         }
       ]
     },
@@ -3427,7 +3071,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 150
+          "line": 149
         },
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
@@ -3488,48 +3132,6 @@
         {
           "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
           "line": 797
-        }
-      ]
-    },
-    {
-      "name": "update_connection",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 2200
-        }
-      ]
-    },
-    {
-      "name": "update_connection_group",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1216
-        }
-      ]
-    },
-    {
-      "name": "update_connection_tag",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useConnectionTags.ts",
-          "line": 40
         }
       ]
     },
@@ -3668,15 +3270,30 @@
   "registeredCommandsWithoutFrontendCall": [
     "cancel_query",
     "close_devtools",
+    "create_connection_group",
+    "create_connection_tag",
+    "create_group_path",
+    "delete_connection",
+    "delete_connection_group",
+    "delete_connection_icon",
+    "delete_connection_tag",
     "delete_editor_preferences",
     "detect_blob_mime",
     "detect_mime_type",
+    "disconnect_connection",
+    "duplicate_connection",
     "execute_query",
     "export_theme",
+    "get_active_connections",
+    "get_connection_by_id",
+    "get_connection_groups",
     "get_connections",
+    "get_connections_with_groups",
+    "get_driver_manifest",
     "get_file_stats",
     "get_materialized_view_columns",
     "get_plugin_dir",
+    "get_registered_drivers",
     "get_tables",
     "get_theme",
     "get_view_columns",
@@ -3684,8 +3301,14 @@
     "import_theme",
     "is_debug_mode",
     "list_all_preferences",
+    "list_connection_tags",
+    "move_connection_to_group",
+    "move_group_to_parent",
     "open_devtools",
     "open_visual_explain_window",
+    "register_active_connection",
+    "reorder_connections_in_group",
+    "reorder_groups",
     "reset_cellname_prompt",
     "reset_explain_prompt",
     "reset_explainplan_prompt",
@@ -3693,11 +3316,17 @@
     "reset_tabrename_prompt",
     "restart_plugin_process",
     "save_cellname_prompt",
+    "save_connection",
     "save_explain_prompt",
     "save_explainplan_prompt",
     "save_system_prompt",
     "save_tabrename_prompt",
+    "set_connection_appearance",
+    "set_connection_tags",
     "test_connection",
-    "test_log"
+    "test_log",
+    "update_connection",
+    "update_connection_group",
+    "update_connection_tag"
   ]
 }

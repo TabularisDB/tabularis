@@ -18,6 +18,7 @@ import { ProductionGuardProvider } from './contexts/ProductionGuardContext';
 import { bootstrapTabularisClient } from './api/bootstrap';
 import { TabularisClientProvider } from './contexts/TabularisClientProvider';
 import { TauriPlatformCapabilities } from './platform/tauriCapabilities';
+import { BrowserPlatformCapabilities } from './platform/browserCapabilities';
 import { PlatformCapabilitiesProvider } from './contexts/PlatformCapabilitiesProvider';
 import { detectPlatformEnvironment } from './platform/environment';
 import { toErrorMessage } from './utils/errors';
@@ -27,7 +28,9 @@ const environment = detectPlatformEnvironment();
 
 async function startApplication() {
   const tabularisClient = await bootstrapTabularisClient(environment);
-  const platformCapabilities = new TauriPlatformCapabilities();
+  const platformCapabilities = environment === 'tauri'
+    ? new TauriPlatformCapabilities()
+    : new BrowserPlatformCapabilities(tabularisClient);
 
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>

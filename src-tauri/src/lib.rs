@@ -167,6 +167,7 @@ pub fn run() {
             .expect("Failed to bootstrap Tabularis Web services");
             let application_state =
                 std::sync::Arc::new(runtime::state::ApplicationState::default());
+            let web_data_dir = application.context.paths.data_dir().to_path_buf();
             let application_api = std::sync::Arc::new(
                 application::RuntimeApplicationApi::new(
                     application.context,
@@ -179,6 +180,7 @@ pub fn run() {
                     host: args.host.clone(),
                     port: args.port,
                     web_root,
+                    data_dir: web_data_dir,
                     open_browser: !args.no_open,
                     application: application_api,
                     events: web_events,

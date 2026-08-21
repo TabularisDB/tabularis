@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::Instant;
+use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum AuthorizationLevel {
@@ -25,6 +26,7 @@ pub struct ApplicationRequestContext {
     pub deadline: Instant,
     pub cancellation_id: Option<String>,
     pub authorization: AuthorizationLevel,
+    pub session_id: Option<Uuid>,
 }
 
 #[derive(Debug)]
@@ -59,6 +61,12 @@ pub trait ApplicationApi: Send + Sync {
         context: ApplicationRequestContext,
         connection_id: String,
     ) -> Result<(), ApplicationError>;
+
+    async fn execute_connection_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: connections::ConnectionCommand,
+    ) -> Result<Value, ApplicationError>;
 }
 
 pub struct RuntimeApplicationApi {
@@ -86,7 +94,7 @@ impl ApplicationApi for RuntimeApplicationApi {
         _context: ApplicationRequestContext,
     ) -> Result<Vec<crate::models::SavedConnection>, ApplicationError> {
         let path = self.runtime.paths.connections_file();
-        tokio::task::spawn_blocking(move || connections::load_connections(&path))
+        tokio::task::spawn_blocking(move || connections::load_redacted_connections(&path))
             .await
             .map_err(|error| ApplicationError::new(format!("Failed to load connections: {error}")))?
             .map_err(ApplicationError::new)
@@ -98,6 +106,16 @@ impl ApplicationApi for RuntimeApplicationApi {
         connection_id: String,
     ) -> Result<(), ApplicationError> {
         crate::commands::cancel_query_impl(&self.state.query_cancellation, &connection_id)
+            .map_err(ApplicationError::new)
+    }
+
+    async fn execute_connection_command(
+        &self,
+        _context: ApplicationRequestContext,
+        command: connections::ConnectionCommand,
+    ) -> Result<Value, ApplicationError> {
+        connections::execute(&self.runtime, &self.state, command)
+            .await
             .map_err(ApplicationError::new)
     }
 }

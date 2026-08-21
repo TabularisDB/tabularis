@@ -114,6 +114,54 @@ export class HttpTransport implements TabularisTransport {
     return this.callRpc<unknown>(command, request, options);
   }
 
+  async uploadConnectionIcon(file: Blob): Promise<string> {
+    const session = await this.initialize();
+    if (!session.capabilities.uploads) {
+      throw clientError(
+        "UPLOADS_UNAVAILABLE",
+        "The server did not advertise file uploads",
+      );
+    }
+    const requestId = createRequestId();
+    let response: Response;
+    try {
+      response = await this.fetchRequest(
+        this.url(`/api/${session.apiVersion}/uploads/connection-icons`),
+        {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: {
+            accept: "application/json",
+            "content-type": file.type || "application/octet-stream",
+            "x-request-id": requestId,
+            "x-tabularis-csrf": session.csrfToken,
+          },
+          body: file,
+        },
+      );
+    } catch (error) {
+      throw normalizeTabularisError(error, "UPLOAD_NETWORK_ERROR", requestId);
+    }
+    const responseRequestId = response.headers.get("x-request-id") ?? requestId;
+    if (!response.ok) {
+      throw clientError(
+        "ICON_UPLOAD_FAILED",
+        `Connection icon upload failed with HTTP ${response.status}`,
+        responseRequestId,
+      );
+    }
+    const body = await readJson(response, responseRequestId);
+    if (!isIconUploadResponse(body)) {
+      throw clientError(
+        "INVALID_UPLOAD_RESPONSE",
+        "The server returned an invalid icon upload response",
+        responseRequestId,
+      );
+    }
+    return body.token;
+  }
+
   async subscribe<K extends EventName>(
     event: K,
     handler: EventHandler<K>,
@@ -467,6 +515,16 @@ function clientError(
   details: unknown | null = null,
 ): TabularisClientError {
   return new TabularisClientError({ code, message, details, requestId });
+}
+
+function isIconUploadResponse(value: unknown): value is { token: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "token" in value &&
+    typeof value.token === "string" &&
+    value.token.length > 0
+  );
 }
 
 function isSessionNegotiation(value: unknown): value is SessionNegotiation {

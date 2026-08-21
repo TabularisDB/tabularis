@@ -1,4 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { appDataDir, join } from "@tauri-apps/api/path";
 import {
   open as openDialog,
   save as saveDialog,
@@ -189,6 +190,26 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
     this.require("chooseSaveTarget");
     const reference = await this.operations.chooseSavePath(options);
     return reference ? { reference } : null;
+  }
+
+  async chooseConnectionIcon(connectionId: string): Promise<string | null> {
+    const selected = await this.chooseInputFile({
+      filters: [
+        {
+          name: "Image",
+          extensions: ["png", "jpg", "jpeg", "webp", "svg"],
+        },
+      ],
+    });
+    if (!selected) return null;
+    return invoke<string>("save_connection_icon", {
+      connectionId,
+      sourcePath: selected.reference,
+    });
+  }
+
+  async resolveAppAsset(relativePath: string): Promise<string> {
+    return convertFileSrc(await join(await appDataDir(), relativePath));
   }
 
   async readClipboard(): Promise<string> {

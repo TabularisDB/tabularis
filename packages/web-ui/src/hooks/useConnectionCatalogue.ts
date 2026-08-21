@@ -11,6 +11,7 @@ import {
   type EngineGroup,
   type ParadigmFacet,
 } from '../utils/connectionCatalogue';
+import { useTabularisClient } from './useTabularisClient';
 
 const BUILTIN_META: Record<string, { engine: string; paradigms: string[] }> = {
   postgres: { engine: 'postgres', paradigms: ['sql'] },
@@ -27,6 +28,7 @@ export interface ConnectionCatalogue {
 }
 
 export function useConnectionCatalogue(): ConnectionCatalogue {
+  const client = useTabularisClient();
   const [registry, setRegistry] = useState<RegistryPluginWithStatus[]>([]);
   const [registered, setRegistered] = useState<PluginManifest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +42,7 @@ export function useConnectionCatalogue(): ConnectionCatalogue {
       // to avoid a cascading render on refresh() per .rules/react.md #2.
       setLoading(true);
       try {
-        const drivers = await invoke<PluginManifest[]>('get_registered_drivers');
+        const drivers = await client.call('get_registered_drivers', undefined);
         if (!cancelled) setRegistered(drivers);
       } catch {
         /* built-ins always have a fallback in useDrivers; ignore here */
@@ -60,7 +62,7 @@ export function useConnectionCatalogue(): ConnectionCatalogue {
     return () => {
       cancelled = true;
     };
-  }, [nonce]);
+  }, [client, nonce]);
 
   const groups = useMemo(() => {
     const builtinDrivers = registered

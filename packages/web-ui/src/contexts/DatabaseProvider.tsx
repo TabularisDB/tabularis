@@ -11,7 +11,6 @@ import {
   type SavedConnection,
   type ConnectionData,
   type ConnectionGroup,
-  type ConnectionsFile,
 } from './DatabaseContext';
 import type { ReactNode } from 'react';
 import type { PluginManifest } from '../types/plugins';
@@ -684,7 +683,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       // Fetch driver manifest to access capabilities (driver-agnostic feature detection)
       let driverManifest: PluginManifest | null = null;
       try {
-        driverManifest = await invoke<PluginManifest | null>('get_driver_manifest', { driverId: driver });
+        driverManifest = await client.call('get_driver_manifest', { driverId: driver });
       } catch {
         // Manifest not found; capabilities will be null and features will degrade gracefully
       }
@@ -722,7 +721,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // Register for health-check pinging.
-      await invoke('register_active_connection', { connectionId });
+      await client.call('register_active_connection', { connectionId });
 
       const savedDbList = isMultiDatabaseCapable(capabilities) ? getDatabaseList(dbParam) : [];
       // Empty selection on a multi-db driver = "all databases" mode: the list
@@ -970,7 +969,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     clearAutocompleteCache(targetId);
 
     try {
-      await invoke('disconnect_connection', { connectionId: targetId });
+      await client.call('disconnect_connection', { connectionId: targetId });
     } catch (error) {
       console.error(`[DatabaseProvider] Failed to disconnect from ${targetId}:`, error);
     }
@@ -1039,7 +1038,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   const loadConnections = useCallback(async () => {
     setIsLoadingConnections(true);
     try {
-      const result = await invoke<ConnectionsFile>('get_connections_with_groups');
+      const result = await client.call('get_connections_with_groups', undefined);
       setConnections(result.connections);
       setConnectionGroups(result.groups);
     } catch (e) {
@@ -1047,7 +1046,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoadingConnections(false);
     }
-  }, []);
+  }, [client]);
 
   const getConnectionData = useCallback((connectionId: string): ConnectionData | undefined => {
     return connectionDataMap[connectionId];
@@ -1113,11 +1112,11 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
   // Listen for backend health-check failures and clean up dead connections.
   useEffect(() => {
-    const unlisten = listen<{ connectionId: string; error: string }>(
+    const unlisten = client.subscribe(
       'connection-health-failed',
-      (event) => {
-        const { connectionId } = event.payload;
-        console.warn(`[DatabaseProvider] Connection health check failed for ${connectionId}: ${event.payload.error}`);
+      (payload) => {
+        const { connectionId } = payload;
+        console.warn(`[DatabaseProvider] Connection health check failed for ${connectionId}: ${payload.error}`);
 
         clearAutocompleteCache(connectionId);
 
@@ -1138,19 +1137,19 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       },
     );
     return () => { unlisten.then(fn => fn()); };
-  }, []);
+  }, [client]);
 
   // Track the set of connections open anywhere (across all windows). Seed from
   // the backend snapshot, then keep in sync via the broadcast event.
   useEffect(() => {
-    invoke<string[]>('get_active_connections')
+    client.call('get_active_connections', undefined)
       .then(setGloballyOpenConnectionIds)
       .catch(() => {});
-    const unlisten = listen<string[]>('connections:active-changed', (event) => {
-      setGloballyOpenConnectionIds(event.payload);
+    const unlisten = client.subscribe('connections:active-changed', (payload) => {
+      setGloballyOpenConnectionIds(payload);
     });
     return () => { unlisten.then(fn => fn()); };
-  }, []);
+  }, [client]);
 
   // A `DROP DATABASE` that succeeded inside the app leaves the stored selection
   // stale; the backend now says so instead of making the user press refresh
@@ -1186,48 +1185,53 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     // and the Rust deserializer maps it to `None`. Passing `undefined`
     // would also work because serde's default attribute treats it the
     // same, but we normalise to `null` for explicitness.
-    const group = await invoke<ConnectionGroup>('create_connection_group', {
+    const group = await client.call('create_connection_group', {
       name,
       parentId: parentId ?? null,
     });
     setConnectionGroups(prev => [...prev, group]);
     return group;
-  }, []);
+  }, [client]);
 
   const createGroupPath = useCallback(async (
     path: string,
     parentId?: string | null
   ): Promise<ConnectionGroup> => {
-    const group = await invoke<ConnectionGroup>('create_group_path', {
+    const group = await client.call('create_group_path', {
       path,
       parentId: parentId ?? null,
     });
     // Re-fetch the full group list because the backend may have reused
     // existing segments and created new ones we don't yet know about.
-    const fresh = await invoke<ConnectionGroup[]>('get_connection_groups');
+    const fresh = await client.call('get_connection_groups', undefined);
     setConnectionGroups(fresh);
     return group;
-  }, []);
+  }, [client]);
 
   const updateGroup = useCallback(async (
     id: string,
     updates: { name?: string; collapsed?: boolean; sort_order?: number }
   ): Promise<void> => {
-    await invoke('update_connection_group', { id, ...updates });
+    await client.call('update_connection_group', {
+      id,
+      name: updates.name,
+      collapsed: updates.collapsed,
+      sortOrder: updates.sort_order,
+    });
     setConnectionGroups(prev =>
       prev.map(g => (g.id === id ? { ...g, ...updates } : g))
     );
-  }, []);
+  }, [client]);
 
   const moveGroupToParent = useCallback(async (
     id: string,
     parentId: string | null
   ): Promise<void> => {
-    await invoke('move_group_to_parent', { id, parentId });
+    await client.call('move_group_to_parent', { id, parentId });
     setConnectionGroups(prev =>
       prev.map(g => (g.id === id ? { ...g, parent_id: parentId } : g))
     );
-  }, []);
+  }, [client]);
 
   const deleteGroup = useCallback(async (id: string): Promise<void> => {
     // The backend cascade-deletes the target group, every nested child
@@ -1236,26 +1240,26 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     // optimistic state — this keeps the optimistic update trivial and
     // guarantees the UI matches the persisted file even if the cascade
     // behaviour evolves.
-    await invoke('delete_connection_group', { id });
-    const fresh = await invoke<ConnectionsFile>('get_connections_with_groups');
+    await client.call('delete_connection_group', { id });
+    const fresh = await client.call('get_connections_with_groups', undefined);
     setConnections(fresh.connections);
     setConnectionGroups(fresh.groups);
-  }, []);
+  }, [client]);
 
   const moveConnectionToGroup = useCallback(async (
     connectionId: string,
     groupId: string | null
   ): Promise<void> => {
-    await invoke('move_connection_to_group', { connectionId, groupId });
+    await client.call('move_connection_to_group', { connectionId, groupId });
     setConnections(prev =>
       prev.map(c => (c.id === connectionId ? { ...c, group_id: groupId ?? undefined } : c))
     );
-  }, []);
+  }, [client]);
 
   const reorderGroups = useCallback(async (
     groupOrders: Array<[string, number]>
   ): Promise<void> => {
-    await invoke('reorder_groups', { groupOrders });
+    await client.call('reorder_groups', { groupOrders });
     setConnectionGroups(prev => {
       const orderMap = new Map(groupOrders);
       return prev.map(g => ({
@@ -1263,12 +1267,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         sort_order: orderMap.get(g.id) ?? g.sort_order,
       })).sort((a, b) => a.sort_order - b.sort_order);
     });
-  }, []);
+  }, [client]);
 
   const reorderConnectionsInGroup = useCallback(async (
     connectionOrders: Array<[string, number]>
   ): Promise<void> => {
-    await invoke('reorder_connections_in_group', { connectionOrders });
+    await client.call('reorder_connections_in_group', { connectionOrders });
     setConnections(prev => {
       const orderMap = new Map(connectionOrders);
       return prev.map(c => ({
@@ -1276,7 +1280,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         sort_order: orderMap.get(c.id) ?? c.sort_order,
       }));
     });
-  }, []);
+  }, [client]);
 
   const toggleGroupCollapsed = useCallback(async (groupId: string): Promise<void> => {
     const group = connectionGroups.find(g => g.id === groupId);

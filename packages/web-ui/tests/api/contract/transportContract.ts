@@ -54,6 +54,12 @@ export function defineTransportContractSuite(
       ).resolves.toBe(true);
     });
 
+    it("preserves connection-management contracts", async () => {
+      await expect(
+        harness.transport.call("get_connections_with_groups", undefined),
+      ).resolves.toEqual({ groups: [], connections: [] });
+    });
+
     it("preserves complex JSON serialization without coercion", async () => {
       const result = await harness.transport.callUnmigrated(
         "contract_serialization_fixture",
@@ -151,6 +157,10 @@ async function handleRequest(
   const body = await readBody(request);
   if (command === "is_debug_mode" && body === "null") {
     sendSuccess(response, true, requestId);
+    return;
+  }
+  if (command === "get_connections_with_groups" && body === "null") {
+    sendSuccess(response, { groups: [], connections: [] }, requestId);
     return;
   }
   if (

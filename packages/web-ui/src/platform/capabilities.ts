@@ -106,6 +106,8 @@ export interface PlatformCapabilities {
   chooseSaveTarget(
     options?: ChooseSaveTargetOptions,
   ): Promise<ChosenSaveTarget | null>;
+  chooseConnectionIcon(connectionId: string): Promise<string | null>;
+  resolveAppAsset(relativePath: string): Promise<string>;
   readClipboard(): Promise<string>;
   writeClipboard(text: string): Promise<void>;
   downloadFile(request: DownloadFileRequest): Promise<boolean>;

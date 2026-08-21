@@ -18,7 +18,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get, post};
 use axum::{Json, Router};
 use futures::{SinkExt, StreamExt};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -36,6 +36,7 @@ pub struct WebServerOptions {
     pub host: String,
     pub port: u16,
     pub web_root: PathBuf,
+    pub data_dir: PathBuf,
     pub open_browser: bool,
     pub application: Arc<dyn ApplicationApi>,
     pub events: WebEventBus,
@@ -46,10 +47,16 @@ struct WebServerState {
     security: LocalSessionSecurity,
     rpc: RpcDispatcher,
     events: WebEventBus,
+    data_dir: PathBuf,
 }
 
 #[derive(Deserialize)]
 struct BootstrapQuery {
+    token: String,
+}
+
+#[derive(Serialize)]
+struct IconUploadResponse {
     token: String,
 }
 
@@ -80,6 +87,7 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
     serve_with_events(
         listener,
         options.web_root,
+        options.data_dir,
         security,
         options.application,
         options.events,
@@ -100,9 +108,11 @@ pub(crate) async fn serve<F>(
 where
     F: Future<Output = ()> + Send + 'static,
 {
+    let data_dir = web_root.clone();
     serve_with_events(
         listener,
         web_root,
+        data_dir,
         security,
         application,
         WebEventBus::default(),
@@ -114,6 +124,7 @@ where
 pub(crate) async fn serve_with_events<F>(
     listener: TcpListener,
     web_root: PathBuf,
+    data_dir: PathBuf,
     security: LocalSessionSecurity,
     application: Arc<dyn ApplicationApi>,
     events: WebEventBus,
@@ -122,13 +133,17 @@ pub(crate) async fn serve_with_events<F>(
 where
     F: Future<Output = ()> + Send + 'static,
 {
-    axum::serve(listener, router(web_root, security, application, events))
-        .with_graceful_shutdown(shutdown)
-        .await
+    axum::serve(
+        listener,
+        router(web_root, data_dir, security, application, events),
+    )
+    .with_graceful_shutdown(shutdown)
+    .await
 }
 
 fn router(
     web_root: PathBuf,
+    data_dir: PathBuf,
     security: LocalSessionSecurity,
     application: Arc<dyn ApplicationApi>,
     events: WebEventBus,
@@ -140,6 +155,7 @@ fn router(
         security,
         rpc: RpcDispatcher::new(application),
         events,
+        data_dir,
     };
 
     Router::new()
@@ -149,6 +165,14 @@ fn router(
         .route("/api/v1/logout", post(logout))
         .route("/api/v1/events", get(event_stream))
         .route("/api/v1/rpc/:command", post(rpc))
+        .route(
+            "/api/v1/uploads/connection-icons",
+            post(upload_connection_icon),
+        )
+        .route(
+            "/api/v1/assets/connection-icons/:filename",
+            get(connection_icon_asset),
+        )
         .route("/api/*path", any(StatusCode::NOT_FOUND))
         .fallback_service(static_files)
         .with_state(state.clone())
@@ -198,15 +222,80 @@ async fn session(Extension(session): Extension<AuthenticatedSession>) -> impl In
 async fn rpc(
     State(state): State<WebServerState>,
     Path(command): Path<String>,
-    Extension(_session): Extension<AuthenticatedSession>,
+    Extension(session): Extension<AuthenticatedSession>,
     Extension(request_id): Extension<RequestId>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
     state
         .rpc
-        .dispatch(&command, request_id, &headers, body)
+        .dispatch(
+            &command,
+            request_id,
+            &headers,
+            body,
+            Some(session.event_scope()),
+        )
         .await
+}
+
+async fn upload_connection_icon(
+    State(state): State<WebServerState>,
+    Extension(session): Extension<AuthenticatedSession>,
+    body: Bytes,
+) -> Response {
+    match crate::application::connections::store_icon_upload(
+        &state.data_dir,
+        session.event_scope(),
+        &body,
+    ) {
+        Ok(token) => (
+            StatusCode::CREATED,
+            [(CACHE_CONTROL, "no-store")],
+            Json(IconUploadResponse { token }),
+        )
+            .into_response(),
+        Err(error) => (
+            StatusCode::BAD_REQUEST,
+            [(CACHE_CONTROL, "no-store")],
+            error,
+        )
+            .into_response(),
+    }
+}
+
+async fn connection_icon_asset(
+    State(state): State<WebServerState>,
+    Path(filename): Path<String>,
+) -> Response {
+    let relative_path = format!("connection-icons/{filename}");
+    let path = match crate::application::connections::resolve_icon_asset(
+        &state.data_dir,
+        &relative_path,
+    ) {
+        Ok(path) => path,
+        Err(_) => return status_response(StatusCode::NOT_FOUND),
+    };
+    let bytes = match tokio::fs::read(&path).await {
+        Ok(bytes) => bytes,
+        Err(_) => return status_response(StatusCode::NOT_FOUND),
+    };
+    let content_type = match path.extension().and_then(|extension| extension.to_str()) {
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        Some("svg") => "image/svg+xml",
+        _ => "application/octet-stream",
+    };
+    (
+        StatusCode::OK,
+        [
+            (CACHE_CONTROL, "private, max-age=300"),
+            (CONTENT_TYPE, content_type),
+        ],
+        bytes,
+    )
+        .into_response()
 }
 
 async fn event_stream(

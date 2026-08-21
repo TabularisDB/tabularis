@@ -61,6 +61,10 @@ vi.mock("../../src/hooks/useDatabase", () => ({
   }),
 }));
 
+vi.mock("../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({ call: vi.fn() }),
+}));
+
 vi.mock("../../src/hooks/useDrivers", () => ({
   useDrivers: () => ({ drivers: mocks.drivers, allDrivers: mocks.drivers }),
 }));

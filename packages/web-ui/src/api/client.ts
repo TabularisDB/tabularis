@@ -16,6 +16,7 @@ import type {
 export interface TabularisTransport
   extends TypedCommandCaller,
     EventSubscriber {
+  uploadConnectionIcon?(file: Blob): Promise<string>;
   emit<K extends EventName>(
     event: K,
     payload: EventPayload<K>,
@@ -49,6 +50,15 @@ export class TabularisClient implements TabularisTransport {
       tracking,
       options,
     );
+  }
+
+  uploadConnectionIcon(file: Blob): Promise<string> {
+    if (!this.transport.uploadConnectionIcon) {
+      return Promise.reject(
+        new Error("The active transport does not support connection icon uploads"),
+      );
+    }
+    return this.transport.uploadConnectionIcon(file);
   }
 
   subscribe<K extends EventName>(

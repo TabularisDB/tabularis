@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { InstalledPluginInfo, PluginManifest } from "../types/plugins";
 import { useSettings } from "./useSettings";
+import { useTabularisClient } from "./useTabularisClient";
 
 const FALLBACK_DRIVERS: PluginManifest[] = [
   {
@@ -136,10 +137,11 @@ export function useDrivers(): {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { settings } = useSettings();
+  const client = useTabularisClient();
 
   const load = useCallback(() => {
     Promise.all([
-      invoke<PluginManifest[]>("get_registered_drivers"),
+      client.call("get_registered_drivers", undefined),
       invoke<InstalledPluginInfo[]>("get_installed_plugins"),
     ])
       .then(([drivers, installed]) => {
@@ -151,7 +153,7 @@ export function useDrivers(): {
         setError(String(err));
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [client]);
 
   const refresh = useCallback(() => {
     setLoading(true);

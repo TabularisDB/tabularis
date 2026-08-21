@@ -52,6 +52,15 @@ impl ApplicationApi for FixtureApplication {
         self.record(context).await;
         Err(ApplicationError::new("No running query found"))
     }
+
+    async fn execute_connection_command(
+        &self,
+        context: ApplicationRequestContext,
+        _command: ConnectionCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(Value::Null)
+    }
 }
 
 fn json_headers() -> HeaderMap {
@@ -109,6 +118,7 @@ async fn rejects_invalid_payloads_with_a_stable_error_envelope() {
             RequestId("request-invalid".to_string()),
             &json_headers(),
             Bytes::from_static(br#"{"unknown":true}"#),
+            None,
         )
         .await;
 
@@ -141,6 +151,7 @@ async fn enforces_deadlines_and_releases_cancellation_identifiers() {
             RequestId("request-timeout".to_string()),
             &deadline_headers,
             Bytes::from_static(b"null"),
+            None,
         )
         .await;
     assert_eq!(timeout.status(), StatusCode::GATEWAY_TIMEOUT);
@@ -155,6 +166,7 @@ async fn enforces_deadlines_and_releases_cancellation_identifiers() {
             RequestId("request-retry".to_string()),
             &json_headers_with_cancellation("query-1"),
             Bytes::from_static(b"null"),
+            None,
         )
         .await;
     assert_eq!(retry.status(), StatusCode::OK);
@@ -182,6 +194,7 @@ async fn rejects_duplicate_active_cancellation_identifiers() {
                 RequestId("request-first".to_string()),
                 &json_headers_with_cancellation("shared"),
                 Bytes::from_static(b"null"),
+                None,
             )
             .await
     });
@@ -193,6 +206,7 @@ async fn rejects_duplicate_active_cancellation_identifiers() {
             RequestId("request-duplicate".to_string()),
             &json_headers_with_cancellation("shared"),
             Bytes::from_static(b"null"),
+            None,
         )
         .await;
     assert_eq!(duplicate.status(), StatusCode::CONFLICT);

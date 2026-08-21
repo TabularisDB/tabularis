@@ -2,6 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { ConnectionIconImage } from "./ConnectionIconImage";
 
+vi.mock("../hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({
+    resolveAppAsset: async (path: string) => `tauri:///app/data/${path}`,
+  }),
+}));
+
 vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: (s: string) => `tauri://${s}`,
 }));
