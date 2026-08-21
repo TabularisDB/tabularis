@@ -32,6 +32,7 @@ import { useResultTypeColors } from "./hooks/useResultTypeColors";
 import { APP_VERSION } from "./version";
 import { isVersionAtMost, isVersionNewer } from "./utils/versionCompare";
 import { useTabularisClient } from "./hooks/useTabularisClient";
+import { BROWSER_ROUTES, WEB_UI_BASE_PATH } from "./routing";
 
 const WHATS_NEW_VERSION_KEY = "tabularis_last_seen_version";
 
@@ -114,7 +115,7 @@ export function App() {
   return (
     <>
       <AlertProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={WEB_UI_BASE_PATH}>
           <ConnectionHealthMonitor />
           <KeybindingsProvider>
             <PluginSlotProvider>
@@ -122,32 +123,32 @@ export function App() {
                 <ConnectionLayoutProvider>
                   <RightSidebarProvider>
                   <Routes>
-                    <Route path="/" element={<MainLayout />}>
+                    <Route path={BROWSER_ROUTES.root} element={<MainLayout />}>
                       <Route
                         index
-                        element={<Navigate to="/connections" replace />}
+                        element={<Navigate to={BROWSER_ROUTES.connections} replace />}
                       />
-                      <Route path="connections" element={<Connections />} />
+                      <Route path={BROWSER_ROUTES.connections} element={<Connections />} />
                       <Route
-                        path="editor"
+                        path={BROWSER_ROUTES.editor}
                         element={
                           <EditorErrorBoundary>
                             <Editor />
                           </EditorErrorBoundary>
                         }
                       />
-                      <Route path="mcp" element={<McpPage />} />
-                      <Route path="settings" element={<Settings />} />
+                      <Route path={BROWSER_ROUTES.mcp} element={<McpPage />} />
+                      <Route path={BROWSER_ROUTES.settings} element={<Settings />} />
                     </Route>
                     <Route
-                      path="/schema-diagram"
+                      path={BROWSER_ROUTES.schemaDiagram}
                       element={<SchemaDiagramPage />}
                     />
-                    <Route path="/task-manager" element={<TaskManagerPage />} />
-                    <Route path="/visual-explain" element={<VisualExplainPage />} />
-                    <Route path="/json-viewer" element={<JsonViewerPage />} />
+                    <Route path={BROWSER_ROUTES.taskManager} element={<TaskManagerPage />} />
+                    <Route path={BROWSER_ROUTES.visualExplain} element={<VisualExplainPage />} />
+                    <Route path={BROWSER_ROUTES.jsonViewer} element={<JsonViewerPage />} />
                     <Route
-                      path="/results-window"
+                      path={BROWSER_ROUTES.resultsWindow}
                       element={<ResultsWindowPage />}
                     />
                   </Routes>
