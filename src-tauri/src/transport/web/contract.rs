@@ -39,7 +39,7 @@ impl SessionNegotiation {
             csrf_token,
             capabilities: WebTransportCapabilities {
                 rpc: true,
-                events: false,
+                events: true,
                 uploads: false,
                 downloads: false,
                 plugin_assets: false,

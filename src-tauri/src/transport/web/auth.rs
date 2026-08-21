@@ -169,6 +169,14 @@ impl LocalSessionSecurity {
     }
 }
 
+impl AuthenticatedSession {
+    pub(crate) fn event_scope(&self) -> Uuid {
+        let mut bytes = [0_u8; 16];
+        bytes.copy_from_slice(&self.token_hash[..16]);
+        Uuid::from_bytes(bytes)
+    }
+}
+
 impl BootstrapToken {
     pub fn expose(&self) -> &str {
         &self.0

@@ -1,15 +1,19 @@
 use super::auth::{LocalSessionSecurity, LocalSessionSecurityConfig};
 use super::contract::{SessionNegotiation, WEB_API_VERSION};
+use super::events::{EventBusConfig, WebEventBus};
 use super::rpc::{RPC_CANCELLATION_HEADER_NAME, RPC_DEADLINE_HEADER_NAME};
 use super::{server, static_assets};
 use crate::application::{ApplicationApi, RuntimeApplicationApi};
 use crate::runtime::{paths::FixedRuntimePaths, state::ApplicationState, RuntimeContext};
+use futures::{SinkExt, StreamExt};
 use reqwest::header::{COOKIE, HOST, LOCATION, ORIGIN, SET_COOKIE};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use tokio_tungstenite::tungstenite::{Error as WebSocketError, Message as WebSocketMessage};
 
 const CSRF_HEADER: &str = "x-tabularis-csrf";
 const REQUEST_ID_HEADER: &str = "x-request-id";
@@ -144,7 +148,7 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
     assert!(session.authenticated);
     assert!(!session.csrf_token.is_empty());
     assert!(session.capabilities.rpc);
-    assert!(!session.capabilities.events);
+    assert!(session.capabilities.events);
 
     let index = client
         .get(&base_url)
@@ -497,6 +501,127 @@ async fn executes_representative_commands_over_versioned_rpc() {
         "QUERY_CANCELLATION_FAILED"
     );
     assert_eq!(cancellation_error["error"]["requestId"], request_id);
+
+    shutdown_tx.send(()).unwrap();
+    server.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn authenticates_websockets_and_delivers_scoped_events_with_heartbeat() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let websocket_url = format!("ws://{address}/api/v1/events");
+    let (security, bootstrap_token) =
+        LocalSessionSecurity::new(base_url.clone(), LocalSessionSecurityConfig::default()).unwrap();
+    let issued = security
+        .consume_bootstrap(bootstrap_token.expose())
+        .unwrap();
+    let event_scope = security
+        .authenticate(&issued.cookie_value)
+        .unwrap()
+        .event_scope();
+    let events = WebEventBus::new(EventBusConfig {
+        connection_queue_capacity: 4,
+        session_history_capacity: 4,
+        max_sessions: 4,
+        max_connections_per_session: 2,
+        disconnected_session_ttl: Duration::from_secs(1),
+        heartbeat_interval: Duration::from_millis(20),
+        heartbeat_timeout: Duration::from_millis(80),
+    });
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve_with_events(
+        listener,
+        temp.path().to_path_buf(),
+        security,
+        test_application(temp.path()),
+        events.clone(),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+
+    let unauthorized = tokio_tungstenite::connect_async(&websocket_url)
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        unauthorized,
+        WebSocketError::Http(response)
+            if response.status() == reqwest::StatusCode::UNAUTHORIZED
+    ));
+
+    let mut request = websocket_url.into_client_request().unwrap();
+    request.headers_mut().insert(
+        "cookie",
+        format!("tabularis_session={}", issued.cookie_value)
+            .parse()
+            .unwrap(),
+    );
+    request
+        .headers_mut()
+        .insert("origin", base_url.parse().unwrap());
+    let (mut websocket, response) = tokio_tungstenite::connect_async(request).await.unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::SWITCHING_PROTOCOLS);
+
+    websocket
+        .send(WebSocketMessage::Text(
+            serde_json::json!({
+                "type": "subscribe",
+                "events": ["connection-health-failed"]
+            })
+            .to_string(),
+        ))
+        .await
+        .unwrap();
+    let acknowledgement = websocket.next().await.unwrap().unwrap();
+    let WebSocketMessage::Text(acknowledgement) = acknowledgement else {
+        panic!("expected a subscription acknowledgement");
+    };
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&acknowledgement).unwrap()["type"],
+        "subscribed"
+    );
+
+    let heartbeat = websocket.next().await.unwrap().unwrap();
+    let WebSocketMessage::Ping(payload) = heartbeat else {
+        panic!("expected a heartbeat ping");
+    };
+    websocket
+        .send(WebSocketMessage::Pong(payload))
+        .await
+        .unwrap();
+
+    events
+        .emit_to(
+            event_scope,
+            "connection-health-failed",
+            serde_json::json!({"connectionId": "connection-1", "error": "offline"}),
+        )
+        .unwrap();
+    let event = loop {
+        match websocket.next().await.unwrap().unwrap() {
+            WebSocketMessage::Text(event) => break event,
+            WebSocketMessage::Ping(payload) => {
+                websocket
+                    .send(WebSocketMessage::Pong(payload))
+                    .await
+                    .unwrap();
+            }
+            message => panic!("expected an event message, received {message:?}"),
+        }
+    };
+    let event: serde_json::Value = serde_json::from_str(&event).unwrap();
+    assert_eq!(event["type"], "event");
+    assert_eq!(event["event"], "connection-health-failed");
+    assert_eq!(event["payload"]["connectionId"], "connection-1");
+
+    websocket.close(None).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    assert_eq!(events.connection_count(event_scope), 0);
 
     shutdown_tx.send(()).unwrap();
     server.await.unwrap().unwrap();

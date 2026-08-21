@@ -3,9 +3,11 @@ use super::auth::{
     CSRF_HEADER_NAME, SESSION_COOKIE_NAME,
 };
 use super::contract::SessionNegotiation;
+use super::events::{ClientEventMessage, EventConnection, ServerEventMessage, WebEventBus};
 use super::rpc::{RequestId, RpcDispatcher};
-use crate::application::ApplicationApi;
+use crate::application::{ApplicationApi, AuthorizationLevel};
 use axum::body::Bytes;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Extension, Path, Query, Request, State};
 use axum::http::header::{
     CACHE_CONTROL, CONTENT_TYPE, COOKIE, HOST, LOCATION, ORIGIN, REFERRER_POLICY, SET_COOKIE,
@@ -15,17 +17,20 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get, post};
 use axum::{Json, Router};
+use futures::{SinkExt, StreamExt};
 use serde::Deserialize;
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
+use tokio::time::{Instant, MissedTickBehavior};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use uuid::Uuid;
 
 const BOOTSTRAP_PATH: &str = "/api/v1/auth/bootstrap";
 const REQUEST_ID_HEADER_NAME: &str = "x-request-id";
+const MAX_EVENT_CONTROL_BYTES: usize = 16 * 1024;
 
 pub struct WebServerOptions {
     pub host: String,
@@ -33,12 +38,14 @@ pub struct WebServerOptions {
     pub web_root: PathBuf,
     pub open_browser: bool,
     pub application: Arc<dyn ApplicationApi>,
+    pub events: WebEventBus,
 }
 
 #[derive(Clone)]
 struct WebServerState {
     security: LocalSessionSecurity,
     rpc: RpcDispatcher,
+    events: WebEventBus,
 }
 
 #[derive(Deserialize)]
@@ -70,17 +77,19 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
     drop(bootstrap_url);
     drop(bootstrap_token);
 
-    serve(
+    serve_with_events(
         listener,
         options.web_root,
         security,
         options.application,
+        options.events,
         shutdown_signal(),
     )
     .await
     .map_err(|error| format!("Web UI server failed: {error}"))
 }
 
+#[cfg(test)]
 pub(crate) async fn serve<F>(
     listener: TcpListener,
     web_root: PathBuf,
@@ -91,7 +100,29 @@ pub(crate) async fn serve<F>(
 where
     F: Future<Output = ()> + Send + 'static,
 {
-    axum::serve(listener, router(web_root, security, application))
+    serve_with_events(
+        listener,
+        web_root,
+        security,
+        application,
+        WebEventBus::default(),
+        shutdown,
+    )
+    .await
+}
+
+pub(crate) async fn serve_with_events<F>(
+    listener: TcpListener,
+    web_root: PathBuf,
+    security: LocalSessionSecurity,
+    application: Arc<dyn ApplicationApi>,
+    events: WebEventBus,
+    shutdown: F,
+) -> std::io::Result<()>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
+    axum::serve(listener, router(web_root, security, application, events))
         .with_graceful_shutdown(shutdown)
         .await
 }
@@ -100,6 +131,7 @@ fn router(
     web_root: PathBuf,
     security: LocalSessionSecurity,
     application: Arc<dyn ApplicationApi>,
+    events: WebEventBus,
 ) -> Router {
     let index = web_root.join("index.html");
     let static_files = ServeDir::new(web_root).fallback(ServeFile::new(index));
@@ -107,6 +139,7 @@ fn router(
     let state = WebServerState {
         security,
         rpc: RpcDispatcher::new(application),
+        events,
     };
 
     Router::new()
@@ -114,6 +147,7 @@ fn router(
         .route(BOOTSTRAP_PATH, get(bootstrap))
         .route("/api/v1/session", get(session))
         .route("/api/v1/logout", post(logout))
+        .route("/api/v1/events", get(event_stream))
         .route("/api/v1/rpc/:command", post(rpc))
         .route("/api/*path", any(StatusCode::NOT_FOUND))
         .fallback_service(static_files)
@@ -175,10 +209,178 @@ async fn rpc(
         .await
 }
 
+async fn event_stream(
+    State(state): State<WebServerState>,
+    Extension(session): Extension<AuthenticatedSession>,
+    websocket: WebSocketUpgrade,
+) -> Response {
+    let connection = match state
+        .events
+        .connect(session.event_scope(), AuthorizationLevel::LocalAdmin)
+    {
+        Ok(connection) => connection,
+        Err(error) => {
+            log::warn!("Rejected WebSocket event connection: {error}");
+            return status_response(StatusCode::SERVICE_UNAVAILABLE);
+        }
+    };
+    let events = state.events.clone();
+    websocket.on_upgrade(move |socket| event_socket(socket, connection, events))
+}
+
+async fn event_socket(socket: WebSocket, mut connection: EventConnection, events: WebEventBus) {
+    let (mut sender, mut receiver) = socket.split();
+    let mut heartbeat = tokio::time::interval(events.heartbeat_interval());
+    heartbeat.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    heartbeat.tick().await;
+    let mut last_pong = Instant::now();
+
+    loop {
+        tokio::select! {
+            event = connection.recv() => {
+                let Some(event) = event else {
+                    let _ = sender.send(Message::Close(None)).await;
+                    break;
+                };
+                let message = ServerEventMessage::Event { envelope: &event };
+                if send_event_message(&mut sender, &message).await.is_err() {
+                    break;
+                }
+            }
+            _ = heartbeat.tick() => {
+                if last_pong.elapsed() >= events.heartbeat_timeout() {
+                    let _ = sender.send(Message::Close(None)).await;
+                    break;
+                }
+                if sender.send(Message::Ping(Vec::new())).await.is_err() {
+                    break;
+                }
+            }
+            message = receiver.next() => {
+                let Some(Ok(message)) = message else {
+                    break;
+                };
+                match message {
+                    Message::Text(text) => {
+                        if text.len() > MAX_EVENT_CONTROL_BYTES {
+                            let message = ServerEventMessage::Error {
+                                code: "CONTROL_MESSAGE_TOO_LARGE",
+                                message: "The WebSocket control message is too large",
+                            };
+                            if send_event_message(&mut sender, &message).await.is_err() {
+                                break;
+                            }
+                            continue;
+                        }
+                        let control = match serde_json::from_str::<ClientEventMessage>(&text) {
+                            Ok(control) => control,
+                            Err(_) => {
+                                let message = ServerEventMessage::Error {
+                                    code: "INVALID_CONTROL_MESSAGE",
+                                    message: "The WebSocket control message is invalid",
+                                };
+                                if send_event_message(&mut sender, &message).await.is_err() {
+                                    break;
+                                }
+                                continue;
+                            }
+                        };
+                        if handle_event_control(&mut sender, &mut connection, control).await.is_err() {
+                            break;
+                        }
+                    }
+                    Message::Ping(payload) => {
+                        if sender.send(Message::Pong(payload)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Message::Pong(_) => last_pong = Instant::now(),
+                    Message::Close(_) => break,
+                    Message::Binary(_) => {
+                        let message = ServerEventMessage::Error {
+                            code: "INVALID_CONTROL_MESSAGE",
+                            message: "WebSocket control messages must be JSON text",
+                        };
+                        if send_event_message(&mut sender, &message).await.is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+async fn handle_event_control<S>(
+    sender: &mut S,
+    connection: &mut EventConnection,
+    control: ClientEventMessage,
+) -> Result<(), ()>
+where
+    S: futures::Sink<Message> + Unpin,
+{
+    match control {
+        ClientEventMessage::Subscribe { events, since } => {
+            match connection.subscribe(&events, since) {
+                Ok(replay) => {
+                    let acknowledgement = ServerEventMessage::Subscribed {
+                        events: &events,
+                        replayed: replay.len(),
+                    };
+                    send_event_message(sender, &acknowledgement).await?;
+                    for event in &replay {
+                        send_event_message(sender, &ServerEventMessage::Event { envelope: event })
+                            .await?;
+                    }
+                }
+                Err(error) => {
+                    send_event_message(
+                        sender,
+                        &ServerEventMessage::Error {
+                            code: "SUBSCRIPTION_REJECTED",
+                            message: &error,
+                        },
+                    )
+                    .await?;
+                }
+            }
+        }
+        ClientEventMessage::Unsubscribe { events } => match connection.unsubscribe(&events) {
+            Ok(()) => {
+                send_event_message(
+                    sender,
+                    &ServerEventMessage::Unsubscribed { events: &events },
+                )
+                .await?;
+            }
+            Err(error) => {
+                send_event_message(
+                    sender,
+                    &ServerEventMessage::Error {
+                        code: "SUBSCRIPTION_REJECTED",
+                        message: &error,
+                    },
+                )
+                .await?;
+            }
+        },
+    }
+    Ok(())
+}
+
+async fn send_event_message<S>(sender: &mut S, message: &ServerEventMessage<'_>) -> Result<(), ()>
+where
+    S: futures::Sink<Message> + Unpin,
+{
+    let text = serde_json::to_string(message).map_err(|_| ())?;
+    sender.send(Message::Text(text)).await.map_err(|_| ())
+}
+
 async fn logout(
     State(state): State<WebServerState>,
     Extension(session): Extension<AuthenticatedSession>,
 ) -> Response {
+    state.events.remove_session(session.event_scope());
     state.security.logout(&session);
     let mut response = StatusCode::NO_CONTENT.into_response();
     response

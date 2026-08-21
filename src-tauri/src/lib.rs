@@ -153,8 +153,14 @@ pub fn run() {
             let web_root =
                 transport::web::static_assets::resolve_web_root(args.web_root.as_deref())
                     .expect("Failed to locate Tabularis Web assets");
+            let web_events = transport::web::events::WebEventBus::default();
+            let runtime_context = runtime::RuntimeContext::new(
+                std::sync::Arc::new(runtime::paths::FixedRuntimePaths::system()),
+                std::sync::Arc::new(web_events.clone()),
+                std::sync::Arc::new(runtime::secrets::KeyringRuntimeSecrets),
+            );
             let application = runtime::bootstrap::bootstrap_application(
-                runtime::RuntimeContext::system(),
+                runtime_context,
                 runtime::bootstrap::BootstrapOptions::default(),
             )
             .await
@@ -175,6 +181,7 @@ pub fn run() {
                     web_root,
                     open_browser: !args.no_open,
                     application: application_api,
+                    events: web_events,
                 },
             )
             .await;
