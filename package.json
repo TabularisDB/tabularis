@@ -23,6 +23,7 @@
     "test:all": "pnpm test:rust && pnpm test:coverage",
     "web:inventory": "node scripts/generate-web-ui-api-inventory.mjs --check",
     "web:inventory:write": "node scripts/generate-web-ui-api-inventory.mjs --write",
+    "web:boundaries": "node scripts/check-web-ui-frontend-boundaries.mjs --check",
     "tauri": "tauri",
     "build:explain": "pnpm --filter @tabularis/explain build",
     "typecheck:explain": "pnpm --filter @tabularis/explain typecheck",

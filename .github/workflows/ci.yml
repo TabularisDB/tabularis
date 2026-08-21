@@ -13,7 +13,10 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'tsconfig.json'
+      - 'eslint.config.js'
+      - 'scripts/check-web-ui-frontend-boundaries.mjs'
       - 'scripts/generate-web-ui-api-inventory.mjs'
+      - 'scripts/web-ui-tauri-boundary-allowlist.json'
       - 'docs/web-ui-parity.json'
       - '.github/workflows/**'
   pull_request:
@@ -24,7 +27,10 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'tsconfig.json'
+      - 'eslint.config.js'
+      - 'scripts/check-web-ui-frontend-boundaries.mjs'
       - 'scripts/generate-web-ui-api-inventory.mjs'
+      - 'scripts/web-ui-tauri-boundary-allowlist.json'
       - 'docs/web-ui-parity.json'
       - '.github/workflows/**'
 
@@ -60,6 +66,9 @@ jobs:
 
       - name: Check web API inventory
         run: pnpm run web:inventory
+
+      - name: Check web frontend boundaries
+        run: pnpm run web:boundaries
 
       - name: Build
         run: pnpm run build
