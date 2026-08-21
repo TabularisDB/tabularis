@@ -54,7 +54,7 @@
   },
   "summary": {
     "literalCommandCount": 227,
-    "literalCallSiteCount": 366,
+    "literalCallSiteCount": 367,
     "dynamicCallSiteCount": 3,
     "handlerRegistrationCount": 255,
     "registeredCommandCount": 254,
@@ -3100,6 +3100,10 @@
         {
           "file": "src/components/modals/ConfigJsonModal.tsx",
           "line": 55
+        },
+        {
+          "file": "src/platform/tauriCapabilities.ts",
+          "line": 135
         }
       ]
     },

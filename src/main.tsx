@@ -18,31 +18,36 @@ import { ProductionGuardProvider } from './contexts/ProductionGuardContext';
 import { TabularisClient } from './api/client';
 import { TauriTransport } from './api/transports/tauriTransport';
 import { TabularisClientProvider } from './contexts/TabularisClientProvider';
+import { TauriPlatformCapabilities } from './platform/tauriCapabilities';
+import { PlatformCapabilitiesProvider } from './contexts/PlatformCapabilitiesProvider';
 
 const tabularisClient = new TabularisClient(new TauriTransport());
+const platformCapabilities = new TauriPlatformCapabilities();
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <TabularisClientProvider client={tabularisClient}>
-      <UpdateProvider>
-        <ThemeProvider>
-          <SettingsProvider>
-            <ToastProvider>
-              <DatabaseProvider>
-                <SavedQueriesProvider>
-                  <QueryHistoryProvider>
-                    <EditorProvider>
-                      <ProductionGuardProvider>
-                        <App />
-                      </ProductionGuardProvider>
-                    </EditorProvider>
-                  </QueryHistoryProvider>
-                </SavedQueriesProvider>
-              </DatabaseProvider>
-            </ToastProvider>
-          </SettingsProvider>
-        </ThemeProvider>
-      </UpdateProvider>
+      <PlatformCapabilitiesProvider capabilities={platformCapabilities}>
+        <UpdateProvider>
+          <ThemeProvider>
+            <SettingsProvider>
+              <ToastProvider>
+                <DatabaseProvider>
+                  <SavedQueriesProvider>
+                    <QueryHistoryProvider>
+                      <EditorProvider>
+                        <ProductionGuardProvider>
+                          <App />
+                        </ProductionGuardProvider>
+                      </EditorProvider>
+                    </QueryHistoryProvider>
+                  </SavedQueriesProvider>
+                </DatabaseProvider>
+              </ToastProvider>
+            </SettingsProvider>
+          </ThemeProvider>
+        </UpdateProvider>
+      </PlatformCapabilitiesProvider>
     </TabularisClientProvider>
   </React.StrictMode>,
 );

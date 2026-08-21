@@ -19,6 +19,7 @@ Object.defineProperty(document, "execCommand", {
 // Mock Tauri APIs
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
+  isTauri: vi.fn().mockReturnValue(true),
 }));
 
 vi.mock("@tauri-apps/api/window", () => ({
@@ -55,6 +56,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
 }));
 
 vi.mock("@tauri-apps/plugin-fs", () => ({
+  writeFile: vi.fn(),
   writeTextFile: vi.fn(),
   BaseDirectory: {
     Document: 1,
