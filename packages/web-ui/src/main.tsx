@@ -15,39 +15,50 @@ import { EditorProvider } from './contexts/EditorProvider';
 import { ThemeProvider } from './contexts/ThemeProvider';
 import { UpdateProvider } from './contexts/UpdateProvider';
 import { ProductionGuardProvider } from './contexts/ProductionGuardContext';
-import { TabularisClient } from './api/client';
-import { TauriTransport } from './api/transports/tauriTransport';
+import { bootstrapTabularisClient } from './api/bootstrap';
 import { TabularisClientProvider } from './contexts/TabularisClientProvider';
 import { TauriPlatformCapabilities } from './platform/tauriCapabilities';
 import { PlatformCapabilitiesProvider } from './contexts/PlatformCapabilitiesProvider';
+import { detectPlatformEnvironment } from './platform/environment';
+import { toErrorMessage } from './utils/errors';
 
-const tabularisClient = new TabularisClient(new TauriTransport());
-const platformCapabilities = new TauriPlatformCapabilities();
+const rootElement = document.getElementById('root') as HTMLElement;
+const environment = detectPlatformEnvironment();
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <React.StrictMode>
-    <TabularisClientProvider client={tabularisClient}>
-      <PlatformCapabilitiesProvider capabilities={platformCapabilities}>
-        <UpdateProvider>
-          <ThemeProvider>
-            <SettingsProvider>
-              <ToastProvider>
-                <DatabaseProvider>
-                  <SavedQueriesProvider>
-                    <QueryHistoryProvider>
-                      <EditorProvider>
-                        <ProductionGuardProvider>
-                          <App />
-                        </ProductionGuardProvider>
-                      </EditorProvider>
-                    </QueryHistoryProvider>
-                  </SavedQueriesProvider>
-                </DatabaseProvider>
-              </ToastProvider>
-            </SettingsProvider>
-          </ThemeProvider>
-        </UpdateProvider>
-      </PlatformCapabilitiesProvider>
-    </TabularisClientProvider>
-  </React.StrictMode>,
-);
+async function startApplication() {
+  const tabularisClient = await bootstrapTabularisClient(environment);
+  const platformCapabilities = new TauriPlatformCapabilities();
+
+  ReactDOM.createRoot(rootElement).render(
+    <React.StrictMode>
+      <TabularisClientProvider client={tabularisClient}>
+        <PlatformCapabilitiesProvider capabilities={platformCapabilities}>
+          <UpdateProvider>
+            <ThemeProvider>
+              <SettingsProvider>
+                <ToastProvider>
+                  <DatabaseProvider>
+                    <SavedQueriesProvider>
+                      <QueryHistoryProvider>
+                        <EditorProvider>
+                          <ProductionGuardProvider>
+                            <App />
+                          </ProductionGuardProvider>
+                        </EditorProvider>
+                      </QueryHistoryProvider>
+                    </SavedQueriesProvider>
+                  </DatabaseProvider>
+                </ToastProvider>
+              </SettingsProvider>
+            </ThemeProvider>
+          </UpdateProvider>
+        </PlatformCapabilitiesProvider>
+      </TabularisClientProvider>
+    </React.StrictMode>,
+  );
+}
+
+void startApplication().catch((error: unknown) => {
+  console.error('Failed to start Tabularis:', error);
+  rootElement.textContent = `Unable to start Tabularis: ${toErrorMessage(error)}`;
+});

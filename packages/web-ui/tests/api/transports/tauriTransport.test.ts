@@ -43,6 +43,23 @@ describe("TauriTransport", () => {
     });
   });
 
+  it("normalizes Tauri failures to the shared frontend error model", async () => {
+    const transport = new TauriTransport();
+    vi.mocked(invoke).mockRejectedValueOnce(new Error("query failed"));
+
+    const error = await transport
+      .call("is_debug_mode", undefined, { requestId: "request-tauri" })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({
+      name: "TabularisClientError",
+      code: "TAURI_COMMAND_FAILED",
+      message: "query failed",
+      details: null,
+      requestId: "request-tauri",
+    });
+  });
+
   it("unwraps Tauri event payloads and returns the unlisten callback", async () => {
     const transport = new TauriTransport();
     const handler = vi.fn();

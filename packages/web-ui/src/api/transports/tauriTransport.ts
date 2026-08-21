@@ -13,6 +13,7 @@ import type {
   EventPayload,
   Unsubscribe,
 } from "../events";
+import { createRequestId, normalizeTabularisError } from "../errors";
 
 type TauriInvoke = typeof invoke;
 type TauriListen = typeof listen;
@@ -36,24 +37,34 @@ export class TauriTransport implements TabularisTransport {
   call<K extends CommandName>(
     command: K,
     request: CommandRequest<K>,
-    _options?: CommandCallOptions,
+    options?: CommandCallOptions,
   ): Promise<CommandResponse<K>> {
-    void _options;
+    const requestId = options?.requestId ?? createRequestId();
     return this.invokeCommand<CommandResponse<K>>(
       command,
       request as InvokeArgs | undefined,
-    );
+    ).catch((error: unknown) => {
+      throw normalizeTabularisError(error, "TAURI_COMMAND_FAILED", requestId);
+    });
   }
 
   callUnmigrated<K extends string>(
     command: K extends CommandName ? never : K,
     request: unknown,
     _tracking: UnmigratedCommandTracking,
-    _options?: CommandCallOptions,
+    options?: CommandCallOptions,
   ): Promise<unknown> {
     void _tracking;
-    void _options;
-    return this.invokeCommand(command, request as InvokeArgs | undefined);
+    const requestId = options?.requestId ?? createRequestId();
+    return this.invokeCommand(command, request as InvokeArgs | undefined).catch(
+      (error: unknown) => {
+        throw normalizeTabularisError(
+          error,
+          "TAURI_COMMAND_FAILED",
+          requestId,
+        );
+      },
+    );
   }
 
   subscribe<K extends EventName>(
@@ -62,6 +73,8 @@ export class TauriTransport implements TabularisTransport {
   ): Promise<Unsubscribe> {
     return this.listenToEvent<EventPayload<K>>(event, ({ payload }) => {
       handler(payload);
+    }).catch((error: unknown) => {
+      throw normalizeTabularisError(error, "TAURI_EVENT_FAILED");
     });
   }
 
@@ -69,6 +82,8 @@ export class TauriTransport implements TabularisTransport {
     event: K,
     payload: EventPayload<K>,
   ): Promise<void> {
-    return this.emitEvent(event, payload);
+    return this.emitEvent(event, payload).catch((error: unknown) => {
+      throw normalizeTabularisError(error, "TAURI_EVENT_FAILED");
+    });
   }
 }
