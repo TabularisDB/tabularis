@@ -160,6 +160,8 @@ export type CommandAuthorization<K extends CommandName> =
 
 export interface CommandCallOptions {
   requestId?: RequestId;
+  deadlineMs?: number;
+  cancellationId?: string;
 }
 
 export interface UnmigratedCommandTracking {

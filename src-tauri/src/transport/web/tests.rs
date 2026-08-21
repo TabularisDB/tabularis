@@ -1,14 +1,37 @@
 use super::auth::{LocalSessionSecurity, LocalSessionSecurityConfig};
 use super::contract::{SessionNegotiation, WEB_API_VERSION};
+use super::rpc::{RPC_CANCELLATION_HEADER_NAME, RPC_DEADLINE_HEADER_NAME};
 use super::{server, static_assets};
+use crate::application::{ApplicationApi, RuntimeApplicationApi};
+use crate::runtime::{paths::FixedRuntimePaths, state::ApplicationState, RuntimeContext};
 use reqwest::header::{COOKIE, HOST, LOCATION, ORIGIN, SET_COOKIE};
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
 const CSRF_HEADER: &str = "x-tabularis-csrf";
 const REQUEST_ID_HEADER: &str = "x-request-id";
+
+fn test_application(root: &Path) -> Arc<dyn ApplicationApi> {
+    test_application_with_state(root, Arc::new(ApplicationState::default()))
+}
+
+fn test_application_with_state(
+    root: &Path,
+    state: Arc<ApplicationState>,
+) -> Arc<dyn ApplicationApi> {
+    let context = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            root.to_path_buf(),
+            root.to_path_buf(),
+        )),
+        Arc::new(crate::runtime::events::NoopRuntimeEvents),
+        Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
+    );
+    Arc::new(RuntimeApplicationApi::new(context, state))
+}
 
 #[tokio::test]
 async fn requires_a_single_use_bootstrap_and_authenticated_session() {
@@ -32,6 +55,7 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
         listener,
         assets.to_path_buf(),
         security,
+        test_application(assets),
         async move {
             let _ = shutdown_rx.await;
         },
@@ -119,7 +143,7 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
     assert_eq!(session.server_version, env!("CARGO_PKG_VERSION"));
     assert!(session.authenticated);
     assert!(!session.csrf_token.is_empty());
-    assert!(!session.capabilities.rpc);
+    assert!(session.capabilities.rpc);
     assert!(!session.capabilities.events);
 
     let index = client
@@ -260,6 +284,7 @@ async fn expires_bootstrap_tokens_and_sessions() {
         listener,
         temp.path().to_path_buf(),
         security,
+        test_application(temp.path()),
         async move {
             let _ = shutdown_rx.await;
         },
@@ -340,4 +365,139 @@ fn rejects_a_web_root_without_an_index() {
     let error = static_assets::resolve_web_root(Some(temp.path())).unwrap_err();
 
     assert!(error.contains("index.html"));
+}
+
+#[tokio::test]
+async fn executes_representative_commands_over_versioned_rpc() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let (security, bootstrap_token) =
+        LocalSessionSecurity::new(base_url.clone(), LocalSessionSecurityConfig::default()).unwrap();
+    let bootstrap_url = format!(
+        "{base_url}/api/v1/auth/bootstrap?token={}",
+        bootstrap_token.expose()
+    );
+    let application_state = Arc::new(ApplicationState::default());
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve(
+        listener,
+        temp.path().to_path_buf(),
+        security,
+        test_application_with_state(temp.path(), application_state.clone()),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let bootstrap = client.get(bootstrap_url).send().await.unwrap();
+    let cookie = bootstrap
+        .headers()
+        .get(SET_COOKIE)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+    let session: SessionNegotiation = client
+        .get(format!("{base_url}/api/v1/session"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    let debug = client
+        .post(format!("{base_url}/api/v1/rpc/is_debug_mode"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::Value::Null)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(debug.status(), reqwest::StatusCode::OK);
+    assert_eq!(debug.json::<serde_json::Value>().await.unwrap()["ok"], true);
+
+    let connections = client
+        .post(format!("{base_url}/api/v1/rpc/get_connections"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::Value::Null)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(connections.status(), reqwest::StatusCode::OK);
+    let direct_connections = crate::application::connections::load_connections(
+        &crate::paths::resolve_connections_path(temp.path()),
+    )
+    .unwrap();
+    assert_eq!(
+        connections.json::<serde_json::Value>().await.unwrap(),
+        serde_json::json!({"ok": true, "data": direct_connections})
+    );
+
+    let query_task = tokio::spawn(std::future::pending::<()>());
+    crate::commands::register_abort_handle(
+        &application_state.query_cancellation.handles,
+        "connection-1".to_string(),
+        Arc::new(query_task.abort_handle()),
+    );
+    let cancellation = client
+        .post(format!("{base_url}/api/v1/rpc/cancel_query"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header(RPC_DEADLINE_HEADER_NAME, "1000")
+        .header(RPC_CANCELLATION_HEADER_NAME, "query-1")
+        .json(&serde_json::json!({"connectionId": "connection-1"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cancellation.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        cancellation.json::<serde_json::Value>().await.unwrap(),
+        serde_json::json!({"ok": true, "data": null})
+    );
+    assert!(query_task.await.is_err());
+
+    let request_id = "request-http".to_string();
+    let cancellation_error = client
+        .post(format!("{base_url}/api/v1/rpc/cancel_query"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header(REQUEST_ID_HEADER, &request_id)
+        .json(&serde_json::json!({"connectionId": "connection-1"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cancellation_error.status(), reqwest::StatusCode::CONFLICT);
+    assert_eq!(
+        cancellation_error.headers().get(REQUEST_ID_HEADER).unwrap(),
+        request_id.as_str()
+    );
+    let cancellation_error = cancellation_error
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    assert_eq!(
+        cancellation_error["error"]["code"],
+        "QUERY_CANCELLATION_FAILED"
+    );
+    assert_eq!(cancellation_error["error"]["requestId"], request_id);
+
+    shutdown_tx.send(()).unwrap();
+    server.await.unwrap().unwrap();
 }

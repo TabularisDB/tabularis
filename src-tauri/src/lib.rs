@@ -7,6 +7,7 @@ pub mod ai_approval;
 pub mod ai_approval_tests;
 pub mod ai_approval_watcher;
 pub mod ai_commands;
+pub mod application;
 pub mod ai_notebook_export;
 #[cfg(test)]
 pub mod ai_notebook_export_tests;
@@ -152,13 +153,20 @@ pub fn run() {
             let web_root =
                 transport::web::static_assets::resolve_web_root(args.web_root.as_deref())
                     .expect("Failed to locate Tabularis Web assets");
-            let _application = runtime::bootstrap::bootstrap_application(
+            let application = runtime::bootstrap::bootstrap_application(
                 runtime::RuntimeContext::system(),
                 runtime::bootstrap::BootstrapOptions::default(),
             )
             .await
             .expect("Failed to bootstrap Tabularis Web services");
-            let application_state = runtime::state::ApplicationState::default();
+            let application_state =
+                std::sync::Arc::new(runtime::state::ApplicationState::default());
+            let application_api = std::sync::Arc::new(
+                application::RuntimeApplicationApi::new(
+                    application.context,
+                    application_state.clone(),
+                ),
+            );
 
             let server_result = transport::web::server::run(
                 transport::web::server::WebServerOptions {
@@ -166,6 +174,7 @@ pub fn run() {
                     port: args.port,
                     web_root,
                     open_browser: !args.no_open,
+                    application: application_api,
                 },
             )
             .await;

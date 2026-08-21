@@ -1,0 +1,194 @@
+use super::*;
+use async_trait::async_trait;
+use axum::body::to_bytes;
+use axum::http::header::CONTENT_TYPE;
+use axum::http::HeaderValue;
+
+struct FixtureApplication {
+    delay: Duration,
+    contexts: Arc<Mutex<Vec<ApplicationRequestContext>>>,
+}
+
+impl FixtureApplication {
+    fn new(delay: Duration) -> Self {
+        Self {
+            delay,
+            contexts: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    async fn record(&self, context: ApplicationRequestContext) {
+        self.contexts
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .push(context);
+        tokio::time::sleep(self.delay).await;
+    }
+}
+
+#[async_trait]
+impl ApplicationApi for FixtureApplication {
+    async fn is_debug_mode(
+        &self,
+        context: ApplicationRequestContext,
+    ) -> Result<bool, ApplicationError> {
+        self.record(context).await;
+        Ok(true)
+    }
+
+    async fn get_connections(
+        &self,
+        context: ApplicationRequestContext,
+    ) -> Result<Vec<crate::models::SavedConnection>, ApplicationError> {
+        self.record(context).await;
+        Ok(Vec::new())
+    }
+
+    async fn cancel_query(
+        &self,
+        context: ApplicationRequestContext,
+        _connection_id: String,
+    ) -> Result<(), ApplicationError> {
+        self.record(context).await;
+        Err(ApplicationError::new("No running query found"))
+    }
+}
+
+fn json_headers() -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers
+}
+
+async fn response_json(response: Response) -> Value {
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    serde_json::from_slice(&body).unwrap()
+}
+
+#[test]
+fn declares_authorization_for_each_registered_command() {
+    assert_eq!(
+        RpcCommand::IsDebugMode.metadata().authorization,
+        AuthorizationLevel::LocalAdmin
+    );
+    assert_eq!(
+        RpcCommand::GetConnections.metadata().authorization,
+        AuthorizationLevel::Database
+    );
+    assert_eq!(
+        RpcCommand::CancelQuery.metadata().authorization,
+        AuthorizationLevel::Database
+    );
+}
+
+#[tokio::test]
+async fn rejects_invalid_payloads_with_a_stable_error_envelope() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let response = dispatcher
+        .dispatch(
+            "cancel_query",
+            RequestId("request-invalid".to_string()),
+            &json_headers(),
+            Bytes::from_static(br#"{"unknown":true}"#),
+        )
+        .await;
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = response_json(response).await;
+    assert_eq!(body["ok"], false);
+    assert_eq!(body["error"]["code"], "INVALID_REQUEST");
+    assert_eq!(body["error"]["details"], Value::Null);
+    assert_eq!(body["error"]["requestId"], "request-invalid");
+    assert!(body["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("unknown field `unknown`"));
+}
+
+#[tokio::test]
+async fn enforces_deadlines_and_releases_cancellation_identifiers() {
+    let application = Arc::new(FixtureApplication::new(Duration::from_millis(40)));
+    let dispatcher = RpcDispatcher::new(application.clone());
+    let mut deadline_headers = json_headers();
+    deadline_headers.insert(RPC_DEADLINE_HEADER_NAME, HeaderValue::from_static("1"));
+    deadline_headers.insert(
+        RPC_CANCELLATION_HEADER_NAME,
+        HeaderValue::from_static("query-1"),
+    );
+
+    let timeout = dispatcher
+        .dispatch(
+            "is_debug_mode",
+            RequestId("request-timeout".to_string()),
+            &deadline_headers,
+            Bytes::from_static(b"null"),
+        )
+        .await;
+    assert_eq!(timeout.status(), StatusCode::GATEWAY_TIMEOUT);
+    assert_eq!(
+        response_json(timeout).await["error"]["code"],
+        "DEADLINE_EXCEEDED"
+    );
+
+    let retry = dispatcher
+        .dispatch(
+            "is_debug_mode",
+            RequestId("request-retry".to_string()),
+            &json_headers_with_cancellation("query-1"),
+            Bytes::from_static(b"null"),
+        )
+        .await;
+    assert_eq!(retry.status(), StatusCode::OK);
+
+    let contexts = application
+        .contexts
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    assert_eq!(contexts.len(), 2);
+    assert_eq!(contexts[0].request_id, "request-timeout");
+    assert_eq!(contexts[0].cancellation_id.as_deref(), Some("query-1"));
+    assert_eq!(contexts[0].authorization, AuthorizationLevel::LocalAdmin);
+    assert!(contexts[0].deadline <= Instant::now());
+}
+
+#[tokio::test]
+async fn rejects_duplicate_active_cancellation_identifiers() {
+    let dispatcher =
+        RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::from_millis(40))));
+    let first_dispatcher = dispatcher.clone();
+    let first = tokio::spawn(async move {
+        first_dispatcher
+            .dispatch(
+                "is_debug_mode",
+                RequestId("request-first".to_string()),
+                &json_headers_with_cancellation("shared"),
+                Bytes::from_static(b"null"),
+            )
+            .await
+    });
+    tokio::time::sleep(Duration::from_millis(5)).await;
+
+    let duplicate = dispatcher
+        .dispatch(
+            "is_debug_mode",
+            RequestId("request-duplicate".to_string()),
+            &json_headers_with_cancellation("shared"),
+            Bytes::from_static(b"null"),
+        )
+        .await;
+    assert_eq!(duplicate.status(), StatusCode::CONFLICT);
+    assert_eq!(
+        response_json(duplicate).await["error"]["code"],
+        "CANCELLATION_ID_IN_USE"
+    );
+    assert_eq!(first.await.unwrap().status(), StatusCode::OK);
+}
+
+fn json_headers_with_cancellation(id: &str) -> HeaderMap {
+    let mut headers = json_headers();
+    headers.insert(
+        RPC_CANCELLATION_HEADER_NAME,
+        HeaderValue::from_str(id).unwrap(),
+    );
+    headers
+}

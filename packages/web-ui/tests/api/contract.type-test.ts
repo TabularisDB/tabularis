@@ -12,7 +12,11 @@ import type { RpcFailure } from "../../src/api/errors";
 import type { QueryResult } from "../../src/types/editor";
 
 function assertCommandContract(caller: TypedCommandCaller): void {
-  const debugMode: Promise<boolean> = caller.call("is_debug_mode", undefined);
+  const debugMode: Promise<boolean> = caller.call("is_debug_mode", undefined, {
+    requestId: "request-1",
+    deadlineMs: 30_000,
+    cancellationId: "startup-debug",
+  });
   const queryResult: Promise<QueryResult> = caller.call("execute_query", {
     connectionId: "connection-1",
     query: "SELECT 1",

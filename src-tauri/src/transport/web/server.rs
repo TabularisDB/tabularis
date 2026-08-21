@@ -3,11 +3,14 @@ use super::auth::{
     CSRF_HEADER_NAME, SESSION_COOKIE_NAME,
 };
 use super::contract::SessionNegotiation;
-use axum::extract::{Extension, Query, Request, State};
+use super::rpc::{RequestId, RpcDispatcher};
+use crate::application::ApplicationApi;
+use axum::body::Bytes;
+use axum::extract::{Extension, Path, Query, Request, State};
 use axum::http::header::{
     CACHE_CONTROL, CONTENT_TYPE, COOKIE, HOST, LOCATION, ORIGIN, REFERRER_POLICY, SET_COOKIE,
 };
-use axum::http::{HeaderValue, Method, StatusCode};
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get, post};
@@ -15,6 +18,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use std::future::Future;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::{ServeDir, ServeFile};
@@ -28,11 +32,13 @@ pub struct WebServerOptions {
     pub port: u16,
     pub web_root: PathBuf,
     pub open_browser: bool,
+    pub application: Arc<dyn ApplicationApi>,
 }
 
 #[derive(Clone)]
 struct WebServerState {
     security: LocalSessionSecurity,
+    rpc: RpcDispatcher,
 }
 
 #[derive(Deserialize)]
@@ -64,36 +70,51 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
     drop(bootstrap_url);
     drop(bootstrap_token);
 
-    serve(listener, options.web_root, security, shutdown_signal())
-        .await
-        .map_err(|error| format!("Web UI server failed: {error}"))
+    serve(
+        listener,
+        options.web_root,
+        security,
+        options.application,
+        shutdown_signal(),
+    )
+    .await
+    .map_err(|error| format!("Web UI server failed: {error}"))
 }
 
 pub(crate) async fn serve<F>(
     listener: TcpListener,
     web_root: PathBuf,
     security: LocalSessionSecurity,
+    application: Arc<dyn ApplicationApi>,
     shutdown: F,
 ) -> std::io::Result<()>
 where
     F: Future<Output = ()> + Send + 'static,
 {
-    axum::serve(listener, router(web_root, security))
+    axum::serve(listener, router(web_root, security, application))
         .with_graceful_shutdown(shutdown)
         .await
 }
 
-fn router(web_root: PathBuf, security: LocalSessionSecurity) -> Router {
+fn router(
+    web_root: PathBuf,
+    security: LocalSessionSecurity,
+    application: Arc<dyn ApplicationApi>,
+) -> Router {
     let index = web_root.join("index.html");
     let static_files = ServeDir::new(web_root).fallback(ServeFile::new(index));
     let max_body_bytes = security.max_body_bytes();
-    let state = WebServerState { security };
+    let state = WebServerState {
+        security,
+        rpc: RpcDispatcher::new(application),
+    };
 
     Router::new()
         .route("/healthz", get(health))
         .route(BOOTSTRAP_PATH, get(bootstrap))
         .route("/api/v1/session", get(session))
         .route("/api/v1/logout", post(logout))
+        .route("/api/v1/rpc/:command", post(rpc))
         .route("/api/*path", any(StatusCode::NOT_FOUND))
         .fallback_service(static_files)
         .with_state(state.clone())
@@ -138,6 +159,20 @@ async fn session(Extension(session): Extension<AuthenticatedSession>) -> impl In
         [(CACHE_CONTROL, "no-store")],
         Json(SessionNegotiation::authenticated(session.csrf_token)),
     )
+}
+
+async fn rpc(
+    State(state): State<WebServerState>,
+    Path(command): Path<String>,
+    Extension(_session): Extension<AuthenticatedSession>,
+    Extension(request_id): Extension<RequestId>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    state
+        .rpc
+        .dispatch(&command, request_id, &headers, body)
+        .await
 }
 
 async fn logout(
@@ -208,8 +243,17 @@ async fn security_gate(
     next.run(request).await
 }
 
-async fn add_request_id(request: Request, next: Next) -> Response {
-    let request_id = Uuid::new_v4().to_string();
+async fn add_request_id(mut request: Request, next: Next) -> Response {
+    let request_id = request
+        .headers()
+        .get(REQUEST_ID_HEADER_NAME)
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| valid_request_id(value))
+        .map(str::to_owned)
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    request
+        .extensions_mut()
+        .insert(RequestId(request_id.clone()));
     let mut response = next.run(request).await;
     if let Ok(value) = HeaderValue::from_str(&request_id) {
         response.headers_mut().insert(REQUEST_ID_HEADER_NAME, value);
@@ -219,6 +263,14 @@ async fn add_request_id(request: Request, next: Next) -> Response {
 
 fn requires_csrf(method: &Method) -> bool {
     !matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS)
+}
+
+fn valid_request_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
 }
 
 fn session_cookie_value(cookie_header: Option<&HeaderValue>) -> Option<&str> {

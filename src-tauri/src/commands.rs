@@ -1437,8 +1437,7 @@ pub async fn get_connections<R: Runtime>(
     migrate_postgres_ssl_mode_spelling(&app).await.ok();
 
     let path = get_config_path(&app)?;
-    // Use persistence function that handles both old and new formats
-    persistence::load_connections(&path)
+    crate::application::connections::load_connections(&path)
 }
 
 // ==================== SSH Connection Management ====================
