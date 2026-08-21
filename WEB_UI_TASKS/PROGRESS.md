@@ -10,7 +10,7 @@ ISO date. Do not use `|` inside table fields.
 | WEB-000 | COMPLETED | Created feat/web-ui from current main and enabled CI for feature-branch pushes and pull requests | pnpm typecheck; pnpm lint; pnpm test --run with 230 files and 3838 tests; pnpm test:rust with 1157 tests; pnpm build; CI trigger assertion | 2026-08-21 |
 | WEB-001 | COMPLETED | Added a classified frontend IPC inventory with dynamic-call and Tauri registration drift checks in CI | pnpm typecheck; pnpm lint; pnpm web:inventory with 227 commands and 366 call sites; focused Vitest with 3 tests; pnpm test:rust with 1157 tests; pnpm build; GitNexus low risk; git diff --check | 2026-08-21 |
 | WEB-002 | COMPLETED | Added six accepted Web UI ADRs covering RPC, shared UI, transports, local security, file tokens, and browser adaptations | ADR structure and link checks; pnpm typecheck; pnpm lint; pnpm test --run with 232 files and 3845 tests; pnpm test:rust with 1157 tests; pnpm build; GitNexus low risk; git diff --check | 2026-08-21 |
-| WEB-010 | PENDING | — | — | — |
+| WEB-010 | COMPLETED | Added typed startup connection metadata and query contracts with event envelopes shared errors request IDs authorization and a tracked escape hatch | compile-time contract assertions; pnpm typecheck; pnpm lint; pnpm web:inventory; pnpm test --run with 232 files and 3845 tests; pnpm test:rust with 1157 tests; pnpm build; GitNexus low risk; git diff --check | 2026-08-21 |
 | WEB-011 | PENDING | — | — | — |
 | WEB-012 | PENDING | — | — | — |
 | WEB-013 | PENDING | — | — | — |
