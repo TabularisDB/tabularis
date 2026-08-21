@@ -15,27 +15,34 @@ import { EditorProvider } from './contexts/EditorProvider';
 import { ThemeProvider } from './contexts/ThemeProvider';
 import { UpdateProvider } from './contexts/UpdateProvider';
 import { ProductionGuardProvider } from './contexts/ProductionGuardContext';
+import { TabularisClient } from './api/client';
+import { TauriTransport } from './api/transports/tauriTransport';
+import { TabularisClientProvider } from './contexts/TabularisClientProvider';
+
+const tabularisClient = new TabularisClient(new TauriTransport());
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <UpdateProvider>
-      <ThemeProvider>
-        <SettingsProvider>
-          <ToastProvider>
-            <DatabaseProvider>
-              <SavedQueriesProvider>
-              <QueryHistoryProvider>
-                <EditorProvider>
-                  <ProductionGuardProvider>
-                    <App />
-                  </ProductionGuardProvider>
-                </EditorProvider>
-              </QueryHistoryProvider>
-            </SavedQueriesProvider>
-            </DatabaseProvider>
-          </ToastProvider>
-        </SettingsProvider>
-      </ThemeProvider>
-    </UpdateProvider>
+    <TabularisClientProvider client={tabularisClient}>
+      <UpdateProvider>
+        <ThemeProvider>
+          <SettingsProvider>
+            <ToastProvider>
+              <DatabaseProvider>
+                <SavedQueriesProvider>
+                  <QueryHistoryProvider>
+                    <EditorProvider>
+                      <ProductionGuardProvider>
+                        <App />
+                      </ProductionGuardProvider>
+                    </EditorProvider>
+                  </QueryHistoryProvider>
+                </SavedQueriesProvider>
+              </DatabaseProvider>
+            </ToastProvider>
+          </SettingsProvider>
+        </ThemeProvider>
+      </UpdateProvider>
+    </TabularisClientProvider>
   </React.StrictMode>,
 );
