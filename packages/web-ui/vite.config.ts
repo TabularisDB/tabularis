@@ -1,9 +1,18 @@
+import { fileURLToPath } from 'node:url'
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// https://vite.dev/config/
+const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
+const webUiRoot = fileURLToPath(new URL('.', import.meta.url))
+
+// The frontend source remains at the repository root until WEB-021.
 export default defineConfig({
+  root: repositoryRoot,
   plugins: [react()],
+  css: {
+    postcss: webUiRoot,
+  },
   resolve: {
     alias: {
       // Polyfills for browser environment (needed by wkx library)
