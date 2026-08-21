@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import {
   Eye,
   Layers,
@@ -16,6 +15,7 @@ import { groupIndexes } from "../../../utils/indexes";
 import type { TableColumn, Index } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
 import type { DriverCapabilities } from "../../../types/plugins";
+import { useTabularisClient } from "../../../hooks/useTabularisClient";
 
 interface SidebarViewItemProps {
   view: { name: string };
@@ -52,6 +52,7 @@ export const SidebarViewItem = ({
   materialized = false,
   isRefreshing = false,
 }: SidebarViewItemProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const ViewIcon = materialized ? Layers : Eye;
 
@@ -66,7 +67,7 @@ export const SidebarViewItem = ({
     setIsLoading(true);
     try {
       const [cols, idxs] = await Promise.all([
-        invoke<TableColumn[]>(
+        client.call(
           materialized ? "get_materialized_view_columns" : "get_view_columns",
           {
             connectionId,
@@ -76,7 +77,7 @@ export const SidebarViewItem = ({
         ),
         // Materialized views can carry indexes (regular views cannot).
         materialized
-          ? invoke<Index[]>("get_indexes", {
+          ? client.call("get_indexes", {
             connectionId,
             tableName: view.name,
             ...(schema ? { schema } : {}),
@@ -90,7 +91,7 @@ export const SidebarViewItem = ({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, view.name, schema, materialized]);
+  }, [client, connectionId, view.name, schema, materialized]);
 
   useEffect(() => {
     if (isExpanded) {

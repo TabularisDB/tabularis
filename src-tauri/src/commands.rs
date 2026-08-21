@@ -476,15 +476,12 @@ pub async fn get_schemas<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<Vec<String>, String> {
-    log::info!("Fetching schemas for connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_schemas(&params).await
+    crate::application::metadata::get_schemas(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -492,18 +489,12 @@ pub async fn get_available_databases<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<Vec<String>, String> {
-    log::info!(
-        "Fetching available databases for connection: {}",
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_databases(&params).await
+    crate::application::metadata::get_available_databases(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -549,23 +540,13 @@ pub async fn get_routines<R: Runtime>(
     connection_id: String,
     schema: Option<String>,
 ) -> Result<Vec<RoutineInfo>, String> {
-    log::info!("Fetching routines for connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv.get_routines(&params, schema.as_deref()).await;
-    let database = schema.as_deref().unwrap_or_else(|| params.database.primary());
-
-    match &result {
-        Ok(routines) => log::info!("Retrieved {} routines from {}", routines.len(), database),
-        Err(error) => log::error!("Failed to get routines from {}: {}", database, error),
-    }
-
-    result
+    crate::application::metadata::get_routines(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -703,12 +684,13 @@ pub async fn get_schema_snapshot<R: Runtime>(
     connection_id: String,
     schema: Option<String>,
 ) -> Result<Vec<crate::models::TableSchema>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_schema_snapshot(&params, schema.as_deref()).await
+    crate::application::metadata::get_schema_snapshot(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -2950,28 +2932,13 @@ pub async fn get_tables<R: Runtime>(
     connection_id: String,
     schema: Option<String>,
 ) -> Result<Vec<TableInfo>, String> {
-    log::info!("Fetching tables for connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    log::debug!(
-        "Getting tables from {} database: {}",
-        saved_conn.params.driver,
-        params.database
-    );
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv.get_tables(&params, schema.as_deref()).await;
-
-    match &result {
-        Ok(tables) => log::info!("Retrieved {} tables from {}", tables.len(), params.database),
-        Err(e) => log::error!("Failed to get tables from {}: {}", params.database, e),
-    }
-
-    result
+    crate::application::metadata::get_tables(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -2981,13 +2948,14 @@ pub async fn get_columns<R: Runtime>(
     table_name: String,
     schema: Option<String>,
 ) -> Result<Vec<TableColumn>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_columns(&params, &table_name, schema.as_deref())
-        .await
+    crate::application::metadata::get_columns(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table_name,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -2997,13 +2965,14 @@ pub async fn get_foreign_keys<R: Runtime>(
     table_name: String,
     schema: Option<String>,
 ) -> Result<Vec<ForeignKey>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_foreign_keys(&params, &table_name, schema.as_deref())
-        .await
+    crate::application::metadata::get_foreign_keys(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table_name,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -3013,13 +2982,14 @@ pub async fn get_indexes<R: Runtime>(
     table_name: String,
     schema: Option<String>,
 ) -> Result<Vec<Index>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_indexes(&params, &table_name, schema.as_deref())
-        .await
+    crate::application::metadata::get_indexes(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table_name,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -3952,28 +3922,13 @@ pub async fn get_views<R: Runtime>(
     connection_id: String,
     schema: Option<String>,
 ) -> Result<Vec<crate::models::ViewInfo>, String> {
-    log::info!("Fetching views for connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    log::debug!(
-        "Getting views from {} database: {}",
-        saved_conn.params.driver,
-        params.database
-    );
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv.get_views(&params, schema.as_deref()).await;
-
-    match &result {
-        Ok(views) => log::info!("Retrieved {} views from {}", views.len(), params.database),
-        Err(e) => log::error!("Failed to get views from {}: {}", params.database, e),
-    }
-
-    result
+    crate::application::metadata::get_views(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4107,28 +4062,14 @@ pub async fn get_view_columns<R: Runtime>(
     view_name: String,
     schema: Option<String>,
 ) -> Result<Vec<TableColumn>, String> {
-    log::info!(
-        "Fetching view columns for: {} on connection: {}",
+    crate::application::metadata::get_view_columns(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv
-        .get_view_columns(&params, &view_name, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(columns) => log::info!("Retrieved {} columns for view {}", columns.len(), view_name),
-        Err(e) => log::error!("Failed to get view columns for {}: {}", view_name, e),
-    }
-
-    result
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4137,30 +4078,13 @@ pub async fn get_materialized_views<R: Runtime>(
     connection_id: String,
     schema: Option<String>,
 ) -> Result<Vec<crate::models::ViewInfo>, String> {
-    log::info!("Fetching materialized views for connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv.get_materialized_views(&params, schema.as_deref()).await;
-
-    match &result {
-        Ok(views) => log::info!(
-            "Retrieved {} materialized views from {}",
-            views.len(),
-            params.database
-        ),
-        Err(e) => log::error!(
-            "Failed to get materialized views from {}: {}",
-            params.database,
-            e
-        ),
-    }
-
-    result
+    crate::application::metadata::get_materialized_views(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4170,36 +4094,14 @@ pub async fn get_materialized_view_columns<R: Runtime>(
     view_name: String,
     schema: Option<String>,
 ) -> Result<Vec<TableColumn>, String> {
-    log::info!(
-        "Fetching materialized view columns for: {} on connection: {}",
+    crate::application::metadata::get_materialized_view_columns(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv
-        .get_materialized_view_columns(&params, &view_name, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(columns) => log::info!(
-            "Retrieved {} columns for materialized view {}",
-            columns.len(),
-            view_name
-        ),
-        Err(e) => log::error!(
-            "Failed to get materialized view columns for {}: {}",
-            view_name,
-            e
-        ),
-    }
-
-    result
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4209,35 +4111,14 @@ pub async fn get_materialized_view_definition<R: Runtime>(
     view_name: String,
     schema: Option<String>,
 ) -> Result<String, String> {
-    log::info!(
-        "Fetching materialized view definition for: {} on connection: {}",
+    crate::application::metadata::get_materialized_view_definition(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv
-        .get_materialized_view_definition(&params, &view_name, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!(
-            "Successfully retrieved materialized view definition for {}",
-            view_name
-        ),
-        Err(e) => log::error!(
-            "Failed to get materialized view definition for {}: {}",
-            view_name,
-            e
-        ),
-    }
-
-    result
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4277,22 +4158,13 @@ pub async fn get_triggers<R: Runtime>(
     connection_id: String,
     schema: Option<String>,
 ) -> Result<Vec<TriggerInfo>, String> {
-    log::info!("Fetching triggers for connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv.get_triggers(&params, schema.as_deref()).await;
-
-    match &result {
-        Ok(triggers) => log::info!("Retrieved {} triggers", triggers.len()),
-        Err(e) => log::error!("Failed to get triggers: {}", e),
-    }
-
-    result
+    crate::application::metadata::get_triggers(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]

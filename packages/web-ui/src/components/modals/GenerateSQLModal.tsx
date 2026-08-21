@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import {X, Loader2, Copy, Check, FileCode, List, Table2, PenLine, Trash2, Play} from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { useNavigate } from "react-router-dom";
 import { useDatabase } from "../../hooks/useDatabase";
 import { Modal } from "../ui/Modal";
@@ -11,13 +10,12 @@ import { useAlert } from "../../hooks/useAlert";
 import {
   generateCreateTableSQL,
   type TableColumn,
-  type ForeignKey,
-  type Index,
 } from "../../utils/sqlGenerator";
 import { toBindParamName } from "../../utils/queryParameters";
 import type { TableTarget } from "../../types/databaseObjects";
 import type { CommandRuntime } from "../../types/commands";
 import { openEditor as navigateToEditor } from "../../utils/editorNavigation";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 
 interface GenerateSQLModalProps {
   isOpen: boolean;
@@ -36,6 +34,7 @@ export const GenerateSQLModal = ({
   target,
   openEditor,
 }: GenerateSQLModalProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { connectionDataMap } = useDatabase();
@@ -67,24 +66,28 @@ export const GenerateSQLModal = ({
       setLoading(true);
       try {
         const schemaParam = schema ? { schema } : {};
-        const [fetchedColumns, foreignKeys, indexes] = await Promise.all([
-          invoke<TableColumn[]>("get_columns", {
+        const [columnMetadata, foreignKeys, indexes] = await Promise.all([
+          client.call("get_columns", {
             connectionId,
             tableName,
             ...schemaParam,
           }),
-          invoke<ForeignKey[]>("get_foreign_keys", {
+          client.call("get_foreign_keys", {
             connectionId,
             tableName,
             ...schemaParam,
           }),
-          invoke<Index[]>("get_indexes", {
+          client.call("get_indexes", {
             connectionId,
             tableName,
             ...schemaParam,
           }),
         ]);
 
+        const fetchedColumns: TableColumn[] = columnMetadata.map((column) => ({
+          ...column,
+          default_value: column.default_value ?? null,
+        }));
         setColumns(fetchedColumns);
         const generatedSQL = generateCreateTableSQL(
           tableName,
@@ -104,6 +107,7 @@ export const GenerateSQLModal = ({
 
     void generateSQL();
   }, [
+    client,
     isOpen,
     connectionId,
     tableName,

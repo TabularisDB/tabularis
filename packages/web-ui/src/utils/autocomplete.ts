@@ -1,7 +1,7 @@
 import type { Monaco } from "@monaco-editor/react";
-import { invoke } from "@tauri-apps/api/core";
 import type { TableInfo } from "../contexts/DatabaseContext";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
+import type { TypedCommandCaller } from "../api/contract";
 import { formatSqlIdentifier, getQuoteChar, quoteIdentifier } from "./identifiers";
 import { getCurrentStatement, parseTablesFromQuery, type ParsedTableRef } from "./sqlAnalysis";
 import { analyzeSqlContext, findStatementScopeEnd, getKeywordRelevance, getSuggestionKinds } from "./sqlContext";
@@ -50,7 +50,12 @@ const cleanupCache = () => {
   }
 };
 
-const getTableColumns = async (connectionId: string, tableName: string, schema?: string | null) => {
+const getTableColumns = async (
+  client: TypedCommandCaller,
+  connectionId: string,
+  tableName: string,
+  schema?: string | null,
+) => {
   if (!connectionId || !tableName) return [];
 
   const cacheKey = schema ? `${connectionId}:${schema}:${tableName}` : `${connectionId}:${tableName}`;
@@ -62,7 +67,7 @@ const getTableColumns = async (connectionId: string, tableName: string, schema?:
   }
 
   try {
-    const cols = await invoke<Array<{ name: string; data_type: string }>>("get_columns", {
+    const cols = await client.call("get_columns", {
       connectionId,
       tableName,
       ...(schema ? { schema } : {}),
@@ -119,11 +124,12 @@ export const registerSqlAutocomplete = (
   tables: TableInfo[],
   schema?: string | null,
   driver?: string | PluginManifest | DriverCapabilities | null,
+  client?: TypedCommandCaller,
 ) => {
   const provider = monaco.languages.registerCompletionItemProvider("sql", {
     triggerCharacters: [".", " "],
     provideCompletionItems: async (model: { getWordUntilPosition: (position: { lineNumber: number; column: number }) => { startColumn: number; endColumn: number }; getValueInRange: (range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) => string; getValue: () => string; getOffsetAt: (position: { lineNumber: number; column: number }) => number }, position: { lineNumber: number; column: number }) => {
-      if (!connectionId) return { suggestions: [] };
+      if (!connectionId || !client) return { suggestions: [] };
 
       const wordUntil = model.getWordUntilPosition(position);
 
@@ -286,7 +292,7 @@ export const registerSqlAutocomplete = (
         }
 
         const colArrays = await Promise.all(
-          dotTables.map(t => getTableColumns(connectionId, t.name, t.schema ?? schema))
+          dotTables.map(t => getTableColumns(client, connectionId, t.name, t.schema ?? schema))
         );
         const seen = new Set<string>();
         const columns = colArrays.flat().filter(c => (seen.has(c.label) ? false : (seen.add(c.label), true)));
@@ -354,7 +360,7 @@ export const registerSqlAutocomplete = (
         }
 
         const results = await Promise.all(
-          matchingTables.map(t => getTableColumns(connectionId, t.name, t.schema ?? schema))
+          matchingTables.map(t => getTableColumns(client, connectionId, t.name, t.schema ?? schema))
         );
 
         const seenColumns = new Set<string>();

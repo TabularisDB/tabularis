@@ -1231,7 +1231,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             setPendingDbSelection(new Set(selectedDatabases));
                             setIsLoadingAllDbs(true);
                             try {
-                              const all = await invoke<string[]>("get_available_databases", { connectionId: activeConnectionId });
+                              const all = await client.call("get_available_databases", { connectionId: activeConnectionId! });
                               setAllAvailableDatabases(all);
                               // A database dropped on the server has no row to
                               // untick: drop it from the pending set too (#518).
@@ -2212,8 +2212,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                 icon: FileText,
                                 action: async () => {
                                   try {
-                                    const definition = await invoke<string>("get_materialized_view_definition", {
-                                      connectionId: activeConnectionId,
+                                    const definition = await client.call("get_materialized_view_definition", {
+                                      connectionId: activeConnectionId!,
                                       viewName: contextMenu.id,
                                       ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
                                     });

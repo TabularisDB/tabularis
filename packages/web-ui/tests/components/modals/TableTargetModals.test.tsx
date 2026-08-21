@@ -7,6 +7,7 @@ import { GenerateSQLModal } from "../../../src/components/modals/GenerateSQLModa
 import { SchemaModal } from "../../../src/components/modals/SchemaModal";
 
 const invokeMock = vi.mocked(invoke);
+const clientMock = vi.hoisted(() => ({ call: vi.fn() }));
 const showAlertMock = vi.fn();
 const translateMock = vi.hoisted(() => (key: string) => key);
 
@@ -49,6 +50,10 @@ vi.mock("../../../src/hooks/useAlert", () => ({
   useAlert: () => ({ showAlert: showAlertMock }),
 }));
 
+vi.mock("../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => clientMock,
+}));
+
 vi.mock("../../../src/components/ui/SqlPreview", () => ({
   SqlPreview: ({ sql }: { sql: string }) => <pre>{sql}</pre>,
 }));
@@ -62,6 +67,10 @@ const LocationState = () => {
 describe("table target modals", () => {
   beforeEach(() => {
     invokeMock.mockReset();
+    clientMock.call.mockReset();
+    clientMock.call.mockImplementation((command: string, request: unknown) =>
+      invokeMock(command, request),
+    );
     showAlertMock.mockReset();
   });
 

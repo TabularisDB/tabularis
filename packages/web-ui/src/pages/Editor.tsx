@@ -137,7 +137,6 @@ import type {
   BatchStatementResult,
   Tab,
   PendingInsertion,
-  TableColumn,
   ForeignKey,
   EditorNavigationIntent,
   EditorNavigationRequest,
@@ -810,12 +809,12 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         !targetId || queryGenerationRef.current[targetId] !== generation;
       try {
         const [cols, fks] = await Promise.all([
-          invoke<TableColumn[]>("get_columns", {
+          client.call("get_columns", {
             connectionId: activeConnectionId,
             tableName: table,
             ...(effectiveSchema ? { schema: effectiveSchema } : {}),
           }),
-          invoke<ForeignKey[]>("get_foreign_keys", {
+          client.call("get_foreign_keys", {
             connectionId: activeConnectionId,
             tableName: table,
             ...(effectiveSchema ? { schema: effectiveSchema } : {}),
@@ -859,7 +858,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           });
       }
     },
-    [activeConnectionId, activeTabId, updateTab, activeSchema],
+    [client, activeConnectionId, activeTabId, updateTab, activeSchema],
   );
 
   const stopQuery = useCallback(async () => {
@@ -2511,7 +2510,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
     try {
       // Fetch table columns
-      const columns = await invoke<TableColumn[]>("get_columns", {
+      const columns = await client.call("get_columns", {
         connectionId: activeConnectionId,
         tableName: activeTab.activeTable,
         ...(activeSchema ? { schema: activeSchema } : {}),
@@ -2614,6 +2613,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       });
     }
   }, [
+    client,
     activeConnectionId,
     activeTab,
     updateTab,
@@ -2681,7 +2681,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     if (pendingInsertions && Object.keys(pendingInsertions).length > 0) {
       try {
         // Fetch columns for validation
-        const columns = await invoke<TableColumn[]>("get_columns", {
+        const columns = await client.call("get_columns", {
           connectionId: activeConnectionId,
           tableName: activeTable,
           ...(activeSchema ? { schema: activeSchema } : {}),
@@ -2950,6 +2950,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       });
     }
   }, [
+    client,
     activeTab,
     activeConnectionId,
     updateActiveTab,

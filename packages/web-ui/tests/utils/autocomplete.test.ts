@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   clearAutocompleteCache,
-  registerSqlAutocomplete,
+  registerSqlAutocomplete as registerSqlAutocompleteImpl,
 } from '../../src/utils/autocomplete';
 import type { TableInfo } from '../../src/contexts/DatabaseContext';
 import type { PluginManifest } from '../../src/types/plugins';
+import type { TypedCommandCaller } from '../../src/api/contract';
 
 // Mock @tauri-apps/api/core
 vi.mock('@tauri-apps/api/core', () => ({
@@ -18,6 +19,26 @@ vi.mock('../../src/utils/sqlAnalysis', () => ({
 }));
 
 import { invoke } from '@tauri-apps/api/core';
+
+const autocompleteClient = {
+  call: (command: string, request: unknown) => invoke(command, request),
+} as unknown as TypedCommandCaller;
+
+const registerSqlAutocomplete = (
+  monaco: Parameters<typeof registerSqlAutocompleteImpl>[0],
+  connectionId: Parameters<typeof registerSqlAutocompleteImpl>[1],
+  tables: Parameters<typeof registerSqlAutocompleteImpl>[2],
+  schema?: Parameters<typeof registerSqlAutocompleteImpl>[3],
+  driver?: Parameters<typeof registerSqlAutocompleteImpl>[4],
+) =>
+  registerSqlAutocompleteImpl(
+    monaco,
+    connectionId,
+    tables,
+    schema,
+    driver,
+    autocompleteClient,
+  );
 
 // Create a mock Monaco object
 const createMockMonaco = () => ({

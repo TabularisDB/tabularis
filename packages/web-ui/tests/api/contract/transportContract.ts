@@ -66,6 +66,35 @@ export function defineTransportContractSuite(
       ).resolves.toEqual([]);
     });
 
+    it("preserves metadata explorer contracts", async () => {
+      await expect(
+        harness.transport.call("get_tables", {
+          connectionId: "metadata-fixture",
+          schema: "public",
+        }),
+      ).resolves.toEqual([{ name: "users", schema: "public" }]);
+      await expect(
+        harness.transport.call("get_columns", {
+          connectionId: "metadata-fixture",
+          tableName: "users",
+          schema: "public",
+        }),
+      ).resolves.toEqual([
+        {
+          name: "id",
+          data_type: "integer",
+          is_pk: true,
+          is_nullable: false,
+          is_auto_increment: true,
+        },
+      ]);
+      await expect(
+        harness.transport.call("get_selected_schemas", {
+          connectionId: "metadata-fixture",
+        }),
+      ).resolves.toEqual(["public"]);
+    });
+
     it("preserves complex JSON serialization without coercion", async () => {
       const result = await harness.transport.callUnmigrated(
         "contract_serialization_fixture",
@@ -174,6 +203,44 @@ async function handleRequest(
     body === "null"
   ) {
     sendSuccess(response, [], requestId);
+    return;
+  }
+  if (
+    command === "get_tables" &&
+    body ===
+      JSON.stringify({ connectionId: "metadata-fixture", schema: "public" })
+  ) {
+    sendSuccess(response, [{ name: "users", schema: "public" }], requestId);
+    return;
+  }
+  if (
+    command === "get_columns" &&
+    body === JSON.stringify({
+      connectionId: "metadata-fixture",
+      tableName: "users",
+      schema: "public",
+    })
+  ) {
+    sendSuccess(
+      response,
+      [
+        {
+          name: "id",
+          data_type: "integer",
+          is_pk: true,
+          is_nullable: false,
+          is_auto_increment: true,
+        },
+      ],
+      requestId,
+    );
+    return;
+  }
+  if (
+    command === "get_selected_schemas" &&
+    body === JSON.stringify({ connectionId: "metadata-fixture" })
+  ) {
+    sendSuccess(response, ["public"], requestId);
     return;
   }
   if (

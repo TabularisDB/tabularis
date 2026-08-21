@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CommandPaletteScopeBridge } from "../../src/components/layout/CommandPaletteScopeBridge";
 import { CommandPaletteProvider } from "../../src/contexts/CommandPaletteProvider";
@@ -20,10 +20,15 @@ import { ROOT_COMMAND_SCOPE_ID } from "../../src/utils/commandScopeStore";
 import { createEditorNavigationIntent } from "../../src/utils/editorNavigation";
 
 const invokeMock = vi.fn();
+const clientMock = vi.hoisted(() => ({ call: vi.fn() }));
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (command: string, args?: { connectionId?: string }) =>
     invokeMock(command, args),
+}));
+
+vi.mock("../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => clientMock,
 }));
 
 const layoutState = {
@@ -208,6 +213,13 @@ function ActiveScopeEditorHarness() {
 }
 
 describe("CommandPaletteProvider split-view scope", () => {
+  beforeEach(() => {
+    clientMock.call.mockReset();
+    clientMock.call.mockImplementation((command: string, request: unknown) =>
+      invokeMock(command, request),
+    );
+  });
+
   it("should resolve and execute commands through the active panel EditorProvider", async () => {
     invokeMock.mockImplementation(
       (command: string, args?: { connectionId?: string }) => {

@@ -53,16 +53,16 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 178,
-    "literalCallSiteCount": 285,
-    "dynamicCallSiteCount": 3,
+    "literalCommandCount": 163,
+    "literalCallSiteCount": 231,
+    "dynamicCallSiteCount": 2,
     "handlerRegistrationCount": 255,
     "registeredCommandCount": 254,
     "duplicateHandlerRegistrations": [
       "cancel_dump"
     ],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 76
+    "registeredCommandsWithoutFrontendCall": 91
   },
   "commands": [
     {
@@ -195,7 +195,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 3301
+          "line": 3302
         }
       ]
     },
@@ -349,11 +349,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 1600
+          "line": 1599
         },
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 1644
+          "line": 1643
         }
       ]
     },
@@ -395,7 +395,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 1556
+          "line": 1555
         }
       ]
     },
@@ -815,7 +815,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
-          "line": 307
+          "line": 306
         }
       ]
     },
@@ -829,7 +829,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 1301
+          "line": 1300
         }
       ]
     },
@@ -945,7 +945,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 3361
+          "line": 3362
         }
       ]
     },
@@ -1180,36 +1180,6 @@
       ]
     },
     {
-      "name": "get_available_databases",
-      "featureGroup": "metadata",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 1234
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 202
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 232
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 742
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 763
-        }
-      ]
-    },
-    {
       "name": "get_cellname_prompt",
       "featureGroup": "ai",
       "eventUse": "none",
@@ -1220,68 +1190,6 @@
         {
           "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 162
-        }
-      ]
-    },
-    {
-      "name": "get_columns",
-      "featureGroup": "metadata",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/sidebar/SidebarTableItem.tsx",
-          "line": 90
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
-          "line": 169
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/CreateForeignKeyModal.tsx",
-          "line": 72
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/CreateForeignKeyModal.tsx",
-          "line": 85
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/CreateIndexModal.tsx",
-          "line": 49
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/GenerateSQLModal.tsx",
-          "line": 71
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/NewRowModal.tsx",
-          "line": 120
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/SchemaModal.tsx",
-          "line": 35
-        },
-        {
-          "file": "packages/web-ui/src/components/ui/VisualQueryBuilder.tsx",
-          "line": 202
-        },
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 813
-        },
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 2514
-        },
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 2684
-        },
-        {
-          "file": "packages/web-ui/src/utils/autocomplete.ts",
-          "line": 65
         }
       ]
     },
@@ -1492,54 +1400,6 @@
       ]
     },
     {
-      "name": "get_foreign_keys",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/sidebar/SidebarTableItem.tsx",
-          "line": 95
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/GenerateSQLModal.tsx",
-          "line": 76
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/NewRowModal.tsx",
-          "line": 125
-        },
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 818
-        }
-      ]
-    },
-    {
-      "name": "get_indexes",
-      "featureGroup": "metadata",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/sidebar/SidebarTableItem.tsx",
-          "line": 100
-        },
-        {
-          "file": "packages/web-ui/src/components/layout/sidebar/SidebarViewItem.tsx",
-          "line": 79
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/GenerateSQLModal.tsx",
-          "line": 81
-        }
-      ]
-    },
-    {
       "name": "get_installation_source",
       "featureGroup": "application",
       "eventUse": "none",
@@ -1648,42 +1508,6 @@
         {
           "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
           "line": 54
-        }
-      ]
-    },
-    {
-      "name": "get_materialized_view_definition",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 2215
-        }
-      ]
-    },
-    {
-      "name": "get_materialized_views",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 363
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 423
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 872
         }
       ]
     },
@@ -1840,24 +1664,6 @@
       ]
     },
     {
-      "name": "get_routines",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 45
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 313
-        }
-      ]
-    },
-    {
       "name": "get_saved_queries",
       "featureGroup": "saved-queries",
       "eventUse": "none",
@@ -1868,62 +1674,6 @@
         {
           "file": "packages/web-ui/src/contexts/SavedQueriesProvider.tsx",
           "line": 19
-        }
-      ]
-    },
-    {
-      "name": "get_schema_preference",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 860
-        }
-      ]
-    },
-    {
-      "name": "get_schema_snapshot",
-      "featureGroup": "metadata",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/EditorProvider.tsx",
-          "line": 395
-        }
-      ]
-    },
-    {
-      "name": "get_schemas",
-      "featureGroup": "metadata",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 845
-        }
-      ]
-    },
-    {
-      "name": "get_selected_schemas",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 850
         }
       ]
     },
@@ -2016,48 +1766,6 @@
       ]
     },
     {
-      "name": "get_triggers",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 333
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 366
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 426
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 486
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 542
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 806
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 875
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 935
-        }
-      ]
-    },
-    {
       "name": "get_view_definition",
       "featureGroup": "database-objects",
       "eventUse": "none",
@@ -2068,48 +1776,6 @@
         {
           "file": "packages/web-ui/src/components/modals/ViewEditorModal.tsx",
           "line": 53
-        }
-      ]
-    },
-    {
-      "name": "get_views",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 300
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 361
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 421
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 484
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 540
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 804
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 870
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 933
         }
       ]
     },
@@ -2321,11 +1987,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 260
+          "line": 262
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 781
+          "line": 783
         }
       ]
     },
@@ -2339,7 +2005,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
-          "line": 92
+          "line": 91
         }
       ]
     },
@@ -2429,7 +2095,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 1588
+          "line": 1587
         }
       ]
     },
@@ -2795,11 +2461,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 999
+          "line": 1001
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1093
+          "line": 1095
         }
       ]
     },
@@ -2813,11 +2479,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 991
+          "line": 993
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1110
+          "line": 1112
         }
       ]
     },
@@ -2850,24 +2516,6 @@
       ]
     },
     {
-      "name": "set_schema_preference",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 611
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1034
-        }
-      ]
-    },
-    {
       "name": "set_selected_databases",
       "featureGroup": "configuration",
       "eventUse": "none",
@@ -2877,29 +2525,15 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 252
+          "line": 254
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 636
+          "line": 638
         },
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 773
-        }
-      ]
-    },
-    {
-      "name": "set_selected_schemas",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 592
+          "line": 775
         }
       ]
     },
@@ -2913,11 +2547,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 149
+          "line": 151
         },
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 499
+          "line": 498
         }
       ]
     },
@@ -2931,7 +2565,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
-          "line": 239
+          "line": 238
         }
       ]
     },
@@ -2987,21 +2621,6 @@
     }
   ],
   "dynamicInvocations": [
-    {
-      "expression": "materialized ? \"get_materialized_view_columns\" : \"get_view_columns\"",
-      "file": "packages/web-ui/src/components/layout/sidebar/SidebarViewItem.tsx",
-      "line": 69,
-      "context": "SidebarViewItem",
-      "possibleCommands": [
-        "get_materialized_view_columns",
-        "get_view_columns"
-      ],
-      "featureGroup": "metadata",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "unregisteredPossibleCommands": []
-    },
     {
       "expression": "cmd",
       "file": "packages/web-ui/src/components/settings/AiTab.tsx",
@@ -3059,24 +2678,37 @@
     "execute_query",
     "export_theme",
     "get_active_connections",
+    "get_available_databases",
+    "get_columns",
     "get_connection_by_id",
     "get_connection_groups",
     "get_connections",
     "get_connections_with_groups",
     "get_driver_manifest",
     "get_file_stats",
+    "get_foreign_keys",
+    "get_indexes",
     "get_k8s_connections",
     "get_k8s_contexts_cmd",
     "get_k8s_namespaces_cmd",
     "get_k8s_resource_ports_cmd",
     "get_k8s_resources_cmd",
     "get_materialized_view_columns",
+    "get_materialized_view_definition",
+    "get_materialized_views",
     "get_plugin_dir",
     "get_registered_drivers",
+    "get_routines",
+    "get_schema_preference",
+    "get_schema_snapshot",
+    "get_schemas",
+    "get_selected_schemas",
     "get_ssh_connections",
     "get_tables",
     "get_theme",
+    "get_triggers",
     "get_view_columns",
+    "get_views",
     "import_connections_payload",
     "import_theme",
     "is_debug_mode",
@@ -3106,6 +2738,8 @@
     "save_tabrename_prompt",
     "set_connection_appearance",
     "set_connection_tags",
+    "set_schema_preference",
+    "set_selected_schemas",
     "test_connection",
     "test_k8s_connection_cmd",
     "test_log",

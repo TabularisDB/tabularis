@@ -21,6 +21,7 @@ import { useToast } from '../hooks/useToast';
 import { findConnectionsForDrivers } from '../utils/connectionManager';
 import { isMultiDatabaseCapable, usesMultiDatabaseLayout, getEffectiveDatabase, getDatabaseList, reconcileDatabaseSelection } from '../utils/database';
 import { useTabularisClient } from '../hooks/useTabularisClient';
+import type { TypedCommandCaller } from '../api/contract';
 
 /** Label of the main window; Tauri defaults to this when none is configured. */
 const MAIN_WINDOW_LABEL = 'main';
@@ -36,13 +37,14 @@ interface RoutineMetadataResult {
 }
 
 const getRoutinesOrEmpty = async (
+  client: TypedCommandCaller,
   connectionId: string,
   schema: string | undefined,
   onError: (error: unknown, schema?: string) => void,
 ): Promise<RoutineMetadataResult> => {
   try {
     return {
-      routines: await invoke<RoutineInfo[]>('get_routines', { connectionId, schema }),
+      routines: await client.call('get_routines', { connectionId, schema }),
     };
   } catch (error) {
     onError(error, schema);
@@ -199,7 +201,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     // ones disappear.
     if (data?.allDatabasesMode) {
       try {
-        const available = await invoke<string[]>('get_available_databases', { connectionId });
+        const available = await client.call('get_available_databases', { connectionId });
         const added = available.filter(db => !current.includes(db));
         const removed = current.filter(db => !available.includes(db));
         if (added.length > 0 || removed.length > 0) {
@@ -229,7 +231,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      const available = await invoke<string[]>('get_available_databases', { connectionId });
+      const available = await client.call('get_available_databases', { connectionId });
 
       // Same guard as the connect-time reconciliation: an incomplete server
       // list (e.g. restricted privileges) must not be mistaken for missing
@@ -270,7 +272,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       console.error('Failed to refresh database selection:', e);
       showToast(String(e), { kind: 'error' });
     }
-  }, [connections, connectionDataMap, updateConnectionData, showToast, t]);
+  }, [client, connections, connectionDataMap, updateConnectionData, showToast, t]);
 
   // Lets the listener below subscribe once: `refreshDatabaseSelection` is
   // recreated whenever connection state changes, so depending on it directly
@@ -297,7 +299,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     if (!connId) return;
     updateConnectionData(connId, { isLoadingViews: true });
     try {
-      const result = await invoke<ViewInfo[]>('get_views', { connectionId: connId });
+      const result = await client.call('get_views', { connectionId: connId });
       updateConnectionData(connId, { views: result, isLoadingViews: false });
     } catch (e) {
       console.error('Failed to refresh views:', e);
@@ -310,7 +312,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     if (!connId) return;
     updateConnectionData(connId, { isLoadingRoutines: true });
     try {
-      const result = await invoke<RoutineInfo[]>('get_routines', { connectionId: connId });
+      const result = await client.call('get_routines', { connectionId: connId });
       updateConnectionData(connId, {
         routines: result,
         isLoadingRoutines: false,
@@ -330,7 +332,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     if (!connId) return;
     updateConnectionData(connId, { isLoadingTriggers: true });
     try {
-      const result = await invoke<TriggerInfo[]>('get_triggers', { connectionId: connId });
+      const result = await client.call('get_triggers', { connectionId: connId });
       updateConnectionData(connId, { triggers: result, isLoadingTriggers: false });
     } catch (e) {
       console.error('Failed to refresh triggers:', e);
@@ -358,12 +360,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     try {
       const [tablesResult, viewsResult, materializedViewsResult, routineMetadata, triggersResult] = await Promise.all([
         client.call('get_tables', { connectionId: connId, schema }),
-        invoke<ViewInfo[]>('get_views', { connectionId: connId, schema }),
+        client.call('get_views', { connectionId: connId, schema }),
         (currentData.capabilities?.materialized_views
-          ? invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[])
+          ? client.call('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[])
           : Promise.resolve([] as ViewInfo[])),
-        getRoutinesOrEmpty(connId, schema, handleRoutineMetadataError),
-        invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
+        getRoutinesOrEmpty(client, connId, schema, handleRoutineMetadataError),
+        client.call('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
       ]);
 
       const freshData = connectionDataMap[connId];
@@ -418,12 +420,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     try {
       const [tablesResult, viewsResult, materializedViewsResult, routineMetadata, triggersResult] = await Promise.all([
         client.call('get_tables', { connectionId: connId, schema }),
-        invoke<ViewInfo[]>('get_views', { connectionId: connId, schema }),
+        client.call('get_views', { connectionId: connId, schema }),
         (currentData.capabilities?.materialized_views
-          ? invoke<ViewInfo[]>('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[])
+          ? client.call('get_materialized_views', { connectionId: connId, schema }).catch(() => [] as ViewInfo[])
           : Promise.resolve([] as ViewInfo[])),
-        getRoutinesOrEmpty(connId, schema, handleRoutineMetadataError),
-        invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
+        getRoutinesOrEmpty(client, connId, schema, handleRoutineMetadataError),
+        client.call('get_triggers', { connectionId: connId, schema }).catch(() => [] as TriggerInfo[]),
       ]);
 
       const freshData = connectionDataMap[connId];
@@ -481,9 +483,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     try {
       const [tablesResult, viewsResult, routineMetadata, triggersResult] = await Promise.all([
         client.call('get_tables', { connectionId: connId, schema: database }),
-        invoke<ViewInfo[]>('get_views', { connectionId: connId, schema: database }),
-        getRoutinesOrEmpty(connId, database, handleRoutineMetadataError),
-        invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema: database }).catch(() => [] as TriggerInfo[]),
+        client.call('get_views', { connectionId: connId, schema: database }),
+        getRoutinesOrEmpty(client, connId, database, handleRoutineMetadataError),
+        client.call('get_triggers', { connectionId: connId, schema: database }).catch(() => [] as TriggerInfo[]),
       ]);
 
       const freshData = connectionDataMap[connId];
@@ -537,9 +539,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     try {
       const [tablesResult, viewsResult, routineMetadata, triggersResult] = await Promise.all([
         client.call('get_tables', { connectionId: connId, schema: database }),
-        invoke<ViewInfo[]>('get_views', { connectionId: connId, schema: database }),
-        getRoutinesOrEmpty(connId, database, handleRoutineMetadataError),
-        invoke<TriggerInfo[]>('get_triggers', { connectionId: connId, schema: database }).catch(() => [] as TriggerInfo[]),
+        client.call('get_views', { connectionId: connId, schema: database }),
+        getRoutinesOrEmpty(client, connId, database, handleRoutineMetadataError),
+        client.call('get_triggers', { connectionId: connId, schema: database }).catch(() => [] as TriggerInfo[]),
       ]);
 
       const freshData = connectionDataMap[connId];
@@ -589,7 +591,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     });
 
     try {
-      await invoke('set_selected_schemas', {
+      await client.call('set_selected_schemas', {
         connectionId: connId,
         schemas: newSchemas,
       });
@@ -608,10 +610,10 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       const nextSchema = newSchemas[0] || null;
       updateConnectionData(connId, { activeSchema: nextSchema });
       if (nextSchema) {
-        invoke('set_schema_preference', { connectionId: connId, schema: nextSchema }).catch(() => {});
+        client.call('set_schema_preference', { connectionId: connId, schema: nextSchema }).catch(() => {});
       }
     }
-  }, [activeConnectionId, connectionDataMap, updateConnectionData, loadSchemaData]);
+  }, [client, activeConnectionId, connectionDataMap, updateConnectionData, loadSchemaData]);
 
   const setSelectedDatabases = useCallback((newDatabases: string[], targetConnectionId?: string) => {
     const connId = targetConnectionId ?? activeConnectionId;
@@ -739,7 +741,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
       if (allDatabasesMode) {
         try {
-          dbList = await invoke<string[]>('get_available_databases', { connectionId });
+          dbList = await client.call('get_available_databases', { connectionId });
           isMultiDb = dbList.length > 0;
         } catch (e) {
           // Without a database list the connection is unusable (it has no
@@ -760,7 +762,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         // Reconcile the saved selection against the server so databases
         // dropped outside the app don't linger in the sidebar (#518).
         try {
-          const available = await invoke<string[]>('get_available_databases', { connectionId });
+          const available = await client.call('get_available_databases', { connectionId });
           // The primary database must exist while this connection is open: if
           // the server list doesn't include it, the list is unreliable (e.g.
           // filtered by privileges) and pruning from it would drop valid
@@ -801,9 +803,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
           try {
             const [tablesResult, viewsResult, routineMetadata, triggersResult] = await Promise.all([
               client.call('get_tables', { connectionId, schema: firstDb }),
-              invoke<ViewInfo[]>('get_views', { connectionId, schema: firstDb }),
-              getRoutinesOrEmpty(connectionId, firstDb, handleRoutineMetadataError),
-              invoke<TriggerInfo[]>('get_triggers', { connectionId, schema: firstDb }).catch(() => [] as TriggerInfo[]),
+              client.call('get_views', { connectionId, schema: firstDb }),
+              getRoutinesOrEmpty(client, connectionId, firstDb, handleRoutineMetadataError),
+              client.call('get_triggers', { connectionId, schema: firstDb }).catch(() => [] as TriggerInfo[]),
             ]);
             initialDbMap = {
               [firstDb]: {
@@ -842,12 +844,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
         updateConnectionData(connectionId, { isLoadingSchemas: true });
 
         try {
-          const schemasResult = await invoke<string[]>('get_schemas', { connectionId });
+          const schemasResult = await client.call('get_schemas', { connectionId });
           updateConnectionData(connectionId, { schemas: schemasResult });
 
           let savedSelection: string[] = [];
           try {
-            savedSelection = await invoke<string[]>('get_selected_schemas', { connectionId });
+            savedSelection = await client.call('get_selected_schemas', { connectionId });
           } catch {
             // Ignore - no saved selection exists yet
           }
@@ -857,7 +859,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
           if (validSelection.length > 0) {
             let preferredSchema = validSelection[0];
             try {
-              const saved = await invoke<string | null>('get_schema_preference', { connectionId });
+              const saved = await client.call('get_schema_preference', { connectionId });
               if (saved && validSelection.includes(saved)) {
                 preferredSchema = saved;
               }
@@ -867,12 +869,12 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
 
             const [tablesResult, viewsResult, materializedViewsResult, routineMetadata, triggersResult] = await Promise.all([
               client.call('get_tables', { connectionId, schema: preferredSchema }),
-              invoke<ViewInfo[]>('get_views', { connectionId, schema: preferredSchema }),
+              client.call('get_views', { connectionId, schema: preferredSchema }),
               (capabilities?.materialized_views
-                ? invoke<ViewInfo[]>('get_materialized_views', { connectionId, schema: preferredSchema }).catch(() => [] as ViewInfo[])
+                ? client.call('get_materialized_views', { connectionId, schema: preferredSchema }).catch(() => [] as ViewInfo[])
                 : Promise.resolve([] as ViewInfo[])),
-              getRoutinesOrEmpty(connectionId, preferredSchema, handleRoutineMetadataError),
-              invoke<TriggerInfo[]>('get_triggers', { connectionId, schema: preferredSchema }).catch(() => [] as TriggerInfo[]),
+              getRoutinesOrEmpty(client, connectionId, preferredSchema, handleRoutineMetadataError),
+              client.call('get_triggers', { connectionId, schema: preferredSchema }).catch(() => [] as TriggerInfo[]),
             ]);
 
             updateConnectionData(connectionId, {
@@ -930,9 +932,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       } else {
         const [tablesResult, viewsResult, routineMetadata, triggersResult] = await Promise.all([
           client.call('get_tables', { connectionId }),
-          invoke<ViewInfo[]>('get_views', { connectionId }),
-          getRoutinesOrEmpty(connectionId, undefined, handleRoutineMetadataError),
-          invoke<TriggerInfo[]>('get_triggers', { connectionId }).catch(() => [] as TriggerInfo[]),
+          client.call('get_views', { connectionId }),
+          getRoutinesOrEmpty(client, connectionId, undefined, handleRoutineMetadataError),
+          client.call('get_triggers', { connectionId }).catch(() => [] as TriggerInfo[]),
         ]);
 
         updateConnectionData(connectionId, {
@@ -1031,9 +1033,9 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     setActiveTable(table);
     if (schema !== undefined && schema !== null && activeConnectionId) {
       updateConnectionData(activeConnectionId, { activeSchema: schema });
-      invoke('set_schema_preference', { connectionId: activeConnectionId, schema }).catch(() => {});
+      client.call('set_schema_preference', { connectionId: activeConnectionId, schema }).catch(() => {});
     }
-  }, [activeConnectionId, updateConnectionData]);
+  }, [client, activeConnectionId, updateConnectionData]);
 
   const loadConnections = useCallback(async () => {
     setIsLoadingConnections(true);

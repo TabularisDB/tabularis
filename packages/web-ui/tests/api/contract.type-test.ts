@@ -28,6 +28,23 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     limit: 100,
     page: 1,
   });
+  const columns = caller.call("get_columns", {
+    connectionId: "connection-1",
+    tableName: "users",
+    schema: "public",
+  });
+  const materializedViewDefinition: Promise<string> = caller.call(
+    "get_materialized_view_definition",
+    {
+      connectionId: "connection-1",
+      viewName: "active_users",
+      schema: "public",
+    },
+  );
+  const selectedSchemas: Promise<string[]> = caller.call(
+    "get_selected_schemas",
+    { connectionId: "connection-1" },
+  );
 
   // @ts-expect-error execute_query requires a connection id.
   caller.call("execute_query", { query: "SELECT 1" });
@@ -62,6 +79,9 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     sshProfiles,
     askpassResponse,
     queryResult,
+    columns,
+    materializedViewDefinition,
+    selectedSchemas,
     wrongResponse,
     unmigratedResult,
   ];

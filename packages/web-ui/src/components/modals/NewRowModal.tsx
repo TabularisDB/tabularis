@@ -117,12 +117,12 @@ export const NewRowModal = ({
       // Fetch columns and FKs in parallel
       const schemaParam = activeSchema ? { schema: activeSchema } : {};
       Promise.all([
-        invoke<TableColumn[]>("get_columns", {
+        client.call("get_columns", {
           connectionId: activeConnectionId,
           tableName,
           ...schemaParam,
         }),
-        invoke<ForeignKey[]>("get_foreign_keys", {
+        client.call("get_foreign_keys", {
           connectionId: activeConnectionId,
           tableName,
           ...schemaParam,
@@ -147,7 +147,7 @@ export const NewRowModal = ({
         .catch((err) => setError(t("newRow.failLoad") + err))
         .finally(() => setSchemaLoading(false));
     }
-  }, [isOpen, activeConnectionId, tableName, fetchFkOptions, t, activeSchema]);
+  }, [client, isOpen, activeConnectionId, tableName, fetchFkOptions, t, activeSchema]);
 
   const parseValue = (value: string, dataType: string) => {
     const type = dataType.toLowerCase();

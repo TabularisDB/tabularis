@@ -25,7 +25,6 @@ import { TableNameInput } from './ClipboardImport/TableNameInput';
 import { ParseSummary } from './ClipboardImport/ParseSummary';
 import { ModeToggle } from './ClipboardImport/ModeToggle';
 import { useDataTypes } from '../../hooks/useDataTypes';
-import type { TableColumn } from '../../utils/sqlGenerator';
 import { useTabularisClient } from '../../hooks/useTabularisClient';
 import {
   parseClipboardText,
@@ -67,7 +66,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
   const [ifExists, setIfExists] = useState<IfExistsStrategy>('fail');
   const [existingTables, setExistingTables] = useState<string[]>([]);
   const [maximizedPane, setMaximizedPane] = useState<'schema' | 'preview' | null>(null);
-  const [targetColumns, setTargetColumns] = useState<TableColumn[]>([]);
+  const [targetColumns, setTargetColumns] = useState<Array<{ name: string }>>([]);
 
   const [isLoadingClipboard, setIsLoadingClipboard] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -166,10 +165,10 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
     let cancelled = false;
     (async () => {
       try {
-        const cols = await invoke<TableColumn[]>('get_columns', {
+        const cols = await client.call('get_columns', {
           connectionId: activeConnectionId,
           tableName: tableName.trim(),
-          schema: activeSchema ?? null,
+          ...(activeSchema ? { schema: activeSchema } : {}),
         });
         if (!cancelled) setTargetColumns(cols);
       } catch {
@@ -179,7 +178,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
     return () => {
       cancelled = true;
     };
-  }, [importMode, tableExists, tableName, activeConnectionId, activeSchema]);
+  }, [client, importMode, tableExists, tableName, activeConnectionId, activeSchema]);
 
   // Auto-map parsed columns to target columns by name (case-insensitive) when
   // entering append mode or when the target column list changes.

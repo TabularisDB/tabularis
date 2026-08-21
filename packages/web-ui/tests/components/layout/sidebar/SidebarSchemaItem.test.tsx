@@ -4,8 +4,14 @@ import React from "react";
 import { SidebarSchemaItem } from "../../../../src/components/layout/sidebar/SidebarSchemaItem";
 import { invoke } from "@tauri-apps/api/core";
 
+const clientMock = vi.hoisted(() => ({ call: vi.fn() }));
+
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(() => Promise.resolve([])),
+}));
+
+vi.mock("../../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => clientMock,
 }));
 
 vi.mock("react-i18next", () => ({
@@ -53,6 +59,10 @@ describe("SidebarSchemaItem — materialized view double-click", () => {
 
   beforeEach(() => {
     vi.mocked(invoke).mockClear();
+    clientMock.call.mockReset();
+    clientMock.call.mockImplementation((command: string, request: unknown) =>
+      invoke(command, request),
+    );
   });
 
   it("flags a materialized view (materialized=true) on double-click", () => {

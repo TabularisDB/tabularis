@@ -5,7 +5,12 @@ import { useSqlAutocompleteRegistration } from '../../src/hooks/useSqlAutocomple
 import { registerSqlAutocomplete } from '../../src/utils/autocomplete';
 import { useDatabase } from '../../src/hooks/useDatabase';
 
+const clientMock = vi.hoisted(() => ({ call: vi.fn() }));
+
 vi.mock('../../src/hooks/useDatabase');
+vi.mock('../../src/hooks/useTabularisClient', () => ({
+  useTabularisClient: () => clientMock,
+}));
 vi.mock('../../src/utils/autocomplete', () => ({
   registerSqlAutocomplete: vi.fn(),
   disposeSqlAutocomplete: vi.fn(),
@@ -50,6 +55,7 @@ describe('useSqlAutocompleteRegistration', () => {
       [{ name: 'Addresses', schema: 'Ops' }],
       'Ops',
       capabilities,
+      expect.any(Object),
     );
   });
 
@@ -81,6 +87,7 @@ describe('useSqlAutocompleteRegistration', () => {
       ],
       'Ops',
       capabilities,
+      expect.any(Object),
     );
   });
 });

@@ -46,12 +46,12 @@ export const CreateIndexModal = ({
         setIsUnique(false);
         setError('');
 
-        invoke<TableColumn[]>('get_columns', { connectionId, tableName, ...(activeSchema ? { schema: activeSchema } : {}) })
+        client.call('get_columns', { connectionId, tableName, ...(activeSchema ? { schema: activeSchema } : {}) })
             .then(cols => setAvailableColumns(cols))
             .catch(e => console.error(e))
             .finally(() => setFetchingCols(false));
     }
-  }, [isOpen, connectionId, tableName, activeSchema]);
+  }, [client, isOpen, connectionId, tableName, activeSchema]);
 
   const toggleColumn = (colName: string) => {
       if (selectedColumns.includes(colName)) {

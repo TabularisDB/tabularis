@@ -476,10 +476,10 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
 
 #[tauri::command]
 pub fn get_schema_preference(app: AppHandle, connection_id: String) -> Option<String> {
-    let config = load_config_internal(&app);
-    config
-        .schema_preferences
-        .and_then(|prefs| prefs.get(&connection_id).cloned())
+    crate::application::metadata::get_schema_preference(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+    )
 }
 
 #[tauri::command]
@@ -488,20 +488,11 @@ pub fn set_schema_preference(
     connection_id: String,
     schema: String,
 ) -> Result<(), String> {
-    if let Some(config_dir) = get_config_dir(&app) {
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-        }
-        let config_path = config_dir.join("config.json");
-        let mut config = load_config_internal(&app);
-        let prefs = config.schema_preferences.get_or_insert_with(HashMap::new);
-        prefs.insert(connection_id, schema);
-        let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-        fs::write(config_path, content).map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err("Could not resolve config directory".to_string())
-    }
+    crate::application::metadata::set_schema_preference(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        connection_id,
+        schema,
+    )
 }
 
 #[tauri::command]
@@ -560,11 +551,10 @@ pub fn set_last_open_connections(
 
 #[tauri::command]
 pub fn get_selected_schemas(app: AppHandle, connection_id: String) -> Vec<String> {
-    let config = load_config_internal(&app);
-    config
-        .selected_schemas
-        .and_then(|map| map.get(&connection_id).cloned())
-        .unwrap_or_default()
+    crate::application::metadata::get_selected_schemas(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+    )
 }
 
 #[tauri::command]
@@ -573,24 +563,11 @@ pub fn set_selected_schemas(
     connection_id: String,
     schemas: Vec<String>,
 ) -> Result<(), String> {
-    if let Some(config_dir) = get_config_dir(&app) {
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-        }
-        let config_path = config_dir.join("config.json");
-        let mut config = load_config_internal(&app);
-        let map = config.selected_schemas.get_or_insert_with(HashMap::new);
-        if schemas.is_empty() {
-            map.remove(&connection_id);
-        } else {
-            map.insert(connection_id, schemas);
-        }
-        let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-        fs::write(config_path, content).map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err("Could not resolve config directory".to_string())
-    }
+    crate::application::metadata::set_selected_schemas(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        connection_id,
+        schemas,
+    )
 }
 
 #[tauri::command]

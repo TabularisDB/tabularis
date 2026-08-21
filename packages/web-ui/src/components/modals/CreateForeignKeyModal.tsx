@@ -69,7 +69,7 @@ export const CreateForeignKeyModal = ({
         const schemaParam = activeSchema ? { schema: activeSchema } : {};
         Promise.all([
             client.call('get_tables', { connectionId, ...schemaParam }),
-            invoke<TableColumn[]>('get_columns', { connectionId, tableName, ...schemaParam })
+            client.call('get_columns', { connectionId, tableName, ...schemaParam })
         ]).then(([tbls, cols]) => {
             setTables(tbls);
             setLocalColumns(cols);
@@ -82,7 +82,7 @@ export const CreateForeignKeyModal = ({
   useEffect(() => {
       if (refTable && isOpen) {
           setFetchingRefCols(true);
-          invoke<TableColumn[]>('get_columns', { connectionId, tableName: refTable, ...(activeSchema ? { schema: activeSchema } : {}) })
+          client.call('get_columns', { connectionId, tableName: refTable, ...(activeSchema ? { schema: activeSchema } : {}) })
             .then(cols => {
                 setRefColumns(cols);
                 if (cols.length > 0) setRefColumn(cols[0].name);
@@ -90,7 +90,7 @@ export const CreateForeignKeyModal = ({
             .catch(e => console.error(e))
             .finally(() => setFetchingRefCols(false));
       }
-  }, [refTable, isOpen, connectionId, activeSchema]);
+  }, [client, refTable, isOpen, connectionId, activeSchema]);
 
   useEffect(() => {
       if (localColumn && refTable) {

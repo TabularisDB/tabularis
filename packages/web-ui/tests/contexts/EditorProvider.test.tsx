@@ -6,6 +6,9 @@ import { DatabaseContext } from "../../src/contexts/DatabaseContext";
 import { invoke } from "@tauri-apps/api/core";
 import React from "react";
 import type { TableSchema } from "../../src/types/editor";
+import { TabularisClientProvider } from "../../src/contexts/TabularisClientProvider";
+import { TabularisClient } from "../../src/api/client";
+import { TauriTransport } from "../../src/api/transports/tauriTransport";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
@@ -52,25 +55,30 @@ describe("EditorProvider", () => {
   });
 
   const createWrapper = (activeConnectionId: string | null = "conn-1") => {
+    const client = new TabularisClient(new TauriTransport());
     return ({ children }: { children: React.ReactNode }) =>
       React.createElement(
-        DatabaseContext.Provider,
-        {
-          value: {
-            activeConnectionId,
-            activeDriver: "mysql",
-            activeTable: null,
-            activeConnectionName: "Test Connection",
-            activeDatabaseName: "testdb",
-            tables: [],
-            isLoadingTables: false,
-            connect: vi.fn(),
-            disconnect: vi.fn(),
-            setActiveTable: vi.fn(),
-            refreshTables: vi.fn(),
+        TabularisClientProvider,
+        { client },
+        React.createElement(
+          DatabaseContext.Provider,
+          {
+            value: {
+              activeConnectionId,
+              activeDriver: "mysql",
+              activeTable: null,
+              activeConnectionName: "Test Connection",
+              activeDatabaseName: "testdb",
+              tables: [],
+              isLoadingTables: false,
+              connect: vi.fn(),
+              disconnect: vi.fn(),
+              setActiveTable: vi.fn(),
+              refreshTables: vi.fn(),
+            },
           },
-        },
-        React.createElement(EditorProvider, null, children),
+          React.createElement(EditorProvider, null, children),
+        ),
       );
   };
 
@@ -549,25 +557,30 @@ describe("EditorProvider connection switching (#292)", () => {
     };
 
     const conn = { current: "conn-1" };
+    const client = new TabularisClient(new TauriTransport());
     const wrapper = ({ children }: { children: React.ReactNode }) =>
       React.createElement(
-        DatabaseContext.Provider,
-        {
-          value: {
-            activeConnectionId: conn.current,
-            activeDriver: "mysql",
-            activeTable: null,
-            activeConnectionName: "Test Connection",
-            activeDatabaseName: "testdb",
-            tables: [],
-            isLoadingTables: false,
-            connect: vi.fn(),
-            disconnect: vi.fn(),
-            setActiveTable: vi.fn(),
-            refreshTables: vi.fn(),
+        TabularisClientProvider,
+        { client },
+        React.createElement(
+          DatabaseContext.Provider,
+          {
+            value: {
+              activeConnectionId: conn.current,
+              activeDriver: "mysql",
+              activeTable: null,
+              activeConnectionName: "Test Connection",
+              activeDatabaseName: "testdb",
+              tables: [],
+              isLoadingTables: false,
+              connect: vi.fn(),
+              disconnect: vi.fn(),
+              setActiveTable: vi.fn(),
+              refreshTables: vi.fn(),
+            },
           },
-        },
-        React.createElement(EditorProvider, null, children),
+          React.createElement(EditorProvider, null, children),
+        ),
       );
 
     const { result, rerender } = renderHook(() => useEditor(), { wrapper });

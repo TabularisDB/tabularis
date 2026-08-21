@@ -2,8 +2,11 @@ import type {
   ConnectionAppearance,
   ConnectionGroup,
   ConnectionsFile,
+  RoutineInfo,
   SavedConnection,
   TableInfo,
+  TriggerInfo,
+  ViewInfo,
 } from "../contexts/DatabaseContext";
 import type { PluginManifest } from "../types/plugins";
 import type { ConnectionTag } from "../types/tags";
@@ -13,7 +16,7 @@ import type {
   TableColumn,
   TableSchema,
 } from "../types/editor";
-import type { Index } from "../types/schema";
+import type { ForeignKey, Index } from "../types/schema";
 import type { RequestId } from "./errors";
 
 export type AuthorizationLevel =
@@ -154,6 +157,10 @@ interface MetadataRequest extends ConnectionIdRequest {
 
 interface TableMetadataRequest extends MetadataRequest {
   tableName: string;
+}
+
+interface ViewMetadataRequest extends MetadataRequest {
+  viewName: string;
 }
 
 export interface ExecuteQueryRequest extends MetadataRequest {
@@ -360,10 +367,42 @@ export interface CommandMap {
   get_schemas: CommandDefinition<ConnectionIdRequest, string[], "database">;
   get_tables: CommandDefinition<MetadataRequest, TableInfo[], "database">;
   get_columns: CommandDefinition<TableMetadataRequest, TableColumn[], "database">;
+  get_foreign_keys: CommandDefinition<TableMetadataRequest, ForeignKey[], "database">;
   get_indexes: CommandDefinition<TableMetadataRequest, Index[], "database">;
+  get_views: CommandDefinition<MetadataRequest, ViewInfo[], "database">;
+  get_view_columns: CommandDefinition<ViewMetadataRequest, TableColumn[], "database">;
+  get_materialized_views: CommandDefinition<MetadataRequest, ViewInfo[], "database">;
+  get_materialized_view_columns: CommandDefinition<
+    ViewMetadataRequest,
+    TableColumn[],
+    "database"
+  >;
+  get_materialized_view_definition: CommandDefinition<
+    ViewMetadataRequest,
+    string,
+    "database"
+  >;
+  get_routines: CommandDefinition<MetadataRequest, RoutineInfo[], "database">;
+  get_triggers: CommandDefinition<MetadataRequest, TriggerInfo[], "database">;
   get_schema_snapshot: CommandDefinition<
     MetadataRequest,
     TableSchema[],
+    "database"
+  >;
+  get_selected_schemas: CommandDefinition<ConnectionIdRequest, string[], "database">;
+  set_selected_schemas: CommandDefinition<
+    ConnectionIdRequest & { schemas: string[] },
+    void,
+    "database"
+  >;
+  get_schema_preference: CommandDefinition<
+    ConnectionIdRequest,
+    string | null,
+    "database"
+  >;
+  set_schema_preference: CommandDefinition<
+    ConnectionIdRequest & { schema: string },
+    void,
     "database"
   >;
 

@@ -1,6 +1,6 @@
 use crate::application::{
-    connections::ConnectionCommand, tunnels::TunnelCommand, ApplicationApi, ApplicationError,
-    ApplicationRequestContext, AuthorizationLevel,
+    connections::ConnectionCommand, metadata::MetadataCommand, tunnels::TunnelCommand,
+    ApplicationApi, ApplicationError, ApplicationRequestContext, AuthorizationLevel,
 };
 use crate::models::{
     ConnectionAppearance, ConnectionParams, K8sConnectionInput, SshConnectionInput, SshTestParams,
@@ -39,7 +39,30 @@ enum RpcCommand {
     GetConnections,
     CancelQuery,
     Connection(ConnectionRpcCommand),
+    Metadata(MetadataRpcCommand),
     Tunnel(TunnelRpcCommand),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MetadataRpcCommand {
+    GetAvailableDatabases,
+    GetSchemas,
+    GetTables,
+    GetColumns,
+    GetForeignKeys,
+    GetIndexes,
+    GetViews,
+    GetViewColumns,
+    GetMaterializedViews,
+    GetMaterializedViewColumns,
+    GetMaterializedViewDefinition,
+    GetRoutines,
+    GetTriggers,
+    GetSchemaSnapshot,
+    GetSelectedSchemas,
+    SetSelectedSchemas,
+    GetSchemaPreference,
+    SetSchemaPreference,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -118,6 +141,43 @@ struct IdRequest {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ConnectionIdRequest {
     connection_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MetadataRequest {
+    connection_id: String,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TableMetadataRequest {
+    connection_id: String,
+    table_name: String,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ViewMetadataRequest {
+    connection_id: String,
+    view_name: String,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetSelectedSchemasRequest {
+    connection_id: String,
+    schemas: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetSchemaPreferenceRequest {
+    connection_id: String,
+    schema: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -531,6 +591,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::Metadata(command) => {
+                let command = decode_metadata_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_metadata_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
             RpcCommand::Tunnel(command) => {
                 let command = decode_tunnel_command(command, body)
                     .map_err(InvocationError::InvalidPayload)?;
@@ -572,6 +640,7 @@ impl RpcCommand {
             "cancel_query" => Some(Self::CancelQuery),
             name => TunnelRpcCommand::parse(name)
                 .map(Self::Tunnel)
+                .or_else(|| MetadataRpcCommand::parse(name).map(Self::Metadata))
                 .or_else(|| ConnectionRpcCommand::parse(name).map(Self::Connection)),
         }
     }
@@ -598,6 +667,11 @@ impl RpcCommand {
                 application_error_code: "CONNECTION_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            Self::Metadata(_) => CommandMetadata {
+                authorization: AuthorizationLevel::Database,
+                application_error_code: "METADATA_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
             Self::Tunnel(command) => CommandMetadata {
                 authorization: if command == TunnelRpcCommand::RespondSshAskpass {
                     AuthorizationLevel::Sensitive
@@ -608,6 +682,32 @@ impl RpcCommand {
                 application_error_status: StatusCode::CONFLICT,
             },
         }
+    }
+}
+
+impl MetadataRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "get_available_databases" => Self::GetAvailableDatabases,
+            "get_schemas" => Self::GetSchemas,
+            "get_tables" => Self::GetTables,
+            "get_columns" => Self::GetColumns,
+            "get_foreign_keys" => Self::GetForeignKeys,
+            "get_indexes" => Self::GetIndexes,
+            "get_views" => Self::GetViews,
+            "get_view_columns" => Self::GetViewColumns,
+            "get_materialized_views" => Self::GetMaterializedViews,
+            "get_materialized_view_columns" => Self::GetMaterializedViewColumns,
+            "get_materialized_view_definition" => Self::GetMaterializedViewDefinition,
+            "get_routines" => Self::GetRoutines,
+            "get_triggers" => Self::GetTriggers,
+            "get_schema_snapshot" => Self::GetSchemaSnapshot,
+            "get_selected_schemas" => Self::GetSelectedSchemas,
+            "set_selected_schemas" => Self::SetSelectedSchemas,
+            "get_schema_preference" => Self::GetSchemaPreference,
+            "set_schema_preference" => Self::SetSchemaPreference,
+            _ => return None,
+        })
     }
 }
 
@@ -670,6 +770,142 @@ impl ConnectionRpcCommand {
             _ => return None,
         })
     }
+}
+
+fn decode_metadata_command(
+    command: MetadataRpcCommand,
+    body: &[u8],
+) -> Result<MetadataCommand, String> {
+    Ok(match command {
+        MetadataRpcCommand::GetAvailableDatabases => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            MetadataCommand::GetAvailableDatabases {
+                connection_id: request.connection_id,
+            }
+        }
+        MetadataRpcCommand::GetSchemas => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            MetadataCommand::GetSchemas {
+                connection_id: request.connection_id,
+            }
+        }
+        MetadataRpcCommand::GetTables => {
+            let request: MetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetTables {
+                connection_id: request.connection_id,
+                schema: request.schema,
+            }
+        }
+        MetadataRpcCommand::GetColumns => {
+            let request: TableMetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetColumns {
+                connection_id: request.connection_id,
+                table_name: request.table_name,
+                schema: request.schema,
+            }
+        }
+        MetadataRpcCommand::GetForeignKeys => {
+            let request: TableMetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetForeignKeys {
+                connection_id: request.connection_id,
+                table_name: request.table_name,
+                schema: request.schema,
+            }
+        }
+        MetadataRpcCommand::GetIndexes => {
+            let request: TableMetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetIndexes {
+                connection_id: request.connection_id,
+                table_name: request.table_name,
+                schema: request.schema,
+            }
+        }
+        MetadataRpcCommand::GetViews => {
+            let request: MetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetViews {
+                connection_id: request.connection_id,
+                schema: request.schema,
+            }
+        }
+        MetadataRpcCommand::GetViewColumns => {
+            let request: ViewMetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetViewColumns {
+                connection_id: request.connection_id,
+                view_name: request.view_name,
+                schema: request.schema,
+            }
+        }
+        MetadataRpcCommand::GetMaterializedViews => {
+            let request: MetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetMaterializedViews {
+                connection_id: request.connection_id,
+                schema: request.schema,
+            }
+        }
+        MetadataRpcCommand::GetMaterializedViewColumns => {
+            let request: ViewMetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetMaterializedViewColumns {
+                connection_id: request.connection_id,
+                view_name: request.view_name,
+                schema: request.schema,
+            }
+        }
+        MetadataRpcCommand::GetMaterializedViewDefinition => {
+            let request: ViewMetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetMaterializedViewDefinition {
+                connection_id: request.connection_id,
+                view_name: request.view_name,
+                schema: request.schema,
+            }
+        }
+        MetadataRpcCommand::GetRoutines => {
+            let request: MetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetRoutines {
+                connection_id: request.connection_id,
+                schema: request.schema,
+            }
+        }
+        MetadataRpcCommand::GetTriggers => {
+            let request: MetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetTriggers {
+                connection_id: request.connection_id,
+                schema: request.schema,
+            }
+        }
+        MetadataRpcCommand::GetSchemaSnapshot => {
+            let request: MetadataRequest = decode_payload(body)?;
+            MetadataCommand::GetSchemaSnapshot {
+                connection_id: request.connection_id,
+                schema: request.schema,
+            }
+        }
+        MetadataRpcCommand::GetSelectedSchemas => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            MetadataCommand::GetSelectedSchemas {
+                connection_id: request.connection_id,
+            }
+        }
+        MetadataRpcCommand::SetSelectedSchemas => {
+            let request: SetSelectedSchemasRequest = decode_payload(body)?;
+            MetadataCommand::SetSelectedSchemas {
+                connection_id: request.connection_id,
+                schemas: request.schemas,
+            }
+        }
+        MetadataRpcCommand::GetSchemaPreference => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            MetadataCommand::GetSchemaPreference {
+                connection_id: request.connection_id,
+            }
+        }
+        MetadataRpcCommand::SetSchemaPreference => {
+            let request: SetSchemaPreferenceRequest = decode_payload(body)?;
+            MetadataCommand::SetSchemaPreference {
+                connection_id: request.connection_id,
+                schema: request.schema,
+            }
+        }
+    })
 }
 
 fn decode_tunnel_command(command: TunnelRpcCommand, body: &[u8]) -> Result<TunnelCommand, String> {

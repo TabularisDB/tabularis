@@ -62,6 +62,15 @@ impl ApplicationApi for FixtureApplication {
         Ok(Value::Null)
     }
 
+    async fn execute_metadata_command(
+        &self,
+        context: ApplicationRequestContext,
+        _command: MetadataCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(Value::Null)
+    }
+
     async fn execute_tunnel_command(
         &self,
         context: ApplicationRequestContext,
@@ -117,6 +126,12 @@ fn declares_authorization_for_each_registered_command() {
         AuthorizationLevel::Database
     );
     assert_eq!(
+        RpcCommand::Metadata(MetadataRpcCommand::GetTables)
+            .metadata()
+            .authorization,
+        AuthorizationLevel::Database
+    );
+    assert_eq!(
         RpcCommand::Tunnel(TunnelRpcCommand::GetSshConnections)
             .metadata()
             .authorization,
@@ -128,6 +143,98 @@ fn declares_authorization_for_each_registered_command() {
             .authorization,
         AuthorizationLevel::Sensitive
     );
+}
+
+#[tokio::test]
+async fn routes_all_metadata_commands_through_the_shared_application_api() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let commands = [
+        (
+            "get_available_databases",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "get_schemas",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "get_tables",
+            serde_json::json!({"connectionId": "connection-1", "schema": "public"}),
+        ),
+        (
+            "get_columns",
+            serde_json::json!({"connectionId": "connection-1", "tableName": "users"}),
+        ),
+        (
+            "get_foreign_keys",
+            serde_json::json!({"connectionId": "connection-1", "tableName": "users"}),
+        ),
+        (
+            "get_indexes",
+            serde_json::json!({"connectionId": "connection-1", "tableName": "users"}),
+        ),
+        (
+            "get_views",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "get_view_columns",
+            serde_json::json!({"connectionId": "connection-1", "viewName": "users_view"}),
+        ),
+        (
+            "get_materialized_views",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "get_materialized_view_columns",
+            serde_json::json!({"connectionId": "connection-1", "viewName": "users_view"}),
+        ),
+        (
+            "get_materialized_view_definition",
+            serde_json::json!({"connectionId": "connection-1", "viewName": "users_view"}),
+        ),
+        (
+            "get_routines",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "get_triggers",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "get_schema_snapshot",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "get_selected_schemas",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "set_selected_schemas",
+            serde_json::json!({"connectionId": "connection-1", "schemas": ["public"]}),
+        ),
+        (
+            "get_schema_preference",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "set_schema_preference",
+            serde_json::json!({"connectionId": "connection-1", "schema": "public"}),
+        ),
+    ];
+
+    for (command, payload) in commands {
+        let response = dispatcher
+            .dispatch(
+                command,
+                RequestId(format!("request-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                None,
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK, "{command}");
+    }
 }
 
 #[tokio::test]

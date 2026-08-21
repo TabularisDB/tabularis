@@ -19,6 +19,7 @@ import type { CommandPaletteMode } from "../../../src/types/commands";
 const openEditorMock = vi.fn();
 const navigateMock = vi.fn();
 const invokeMock = vi.fn();
+const clientMock = vi.hoisted(() => ({ call: vi.fn() }));
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: unknown[]) => invokeMock(...args),
@@ -60,6 +61,10 @@ vi.mock("../../../src/components/ui/SqlPreview", () => ({
 
 vi.mock("../../../src/hooks/useAlert", () => ({
   useAlert: () => ({ showAlert: vi.fn() }),
+}));
+
+vi.mock("../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => clientMock,
 }));
 
 vi.mock("../../../src/hooks/useCommandPaletteScope", () => ({
@@ -118,6 +123,10 @@ const Harness = () => {
 
 describe("command palette generate SQL", () => {
   beforeEach(() => {
+    clientMock.call.mockReset();
+    clientMock.call.mockImplementation((command: string, request: unknown) =>
+      invokeMock(command, request),
+    );
     openEditorMock.mockReset();
     navigateMock.mockReset();
     invokeMock.mockReset();

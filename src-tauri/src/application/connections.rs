@@ -317,6 +317,21 @@ pub fn load_redacted_connections(path: &Path) -> Result<Vec<SavedConnection>, St
     load_connections(path).map(redacted_connections)
 }
 
+pub(crate) fn resolve_saved_connection_params(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    connection_id: &str,
+) -> Result<(String, ConnectionParams), String> {
+    let saved = find_connection(&load_file(runtime)?, connection_id)?;
+    let driver_id = saved.params.driver.clone();
+    let mut params = saved.params;
+    restore_secrets(runtime, connection_id, &mut params)?;
+    params.connection_id = Some(connection_id.to_string());
+    let params =
+        crate::application::tunnels::resolve_connection_params(runtime, &params, session_id)?;
+    Ok((driver_id, params))
+}
+
 pub fn store_icon_upload(
     data_dir: &Path,
     session_id: Uuid,

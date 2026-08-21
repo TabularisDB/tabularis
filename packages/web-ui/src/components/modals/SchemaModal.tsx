@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Loader2, Key, Table2 } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
 import { Modal } from '../ui/Modal';
 import type { TableTarget } from '../../types/databaseObjects';
+import { useTabularisClient } from '../../hooks/useTabularisClient';
 
 interface TableColumn {
   name: string;
@@ -19,6 +19,7 @@ interface SchemaModalProps {
 }
 
 export const SchemaModal = ({ isOpen, onClose, target }: SchemaModalProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { connectionId, tableName, schema } = target;
   const [columns, setColumns] = useState<TableColumn[]>([]);
@@ -32,7 +33,7 @@ export const SchemaModal = ({ isOpen, onClose, target }: SchemaModalProps) => {
       setLoading(true);
       setError('');
       try {
-        const cols = await invoke<TableColumn[]>('get_columns', {
+        const cols = await client.call('get_columns', {
           connectionId,
           tableName,
           ...(schema ? { schema } : {}),
@@ -47,7 +48,7 @@ export const SchemaModal = ({ isOpen, onClose, target }: SchemaModalProps) => {
     };
 
     void loadSchema();
-  }, [isOpen, connectionId, tableName, schema]);
+  }, [client, isOpen, connectionId, tableName, schema]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} overlayClassName="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100]">

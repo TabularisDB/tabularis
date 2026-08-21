@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type { Tab, SchemaCache, TableSchema, QueryResultEntry } from "../types/editor";
 import { EditorContext } from "./EditorContext";
 import { useDatabase } from "../hooks/useDatabase";
-import { invoke } from "@tauri-apps/api/core";
+import { useTabularisClient } from "../hooks/useTabularisClient";
 import {
   generateTabId,
   loadEditorPreferences,
@@ -30,6 +30,7 @@ import {
 } from "../utils/notebookStore";
 
 export const EditorProvider = ({ children }: { children: ReactNode }) => {
+  const client = useTabularisClient();
   const { activeConnectionId } = useDatabase();
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabIds, setActiveTabIds] = useState<Record<string, string>>({});
@@ -392,7 +393,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
         return cached!.data;
       }
 
-      const data = await invoke<TableSchema[]>("get_schema_snapshot", {
+      const data = await client.call("get_schema_snapshot", {
         connectionId,
         ...(schema ? { schema } : {}),
       });
@@ -405,8 +406,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
 
       return data;
     },
-    [],
-  ); // No dependencies - stable function
+    [client],
+  );
 
   const activeTab = useMemo(() => {
     return getActiveTab(tabs, activeConnectionId, activeTabId);

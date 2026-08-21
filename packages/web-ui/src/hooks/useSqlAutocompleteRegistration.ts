@@ -4,6 +4,7 @@ import { loader } from "@monaco-editor/react";
 import { useDatabase } from "./useDatabase";
 import { usesMultiDatabaseLayout } from "../utils/database";
 import { registerSqlAutocomplete, disposeSqlAutocomplete } from "../utils/autocomplete";
+import { useTabularisClient } from "./useTabularisClient";
 
 type Options = {
   monaco?: Monaco | null;
@@ -20,6 +21,7 @@ export function useSqlAutocompleteRegistration(
   connectionId: string | null,
   options?: Options,
 ) {
+  const client = useTabularisClient();
   const {
     tables,
     activeDriver,
@@ -70,6 +72,7 @@ export function useSqlAutocompleteRegistration(
         effectiveTables,
         defaultNamespace,
         activeCapabilities ?? activeDriver ?? null,
+        client,
       );
     };
 
@@ -86,6 +89,7 @@ export function useSqlAutocompleteRegistration(
     loader.init().then((monaco) => register(monaco));
     return cleanup;
   }, [
+    client,
     connectionId,
     enabled,
     options?.monaco,

@@ -17,11 +17,11 @@ import '@xyflow/react/dist/style.css';
 import { TableNodeComponent, type TableNodeData, type ColumnAggregation } from './TableNode';
 import { JoinEdge } from './JoinEdge';
 import { useDatabase } from '../../hooks/useDatabase';
-import { invoke } from '@tauri-apps/api/core';
 import { dragState } from '../../utils/dragState';
 import { useEditor } from '../../hooks/useEditor';
 import { Filter, SortAsc, Group, Hash, X, Plus } from 'lucide-react';
 import { generateVisualQuerySQL, type WhereCondition, type OrderByClause } from '../../utils/visualQuery';
+import { useTabularisClient } from '../../hooks/useTabularisClient';
 
 const nodeTypes = {
   table: TableNodeComponent,
@@ -31,14 +31,8 @@ const edgeTypes = {
   join: JoinEdge,
 };
 
-interface TableColumn {
-  name: string;
-  data_type: string;
-  is_pk: boolean;
-  is_nullable: boolean;
-}
-
 const VisualQueryBuilderContent = () => {
+  const client = useTabularisClient();
   const { activeConnectionId, activeDriver, activeCapabilities, activeSchema } = useDatabase();
   const { activeTab, activeTabId, updateTab } = useEditor();
   const { screenToFlowPosition } = useReactFlow();
@@ -199,7 +193,7 @@ const VisualQueryBuilderContent = () => {
       });
 
       try {
-        const columns = await invoke<TableColumn[]>("get_columns", { connectionId: activeConnectionId, tableName, ...(tableSchema ? { schema: tableSchema } : {}) });
+        const columns = await client.call("get_columns", { connectionId: activeConnectionId, tableName, ...(tableSchema ? { schema: tableSchema } : {}) });
         const newNodeId = `${tableName}-${Date.now()}`;
 
         const newNode: Node = {
@@ -225,7 +219,7 @@ const VisualQueryBuilderContent = () => {
         console.error("Failed to fetch columns", e);
       }
     },
-    [activeConnectionId, screenToFlowPosition, setNodes, onColumnCheck, onColumnAggregation, onColumnAlias, deleteNode, activeSchema],
+    [client, activeConnectionId, screenToFlowPosition, setNodes, onColumnCheck, onColumnAggregation, onColumnAlias, deleteNode, activeSchema],
   );
 
   // Get all available columns from all nodes

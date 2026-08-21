@@ -18,6 +18,27 @@ use tokio_tungstenite::tungstenite::{Error as WebSocketError, Message as WebSock
 const CSRF_HEADER: &str = "x-tabularis-csrf";
 const REQUEST_ID_HEADER: &str = "x-request-id";
 
+async fn rpc_data(
+    client: &reqwest::Client,
+    base_url: &str,
+    cookie: &str,
+    csrf_token: &str,
+    command: &str,
+    payload: serde_json::Value,
+) -> serde_json::Value {
+    let response = client
+        .post(format!("{base_url}/api/v1/rpc/{command}"))
+        .header(COOKIE, cookie)
+        .header(ORIGIN, base_url)
+        .header(CSRF_HEADER, csrf_token)
+        .json(&payload)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::OK, "{command}");
+    response.json::<serde_json::Value>().await.unwrap()["data"].clone()
+}
+
 fn test_application(root: &Path) -> Arc<dyn ApplicationApi> {
     test_application_with_state(root, Arc::new(ApplicationState::default()))
 }
@@ -376,6 +397,48 @@ async fn executes_representative_commands_over_versioned_rpc() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
 
+    crate::drivers::registry::register_driver(crate::drivers::sqlite::SqliteDriver::new()).await;
+    let sqlite_path = temp.path().join("metadata.sqlite");
+    crate::sqlite_database::initialize_sqlite_file(&sqlite_path)
+        .await
+        .unwrap();
+    let sqlite_params = crate::models::ConnectionParams {
+        driver: "sqlite".to_string(),
+        database: crate::models::DatabaseSelection::Single(
+            sqlite_path.to_string_lossy().into_owned(),
+        ),
+        ..Default::default()
+    };
+    for statement in [
+        "CREATE TABLE teams (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+        "CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, team_id INTEGER, name TEXT, FOREIGN KEY (team_id) REFERENCES teams(id))",
+        "CREATE INDEX idx_users_name ON users(name)",
+        "CREATE VIEW active_users AS SELECT id, name FROM users",
+        "CREATE TRIGGER users_name_required BEFORE INSERT ON users WHEN NEW.name IS NULL BEGIN SELECT RAISE(ABORT, 'name required'); END",
+    ] {
+        crate::drivers::sqlite::execute_query(&sqlite_params, statement, None, 1)
+            .await
+            .unwrap();
+    }
+    crate::persistence::save_connections_file(
+        &crate::paths::resolve_connections_path(temp.path()),
+        &crate::models::ConnectionsFile {
+            connections: vec![crate::models::SavedConnection {
+                id: "metadata-fixture".to_string(),
+                name: "Metadata fixture".to_string(),
+                params: sqlite_params,
+                group_id: None,
+                sort_order: None,
+                detect_json_in_text_columns: None,
+                appearance: None,
+                tag_ids: None,
+                environment: None,
+            }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let base_url = format!("http://{address}");
@@ -420,6 +483,139 @@ async fn executes_representative_commands_over_versioned_rpc() {
         .json()
         .await
         .unwrap();
+
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_tables",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await,
+        serde_json::json!([{"name": "teams"}, {"name": "users"}])
+    );
+    let columns = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_columns",
+        serde_json::json!({"connectionId": "metadata-fixture", "tableName": "users"}),
+    )
+    .await;
+    assert_eq!(columns.as_array().unwrap().len(), 3);
+    assert_eq!(columns[0]["name"], "id");
+    assert_eq!(columns[0]["is_pk"], true);
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_foreign_keys",
+            serde_json::json!({"connectionId": "metadata-fixture", "tableName": "users"}),
+        )
+        .await[0]["ref_table"],
+        "teams"
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_indexes",
+            serde_json::json!({"connectionId": "metadata-fixture", "tableName": "users"}),
+        )
+        .await[0]["name"],
+        "idx_users_name"
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_views",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await[0]["name"],
+        "active_users"
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_triggers",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await[0]["name"],
+        "users_name_required"
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_schema_snapshot",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await
+        .as_array()
+        .unwrap()
+        .len(),
+        2
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "set_selected_schemas",
+            serde_json::json!({"connectionId": "metadata-fixture", "schemas": ["main"]}),
+        )
+        .await,
+        serde_json::Value::Null
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_selected_schemas",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await,
+        serde_json::json!(["main"])
+    );
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "set_schema_preference",
+        serde_json::json!({"connectionId": "metadata-fixture", "schema": "main"}),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_schema_preference",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await,
+        "main"
+    );
 
     let debug = client
         .post(format!("{base_url}/api/v1/rpc/is_debug_mode"))
@@ -534,11 +730,13 @@ async fn executes_representative_commands_over_versioned_rpc() {
         .unwrap();
     assert_eq!(listed.status(), reqwest::StatusCode::OK);
     let listed = listed.json::<serde_json::Value>().await.unwrap();
-    assert_eq!(
-        listed["data"]["connections"][0]["name"],
-        "Browser connection"
-    );
-    assert!(listed["data"]["connections"][0]["params"]["password"].is_null());
+    let browser_connection = listed["data"]["connections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|connection| connection["name"] == "Browser connection")
+        .unwrap();
+    assert!(browser_connection["params"]["password"].is_null());
 
     let saved_ssh = client
         .post(format!("{base_url}/api/v1/rpc/save_ssh_connection"))

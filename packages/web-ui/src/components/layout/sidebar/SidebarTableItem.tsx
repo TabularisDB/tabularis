@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import {
   Table as TableIcon,
   Loader2,
@@ -19,6 +18,7 @@ import { groupIndexes } from "../../../utils/indexes";
 import type { TableColumn, ForeignKey, Index } from "../../../types/schema";
 import type { ContextMenuData } from "../../../types/sidebar";
 import type { DriverCapabilities } from "../../../types/plugins";
+import { useTabularisClient } from "../../../hooks/useTabularisClient";
 
 interface SidebarTableItemProps {
   table: { name: string };
@@ -67,6 +67,7 @@ const SidebarTableItemImpl = ({
   schemaVersion,
   schema,
 }: SidebarTableItemProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   // Prevent unused variable warning
   void onAddColumn;
@@ -87,17 +88,17 @@ const SidebarTableItemImpl = ({
     try {
       // Parallel fetch for speed
       const [cols, fks, idxs] = await Promise.all([
-        invoke<TableColumn[]>("get_columns", {
+        client.call("get_columns", {
           connectionId,
           tableName: table.name,
           ...(schema ? { schema } : {}),
         }),
-        invoke<ForeignKey[]>("get_foreign_keys", {
+        client.call("get_foreign_keys", {
           connectionId,
           tableName: table.name,
           ...(schema ? { schema } : {}),
         }),
-        invoke<Index[]>("get_indexes", {
+        client.call("get_indexes", {
           connectionId,
           tableName: table.name,
           ...(schema ? { schema } : {}),
@@ -112,7 +113,7 @@ const SidebarTableItemImpl = ({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, table.name, schema]);
+  }, [client, connectionId, table.name, schema]);
 
   useEffect(() => {
     if (isExpanded) {

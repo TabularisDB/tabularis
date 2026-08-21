@@ -25,6 +25,33 @@ defineTransportContractSuite(
         expect(request).toBeUndefined();
         return [];
       }
+      if (command === "get_tables") {
+        expect(request).toEqual({
+          connectionId: "metadata-fixture",
+          schema: "public",
+        });
+        return [{ name: "users", schema: "public" }];
+      }
+      if (command === "get_columns") {
+        expect(request).toEqual({
+          connectionId: "metadata-fixture",
+          tableName: "users",
+          schema: "public",
+        });
+        return [
+          {
+            name: "id",
+            data_type: "integer",
+            is_pk: true,
+            is_nullable: false,
+            is_auto_increment: true,
+          },
+        ];
+      }
+      if (command === "get_selected_schemas") {
+        expect(request).toEqual({ connectionId: "metadata-fixture" });
+        return ["public"];
+      }
       if (command === "contract_serialization_fixture") {
         expect(request).toEqual({ fixture: "complex-query-result" });
         return serializationFixture;

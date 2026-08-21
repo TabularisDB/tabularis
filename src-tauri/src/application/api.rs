@@ -1,4 +1,4 @@
-use super::{connections, tunnels};
+use super::{connections, metadata, tunnels};
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use async_trait::async_trait;
 use serde_json::Value;
@@ -68,6 +68,12 @@ pub trait ApplicationApi: Send + Sync {
         command: connections::ConnectionCommand,
     ) -> Result<Value, ApplicationError>;
 
+    async fn execute_metadata_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: metadata::MetadataCommand,
+    ) -> Result<Value, ApplicationError>;
+
     async fn execute_tunnel_command(
         &self,
         context: ApplicationRequestContext,
@@ -121,6 +127,16 @@ impl ApplicationApi for RuntimeApplicationApi {
         command: connections::ConnectionCommand,
     ) -> Result<Value, ApplicationError> {
         connections::execute_for_session(&self.runtime, &self.state, context.session_id, command)
+            .await
+            .map_err(ApplicationError::new)
+    }
+
+    async fn execute_metadata_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: metadata::MetadataCommand,
+    ) -> Result<Value, ApplicationError> {
+        metadata::execute(&self.runtime, context.session_id, command)
             .await
             .map_err(ApplicationError::new)
     }
