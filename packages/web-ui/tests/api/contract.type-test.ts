@@ -115,7 +115,25 @@ function assertCommandContract(caller: TypedCommandCaller): void {
   const notebooks = caller.call("list_notebooks", {
     connectionId: "connection-1",
   });
+  const pluginRegistry = caller.call("fetch_plugin_registry", undefined);
+  const pluginInstall: Promise<void> = caller.call("install_plugin", {
+    pluginId: "postgres-driver",
+    version: "1.2.3",
+  });
+  const pluginCancellation: Promise<boolean> = caller.call(
+    "cancel_plugin_install",
+    { pluginId: "postgres-driver" },
+  );
+  const pluginReadme = caller.call("fetch_plugin_readme", {
+    slug: "postgres-driver",
+    locale: "en",
+  });
+  const pluginRestart: Promise<void> = caller.call("restart_plugin_process", {
+    pluginId: "postgres-driver",
+  });
 
+  // @ts-expect-error Plugin identifiers are required for lifecycle mutations.
+  caller.call("install_plugin", { version: "1.2.3" });
   // @ts-expect-error Notebook operations require explicit connection scoping.
   caller.call("load_notebook", { notebookId: "notebook-1" });
   // @ts-expect-error Saved-query mutations require explicit connection scoping.
@@ -170,6 +188,11 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     notebookContent,
     savedNotebook,
     notebooks,
+    pluginRegistry,
+    pluginInstall,
+    pluginCancellation,
+    pluginReadme,
+    pluginRestart,
     explainResult,
     cancellation,
     wrongResponse,
@@ -217,6 +240,10 @@ const sessionSelectionAuthorization: CommandAuthorization<"get_last_open_connect
 const savedQueryAuthorization: CommandAuthorization<"save_query"> = "database";
 const queryHistoryAuthorization: CommandAuthorization<"get_query_history"> = "database";
 const notebookAuthorization: CommandAuthorization<"save_notebook"> = "database";
+const pluginInstallAuthorization: CommandAuthorization<"install_plugin"> =
+  "local-admin";
+// @ts-expect-error Plugin installation is never a plain session operation.
+const wrongPluginAuthorization: CommandAuthorization<"install_plugin"> = "session";
 // @ts-expect-error execute_query is not a local-admin operation.
 const wrongAuthorization: CommandAuthorization<"execute_query"> = "local-admin";
 const rpcFailure: RpcFailure = {
@@ -254,6 +281,8 @@ void sessionSelectionAuthorization;
 void savedQueryAuthorization;
 void queryHistoryAuthorization;
 void notebookAuthorization;
+void pluginInstallAuthorization;
+void wrongPluginAuthorization;
 void wrongAuthorization;
 void rpcFailure;
 void failureWithoutRequestId;

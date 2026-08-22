@@ -8,7 +8,13 @@ import type {
   TriggerInfo,
   ViewInfo,
 } from "../contexts/DatabaseContext";
-import type { PluginManifest } from "../types/plugins";
+import type {
+  InstalledPluginInfo,
+  PluginLoadError,
+  PluginManifest,
+  PluginReadme,
+  RegistryPluginWithStatus,
+} from "../types/plugins";
 import type { ConnectionTag } from "../types/tags";
 import type { ExplainQueryOutput } from "@tabularis/explain";
 import type {
@@ -481,6 +487,72 @@ export interface CommandMap {
     { driverId: string },
     PluginManifest | null,
     "database"
+  >;
+
+  // Plugin lifecycle commands are local-admin operations because they can
+  // access configured registries, mutate the server plugin directory, and
+  // start or stop subprocesses. Raw plugin paths and files are intentionally
+  // excluded from the browser RPC contract.
+  fetch_plugin_registry: CommandDefinition<
+    undefined,
+    RegistryPluginWithStatus[],
+    "local-admin"
+  >;
+  fetch_tabularium_plugin_preview: CommandDefinition<
+    {
+      slug: string;
+      registryUrl?: string | null;
+      version?: string | null;
+    },
+    RegistryPluginWithStatus,
+    "local-admin"
+  >;
+  fetch_plugin_readme: CommandDefinition<
+    {
+      slug: string;
+      locale?: string | null;
+      registryUrl?: string | null;
+    },
+    PluginReadme,
+    "local-admin"
+  >;
+  install_plugin: CommandDefinition<
+    { pluginId: string; version?: string | null },
+    void,
+    "local-admin"
+  >;
+  cancel_plugin_install: CommandDefinition<
+    { pluginId: string },
+    boolean,
+    "local-admin"
+  >;
+  uninstall_plugin: CommandDefinition<{ pluginId: string }, void, "local-admin">;
+  get_installed_plugins: CommandDefinition<
+    undefined,
+    InstalledPluginInfo[],
+    "local-admin"
+  >;
+  disable_plugin: CommandDefinition<{ pluginId: string }, void, "local-admin">;
+  enable_plugin: CommandDefinition<{ pluginId: string }, void, "local-admin">;
+  get_plugin_manifest: CommandDefinition<
+    { pluginId: string },
+    PluginManifest,
+    "local-admin"
+  >;
+  get_plugin_startup_errors: CommandDefinition<
+    undefined,
+    PluginLoadError[],
+    "local-admin"
+  >;
+  kill_plugin_process: CommandDefinition<
+    { pluginId: string },
+    void,
+    "local-admin"
+  >;
+  restart_plugin_process: CommandDefinition<
+    { pluginId: string },
+    void,
+    "local-admin"
   >;
 
   test_connection: CommandDefinition<

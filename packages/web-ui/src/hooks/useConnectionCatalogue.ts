@@ -1,4 +1,3 @@
-import { invoke } from '@tauri-apps/api/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { PluginManifest, RegistryPluginWithStatus } from '../types/plugins';
@@ -48,7 +47,7 @@ export function useConnectionCatalogue(): ConnectionCatalogue {
         /* built-ins always have a fallback in useDrivers; ignore here */
       }
       try {
-        const cat = await invoke<RegistryPluginWithStatus[]>('fetch_plugin_registry');
+        const cat = await client.call('fetch_plugin_registry', undefined);
         if (!cancelled) {
           setRegistry(cat);
           setRegistryOffline(false);

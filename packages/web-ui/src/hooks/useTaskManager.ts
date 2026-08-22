@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { ProcessInfo, SystemStats } from "../utils/taskManager";
 import { buildProcessRows } from "../utils/taskManager";
+import { useTabularisClient } from "./useTabularisClient";
 
 const POLL_INTERVAL_MS = 2000;
 
@@ -18,6 +19,7 @@ interface UseTaskManagerResult {
 }
 
 export function useTaskManager(): UseTaskManagerResult {
+  const client = useTabularisClient();
   const [processes, setProcesses] = useState<ProcessInfo[]>([]);
   const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,7 +63,7 @@ export function useTaskManager(): UseTaskManagerResult {
     async (pluginId: string) => {
       setKilling((prev) => new Set(prev).add(pluginId));
       try {
-        await invoke("kill_plugin_process", { pluginId });
+        await client.call("kill_plugin_process", { pluginId });
         await fetchData();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -73,15 +75,14 @@ export function useTaskManager(): UseTaskManagerResult {
         });
       }
     },
-    [fetchData],
+    [client, fetchData],
   );
 
   const restartProcess = useCallback(
     async (pluginId: string) => {
       setRestarting((prev) => new Set(prev).add(pluginId));
       try {
-        await invoke("disable_plugin", { pluginId });
-        await invoke("enable_plugin", { pluginId });
+        await client.call("restart_plugin_process", { pluginId });
         await fetchData();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -93,7 +94,7 @@ export function useTaskManager(): UseTaskManagerResult {
         });
       }
     },
-    [fetchData],
+    [client, fetchData],
   );
 
   return {

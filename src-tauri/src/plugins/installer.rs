@@ -131,7 +131,10 @@ pub fn read_manifest<T: serde::de::DeserializeOwned>(dir: &Path) -> Result<T, St
     if !path.exists() {
         // COMPAT(registry-ga): fall back to legacy manifest.json.
         if let Some(legacy) = crate::plugins::compat::read_legacy_manifest::<T>(dir) {
-            log::warn!("Using legacy manifest.json in {:?} — republish as .tabularium", dir);
+            log::warn!(
+                "Using legacy manifest.json in {:?} — republish as .tabularium",
+                dir
+            );
             return legacy;
         }
         return Err(format!(
@@ -164,8 +167,29 @@ pub async fn download_and_install(
     expected_version: Option<&str>,
     cancellation: &InstallCancellation,
 ) -> Result<(), String> {
-    cancellation.check()?;
     let plugins_dir = get_plugins_dir()?;
+    download_and_install_into(
+        &plugins_dir,
+        plugin_id,
+        download_url,
+        expected_sha256,
+        expected_version,
+        cancellation,
+    )
+    .await
+}
+
+pub async fn download_and_install_into(
+    plugins_dir: &Path,
+    plugin_id: &str,
+    download_url: &str,
+    expected_sha256: Option<&str>,
+    expected_version: Option<&str>,
+    cancellation: &InstallCancellation,
+) -> Result<(), String> {
+    cancellation.check()?;
+    fs::create_dir_all(plugins_dir)
+        .map_err(|e| format!("Failed to create plugins directory: {}", e))?;
     let tmp_dir = plugins_dir.join(format!(".tmp-{}", plugin_id));
     let final_dir = plugins_dir.join(plugin_id);
 
@@ -398,6 +422,10 @@ pub async fn download_and_install(
 
 pub fn uninstall(plugin_id: &str) -> Result<(), String> {
     let plugins_dir = get_plugins_dir()?;
+    uninstall_from(&plugins_dir, plugin_id)
+}
+
+pub fn uninstall_from(plugins_dir: &Path, plugin_id: &str) -> Result<(), String> {
     let mut plugin_dir = plugins_dir.join(plugin_id);
 
     // The directory normally matches the plugin id, but manually copied or
@@ -441,11 +469,15 @@ fn find_plugin_dir_by_id(plugins_dir: &Path, plugin_id: &str) -> Option<PathBuf>
 
 pub fn list_installed() -> Result<Vec<InstalledPluginInfo>, String> {
     let plugins_dir = get_plugins_dir()?;
+    Ok(list_installed_from(&plugins_dir))
+}
+
+pub fn list_installed_from(plugins_dir: &Path) -> Vec<InstalledPluginInfo> {
     let mut plugins = Vec::new();
 
-    let entries = match fs::read_dir(&plugins_dir) {
+    let entries = match fs::read_dir(plugins_dir) {
         Ok(e) => e,
-        Err(_) => return Ok(plugins),
+        Err(_) => return plugins,
     };
 
     for entry in entries.flatten() {
@@ -470,5 +502,5 @@ pub fn list_installed() -> Result<Vec<InstalledPluginInfo>, String> {
         }
     }
 
-    Ok(plugins)
+    plugins
 }

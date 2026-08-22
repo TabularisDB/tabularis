@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import { BookOpen, ExternalLink, Globe, Loader2, X } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import DOMPurify from "dompurify";
@@ -9,6 +8,7 @@ import { Modal } from "../ui/Modal";
 import type { PluginReadme } from "../../types/plugins";
 import { toRegistryLocale } from "../../i18n/registryLocale";
 import { rewriteReadmeUrls } from "../../utils/pluginReadme";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 
 interface PluginReadmeModalProps {
   isOpen: boolean;
@@ -60,6 +60,7 @@ export function PluginReadmeModal({
   registryUrl,
 }: PluginReadmeModalProps) {
   const { t, i18n } = useTranslation();
+  const client = useTabularisClient();
   const [readme, setReadme] = useState<PluginReadme | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,7 +72,7 @@ export function PluginReadmeModal({
   useEffect(() => {
     if (!isOpen || readme || error) return;
     let cancelled = false;
-    invoke<PluginReadme>("fetch_plugin_readme", {
+    client.call("fetch_plugin_readme", {
       slug,
       locale: requestedLocale,
       registryUrl: registryUrl ?? null,
@@ -85,7 +86,7 @@ export function PluginReadmeModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, readme, error, slug, requestedLocale, registryUrl]);
+  }, [client, isOpen, readme, error, slug, requestedLocale, registryUrl]);
 
   const safeHtml = useMemo(() => {
     if (!readme?.html) return null;

@@ -1,10 +1,18 @@
+import type { ReactElement } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { PluginInstallConfirmModal } from "../../../src/components/modals/PluginInstallConfirmModal";
 import type { DeepLinkInstallRequest } from "../../../src/hooks/useDeepLinkInstall";
+import { TabularisClient } from "../../../src/api/client";
+import { TauriTransport } from "../../../src/api/transports/tauriTransport";
+import { TabularisClientProvider } from "../../../src/contexts/TabularisClientProvider";
 
 const request: DeepLinkInstallRequest = { slug: "firestore", version: null, registry: null };
+const client = new TabularisClient(new TauriTransport());
+
+const renderWithClient = (ui: ReactElement) =>
+  render(<TabularisClientProvider client={client}>{ui}</TabularisClientProvider>);
 
 const preview = (over: Record<string, unknown> = {}) => ({
   id: "firestore",
@@ -26,7 +34,7 @@ describe("PluginInstallConfirmModal", () => {
 
   it("shows the install button when not installed", async () => {
     vi.mocked(invoke).mockResolvedValue(preview({ install_action: "install" }));
-    render(
+    renderWithClient(
       <PluginInstallConfirmModal
         request={request}
         busy={false}
@@ -44,7 +52,7 @@ describe("PluginInstallConfirmModal", () => {
     vi.mocked(invoke).mockResolvedValue(
       preview({ install_action: "update", installed_version: "1.0.0" }),
     );
-    render(
+    renderWithClient(
       <PluginInstallConfirmModal
         request={request}
         busy={false}
@@ -62,7 +70,7 @@ describe("PluginInstallConfirmModal", () => {
     vi.mocked(invoke).mockResolvedValue(
       preview({ install_action: "up_to_date", installed_version: "1.2.3" }),
     );
-    render(
+    renderWithClient(
       <PluginInstallConfirmModal
         request={request}
         busy={false}

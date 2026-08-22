@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
 
 import type { InstalledPluginInfo, PluginManifest } from "../types/plugins";
@@ -142,7 +141,7 @@ export function useDrivers(): {
   const load = useCallback(() => {
     Promise.all([
       client.call("get_registered_drivers", undefined),
-      invoke<InstalledPluginInfo[]>("get_installed_plugins"),
+      client.call("get_installed_plugins", undefined),
     ])
       .then(([drivers, installed]) => {
         setAllDrivers(drivers);

@@ -8,6 +8,7 @@ use crate::application::{
     metadata::MetadataCommand,
     notebooks::NotebookCommand,
     persistence::PersistenceCommand,
+    plugins::PluginCommand,
     productivity::ProductivityCommand,
     queries::QueryCommand,
     records::RecordCommand,
@@ -63,6 +64,24 @@ enum RpcCommand {
     Persistence(PersistenceRpcCommand),
     Productivity(ProductivityRpcCommand),
     Notebook(NotebookRpcCommand),
+    Plugin(PluginRpcCommand),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PluginRpcCommand {
+    FetchRegistry,
+    FetchPreview,
+    FetchReadme,
+    Install,
+    CancelInstall,
+    Uninstall,
+    GetInstalled,
+    Disable,
+    Enable,
+    GetManifest,
+    GetStartupErrors,
+    KillProcess,
+    RestartProcess,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -485,6 +504,35 @@ struct SetLastOpenConnectionsRequest {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct IdRequest {
     id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PluginIdRequest {
+    plugin_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct InstallPluginRequest {
+    plugin_id: String,
+    version: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PluginPreviewRequest {
+    slug: String,
+    registry_url: Option<String>,
+    version: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PluginReadmeRequest {
+    slug: String,
+    locale: Option<String>,
+    registry_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1395,6 +1443,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::Plugin(command) => {
+                let command = decode_plugin_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_plugin_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
         }
     }
 
@@ -1442,7 +1498,8 @@ impl RpcCommand {
                 .or_else(|| AiRpcCommand::parse(name).map(Self::Ai))
                 .or_else(|| PersistenceRpcCommand::parse(name).map(Self::Persistence))
                 .or_else(|| ProductivityRpcCommand::parse(name).map(Self::Productivity))
-                .or_else(|| NotebookRpcCommand::parse(name).map(Self::Notebook)),
+                .or_else(|| NotebookRpcCommand::parse(name).map(Self::Notebook))
+                .or_else(|| PluginRpcCommand::parse(name).map(Self::Plugin)),
         }
     }
 
@@ -1547,7 +1604,33 @@ impl RpcCommand {
                 application_error_code: "NOTEBOOK_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            Self::Plugin(_) => CommandMetadata {
+                authorization: AuthorizationLevel::LocalAdmin,
+                application_error_code: "PLUGIN_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
         }
+    }
+}
+
+impl PluginRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "fetch_plugin_registry" => Self::FetchRegistry,
+            "fetch_tabularium_plugin_preview" => Self::FetchPreview,
+            "fetch_plugin_readme" => Self::FetchReadme,
+            "install_plugin" => Self::Install,
+            "cancel_plugin_install" => Self::CancelInstall,
+            "uninstall_plugin" => Self::Uninstall,
+            "get_installed_plugins" => Self::GetInstalled,
+            "disable_plugin" => Self::Disable,
+            "enable_plugin" => Self::Enable,
+            "get_plugin_manifest" => Self::GetManifest,
+            "get_plugin_startup_errors" => Self::GetStartupErrors,
+            "kill_plugin_process" => Self::KillProcess,
+            "restart_plugin_process" => Self::RestartProcess,
+            _ => return None,
+        })
     }
 }
 
@@ -2187,6 +2270,88 @@ fn decode_notebook_command(
             let request: ConnectionIdRequest = decode_payload(body)?;
             NotebookCommand::List {
                 connection_id: request.connection_id,
+            }
+        }
+    })
+}
+
+fn decode_plugin_command(command: PluginRpcCommand, body: &[u8]) -> Result<PluginCommand, String> {
+    Ok(match command {
+        PluginRpcCommand::FetchRegistry => {
+            decode_empty_payload(body)?;
+            PluginCommand::FetchRegistry
+        }
+        PluginRpcCommand::FetchPreview => {
+            let request: PluginPreviewRequest = decode_payload(body)?;
+            PluginCommand::FetchPreview {
+                slug: request.slug,
+                registry_url: request.registry_url,
+                version: request.version,
+            }
+        }
+        PluginRpcCommand::FetchReadme => {
+            let request: PluginReadmeRequest = decode_payload(body)?;
+            PluginCommand::FetchReadme {
+                slug: request.slug,
+                locale: request.locale,
+                registry_url: request.registry_url,
+            }
+        }
+        PluginRpcCommand::Install => {
+            let request: InstallPluginRequest = decode_payload(body)?;
+            PluginCommand::Install {
+                plugin_id: request.plugin_id,
+                version: request.version,
+            }
+        }
+        PluginRpcCommand::CancelInstall => {
+            let request: PluginIdRequest = decode_payload(body)?;
+            PluginCommand::CancelInstall {
+                plugin_id: request.plugin_id,
+            }
+        }
+        PluginRpcCommand::Uninstall => {
+            let request: PluginIdRequest = decode_payload(body)?;
+            PluginCommand::Uninstall {
+                plugin_id: request.plugin_id,
+            }
+        }
+        PluginRpcCommand::GetInstalled => {
+            decode_empty_payload(body)?;
+            PluginCommand::GetInstalled
+        }
+        PluginRpcCommand::Disable => {
+            let request: PluginIdRequest = decode_payload(body)?;
+            PluginCommand::Disable {
+                plugin_id: request.plugin_id,
+            }
+        }
+        PluginRpcCommand::Enable => {
+            let request: PluginIdRequest = decode_payload(body)?;
+            PluginCommand::Enable {
+                plugin_id: request.plugin_id,
+            }
+        }
+        PluginRpcCommand::GetManifest => {
+            let request: PluginIdRequest = decode_payload(body)?;
+            PluginCommand::GetManifest {
+                plugin_id: request.plugin_id,
+            }
+        }
+        PluginRpcCommand::GetStartupErrors => {
+            decode_empty_payload(body)?;
+            PluginCommand::GetStartupErrors
+        }
+        PluginRpcCommand::KillProcess => {
+            let request: PluginIdRequest = decode_payload(body)?;
+            PluginCommand::KillProcess {
+                plugin_id: request.plugin_id,
+            }
+        }
+        PluginRpcCommand::RestartProcess => {
+            let request: PluginIdRequest = decode_payload(body)?;
+            PluginCommand::RestartProcess {
+                plugin_id: request.plugin_id,
             }
         }
     })

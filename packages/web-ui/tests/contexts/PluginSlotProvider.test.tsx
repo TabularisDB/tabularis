@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, act } from "@testing-library/react";
 import { useContext } from "react";
 import { PluginSlotProvider } from "../../src/contexts/PluginSlotProvider";
@@ -6,6 +6,10 @@ import { PluginSlotContext } from "../../src/contexts/PluginSlotContext";
 import { SettingsContext, DEFAULT_SETTINGS } from "../../src/contexts/SettingsContext";
 import type { PluginSlotRegistryType } from "../../src/contexts/PluginSlotContext";
 import type { SlotContribution, SlotComponentProps } from "../../src/types/pluginSlots";
+
+vi.mock("../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({ call: vi.fn() }),
+}));
 
 const TestComponent = ({ context: _ctx, pluginId }: SlotComponentProps) => (
   <span data-testid="slot-component">{pluginId}</span>

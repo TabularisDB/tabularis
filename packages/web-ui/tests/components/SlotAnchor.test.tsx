@@ -1,10 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { PluginSlotProvider } from "../../src/contexts/PluginSlotProvider";
 import { PluginSlotContext } from "../../src/contexts/PluginSlotContext";
 import { SettingsContext, DEFAULT_SETTINGS } from "../../src/contexts/SettingsContext";
 import { SlotAnchor } from "../../src/components/ui/SlotAnchor";
 import type { SlotComponentProps } from "../../src/types/pluginSlots";
+
+vi.mock("../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({ call: vi.fn() }),
+}));
 
 const settingsValue = {
   settings: DEFAULT_SETTINGS,

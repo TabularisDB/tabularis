@@ -78,6 +78,7 @@ import { ConnectionCatalogue } from "./connection/ConnectionCatalogue";
 import { DriverVersionPicker } from "./connection/DriverVersionPicker";
 import { InstallGate } from "./connection/InstallGate";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { PLUGIN_INSTALL_DEADLINE_MS } from "../../api/pluginLifecycle";
 import {
   resolveEngineSelection,
   type EngineGroup,
@@ -288,7 +289,11 @@ export const NewConnectionModal = ({
     setInstallStatus("installing");
     setInstallError(undefined);
     try {
-      await invoke("install_plugin", { pluginId: slug, version });
+      await client.call(
+        "install_plugin",
+        { pluginId: slug, version },
+        { deadlineMs: PLUGIN_INSTALL_DEADLINE_MS },
+      );
       // install_plugin hot-registers the driver, but the connection modal only
       // surfaces external drivers that are in `activeExternalDrivers`. Installing
       // from the catalogue is an explicit opt-in, so activate it — otherwise the

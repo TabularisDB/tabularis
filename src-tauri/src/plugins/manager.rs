@@ -23,6 +23,10 @@ pub struct PluginLoadError {
 
 #[tauri::command]
 pub fn get_plugin_startup_errors() -> Vec<PluginLoadError> {
+    crate::application::plugins::get_plugin_startup_errors()
+}
+
+pub fn take_plugin_startup_errors() -> Vec<PluginLoadError> {
     let mut guard = STARTUP_ERRORS.lock().unwrap_or_else(|e| e.into_inner());
     std::mem::take(&mut *guard)
 }

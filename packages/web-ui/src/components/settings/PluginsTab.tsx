@@ -37,6 +37,8 @@ import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
 import { useDrivers } from "../../hooks/useDrivers";
 import { usePluginRegistry } from "../../hooks/usePluginRegistry";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { useDatabase } from "../../hooks/useDatabase";
 import { canUpdateToLatest, parseAuthor, versionGte } from "../../utils/plugins";
 import { removePluginConfig } from "../../utils/pluginConfig";
@@ -48,6 +50,7 @@ import { PluginReadmeModal } from "../modals/PluginReadmeModal";
 import { PluginRemoveModal } from "../modals/PluginRemoveModal";
 import { PluginStartErrorModal } from "../modals/PluginStartErrorModal";
 import { SlotAnchor } from "../ui/SlotAnchor";
+import { PLUGIN_INSTALL_DEADLINE_MS } from "../../api/pluginLifecycle";
 
 /* ── Types ── */
 
@@ -562,6 +565,8 @@ export function PluginsTab({
   onPluginsChanged,
 }: PluginsTabProps) {
   const { t } = useTranslation();
+  const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const { settings, updateSetting } = useSettings();
   const {
     allDrivers,
@@ -679,9 +684,7 @@ export function PluginsTab({
   }, [refreshRegistry, refreshDrivers]);
 
   useEffect(() => {
-    invoke<Array<{ plugin_id: string; error: string }>>(
-      "get_plugin_startup_errors",
-    )
+    client.call("get_plugin_startup_errors", undefined)
       .then((errors) => {
         if (errors.length > 0) {
           const failedIds = errors.map((e) => e.plugin_id);
@@ -703,7 +706,7 @@ export function PluginsTab({
       .catch(() => {
         /* ignore */
       });
-  }, []);
+  }, [client]);
 
   const openPluginsFolder = useCallback(() => {
     invoke("open_plugins_dir").catch(() => {
@@ -722,7 +725,11 @@ export function PluginsTab({
     async (pluginId: string, version: string) => {
       setInstallingPluginId(pluginId);
       try {
-        await invoke("install_plugin", { pluginId, version });
+        await client.call(
+          "install_plugin",
+          { pluginId, version },
+          { deadlineMs: PLUGIN_INSTALL_DEADLINE_MS },
+        );
         // The picked version is spent once installed. Keeping it would pin the
         // card to what's now on disk, which reads as neither "up to date" (it
         // isn't latest) nor updatable (it is installed) — and the picker hides
@@ -762,13 +769,13 @@ export function PluginsTab({
         setCancellingPluginId(null);
       }
     },
-    [refreshRegistry, refreshDrivers, onPluginsChanged, registryPlugins],
+    [client, refreshRegistry, refreshDrivers, onPluginsChanged, registryPlugins],
   );
 
   const doCancelInstall = useCallback(async (pluginId: string) => {
     setCancellingPluginId(pluginId);
     try {
-      await invoke<boolean>("cancel_plugin_install", { pluginId });
+      await client.call("cancel_plugin_install", { pluginId });
     } catch (err) {
       setCancellingPluginId(null);
       setPluginInstallError({
@@ -777,7 +784,7 @@ export function PluginsTab({
         operation: "install",
       });
     }
-  }, []);
+  }, [client]);
 
   const doRemove = useCallback(
     (pluginId: string, pluginName: string) => {
@@ -794,7 +801,7 @@ export function PluginsTab({
               [pluginId],
             );
             await Promise.all(toDisconnect.map((id) => disconnect(id)));
-            await invoke("uninstall_plugin", { pluginId });
+            await client.call("uninstall_plugin", { pluginId });
             const currentSettings = settingsRef.current;
             await updateSettingRef.current(
               "plugins",
@@ -830,6 +837,7 @@ export function PluginsTab({
       refreshDrivers,
       refreshRegistry,
       onPluginsChanged,
+      client,
     ],
   );
 
@@ -837,13 +845,13 @@ export function PluginsTab({
     async (pluginId: string, pluginName: string, isEnabled: boolean) => {
       try {
         if (isEnabled) {
-          await invoke("disable_plugin", { pluginId });
+          await client.call("disable_plugin", { pluginId });
           await updateSetting(
             "activeExternalDrivers",
             activeExternalDrivers.filter((id) => id !== pluginId),
           );
         } else {
-          await invoke("enable_plugin", { pluginId });
+          await client.call("enable_plugin", { pluginId });
           await updateSetting(
             "activeExternalDrivers",
             Array.from(new Set([...activeExternalDrivers, pluginId])),
@@ -858,7 +866,7 @@ export function PluginsTab({
         });
       }
     },
-    [activeExternalDrivers, updateSetting, refreshDrivers],
+    [activeExternalDrivers, updateSetting, refreshDrivers, client],
   );
 
   return (
@@ -1015,14 +1023,16 @@ export function PluginsTab({
               ))}
             </div>
             <div className="mb-px flex items-center gap-4">
-              <button
-                type="button"
-                onClick={openPluginsFolder}
-                className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-primary"
-              >
-                <FolderOpen size={12} />
-                {t("settings.plugins.openFolder")}
-              </button>
+              {platform.negotiation.environment === "tauri" && (
+                <button
+                  type="button"
+                  onClick={openPluginsFolder}
+                  className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-primary"
+                >
+                  <FolderOpen size={12} />
+                  {t("settings.plugins.openFolder")}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => refreshRegistry()}
@@ -1207,7 +1217,7 @@ export function PluginsTab({
                               enabled={false}
                               onToggle={async () => {
                                 try {
-                                  await invoke("enable_plugin", {
+                                  await client.call("enable_plugin", {
                                     pluginId: plugin.id,
                                   });
                                   await updateSetting(
@@ -1587,7 +1597,11 @@ export function PluginsTab({
         pluginId={pluginInstallError?.pluginId ?? ""}
         error={pluginInstallError?.error ?? ""}
         operation={pluginInstallError?.operation ?? "install"}
-        onOpenPluginsFolder={openPluginsFolder}
+        onOpenPluginsFolder={
+          platform.negotiation.environment === "tauri"
+            ? openPluginsFolder
+            : undefined
+        }
         onReload={async () => {
           await Promise.all([refreshDrivers(), refreshRegistry()]);
         }}

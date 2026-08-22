@@ -4,6 +4,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { PluginReadmeModal } from "../../../src/components/modals/PluginReadmeModal";
 import type { PluginReadme } from "../../../src/types/plugins";
+import { TabularisClient } from "../../../src/api/client";
+import { TauriTransport } from "../../../src/api/transports/tauriTransport";
+import { TabularisClientProvider } from "../../../src/contexts/TabularisClientProvider";
 
 const readme = (over: Partial<PluginReadme> = {}): PluginReadme => ({
   html: "<h1>Db2 Driver</h1><p>Connect to Db2.</p>",
@@ -13,9 +16,13 @@ const readme = (over: Partial<PluginReadme> = {}): PluginReadme => ({
   ...over,
 });
 
+const client = new TabularisClient(new TauriTransport());
+
 const renderModal = () =>
   render(
-    <PluginReadmeModal isOpen onClose={vi.fn()} slug="db2" pluginName="Db2" />,
+    <TabularisClientProvider client={client}>
+      <PluginReadmeModal isOpen onClose={vi.fn()} slug="db2" pluginName="Db2" />
+    </TabularisClientProvider>,
   );
 
 beforeEach(() => {

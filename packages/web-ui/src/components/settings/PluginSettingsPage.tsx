@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, Check, RotateCcw } from "lucide-react";
 import { useSettings } from "../../hooks/useSettings";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useDrivers } from "../../hooks/useDrivers";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { SettingSection, SettingRow } from "./SettingControls";
 import { Select } from "../ui/Select";
 import { SlotAnchor } from "../ui/SlotAnchor";
@@ -26,6 +27,7 @@ interface PluginSettingsPageProps {
 }
 
 export function PluginSettingsPage({ pluginId }: PluginSettingsPageProps) {
+  const client = useTabularisClient();
   const { allDrivers } = useDrivers();
   const [manifest, setManifest] = useState<PluginManifest | undefined>(() =>
     allDrivers.find((d) => d.id === pluginId),
@@ -34,11 +36,11 @@ export function PluginSettingsPage({ pluginId }: PluginSettingsPageProps) {
 
   useEffect(() => {
     if (manifest) return;
-    invoke<PluginManifest>("get_plugin_manifest", { pluginId })
+    client.call("get_plugin_manifest", { pluginId })
       .then((m) => setManifest(m))
       .catch(() => setManifest(undefined))
       .finally(() => setLoading(false));
-  }, [pluginId, manifest]);
+  }, [client, pluginId, manifest]);
 
   if (loading) {
     return <div className="text-sm text-muted py-4">Loading...</div>;
@@ -59,6 +61,8 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
   const { settings, updateSetting } = useSettings();
   const { openConnectionIds, connectionDataMap, disconnect } = useDatabase();
   const { allDrivers, refresh: refreshDrivers } = useDrivers();
+  const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
 
   const isBuiltin = manifest?.is_builtin === true;
   const currentConfig = settings.plugins?.[pluginId];
@@ -154,8 +158,8 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
       await Promise.all(toDisconnect.map((connectionId) => disconnect(connectionId)));
     } else if (isRunning) {
       try {
-        await invoke("disable_plugin", { pluginId });
-        await invoke("enable_plugin", { pluginId });
+        await client.call("disable_plugin", { pluginId });
+        await client.call("enable_plugin", { pluginId });
         refreshDrivers();
       } catch {
         /* settings saved, restart failed – user can retry via Plugins tab */
@@ -173,6 +177,7 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
     pluginId,
     allDrivers,
     refreshDrivers,
+    client,
     t,
     isBuiltin,
     openConnectionIds,
@@ -297,13 +302,15 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
                 }}
                 className="flex-1 bg-base border border-default rounded-lg px-3 py-2 text-sm text-primary placeholder:text-muted focus:outline-none focus:border-blue-500/50"
               />
-              <button
-                onClick={handleBrowse}
-                className="flex items-center gap-1.5 px-3 py-2 bg-surface-secondary hover:bg-surface-tertiary border border-default rounded-lg text-sm text-secondary hover:text-primary transition-colors"
-              >
-                <FolderOpen size={15} />
-                {t("settings.plugins.pluginSettings.browse")}
-              </button>
+              {platform.negotiation.environment === "tauri" && (
+                <button
+                  onClick={handleBrowse}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-surface-secondary hover:bg-surface-tertiary border border-default rounded-lg text-sm text-secondary hover:text-primary transition-colors"
+                >
+                  <FolderOpen size={15} />
+                  {t("settings.plugins.pluginSettings.browse")}
+                </button>
+              )}
             </div>
           </div>
         </SettingSection>

@@ -99,6 +99,95 @@ defineTransportContractSuite(
         return [];
       }
       if (command === "decide_pending_approval") return null;
+      if (command === "fetch_plugin_registry") {
+        return [
+          {
+            id: "postgres-driver",
+            name: "PostgreSQL Driver",
+            description: "Contract plugin",
+            author: "Tabularis",
+            homepage: "https://example.com/postgres-driver",
+            latest_version: "1.2.3",
+            releases: [
+              {
+                version: "1.2.3",
+                min_tabularis_version: null,
+                platform_supported: true,
+              },
+            ],
+            installed_version: null,
+            update_available: false,
+            platform_supported: true,
+          },
+        ];
+      }
+      if (command === "fetch_tabularium_plugin_preview") {
+        return {
+          id: "postgres-driver",
+          name: "PostgreSQL Driver",
+          description: "Contract plugin",
+          author: "Tabularis",
+          homepage: "https://example.com/postgres-driver",
+          latest_version: "1.2.3",
+          releases: [
+            {
+              version: "1.2.3",
+              min_tabularis_version: null,
+              platform_supported: true,
+            },
+          ],
+          installed_version: null,
+          update_available: false,
+          platform_supported: true,
+          install_action: "install",
+          signature: "verified",
+        };
+      }
+      if (command === "fetch_plugin_readme") {
+        return {
+          html: "<p>Contract plugin</p>",
+          locale: "en",
+          available_locales: ["en"],
+          documentation_url: null,
+          repo_url: "https://example.com/postgres-driver",
+        };
+      }
+      if (command === "get_plugin_manifest") {
+        return {
+          id: "postgres-driver",
+          name: "PostgreSQL Driver",
+          version: "1.2.3",
+          description: "Contract plugin",
+          default_port: 5432,
+          is_builtin: false,
+          capabilities: {
+            schemas: true,
+            views: true,
+            routines: true,
+            file_based: false,
+            folder_based: false,
+            identifier_quote: '"',
+            alter_primary_key: false,
+          },
+        };
+      }
+      if (
+        command === "get_installed_plugins" ||
+        command === "get_plugin_startup_errors"
+      ) {
+        return [];
+      }
+      if (command === "cancel_plugin_install") return true;
+      if (
+        command === "install_plugin" ||
+        command === "disable_plugin" ||
+        command === "enable_plugin" ||
+        command === "kill_plugin_process" ||
+        command === "restart_plugin_process" ||
+        command === "uninstall_plugin"
+      ) {
+        return null;
+      }
       if (command === "dump_database") {
         expect(request).toEqual({
           connectionId: "database-transfer-fixture",

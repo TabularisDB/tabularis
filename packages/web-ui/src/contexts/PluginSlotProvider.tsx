@@ -11,6 +11,7 @@ import { VALID_SLOTS } from "../types/pluginSlots";
 import type { PluginManifest } from "../types/plugins";
 import * as pluginApi from "../pluginApi";
 import { useSettings } from "../hooks/useSettings";
+import { useTabularisClient } from "../hooks/useTabularisClient";
 
 interface PluginSlotProviderProps {
   children: React.ReactNode;
@@ -138,6 +139,7 @@ async function loadExternalPluginContributions(
 }
 
 export const PluginSlotProvider = ({ children }: PluginSlotProviderProps) => {
+  const client = useTabularisClient();
   const [contributions, setContributions] = useState<SlotContribution[]>([]);
   const { settings } = useSettings();
   const activeExternalDrivers = settings.activeExternalDrivers ?? [];
@@ -177,7 +179,7 @@ export const PluginSlotProvider = ({ children }: PluginSlotProviderProps) => {
       for (const pluginId of enabledIds) {
         if (cancelled) break;
         try {
-          const manifest = await invoke<PluginManifest>("get_plugin_manifest", { pluginId });
+          const manifest = await client.call("get_plugin_manifest", { pluginId });
           await loadPluginTranslations(pluginId);
           const pluginContributions = await loadExternalPluginContributions(manifest);
           loaded.push(...pluginContributions);
@@ -194,7 +196,7 @@ export const PluginSlotProvider = ({ children }: PluginSlotProviderProps) => {
     return () => {
       cancelled = true;
     };
-  }, [enabledKey]);
+  }, [client, enabledKey]);
 
   const registerAll = useCallback((newContributions: SlotContribution[]) => {
     setContributions((prev) => [...prev, ...newContributions]);

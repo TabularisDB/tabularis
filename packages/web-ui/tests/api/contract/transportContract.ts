@@ -16,6 +16,43 @@ const QUERY_RESULT = {
   },
 };
 
+const PLUGIN_MANIFEST = {
+  id: "postgres-driver",
+  name: "PostgreSQL Driver",
+  version: "1.2.3",
+  description: "Contract plugin",
+  default_port: 5432,
+  is_builtin: false,
+  capabilities: {
+    schemas: true,
+    views: true,
+    routines: true,
+    file_based: false,
+    folder_based: false,
+    identifier_quote: '"',
+    alter_primary_key: false,
+  },
+};
+
+const PLUGIN_REGISTRY_ENTRY = {
+  id: "postgres-driver",
+  name: "PostgreSQL Driver",
+  description: "Contract plugin",
+  author: "Tabularis",
+  homepage: "https://example.com/postgres-driver",
+  latest_version: "1.2.3",
+  releases: [
+    {
+      version: "1.2.3",
+      min_tabularis_version: null,
+      platform_supported: true,
+    },
+  ],
+  installed_version: null,
+  update_available: false,
+  platform_supported: true,
+};
+
 const SESSION = {
   apiVersion: "v1",
   serverVersion: "contract-fixture",
@@ -203,6 +240,65 @@ export function defineTransportContractSuite(
       await expect(
         harness.transport.call("delete_ai_key", { provider: "openai" }),
       ).resolves.toBeNull();
+    });
+
+    it("preserves local-admin plugin lifecycle contracts", async () => {
+      await expect(
+        harness.transport.call("fetch_plugin_registry", undefined),
+      ).resolves.toEqual([PLUGIN_REGISTRY_ENTRY]);
+      await expect(
+        harness.transport.call("fetch_tabularium_plugin_preview", {
+          slug: "postgres-driver",
+          registryUrl: null,
+          version: "1.2.3",
+        }),
+      ).resolves.toEqual({
+        ...PLUGIN_REGISTRY_ENTRY,
+        install_action: "install",
+        signature: "verified",
+      });
+      await expect(
+        harness.transport.call("fetch_plugin_readme", {
+          slug: "postgres-driver",
+          locale: "en",
+          registryUrl: null,
+        }),
+      ).resolves.toEqual({
+        html: "<p>Contract plugin</p>",
+        locale: "en",
+        available_locales: ["en"],
+        documentation_url: null,
+        repo_url: "https://example.com/postgres-driver",
+      });
+      await expect(
+        harness.transport.call("get_installed_plugins", undefined),
+      ).resolves.toEqual([]);
+      await expect(
+        harness.transport.call("get_plugin_manifest", {
+          pluginId: "postgres-driver",
+        }),
+      ).resolves.toEqual(PLUGIN_MANIFEST);
+      await expect(
+        harness.transport.call("get_plugin_startup_errors", undefined),
+      ).resolves.toEqual([]);
+      await expect(
+        harness.transport.call("cancel_plugin_install", {
+          pluginId: "postgres-driver",
+        }),
+      ).resolves.toBe(true);
+
+      for (const command of [
+        "install_plugin",
+        "disable_plugin",
+        "enable_plugin",
+        "kill_plugin_process",
+        "restart_plugin_process",
+        "uninstall_plugin",
+      ] as const) {
+        await expect(
+          harness.transport.call(command, { pluginId: "postgres-driver" }),
+        ).resolves.toBeNull();
+      }
     });
 
     it("preserves database dump and import job contracts", async () => {
@@ -906,6 +1002,70 @@ async function handleRequest(
     },
     delete_ai_key: {
       request: { provider: "openai" },
+      response: null,
+    },
+    fetch_plugin_registry: {
+      request: null,
+      response: [PLUGIN_REGISTRY_ENTRY],
+    },
+    fetch_tabularium_plugin_preview: {
+      request: {
+        slug: "postgres-driver",
+        registryUrl: null,
+        version: "1.2.3",
+      },
+      response: {
+        ...PLUGIN_REGISTRY_ENTRY,
+        install_action: "install",
+        signature: "verified",
+      },
+    },
+    fetch_plugin_readme: {
+      request: {
+        slug: "postgres-driver",
+        locale: "en",
+        registryUrl: null,
+      },
+      response: {
+        html: "<p>Contract plugin</p>",
+        locale: "en",
+        available_locales: ["en"],
+        documentation_url: null,
+        repo_url: "https://example.com/postgres-driver",
+      },
+    },
+    get_installed_plugins: { request: null, response: [] },
+    get_plugin_manifest: {
+      request: { pluginId: "postgres-driver" },
+      response: PLUGIN_MANIFEST,
+    },
+    get_plugin_startup_errors: { request: null, response: [] },
+    cancel_plugin_install: {
+      request: { pluginId: "postgres-driver" },
+      response: true,
+    },
+    install_plugin: {
+      request: { pluginId: "postgres-driver" },
+      response: null,
+    },
+    disable_plugin: {
+      request: { pluginId: "postgres-driver" },
+      response: null,
+    },
+    enable_plugin: {
+      request: { pluginId: "postgres-driver" },
+      response: null,
+    },
+    kill_plugin_process: {
+      request: { pluginId: "postgres-driver" },
+      response: null,
+    },
+    restart_plugin_process: {
+      request: { pluginId: "postgres-driver" },
+      response: null,
+    },
+    uninstall_plugin: {
+      request: { pluginId: "postgres-driver" },
       response: null,
     },
     dump_database: {

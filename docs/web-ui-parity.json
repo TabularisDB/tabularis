@@ -53,30 +53,16 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 44,
-    "literalCallSiteCount": 61,
+    "literalCommandCount": 32,
+    "literalCallSiteCount": 40,
     "dynamicCallSiteCount": 0,
     "handlerRegistrationCount": 258,
     "registeredCommandCount": 258,
     "duplicateHandlerRegistrations": [],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 214
+    "registeredCommandsWithoutFrontendCall": 226
   },
   "commands": [
-    {
-      "name": "cancel_plugin_install",
-      "featureGroup": "plugins",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
-          "line": 771
-        }
-      ]
-    },
     {
       "name": "check_for_updates",
       "featureGroup": "application",
@@ -115,7 +101,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useDeepLinkInstall.ts",
-          "line": 66
+          "line": 69
         }
       ]
     },
@@ -143,29 +129,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 1546
-        }
-      ]
-    },
-    {
-      "name": "disable_plugin",
-      "featureGroup": "plugins",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/PluginSettingsPage.tsx",
-          "line": 157
-        },
-        {
-          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
-          "line": 840
-        },
-        {
-          "file": "packages/web-ui/src/hooks/useTaskManager.ts",
-          "line": 83
+          "line": 1551
         }
       ]
     },
@@ -180,32 +144,6 @@
         {
           "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
           "line": 79
-        }
-      ]
-    },
-    {
-      "name": "enable_plugin",
-      "featureGroup": "plugins",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/PluginSettingsPage.tsx",
-          "line": 158
-        },
-        {
-          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
-          "line": 846
-        },
-        {
-          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
-          "line": 1210
-        },
-        {
-          "file": "packages/web-ui/src/hooks/useTaskManager.ts",
-          "line": 84
         }
       ]
     },
@@ -238,52 +176,6 @@
       ]
     },
     {
-      "name": "fetch_plugin_readme",
-      "featureGroup": "plugins",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/PluginReadmeModal.tsx",
-          "line": 74
-        }
-      ]
-    },
-    {
-      "name": "fetch_plugin_registry",
-      "featureGroup": "plugins",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useConnectionCatalogue.ts",
-          "line": 51
-        },
-        {
-          "file": "packages/web-ui/src/hooks/usePluginRegistry.ts",
-          "line": 18
-        }
-      ]
-    },
-    {
-      "name": "fetch_tabularium_plugin_preview",
-      "featureGroup": "plugins",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/PluginInstallConfirmModal.tsx",
-          "line": 69
-        }
-      ]
-    },
-    {
       "name": "get_data_types",
       "featureGroup": "drivers",
       "eventUse": "none",
@@ -294,20 +186,6 @@
         {
           "file": "packages/web-ui/src/hooks/useDataTypes.ts",
           "line": 30
-        }
-      ]
-    },
-    {
-      "name": "get_installed_plugins",
-      "featureGroup": "plugins",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useDrivers.ts",
-          "line": 145
         }
       ]
     },
@@ -372,38 +250,6 @@
       ]
     },
     {
-      "name": "get_plugin_manifest",
-      "featureGroup": "plugins",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/PluginSettingsPage.tsx",
-          "line": 37
-        },
-        {
-          "file": "packages/web-ui/src/contexts/PluginSlotProvider.tsx",
-          "line": 180
-        }
-      ]
-    },
-    {
-      "name": "get_plugin_startup_errors",
-      "featureGroup": "plugins",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
-          "line": 682
-        }
-      ]
-    },
-    {
       "name": "get_process_list",
       "featureGroup": "tasks",
       "eventUse": "none",
@@ -413,7 +259,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useTaskManager.ts",
-          "line": 32
+          "line": 34
         }
       ]
     },
@@ -427,7 +273,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useTaskManager.ts",
-          "line": 33
+          "line": 35
         }
       ]
     },
@@ -464,42 +310,6 @@
       ]
     },
     {
-      "name": "install_plugin",
-      "featureGroup": "plugins",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "write",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 291
-        },
-        {
-          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
-          "line": 725
-        },
-        {
-          "file": "packages/web-ui/src/hooks/useDeepLinkInstall.ts",
-          "line": 92
-        }
-      ]
-    },
-    {
-      "name": "kill_plugin_process",
-      "featureGroup": "plugins",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useTaskManager.ts",
-          "line": 64
-        }
-      ]
-    },
-    {
       "name": "list_databases",
       "featureGroup": "metadata",
       "eventUse": "none",
@@ -509,7 +319,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 1596
+          "line": 1601
         }
       ]
     },
@@ -597,7 +407,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
-          "line": 709
+          "line": 712
         }
       ]
     },
@@ -625,11 +435,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/PluginSlotProvider.tsx",
-          "line": 50
+          "line": 51
         },
         {
           "file": "packages/web-ui/src/contexts/PluginSlotProvider.tsx",
-          "line": 90
+          "line": 91
         }
       ]
     },
@@ -732,20 +542,6 @@
           "line": 508
         }
       ]
-    },
-    {
-      "name": "uninstall_plugin",
-      "featureGroup": "plugins",
-      "eventUse": "none",
-      "filesystemUse": "write",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
-          "line": 797
-        }
-      ]
     }
   ],
   "dynamicInvocations": [],
@@ -761,6 +557,7 @@
     "cancel_dump",
     "cancel_export",
     "cancel_import",
+    "cancel_plugin_install",
     "cancel_query",
     "check_ai_key",
     "check_ai_key_status",
@@ -794,6 +591,7 @@
     "delete_ssh_connection",
     "detect_blob_mime",
     "detect_mime_type",
+    "disable_plugin",
     "disconnect_connection",
     "drop_db_user",
     "drop_foreign_key_action",
@@ -803,6 +601,7 @@
     "drop_view",
     "dump_database",
     "duplicate_connection",
+    "enable_plugin",
     "encrypt_export_payload",
     "execute_query",
     "execute_query_batch",
@@ -817,6 +616,9 @@
     "export_query_to_file",
     "export_theme",
     "fetch_blob_as_data_url",
+    "fetch_plugin_readme",
+    "fetch_plugin_registry",
+    "fetch_tabularium_plugin_preview",
     "generate_ai_query",
     "generate_cell_name",
     "generate_tab_rename",
@@ -853,6 +655,7 @@
     "get_foreign_keys",
     "get_indexes",
     "get_installation_source",
+    "get_installed_plugins",
     "get_json_viewer_session",
     "get_k8s_connections",
     "get_k8s_contexts_cmd",
@@ -866,6 +669,8 @@
     "get_materialized_view_definition",
     "get_materialized_views",
     "get_plugin_dir",
+    "get_plugin_manifest",
+    "get_plugin_startup_errors",
     "get_query_history",
     "get_registered_drivers",
     "get_routine_create_template",
@@ -893,7 +698,9 @@
     "import_database",
     "import_theme",
     "insert_record",
+    "install_plugin",
     "is_debug_mode",
+    "kill_plugin_process",
     "list_all_preferences",
     "list_connection_import_sources",
     "list_connection_tags",
@@ -956,6 +763,7 @@
     "test_k8s_connection_cmd",
     "test_log",
     "test_ssh_connection",
+    "uninstall_plugin",
     "update_connection",
     "update_connection_group",
     "update_connection_tag",

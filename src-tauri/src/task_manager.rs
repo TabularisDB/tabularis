@@ -1,15 +1,12 @@
 use std::collections::HashSet;
 use std::sync::Mutex;
 
+use crate::drivers::registry;
+use crate::runtime::RuntimeContext;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use sysinfo::{get_current_pid, Pid, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
-use tokio::time::{sleep, Duration};
-
-use crate::drivers::registry;
-use crate::plugins::installer;
-use crate::plugins::manager::load_plugin_from_dir;
+use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 // ---------------------------------------------------------------------------
 // Persistent System instance — required so that delta fields (cpu_usage,
@@ -330,36 +327,15 @@ pub async fn get_tabularis_children() -> Result<Vec<TabularisChildProcess>, Stri
 
 #[tauri::command]
 pub async fn kill_plugin_process(plugin_id: String) -> Result<(), String> {
-    registry::unregister_driver(&plugin_id).await;
-    Ok(())
+    crate::application::plugins::kill_plugin_process(plugin_id).await
 }
 
 #[tauri::command]
 pub async fn restart_plugin_process(
-    app: tauri::AppHandle,
+    runtime: State<'_, RuntimeContext>,
     plugin_id: String,
 ) -> Result<(), String> {
-    registry::unregister_driver(&plugin_id).await;
-
-    // Give the OS a moment to release process resources before respawning.
-    sleep(Duration::from_millis(500)).await;
-
-    let plugin_cfg = crate::config::load_config_internal(&app)
-        .plugins
-        .and_then(|mut m| m.remove(&plugin_id));
-    let interpreter_override = plugin_cfg.as_ref().and_then(|c| c.interpreter.clone());
-    let settings = plugin_cfg.map(|c| c.settings).unwrap_or_default();
-    let plugins_dir = installer::get_plugins_dir()
-        .map_err(|e| format!("Could not locate plugins directory: {}", e))?;
-    let plugin_dir = plugins_dir.join(&plugin_id);
-    if !plugin_dir.exists() {
-        return Err(format!("Plugin '{}' is not installed", plugin_id));
-    }
-    load_plugin_from_dir(&plugin_dir, interpreter_override, settings)
-        .await
-        .map_err(|e| format!("Failed to restart plugin '{}': {}", plugin_id, e))?;
-
-    Ok(())
+    crate::application::plugins::restart_plugin_process(runtime.inner(), plugin_id).await
 }
 
 #[tauri::command]

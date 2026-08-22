@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { listen, type UnlistenFn, emit } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { useTabularisClient } from "./useTabularisClient";
+import { PLUGIN_INSTALL_DEADLINE_MS } from "../api/pluginLifecycle";
 
 /**
  * Payload emitted by the Rust backend when the OS hands us a
@@ -34,6 +36,7 @@ interface UseDeepLinkInstallResult {
  * user click so a malicious URL can't trigger a silent install.
  */
 export function useDeepLinkInstall(): UseDeepLinkInstallResult {
+  const client = useTabularisClient();
   const [pending, setPending] = useState<DeepLinkInstallRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -89,10 +92,14 @@ export function useDeepLinkInstall(): UseDeepLinkInstallResult {
     setBusy(true);
     setError(null);
     try {
-      await invoke("install_plugin", {
-        pluginId: pending.slug,
-        version: pending.version ?? null,
-      });
+      await client.call(
+        "install_plugin",
+        {
+          pluginId: pending.slug,
+          version: pending.version ?? null,
+        },
+        { deadlineMs: PLUGIN_INSTALL_DEADLINE_MS },
+      );
       // Tell anything observing the plugin catalogue (PluginsTab, drivers
       // list) to refresh. Components subscribe to this in their own effects.
       void emit("tabularis://plugin-installed", { slug: pending.slug });
@@ -104,7 +111,7 @@ export function useDeepLinkInstall(): UseDeepLinkInstallResult {
     } finally {
       setBusy(false);
     }
-  }, [pending]);
+  }, [client, pending]);
 
   return { pending, confirm, cancel, error, busy };
 }

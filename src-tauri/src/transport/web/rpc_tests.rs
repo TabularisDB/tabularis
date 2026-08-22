@@ -297,6 +297,31 @@ impl ApplicationApi for FixtureApplication {
             _ => Value::Null,
         })
     }
+
+    async fn execute_plugin_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: crate::application::plugins::PluginCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(match command {
+            crate::application::plugins::PluginCommand::FetchRegistry => serde_json::json!([]),
+            crate::application::plugins::PluginCommand::FetchPreview { slug, .. } => {
+                serde_json::json!({"id": slug, "install_action": "install"})
+            }
+            crate::application::plugins::PluginCommand::FetchReadme { locale, .. } => {
+                serde_json::json!({"html": "<p>Plugin</p>", "locale": locale})
+            }
+            crate::application::plugins::PluginCommand::GetInstalled
+            | crate::application::plugins::PluginCommand::GetStartupErrors => {
+                serde_json::json!([])
+            }
+            crate::application::plugins::PluginCommand::CancelInstall { .. } => {
+                serde_json::json!(true)
+            }
+            _ => Value::Null,
+        })
+    }
 }
 
 fn json_headers() -> HeaderMap {
@@ -507,6 +532,39 @@ fn registers_ai_commands_with_explicit_authorization() {
         schema_context.metadata().authorization,
         AuthorizationLevel::Database
     );
+}
+
+#[test]
+fn registers_plugin_lifecycle_commands_with_local_admin_authorization() {
+    for name in [
+        "fetch_plugin_registry",
+        "fetch_tabularium_plugin_preview",
+        "fetch_plugin_readme",
+        "install_plugin",
+        "cancel_plugin_install",
+        "uninstall_plugin",
+        "get_installed_plugins",
+        "disable_plugin",
+        "enable_plugin",
+        "get_plugin_manifest",
+        "get_plugin_startup_errors",
+        "kill_plugin_process",
+        "restart_plugin_process",
+    ] {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(
+            command.metadata().authorization,
+            AuthorizationLevel::LocalAdmin,
+            "{name}",
+        );
+    }
+
+    for desktop_only in ["get_plugin_dir", "open_plugins_dir", "read_plugin_file"] {
+        assert!(
+            RpcCommand::parse(desktop_only).is_none(),
+            "{desktop_only} must not expose server filesystem paths over browser RPC",
+        );
+    }
 }
 
 #[test]
@@ -1079,6 +1137,87 @@ async fn routes_ai_commands_through_the_shared_application_api() {
             .await;
         assert_eq!(response.status(), StatusCode::OK, "{command}");
     }
+}
+
+#[tokio::test]
+async fn routes_plugin_lifecycle_commands_through_the_shared_application_api() {
+    let application = Arc::new(FixtureApplication::new(Duration::ZERO));
+    let dispatcher = RpcDispatcher::new(application.clone());
+    let commands = [
+        ("fetch_plugin_registry", Value::Null),
+        (
+            "fetch_tabularium_plugin_preview",
+            serde_json::json!({
+                "slug": "postgres-driver",
+                "registryUrl": null,
+                "version": "1.2.3"
+            }),
+        ),
+        (
+            "fetch_plugin_readme",
+            serde_json::json!({
+                "slug": "postgres-driver",
+                "locale": "en",
+                "registryUrl": null
+            }),
+        ),
+        (
+            "install_plugin",
+            serde_json::json!({"pluginId": "postgres-driver", "version": "1.2.3"}),
+        ),
+        (
+            "cancel_plugin_install",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+        (
+            "uninstall_plugin",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+        ("get_installed_plugins", Value::Null),
+        (
+            "disable_plugin",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+        (
+            "enable_plugin",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+        (
+            "get_plugin_manifest",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+        ("get_plugin_startup_errors", Value::Null),
+        (
+            "kill_plugin_process",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+        (
+            "restart_plugin_process",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+    ];
+
+    for (command, payload) in commands {
+        let response = dispatcher
+            .dispatch(
+                command,
+                RequestId(format!("request-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                Some(Uuid::new_v4()),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK, "{command}");
+    }
+
+    let contexts = application
+        .contexts
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    assert_eq!(contexts.len(), 13);
+    assert!(contexts
+        .iter()
+        .all(|context| context.authorization == AuthorizationLevel::LocalAdmin));
 }
 
 #[tokio::test]

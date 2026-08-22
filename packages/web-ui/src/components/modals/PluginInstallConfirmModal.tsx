@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import {
   X,
   Download,
@@ -18,6 +17,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { Modal } from "../ui/Modal";
 import type { RegistryPluginWithStatus } from "../../types/plugins";
 import type { DeepLinkInstallRequest } from "../../hooks/useDeepLinkInstall";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 
 interface PluginInstallConfirmModalProps {
   request: DeepLinkInstallRequest | null;
@@ -54,6 +54,7 @@ export const PluginInstallConfirmModal = ({
   configuredRegistry,
 }: PluginInstallConfirmModalProps) => {
   const { t } = useTranslation();
+  const client = useTabularisClient();
   const [preview, setPreview] = useState<PluginPreview | null>(null);
   // Starts true for an active request: the modal is keyed by request in App.tsx,
   // so each new request remounts this component with fresh state — no synchronous
@@ -66,7 +67,7 @@ export const PluginInstallConfirmModal = ({
   useEffect(() => {
     if (!request) return;
     let cancelled = false;
-    invoke<PluginPreview>("fetch_tabularium_plugin_preview", {
+    client.call("fetch_tabularium_plugin_preview", {
       slug: request.slug,
       registryUrl: request.registry ?? null,
       // `?version=` in the deep link yields "" — treat it as "no pin".
@@ -86,7 +87,7 @@ export const PluginInstallConfirmModal = ({
     return () => {
       cancelled = true;
     };
-  }, [request]);
+  }, [client, request]);
 
   if (!request) return null;
 

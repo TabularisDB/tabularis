@@ -181,3 +181,8 @@ export interface InstalledPluginInfo {
   version: string;
   description: string;
 }
+
+export interface PluginLoadError {
+  plugin_id: string;
+  error: string;
+}
