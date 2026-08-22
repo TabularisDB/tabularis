@@ -301,6 +301,70 @@ export function defineTransportContractSuite(
       }
     });
 
+    it("preserves logs and task manager contracts", async () => {
+      await expect(
+        harness.transport.call("get_logs", {
+          request: { limit: 100, level_filter: "ERROR" },
+        }),
+      ).resolves.toEqual([
+        {
+          timestamp: "2026-08-22 09:00:00.000",
+          level: "ERROR",
+          message: "Contract log",
+          target: "contract",
+        },
+      ]);
+      await expect(
+        harness.transport.call("get_log_settings", undefined),
+      ).resolves.toEqual({ enabled: true, max_size: 1000, current_count: 1 });
+      await expect(
+        harness.transport.call("get_process_list", undefined),
+      ).resolves.toEqual([
+        {
+          plugin_id: "postgres-driver",
+          plugin_name: "PostgreSQL Driver",
+          pid: 4100,
+          cpu_percent: 1.5,
+          memory_bytes: 2048,
+          disk_read_bytes: 128,
+          disk_write_bytes: 64,
+          status: "running",
+          children: [],
+        },
+      ]);
+      await expect(
+        harness.transport.call("get_system_stats", undefined),
+      ).resolves.toEqual({
+        cpu_percent: 12.5,
+        memory_used: 4096,
+        memory_total: 8192,
+        disk_read_bytes: 256,
+        disk_write_bytes: 128,
+        process_count: 4,
+        tabularis: null,
+      });
+      await expect(
+        harness.transport.call("get_tabularis_children", undefined),
+      ).resolves.toEqual([
+        {
+          pid: 4200,
+          name: "tabularis-plugin",
+          cpu_percent: 0.5,
+          memory_bytes: 1024,
+        },
+      ]);
+
+      await expect(
+        harness.transport.call("set_log_enabled", { enabled: false }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("set_log_max_size", { maxSize: 500 }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("clear_logs", undefined),
+      ).resolves.toBeNull();
+    });
+
     it("preserves database dump and import job contracts", async () => {
       await expect(
         harness.transport.call("dump_database", {
@@ -1068,6 +1132,63 @@ async function handleRequest(
       request: { pluginId: "postgres-driver" },
       response: null,
     },
+    get_logs: {
+      request: { request: { limit: 100, level_filter: "ERROR" } },
+      response: [
+        {
+          timestamp: "2026-08-22 09:00:00.000",
+          level: "ERROR",
+          message: "Contract log",
+          target: "contract",
+        },
+      ],
+    },
+    get_log_settings: {
+      request: null,
+      response: { enabled: true, max_size: 1000, current_count: 1 },
+    },
+    get_process_list: {
+      request: null,
+      response: [
+        {
+          plugin_id: "postgres-driver",
+          plugin_name: "PostgreSQL Driver",
+          pid: 4100,
+          cpu_percent: 1.5,
+          memory_bytes: 2048,
+          disk_read_bytes: 128,
+          disk_write_bytes: 64,
+          status: "running",
+          children: [],
+        },
+      ],
+    },
+    get_system_stats: {
+      request: null,
+      response: {
+        cpu_percent: 12.5,
+        memory_used: 4096,
+        memory_total: 8192,
+        disk_read_bytes: 256,
+        disk_write_bytes: 128,
+        process_count: 4,
+        tabularis: null,
+      },
+    },
+    get_tabularis_children: {
+      request: null,
+      response: [
+        {
+          pid: 4200,
+          name: "tabularis-plugin",
+          cpu_percent: 0.5,
+          memory_bytes: 1024,
+        },
+      ],
+    },
+    set_log_enabled: { request: { enabled: false }, response: null },
+    set_log_max_size: { request: { maxSize: 500 }, response: null },
+    clear_logs: { request: null, response: null },
     dump_database: {
       request: {
         connectionId: "database-transfer-fixture",

@@ -583,6 +583,14 @@ async fn streams_safe_session_owned_file_uploads() {
 async fn executes_representative_commands_over_versioned_rpc() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
+    let log_buffer = crate::runtime::bootstrap::initialize_logging(false);
+    crate::application::operations::clear_logs(&log_buffer).unwrap();
+    log_buffer.lock().unwrap().push(crate::logger::LogEntry {
+        timestamp: "2026-08-22 09:00:00.000".to_string(),
+        level: "ERROR".to_string(),
+        message: "Authenticated operational RPC fixture".to_string(),
+        target: Some("web-contract".to_string()),
+    });
 
     crate::drivers::registry::register_driver(crate::drivers::sqlite::SqliteDriver::new()).await;
     let sqlite_path = temp.path().join("metadata.sqlite");
@@ -672,6 +680,81 @@ async fn executes_representative_commands_over_versioned_rpc() {
         .json()
         .await
         .unwrap();
+
+    let logs = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_logs",
+        serde_json::json!({
+            "request": {"limit": 100, "level_filter": "ERROR"}
+        }),
+    )
+    .await;
+    assert!(logs
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|entry| { entry["message"] == "Authenticated operational RPC fixture" }));
+    let log_settings = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_log_settings",
+        Value::Null,
+    )
+    .await;
+    assert_eq!(log_settings["enabled"], true);
+    assert!(rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_process_list",
+        Value::Null,
+    )
+    .await
+    .is_array());
+    assert!(rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_system_stats",
+        Value::Null,
+    )
+    .await["process_count"]
+        .is_number());
+    assert!(rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_tabularis_children",
+        Value::Null,
+    )
+    .await
+    .is_array());
+    for (command, payload) in [
+        ("set_log_max_size", serde_json::json!({"maxSize": 500})),
+        ("set_log_enabled", serde_json::json!({"enabled": false})),
+        ("set_log_enabled", serde_json::json!({"enabled": true})),
+        ("clear_logs", Value::Null),
+        ("set_log_max_size", serde_json::json!({"maxSize": 1000})),
+    ] {
+        assert!(rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            command,
+            payload,
+        )
+        .await
+        .is_null());
+    }
 
     let query_export = rpc_data(
         &client,

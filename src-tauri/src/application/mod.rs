@@ -8,6 +8,7 @@ pub mod file_transfers;
 pub mod generic_exports;
 pub mod metadata;
 pub mod notebooks;
+pub mod operations;
 pub mod persistence;
 pub mod plugin_assets;
 pub mod plugins;

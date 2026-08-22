@@ -322,6 +322,60 @@ impl ApplicationApi for FixtureApplication {
             _ => Value::Null,
         })
     }
+
+    async fn execute_operational_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: crate::application::operations::OperationalCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(match command {
+            crate::application::operations::OperationalCommand::GetLogs(_) => {
+                serde_json::json!([{
+                    "timestamp": "2026-08-22 09:00:00.000",
+                    "level": "ERROR",
+                    "message": "Contract log",
+                    "target": "contract"
+                }])
+            }
+            crate::application::operations::OperationalCommand::GetLogSettings => {
+                serde_json::json!({"enabled": true, "max_size": 1000, "current_count": 1})
+            }
+            crate::application::operations::OperationalCommand::GetProcessList => {
+                serde_json::json!([{
+                    "plugin_id": "postgres-driver",
+                    "plugin_name": "PostgreSQL Driver",
+                    "pid": 4100,
+                    "cpu_percent": 1.5,
+                    "memory_bytes": 2048,
+                    "disk_read_bytes": 128,
+                    "disk_write_bytes": 64,
+                    "status": "running",
+                    "children": []
+                }])
+            }
+            crate::application::operations::OperationalCommand::GetSystemStats => {
+                serde_json::json!({
+                    "cpu_percent": 12.5,
+                    "memory_used": 4096,
+                    "memory_total": 8192,
+                    "disk_read_bytes": 256,
+                    "disk_write_bytes": 128,
+                    "process_count": 4,
+                    "tabularis": null
+                })
+            }
+            crate::application::operations::OperationalCommand::GetTabularisChildren => {
+                serde_json::json!([{
+                    "pid": 4200,
+                    "name": "tabularis-plugin",
+                    "cpu_percent": 0.5,
+                    "memory_bytes": 1024
+                }])
+            }
+            _ => Value::Null,
+        })
+    }
 }
 
 fn json_headers() -> HeaderMap {
@@ -564,6 +618,64 @@ fn registers_plugin_lifecycle_commands_with_local_admin_authorization() {
             RpcCommand::parse(desktop_only).is_none(),
             "{desktop_only} must not expose server filesystem paths over browser RPC",
         );
+    }
+}
+
+#[test]
+fn registers_operational_commands_with_remote_safe_authorization() {
+    for name in [
+        "get_logs",
+        "get_log_settings",
+        "get_process_list",
+        "get_system_stats",
+        "get_tabularis_children",
+    ] {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(
+            command.metadata().authorization,
+            AuthorizationLevel::Sensitive,
+            "{name}",
+        );
+    }
+
+    for name in ["clear_logs", "set_log_enabled", "set_log_max_size"] {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(
+            command.metadata().authorization,
+            AuthorizationLevel::LocalAdmin,
+            "{name}",
+        );
+    }
+}
+
+#[tokio::test]
+async fn rejects_destructive_operations_without_local_admin_authorization() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    for (command, payload) in [
+        ("clear_logs", Value::Null),
+        ("set_log_enabled", serde_json::json!({"enabled": false})),
+        ("set_log_max_size", serde_json::json!({"maxSize": 500})),
+        (
+            "kill_plugin_process",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+        (
+            "restart_plugin_process",
+            serde_json::json!({"pluginId": "postgres-driver"}),
+        ),
+    ] {
+        let response = dispatcher
+            .dispatch_authorized(
+                command,
+                RequestId(format!("restricted-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                Some(Uuid::new_v4()),
+                AuthorizationLevel::Sensitive,
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN, "{command}");
+        assert_eq!(response_json(response).await["error"]["code"], "FORBIDDEN");
     }
 }
 
@@ -1218,6 +1330,61 @@ async fn routes_plugin_lifecycle_commands_through_the_shared_application_api() {
     assert!(contexts
         .iter()
         .all(|context| context.authorization == AuthorizationLevel::LocalAdmin));
+}
+
+#[tokio::test]
+async fn routes_operational_commands_through_the_shared_application_api() {
+    let application = Arc::new(FixtureApplication::new(Duration::ZERO));
+    let dispatcher = RpcDispatcher::new(application.clone());
+    let commands = [
+        (
+            "get_logs",
+            serde_json::json!({
+                "request": {"limit": 100, "level_filter": "ERROR"}
+            }),
+        ),
+        ("get_log_settings", Value::Null),
+        ("get_process_list", Value::Null),
+        ("get_system_stats", Value::Null),
+        ("get_tabularis_children", Value::Null),
+        ("set_log_enabled", serde_json::json!({"enabled": false})),
+        ("set_log_max_size", serde_json::json!({"maxSize": 500})),
+        ("clear_logs", Value::Null),
+    ];
+
+    for (command, payload) in commands {
+        let response = dispatcher
+            .dispatch(
+                command,
+                RequestId(format!("request-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                Some(Uuid::new_v4()),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK, "{command}");
+    }
+
+    let authorizations = application
+        .contexts
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .iter()
+        .map(|context| context.authorization)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        authorizations,
+        vec![
+            AuthorizationLevel::Sensitive,
+            AuthorizationLevel::Sensitive,
+            AuthorizationLevel::Sensitive,
+            AuthorizationLevel::Sensitive,
+            AuthorizationLevel::Sensitive,
+            AuthorizationLevel::LocalAdmin,
+            AuthorizationLevel::LocalAdmin,
+            AuthorizationLevel::LocalAdmin,
+        ]
+    );
 }
 
 #[tokio::test]

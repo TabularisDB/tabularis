@@ -54,6 +54,13 @@ import type {
   ImportSourceInfo,
 } from "../types/connectionImport";
 import type { RequestId } from "./errors";
+import type {
+  LogEntry,
+  LogSettings,
+  ProcessInfo,
+  SystemStats,
+  TabularisChildProcess,
+} from "../types/operations";
 
 export type AuthorizationLevel =
   | "session"
@@ -395,6 +402,28 @@ export interface CommandMap {
     undefined,
     string | null,
     "local-admin"
+  >;
+
+  get_logs: CommandDefinition<
+    {
+      request: {
+        limit?: number | null;
+        level_filter?: string | null;
+      };
+    },
+    LogEntry[],
+    "sensitive"
+  >;
+  clear_logs: CommandDefinition<undefined, void, "local-admin">;
+  get_log_settings: CommandDefinition<undefined, LogSettings, "sensitive">;
+  set_log_enabled: CommandDefinition<{ enabled: boolean }, void, "local-admin">;
+  set_log_max_size: CommandDefinition<{ maxSize: number }, void, "local-admin">;
+  get_process_list: CommandDefinition<undefined, ProcessInfo[], "sensitive">;
+  get_system_stats: CommandDefinition<undefined, SystemStats, "sensitive">;
+  get_tabularis_children: CommandDefinition<
+    undefined,
+    TabularisChildProcess[],
+    "sensitive"
   >;
 
   get_connections: CommandDefinition<undefined, SavedConnection[], "database">;

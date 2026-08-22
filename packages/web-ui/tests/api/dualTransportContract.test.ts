@@ -188,6 +188,65 @@ defineTransportContractSuite(
       ) {
         return null;
       }
+      if (command === "get_logs") {
+        expect(request).toEqual({
+          request: { limit: 100, level_filter: "ERROR" },
+        });
+        return [
+          {
+            timestamp: "2026-08-22 09:00:00.000",
+            level: "ERROR",
+            message: "Contract log",
+            target: "contract",
+          },
+        ];
+      }
+      if (command === "get_log_settings") {
+        return { enabled: true, max_size: 1000, current_count: 1 };
+      }
+      if (command === "get_process_list") {
+        return [
+          {
+            plugin_id: "postgres-driver",
+            plugin_name: "PostgreSQL Driver",
+            pid: 4100,
+            cpu_percent: 1.5,
+            memory_bytes: 2048,
+            disk_read_bytes: 128,
+            disk_write_bytes: 64,
+            status: "running",
+            children: [],
+          },
+        ];
+      }
+      if (command === "get_system_stats") {
+        return {
+          cpu_percent: 12.5,
+          memory_used: 4096,
+          memory_total: 8192,
+          disk_read_bytes: 256,
+          disk_write_bytes: 128,
+          process_count: 4,
+          tabularis: null,
+        };
+      }
+      if (command === "get_tabularis_children") {
+        return [
+          {
+            pid: 4200,
+            name: "tabularis-plugin",
+            cpu_percent: 0.5,
+            memory_bytes: 1024,
+          },
+        ];
+      }
+      if (
+        command === "set_log_enabled" ||
+        command === "set_log_max_size" ||
+        command === "clear_logs"
+      ) {
+        return null;
+      }
       if (command === "dump_database") {
         expect(request).toEqual({
           connectionId: "database-transfer-fixture",

@@ -53,14 +53,14 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 31,
-    "literalCallSiteCount": 38,
+    "literalCommandCount": 23,
+    "literalCallSiteCount": 30,
     "dynamicCallSiteCount": 0,
     "handlerRegistrationCount": 258,
     "registeredCommandCount": 258,
     "duplicateHandlerRegistrations": [],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 227
+    "registeredCommandsWithoutFrontendCall": 235
   },
   "commands": [
     {
@@ -74,20 +74,6 @@
         {
           "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
           "line": 39
-        }
-      ]
-    },
-    {
-      "name": "clear_logs",
-      "featureGroup": "logs",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
-          "line": 87
         }
       ]
     },
@@ -190,34 +176,6 @@
       ]
     },
     {
-      "name": "get_log_settings",
-      "featureGroup": "logs",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
-          "line": 67
-        }
-      ]
-    },
-    {
-      "name": "get_logs",
-      "featureGroup": "logs",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
-          "line": 59
-        }
-      ]
-    },
-    {
       "name": "get_mcp_status",
       "featureGroup": "configuration",
       "eventUse": "none",
@@ -246,48 +204,6 @@
         {
           "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
           "line": 115
-        }
-      ]
-    },
-    {
-      "name": "get_process_list",
-      "featureGroup": "tasks",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useTaskManager.ts",
-          "line": 34
-        }
-      ]
-    },
-    {
-      "name": "get_system_stats",
-      "featureGroup": "tasks",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useTaskManager.ts",
-          "line": 35
-        }
-      ]
-    },
-    {
-      "name": "get_tabularis_children",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/TaskManagerPage.tsx",
-          "line": 108
         }
       ]
     },
@@ -458,34 +374,6 @@
       ]
     },
     {
-      "name": "set_log_enabled",
-      "featureGroup": "logs",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
-          "line": 120
-        }
-      ]
-    },
-    {
-      "name": "set_log_max_size",
-      "featureGroup": "logs",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
-          "line": 133
-        }
-      ]
-    },
-    {
       "name": "set_selected_databases",
       "featureGroup": "configuration",
       "eventUse": "none",
@@ -544,6 +432,7 @@
     "check_ai_key",
     "check_ai_key_status",
     "clear_ai_activity",
+    "clear_logs",
     "clear_query_history",
     "close_devtools",
     "close_results_window",
@@ -647,12 +536,15 @@
     "get_keybindings",
     "get_last_active_connection",
     "get_last_open_connections",
+    "get_log_settings",
+    "get_logs",
     "get_materialized_view_columns",
     "get_materialized_view_definition",
     "get_materialized_views",
     "get_plugin_dir",
     "get_plugin_manifest",
     "get_plugin_startup_errors",
+    "get_process_list",
     "get_query_history",
     "get_registered_drivers",
     "get_routine_create_template",
@@ -668,8 +560,10 @@
     "get_server_now",
     "get_ssh_connections",
     "get_system_prompt",
+    "get_system_stats",
     "get_tables",
     "get_tabrename_prompt",
+    "get_tabularis_children",
     "get_theme",
     "get_trigger_definition",
     "get_triggers",
@@ -739,6 +633,8 @@
     "set_db_user_password",
     "set_last_active_connection",
     "set_last_open_connections",
+    "set_log_enabled",
+    "set_log_max_size",
     "set_schema_preference",
     "set_selected_schemas",
     "suggest_table_name",

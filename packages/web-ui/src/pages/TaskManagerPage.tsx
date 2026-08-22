@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import {
   Activity,
@@ -23,6 +22,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useTaskManager } from "../hooks/useTaskManager";
+import { useTabularisClient } from "../hooks/useTabularisClient";
 import {
   formatBytes,
   formatCpuPercent,
@@ -97,6 +97,7 @@ const KillConfirmModal = ({ pluginName, onConfirm, onCancel }: KillConfirmModalP
 // ---------------------------------------------------------------------------
 const TabularisSelfPanel = ({ stats }: { stats: TabularisSelfStats }) => {
   const { t } = useTranslation();
+  const client = useTabularisClient();
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<TabularisChildProcess[]>([]);
   const [loadingChildren, setLoadingChildren] = useState(false);
@@ -105,12 +106,11 @@ const TabularisSelfPanel = ({ stats }: { stats: TabularisSelfStats }) => {
   const fetchChildren = useCallback(async () => {
     setLoadingChildren(true);
     try {
-      const result = await invoke<TabularisChildProcess[]>("get_tabularis_children");
-      setChildren(result);
+      setChildren(await client.call("get_tabularis_children", undefined));
     } finally {
       setLoadingChildren(false);
     }
-  }, []);
+  }, [client]);
 
   const handleToggle = useCallback(() => {
     if (!hasChildren) return;

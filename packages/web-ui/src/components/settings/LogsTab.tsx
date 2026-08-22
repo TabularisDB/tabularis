@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
-import { ask } from "@tauri-apps/plugin-dialog";
 import {
   Trash2,
   FileDown,
@@ -15,19 +13,14 @@ import { useAlert } from "../../hooks/useAlert";
 import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { downloadGeneratedFile } from "../../utils/fileDownloads";
+import type { LogEntry, LogSettings } from "../../types/operations";
+import { ConfirmModal } from "../modals/ConfirmModal";
 import {
   SettingSection,
   SettingRow,
   SettingToggle,
   SettingNumberInput,
 } from "./SettingControls";
-
-interface LogEntry {
-  timestamp: string;
-  level: string;
-  message: string;
-  target?: string;
-}
 
 const LOG_LEVEL_COLORS: Record<string, string> = {
   ERROR: "text-red-400",
@@ -46,50 +39,47 @@ export function LogsTab() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [levelFilter, setLevelFilter] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
-  const [logSettings, setLogSettings] = useState({
+  const [logSettings, setLogSettings] = useState<LogSettings>({
     enabled: true,
     max_size: 1000,
     current_count: 0,
   });
   const [expandedLogs, setExpandedLogs] = useState<Set<number>>(new Set());
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   const loadLogs = useCallback(async () => {
     try {
       setIsLoading(true);
-      const entries = await invoke<LogEntry[]>("get_logs", {
+      const entries = await client.call("get_logs", {
         request: {
           limit: settings.maxLogEntries || 1000,
           level_filter: levelFilter || null,
         },
       });
-      setLogs(entries.reverse());
+      setLogs([...entries].reverse());
 
-      const data = await invoke<{
-        enabled: boolean;
-        max_size: number;
-        current_count: number;
-      }>("get_log_settings");
-      setLogSettings(data);
+      setLogSettings(await client.call("get_log_settings", undefined));
     } catch (e) {
       console.error("Failed to load logs", e);
     } finally {
       setIsLoading(false);
     }
-  }, [levelFilter, settings.maxLogEntries]);
+  }, [client, levelFilter, settings.maxLogEntries]);
 
-  const handleClearLogs = useCallback(async () => {
+  const handleClearLogs = useCallback(() => {
+    setClearConfirmOpen(true);
+  }, []);
+
+  const confirmClearLogs = useCallback(async () => {
     try {
-      const confirmed = await ask(t("settings.clearLogsConfirm"), {
-        title: t("common.delete"),
-        kind: "warning",
-      });
-      if (!confirmed) return;
-      await invoke("clear_logs");
+      await client.call("clear_logs", undefined);
       await loadLogs();
     } catch (e) {
       console.error("Failed to clear logs", e);
+    } finally {
+      setClearConfirmOpen(false);
     }
-  }, [t, loadLogs]);
+  }, [client, loadLogs]);
 
   const handleExportLogs = useCallback(async () => {
     try {
@@ -117,27 +107,27 @@ export function LogsTab() {
   const handleToggleLogging = useCallback(
     async (enabled: boolean) => {
       try {
-        await invoke("set_log_enabled", { enabled });
+        await client.call("set_log_enabled", { enabled });
         updateSetting("loggingEnabled", enabled);
         await loadLogs();
       } catch (e) {
         console.error("Failed to toggle logging", e);
       }
     },
-    [updateSetting, loadLogs],
+    [client, updateSetting, loadLogs],
   );
 
   const handleSetMaxSize = useCallback(
     async (size: number) => {
       try {
-        await invoke("set_log_max_size", { maxSize: size });
+        await client.call("set_log_max_size", { maxSize: size });
         updateSetting("maxLogEntries", size);
         await loadLogs();
       } catch (e) {
         console.error("Failed to set max size", e);
       }
     },
-    [updateSetting, loadLogs],
+    [client, updateSetting, loadLogs],
   );
 
   useEffect(() => {
@@ -163,6 +153,16 @@ export function LogsTab() {
 
   return (
     <div>
+      <ConfirmModal
+        isOpen={clearConfirmOpen}
+        onClose={() => setClearConfirmOpen(false)}
+        title={t("common.delete")}
+        message={t("settings.clearLogsConfirm")}
+        confirmLabel={t("settings.clearLogs")}
+        onConfirm={() => void confirmClearLogs()}
+        variant="warning"
+      />
+
       {/* Settings */}
       <SettingSection title={t("settings.logSettings")}>
         <SettingRow

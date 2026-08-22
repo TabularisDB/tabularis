@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import type { ProcessInfo, SystemStats } from "../utils/taskManager";
 import { buildProcessRows } from "../utils/taskManager";
 import { useTabularisClient } from "./useTabularisClient";
@@ -31,8 +30,8 @@ export function useTaskManager(): UseTaskManagerResult {
   const fetchData = useCallback(async () => {
     try {
       const [procs, stats] = await Promise.all([
-        invoke<ProcessInfo[]>("get_process_list"),
-        invoke<SystemStats>("get_system_stats"),
+        client.call("get_process_list", undefined),
+        client.call("get_system_stats", undefined),
       ]);
       setProcesses(buildProcessRows(procs));
       setSystemStats(stats);
@@ -42,7 +41,7 @@ export function useTaskManager(): UseTaskManagerResult {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [client]);
 
   const refresh = useCallback(async () => {
     setLoading(true);

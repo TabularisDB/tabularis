@@ -131,7 +131,23 @@ function assertCommandContract(caller: TypedCommandCaller): void {
   const pluginRestart: Promise<void> = caller.call("restart_plugin_process", {
     pluginId: "postgres-driver",
   });
+  const logs = caller.call("get_logs", {
+    request: { limit: 100, level_filter: "ERROR" },
+  });
+  const logSettings = caller.call("get_log_settings", undefined);
+  const processes = caller.call("get_process_list", undefined);
+  const systemStats = caller.call("get_system_stats", undefined);
+  const childProcesses = caller.call("get_tabularis_children", undefined);
+  const clearedLogs: Promise<void> = caller.call("clear_logs", undefined);
+  const toggledLogging: Promise<void> = caller.call("set_log_enabled", {
+    enabled: true,
+  });
+  const resizedLogBuffer: Promise<void> = caller.call("set_log_max_size", {
+    maxSize: 1000,
+  });
 
+  // @ts-expect-error Log limits must be numeric.
+  caller.call("get_logs", { request: { limit: "100" } });
   // @ts-expect-error Plugin identifiers are required for lifecycle mutations.
   caller.call("install_plugin", { version: "1.2.3" });
   // @ts-expect-error Notebook operations require explicit connection scoping.
@@ -193,6 +209,14 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     pluginCancellation,
     pluginReadme,
     pluginRestart,
+    logs,
+    logSettings,
+    processes,
+    systemStats,
+    childProcesses,
+    clearedLogs,
+    toggledLogging,
+    resizedLogBuffer,
     explainResult,
     cancellation,
     wrongResponse,
@@ -242,6 +266,9 @@ const queryHistoryAuthorization: CommandAuthorization<"get_query_history"> = "da
 const notebookAuthorization: CommandAuthorization<"save_notebook"> = "database";
 const pluginInstallAuthorization: CommandAuthorization<"install_plugin"> =
   "local-admin";
+const logReadAuthorization: CommandAuthorization<"get_logs"> = "sensitive";
+const clearLogsAuthorization: CommandAuthorization<"clear_logs"> = "local-admin";
+const taskStatsAuthorization: CommandAuthorization<"get_system_stats"> = "sensitive";
 // @ts-expect-error Plugin installation is never a plain session operation.
 const wrongPluginAuthorization: CommandAuthorization<"install_plugin"> = "session";
 // @ts-expect-error execute_query is not a local-admin operation.
@@ -282,6 +309,9 @@ void savedQueryAuthorization;
 void queryHistoryAuthorization;
 void notebookAuthorization;
 void pluginInstallAuthorization;
+void logReadAuthorization;
+void clearLogsAuthorization;
+void taskStatsAuthorization;
 void wrongPluginAuthorization;
 void wrongAuthorization;
 void rpcFailure;

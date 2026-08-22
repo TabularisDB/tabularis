@@ -26,7 +26,6 @@
     "packages/web-ui/src/components/modals/WhatsNewModal.tsx": 1,
     "packages/web-ui/src/components/settings/BackupTab.tsx": 1,
     "packages/web-ui/src/components/settings/InfoTab.tsx": 1,
-    "packages/web-ui/src/components/settings/LogsTab.tsx": 2,
     "packages/web-ui/src/components/settings/PluginSettingsPage.tsx": 1,
     "packages/web-ui/src/components/settings/PluginsTab.tsx": 3,
     "packages/web-ui/src/components/SocialLinks.tsx": 1,
@@ -39,10 +38,8 @@
     "packages/web-ui/src/hooks/useDataTypes.ts": 1,
     "packages/web-ui/src/hooks/useDeepLinkInstall.ts": 2,
     "packages/web-ui/src/hooks/usePluginApi.ts": 2,
-    "packages/web-ui/src/hooks/useTaskManager.ts": 1,
     "packages/web-ui/src/pages/Editor.tsx": 1,
     "packages/web-ui/src/pages/McpPage.tsx": 1,
-    "packages/web-ui/src/pages/TaskManagerPage.tsx": 1,
     "packages/web-ui/src/pages/VisualExplainPage.tsx": 2,
     "packages/web-ui/src/utils/mcpApprovalAttention.ts": 2
   },
@@ -51,17 +48,14 @@
     "packages/web-ui/src/components/modals/ConfigJsonModal.tsx": 1,
     "packages/web-ui/src/components/modals/McpModal.tsx": 2,
     "packages/web-ui/src/components/modals/NewConnectionModal.tsx": 2,
-    "packages/web-ui/src/components/settings/LogsTab.tsx": 5,
     "packages/web-ui/src/components/settings/PluginsTab.tsx": 1,
     "packages/web-ui/src/contexts/DatabaseProvider.tsx": 6,
     "packages/web-ui/src/contexts/UpdateProvider.tsx": 2,
     "packages/web-ui/src/hooks/useCreateSqliteDatabase.ts": 1,
     "packages/web-ui/src/hooks/useDataTypes.ts": 1,
     "packages/web-ui/src/hooks/useDeepLinkInstall.ts": 1,
-    "packages/web-ui/src/hooks/useTaskManager.ts": 2,
     "packages/web-ui/src/pages/Editor.tsx": 1,
     "packages/web-ui/src/pages/McpPage.tsx": 2,
-    "packages/web-ui/src/pages/TaskManagerPage.tsx": 1,
     "packages/web-ui/src/pages/VisualExplainPage.tsx": 2
   }
 }

@@ -7,6 +7,7 @@ use crate::application::{
     generic_exports::GenericExportCommand,
     metadata::MetadataCommand,
     notebooks::NotebookCommand,
+    operations::{GetLogsRequest, OperationalCommand},
     persistence::PersistenceCommand,
     plugins::PluginCommand,
     productivity::ProductivityCommand,
@@ -65,6 +66,19 @@ enum RpcCommand {
     Productivity(ProductivityRpcCommand),
     Notebook(NotebookRpcCommand),
     Plugin(PluginRpcCommand),
+    Operational(OperationalRpcCommand),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OperationalRpcCommand {
+    GetLogs,
+    ClearLogs,
+    GetLogSettings,
+    SetLogEnabled,
+    SetLogMaxSize,
+    GetProcessList,
+    GetSystemStats,
+    GetTabularisChildren,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -322,6 +336,24 @@ struct CommandMetadata {
 struct CancelQueryRequest {
     connection_id: String,
     query_request_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GetLogsRpcRequest {
+    request: GetLogsRequest,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SetLogEnabledRequest {
+    enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetLogMaxSizeRequest {
+    max_size: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1194,6 +1226,26 @@ impl RpcDispatcher {
         body: Bytes,
         session_id: Option<uuid::Uuid>,
     ) -> Response {
+        self.dispatch_authorized(
+            command_name,
+            request_id,
+            headers,
+            body,
+            session_id,
+            AuthorizationLevel::LocalAdmin,
+        )
+        .await
+    }
+
+    async fn dispatch_authorized(
+        &self,
+        command_name: &str,
+        request_id: RequestId,
+        headers: &HeaderMap,
+        body: Bytes,
+        session_id: Option<uuid::Uuid>,
+        granted_authorization: AuthorizationLevel,
+    ) -> Response {
         let Some(command) = RpcCommand::parse(command_name) else {
             return failure(
                 StatusCode::NOT_FOUND,
@@ -1204,7 +1256,6 @@ impl RpcDispatcher {
             );
         };
         let metadata = command.metadata();
-        let granted_authorization = AuthorizationLevel::LocalAdmin;
         if !granted_authorization.permits(metadata.authorization) {
             return failure(
                 StatusCode::FORBIDDEN,
@@ -1451,6 +1502,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::Operational(command) => {
+                let command = decode_operational_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_operational_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
         }
     }
 
@@ -1499,7 +1558,8 @@ impl RpcCommand {
                 .or_else(|| PersistenceRpcCommand::parse(name).map(Self::Persistence))
                 .or_else(|| ProductivityRpcCommand::parse(name).map(Self::Productivity))
                 .or_else(|| NotebookRpcCommand::parse(name).map(Self::Notebook))
-                .or_else(|| PluginRpcCommand::parse(name).map(Self::Plugin)),
+                .or_else(|| PluginRpcCommand::parse(name).map(Self::Plugin))
+                .or_else(|| OperationalRpcCommand::parse(name).map(Self::Operational)),
         }
     }
 
@@ -1609,6 +1669,40 @@ impl RpcCommand {
                 application_error_code: "PLUGIN_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            Self::Operational(command) => CommandMetadata {
+                authorization: command.authorization(),
+                application_error_code: "OPERATIONAL_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
+        }
+    }
+}
+
+impl OperationalRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "get_logs" => Self::GetLogs,
+            "clear_logs" => Self::ClearLogs,
+            "get_log_settings" => Self::GetLogSettings,
+            "set_log_enabled" => Self::SetLogEnabled,
+            "set_log_max_size" => Self::SetLogMaxSize,
+            "get_process_list" => Self::GetProcessList,
+            "get_system_stats" => Self::GetSystemStats,
+            "get_tabularis_children" => Self::GetTabularisChildren,
+            _ => return None,
+        })
+    }
+
+    fn authorization(self) -> AuthorizationLevel {
+        match self {
+            Self::GetLogs
+            | Self::GetLogSettings
+            | Self::GetProcessList
+            | Self::GetSystemStats
+            | Self::GetTabularisChildren => AuthorizationLevel::Sensitive,
+            Self::ClearLogs | Self::SetLogEnabled | Self::SetLogMaxSize => {
+                AuthorizationLevel::LocalAdmin
+            }
         }
     }
 }
@@ -2271,6 +2365,50 @@ fn decode_notebook_command(
             NotebookCommand::List {
                 connection_id: request.connection_id,
             }
+        }
+    })
+}
+
+fn decode_operational_command(
+    command: OperationalRpcCommand,
+    body: &[u8],
+) -> Result<OperationalCommand, String> {
+    Ok(match command {
+        OperationalRpcCommand::GetLogs => {
+            let request: GetLogsRpcRequest = decode_payload(body)?;
+            OperationalCommand::GetLogs(request.request)
+        }
+        OperationalRpcCommand::ClearLogs => {
+            decode_empty_payload(body)?;
+            OperationalCommand::ClearLogs
+        }
+        OperationalRpcCommand::GetLogSettings => {
+            decode_empty_payload(body)?;
+            OperationalCommand::GetLogSettings
+        }
+        OperationalRpcCommand::SetLogEnabled => {
+            let request: SetLogEnabledRequest = decode_payload(body)?;
+            OperationalCommand::SetLogEnabled {
+                enabled: request.enabled,
+            }
+        }
+        OperationalRpcCommand::SetLogMaxSize => {
+            let request: SetLogMaxSizeRequest = decode_payload(body)?;
+            OperationalCommand::SetLogMaxSize {
+                max_size: request.max_size,
+            }
+        }
+        OperationalRpcCommand::GetProcessList => {
+            decode_empty_payload(body)?;
+            OperationalCommand::GetProcessList
+        }
+        OperationalRpcCommand::GetSystemStats => {
+            decode_empty_payload(body)?;
+            OperationalCommand::GetSystemStats
+        }
+        OperationalRpcCommand::GetTabularisChildren => {
+            decode_empty_payload(body)?;
+            OperationalCommand::GetTabularisChildren
         }
     })
 }
