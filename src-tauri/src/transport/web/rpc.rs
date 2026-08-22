@@ -5,6 +5,7 @@ use crate::application::{
     database_objects::DatabaseObjectCommand,
     database_transfers::{DatabaseTransferCommand, DumpOptions},
     generic_exports::GenericExportCommand,
+    mcp_host::McpHostCommand,
     metadata::MetadataCommand,
     notebooks::NotebookCommand,
     operations::{GetLogsRequest, OperationalCommand},
@@ -42,6 +43,20 @@ const MAX_CANCELLATION_ID_LENGTH: usize = 128;
 pub struct RpcDispatcher {
     application: Arc<dyn ApplicationApi>,
     active_cancellations: Arc<Mutex<HashSet<String>>>,
+    access_policy: RpcAccessPolicy,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RpcAccessPolicy {
+    pub mcp_host_configuration: bool,
+}
+
+impl Default for RpcAccessPolicy {
+    fn default() -> Self {
+        Self {
+            mcp_host_configuration: false,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -67,6 +82,13 @@ enum RpcCommand {
     Notebook(NotebookRpcCommand),
     Plugin(PluginRpcCommand),
     Operational(OperationalRpcCommand),
+    McpHost(McpHostRpcCommand),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum McpHostRpcCommand {
+    GetStatus,
+    InstallConfig,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -542,6 +564,12 @@ struct IdRequest {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PluginIdRequest {
     plugin_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct McpClientRequest {
+    client_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1208,9 +1236,17 @@ struct CancellationRegistration {
 
 impl RpcDispatcher {
     pub fn new(application: Arc<dyn ApplicationApi>) -> Self {
+        Self::with_access_policy(application, RpcAccessPolicy::default())
+    }
+
+    pub(crate) fn with_access_policy(
+        application: Arc<dyn ApplicationApi>,
+        access_policy: RpcAccessPolicy,
+    ) -> Self {
         Self {
             application,
             active_cancellations: Arc::new(Mutex::new(HashSet::new())),
+            access_policy,
         }
     }
 
@@ -1255,6 +1291,15 @@ impl RpcDispatcher {
                 request_id.0,
             );
         };
+        if matches!(command, RpcCommand::McpHost(_)) && !self.access_policy.mcp_host_configuration {
+            return failure(
+                StatusCode::FORBIDDEN,
+                "MCP_HOST_CONFIGURATION_DISABLED",
+                "MCP host configuration is disabled for this Web UI mode".to_string(),
+                None,
+                request_id.0,
+            );
+        }
         let metadata = command.metadata();
         if !granted_authorization.permits(metadata.authorization) {
             return failure(
@@ -1510,6 +1555,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::McpHost(command) => {
+                let command = decode_mcp_host_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_mcp_host_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
         }
     }
 
@@ -1559,7 +1612,8 @@ impl RpcCommand {
                 .or_else(|| ProductivityRpcCommand::parse(name).map(Self::Productivity))
                 .or_else(|| NotebookRpcCommand::parse(name).map(Self::Notebook))
                 .or_else(|| PluginRpcCommand::parse(name).map(Self::Plugin))
-                .or_else(|| OperationalRpcCommand::parse(name).map(Self::Operational)),
+                .or_else(|| OperationalRpcCommand::parse(name).map(Self::Operational))
+                .or_else(|| McpHostRpcCommand::parse(name).map(Self::McpHost)),
         }
     }
 
@@ -1674,7 +1728,22 @@ impl RpcCommand {
                 application_error_code: "OPERATIONAL_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            Self::McpHost(_) => CommandMetadata {
+                authorization: AuthorizationLevel::LocalAdmin,
+                application_error_code: "MCP_HOST_CONFIGURATION_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
         }
+    }
+}
+
+impl McpHostRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "get_mcp_status" => Self::GetStatus,
+            "install_mcp_config" => Self::InstallConfig,
+            _ => return None,
+        })
     }
 }
 
@@ -2409,6 +2478,24 @@ fn decode_operational_command(
         OperationalRpcCommand::GetTabularisChildren => {
             decode_empty_payload(body)?;
             OperationalCommand::GetTabularisChildren
+        }
+    })
+}
+
+fn decode_mcp_host_command(
+    command: McpHostRpcCommand,
+    body: &[u8],
+) -> Result<McpHostCommand, String> {
+    Ok(match command {
+        McpHostRpcCommand::GetStatus => {
+            decode_empty_payload(body)?;
+            McpHostCommand::GetStatus
+        }
+        McpHostRpcCommand::InstallConfig => {
+            let request: McpClientRequest = decode_payload(body)?;
+            McpHostCommand::InstallConfig {
+                client_id: request.client_id,
+            }
         }
     })
 }

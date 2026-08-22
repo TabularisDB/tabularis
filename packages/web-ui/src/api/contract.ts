@@ -61,6 +61,7 @@ import type {
   SystemStats,
   TabularisChildProcess,
 } from "../types/operations";
+import type { McpClientStatus } from "../types/mcp";
 
 export type AuthorizationLevel =
   | "session"
@@ -401,6 +402,14 @@ export interface CommandMap {
   get_installation_source: CommandDefinition<
     undefined,
     string | null,
+    "local-admin"
+  >;
+  // MCP client status and installation operate on host configuration files or
+  // local client CLIs, so browsers may use them only in local-admin Web mode.
+  get_mcp_status: CommandDefinition<undefined, McpClientStatus[], "local-admin">;
+  install_mcp_config: CommandDefinition<
+    { clientId: string },
+    string,
     "local-admin"
   >;
 

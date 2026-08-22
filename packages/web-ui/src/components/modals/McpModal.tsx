@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { X, Check, Copy, Cpu, Terminal } from "lucide-react";
 import { useAlert } from "../../hooks/useAlert";
@@ -15,16 +14,8 @@ import {
   AntigravityIcon,
 } from "../icons/ClientIcons";
 import { McpSafetySection } from "./mcp/McpSafetySection";
-
-interface McpClientStatus {
-  client_id: string;
-  client_name: string;
-  installed: boolean;
-  config_path: string | null;
-  executable_path: string;
-  client_type: string; // "file" | "command"
-  manual_command?: string | null;
-}
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import type { McpClientStatus } from "../../types/mcp";
 
 interface McpModalProps {
   isOpen: boolean;
@@ -59,6 +50,7 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
   const { t } = useTranslation();
   const editorTheme = useEditorTheme();
   const { showAlert } = useAlert();
+  const client = useTabularisClient();
   const [clients, setClients] = useState<McpClientStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedJson, setCopiedJson] = useState(false);
@@ -92,17 +84,15 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
   const loadStatus = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await invoke<McpClientStatus[]>("get_mcp_status");
+      const res = await client.call("get_mcp_status", undefined);
       setClients(res);
-      if (!selectedClient && res.length > 0) {
-        setSelectedClient(res[0]);
-      }
+      setSelectedClient((current) => current ?? res[0] ?? null);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [selectedClient]);
+  }, [client]);
 
   useEffect(() => {
     if (isOpen) {
@@ -112,7 +102,7 @@ export const McpModal = ({ isOpen, onClose }: McpModalProps) => {
 
   const handleInstall = async (clientId: string) => {
     try {
-      const clientName = await invoke<string>("install_mcp_config", { clientId });
+      const clientName = await client.call("install_mcp_config", { clientId });
       showAlert(t("mcp.successMsg", { client: clientName }), {
         kind: "info",
         title: t("mcp.successTitle"),

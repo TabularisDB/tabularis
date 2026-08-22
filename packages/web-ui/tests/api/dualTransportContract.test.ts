@@ -99,6 +99,24 @@ defineTransportContractSuite(
         return [];
       }
       if (command === "decide_pending_approval") return null;
+      if (command === "get_mcp_status") {
+        expect(request).toBeUndefined();
+        return [
+          {
+            client_id: "claude",
+            client_name: "Claude Desktop",
+            installed: false,
+            config_path: "/home/test/.config/Claude/claude_desktop_config.json",
+            executable_path: "/usr/bin/tabularis",
+            client_type: "file",
+            manual_command: null,
+          },
+        ];
+      }
+      if (command === "install_mcp_config") {
+        expect(request).toEqual({ clientId: "claude" });
+        return "Claude Desktop";
+      }
       if (command === "fetch_plugin_registry") {
         return [
           {

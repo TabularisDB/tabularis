@@ -858,6 +858,7 @@ function isSessionNegotiation(value: unknown): value is SessionNegotiation {
     typeof capabilities.uploads === "boolean" &&
     typeof capabilities.downloads === "boolean" &&
     typeof capabilities.pluginAssets === "boolean" &&
+    typeof capabilities.mcpHostConfiguration === "boolean" &&
     typeof queryPolicy.maxRowsPerPage === "number" &&
     Number.isSafeInteger(queryPolicy.maxRowsPerPage) &&
     queryPolicy.maxRowsPerPage > 0 &&

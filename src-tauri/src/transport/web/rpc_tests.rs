@@ -376,6 +376,29 @@ impl ApplicationApi for FixtureApplication {
             _ => Value::Null,
         })
     }
+
+    async fn execute_mcp_host_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: crate::application::mcp_host::McpHostCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(match command {
+            crate::application::mcp_host::McpHostCommand::GetStatus => serde_json::json!([{
+                "client_id": "claude",
+                "client_name": "Claude Desktop",
+                "installed": false,
+                "config_path": "/home/test/.config/Claude/claude_desktop_config.json",
+                "executable_path": "/usr/bin/tabularis",
+                "client_type": "file",
+                "manual_command": null
+            }]),
+            crate::application::mcp_host::McpHostCommand::InstallConfig { client_id } => {
+                assert_eq!(client_id, "claude");
+                serde_json::json!("Claude Desktop")
+            }
+        })
+    }
 }
 
 fn json_headers() -> HeaderMap {
@@ -619,6 +642,128 @@ fn registers_plugin_lifecycle_commands_with_local_admin_authorization() {
             "{desktop_only} must not expose server filesystem paths over browser RPC",
         );
     }
+}
+
+#[test]
+fn registers_mcp_host_commands_with_local_admin_authorization() {
+    for name in ["get_mcp_status", "install_mcp_config"] {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(
+            command.metadata().authorization,
+            AuthorizationLevel::LocalAdmin,
+            "{name}",
+        );
+    }
+}
+
+#[tokio::test]
+async fn rejects_mcp_host_configuration_without_local_admin_authorization() {
+    let dispatcher = RpcDispatcher::with_access_policy(
+        Arc::new(FixtureApplication::new(Duration::ZERO)),
+        RpcAccessPolicy {
+            mcp_host_configuration: true,
+        },
+    );
+    for (command, payload) in [
+        ("get_mcp_status", Value::Null),
+        (
+            "install_mcp_config",
+            serde_json::json!({"clientId": "claude"}),
+        ),
+    ] {
+        let response = dispatcher
+            .dispatch_authorized(
+                command,
+                RequestId(format!("restricted-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                Some(Uuid::new_v4()),
+                AuthorizationLevel::Sensitive,
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN, "{command}");
+        assert_eq!(response_json(response).await["error"]["code"], "FORBIDDEN");
+    }
+}
+
+#[tokio::test]
+async fn disables_mcp_host_configuration_when_web_policy_is_remote() {
+    let dispatcher = RpcDispatcher::with_access_policy(
+        Arc::new(FixtureApplication::new(Duration::ZERO)),
+        RpcAccessPolicy {
+            mcp_host_configuration: false,
+        },
+    );
+    for (command, payload) in [
+        ("get_mcp_status", Value::Null),
+        (
+            "install_mcp_config",
+            serde_json::json!({"clientId": "claude"}),
+        ),
+    ] {
+        let response = dispatcher
+            .dispatch(
+                command,
+                RequestId(format!("remote-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                Some(Uuid::new_v4()),
+            )
+            .await;
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN, "{command}");
+        assert_eq!(
+            response_json(response).await["error"]["code"],
+            "MCP_HOST_CONFIGURATION_DISABLED"
+        );
+    }
+}
+
+#[tokio::test]
+async fn routes_mcp_host_commands_through_the_shared_application_api() {
+    let application = Arc::new(FixtureApplication::new(Duration::ZERO));
+    let dispatcher = RpcDispatcher::with_access_policy(
+        application.clone(),
+        RpcAccessPolicy {
+            mcp_host_configuration: true,
+        },
+    );
+
+    let status = dispatcher
+        .dispatch(
+            "get_mcp_status",
+            RequestId("local-mcp-status".to_string()),
+            &json_headers(),
+            Bytes::from_static(b"null"),
+            Some(Uuid::new_v4()),
+        )
+        .await;
+    assert_eq!(status.status(), StatusCode::OK);
+    assert_eq!(
+        response_json(status).await["data"][0]["client_id"],
+        "claude"
+    );
+
+    let install = dispatcher
+        .dispatch(
+            "install_mcp_config",
+            RequestId("local-mcp-install".to_string()),
+            &json_headers(),
+            Bytes::from_static(br#"{"clientId":"claude"}"#),
+            Some(Uuid::new_v4()),
+        )
+        .await;
+    assert_eq!(install.status(), StatusCode::OK);
+    assert_eq!(response_json(install).await["data"], "Claude Desktop");
+
+    let contexts = application
+        .contexts
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    assert_eq!(contexts.len(), 2);
+    assert!(contexts
+        .iter()
+        .all(|context| context.authorization == AuthorizationLevel::LocalAdmin));
 }
 
 #[test]

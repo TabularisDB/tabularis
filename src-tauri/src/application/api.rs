@@ -1,6 +1,7 @@
 use super::{
     ai, connection_files, connections, database_objects, database_transfers, generic_exports,
-    metadata, notebooks, operations, persistence, plugins, productivity, queries, records, tunnels,
+    mcp_host, metadata, notebooks, operations, persistence, plugins, productivity, queries,
+    records, tunnels,
 };
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use async_trait::async_trait;
@@ -156,6 +157,12 @@ pub trait ApplicationApi: Send + Sync {
         &self,
         context: ApplicationRequestContext,
         command: operations::OperationalCommand,
+    ) -> Result<Value, ApplicationError>;
+
+    async fn execute_mcp_host_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: mcp_host::McpHostCommand,
     ) -> Result<Value, ApplicationError>;
 }
 
@@ -386,6 +393,16 @@ impl ApplicationApi for RuntimeApplicationApi {
         command: operations::OperationalCommand,
     ) -> Result<Value, ApplicationError> {
         operations::execute(command)
+            .await
+            .map_err(ApplicationError::new)
+    }
+
+    async fn execute_mcp_host_command(
+        &self,
+        _context: ApplicationRequestContext,
+        command: mcp_host::McpHostCommand,
+    ) -> Result<Value, ApplicationError> {
+        mcp_host::execute(command)
             .await
             .map_err(ApplicationError::new)
     }

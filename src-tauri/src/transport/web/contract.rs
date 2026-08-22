@@ -21,6 +21,7 @@ pub struct WebTransportCapabilities {
     pub uploads: bool,
     pub downloads: bool,
     pub plugin_assets: bool,
+    pub mcp_host_configuration: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -33,14 +34,14 @@ pub struct WebQueryResponsePolicy {
 
 impl SessionNegotiation {
     pub fn skeleton() -> Self {
-        Self::new(false, String::new())
+        Self::new(false, String::new(), false)
     }
 
-    pub fn authenticated(csrf_token: String) -> Self {
-        Self::new(true, csrf_token)
+    pub fn authenticated(csrf_token: String, mcp_host_configuration: bool) -> Self {
+        Self::new(true, csrf_token, mcp_host_configuration)
     }
 
-    fn new(authenticated: bool, csrf_token: String) -> Self {
+    fn new(authenticated: bool, csrf_token: String, mcp_host_configuration: bool) -> Self {
         Self {
             api_version: WEB_API_VERSION.to_string(),
             server_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -52,6 +53,7 @@ impl SessionNegotiation {
                 uploads: true,
                 downloads: true,
                 plugin_assets: true,
+                mcp_host_configuration,
             },
             query_response_policy: WebQueryResponsePolicy {
                 max_rows_per_page: crate::application::queries::WEB_MAX_ROWS_PER_PAGE,

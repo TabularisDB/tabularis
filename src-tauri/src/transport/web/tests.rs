@@ -19,6 +19,25 @@ use tokio_tungstenite::tungstenite::{Error as WebSocketError, Message as WebSock
 const CSRF_HEADER: &str = "x-tabularis-csrf";
 const REQUEST_ID_HEADER: &str = "x-request-id";
 
+#[test]
+fn advertises_mcp_host_configuration_only_for_loopback_web_origins() {
+    for origin in [
+        "http://127.0.0.1:8080",
+        "http://[::1]:8080",
+        "http://localhost:8080",
+    ] {
+        assert!(server::mcp_host_configuration_enabled(origin), "{origin}");
+    }
+    for origin in ["http://0.0.0.0:8080", "http://192.0.2.10:8080"] {
+        assert!(!server::mcp_host_configuration_enabled(origin), "{origin}");
+    }
+
+    let local = SessionNegotiation::authenticated("csrf".to_string(), true);
+    let remote = SessionNegotiation::authenticated("csrf".to_string(), false);
+    assert!(local.capabilities.mcp_host_configuration);
+    assert!(!remote.capabilities.mcp_host_configuration);
+}
+
 async fn rpc_data(
     client: &reqwest::Client,
     base_url: &str,

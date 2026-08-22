@@ -64,6 +64,7 @@ const SESSION = {
     uploads: false,
     downloads: false,
     pluginAssets: false,
+    mcpHostConfiguration: true,
   },
   queryResponsePolicy: {
     maxRowsPerPage: 10_000,
@@ -240,6 +241,25 @@ export function defineTransportContractSuite(
       await expect(
         harness.transport.call("delete_ai_key", { provider: "openai" }),
       ).resolves.toBeNull();
+    });
+
+    it("preserves local-admin MCP host configuration contracts", async () => {
+      await expect(
+        harness.transport.call("get_mcp_status", undefined),
+      ).resolves.toEqual([
+        {
+          client_id: "claude",
+          client_name: "Claude Desktop",
+          installed: false,
+          config_path: "/home/test/.config/Claude/claude_desktop_config.json",
+          executable_path: "/usr/bin/tabularis",
+          client_type: "file",
+          manual_command: null,
+        },
+      ]);
+      await expect(
+        harness.transport.call("install_mcp_config", { clientId: "claude" }),
+      ).resolves.toBe("Claude Desktop");
     });
 
     it("preserves local-admin plugin lifecycle contracts", async () => {
@@ -1067,6 +1087,24 @@ async function handleRequest(
     delete_ai_key: {
       request: { provider: "openai" },
       response: null,
+    },
+    get_mcp_status: {
+      request: null,
+      response: [
+        {
+          client_id: "claude",
+          client_name: "Claude Desktop",
+          installed: false,
+          config_path: "/home/test/.config/Claude/claude_desktop_config.json",
+          executable_path: "/usr/bin/tabularis",
+          client_type: "file",
+          manual_command: null,
+        },
+      ],
+    },
+    install_mcp_config: {
+      request: { clientId: "claude" },
+      response: "Claude Desktop",
     },
     fetch_plugin_registry: {
       request: null,

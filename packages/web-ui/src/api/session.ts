@@ -4,6 +4,7 @@ export interface WebTransportCapabilities {
   readonly uploads: boolean;
   readonly downloads: boolean;
   readonly pluginAssets: boolean;
+  readonly mcpHostConfiguration: boolean;
 }
 
 export interface WebQueryResponsePolicy {

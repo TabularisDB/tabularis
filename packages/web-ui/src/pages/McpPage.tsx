@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import Editor from "@monaco-editor/react";
@@ -23,16 +22,8 @@ import { McpSafetySection } from "../components/modals/mcp/McpSafetySection";
 import { useAlert } from "../hooks/useAlert";
 import { useEditorTheme } from "../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../themes/themeUtils";
-
-interface McpClientStatus {
-  client_id: string;
-  client_name: string;
-  installed: boolean;
-  config_path: string | null;
-  executable_path: string;
-  client_type: string;
-  manual_command?: string | null;
-}
+import { useTabularisClient } from "../hooks/useTabularisClient";
+import type { McpClientStatus } from "../types/mcp";
 
 type McpPageTab = "setup" | "activity" | "safety";
 
@@ -128,6 +119,7 @@ function McpSetupPanel() {
   const { t } = useTranslation();
   const editorTheme = useEditorTheme();
   const { showAlert } = useAlert();
+  const client = useTabularisClient();
   const [clients, setClients] = useState<McpClientStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedJson, setCopiedJson] = useState(false);
@@ -171,7 +163,7 @@ function McpSetupPanel() {
   const loadStatus = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await invoke<McpClientStatus[]>("get_mcp_status");
+      const res = await client.call("get_mcp_status", undefined);
       setClients(res);
       setSelectedClientId((current) => current ?? res[0]?.client_id ?? null);
     } catch (e) {
@@ -179,7 +171,7 @@ function McpSetupPanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [client]);
 
   useEffect(() => {
     loadStatus();
@@ -187,7 +179,7 @@ function McpSetupPanel() {
 
   const handleInstall = async (clientId: string) => {
     try {
-      const clientName = await invoke<string>("install_mcp_config", {
+      const clientName = await client.call("install_mcp_config", {
         clientId,
       });
       showAlert(t("mcp.successMsg", { client: clientName }), {

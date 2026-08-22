@@ -14,7 +14,6 @@
     "packages/web-ui/src/components/modals/ClipboardImportModal.tsx": 2,
     "packages/web-ui/src/components/modals/CommunityModal.tsx": 1,
     "packages/web-ui/src/components/modals/ConfigJsonModal.tsx": 1,
-    "packages/web-ui/src/components/modals/McpModal.tsx": 1,
     "packages/web-ui/src/components/modals/NewConnectionModal.tsx": 2,
     "packages/web-ui/src/components/modals/OpenSourceLibrariesModal.tsx": 1,
     "packages/web-ui/src/components/modals/PluginInstallConfirmModal.tsx": 1,
@@ -39,14 +38,12 @@
     "packages/web-ui/src/hooks/useDeepLinkInstall.ts": 2,
     "packages/web-ui/src/hooks/usePluginApi.ts": 2,
     "packages/web-ui/src/pages/Editor.tsx": 1,
-    "packages/web-ui/src/pages/McpPage.tsx": 1,
     "packages/web-ui/src/pages/VisualExplainPage.tsx": 2,
     "packages/web-ui/src/utils/mcpApprovalAttention.ts": 2
   },
   "legacyDirectInvokes": {
     "packages/web-ui/src/components/modals/ClipboardImportModal.tsx": 2,
     "packages/web-ui/src/components/modals/ConfigJsonModal.tsx": 1,
-    "packages/web-ui/src/components/modals/McpModal.tsx": 2,
     "packages/web-ui/src/components/modals/NewConnectionModal.tsx": 2,
     "packages/web-ui/src/components/settings/PluginsTab.tsx": 1,
     "packages/web-ui/src/contexts/DatabaseProvider.tsx": 6,
@@ -55,7 +52,6 @@
     "packages/web-ui/src/hooks/useDataTypes.ts": 1,
     "packages/web-ui/src/hooks/useDeepLinkInstall.ts": 1,
     "packages/web-ui/src/pages/Editor.tsx": 1,
-    "packages/web-ui/src/pages/McpPage.tsx": 2,
     "packages/web-ui/src/pages/VisualExplainPage.tsx": 2
   }
 }

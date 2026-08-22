@@ -131,6 +131,11 @@ function assertCommandContract(caller: TypedCommandCaller): void {
   const pluginRestart: Promise<void> = caller.call("restart_plugin_process", {
     pluginId: "postgres-driver",
   });
+  const mcpStatus = caller.call("get_mcp_status", undefined);
+  const installedMcpClient: Promise<string> = caller.call(
+    "install_mcp_config",
+    { clientId: "claude" },
+  );
   const logs = caller.call("get_logs", {
     request: { limit: 100, level_filter: "ERROR" },
   });
@@ -209,6 +214,8 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     pluginCancellation,
     pluginReadme,
     pluginRestart,
+    mcpStatus,
+    installedMcpClient,
     logs,
     logSettings,
     processes,
@@ -266,6 +273,8 @@ const queryHistoryAuthorization: CommandAuthorization<"get_query_history"> = "da
 const notebookAuthorization: CommandAuthorization<"save_notebook"> = "database";
 const pluginInstallAuthorization: CommandAuthorization<"install_plugin"> =
   "local-admin";
+const mcpAuthorization: CommandAuthorization<"install_mcp_config"> =
+  "local-admin";
 const logReadAuthorization: CommandAuthorization<"get_logs"> = "sensitive";
 const clearLogsAuthorization: CommandAuthorization<"clear_logs"> = "local-admin";
 const taskStatsAuthorization: CommandAuthorization<"get_system_stats"> = "sensitive";
@@ -309,6 +318,7 @@ void savedQueryAuthorization;
 void queryHistoryAuthorization;
 void notebookAuthorization;
 void pluginInstallAuthorization;
+void mcpAuthorization;
 void logReadAuthorization;
 void clearLogsAuthorization;
 void taskStatsAuthorization;

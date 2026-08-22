@@ -16,6 +16,7 @@ const SESSION = {
     uploads: false,
     downloads: false,
     pluginAssets: false,
+    mcpHostConfiguration: true,
   },
   queryResponsePolicy: {
     maxRowsPerPage: 10_000,

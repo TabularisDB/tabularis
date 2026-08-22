@@ -4,7 +4,7 @@ use super::auth::{
 };
 use super::contract::SessionNegotiation;
 use super::events::{ClientEventMessage, EventConnection, ServerEventMessage, WebEventBus};
-use super::rpc::{RequestId, RpcDispatcher};
+use super::rpc::{RequestId, RpcAccessPolicy, RpcDispatcher};
 use crate::application::file_transfers::{
     FileTransferStore, TransferReader, MAX_FILE_TRANSFER_BYTES,
 };
@@ -31,6 +31,7 @@ use tokio::time::{Instant, MissedTickBehavior};
 use tokio_util::io::ReaderStream;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::{ServeDir, ServeFile};
+use url::Host;
 use uuid::Uuid;
 
 const BOOTSTRAP_PATH: &str = "/api/v1/auth/bootstrap";
@@ -60,6 +61,7 @@ struct WebServerState {
     events: WebEventBus,
     transfers: FileTransferStore,
     data_dir: PathBuf,
+    mcp_host_configuration: bool,
 }
 
 #[derive(Deserialize)]
@@ -168,12 +170,19 @@ fn router(
     let index = web_root.join("index.html");
     let static_files = ServeDir::new(web_root).fallback(ServeFile::new(index));
     let max_body_bytes = security.max_body_bytes();
+    let mcp_host_configuration = mcp_host_configuration_enabled(security.expected_origin());
     let state = WebServerState {
         security,
-        rpc: RpcDispatcher::new(application),
+        rpc: RpcDispatcher::with_access_policy(
+            application,
+            RpcAccessPolicy {
+                mcp_host_configuration,
+            },
+        ),
         events,
         transfers: FileTransferStore::new(&data_dir),
         data_dir,
+        mcp_host_configuration,
     };
 
     let standard_routes = Router::new()
@@ -249,11 +258,30 @@ async fn bootstrap(
     response
 }
 
-async fn session(Extension(session): Extension<AuthenticatedSession>) -> impl IntoResponse {
+async fn session(
+    State(state): State<WebServerState>,
+    Extension(session): Extension<AuthenticatedSession>,
+) -> impl IntoResponse {
     (
         [(CACHE_CONTROL, "no-store")],
-        Json(SessionNegotiation::authenticated(session.csrf_token)),
+        Json(SessionNegotiation::authenticated(
+            session.csrf_token,
+            state.mcp_host_configuration,
+        )),
     )
+}
+
+pub(crate) fn mcp_host_configuration_enabled(origin: &str) -> bool {
+    url::Url::parse(origin)
+        .ok()
+        .and_then(|url| {
+            url.host().map(|host| match host {
+                Host::Domain(host) => host.eq_ignore_ascii_case("localhost"),
+                Host::Ipv4(host) => host.is_loopback(),
+                Host::Ipv6(host) => host.is_loopback(),
+            })
+        })
+        .unwrap_or(false)
 }
 
 async fn rpc(

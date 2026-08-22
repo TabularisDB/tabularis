@@ -53,14 +53,14 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 23,
-    "literalCallSiteCount": 30,
+    "literalCommandCount": 21,
+    "literalCallSiteCount": 26,
     "dynamicCallSiteCount": 0,
     "handlerRegistrationCount": 258,
     "registeredCommandCount": 258,
     "duplicateHandlerRegistrations": [],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 235
+    "registeredCommandsWithoutFrontendCall": 237
   },
   "commands": [
     {
@@ -176,24 +176,6 @@
       ]
     },
     {
-      "name": "get_mcp_status",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "local-admin",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/McpModal.tsx",
-          "line": 95
-        },
-        {
-          "file": "packages/web-ui/src/pages/McpPage.tsx",
-          "line": 174
-        }
-      ]
-    },
-    {
       "name": "get_pending_explain_file",
       "featureGroup": "files",
       "eventUse": "none",
@@ -204,24 +186,6 @@
         {
           "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
           "line": 115
-        }
-      ]
-    },
-    {
-      "name": "install_mcp_config",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "write",
-      "authorizationLevel": "local-admin",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/McpModal.tsx",
-          "line": 115
-        },
-        {
-          "file": "packages/web-ui/src/pages/McpPage.tsx",
-          "line": 190
         }
       ]
     },
@@ -541,6 +505,7 @@
     "get_materialized_view_columns",
     "get_materialized_view_definition",
     "get_materialized_views",
+    "get_mcp_status",
     "get_plugin_dir",
     "get_plugin_manifest",
     "get_plugin_startup_errors",
@@ -574,6 +539,7 @@
     "import_database",
     "import_theme",
     "insert_record",
+    "install_mcp_config",
     "install_plugin",
     "is_debug_mode",
     "kill_plugin_process",
