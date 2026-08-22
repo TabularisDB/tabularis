@@ -10,7 +10,8 @@ use axum::body::Bytes;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Extension, Path, Query, Request, State};
 use axum::http::header::{
-    CACHE_CONTROL, CONTENT_TYPE, COOKIE, HOST, LOCATION, ORIGIN, REFERRER_POLICY, SET_COOKIE,
+    CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_SECURITY_POLICY, CONTENT_TYPE, COOKIE, HOST,
+    LOCATION, ORIGIN, REFERRER_POLICY, SET_COOKIE, X_CONTENT_TYPE_OPTIONS,
 };
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
@@ -58,6 +59,11 @@ struct BootstrapQuery {
 #[derive(Serialize)]
 struct IconUploadResponse {
     token: String,
+}
+
+#[derive(Serialize)]
+struct BlobUploadResponse {
+    value: String,
 }
 
 pub async fn run(options: WebServerOptions) -> Result<(), String> {
@@ -158,9 +164,7 @@ fn router(
         data_dir,
     };
 
-    Router::new()
-        .route("/healthz", get(health))
-        .route(BOOTSTRAP_PATH, get(bootstrap))
+    let standard_routes = Router::new()
         .route("/api/v1/session", get(session))
         .route("/api/v1/logout", post(logout))
         .route("/api/v1/events", get(event_stream))
@@ -174,9 +178,22 @@ fn router(
             get(connection_icon_asset),
         )
         .route("/api/*path", any(StatusCode::NOT_FOUND))
+        .layer(RequestBodyLimitLayer::new(max_body_bytes));
+    let blob_routes = Router::new()
+        .route("/api/v1/uploads/blobs", post(upload_blob))
+        .route("/api/v1/uploads/blobs/:token", get(uploaded_blob))
+        .route("/api/v1/downloads/:token", get(download_blob))
+        .layer(RequestBodyLimitLayer::new(
+            crate::application::records::MAX_WEB_BLOB_BYTES as usize,
+        ));
+
+    Router::new()
+        .route("/healthz", get(health))
+        .route(BOOTSTRAP_PATH, get(bootstrap))
+        .merge(standard_routes)
+        .merge(blob_routes)
         .fallback_service(static_files)
         .with_state(state.clone())
-        .layer(RequestBodyLimitLayer::new(max_body_bytes))
         .layer(middleware::from_fn_with_state(state, security_gate))
         .layer(middleware::from_fn(add_request_id))
 }
@@ -262,6 +279,86 @@ async fn upload_connection_icon(
         )
             .into_response(),
     }
+}
+
+async fn upload_blob(
+    State(state): State<WebServerState>,
+    Extension(session): Extension<AuthenticatedSession>,
+    body: Bytes,
+) -> Response {
+    match crate::application::records::store_blob_upload(
+        &state.data_dir,
+        session.event_scope(),
+        &body,
+    ) {
+        Ok(value) => (
+            StatusCode::CREATED,
+            [(CACHE_CONTROL, "no-store")],
+            Json(BlobUploadResponse { value }),
+        )
+            .into_response(),
+        Err(error) => (
+            StatusCode::BAD_REQUEST,
+            [(CACHE_CONTROL, "no-store")],
+            error,
+        )
+            .into_response(),
+    }
+}
+
+async fn uploaded_blob(
+    State(state): State<WebServerState>,
+    Path(token): Path<String>,
+    Extension(session): Extension<AuthenticatedSession>,
+) -> Response {
+    match crate::application::records::read_upload(&state.data_dir, session.event_scope(), &token) {
+        Ok(bytes) => binary_blob_response(bytes, false),
+        Err(_) => status_response(StatusCode::NOT_FOUND),
+    }
+}
+
+async fn download_blob(
+    State(state): State<WebServerState>,
+    Path(token): Path<String>,
+    Extension(session): Extension<AuthenticatedSession>,
+) -> Response {
+    match crate::application::records::consume_download(
+        &state.data_dir,
+        session.event_scope(),
+        &token,
+    ) {
+        Ok((bytes, mime)) => (
+            StatusCode::OK,
+            [
+                (CACHE_CONTROL, "no-store"),
+                (CONTENT_TYPE, mime.as_str()),
+                (CONTENT_DISPOSITION, "attachment"),
+                (X_CONTENT_TYPE_OPTIONS, "nosniff"),
+            ],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => status_response(StatusCode::NOT_FOUND),
+    }
+}
+
+fn binary_blob_response(bytes: Vec<u8>, attachment: bool) -> Response {
+    let mime = infer::get(&bytes)
+        .map(|kind| kind.mime_type())
+        .unwrap_or("application/octet-stream");
+    let disposition = if attachment { "attachment" } else { "inline" };
+    (
+        StatusCode::OK,
+        [
+            (CACHE_CONTROL, "no-store"),
+            (CONTENT_TYPE, mime),
+            (CONTENT_DISPOSITION, disposition),
+            (CONTENT_SECURITY_POLICY, "sandbox; default-src 'none'"),
+            (X_CONTENT_TYPE_OPTIONS, "nosniff"),
+        ],
+        bytes,
+    )
+        .into_response()
 }
 
 async fn connection_icon_asset(
@@ -470,6 +567,7 @@ async fn logout(
     Extension(session): Extension<AuthenticatedSession>,
 ) -> Response {
     state.events.remove_session(session.event_scope());
+    crate::application::records::cleanup_session_transfers(&state.data_dir, session.event_scope());
     state.security.logout(&session);
     let mut response = StatusCode::NO_CONTENT.into_response();
     response

@@ -2820,7 +2820,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             ...deletions.map(async (pkMap) => {
               let remaining = countByKey.get(serializePkKey(pkMap)) ?? 1;
               while (remaining > 0) {
-                const affected = await invoke<number>("delete_record", {
+                const affected = await client.call("delete_record", {
                   connectionId: activeConnectionId,
                   table: activeTable,
                   pkMap,
@@ -2841,7 +2841,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         } else {
           promises.push(
             ...deletions.map((pkMap) =>
-              invoke("delete_record", {
+              client.call("delete_record", {
                 connectionId: activeConnectionId,
                 table: activeTable,
                 pkMap,
@@ -2877,7 +2877,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
             ...Array.from(updatesByRow.values()).map(async (row) => {
               const plan = buildKeylessUpdatePlan(row.pkVal, row.changes);
               for (const step of plan) {
-                const affected = await invoke<number>("update_record", {
+                const affected = await client.call("update_record", {
                   connectionId: activeConnectionId,
                   table: activeTable,
                   pkMap: step.pkMap,
@@ -2900,7 +2900,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         } else {
           promises.push(
             ...updates.map((u) =>
-              invoke("update_record", {
+              client.call("update_record", {
                 connectionId: activeConnectionId,
                 table: activeTable,
                 pkMap: u.pkVal,
@@ -2917,7 +2917,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       if (insertions.length > 0) {
         promises.push(
           ...insertions.map((insertion) =>
-            invoke("insert_record", {
+            client.call("insert_record", {
               connectionId: activeConnectionId,
               table: activeTable,
               data: insertion.data,

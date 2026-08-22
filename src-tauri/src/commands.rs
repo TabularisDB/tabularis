@@ -2988,22 +2988,16 @@ pub async fn delete_record<R: Runtime>(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
-    log::info!(
-        "Executing query on connection: {} | Query: DELETE FROM {} WHERE pk_map={:?}",
-        connection_id,
+    crate::application::records::delete_record(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         table,
-        pk_map
-    );
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    if let Some(db) = database {
-        params.database = crate::models::DatabaseSelection::Single(db);
-    }
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.delete_record(&params, &table, &pk_map, schema.as_deref())
-        .await
+        pk_map,
+        schema,
+        database,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -3017,31 +3011,16 @@ pub async fn update_record<R: Runtime>(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
-    log::info!(
-        "Executing query on connection: {} | Query: UPDATE {} SET {} = {:?} WHERE pk_map={:?}",
-        connection_id,
+    crate::application::records::update_record(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         table,
+        pk_map,
         col_name,
         new_val,
-        pk_map
-    );
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    if let Some(db) = database {
-        params.database = crate::models::DatabaseSelection::Single(db);
-    }
-    let max_blob_size = crate::config::get_max_blob_size(&app);
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.update_record(
-        &params,
-        &table,
-        &pk_map,
-        &col_name,
-        new_val,
-        schema.as_deref(),
-        max_blob_size,
+        schema,
+        database,
     )
     .await
 }
@@ -3072,6 +3051,30 @@ pub async fn save_blob_to_file<R: Runtime>(
     .await
 }
 
+#[tauri::command]
+pub async fn fetch_blob<R: Runtime>(
+    app: AppHandle<R>,
+    connection_id: String,
+    table: String,
+    col_name: String,
+    pk_map: std::collections::HashMap<String, serde_json::Value>,
+    schema: Option<String>,
+    database: Option<String>,
+) -> Result<crate::application::records::BlobFetchResponse, String> {
+    crate::application::records::fetch_blob(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table,
+        col_name,
+        pk_map,
+        schema,
+        database,
+        crate::application::records::BlobFetchPolicy::Inline,
+    )
+    .await
+}
+
 /// Fetches a BLOB column from the database and returns it as a data: URL for image preview.
 /// Same query logic as save_blob_to_file but returns the data in-memory instead of writing to disk.
 #[tauri::command]
@@ -3082,36 +3085,19 @@ pub async fn fetch_blob_as_data_url<R: Runtime>(
     col_name: String,
     pk_map: std::collections::HashMap<String, serde_json::Value>,
     schema: Option<String>,
+    database: Option<String>,
 ) -> Result<String, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let wire = drv
-        .fetch_blob_as_data_url(
-            &params,
-            &table,
-            &col_name,
-            &pk_map,
-            schema.as_deref(),
-        )
-        .await?;
-    // Convert the BLOB wire format to a data: URL
-    // wire format: "BLOB:<size>:<mime>:<base64>"
-    if !wire.starts_with("BLOB:") {
-        return Err("Invalid BLOB wire format".into());
-    }
-    let after_prefix = &wire[5..]; // skip "BLOB:"
-    let size_end = after_prefix.find(':').ok_or("Invalid BLOB wire format")?;
-    let after_size = &after_prefix[size_end + 1..];
-    let mime_end = after_size.find(':').ok_or("Invalid BLOB wire format")?;
-    let mime = &after_size[..mime_end];
-    if !mime.starts_with("image/") {
-        return Err(format!("Not an image: {}", mime));
-    }
-    let base64_payload = &after_size[mime_end + 1..];
-    Ok(format!("data:{};base64,{}", mime, base64_payload))
+    crate::application::records::fetch_blob_as_data_url(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table,
+        col_name,
+        pk_map,
+        schema,
+        database,
+    )
+    .await
 }
 
 /// Detects the MIME type of base64-encoded binary data using magic-byte analysis
@@ -3119,11 +3105,7 @@ pub async fn fetch_blob_as_data_url<R: Runtime>(
 /// Called by the frontend after the user selects a file to upload.
 #[tauri::command]
 pub fn detect_blob_mime(base64_data: String) -> Result<String, String> {
-    use base64::Engine;
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(&base64_data)
-        .map_err(|e| format!("Invalid base64: {}", e))?;
-    Ok(crate::drivers::common::encode_blob_full(&bytes))
+    crate::application::records::detect_blob_mime(&base64_data)
 }
 
 /// Prepares a file for BLOB upload by returning only metadata and a file reference.
@@ -3184,14 +3166,7 @@ pub async fn load_blob_from_file<R: Runtime>(
 /// locally, avoiding a full round-trip of the entire file over IPC.
 #[tauri::command]
 pub fn detect_mime_type(header_base64: String) -> Result<String, String> {
-    use base64::Engine;
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(&header_base64)
-        .map_err(|e| format!("Invalid base64: {}", e))?;
-    let mime = infer::get(&bytes)
-        .map(|k| k.mime_type())
-        .unwrap_or("application/octet-stream");
-    Ok(mime.to_string())
+    crate::application::records::detect_mime_type(&header_base64)
 }
 
 /// Gets file statistics (size and MIME type) without reading the entire file.
@@ -3271,24 +3246,16 @@ pub async fn insert_record<R: Runtime>(
     schema: Option<String>,
     database: Option<String>,
 ) -> Result<u64, String> {
-    let columns: Vec<&str> = data.keys().map(|k| k.as_str()).collect();
-    log::info!(
-        "Executing query on connection: {} | Query: INSERT INTO {} ({}) VALUES (...)",
-        connection_id,
+    crate::application::records::insert_record(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         table,
-        columns.join(", ")
-    );
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    if let Some(db) = database {
-        params.database = crate::models::DatabaseSelection::Single(db);
-    }
-    let max_blob_size = crate::config::get_max_blob_size(&app);
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.insert_record(&params, &table, data, schema.as_deref(), max_blob_size)
-        .await
+        data,
+        schema,
+        database,
+    )
+    .await
 }
 
 #[cfg(test)]

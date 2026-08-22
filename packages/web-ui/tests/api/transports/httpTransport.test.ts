@@ -135,6 +135,81 @@ describe("HttpTransport", () => {
     expect(headers.get("x-tabularis-csrf")).toBe("csrf-token");
   });
 
+  it("uploads BLOBs and consumes single-use downloads with the authenticated session", async () => {
+    const transferSession = {
+      ...SESSION,
+      capabilities: {
+        ...SESSION.capabilities,
+        uploads: true,
+        downloads: true,
+      },
+    };
+    const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    const fetchRequest = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse(transferSession))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            value:
+              "BLOB_UPLOAD_REF:4:image/png:00000000-0000-4000-8000-000000000000",
+          },
+          201,
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(bytes, {
+          headers: { "content-type": "image/png" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(bytes, {
+          headers: { "content-type": "image/png" },
+        }),
+      );
+    const transport = new HttpTransport({
+      baseUrl: "http://127.0.0.1:8080",
+      fetch: fetchRequest,
+    });
+    const file = new Blob([bytes], { type: "image/png" });
+
+    await expect(transport.uploadBlob(file)).resolves.toBe(
+      "BLOB_UPLOAD_REF:4:image/png:00000000-0000-4000-8000-000000000000",
+    );
+    expect(
+      transport.uploadedBlobUrl("00000000-0000-4000-8000-000000000000"),
+    ).toBe(
+      "http://127.0.0.1:8080/api/v1/uploads/blobs/00000000-0000-4000-8000-000000000000",
+    );
+    const uploaded = await transport.readUploadedBlob(
+      "00000000-0000-4000-8000-000000000000",
+    );
+    expect(new Uint8Array(await uploaded.arrayBuffer())).toEqual(bytes);
+    const downloaded = await transport.consumeBlobDownload(
+      "11111111-1111-4111-8111-111111111111",
+    );
+    expect(downloaded.type).toBe("image/png");
+    expect(new Uint8Array(await downloaded.arrayBuffer())).toEqual(bytes);
+
+    const [uploadUrl, uploadRequest] = fetchRequest.mock.calls[1];
+    expect(uploadUrl).toBe("http://127.0.0.1:8080/api/v1/uploads/blobs");
+    expect(uploadRequest?.body).toBe(file);
+    const [uploadReadUrl, uploadReadRequest] = fetchRequest.mock.calls[2];
+    expect(uploadReadUrl).toBe(
+      "http://127.0.0.1:8080/api/v1/uploads/blobs/00000000-0000-4000-8000-000000000000",
+    );
+    expect(uploadReadRequest).toEqual(
+      expect.objectContaining({ method: "GET", credentials: "same-origin" }),
+    );
+    const [downloadUrl, downloadRequest] = fetchRequest.mock.calls[3];
+    expect(downloadUrl).toBe(
+      "http://127.0.0.1:8080/api/v1/downloads/11111111-1111-4111-8111-111111111111",
+    );
+    expect(downloadRequest).toEqual(
+      expect.objectContaining({ method: "GET", credentials: "same-origin" }),
+    );
+  });
+
   it("normalizes RPC envelopes and network failures", async () => {
     const fetchRequest = vi
       .fn<typeof fetch>()

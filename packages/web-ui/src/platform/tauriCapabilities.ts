@@ -6,7 +6,7 @@ import {
   type OpenDialogOptions,
   type SaveDialogOptions,
 } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
+import { readFile, writeFile } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
@@ -21,17 +21,26 @@ import {
   createPlatformCapabilityNegotiation,
   requirePlatformCapability,
   type AttentionLevel,
+  type BlobRecordRequest,
   type ChooseInputFileOptions,
   type ChooseSaveTargetOptions,
   type ChosenInputFile,
   type ChosenSaveTarget,
   type DownloadFileRequest,
+  type FetchedBlob,
   type NotificationOutcome,
   type OpenRouteRequest,
   type PlatformCapabilities,
   type PlatformCapabilityNegotiation,
   type PlatformNotification,
 } from "./capabilities";
+import type { BlobFetchResponse } from "../api/contract";
+import {
+  blobPayloadToBytes,
+  extractBase64Payload,
+  extractBlobMetadata,
+  parseBlobFileRef,
+} from "../utils/blob";
 
 export interface TauriPlatformOperations {
   chooseInputPath(
@@ -41,6 +50,7 @@ export interface TauriPlatformOperations {
   readClipboardText(): Promise<string>;
   writeClipboardText(text: string): Promise<void>;
   writeFileContents(reference: string, contents: Uint8Array): Promise<void>;
+  readFileContents(reference: string): Promise<Uint8Array>;
   openUrl(url: string): Promise<void>;
   isNotificationPermissionGranted(): Promise<boolean>;
   requestNotificationPermission(): Promise<string>;
@@ -121,6 +131,7 @@ const defaultTauriOperations: TauriPlatformOperations = {
   readClipboardText: readText,
   writeClipboardText: writeText,
   writeFileContents: writeFile,
+  readFileContents: readFile,
   openUrl,
   isNotificationPermissionGranted: isPermissionGranted,
   requestNotificationPermission: requestPermission,
@@ -206,6 +217,47 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
       connectionId,
       sourcePath: selected.reference,
     });
+  }
+
+  async chooseBlob(): Promise<string | null> {
+    const selected = await this.chooseInputFile();
+    if (!selected) return null;
+    return invoke<string>("load_blob_from_file", {
+      filePath: selected.reference,
+    });
+  }
+
+  async previewBlobReference(value: unknown): Promise<string | null> {
+    const reference = parseBlobFileRef(value);
+    if (!reference?.mimeType.startsWith("image/")) return null;
+    return invoke<string>("read_file_as_data_url", {
+      filePath: reference.filePath,
+    });
+  }
+
+  async fetchBlobReference(value: unknown): Promise<FetchedBlob> {
+    const reference = parseBlobFileRef(value);
+    if (!reference) throw new Error("Invalid desktop BLOB file reference");
+    return {
+      contents: await this.operations.readFileContents(reference.filePath),
+      mimeType: reference.mimeType,
+    };
+  }
+
+  async fetchDatabaseBlob(request: BlobRecordRequest): Promise<FetchedBlob> {
+    const response = await invoke<BlobFetchResponse>("fetch_blob", { ...request });
+    if (response.kind !== "inline") {
+      throw new Error("The desktop BLOB command returned a browser download token");
+    }
+    const metadata = extractBlobMetadata(response.wireValue);
+    if (!metadata) throw new Error("The backend returned invalid BLOB metadata");
+    return {
+      contents: blobPayloadToBytes(
+        extractBase64Payload(response.wireValue),
+        metadata.isBase64,
+      ),
+      mimeType: metadata.mimeType,
+    };
   }
 
   async resolveAppAsset(relativePath: string): Promise<string> {

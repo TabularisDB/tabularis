@@ -453,6 +453,7 @@ pub fn run() {
             commands::update_record,
             commands::insert_record,
             commands::save_blob_to_file,
+            commands::fetch_blob,
             commands::fetch_blob_as_data_url,
             commands::load_blob_from_file,
             commands::detect_blob_mime,

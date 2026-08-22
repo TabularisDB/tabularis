@@ -1111,7 +1111,7 @@ export const DataGrid = React.memo(
 
         // Legacy immediate update
         try {
-          await invoke("update_record", {
+          await client.call("update_record", {
             connectionId,
             table: tableName,
             pkMap: pkMapVal,
@@ -1145,6 +1145,7 @@ export const DataGrid = React.memo(
       showAlert,
       t,
       guardProductionWrite,
+      client,
     ]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

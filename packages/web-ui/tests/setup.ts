@@ -56,6 +56,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
 }));
 
 vi.mock("@tauri-apps/plugin-fs", () => ({
+  readFile: vi.fn(),
   writeFile: vi.fn(),
   writeTextFile: vi.fn(),
   BaseDirectory: {
@@ -141,6 +142,8 @@ vi.mock("lucide-react", () => ({
   Network: () => null,
   Code: () => null,
   FileText: () => null,
+  FileIcon: () => null,
+  ImageIcon: () => null,
   Command: () => null,
   Braces: () => null,
   Sparkles: () => null,

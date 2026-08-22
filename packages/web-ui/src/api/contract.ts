@@ -186,6 +186,31 @@ export interface CancelQueryRequest extends ConnectionIdRequest {
   queryRequestId?: RequestId;
 }
 
+export interface RecordLocator extends MetadataRequest {
+  table: string;
+  database?: string;
+}
+
+export interface RecordIdentityRequest extends RecordLocator {
+  pkMap: Record<string, unknown>;
+}
+
+export interface BlobColumnRequest extends RecordIdentityRequest {
+  colName: string;
+}
+
+export type BlobFetchResponse =
+  | {
+      kind: "inline";
+      wireValue: string;
+    }
+  | {
+      kind: "download";
+      token: string;
+      size: number;
+      mimeType: string;
+    };
+
 export interface CommandMap {
   is_debug_mode: CommandDefinition<undefined, boolean, "local-admin">;
   get_installation_source: CommandDefinition<
@@ -434,6 +459,21 @@ export interface CommandMap {
   >;
   cancel_query: CommandDefinition<CancelQueryRequest, void, "database">;
   get_server_now: CommandDefinition<ConnectionIdRequest, string, "database">;
+
+  delete_record: CommandDefinition<RecordIdentityRequest, number, "database">;
+  update_record: CommandDefinition<
+    RecordIdentityRequest & { colName: string; newVal: unknown },
+    number,
+    "database"
+  >;
+  insert_record: CommandDefinition<
+    RecordLocator & { data: Record<string, unknown> },
+    number,
+    "database"
+  >;
+  fetch_blob: CommandDefinition<BlobColumnRequest, BlobFetchResponse, "database">;
+  detect_blob_mime: CommandDefinition<{ base64Data: string }, string, "sensitive">;
+  detect_mime_type: CommandDefinition<{ headerBase64: string }, string, "sensitive">;
 }
 
 export type CommandName = keyof CommandMap;

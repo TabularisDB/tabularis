@@ -58,6 +58,19 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     "get_selected_schemas",
     { connectionId: "connection-1" },
   );
+  const updatedRows: Promise<number> = caller.call("update_record", {
+    connectionId: "connection-1",
+    table: "files",
+    pkMap: { id: 1 },
+    colName: "payload",
+    newVal: "BLOB:4:application/octet-stream:AAECAw==",
+  });
+  const blob = caller.call("fetch_blob", {
+    connectionId: "connection-1",
+    table: "files",
+    pkMap: { id: 1 },
+    colName: "payload",
+  });
 
   // @ts-expect-error execute_query requires a connection id.
   caller.call("execute_query", { query: "SELECT 1" });
@@ -95,6 +108,8 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     columns,
     materializedViewDefinition,
     selectedSchemas,
+    updatedRows,
+    blob,
     explainResult,
     cancellation,
     wrongResponse,

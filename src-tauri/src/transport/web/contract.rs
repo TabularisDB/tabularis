@@ -50,7 +50,7 @@ impl SessionNegotiation {
                 rpc: true,
                 events: true,
                 uploads: true,
-                downloads: false,
+                downloads: true,
                 plugin_assets: false,
             },
             query_response_policy: WebQueryResponsePolicy {

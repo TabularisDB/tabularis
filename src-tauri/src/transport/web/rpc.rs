@@ -1,7 +1,7 @@
 use crate::application::{
     connections::ConnectionCommand, metadata::MetadataCommand, queries::QueryCommand,
-    tunnels::TunnelCommand, ApplicationApi, ApplicationError, ApplicationRequestContext,
-    AuthorizationLevel,
+    records::RecordCommand, tunnels::TunnelCommand, ApplicationApi, ApplicationError,
+    ApplicationRequestContext, AuthorizationLevel,
 };
 use crate::models::{
     ConnectionAppearance, ConnectionParams, K8sConnectionInput, SshConnectionInput, SshTestParams,
@@ -42,6 +42,7 @@ enum RpcCommand {
     Connection(ConnectionRpcCommand),
     Metadata(MetadataRpcCommand),
     Query(QueryRpcCommand),
+    Record(RecordRpcCommand),
     Tunnel(TunnelRpcCommand),
 }
 
@@ -52,6 +53,16 @@ enum QueryRpcCommand {
     Count,
     Explain,
     GetServerNow,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RecordRpcCommand {
+    Delete,
+    Update,
+    Insert,
+    FetchBlob,
+    DetectBlobMime,
+    DetectMimeType,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -228,6 +239,61 @@ struct ExplainQueryRequest {
     query: String,
     analyze: bool,
     schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RecordIdentityRequest {
+    connection_id: String,
+    table: String,
+    pk_map: std::collections::HashMap<String, Value>,
+    schema: Option<String>,
+    database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct UpdateRecordRequest {
+    connection_id: String,
+    table: String,
+    pk_map: std::collections::HashMap<String, Value>,
+    col_name: String,
+    new_val: Value,
+    schema: Option<String>,
+    database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct InsertRecordRequest {
+    connection_id: String,
+    table: String,
+    data: std::collections::HashMap<String, Value>,
+    schema: Option<String>,
+    database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BlobColumnRequest {
+    connection_id: String,
+    table: String,
+    col_name: String,
+    pk_map: std::collections::HashMap<String, Value>,
+    schema: Option<String>,
+    database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DetectBlobMimeRequest {
+    base64_data: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DetectMimeTypeRequest {
+    header_base64: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -662,6 +728,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::Record(command) => {
+                let command = decode_record_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_record_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
             RpcCommand::Tunnel(command) => {
                 let command = decode_tunnel_command(command, body)
                     .map_err(InvocationError::InvalidPayload)?;
@@ -706,6 +780,7 @@ impl RpcCommand {
             "cancel_query" => Some(Self::CancelQuery),
             name => QueryRpcCommand::parse(name)
                 .map(Self::Query)
+                .or_else(|| RecordRpcCommand::parse(name).map(Self::Record))
                 .or_else(|| TunnelRpcCommand::parse(name).map(Self::Tunnel))
                 .or_else(|| MetadataRpcCommand::parse(name).map(Self::Metadata))
                 .or_else(|| ConnectionRpcCommand::parse(name).map(Self::Connection)),
@@ -744,6 +819,18 @@ impl RpcCommand {
                 application_error_code: "METADATA_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            Self::Record(command) => CommandMetadata {
+                authorization: if matches!(
+                    command,
+                    RecordRpcCommand::DetectBlobMime | RecordRpcCommand::DetectMimeType
+                ) {
+                    AuthorizationLevel::Sensitive
+                } else {
+                    AuthorizationLevel::Database
+                },
+                application_error_code: "RECORD_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
             Self::Tunnel(command) => CommandMetadata {
                 authorization: if command == TunnelRpcCommand::RespondSshAskpass {
                     AuthorizationLevel::Sensitive
@@ -765,6 +852,20 @@ impl QueryRpcCommand {
             "count_query" => Self::Count,
             "explain_query_plan" => Self::Explain,
             "get_server_now" => Self::GetServerNow,
+            _ => return None,
+        })
+    }
+}
+
+impl RecordRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "delete_record" => Self::Delete,
+            "update_record" => Self::Update,
+            "insert_record" => Self::Insert,
+            "fetch_blob" => Self::FetchBlob,
+            "detect_blob_mime" => Self::DetectBlobMime,
+            "detect_mime_type" => Self::DetectMimeType,
             _ => return None,
         })
     }
@@ -901,6 +1002,66 @@ fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCo
             let request: ConnectionIdRequest = decode_payload(body)?;
             QueryCommand::GetServerNow {
                 connection_id: request.connection_id,
+            }
+        }
+    })
+}
+
+fn decode_record_command(command: RecordRpcCommand, body: &[u8]) -> Result<RecordCommand, String> {
+    Ok(match command {
+        RecordRpcCommand::Delete => {
+            let request: RecordIdentityRequest = decode_payload(body)?;
+            RecordCommand::Delete {
+                connection_id: request.connection_id,
+                table: request.table,
+                pk_map: request.pk_map,
+                schema: request.schema,
+                database: request.database,
+            }
+        }
+        RecordRpcCommand::Update => {
+            let request: UpdateRecordRequest = decode_payload(body)?;
+            RecordCommand::Update {
+                connection_id: request.connection_id,
+                table: request.table,
+                pk_map: request.pk_map,
+                col_name: request.col_name,
+                new_val: request.new_val,
+                schema: request.schema,
+                database: request.database,
+            }
+        }
+        RecordRpcCommand::Insert => {
+            let request: InsertRecordRequest = decode_payload(body)?;
+            RecordCommand::Insert {
+                connection_id: request.connection_id,
+                table: request.table,
+                data: request.data,
+                schema: request.schema,
+                database: request.database,
+            }
+        }
+        RecordRpcCommand::FetchBlob => {
+            let request: BlobColumnRequest = decode_payload(body)?;
+            RecordCommand::FetchBlob {
+                connection_id: request.connection_id,
+                table: request.table,
+                col_name: request.col_name,
+                pk_map: request.pk_map,
+                schema: request.schema,
+                database: request.database,
+            }
+        }
+        RecordRpcCommand::DetectBlobMime => {
+            let request: DetectBlobMimeRequest = decode_payload(body)?;
+            RecordCommand::DetectBlobMime {
+                base64_data: request.base64_data,
+            }
+        }
+        RecordRpcCommand::DetectMimeType => {
+            let request: DetectMimeTypeRequest = decode_payload(body)?;
+            RecordCommand::DetectMimeType {
+                header_base64: request.header_base64,
             }
         }
     })

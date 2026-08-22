@@ -6,6 +6,7 @@ import {
   formatBlobValue,
   mimeToExtension,
   parseBlobFileRef,
+  parseBlobUploadRef,
   extractBase64Payload,
   blobPayloadToBytes,
   blobHexToWireFormat,
@@ -122,6 +123,20 @@ describe("blob utilities", () => {
           makeBlobWire(10_241, "application/octet-stream", preview),
         )?.isTruncated,
       ).toBe(true);
+    });
+
+    it("should extract opaque browser upload metadata without treating the token as bytes", () => {
+      const metadata = extractBlobMetadata(
+        "BLOB_UPLOAD_REF:8:image/png:00000000-0000-4000-8000-000000000000",
+      );
+
+      expect(metadata).toEqual({
+        mimeType: "image/png",
+        size: 8,
+        formattedSize: "8 B",
+        isBase64: false,
+        isTruncated: false,
+      });
     });
 
     it("should handle null values", () => {
@@ -329,6 +344,22 @@ describe("blob utilities", () => {
         const dataUrl = extractImageDataUrl(wire);
         expect(dataUrl).toBe(`data:${mime};base64,${b64}`);
       }
+    });
+  });
+
+  describe("parseBlobUploadRef", () => {
+    it("should parse only opaque upload references", () => {
+      expect(
+        parseBlobUploadRef(
+          "BLOB_UPLOAD_REF:8:image/png:00000000-0000-4000-8000-000000000000",
+        ),
+      ).toEqual({
+        size: 8,
+        mimeType: "image/png",
+        token: "00000000-0000-4000-8000-000000000000",
+      });
+      expect(parseBlobUploadRef("BLOB_UPLOAD_REF:bad:image/png:token")).toBeNull();
+      expect(parseBlobUploadRef("BLOB_FILE_REF:8:image/png:/tmp/file")).toBeNull();
     });
   });
 

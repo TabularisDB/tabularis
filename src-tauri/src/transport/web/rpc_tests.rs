@@ -85,6 +85,29 @@ impl ApplicationApi for FixtureApplication {
         Ok(Value::Null)
     }
 
+    async fn execute_record_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: RecordCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(match command {
+            RecordCommand::Insert { .. }
+            | RecordCommand::Update { .. }
+            | RecordCommand::Delete { .. } => serde_json::json!(1),
+            RecordCommand::FetchBlob { .. } => serde_json::json!({
+                "kind": "inline",
+                "wireValue": "BLOB:4:application/octet-stream:AAECAw=="
+            }),
+            RecordCommand::DetectBlobMime { .. } => {
+                serde_json::json!("BLOB:4:application/octet-stream:AAECAw==")
+            }
+            RecordCommand::DetectMimeType { .. } => {
+                serde_json::json!("application/octet-stream")
+            }
+        })
+    }
+
     async fn execute_tunnel_command(
         &self,
         context: ApplicationRequestContext,
@@ -150,6 +173,18 @@ fn declares_authorization_for_each_registered_command() {
             .metadata()
             .authorization,
         AuthorizationLevel::Database
+    );
+    assert_eq!(
+        RpcCommand::Record(RecordRpcCommand::Update)
+            .metadata()
+            .authorization,
+        AuthorizationLevel::Database
+    );
+    assert_eq!(
+        RpcCommand::Record(RecordRpcCommand::DetectMimeType)
+            .metadata()
+            .authorization,
+        AuthorizationLevel::Sensitive
     );
     assert_eq!(
         RpcCommand::Tunnel(TunnelRpcCommand::GetSshConnections)
@@ -306,6 +341,70 @@ async fn routes_query_execution_commands_through_the_shared_application_api() {
                 &json_headers(),
                 Bytes::from(serde_json::to_vec(&payload).unwrap()),
                 Some(uuid::Uuid::new_v4()),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK, "{command}");
+    }
+}
+
+#[tokio::test]
+async fn routes_data_editing_and_blob_commands_through_the_shared_application_api() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let session_id = uuid::Uuid::new_v4();
+    let commands = [
+        (
+            "insert_record",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "table": "files",
+                "data": {"id": 1, "payload": null}
+            }),
+        ),
+        (
+            "update_record",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "table": "files",
+                "pkMap": {"id": 1},
+                "colName": "payload",
+                "newVal": "BLOB_UPLOAD_REF:4:application/octet-stream:00000000-0000-4000-8000-000000000000"
+            }),
+        ),
+        (
+            "delete_record",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "table": "files",
+                "pkMap": {"id": 1}
+            }),
+        ),
+        (
+            "fetch_blob",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "table": "files",
+                "pkMap": {"id": 1},
+                "colName": "payload"
+            }),
+        ),
+        (
+            "detect_blob_mime",
+            serde_json::json!({"base64Data": "AAECAw=="}),
+        ),
+        (
+            "detect_mime_type",
+            serde_json::json!({"headerBase64": "AAECAw=="}),
+        ),
+    ];
+
+    for (command, payload) in commands {
+        let response = dispatcher
+            .dispatch(
+                command,
+                RequestId(format!("request-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                Some(session_id),
             )
             .await;
         assert_eq!(response.status(), StatusCode::OK, "{command}");

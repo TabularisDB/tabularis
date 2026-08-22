@@ -50,6 +50,22 @@ describe("TabularisClient", () => {
     );
   });
 
+  it("delegates browser BLOB transfers to transport adapters", async () => {
+    const upload = new Blob([new Uint8Array([0, 1, 2, 3])]);
+    const download = new Blob([new Uint8Array([3, 2, 1, 0])]);
+    const transport = createTransport();
+    transport.uploadBlob = vi.fn().mockResolvedValue("BLOB_UPLOAD_REF:4:application/octet-stream:token");
+    transport.uploadedBlobUrl = vi.fn().mockReturnValue("/api/v1/uploads/blobs/token");
+    transport.readUploadedBlob = vi.fn().mockResolvedValue(upload);
+    transport.consumeBlobDownload = vi.fn().mockResolvedValue(download);
+    const client = new TabularisClient(transport);
+
+    await expect(client.uploadBlob(upload)).resolves.toContain("BLOB_UPLOAD_REF:");
+    expect(client.uploadedBlobUrl("token")).toBe("/api/v1/uploads/blobs/token");
+    await expect(client.readUploadedBlob("token")).resolves.toBe(upload);
+    await expect(client.consumeBlobDownload("download-token")).resolves.toBe(download);
+  });
+
   it("delegates subscriptions and emitted events to its transport", async () => {
     const transport = createTransport();
     const client = new TabularisClient(transport);

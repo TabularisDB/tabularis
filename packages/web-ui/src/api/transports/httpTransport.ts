@@ -162,6 +162,128 @@ export class HttpTransport implements TabularisTransport {
     return body.token;
   }
 
+  async uploadBlob(file: Blob): Promise<string> {
+    const session = await this.initialize();
+    if (!session.capabilities.uploads) {
+      throw clientError(
+        "UPLOADS_UNAVAILABLE",
+        "The server did not advertise file uploads",
+      );
+    }
+    const requestId = createRequestId();
+    let response: Response;
+    try {
+      response = await this.fetchRequest(
+        this.url(`/api/${session.apiVersion}/uploads/blobs`),
+        {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: {
+            accept: "application/json",
+            "content-type": file.type || "application/octet-stream",
+            "x-request-id": requestId,
+            "x-tabularis-csrf": session.csrfToken,
+          },
+          body: file,
+        },
+      );
+    } catch (error) {
+      throw normalizeTabularisError(error, "UPLOAD_NETWORK_ERROR", requestId);
+    }
+    const responseRequestId = response.headers.get("x-request-id") ?? requestId;
+    if (!response.ok) {
+      throw clientError(
+        response.status === 413 ? "BLOB_UPLOAD_TOO_LARGE" : "BLOB_UPLOAD_FAILED",
+        `BLOB upload failed with HTTP ${response.status}`,
+        responseRequestId,
+      );
+    }
+    const body = await readJson(response, responseRequestId);
+    if (!isBlobUploadResponse(body)) {
+      throw clientError(
+        "INVALID_UPLOAD_RESPONSE",
+        "The server returned an invalid BLOB upload response",
+        responseRequestId,
+      );
+    }
+    return body.value;
+  }
+
+  uploadedBlobUrl(token: string): string {
+    return this.url(`/api/v1/uploads/blobs/${encodeURIComponent(token)}`);
+  }
+
+  async readUploadedBlob(token: string): Promise<Blob> {
+    const session = await this.initialize();
+    if (!session.capabilities.uploads) {
+      throw clientError(
+        "UPLOADS_UNAVAILABLE",
+        "The server did not advertise file uploads",
+      );
+    }
+    const requestId = createRequestId();
+    let response: Response;
+    try {
+      response = await this.fetchRequest(this.uploadedBlobUrl(token), {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: {
+          accept: "application/octet-stream",
+          "x-request-id": requestId,
+        },
+      });
+    } catch (error) {
+      throw normalizeTabularisError(error, "UPLOAD_NETWORK_ERROR", requestId);
+    }
+    if (!response.ok) {
+      throw clientError(
+        "BLOB_UPLOAD_READ_FAILED",
+        `BLOB upload read failed with HTTP ${response.status}`,
+        response.headers.get("x-request-id") ?? requestId,
+      );
+    }
+    return response.blob();
+  }
+
+  async consumeBlobDownload(token: string): Promise<Blob> {
+    const session = await this.initialize();
+    if (!session.capabilities.downloads) {
+      throw clientError(
+        "DOWNLOADS_UNAVAILABLE",
+        "The server did not advertise file downloads",
+      );
+    }
+    const requestId = createRequestId();
+    let response: Response;
+    try {
+      response = await this.fetchRequest(
+        this.url(`/api/${session.apiVersion}/downloads/${encodeURIComponent(token)}`),
+        {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: {
+            accept: "application/octet-stream",
+            "x-request-id": requestId,
+          },
+        },
+      );
+    } catch (error) {
+      throw normalizeTabularisError(error, "DOWNLOAD_NETWORK_ERROR", requestId);
+    }
+    const responseRequestId = response.headers.get("x-request-id") ?? requestId;
+    if (!response.ok) {
+      throw clientError(
+        "BLOB_DOWNLOAD_FAILED",
+        `BLOB download failed with HTTP ${response.status}`,
+        responseRequestId,
+      );
+    }
+    return response.blob();
+  }
+
   async subscribe<K extends EventName>(
     event: K,
     handler: EventHandler<K>,
@@ -515,6 +637,16 @@ function clientError(
   details: unknown | null = null,
 ): TabularisClientError {
   return new TabularisClientError({ code, message, details, requestId });
+}
+
+function isBlobUploadResponse(value: unknown): value is { value: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "value" in value &&
+    typeof value.value === "string" &&
+    value.value.startsWith("BLOB_UPLOAD_REF:")
+  );
 }
 
 function isIconUploadResponse(value: unknown): value is { token: string } {

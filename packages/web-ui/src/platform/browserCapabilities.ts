@@ -3,11 +3,13 @@ import {
   createPlatformCapabilityNegotiation,
   UnsupportedPlatformCapabilityError,
   type AttentionLevel,
+  type BlobRecordRequest,
   type ChooseInputFileOptions,
   type ChooseSaveTargetOptions,
   type ChosenInputFile,
   type ChosenSaveTarget,
   type DownloadFileRequest,
+  type FetchedBlob,
   type NotificationOutcome,
   type OpenRouteRequest,
   type PlatformCapabilities,
@@ -15,6 +17,12 @@ import {
   type PlatformCapabilityNegotiation,
   type PlatformNotification,
 } from "./capabilities";
+import {
+  blobPayloadToBytes,
+  extractBase64Payload,
+  extractBlobMetadata,
+  parseBlobUploadRef,
+} from "../utils/blob";
 
 const BROWSER_CAPABILITY_NEGOTIATION = createPlatformCapabilityNegotiation(
   "browser",
@@ -80,6 +88,47 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
       connectionId,
       uploadToken,
     });
+  }
+
+  async chooseBlob(): Promise<string | null> {
+    const file = await pickFile();
+    return file ? this.client.uploadBlob(file) : null;
+  }
+
+  previewBlobReference(value: unknown): Promise<string | null> {
+    const reference = parseBlobUploadRef(value);
+    if (!reference?.mimeType.startsWith("image/")) return Promise.resolve(null);
+    return Promise.resolve(this.client.uploadedBlobUrl(reference.token));
+  }
+
+  async fetchBlobReference(value: unknown): Promise<FetchedBlob> {
+    const reference = parseBlobUploadRef(value);
+    if (!reference) throw new Error("Invalid browser BLOB upload reference");
+    const blob = await this.client.readUploadedBlob(reference.token);
+    return {
+      contents: new Uint8Array(await blob.arrayBuffer()),
+      mimeType: reference.mimeType || blob.type || "application/octet-stream",
+    };
+  }
+
+  async fetchDatabaseBlob(request: BlobRecordRequest): Promise<FetchedBlob> {
+    const response = await this.client.call("fetch_blob", request);
+    if (response.kind === "download") {
+      const blob = await this.client.consumeBlobDownload(response.token);
+      return {
+        contents: new Uint8Array(await blob.arrayBuffer()),
+        mimeType: response.mimeType || blob.type || "application/octet-stream",
+      };
+    }
+    const metadata = extractBlobMetadata(response.wireValue);
+    if (!metadata) throw new Error("The backend returned invalid BLOB metadata");
+    return {
+      contents: blobPayloadToBytes(
+        extractBase64Payload(response.wireValue),
+        metadata.isBase64,
+      ),
+      mimeType: metadata.mimeType,
+    };
   }
 
   resolveAppAsset(relativePath: string): Promise<string> {
@@ -162,10 +211,16 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
 }
 
 function pickImageFile(): Promise<File | null> {
+  return pickFile(
+    ".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml",
+  );
+}
+
+function pickFile(accept?: string): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml";
+    if (accept) input.accept = accept;
     input.addEventListener(
       "change",
       () => resolve(input.files?.item(0) ?? null),

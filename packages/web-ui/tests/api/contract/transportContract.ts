@@ -171,6 +171,45 @@ export function defineTransportContractSuite(
       ).resolves.toBeNull();
     });
 
+    it("preserves data editing and blob contracts", async () => {
+      const locator = {
+        connectionId: "record-fixture",
+        table: "files",
+        database: "main",
+        schema: "public",
+      };
+      await expect(
+        harness.transport.call("insert_record", {
+          ...locator,
+          data: { id: 1, name: "before", payload: null },
+        }),
+      ).resolves.toBe(1);
+      await expect(
+        harness.transport.call("update_record", {
+          ...locator,
+          pkMap: { id: 1 },
+          colName: "name",
+          newVal: "after",
+        }),
+      ).resolves.toBe(1);
+      await expect(
+        harness.transport.call("fetch_blob", {
+          ...locator,
+          pkMap: { id: 1 },
+          colName: "payload",
+        }),
+      ).resolves.toEqual({
+        kind: "inline",
+        wireValue: "BLOB:4:application/octet-stream:AAECAw==",
+      });
+      await expect(
+        harness.transport.call("delete_record", {
+          ...locator,
+          pkMap: { id: 1 },
+        }),
+      ).resolves.toBe(1);
+    });
+
     it("preserves complex JSON serialization without coercion", async () => {
       const result = await harness.transport.callUnmigrated(
         "contract_serialization_fixture",
@@ -320,6 +359,52 @@ async function handleRequest(
     return;
   }
   const queryRequests: Record<string, unknown> = {
+    insert_record: {
+      request: {
+        connectionId: "record-fixture",
+        table: "files",
+        database: "main",
+        schema: "public",
+        data: { id: 1, name: "before", payload: null },
+      },
+      response: 1,
+    },
+    update_record: {
+      request: {
+        connectionId: "record-fixture",
+        table: "files",
+        database: "main",
+        schema: "public",
+        pkMap: { id: 1 },
+        colName: "name",
+        newVal: "after",
+      },
+      response: 1,
+    },
+    fetch_blob: {
+      request: {
+        connectionId: "record-fixture",
+        table: "files",
+        database: "main",
+        schema: "public",
+        pkMap: { id: 1 },
+        colName: "payload",
+      },
+      response: {
+        kind: "inline",
+        wireValue: "BLOB:4:application/octet-stream:AAECAw==",
+      },
+    },
+    delete_record: {
+      request: {
+        connectionId: "record-fixture",
+        table: "files",
+        database: "main",
+        schema: "public",
+        pkMap: { id: 1 },
+      },
+      response: 1,
+    },
     execute_query: {
       request: {
         connectionId: "query-fixture",

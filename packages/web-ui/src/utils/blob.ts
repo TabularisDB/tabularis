@@ -16,12 +16,17 @@ export const BLOB_TEXT_LENGTH_THRESHOLD = 65_535;
 
 /**
  * Returns true if the value is in the canonical BLOB wire format
- * ("BLOB:..." or "BLOB_FILE_REF:...") produced by the backend.
+ * ("BLOB:...", "BLOB_FILE_REF:...", or "BLOB_UPLOAD_REF:...")
+ * produced by the backend or an authenticated browser upload.
  */
 export function isBlobWireFormat(value: unknown): boolean {
   if (value === null || value === undefined) return false;
   const s = String(value);
-  return s.startsWith("BLOB:") || s.startsWith("BLOB_FILE_REF:");
+  return (
+    s.startsWith("BLOB:") ||
+    s.startsWith("BLOB_FILE_REF:") ||
+    s.startsWith("BLOB_UPLOAD_REF:")
+  );
 }
 
 /**
@@ -113,6 +118,7 @@ export interface BlobMetadata {
  * Expected wire formats:
  *   - "BLOB:<size_bytes>:<mime_type>:<base64_data>"
  *   - "BLOB_FILE_REF:<size>:<mime>:<filepath>"
+ *   - "BLOB_UPLOAD_REF:<size>:<mime>:<opaque_token>"
  *
  * Returns null for null/undefined values.
  * Returns a text/plain metadata object for plain-text strings that are not
@@ -126,23 +132,18 @@ export function extractBlobMetadata(value: unknown): BlobMetadata | null {
 
   const stringValue = String(value);
 
-  // Handle BLOB_FILE_REF format: "BLOB_FILE_REF:<size>:<mime>:<filepath>"
-  if (stringValue.startsWith("BLOB_FILE_REF:")) {
-    const firstColon = 14; // right after "BLOB_FILE_REF:"
-    const secondColon = stringValue.indexOf(":", firstColon);
-    const thirdColon = stringValue.indexOf(":", secondColon + 1);
-    if (secondColon !== -1 && thirdColon !== -1) {
-      const size = parseInt(stringValue.substring(firstColon, secondColon), 10);
-      const mimeType = stringValue.substring(secondColon + 1, thirdColon);
-
-      return {
-        mimeType,
-        size,
-        formattedSize: formatBlobSize(size),
-        isBase64: false, // It's a file reference, not base64
-        isTruncated: false, // File refs are never truncated
-      };
-    }
+  // File and upload references contain metadata but never expose their bytes.
+  const reference =
+    parseBlobReference(stringValue, "BLOB_FILE_REF:") ??
+    parseBlobReference(stringValue, "BLOB_UPLOAD_REF:");
+  if (reference) {
+    return {
+      mimeType: reference.mimeType,
+      size: reference.size,
+      formattedSize: formatBlobSize(reference.size),
+      isBase64: false,
+      isTruncated: false,
+    };
   }
 
   // Canonical wire format: "BLOB:<size>:<mime_type>:<base64_data>"
@@ -195,20 +196,37 @@ export function extractBlobMetadata(value: unknown): BlobMetadata | null {
 export function parseBlobFileRef(
   value: unknown,
 ): { size: number; mimeType: string; filePath: string } | null {
-  const stringValue = String(value ?? "");
-  if (!stringValue.startsWith("BLOB_FILE_REF:")) {
+  const parsed = parseBlobReference(String(value ?? ""), "BLOB_FILE_REF:");
+  return parsed
+    ? { size: parsed.size, mimeType: parsed.mimeType, filePath: parsed.reference }
+    : null;
+}
+
+export function parseBlobUploadRef(
+  value: unknown,
+): { size: number; mimeType: string; token: string } | null {
+  const parsed = parseBlobReference(String(value ?? ""), "BLOB_UPLOAD_REF:");
+  return parsed
+    ? { size: parsed.size, mimeType: parsed.mimeType, token: parsed.reference }
+    : null;
+}
+
+function parseBlobReference(
+  value: string,
+  prefix: "BLOB_FILE_REF:" | "BLOB_UPLOAD_REF:",
+): { size: number; mimeType: string; reference: string } | null {
+  if (!value.startsWith(prefix)) return null;
+  const firstColon = prefix.length;
+  const secondColon = value.indexOf(":", firstColon);
+  const thirdColon = value.indexOf(":", secondColon + 1);
+  if (secondColon === -1 || thirdColon === -1) return null;
+  const size = Number.parseInt(value.substring(firstColon, secondColon), 10);
+  const mimeType = value.substring(secondColon + 1, thirdColon);
+  const reference = value.substring(thirdColon + 1);
+  if (!Number.isSafeInteger(size) || size < 0 || !mimeType || !reference) {
     return null;
   }
-  const firstColon = 14; // right after "BLOB_FILE_REF:"
-  const secondColon = stringValue.indexOf(":", firstColon);
-  const thirdColon = stringValue.indexOf(":", secondColon + 1);
-  if (secondColon === -1 || thirdColon === -1) {
-    return null;
-  }
-  const size = parseInt(stringValue.substring(firstColon, secondColon), 10);
-  const mimeType = stringValue.substring(secondColon + 1, thirdColon);
-  const filePath = stringValue.substring(thirdColon + 1);
-  return { size, mimeType, filePath };
+  return { size, mimeType, reference };
 }
 
 /**

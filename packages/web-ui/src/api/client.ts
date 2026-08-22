@@ -17,6 +17,10 @@ export interface TabularisTransport
   extends TypedCommandCaller,
     EventSubscriber {
   uploadConnectionIcon?(file: Blob): Promise<string>;
+  uploadBlob?(file: Blob): Promise<string>;
+  uploadedBlobUrl?(token: string): string;
+  readUploadedBlob?(token: string): Promise<Blob>;
+  consumeBlobDownload?(token: string): Promise<Blob>;
   emit<K extends EventName>(
     event: K,
     payload: EventPayload<K>,
@@ -59,6 +63,40 @@ export class TabularisClient implements TabularisTransport {
       );
     }
     return this.transport.uploadConnectionIcon(file);
+  }
+
+  uploadBlob(file: Blob): Promise<string> {
+    if (!this.transport.uploadBlob) {
+      return Promise.reject(
+        new Error("The active transport does not support browser BLOB uploads"),
+      );
+    }
+    return this.transport.uploadBlob(file);
+  }
+
+  uploadedBlobUrl(token: string): string {
+    if (!this.transport.uploadedBlobUrl) {
+      throw new Error("The active transport does not expose browser BLOB uploads");
+    }
+    return this.transport.uploadedBlobUrl(token);
+  }
+
+  readUploadedBlob(token: string): Promise<Blob> {
+    if (!this.transport.readUploadedBlob) {
+      return Promise.reject(
+        new Error("The active transport does not support browser BLOB uploads"),
+      );
+    }
+    return this.transport.readUploadedBlob(token);
+  }
+
+  consumeBlobDownload(token: string): Promise<Blob> {
+    if (!this.transport.consumeBlobDownload) {
+      return Promise.reject(
+        new Error("The active transport does not support browser BLOB downloads"),
+      );
+    }
+    return this.transport.consumeBlobDownload(token);
   }
 
   subscribe<K extends EventName>(

@@ -9,14 +9,13 @@ import {
   AlertTriangle,
   Loader2,
 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import {
   extractBlobMetadata,
   extractImageDataUrl,
   mimeToExtension,
   parseBlobFileRef,
+  parseBlobUploadRef,
   extractBase64Payload,
   blobPayloadToBytes,
   type BlobMetadata,
@@ -33,6 +32,20 @@ export interface BlobInputProps {
   pkMap?: Record<string, unknown> | null;
   colName?: string | null;
   schema?: string | null;
+}
+
+function bytesToDataUrl(contents: Uint8Array, mimeType: string): Promise<string> {
+  const bytes = new ArrayBuffer(contents.byteLength);
+  new Uint8Array(bytes).set(contents);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Failed to create a BLOB preview URL"));
+    });
+    reader.addEventListener("error", () => reject(reader.error));
+    reader.readAsDataURL(new Blob([bytes], { type: mimeType }));
+  });
 }
 
 /**
@@ -54,6 +67,7 @@ export const BlobInput = ({
   schema,
 }: BlobInputProps) => {
   const { t } = useTranslation();
+  const platform = usePlatformCapabilities();
   const [isDownloading, setIsDownloading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,62 +91,75 @@ export const BlobInput = ({
     return extractImageDataUrl(value);
   }, [value, hasValue]);
 
-  // For BLOB_FILE_REF images (after upload), ask the backend to read the file
-  // and return a data: URL. The file path is derived synchronously via useMemo
-  // so the effect only runs when the file ref actually changes.
-  const imageFileRefPath = useMemo<string | null>(() => {
-    const parsed = parseBlobFileRef(value);
-    if (!parsed?.mimeType.startsWith("image/")) return null;
-    return parsed.filePath;
+  const imageReference = useMemo<string | null>(() => {
+    const reference = parseBlobFileRef(value) ?? parseBlobUploadRef(value);
+    return reference?.mimeType.startsWith("image/") ? String(value) : null;
   }, [value]);
 
-  const [fileRefPreviewUrl, setFileRefPreviewUrl] = useState<string | null>(
-    null,
-  );
+  const [referencePreview, setReferencePreview] = useState<{
+    reference: string;
+    url: string | null;
+  } | null>(null);
   useEffect(() => {
-    if (!imageFileRefPath) {
-      setFileRefPreviewUrl(null);
-      return;
-    }
+    if (!imageReference) return;
     let cancelled = false;
-    invoke<string>("read_file_as_data_url", { filePath: imageFileRefPath })
-      .then((dataUrl) => {
-        if (!cancelled) setFileRefPreviewUrl(dataUrl);
+    platform
+      .previewBlobReference(imageReference)
+      .then((url) => {
+        if (!cancelled) setReferencePreview({ reference: imageReference, url });
       })
       .catch(() => {
-        if (!cancelled) setFileRefPreviewUrl(null);
+        if (!cancelled) setReferencePreview({ reference: imageReference, url: null });
       });
     return () => {
       cancelled = true;
     };
-  }, [imageFileRefPath]);
+  }, [imageReference, platform]);
+  const fileRefPreviewUrl =
+    referencePreview?.reference === imageReference ? referencePreview.url : null;
 
   // For truncated images already in the DB, fetch the full blob and build a data: URL.
   // Same approach as handleDownload but in-memory instead of writing to disk.
-  const [dbPreviewUrl, setDbPreviewUrl] = useState<string | null>(null);
+  const databaseBlobRequest = useMemo(
+    () =>
+      isImage && canFetchFull && connectionId && tableName && colName && pkMap
+        ? {
+            connectionId,
+            table: tableName,
+            colName,
+            pkMap,
+            ...(schema ? { schema } : {}),
+          }
+        : null,
+    [isImage, canFetchFull, connectionId, tableName, colName, pkMap, schema],
+  );
+  const databaseBlobKey = databaseBlobRequest
+    ? JSON.stringify(databaseBlobRequest)
+    : null;
+  const [databasePreview, setDatabasePreview] = useState<{
+    key: string;
+    url: string | null;
+  } | null>(null);
   useEffect(() => {
-    if (!isImage || !canFetchFull) {
-      setDbPreviewUrl(null);
-      return;
-    }
+    if (!databaseBlobRequest || !databaseBlobKey) return;
     let cancelled = false;
-    invoke<string>("fetch_blob_as_data_url", {
-      connectionId,
-      table: tableName,
-      colName,
-      pkMap,
-      ...(schema ? { schema } : {}),
-    })
-      .then((dataUrl) => {
-        if (!cancelled) setDbPreviewUrl(dataUrl);
+    platform
+      .fetchDatabaseBlob(databaseBlobRequest)
+      .then(async ({ contents, mimeType }) => {
+        const url = mimeType.startsWith("image/")
+          ? await bytesToDataUrl(contents, mimeType)
+          : null;
+        if (!cancelled) setDatabasePreview({ key: databaseBlobKey, url });
       })
       .catch(() => {
-        if (!cancelled) setDbPreviewUrl(null);
+        if (!cancelled) setDatabasePreview({ key: databaseBlobKey, url: null });
       });
     return () => {
       cancelled = true;
     };
-  }, [isImage, canFetchFull, connectionId, tableName, colName, pkMap, schema]);
+  }, [databaseBlobKey, databaseBlobRequest, platform]);
+  const dbPreviewUrl =
+    databasePreview?.key === databaseBlobKey ? databasePreview.url : null;
 
   const effectiveImageDataUrl =
     imageDataUrl ?? fileRefPreviewUrl ?? dbPreviewUrl;
@@ -141,19 +168,12 @@ export const BlobInput = ({
     isDownloading || isUploading || (metadata?.isTruncated && !canFetchFull);
 
   const handleFileUpload = async () => {
-    const filePath = await open({ multiple: false, directory: false });
-    if (!filePath) return;
-
-    // Clear any previous errors
     setError(null);
     setIsUploading(true);
 
     try {
-      // Get file reference (not the content!) - this is instant and non-blocking
-      // Format returned: "BLOB_FILE_REF:<size>:<mime>:<filepath>"
-      // The actual file will be read only when saving to the database
-      const fileRef = await invoke<string>("load_blob_from_file", { filePath });
-      onChange(fileRef);
+      const reference = await platform.chooseBlob();
+      if (reference) onChange(reference);
     } catch (err) {
       console.error("Failed to load file:", err);
       // Extract error message from Tauri error object
@@ -172,47 +192,34 @@ export const BlobInput = ({
   const handleDownload = async () => {
     if (!hasValue || !metadata) return;
 
-    if (metadata.isTruncated) {
-      if (!canFetchFull) return;
+    if (metadata.isTruncated && !canFetchFull) return;
 
-      const extension = mimeToExtension(metadata.mimeType);
-      const filePath = await save({
-        defaultPath: `download.${extension}`,
-        filters: [{ name: dataType || "BLOB", extensions: [extension] }],
-      });
-      if (!filePath) return;
-
-      setIsDownloading(true);
-      try {
-        await invoke("save_blob_to_file", {
-          connectionId,
-          table: tableName,
-          colName,
-          pkMap,
-          filePath,
-          ...(schema ? { schema } : {}),
-        });
-      } catch (error) {
-        console.error("Failed to save BLOB:", error);
-      } finally {
-        setIsDownloading(false);
-      }
-      return;
-    }
-
+    setIsDownloading(true);
     try {
       const extension = mimeToExtension(metadata.mimeType);
-      const filePath = await save({
-        defaultPath: `download.${extension}`,
+      const isReference = Boolean(
+        parseBlobFileRef(value) ?? parseBlobUploadRef(value),
+      );
+      const fetched = metadata.isTruncated && databaseBlobRequest
+        ? await platform.fetchDatabaseBlob(databaseBlobRequest)
+        : isReference
+          ? await platform.fetchBlobReference(value)
+          : {
+              contents: blobPayloadToBytes(
+                extractBase64Payload(value),
+                metadata.isBase64,
+              ),
+              mimeType: metadata.mimeType,
+            };
+      await platform.downloadFile({
+        fileName: `download.${extension}`,
+        contents: fetched.contents,
         filters: [{ name: dataType || "BLOB", extensions: [extension] }],
       });
-      if (!filePath) return;
-
-      const base64Payload = extractBase64Payload(value);
-      const bytes = blobPayloadToBytes(base64Payload, metadata.isBase64);
-      await writeFile(filePath, bytes);
     } catch (error) {
       console.error("Failed to download file:", error);
+    } finally {
+      setIsDownloading(false);
     }
   };
 

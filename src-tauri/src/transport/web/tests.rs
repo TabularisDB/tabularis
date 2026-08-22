@@ -170,6 +170,8 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
     assert!(!session.csrf_token.is_empty());
     assert!(session.capabilities.rpc);
     assert!(session.capabilities.events);
+    assert!(session.capabilities.uploads);
+    assert!(session.capabilities.downloads);
     assert_eq!(
         session.query_response_policy.max_rows_per_page,
         crate::application::queries::WEB_MAX_ROWS_PER_PAGE
@@ -420,6 +422,7 @@ async fn executes_representative_commands_over_versioned_rpc() {
     };
     for statement in [
         "CREATE TABLE teams (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+        "CREATE TABLE files (id INTEGER PRIMARY KEY, name TEXT NOT NULL, payload BLOB)",
         "CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, team_id INTEGER, name TEXT, FOREIGN KEY (team_id) REFERENCES teams(id))",
         "CREATE INDEX idx_users_name ON users(name)",
         "CREATE VIEW active_users AS SELECT id, name FROM users",
@@ -504,7 +507,7 @@ async fn executes_representative_commands_over_versioned_rpc() {
             serde_json::json!({"connectionId": "metadata-fixture"}),
         )
         .await,
-        serde_json::json!([{"name": "teams"}, {"name": "users"}])
+        serde_json::json!([{"name": "files"}, {"name": "teams"}, {"name": "users"}])
     );
     let columns = rpc_data(
         &client,
@@ -579,7 +582,7 @@ async fn executes_representative_commands_over_versioned_rpc() {
         .as_array()
         .unwrap()
         .len(),
-        2
+        3
     );
     assert_eq!(
         rpc_data(
@@ -724,6 +727,185 @@ async fn executes_representative_commands_over_versioned_rpc() {
     .await;
     assert_eq!(explain["kind"], "raw");
     assert_eq!(explain["raw"]["engine"], "sqlite");
+
+    let forged_path = client
+        .post(format!("{base_url}/api/v1/rpc/insert_record"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "table": "files",
+            "data": {
+                "id": 99,
+                "name": "forged",
+                "payload": "BLOB_FILE_REF:4:text/plain:/etc/passwd"
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(forged_path.status(), reqwest::StatusCode::CONFLICT);
+    assert!(
+        forged_path.json::<serde_json::Value>().await.unwrap()["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("cannot contain server file paths")
+    );
+
+    let blob_bytes = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+    let upload = client
+        .post(format!("{base_url}/api/v1/uploads/blobs"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header(reqwest::header::CONTENT_TYPE, "image/png")
+        .body(blob_bytes.clone())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(upload.status(), reqwest::StatusCode::CREATED);
+    let upload_value = upload.json::<serde_json::Value>().await.unwrap()["value"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(upload_value.starts_with("BLOB_UPLOAD_REF:8:image/png:"));
+    assert!(!upload_value.contains(temp.path().to_string_lossy().as_ref()));
+    let upload_token = upload_value.rsplit(':').next().unwrap();
+    let preview = client
+        .get(format!("{base_url}/api/v1/uploads/blobs/{upload_token}"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(preview.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        preview.headers()["content-security-policy"],
+        "sandbox; default-src 'none'"
+    );
+    assert_eq!(preview.headers()["x-content-type-options"], "nosniff");
+    assert_eq!(
+        preview.bytes().await.unwrap().as_ref(),
+        blob_bytes.as_slice()
+    );
+
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "insert_record",
+            serde_json::json!({
+                "connectionId": "metadata-fixture",
+                "table": "files",
+                "data": {"id": 1, "name": "before", "payload": upload_value}
+            }),
+        )
+        .await,
+        serde_json::json!(1)
+    );
+    assert_eq!(
+        client
+            .get(format!("{base_url}/api/v1/uploads/blobs/{upload_token}"))
+            .header(COOKIE, &cookie)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "update_record",
+            serde_json::json!({
+                "connectionId": "metadata-fixture",
+                "table": "files",
+                "pkMap": {"id": 1},
+                "colName": "name",
+                "newVal": "after"
+            }),
+        )
+        .await,
+        serde_json::json!(1)
+    );
+    let blob_download = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "fetch_blob",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "table": "files",
+            "pkMap": {"id": 1},
+            "colName": "payload"
+        }),
+    )
+    .await;
+    assert_eq!(blob_download["kind"], "download");
+    assert_eq!(blob_download["size"], 8);
+    assert_eq!(blob_download["mimeType"], "image/png");
+    let download_token = blob_download["token"].as_str().unwrap();
+    let download_url = format!("{base_url}/api/v1/downloads/{download_token}");
+    let download = client
+        .get(&download_url)
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(download.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        download.bytes().await.unwrap().as_ref(),
+        blob_bytes.as_slice()
+    );
+    assert_eq!(
+        client
+            .get(&download_url)
+            .header(COOKIE, &cookie)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::NOT_FOUND
+    );
+    let oversized_blob = client
+        .post(format!("{base_url}/api/v1/uploads/blobs"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header(
+            reqwest::header::CONTENT_LENGTH,
+            crate::application::records::MAX_WEB_BLOB_BYTES + 1,
+        )
+        .body("x")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        oversized_blob.status(),
+        reqwest::StatusCode::PAYLOAD_TOO_LARGE
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "delete_record",
+            serde_json::json!({
+                "connectionId": "metadata-fixture",
+                "table": "files",
+                "pkMap": {"id": 1}
+            }),
+        )
+        .await,
+        serde_json::json!(1)
+    );
 
     let debug = client
         .post(format!("{base_url}/api/v1/rpc/is_debug_mode"))

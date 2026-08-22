@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { describe, expect, it, vi } from "vitest";
 import { createPlatformCapabilityNegotiation } from "../../src/platform/capabilities";
 import {
@@ -11,6 +12,7 @@ const createOperations = (): TauriPlatformOperations => ({
   readClipboardText: vi.fn(),
   writeClipboardText: vi.fn(),
   writeFileContents: vi.fn(),
+  readFileContents: vi.fn(),
   openUrl: vi.fn(),
   isNotificationPermissionGranted: vi.fn(),
   requestNotificationPermission: vi.fn(),
@@ -54,6 +56,42 @@ describe("TauriPlatformCapabilities", () => {
     await expect(
       capabilities.chooseSaveTarget({ suggestedName: "export.csv" }),
     ).resolves.toEqual({ reference: "/tmp/export.csv" });
+  });
+
+  it("adapts desktop BLOB paths and inline database values", async () => {
+    const operations = createOperations();
+    vi.mocked(operations.chooseInputPath).mockResolvedValue("/tmp/image.png");
+    vi.mocked(invoke)
+      .mockResolvedValueOnce("BLOB_FILE_REF:4:image/png:/tmp/image.png")
+      .mockResolvedValueOnce({
+        kind: "inline",
+        wireValue: "BLOB:4:application/octet-stream:AAECAw==",
+      });
+    const capabilities = new TauriPlatformCapabilities(operations);
+
+    await expect(capabilities.chooseBlob()).resolves.toBe(
+      "BLOB_FILE_REF:4:image/png:/tmp/image.png",
+    );
+    await expect(
+      capabilities.fetchDatabaseBlob({
+        connectionId: "connection-1",
+        table: "files",
+        colName: "payload",
+        pkMap: { id: 1 },
+      }),
+    ).resolves.toEqual({
+      contents: new Uint8Array([0, 1, 2, 3]),
+      mimeType: "application/octet-stream",
+    });
+    expect(invoke).toHaveBeenNthCalledWith(1, "load_blob_from_file", {
+      filePath: "/tmp/image.png",
+    });
+    expect(invoke).toHaveBeenNthCalledWith(2, "fetch_blob", {
+      connectionId: "connection-1",
+      table: "files",
+      colName: "payload",
+      pkMap: { id: 1 },
+    });
   });
 
   it("delegates clipboard, URL, route, attention, and restart operations", async () => {

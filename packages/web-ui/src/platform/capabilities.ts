@@ -75,6 +75,20 @@ export interface DownloadFileRequest {
   readonly filters?: readonly PlatformFileFilter[];
 }
 
+export interface BlobRecordRequest {
+  readonly connectionId: string;
+  readonly table: string;
+  readonly colName: string;
+  readonly pkMap: Record<string, unknown>;
+  readonly schema?: string;
+  readonly database?: string;
+}
+
+export interface FetchedBlob {
+  readonly contents: Uint8Array;
+  readonly mimeType: string;
+}
+
 export interface PlatformNotification {
   readonly title: string;
   readonly body?: string;
@@ -107,6 +121,10 @@ export interface PlatformCapabilities {
     options?: ChooseSaveTargetOptions,
   ): Promise<ChosenSaveTarget | null>;
   chooseConnectionIcon(connectionId: string): Promise<string | null>;
+  chooseBlob(): Promise<string | null>;
+  previewBlobReference(value: unknown): Promise<string | null>;
+  fetchBlobReference(value: unknown): Promise<FetchedBlob>;
+  fetchDatabaseBlob(request: BlobRecordRequest): Promise<FetchedBlob>;
   resolveAppAsset(relativePath: string): Promise<string>;
   readClipboard(): Promise<string>;
   writeClipboard(text: string): Promise<void>;

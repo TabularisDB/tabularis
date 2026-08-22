@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Loader2, Plus } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useProductionGuard } from "../../hooks/useProductionGuard";
 import { Modal } from "../ui/Modal";
@@ -211,7 +210,7 @@ export const NewRowModal = ({
         }
       }
 
-      await invoke("insert_record", {
+      await client.call("insert_record", {
         connectionId: activeConnectionId,
         table: tableName,
         data: dataToSend,

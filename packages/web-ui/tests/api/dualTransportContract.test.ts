@@ -52,6 +52,19 @@ defineTransportContractSuite(
         expect(request).toEqual({ connectionId: "metadata-fixture" });
         return ["public"];
       }
+      if (
+        command === "insert_record" ||
+        command === "update_record" ||
+        command === "delete_record"
+      ) {
+        return 1;
+      }
+      if (command === "fetch_blob") {
+        return {
+          kind: "inline",
+          wireValue: "BLOB:4:application/octet-stream:AAECAw==",
+        };
+      }
       if (command === "execute_query") {
         expect(request).toEqual({
           connectionId: "query-fixture",

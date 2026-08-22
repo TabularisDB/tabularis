@@ -53,16 +53,16 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 159,
-    "literalCallSiteCount": 226,
+    "literalCommandCount": 155,
+    "literalCallSiteCount": 218,
     "dynamicCallSiteCount": 2,
-    "handlerRegistrationCount": 255,
-    "registeredCommandCount": 254,
+    "handlerRegistrationCount": 256,
+    "registeredCommandCount": 255,
     "duplicateHandlerRegistrations": [
       "cancel_dump"
     ],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 95
+    "registeredCommandsWithoutFrontendCall": 100
   },
   "commands": [
     {
@@ -558,24 +558,6 @@
       ]
     },
     {
-      "name": "delete_record",
-      "featureGroup": "data",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 2823
-        },
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 2844
-        }
-      ]
-    },
-    {
       "name": "delete_saved_query",
       "featureGroup": "saved-queries",
       "eventUse": "none",
@@ -904,7 +886,7 @@
       ]
     },
     {
-      "name": "fetch_blob_as_data_url",
+      "name": "fetch_blob",
       "featureGroup": "data",
       "eventUse": "none",
       "filesystemUse": "none",
@@ -912,8 +894,8 @@
       "registered": true,
       "callSites": [
         {
-          "file": "packages/web-ui/src/components/ui/BlobInput.tsx",
-          "line": 119
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 248
         }
       ]
     },
@@ -1734,24 +1716,6 @@
       ]
     },
     {
-      "name": "insert_record",
-      "featureGroup": "data",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/NewRowModal.tsx",
-          "line": 214
-        },
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 2920
-        }
-      ]
-    },
-    {
       "name": "install_mcp_config",
       "featureGroup": "configuration",
       "eventUse": "none",
@@ -1870,8 +1834,8 @@
       "registered": true,
       "callSites": [
         {
-          "file": "packages/web-ui/src/components/ui/BlobInput.tsx",
-          "line": 155
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 225
         }
       ]
     },
@@ -2090,8 +2054,8 @@
       "registered": true,
       "callSites": [
         {
-          "file": "packages/web-ui/src/components/ui/BlobInput.tsx",
-          "line": 98
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 233
         }
       ]
     },
@@ -2141,7 +2105,7 @@
         },
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 136
+          "line": 147
         }
       ]
     },
@@ -2170,20 +2134,6 @@
         {
           "file": "packages/web-ui/src/components/settings/BackupTab.tsx",
           "line": 116
-        }
-      ]
-    },
-    {
-      "name": "save_blob_to_file",
-      "featureGroup": "data",
-      "eventUse": "none",
-      "filesystemUse": "write",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/ui/BlobInput.tsx",
-          "line": 187
         }
       ]
     },
@@ -2245,7 +2195,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 205
+          "line": 216
         }
       ]
     },
@@ -2524,28 +2474,6 @@
       ]
     },
     {
-      "name": "update_record",
-      "featureGroup": "data",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/ui/DataGrid.tsx",
-          "line": 1114
-        },
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 2880
-        },
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 2903
-        }
-      ]
-    },
-    {
       "name": "update_saved_query",
       "featureGroup": "saved-queries",
       "eventUse": "none",
@@ -2611,6 +2539,7 @@
     "delete_connection_tag",
     "delete_editor_preferences",
     "delete_k8s_connection",
+    "delete_record",
     "delete_ssh_connection",
     "detect_blob_mime",
     "detect_mime_type",
@@ -2620,6 +2549,7 @@
     "execute_query_batch",
     "explain_query_plan",
     "export_theme",
+    "fetch_blob_as_data_url",
     "get_active_connections",
     "get_available_databases",
     "get_columns",
@@ -2655,6 +2585,7 @@
     "get_views",
     "import_connections_payload",
     "import_theme",
+    "insert_record",
     "is_debug_mode",
     "list_all_preferences",
     "list_connection_tags",
@@ -2672,6 +2603,7 @@
     "reset_tabrename_prompt",
     "respond_ssh_askpass",
     "restart_plugin_process",
+    "save_blob_to_file",
     "save_cellname_prompt",
     "save_connection",
     "save_explain_prompt",
@@ -2692,6 +2624,7 @@
     "update_connection_group",
     "update_connection_tag",
     "update_k8s_connection",
+    "update_record",
     "update_ssh_connection",
     "validate_k8s_path_cmd"
   ]
