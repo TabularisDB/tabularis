@@ -12,10 +12,13 @@ import type {
   EventSubscriber,
   Unsubscribe,
 } from "./events";
+import type { FileTransferMetadata, FileUploadRequest } from "./fileTransfers";
 
 export interface TabularisTransport
   extends TypedCommandCaller,
     EventSubscriber {
+  uploadFile?(request: FileUploadRequest): Promise<FileTransferMetadata>;
+  consumeDownload?(token: string): Promise<Blob>;
   uploadConnectionIcon?(file: Blob): Promise<string>;
   uploadBlob?(file: Blob): Promise<string>;
   uploadedBlobUrl?(token: string): string;
@@ -54,6 +57,24 @@ export class TabularisClient implements TabularisTransport {
       tracking,
       options,
     );
+  }
+
+  uploadFile(request: FileUploadRequest): Promise<FileTransferMetadata> {
+    if (!this.transport.uploadFile) {
+      return Promise.reject(
+        new Error("The active transport does not support browser file uploads"),
+      );
+    }
+    return this.transport.uploadFile(request);
+  }
+
+  consumeDownload(token: string): Promise<Blob> {
+    if (!this.transport.consumeDownload) {
+      return Promise.reject(
+        new Error("The active transport does not support browser file downloads"),
+      );
+    }
+    return this.transport.consumeDownload(token);
   }
 
   uploadConnectionIcon(file: Blob): Promise<string> {

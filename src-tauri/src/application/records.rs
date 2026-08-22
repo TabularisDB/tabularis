@@ -1,3 +1,4 @@
+use super::file_transfers::{ClaimedUpload, FileTransferStore};
 use crate::drivers::driver_trait::DatabaseDriver;
 use crate::models::DatabaseSelection;
 use crate::runtime::RuntimeContext;
@@ -6,13 +7,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::path::Path;
 use uuid::Uuid;
 
 pub const MAX_WEB_BLOB_BYTES: u64 = crate::drivers::common::DEFAULT_MAX_BLOB_SIZE;
-const TRANSFER_TTL: Duration = Duration::from_secs(15 * 60);
 const UPLOAD_PREFIX: &str = "BLOB_UPLOAD_REF:";
+const BLOB_TRANSFER_PURPOSE: &str = "blob";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BlobFetchPolicy {
@@ -332,12 +332,19 @@ pub async fn fetch_blob(
             }
             let mime_type =
                 blob_wire_mime(&wire_value).unwrap_or_else(|| detect_mime(&bytes).to_string());
-            let size = bytes.len() as u64;
-            let token = store_download(runtime.paths.data_dir(), session_id, &bytes)?;
+            let metadata = FileTransferStore::new(runtime.paths.data_dir())
+                .store_download_bytes(
+                    session_id,
+                    BLOB_TRANSFER_PURPOSE,
+                    "blob-download.bin",
+                    Some(&mime_type),
+                    bytes,
+                )
+                .await?;
             Ok(BlobFetchResponse::Download {
-                token,
-                size,
-                mime_type,
+                token: metadata.token,
+                size: metadata.size,
+                mime_type: metadata.mime_type,
             })
         }
     }
@@ -400,59 +407,6 @@ pub fn detect_mime_type(header_base64: &str) -> Result<String, String> {
     Ok(detect_mime(&bytes).to_string())
 }
 
-pub fn store_blob_upload(
-    data_dir: &Path,
-    session_id: Uuid,
-    bytes: &[u8],
-) -> Result<String, String> {
-    if bytes.is_empty() {
-        return Err("The uploaded BLOB is empty".to_string());
-    }
-    if bytes.len() as u64 > MAX_WEB_BLOB_BYTES {
-        return Err(format!(
-            "The uploaded BLOB exceeds the {} byte web limit",
-            MAX_WEB_BLOB_BYTES
-        ));
-    }
-    cleanup_expired(data_dir)?;
-    let token = Uuid::new_v4().to_string();
-    let path = transfer_path(data_dir, session_id, TransferKind::Upload, &token)?;
-    let parent = path
-        .parent()
-        .ok_or_else(|| "Invalid BLOB upload directory".to_string())?;
-    create_private_directory(parent)?;
-    write_private_file(&path, bytes)?;
-    Ok(format!(
-        "{UPLOAD_PREFIX}{}:{}:{token}",
-        bytes.len(),
-        detect_mime(bytes)
-    ))
-}
-
-pub fn read_upload(data_dir: &Path, session_id: Uuid, token: &str) -> Result<Vec<u8>, String> {
-    cleanup_expired(data_dir)?;
-    let path = transfer_path(data_dir, session_id, TransferKind::Upload, token)?;
-    fs::read(path).map_err(|_| "BLOB upload token is missing or expired".to_string())
-}
-
-pub fn consume_download(
-    data_dir: &Path,
-    session_id: Uuid,
-    token: &str,
-) -> Result<(Vec<u8>, String), String> {
-    cleanup_expired(data_dir)?;
-    let path = transfer_path(data_dir, session_id, TransferKind::Download, token)?;
-    let bytes =
-        fs::read(&path).map_err(|_| "BLOB download token is missing or expired".to_string())?;
-    fs::remove_file(path).map_err(|error| error.to_string())?;
-    let mime = detect_mime(&bytes).to_string();
-    Ok((bytes, mime))
-}
-
-pub fn cleanup_session_transfers(data_dir: &Path, session_id: Uuid) {
-    let _ = fs::remove_dir_all(transfer_root(data_dir).join(session_id.to_string()));
-}
-
 async fn driver_for(driver_id: &str) -> Result<std::sync::Arc<dyn DatabaseDriver>, String> {
     crate::drivers::registry::get_driver(driver_id)
         .await
@@ -471,16 +425,6 @@ fn max_blob_size(runtime: &RuntimeContext) -> u64 {
         .and_then(|content| serde_json::from_str::<crate::config::AppConfig>(&content).ok())
         .and_then(|config| config.max_blob_size)
         .unwrap_or(crate::drivers::common::DEFAULT_MAX_BLOB_SIZE)
-}
-
-struct ConsumedUpload {
-    path: PathBuf,
-}
-
-impl Drop for ConsumedUpload {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
-    }
 }
 
 fn reject_server_file_refs<'a>(
@@ -502,7 +446,7 @@ fn resolve_upload_value(
     session_id: Option<Uuid>,
     value: &mut Value,
     max_size: u64,
-) -> Result<Option<ConsumedUpload>, String> {
+) -> Result<Option<ClaimedUpload>, String> {
     let Some(reference) = value.as_str() else {
         return Ok(None);
     };
@@ -516,32 +460,23 @@ fn resolve_upload_value(
         "Browser BLOB upload references require an authenticated session".to_string()
     })?;
     let (claimed_size, _claimed_mime, token) = parse_upload_reference(reference)?;
-    let path = transfer_path(data_dir, session_id, TransferKind::Upload, token)?;
-    let metadata =
-        fs::metadata(&path).map_err(|_| "BLOB upload token is missing or expired".to_string())?;
-    if metadata.len() != claimed_size {
+    let upload =
+        FileTransferStore::new(data_dir).claim_upload(session_id, token, BLOB_TRANSFER_PURPOSE)?;
+    if upload.metadata().size != claimed_size {
         return Err("BLOB upload metadata does not match the uploaded file".to_string());
     }
-    if metadata.len() > max_size {
+    if upload.metadata().size > max_size {
         return Err(format!(
             "BLOB size {} exceeds the configured maximum of {} bytes",
-            metadata.len(),
+            upload.metadata().size,
             max_size
         ));
     }
-    let consumed_path = path.with_file_name(format!(".consumed-{}", Uuid::new_v4()));
-    fs::rename(&path, &consumed_path)
-        .map_err(|_| "BLOB upload token is missing, expired, or already used".to_string())?;
-    let upload = ConsumedUpload {
-        path: consumed_path,
-    };
-    let header = read_header(&upload.path)?;
-    let mime = detect_mime(&header);
     *value = Value::String(format!(
         "BLOB_FILE_REF:{}:{}:{}",
-        metadata.len(),
-        mime,
-        upload.path.display()
+        upload.metadata().size,
+        upload.metadata().mime_type,
+        upload.path().display()
     ));
     Ok(Some(upload))
 }
@@ -567,15 +502,6 @@ fn parse_upload_reference(reference: &str) -> Result<(u64, &str, &str), String> 
     Ok((size, mime, token))
 }
 
-fn read_header(path: &Path) -> Result<Vec<u8>, String> {
-    use std::io::Read;
-    let mut file = fs::File::open(path).map_err(|error| error.to_string())?;
-    let mut header = vec![0; 8192];
-    let read = file.read(&mut header).map_err(|error| error.to_string())?;
-    header.truncate(read);
-    Ok(header)
-}
-
 fn blob_wire_mime(wire_value: &str) -> Option<String> {
     let suffix = wire_value.strip_prefix("BLOB:")?;
     let (_, suffix) = suffix.split_once(':')?;
@@ -589,125 +515,11 @@ fn detect_mime(bytes: &[u8]) -> &str {
         .unwrap_or("application/octet-stream")
 }
 
-fn store_download(data_dir: &Path, session_id: Uuid, bytes: &[u8]) -> Result<String, String> {
-    if bytes.len() as u64 > MAX_WEB_BLOB_BYTES {
-        return Err(format!(
-            "BLOB download exceeds the {} byte web limit",
-            MAX_WEB_BLOB_BYTES
-        ));
-    }
-    cleanup_expired(data_dir)?;
-    let token = Uuid::new_v4().to_string();
-    let path = transfer_path(data_dir, session_id, TransferKind::Download, &token)?;
-    let parent = path
-        .parent()
-        .ok_or_else(|| "Invalid BLOB download directory".to_string())?;
-    create_private_directory(parent)?;
-    write_private_file(&path, bytes)?;
-    Ok(token)
-}
-
-fn create_private_directory(path: &Path) -> Result<(), String> {
-    fs::create_dir_all(path).map_err(|error| error.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o700))
-            .map_err(|error| error.to_string())?;
-    }
-    Ok(())
-}
-
-fn write_private_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    use std::io::Write;
-    let mut options = fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let mut file = options.open(path).map_err(|error| error.to_string())?;
-    file.write_all(bytes).map_err(|error| error.to_string())
-}
-
-#[derive(Clone, Copy)]
-enum TransferKind {
-    Upload,
-    Download,
-}
-
-impl TransferKind {
-    fn directory(self) -> &'static str {
-        match self {
-            Self::Upload => "uploads",
-            Self::Download => "downloads",
-        }
-    }
-}
-
-fn transfer_root(data_dir: &Path) -> PathBuf {
-    data_dir.join("web-blob-transfers")
-}
-
-fn transfer_path(
-    data_dir: &Path,
-    session_id: Uuid,
-    kind: TransferKind,
-    token: &str,
-) -> Result<PathBuf, String> {
-    validate_token(token)?;
-    Ok(transfer_root(data_dir)
-        .join(session_id.to_string())
-        .join(kind.directory())
-        .join(token))
-}
-
 fn validate_token(token: &str) -> Result<(), String> {
     match Uuid::parse_str(token) {
         Ok(parsed) if parsed.get_version_num() == 4 => Ok(()),
         _ => Err("Invalid BLOB transfer token".to_string()),
     }
-}
-
-fn cleanup_expired(data_dir: &Path) -> Result<(), String> {
-    let root = transfer_root(data_dir);
-    let sessions = match fs::read_dir(&root) {
-        Ok(sessions) => sessions,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error.to_string()),
-    };
-    for session in sessions {
-        let session = session.map_err(|error| error.to_string())?;
-        if !session
-            .file_type()
-            .map_err(|error| error.to_string())?
-            .is_dir()
-        {
-            continue;
-        }
-        for kind in [TransferKind::Upload, TransferKind::Download] {
-            let directory = session.path().join(kind.directory());
-            let entries = match fs::read_dir(&directory) {
-                Ok(entries) => entries,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(error) => return Err(error.to_string()),
-            };
-            for entry in entries {
-                let entry = entry.map_err(|error| error.to_string())?;
-                let metadata = entry.metadata().map_err(|error| error.to_string())?;
-                let expired = metadata
-                    .modified()
-                    .ok()
-                    .and_then(|modified| SystemTime::now().duration_since(modified).ok())
-                    .is_some_and(|age| age >= TRANSFER_TTL);
-                if expired {
-                    let _ = fs::remove_file(entry.path());
-                }
-            }
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

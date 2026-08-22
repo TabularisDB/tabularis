@@ -1,52 +1,30 @@
 use super::{
-    cleanup_session_transfers, consume_download, detect_blob_mime, detect_mime_type,
-    parse_upload_reference, read_upload, resolve_upload_value, store_blob_upload, store_download,
+    detect_blob_mime, detect_mime_type, parse_upload_reference, resolve_upload_value,
+    BLOB_TRANSFER_PURPOSE,
 };
+use crate::application::file_transfers::FileTransferStore;
 use base64::Engine;
+use bytes::Bytes;
+use std::convert::Infallible;
 use uuid::Uuid;
 
-#[test]
-fn blob_uploads_are_session_scoped_and_opaque() {
-    let temp = tempfile::tempdir().unwrap();
-    let owner = Uuid::new_v4();
-    let other = Uuid::new_v4();
-    let bytes = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
-
-    let reference = store_blob_upload(temp.path(), owner, &bytes).unwrap();
-    let (size, mime, token) = parse_upload_reference(&reference).unwrap();
-
-    assert_eq!(size, bytes.len() as u64);
-    assert_eq!(mime, "image/png");
-    assert_eq!(read_upload(temp.path(), owner, token).unwrap(), bytes);
-    assert!(read_upload(temp.path(), other, token).is_err());
-    assert!(!reference.contains(temp.path().to_string_lossy().as_ref()));
-}
-
-#[test]
-fn download_tokens_are_single_use_and_session_scoped() {
-    let temp = tempfile::tempdir().unwrap();
-    let owner = Uuid::new_v4();
-    let other = Uuid::new_v4();
-    let bytes = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
-    let token = store_download(temp.path(), owner, &bytes).unwrap();
-
-    assert!(consume_download(temp.path(), other, &token).is_err());
-    let (downloaded, mime) = consume_download(temp.path(), owner, &token).unwrap();
-    assert_eq!(downloaded, bytes);
-    assert_eq!(mime, "image/png");
-    assert!(consume_download(temp.path(), owner, &token).is_err());
-}
-
-#[test]
-fn session_cleanup_removes_pending_transfers() {
-    let temp = tempfile::tempdir().unwrap();
-    let session = Uuid::new_v4();
-    let reference = store_blob_upload(temp.path(), session, b"pending").unwrap();
-    let (_, _, token) = parse_upload_reference(&reference).unwrap();
-
-    cleanup_session_transfers(temp.path(), session);
-
-    assert!(read_upload(temp.path(), session, token).is_err());
+async fn store_blob(data_dir: &std::path::Path, owner: Uuid, bytes: &'static [u8]) -> String {
+    let metadata = FileTransferStore::new(data_dir)
+        .store_upload(
+            owner,
+            BLOB_TRANSFER_PURPOSE,
+            "blob.bin",
+            Some("application/octet-stream"),
+            futures::stream::once(
+                async move { Ok::<Bytes, Infallible>(Bytes::from_static(bytes)) },
+            ),
+        )
+        .await
+        .unwrap();
+    format!(
+        "BLOB_UPLOAD_REF:{}:{}:{}",
+        metadata.size, metadata.mime_type, metadata.token
+    )
 }
 
 #[test]
@@ -63,11 +41,11 @@ fn mime_detection_is_bounded_and_uses_magic_bytes() {
     assert!(detect_mime_type(&oversized_header).is_err());
 }
 
-#[test]
-fn resolving_an_upload_consumes_its_token_and_cleans_the_temporary_file() {
+#[tokio::test]
+async fn resolving_an_upload_consumes_its_token_and_cleans_the_temporary_file() {
     let temp = tempfile::tempdir().unwrap();
     let session = Uuid::new_v4();
-    let reference = store_blob_upload(temp.path(), session, b"blob").unwrap();
+    let reference = store_blob(temp.path(), session, b"blob").await;
     let (_, _, token) = parse_upload_reference(&reference).unwrap();
     let token = token.to_string();
     let mut value = serde_json::Value::String(reference);
@@ -85,7 +63,10 @@ fn resolving_an_upload_consumes_its_token_and_cleans_the_temporary_file() {
         .unwrap()
         .to_string();
 
-    assert!(read_upload(temp.path(), session, &token).is_err());
+    assert!(FileTransferStore::new(temp.path())
+        .open_upload(session, &token, BLOB_TRANSFER_PURPOSE)
+        .await
+        .is_err());
     assert!(std::path::Path::new(&consumed_path).exists());
     drop(upload);
     assert!(!std::path::Path::new(&consumed_path).exists());
@@ -111,10 +92,9 @@ fn browser_values_reject_server_file_references() {
 }
 
 #[test]
-fn transfer_tokens_reject_paths_and_non_v4_identifiers() {
-    let temp = tempfile::tempdir().unwrap();
-    let session = Uuid::new_v4();
-
-    assert!(read_upload(temp.path(), session, "../../config.json").is_err());
-    assert!(read_upload(temp.path(), session, &Uuid::nil().to_string()).is_err());
+fn blob_upload_references_reject_paths_and_non_v4_identifiers() {
+    assert!(parse_upload_reference("BLOB_UPLOAD_REF:4:text/plain:../../config.json").is_err());
+    assert!(
+        parse_upload_reference(&format!("BLOB_UPLOAD_REF:4:text/plain:{}", Uuid::nil())).is_err()
+    );
 }

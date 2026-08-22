@@ -405,6 +405,67 @@ fn rejects_a_web_root_without_an_index() {
 }
 
 #[tokio::test]
+async fn streams_safe_session_owned_file_uploads() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "<main>Tabularis Web</main>").unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let (security, bootstrap_token) =
+        LocalSessionSecurity::new(base_url.clone(), LocalSessionSecurityConfig::default()).unwrap();
+    let issued = security
+        .consume_bootstrap(bootstrap_token.expose())
+        .unwrap();
+    let session = security.authenticate(&issued.cookie_value).unwrap();
+    let cookie = format!("tabularis_session={}", issued.cookie_value);
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve(
+        listener,
+        temp.path().to_path_buf(),
+        security,
+        test_application(temp.path()),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post(format!("{base_url}/api/v1/uploads"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header("content-type", "text/csv; charset=utf-8")
+        .header("x-tabularis-file-name", "..%2Fquarterly%0Areport.csv")
+        .header("x-tabularis-purpose", "connection-import")
+        .body("region,total\nwest,42\n")
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), reqwest::StatusCode::CREATED);
+    let metadata = response.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(metadata["fileName"], "quarterly_report.csv");
+    assert_eq!(metadata["mimeType"], "text/csv");
+    assert_eq!(metadata["size"], 21);
+    assert!(metadata["token"].as_str().unwrap().len() >= 36);
+    assert!(metadata["expiresAt"].as_str().unwrap().ends_with('Z'));
+
+    let guessed = client
+        .get(format!(
+            "{base_url}/api/v1/downloads/00000000-0000-4000-8000-000000000000"
+        ))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(guessed.status(), reqwest::StatusCode::NOT_FOUND);
+
+    shutdown_tx.send(()).unwrap();
+    server.await.unwrap().unwrap();
+}
+
+#[tokio::test]
 async fn executes_representative_commands_over_versioned_rpc() {
     let temp = tempfile::tempdir().unwrap();
     std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();

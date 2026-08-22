@@ -1,6 +1,7 @@
 pub mod api;
 pub mod connections;
 pub mod database_objects;
+pub mod file_transfers;
 pub mod metadata;
 pub mod notebooks;
 pub mod persistence;

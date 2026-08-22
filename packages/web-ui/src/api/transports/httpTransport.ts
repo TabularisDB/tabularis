@@ -15,6 +15,7 @@ import {
   type RequestId,
 } from "../errors";
 import type { EventName, EventPayload, Unsubscribe } from "../events";
+import type { FileTransferMetadata, FileUploadRequest } from "../fileTransfers";
 import type { SessionNegotiation } from "../session";
 
 const EXPECTED_API_VERSION = "v1";
@@ -112,6 +113,93 @@ export class HttpTransport implements TabularisTransport {
   ): Promise<unknown> {
     void _tracking;
     return this.callRpc<unknown>(command, request, options);
+  }
+
+  async uploadFile(request: FileUploadRequest): Promise<FileTransferMetadata> {
+    const session = await this.initialize();
+    if (!session.capabilities.uploads) {
+      throw clientError(
+        "UPLOADS_UNAVAILABLE",
+        "The server did not advertise file uploads",
+      );
+    }
+    const requestId = createRequestId();
+    let response: Response;
+    try {
+      response = await this.fetchRequest(
+        this.url(`/api/${session.apiVersion}/uploads`),
+        {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: {
+            accept: "application/json",
+            "content-type": request.contents.type || "application/octet-stream",
+            "x-request-id": requestId,
+            "x-tabularis-csrf": session.csrfToken,
+            "x-tabularis-file-name": encodeURIComponent(request.fileName),
+            "x-tabularis-purpose": request.purpose,
+          },
+          body: request.contents,
+        },
+      );
+    } catch (error) {
+      throw normalizeTabularisError(error, "UPLOAD_NETWORK_ERROR", requestId);
+    }
+    const responseRequestId = response.headers.get("x-request-id") ?? requestId;
+    if (!response.ok) {
+      throw clientError(
+        response.status === 413 ? "UPLOAD_TOO_LARGE" : "UPLOAD_FAILED",
+        `File upload failed with HTTP ${response.status}`,
+        responseRequestId,
+      );
+    }
+    const body = await readJson(response, responseRequestId);
+    if (!isFileTransferMetadata(body)) {
+      throw clientError(
+        "INVALID_UPLOAD_RESPONSE",
+        "The server returned invalid file transfer metadata",
+        responseRequestId,
+      );
+    }
+    return body;
+  }
+
+  async consumeDownload(token: string): Promise<Blob> {
+    const session = await this.initialize();
+    if (!session.capabilities.downloads) {
+      throw clientError(
+        "DOWNLOADS_UNAVAILABLE",
+        "The server did not advertise file downloads",
+      );
+    }
+    const requestId = createRequestId();
+    let response: Response;
+    try {
+      response = await this.fetchRequest(
+        this.url(`/api/${session.apiVersion}/downloads/${encodeURIComponent(token)}`),
+        {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: {
+            accept: "application/octet-stream",
+            "x-request-id": requestId,
+          },
+        },
+      );
+    } catch (error) {
+      throw normalizeTabularisError(error, "DOWNLOAD_NETWORK_ERROR", requestId);
+    }
+    const responseRequestId = response.headers.get("x-request-id") ?? requestId;
+    if (!response.ok) {
+      throw clientError(
+        "DOWNLOAD_FAILED",
+        `File download failed with HTTP ${response.status}`,
+        responseRequestId,
+      );
+    }
+    return response.blob();
   }
 
   async uploadConnectionIcon(file: Blob): Promise<string> {
@@ -637,6 +725,23 @@ function clientError(
   details: unknown | null = null,
 ): TabularisClientError {
   return new TabularisClientError({ code, message, details, requestId });
+}
+
+function isFileTransferMetadata(value: unknown): value is FileTransferMetadata {
+  return (
+    isRecord(value) &&
+    typeof value.token === "string" &&
+    value.token.length > 0 &&
+    typeof value.fileName === "string" &&
+    value.fileName.length > 0 &&
+    typeof value.mimeType === "string" &&
+    value.mimeType.length > 0 &&
+    typeof value.size === "number" &&
+    Number.isSafeInteger(value.size) &&
+    value.size >= 0 &&
+    typeof value.expiresAt === "string" &&
+    value.expiresAt.length > 0
+  );
 }
 
 function isBlobUploadResponse(value: unknown): value is { value: string } {

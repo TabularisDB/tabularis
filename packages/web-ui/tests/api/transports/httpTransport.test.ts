@@ -135,6 +135,58 @@ describe("HttpTransport", () => {
     expect(headers.get("x-tabularis-csrf")).toBe("csrf-token");
   });
 
+  it("streams purpose-bound generic uploads and consumes token downloads", async () => {
+    const transferSession = {
+      ...SESSION,
+      capabilities: {
+        ...SESSION.capabilities,
+        uploads: true,
+        downloads: true,
+      },
+    };
+    const metadata = {
+      token: "opaque-file-token",
+      fileName: "report.csv",
+      mimeType: "text/csv",
+      size: 7,
+      expiresAt: "2026-08-22T05:30:00Z",
+    };
+    const fetchRequest = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse(transferSession))
+      .mockResolvedValueOnce(jsonResponse(metadata, 201))
+      .mockResolvedValueOnce(
+        new Response("a,b\n1,2", { headers: { "content-type": "text/csv" } }),
+      );
+    const transport = new HttpTransport({
+      baseUrl: "http://127.0.0.1:8080",
+      fetch: fetchRequest,
+    });
+    const contents = new Blob(["a,b\n1,2"], { type: "text/csv" });
+
+    await expect(
+      transport.uploadFile({
+        contents,
+        fileName: "../report.csv",
+        purpose: "connection-import",
+      }),
+    ).resolves.toEqual(metadata);
+    await expect(
+      transport.consumeDownload("opaque-file-token").then((file) => file.text()),
+    ).resolves.toBe("a,b\n1,2");
+
+    const [uploadUrl, uploadRequest] = fetchRequest.mock.calls[1];
+    const uploadHeaders = new Headers(uploadRequest?.headers);
+    expect(uploadUrl).toBe("http://127.0.0.1:8080/api/v1/uploads");
+    expect(uploadRequest?.body).toBe(contents);
+    expect(uploadHeaders.get("x-tabularis-file-name")).toBe("..%2Freport.csv");
+    expect(uploadHeaders.get("x-tabularis-purpose")).toBe("connection-import");
+    const [downloadUrl] = fetchRequest.mock.calls[2];
+    expect(downloadUrl).toBe(
+      "http://127.0.0.1:8080/api/v1/downloads/opaque-file-token",
+    );
+  });
+
   it("uploads BLOBs and consumes single-use downloads with the authenticated session", async () => {
     const transferSession = {
       ...SESSION,

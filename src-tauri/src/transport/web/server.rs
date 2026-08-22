@@ -5,13 +5,16 @@ use super::auth::{
 use super::contract::SessionNegotiation;
 use super::events::{ClientEventMessage, EventConnection, ServerEventMessage, WebEventBus};
 use super::rpc::{RequestId, RpcDispatcher};
+use crate::application::file_transfers::{
+    FileTransferStore, TransferReader, MAX_FILE_TRANSFER_BYTES,
+};
 use crate::application::{ApplicationApi, AuthorizationLevel};
-use axum::body::Bytes;
+use axum::body::{Body, Bytes};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Extension, Path, Query, Request, State};
 use axum::http::header::{
-    CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_SECURITY_POLICY, CONTENT_TYPE, COOKIE, HOST,
-    LOCATION, ORIGIN, REFERRER_POLICY, SET_COOKIE, X_CONTENT_TYPE_OPTIONS,
+    CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_SECURITY_POLICY, CONTENT_TYPE,
+    COOKIE, HOST, LOCATION, ORIGIN, REFERRER_POLICY, SET_COOKIE, X_CONTENT_TYPE_OPTIONS,
 };
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
@@ -25,6 +28,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::time::{Instant, MissedTickBehavior};
+use tokio_util::io::ReaderStream;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use uuid::Uuid;
@@ -32,6 +36,9 @@ use uuid::Uuid;
 const BOOTSTRAP_PATH: &str = "/api/v1/auth/bootstrap";
 const REQUEST_ID_HEADER_NAME: &str = "x-request-id";
 const MAX_EVENT_CONTROL_BYTES: usize = 16 * 1024;
+const FILE_NAME_HEADER_NAME: &str = "x-tabularis-file-name";
+const FILE_PURPOSE_HEADER_NAME: &str = "x-tabularis-purpose";
+const BLOB_TRANSFER_PURPOSE: &str = "blob";
 
 pub struct WebServerOptions {
     pub host: String,
@@ -48,6 +55,7 @@ struct WebServerState {
     security: LocalSessionSecurity,
     rpc: RpcDispatcher,
     events: WebEventBus,
+    transfers: FileTransferStore,
     data_dir: PathBuf,
 }
 
@@ -161,6 +169,7 @@ fn router(
         security,
         rpc: RpcDispatcher::new(application),
         events,
+        transfers: FileTransferStore::new(&data_dir),
         data_dir,
     };
 
@@ -179,10 +188,13 @@ fn router(
         )
         .route("/api/*path", any(StatusCode::NOT_FOUND))
         .layer(RequestBodyLimitLayer::new(max_body_bytes));
+    let file_routes = Router::new()
+        .route("/api/v1/uploads", post(upload_file))
+        .route("/api/v1/downloads/:token", get(download_blob))
+        .layer(RequestBodyLimitLayer::new(MAX_FILE_TRANSFER_BYTES as usize));
     let blob_routes = Router::new()
         .route("/api/v1/uploads/blobs", post(upload_blob))
         .route("/api/v1/uploads/blobs/:token", get(uploaded_blob))
-        .route("/api/v1/downloads/:token", get(download_blob))
         .layer(RequestBodyLimitLayer::new(
             crate::application::records::MAX_WEB_BLOB_BYTES as usize,
         ));
@@ -191,6 +203,7 @@ fn router(
         .route("/healthz", get(health))
         .route(BOOTSTRAP_PATH, get(bootstrap))
         .merge(standard_routes)
+        .merge(file_routes)
         .merge(blob_routes)
         .fallback_service(static_files)
         .with_state(state.clone())
@@ -281,28 +294,83 @@ async fn upload_connection_icon(
     }
 }
 
+async fn upload_file(
+    State(state): State<WebServerState>,
+    Extension(session): Extension<AuthenticatedSession>,
+    headers: HeaderMap,
+    body: Body,
+) -> Response {
+    let Some(purpose) = header_text(&headers, FILE_PURPOSE_HEADER_NAME) else {
+        return upload_error_response("A file transfer purpose is required".to_string());
+    };
+    let Some(encoded_name) = header_text(&headers, FILE_NAME_HEADER_NAME) else {
+        return upload_error_response("A file name is required".to_string());
+    };
+    let file_name = match urlencoding::decode(encoded_name) {
+        Ok(file_name) => file_name,
+        Err(_) => return upload_error_response("The file name is invalid".to_string()),
+    };
+    let content_type = header_text(&headers, CONTENT_TYPE.as_str());
+    match state
+        .transfers
+        .store_upload(
+            session.event_scope(),
+            purpose,
+            &file_name,
+            content_type,
+            body.into_data_stream(),
+        )
+        .await
+    {
+        Ok(metadata) => (
+            StatusCode::CREATED,
+            [(CACHE_CONTROL, "no-store")],
+            Json(metadata),
+        )
+            .into_response(),
+        Err(error) => upload_error_response(error),
+    }
+}
+
 async fn upload_blob(
     State(state): State<WebServerState>,
     Extension(session): Extension<AuthenticatedSession>,
-    body: Bytes,
+    headers: HeaderMap,
+    body: Body,
 ) -> Response {
-    match crate::application::records::store_blob_upload(
-        &state.data_dir,
-        session.event_scope(),
-        &body,
-    ) {
-        Ok(value) => (
-            StatusCode::CREATED,
-            [(CACHE_CONTROL, "no-store")],
-            Json(BlobUploadResponse { value }),
+    let content_type = header_text(&headers, CONTENT_TYPE.as_str());
+    match state
+        .transfers
+        .store_upload(
+            session.event_scope(),
+            BLOB_TRANSFER_PURPOSE,
+            "blob-upload.bin",
+            content_type,
+            body.into_data_stream(),
         )
-            .into_response(),
-        Err(error) => (
-            StatusCode::BAD_REQUEST,
-            [(CACHE_CONTROL, "no-store")],
-            error,
-        )
-            .into_response(),
+        .await
+    {
+        Ok(metadata) if metadata.size > 0 => {
+            let value = format!(
+                "BLOB_UPLOAD_REF:{}:{}:{}",
+                metadata.size, metadata.mime_type, metadata.token
+            );
+            (
+                StatusCode::CREATED,
+                [(CACHE_CONTROL, "no-store")],
+                Json(BlobUploadResponse { value }),
+            )
+                .into_response()
+        }
+        Ok(metadata) => {
+            let _ = state.transfers.claim_upload(
+                session.event_scope(),
+                &metadata.token,
+                BLOB_TRANSFER_PURPOSE,
+            );
+            upload_error_response("The uploaded BLOB is empty".to_string())
+        }
+        Err(error) => upload_error_response(error),
     }
 }
 
@@ -311,8 +379,12 @@ async fn uploaded_blob(
     Path(token): Path<String>,
     Extension(session): Extension<AuthenticatedSession>,
 ) -> Response {
-    match crate::application::records::read_upload(&state.data_dir, session.event_scope(), &token) {
-        Ok(bytes) => binary_blob_response(bytes, false),
+    match state
+        .transfers
+        .open_upload(session.event_scope(), &token, BLOB_TRANSFER_PURPOSE)
+        .await
+    {
+        Ok(reader) => streaming_transfer_response(reader, false, true),
         Err(_) => status_response(StatusCode::NOT_FOUND),
     }
 }
@@ -322,43 +394,64 @@ async fn download_blob(
     Path(token): Path<String>,
     Extension(session): Extension<AuthenticatedSession>,
 ) -> Response {
-    match crate::application::records::consume_download(
-        &state.data_dir,
-        session.event_scope(),
-        &token,
-    ) {
-        Ok((bytes, mime)) => (
-            StatusCode::OK,
-            [
-                (CACHE_CONTROL, "no-store"),
-                (CONTENT_TYPE, mime.as_str()),
-                (CONTENT_DISPOSITION, "attachment"),
-                (X_CONTENT_TYPE_OPTIONS, "nosniff"),
-            ],
-            bytes,
-        )
-            .into_response(),
+    match state
+        .transfers
+        .consume_download(session.event_scope(), &token)
+        .await
+    {
+        Ok(reader) => streaming_transfer_response(reader, true, false),
         Err(_) => status_response(StatusCode::NOT_FOUND),
     }
 }
 
-fn binary_blob_response(bytes: Vec<u8>, attachment: bool) -> Response {
-    let mime = infer::get(&bytes)
-        .map(|kind| kind.mime_type())
-        .unwrap_or("application/octet-stream");
+fn streaming_transfer_response(
+    reader: TransferReader,
+    attachment: bool,
+    sandbox: bool,
+) -> Response {
+    let metadata = reader.metadata().clone();
     let disposition = if attachment { "attachment" } else { "inline" };
-    (
-        StatusCode::OK,
-        [
-            (CACHE_CONTROL, "no-store"),
-            (CONTENT_TYPE, mime),
-            (CONTENT_DISPOSITION, disposition),
-            (CONTENT_SECURITY_POLICY, "sandbox; default-src 'none'"),
-            (X_CONTENT_TYPE_OPTIONS, "nosniff"),
-        ],
-        bytes,
-    )
-        .into_response()
+    let content_disposition = format!("{disposition}; filename=\"{}\"", metadata.file_name);
+    let mut response = Response::new(Body::from_stream(ReaderStream::new(reader)));
+    *response.status_mut() = StatusCode::OK;
+    let headers = response.headers_mut();
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    headers.insert(
+        CONTENT_TYPE,
+        HeaderValue::from_str(&metadata.mime_type)
+            .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
+    );
+    headers.insert(
+        CONTENT_LENGTH,
+        HeaderValue::from_str(&metadata.size.to_string())
+            .expect("file transfer sizes are valid header values"),
+    );
+    headers.insert(
+        CONTENT_DISPOSITION,
+        HeaderValue::from_str(&content_disposition)
+            .expect("sanitized file names are valid header values"),
+    );
+    headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    if sandbox {
+        headers.insert(
+            CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("sandbox; default-src 'none'"),
+        );
+    }
+    response
+}
+
+fn header_text<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+    headers.get(name)?.to_str().ok()
+}
+
+fn upload_error_response(error: String) -> Response {
+    let status = if error.contains("byte limit") {
+        StatusCode::PAYLOAD_TOO_LARGE
+    } else {
+        StatusCode::BAD_REQUEST
+    };
+    (status, [(CACHE_CONTROL, "no-store")], error).into_response()
 }
 
 async fn connection_icon_asset(
@@ -568,7 +661,7 @@ async fn logout(
 ) -> Response {
     state.events.remove_session(session.event_scope());
     state.rpc.clear_session(session.event_scope());
-    crate::application::records::cleanup_session_transfers(&state.data_dir, session.event_scope());
+    state.transfers.cleanup_session(session.event_scope());
     state.security.logout(&session);
     let mut response = StatusCode::NO_CONTENT.into_response();
     response
