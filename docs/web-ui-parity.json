@@ -53,8 +53,8 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 97,
-    "literalCallSiteCount": 130,
+    "literalCommandCount": 91,
+    "literalCallSiteCount": 123,
     "dynamicCallSiteCount": 0,
     "handlerRegistrationCount": 256,
     "registeredCommandCount": 255,
@@ -62,7 +62,7 @@
       "cancel_dump"
     ],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 158
+    "registeredCommandsWithoutFrontendCall": 164
   },
   "commands": [
     {
@@ -308,24 +308,6 @@
       ]
     },
     {
-      "name": "create_notebook",
-      "featureGroup": "notebooks",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/notebookStore.ts",
-          "line": 157
-        },
-        {
-          "file": "packages/web-ui/src/utils/notebookStore.ts",
-          "line": 176
-        }
-      ]
-    },
-    {
       "name": "create_sqlite_database",
       "featureGroup": "connections",
       "eventUse": "none",
@@ -392,20 +374,6 @@
         {
           "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 359
-        }
-      ]
-    },
-    {
-      "name": "delete_notebook",
-      "featureGroup": "notebooks",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/notebookStore.ts",
-          "line": 195
         }
       ]
     },
@@ -621,7 +589,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 248
+          "line": 253
         }
       ]
     },
@@ -1078,20 +1046,6 @@
       ]
     },
     {
-      "name": "list_notebooks",
-      "featureGroup": "notebooks",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/notebookStore.ts",
-          "line": 203
-        }
-      ]
-    },
-    {
       "name": "list_pending_approvals",
       "featureGroup": "ai",
       "eventUse": "none",
@@ -1115,7 +1069,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 225
+          "line": 230
         }
       ]
     },
@@ -1130,20 +1084,6 @@
         {
           "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
           "line": 58
-        }
-      ]
-    },
-    {
-      "name": "load_notebook",
-      "featureGroup": "notebooks",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/notebookStore.ts",
-          "line": 125
         }
       ]
     },
@@ -1321,7 +1261,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 233
+          "line": 238
         }
       ]
     },
@@ -1362,20 +1302,6 @@
       ]
     },
     {
-      "name": "rename_notebook",
-      "featureGroup": "notebooks",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/notebookStore.ts",
-          "line": 221
-        }
-      ]
-    },
-    {
       "name": "run_connections_backup",
       "featureGroup": "backup",
       "eventUse": "event-coordinated",
@@ -1399,21 +1325,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 216
-        }
-      ]
-    },
-    {
-      "name": "save_notebook",
-      "featureGroup": "notebooks",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/notebookStore.ts",
-          "line": 55
+          "line": 221
         }
       ]
     },
@@ -1570,6 +1482,7 @@
     "create_connection_tag",
     "create_db_user",
     "create_group_path",
+    "create_notebook",
     "create_trigger",
     "create_view",
     "delete_connection",
@@ -1579,6 +1492,7 @@
     "delete_custom_theme",
     "delete_editor_preferences",
     "delete_k8s_connection",
+    "delete_notebook",
     "delete_query_history_entry",
     "delete_record",
     "delete_saved_query",
@@ -1666,13 +1580,16 @@
     "is_debug_mode",
     "list_all_preferences",
     "list_connection_tags",
+    "list_notebooks",
     "load_editor_preferences",
+    "load_notebook",
     "move_connection_to_group",
     "move_group_to_parent",
     "open_devtools",
     "open_visual_explain_window",
     "refresh_materialized_view",
     "register_active_connection",
+    "rename_notebook",
     "reorder_connections_in_group",
     "reorder_groups",
     "reset_cellname_prompt",
@@ -1693,6 +1610,7 @@
     "save_explainplan_prompt",
     "save_k8s_connection",
     "save_keybindings",
+    "save_notebook",
     "save_query",
     "save_ssh_connection",
     "save_system_prompt",

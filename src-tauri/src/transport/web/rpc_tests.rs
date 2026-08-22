@@ -169,6 +169,23 @@ impl ApplicationApi for FixtureApplication {
         self.record(context).await;
         Ok(Value::Null)
     }
+
+    async fn execute_notebook_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: crate::application::notebooks::NotebookCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(match command {
+            crate::application::notebooks::NotebookCommand::Load { .. } => {
+                serde_json::json!("{}")
+            }
+            crate::application::notebooks::NotebookCommand::List { .. } => {
+                serde_json::json!([])
+            }
+            _ => Value::Null,
+        })
+    }
 }
 
 fn json_headers() -> HeaderMap {
@@ -273,6 +290,25 @@ fn declares_authorization_for_each_registered_command() {
             .authorization,
         AuthorizationLevel::Sensitive
     );
+}
+
+#[test]
+fn registers_notebook_commands_with_database_authorization() {
+    for name in [
+        "create_notebook",
+        "save_notebook",
+        "load_notebook",
+        "delete_notebook",
+        "rename_notebook",
+        "list_notebooks",
+    ] {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(
+            command.metadata().authorization,
+            AuthorizationLevel::Database,
+            "{name}",
+        );
+    }
 }
 
 #[test]
@@ -627,6 +663,60 @@ async fn routes_query_execution_commands_through_the_shared_application_api() {
         ),
         (
             "get_server_now",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+    ];
+
+    for (command, payload) in commands {
+        let response = dispatcher
+            .dispatch(
+                command,
+                RequestId(format!("request-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                Some(uuid::Uuid::new_v4()),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK, "{command}");
+    }
+}
+
+#[tokio::test]
+async fn routes_notebook_commands_through_the_shared_application_api() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let target = serde_json::json!({
+        "connectionId": "connection-1",
+        "notebookId": "notebook-1"
+    });
+    let commands = [
+        (
+            "create_notebook",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "notebookId": "notebook-1",
+                "content": "{}"
+            }),
+        ),
+        (
+            "save_notebook",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "notebookId": "notebook-1",
+                "content": "{}"
+            }),
+        ),
+        ("load_notebook", target.clone()),
+        ("delete_notebook", target),
+        (
+            "rename_notebook",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "notebookId": "notebook-1",
+                "title": "Renamed"
+            }),
+        ),
+        (
+            "list_notebooks",
             serde_json::json!({"connectionId": "connection-1"}),
         ),
     ];

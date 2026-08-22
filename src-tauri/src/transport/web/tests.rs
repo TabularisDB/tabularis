@@ -7,6 +7,7 @@ use crate::application::{ApplicationApi, RuntimeApplicationApi};
 use crate::runtime::{paths::FixedRuntimePaths, state::ApplicationState, RuntimeContext};
 use futures::{SinkExt, StreamExt};
 use reqwest::header::{COOKIE, HOST, LOCATION, ORIGIN, SET_COOKIE};
+use serde_json::Value;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -760,6 +761,126 @@ async fn executes_representative_commands_over_versioned_rpc() {
         }),
     )
     .await;
+
+    let notebook_content = serde_json::json!({
+        "version": 2,
+        "title": "Web notebook",
+        "createdAt": "2026-08-22T00:00:00Z",
+        "cells": [{
+            "type": "sql",
+            "content": "SELECT 1",
+            "chartConfig": {
+                "type": "bar",
+                "labelColumn": "value",
+                "valueColumns": ["value"]
+            }
+        }],
+        "stopOnError": true
+    })
+    .to_string();
+    let notebook_target = serde_json::json!({
+        "connectionId": "metadata-fixture",
+        "notebookId": "notebook-web-1"
+    });
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "create_notebook",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "notebookId": "notebook-web-1",
+            "content": notebook_content
+        }),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "load_notebook",
+            notebook_target.clone(),
+        )
+        .await,
+        notebook_content
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "load_notebook",
+            serde_json::json!({
+                "connectionId": "another-connection",
+                "notebookId": "notebook-web-1"
+            }),
+        )
+        .await,
+        Value::Null
+    );
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "save_notebook",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "notebookId": "notebook-web-1",
+            "content": notebook_content
+        }),
+    )
+    .await;
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "rename_notebook",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "notebookId": "notebook-web-1",
+            "title": "Renamed web notebook"
+        }),
+    )
+    .await;
+    let notebooks = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "list_notebooks",
+        serde_json::json!({"connectionId": "metadata-fixture"}),
+    )
+    .await;
+    assert_eq!(notebooks[0]["id"], "notebook-web-1");
+    assert_eq!(notebooks[0]["title"], "Renamed web notebook");
+    assert_eq!(notebooks[0]["createdAt"], "2026-08-22T00:00:00Z");
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "delete_notebook",
+        notebook_target.clone(),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "load_notebook",
+            notebook_target,
+        )
+        .await,
+        Value::Null
+    );
 
     assert_eq!(
         rpc_data(

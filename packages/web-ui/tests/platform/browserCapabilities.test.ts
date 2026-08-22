@@ -13,6 +13,41 @@ const request = {
   pkMap: { id: 1 },
 };
 
+describe("BrowserPlatformCapabilities file transfers", () => {
+  it("adapts browser-selected files to single-use opaque references", async () => {
+    const file = {
+      name: "analysis.tabularis-notebook",
+      arrayBuffer: vi.fn().mockResolvedValue(
+        new TextEncoder().encode("notebook contents").buffer,
+      ),
+    } as unknown as File;
+    const filePicker = vi.fn().mockResolvedValue(file);
+    const capabilities = new BrowserPlatformCapabilities(
+      clientFixture({}),
+      filePicker,
+    );
+
+    const selected = await capabilities.chooseInputFile({
+      filters: [
+        { name: "Tabularis Notebook", extensions: ["tabularis-notebook"] },
+      ],
+    });
+
+    expect(selected?.name).toBe("analysis.tabularis-notebook");
+    expect(selected?.reference).toMatch(/^browser-file:/);
+    expect(selected?.reference).not.toContain("analysis.tabularis-notebook");
+    expect(filePicker).toHaveBeenCalledWith(".tabularis-notebook");
+    await expect(
+      capabilities
+        .readInputFile(selected?.reference ?? "")
+        .then((contents) => Array.from(contents)),
+    ).resolves.toEqual(Array.from(new TextEncoder().encode("notebook contents")));
+    await expect(
+      capabilities.readInputFile(selected?.reference ?? ""),
+    ).rejects.toThrow("Invalid or expired browser file reference");
+  });
+});
+
 describe("BrowserPlatformCapabilities BLOB transfers", () => {
   it("resolves session-scoped upload previews without exposing a path", async () => {
     const uploadedBlobUrl = vi.fn(

@@ -333,7 +333,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     }
     let cancelled = false;
     const refresh = () => {
-      listNotebooks(activeConnectionId)
+      listNotebooks(activeConnectionId, client)
         .then((nbs) => {
           if (!cancelled) setNotebookCount(nbs.length);
         })
@@ -347,7 +347,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
       cancelled = true;
       window.removeEventListener(NOTEBOOKS_CHANGED_EVENT, refresh);
     };
-  }, [activeConnectionId]);
+  }, [activeConnectionId, client]);
 
   // The Notebooks section only lists the active connection's notebooks, so all
   // actions stay within activeConnectionId.
@@ -359,7 +359,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
 
   const handleRenameNotebook = async (notebookId: string, title: string) => {
     if (!activeConnectionId) return;
-    await renameNotebook(notebookId, activeConnectionId, title);
+    await renameNotebook(notebookId, activeConnectionId, title, client);
     const open = tabs.find((tb) => tb.notebookId === notebookId);
     if (open) updateTab(open.id, { title });
   };
@@ -367,7 +367,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   const handleDeleteNotebook = async (notebookId: string) => {
     if (!activeConnectionId) return;
     // Clears cache + timers first, so closing the tab below won't re-save it.
-    await deleteNotebook(notebookId, activeConnectionId);
+    await deleteNotebook(notebookId, activeConnectionId, client);
     const open = tabs.find((tb) => tb.notebookId === notebookId);
     if (open) closeTab(open.id);
   };

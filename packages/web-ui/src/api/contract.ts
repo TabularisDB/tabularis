@@ -27,6 +27,7 @@ import type {
   QueryHistoryResponse,
 } from "../types/queryHistory";
 import type { UserOverrides } from "../utils/keybindings";
+import type { NotebookMetadata } from "../types/notebook";
 import type { RequestId } from "./errors";
 
 export type AuthorizationLevel =
@@ -159,6 +160,14 @@ export interface UpdateConnectionRequest extends SaveConnectionRequest {
 
 interface ConnectionIdRequest {
   connectionId: string;
+}
+
+interface NotebookTargetRequest extends ConnectionIdRequest {
+  notebookId: string;
+}
+
+interface NotebookContentRequest extends NotebookTargetRequest {
+  content: string;
 }
 
 interface MetadataRequest extends ConnectionIdRequest {
@@ -710,6 +719,21 @@ export interface CommandMap {
     "database"
   >;
   clear_query_history: CommandDefinition<ConnectionIdRequest, void, "database">;
+
+  create_notebook: CommandDefinition<NotebookContentRequest, void, "database">;
+  save_notebook: CommandDefinition<NotebookContentRequest, void, "database">;
+  load_notebook: CommandDefinition<NotebookTargetRequest, string | null, "database">;
+  delete_notebook: CommandDefinition<NotebookTargetRequest, void, "database">;
+  rename_notebook: CommandDefinition<
+    NotebookTargetRequest & { title: string },
+    void,
+    "database"
+  >;
+  list_notebooks: CommandDefinition<
+    ConnectionIdRequest,
+    NotebookMetadata[],
+    "database"
+  >;
 
   delete_record: CommandDefinition<RecordIdentityRequest, number, "database">;
   update_record: CommandDefinition<

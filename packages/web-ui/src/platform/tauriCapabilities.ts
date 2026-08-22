@@ -203,6 +203,11 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
     return reference ? { reference } : null;
   }
 
+  readInputFile(reference: string): Promise<Uint8Array> {
+    this.require("chooseInputFile");
+    return this.operations.readFileContents(reference);
+  }
+
   async chooseConnectionIcon(connectionId: string): Promise<string | null> {
     const selected = await this.chooseInputFile({
       filters: [

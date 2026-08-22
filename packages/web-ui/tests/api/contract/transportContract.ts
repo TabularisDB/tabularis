@@ -317,6 +317,52 @@ export function defineTransportContractSuite(
       ).resolves.toBeNull();
     });
 
+    it("preserves notebook CRUD contracts and file format content", async () => {
+      const notebook = {
+        version: 2,
+        title: "Revenue",
+        createdAt: "2026-08-22T00:00:00Z",
+        connectionId: "notebook-fixture",
+        cells: [{ type: "sql", content: "SELECT 42", name: "Answer" }],
+      };
+      const content = JSON.stringify(notebook);
+      const target = {
+        connectionId: "notebook-fixture",
+        notebookId: "notebook-1",
+      };
+
+      await expect(
+        harness.transport.call("create_notebook", { ...target, content }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("save_notebook", { ...target, content }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("load_notebook", target),
+      ).resolves.toBe(content);
+      await expect(
+        harness.transport.call("rename_notebook", {
+          ...target,
+          title: "Revenue 2026",
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("list_notebooks", {
+          connectionId: target.connectionId,
+        }),
+      ).resolves.toEqual([
+        {
+          id: target.notebookId,
+          title: "Revenue 2026",
+          createdAt: notebook.createdAt,
+          updatedAt: "2026-08-22T00:01:00Z",
+        },
+      ]);
+      await expect(
+        harness.transport.call("delete_notebook", target),
+      ).resolves.toBeNull();
+    });
+
     it("preserves data editing and blob contracts", async () => {
       const locator = {
         connectionId: "record-fixture",
@@ -552,7 +598,49 @@ async function handleRequest(
     sendSuccess(response, ["public"], requestId);
     return;
   }
+  const notebookContent = JSON.stringify({
+    version: 2,
+    title: "Revenue",
+    createdAt: "2026-08-22T00:00:00Z",
+    connectionId: "notebook-fixture",
+    cells: [{ type: "sql", content: "SELECT 42", name: "Answer" }],
+  });
+  const notebookTarget = {
+    connectionId: "notebook-fixture",
+    notebookId: "notebook-1",
+  };
   const queryRequests: Record<string, unknown> = {
+    create_notebook: {
+      request: { ...notebookTarget, content: notebookContent },
+      response: null,
+    },
+    save_notebook: {
+      request: { ...notebookTarget, content: notebookContent },
+      response: null,
+    },
+    load_notebook: {
+      request: notebookTarget,
+      response: notebookContent,
+    },
+    rename_notebook: {
+      request: { ...notebookTarget, title: "Revenue 2026" },
+      response: null,
+    },
+    list_notebooks: {
+      request: { connectionId: "notebook-fixture" },
+      response: [
+        {
+          id: "notebook-1",
+          title: "Revenue 2026",
+          createdAt: "2026-08-22T00:00:00Z",
+          updatedAt: "2026-08-22T00:01:00Z",
+        },
+      ],
+    },
+    delete_notebook: {
+      request: notebookTarget,
+      response: null,
+    },
     get_saved_queries: {
       request: { connectionId: "saved-query-fixture" },
       response: [

@@ -103,7 +103,21 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     connectionId: "connection-1",
     id: "saved-query-1",
   });
+  const notebookContent: Promise<string | null> = caller.call("load_notebook", {
+    connectionId: "connection-1",
+    notebookId: "notebook-1",
+  });
+  const savedNotebook: Promise<void> = caller.call("save_notebook", {
+    connectionId: "connection-1",
+    notebookId: "notebook-1",
+    content: "{}",
+  });
+  const notebooks = caller.call("list_notebooks", {
+    connectionId: "connection-1",
+  });
 
+  // @ts-expect-error Notebook operations require explicit connection scoping.
+  caller.call("load_notebook", { notebookId: "notebook-1" });
   // @ts-expect-error Saved-query mutations require explicit connection scoping.
   caller.call("delete_saved_query", { id: "saved-query-1" });
   // @ts-expect-error execute_query requires a connection id.
@@ -153,6 +167,9 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     savedQueries,
     history,
     deletedSavedQuery,
+    notebookContent,
+    savedNotebook,
+    notebooks,
     explainResult,
     cancellation,
     wrongResponse,
@@ -199,6 +216,7 @@ const editorPreferencesAuthorization: CommandAuthorization<"load_editor_preferen
 const sessionSelectionAuthorization: CommandAuthorization<"get_last_open_connections"> = "session";
 const savedQueryAuthorization: CommandAuthorization<"save_query"> = "database";
 const queryHistoryAuthorization: CommandAuthorization<"get_query_history"> = "database";
+const notebookAuthorization: CommandAuthorization<"save_notebook"> = "database";
 // @ts-expect-error execute_query is not a local-admin operation.
 const wrongAuthorization: CommandAuthorization<"execute_query"> = "local-admin";
 const rpcFailure: RpcFailure = {
@@ -235,6 +253,7 @@ void editorPreferencesAuthorization;
 void sessionSelectionAuthorization;
 void savedQueryAuthorization;
 void queryHistoryAuthorization;
+void notebookAuthorization;
 void wrongAuthorization;
 void rpcFailure;
 void failureWithoutRequestId;

@@ -45,6 +45,9 @@ describe("TauriPlatformCapabilities", () => {
     vi.mocked(operations.chooseSavePath).mockResolvedValue(
       "/tmp/export.csv",
     );
+    vi.mocked(operations.readFileContents).mockResolvedValue(
+      new Uint8Array([1, 2, 3]),
+    );
     const capabilities = new TauriPlatformCapabilities(operations);
 
     await expect(
@@ -56,6 +59,9 @@ describe("TauriPlatformCapabilities", () => {
     await expect(
       capabilities.chooseSaveTarget({ suggestedName: "export.csv" }),
     ).resolves.toEqual({ reference: "/tmp/export.csv" });
+    await expect(
+      capabilities.readInputFile("/tmp/example.sql"),
+    ).resolves.toEqual(new Uint8Array([1, 2, 3]));
   });
 
   it("adapts desktop BLOB paths and inline database values", async () => {

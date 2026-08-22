@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import type { TypedCommandCaller } from "../api/contract";
 import type { NotebookMetadata, NotebookState } from "../types/notebook";
 import { createDefaultNotebookState } from "./notebook";
 import { serializeNotebook, deserializeNotebook } from "./notebookFile";
@@ -25,6 +25,7 @@ const titleCache = new Map<string, string>();
 // every save/load/delete needs the owning connection id. It is captured when a
 // notebook is created or loaded and read back from here for autosaves.
 const connectionIdCache = new Map<string, string>();
+const clientCache = new Map<string, TypedCommandCaller>();
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function generateNotebookId(): string {
@@ -46,13 +47,14 @@ function serializeForDisk(notebookId: string, state: NotebookState): string {
 }
 
 /** Persist a notebook, or skip (with a warning) if its connection is unknown. */
-function persist(notebookId: string, content: string): Promise<unknown> {
+function persist(notebookId: string, content: string): Promise<void> {
   const connectionId = connectionIdCache.get(notebookId);
-  if (!connectionId) {
-    console.error(`Cannot save notebook ${notebookId}: unknown connection`);
+  const client = clientCache.get(notebookId);
+  if (!connectionId || !client) {
+    console.error(`Cannot save notebook ${notebookId}: unknown connection or client`);
     return Promise.resolve();
   }
-  return invoke("save_notebook", { connectionId, notebookId, content });
+  return client.call("save_notebook", { connectionId, notebookId, content });
 }
 
 /** Flush a single pending save immediately. */
@@ -116,13 +118,15 @@ export function setNotebookTitle(notebookId: string, title: string): void {
 export async function loadNotebook(
   notebookId: string,
   connectionId: string,
+  client: TypedCommandCaller,
 ): Promise<NotebookState> {
   connectionIdCache.set(notebookId, connectionId);
+  clientCache.set(notebookId, client);
 
   const cached = cache.get(notebookId);
   if (cached) return cached;
 
-  const content = await invoke<string | null>("load_notebook", {
+  const content = await client.call("load_notebook", {
     connectionId,
     notebookId,
   });
@@ -145,16 +149,18 @@ export async function loadNotebook(
 export async function createNotebook(
   title: string,
   connectionId: string,
+  client: TypedCommandCaller,
 ): Promise<{ notebookId: string; state: NotebookState }> {
   const notebookId = generateNotebookId();
   const state = createDefaultNotebookState();
 
   titleCache.set(notebookId, title);
   connectionIdCache.set(notebookId, connectionId);
+  clientCache.set(notebookId, client);
   cache.set(notebookId, state);
 
   const content = serializeForDisk(notebookId, state);
-  await invoke("create_notebook", { connectionId, notebookId, content });
+  await client.call("create_notebook", { connectionId, notebookId, content });
   notifyNotebooksChanged();
 
   return { notebookId, state };
@@ -165,15 +171,17 @@ export async function createNotebookFromState(
   title: string,
   state: NotebookState,
   connectionId: string,
+  client: TypedCommandCaller,
 ): Promise<{ notebookId: string }> {
   const notebookId = generateNotebookId();
 
   titleCache.set(notebookId, title);
   connectionIdCache.set(notebookId, connectionId);
+  clientCache.set(notebookId, client);
   cache.set(notebookId, state);
 
   const content = serializeForDisk(notebookId, state);
-  await invoke("create_notebook", { connectionId, notebookId, content });
+  await client.call("create_notebook", { connectionId, notebookId, content });
   notifyNotebooksChanged();
 
   return { notebookId };
@@ -183,6 +191,7 @@ export async function createNotebookFromState(
 export async function deleteNotebook(
   notebookId: string,
   connectionId: string,
+  client: TypedCommandCaller,
 ): Promise<void> {
   const timer = saveTimers.get(notebookId);
   if (timer) {
@@ -192,15 +201,17 @@ export async function deleteNotebook(
   cache.delete(notebookId);
   titleCache.delete(notebookId);
   connectionIdCache.delete(notebookId);
-  await invoke("delete_notebook", { connectionId, notebookId });
+  clientCache.delete(notebookId);
+  await client.call("delete_notebook", { connectionId, notebookId });
   notifyNotebooksChanged();
 }
 
 /** List saved notebooks for a connection (metadata only, read from disk). */
 export async function listNotebooks(
   connectionId: string,
+  client: TypedCommandCaller,
 ): Promise<NotebookMetadata[]> {
-  return invoke<NotebookMetadata[]>("list_notebooks", { connectionId });
+  return client.call("list_notebooks", { connectionId });
 }
 
 /** Rename a saved notebook. Patches the file (and cache, if currently open). */
@@ -208,8 +219,10 @@ export async function renameNotebook(
   notebookId: string,
   connectionId: string,
   title: string,
+  client: TypedCommandCaller,
 ): Promise<void> {
   connectionIdCache.set(notebookId, connectionId);
+  clientCache.set(notebookId, client);
   if (cache.has(notebookId)) {
     // Open notebook: update the cached title and flush the full file so a
     // pending autosave can't clobber the new title.
@@ -218,7 +231,7 @@ export async function renameNotebook(
     notifyNotebooksChanged();
     return;
   }
-  await invoke("rename_notebook", { connectionId, notebookId, title });
+  await client.call("rename_notebook", { connectionId, notebookId, title });
   notifyNotebooksChanged();
 }
 
@@ -228,6 +241,7 @@ export async function evictFromCache(notebookId: string): Promise<void> {
   cache.delete(notebookId);
   titleCache.delete(notebookId);
   connectionIdCache.delete(notebookId);
+  clientCache.delete(notebookId);
 }
 
 /** Flush all pending saves immediately (on app close). */
@@ -243,4 +257,5 @@ export function _resetForTesting(): void {
   cache.clear();
   titleCache.clear();
   connectionIdCache.clear();
+  clientCache.clear();
 }

@@ -2,6 +2,7 @@ pub mod api;
 pub mod connections;
 pub mod database_objects;
 pub mod metadata;
+pub mod notebooks;
 pub mod persistence;
 pub mod productivity;
 #[cfg(test)]

@@ -1,13 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { TypedCommandCaller } from "../../src/api/contract";
 import type { NotebookState } from "../../src/types/notebook";
-
-// Mock Tauri invoke
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(),
-}));
-
-// Import after mock setup
-import { invoke } from "@tauri-apps/api/core";
 import {
   getNotebookState,
   setNotebookState,
@@ -24,7 +17,8 @@ import {
   _resetForTesting,
 } from "../../src/utils/notebookStore";
 
-const mockedInvoke = vi.mocked(invoke);
+const call = vi.fn();
+const client = { call } as unknown as TypedCommandCaller;
 
 const CONN = "conn_1";
 
@@ -40,16 +34,16 @@ function makeState(content = "SELECT 1"): NotebookState {
  * the real lifecycle. Seed that association via a (mocked) load returning null.
  */
 async function seedConnection(id: string) {
-  mockedInvoke.mockResolvedValueOnce(null);
-  await loadNotebook(id, CONN);
+  call.mockResolvedValueOnce(null);
+  await loadNotebook(id, CONN, client);
 }
 
 describe("notebookStore", () => {
   beforeEach(() => {
     _resetForTesting();
     vi.useFakeTimers();
-    mockedInvoke.mockReset();
-    mockedInvoke.mockResolvedValue(undefined);
+    call.mockReset();
+    call.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -71,7 +65,7 @@ describe("notebookStore", () => {
   describe("debounced save", () => {
     it("does not save immediately on setNotebookState", () => {
       setNotebookState("debounce-1", makeState());
-      expect(mockedInvoke).not.toHaveBeenCalledWith(
+      expect(call).not.toHaveBeenCalledWith(
         "save_notebook",
         expect.anything(),
       );
@@ -84,7 +78,7 @@ describe("notebookStore", () => {
 
       await vi.advanceTimersByTimeAsync(1500);
 
-      expect(mockedInvoke).toHaveBeenCalledWith("save_notebook", {
+      expect(call).toHaveBeenCalledWith("save_notebook", {
         connectionId: CONN,
         notebookId: "debounce-2",
         content: expect.any(String),
@@ -97,7 +91,7 @@ describe("notebookStore", () => {
       setNotebookState("debounce-3", makeState("SELECT 1"));
 
       await vi.advanceTimersByTimeAsync(1000);
-      expect(mockedInvoke).not.toHaveBeenCalledWith(
+      expect(call).not.toHaveBeenCalledWith(
         "save_notebook",
         expect.anything(),
       );
@@ -107,14 +101,14 @@ describe("notebookStore", () => {
 
       await vi.advanceTimersByTimeAsync(1000);
       // Still not saved (only 1000ms since last call)
-      expect(mockedInvoke).not.toHaveBeenCalledWith(
+      expect(call).not.toHaveBeenCalledWith(
         "save_notebook",
         expect.anything(),
       );
 
       await vi.advanceTimersByTimeAsync(500);
       // Now 1500ms since last call — should save
-      expect(mockedInvoke).toHaveBeenCalledWith("save_notebook", {
+      expect(call).toHaveBeenCalledWith("save_notebook", {
         connectionId: CONN,
         notebookId: "debounce-3",
         content: expect.any(String),
@@ -128,7 +122,7 @@ describe("notebookStore", () => {
 
       await vi.advanceTimersByTimeAsync(1500);
 
-      expect(mockedInvoke).not.toHaveBeenCalledWith(
+      expect(call).not.toHaveBeenCalledWith(
         "save_notebook",
         expect.anything(),
       );
@@ -143,11 +137,11 @@ describe("notebookStore", () => {
         createdAt: "2026-01-01",
         cells: [{ type: "sql", content: "SELECT 42" }],
       });
-      mockedInvoke.mockResolvedValueOnce(fileContent);
+      call.mockResolvedValueOnce(fileContent);
 
-      const state = await loadNotebook("load-1", CONN);
+      const state = await loadNotebook("load-1", CONN, client);
 
-      expect(mockedInvoke).toHaveBeenCalledWith("load_notebook", {
+      expect(call).toHaveBeenCalledWith("load_notebook", {
         connectionId: CONN,
         notebookId: "load-1",
       });
@@ -161,19 +155,19 @@ describe("notebookStore", () => {
       const state = makeState();
       setNotebookState("load-2", state);
 
-      const result = await loadNotebook("load-2", CONN);
+      const result = await loadNotebook("load-2", CONN, client);
       expect(result).toBe(state);
       // Should NOT call invoke since it's cached
-      expect(mockedInvoke).not.toHaveBeenCalledWith(
+      expect(call).not.toHaveBeenCalledWith(
         "load_notebook",
         expect.anything(),
       );
     });
 
     it("creates default state when file not found", async () => {
-      mockedInvoke.mockResolvedValueOnce(null);
+      call.mockResolvedValueOnce(null);
 
-      const state = await loadNotebook("load-3", CONN);
+      const state = await loadNotebook("load-3", CONN, client);
       expect(state.cells).toHaveLength(1);
       expect(state.cells[0].type).toBe("sql");
       expect(state.cells[0].content).toBe("");
@@ -182,13 +176,13 @@ describe("notebookStore", () => {
 
   describe("createNotebook", () => {
     it("generates unique ID and saves to disk", async () => {
-      const { notebookId, state } = await createNotebook("New Notebook", CONN);
+      const { notebookId, state } = await createNotebook("New Notebook", CONN, client);
 
       expect(notebookId).toMatch(/^nb_/);
       expect(state.cells).toHaveLength(1);
       expect(getNotebookState(notebookId)).toBe(state);
       expect(getNotebookTitle(notebookId)).toBe("New Notebook");
-      expect(mockedInvoke).toHaveBeenCalledWith("create_notebook", {
+      expect(call).toHaveBeenCalledWith("create_notebook", {
         connectionId: CONN,
         notebookId,
         content: expect.any(String),
@@ -203,12 +197,13 @@ describe("notebookStore", () => {
         "Migrated",
         state,
         CONN,
+        client,
       );
 
       expect(notebookId).toMatch(/^nb_/);
       expect(getNotebookState(notebookId)).toBe(state);
       expect(getNotebookTitle(notebookId)).toBe("Migrated");
-      expect(mockedInvoke).toHaveBeenCalledWith("create_notebook", {
+      expect(call).toHaveBeenCalledWith("create_notebook", {
         connectionId: CONN,
         notebookId,
         content: expect.stringContaining("SELECT * FROM orders"),
@@ -221,11 +216,11 @@ describe("notebookStore", () => {
       setNotebookState("del-1", makeState());
       setNotebookTitle("del-1", "To Delete");
 
-      await deleteNotebook("del-1", CONN);
+      await deleteNotebook("del-1", CONN, client);
 
       expect(getNotebookState("del-1")).toBeUndefined();
       expect(getNotebookTitle("del-1")).toBeUndefined();
-      expect(mockedInvoke).toHaveBeenCalledWith("delete_notebook", {
+      expect(call).toHaveBeenCalledWith("delete_notebook", {
         connectionId: CONN,
         notebookId: "del-1",
       });
@@ -237,15 +232,15 @@ describe("notebookStore", () => {
       await seedConnection("ren-1");
       setNotebookState("ren-1", makeState());
 
-      await renameNotebook("ren-1", CONN, "Renamed Open");
+      await renameNotebook("ren-1", CONN, "Renamed Open", client);
 
       // Open notebooks flush the full file with the new title (no rename cmd).
-      expect(mockedInvoke).toHaveBeenCalledWith("save_notebook", {
+      expect(call).toHaveBeenCalledWith("save_notebook", {
         connectionId: CONN,
         notebookId: "ren-1",
         content: expect.stringContaining("Renamed Open"),
       });
-      expect(mockedInvoke).not.toHaveBeenCalledWith(
+      expect(call).not.toHaveBeenCalledWith(
         "rename_notebook",
         expect.anything(),
       );
@@ -253,9 +248,9 @@ describe("notebookStore", () => {
     });
 
     it("patches the file via rename_notebook when not open", async () => {
-      await renameNotebook("ren-2", CONN, "Renamed Closed");
+      await renameNotebook("ren-2", CONN, "Renamed Closed", client);
 
-      expect(mockedInvoke).toHaveBeenCalledWith("rename_notebook", {
+      expect(call).toHaveBeenCalledWith("rename_notebook", {
         connectionId: CONN,
         notebookId: "ren-2",
         title: "Renamed Closed",
@@ -273,7 +268,7 @@ describe("notebookStore", () => {
       await evictFromCache("evict-1");
 
       // Should have flushed the save
-      expect(mockedInvoke).toHaveBeenCalledWith("save_notebook", {
+      expect(call).toHaveBeenCalledWith("save_notebook", {
         connectionId: CONN,
         notebookId: "evict-1",
         content: expect.any(String),
@@ -293,7 +288,7 @@ describe("notebookStore", () => {
 
       await flushAllPendingSaves();
 
-      const saveCalls = mockedInvoke.mock.calls.filter(
+      const saveCalls = call.mock.calls.filter(
         ([cmd]) => cmd === "save_notebook",
       );
       expect(saveCalls).toHaveLength(2);
@@ -304,7 +299,7 @@ describe("notebookStore", () => {
     it("emits NOTEBOOKS_CHANGED_EVENT on create", async () => {
       const handler = vi.fn();
       window.addEventListener(NOTEBOOKS_CHANGED_EVENT, handler);
-      await createNotebook("Notify Create", CONN);
+      await createNotebook("Notify Create", CONN, client);
       window.removeEventListener(NOTEBOOKS_CHANGED_EVENT, handler);
       expect(handler).toHaveBeenCalledTimes(1);
     });
@@ -312,7 +307,7 @@ describe("notebookStore", () => {
     it("emits NOTEBOOKS_CHANGED_EVENT on delete", async () => {
       const handler = vi.fn();
       window.addEventListener(NOTEBOOKS_CHANGED_EVENT, handler);
-      await deleteNotebook("notify-del", CONN);
+      await deleteNotebook("notify-del", CONN, client);
       window.removeEventListener(NOTEBOOKS_CHANGED_EVENT, handler);
       expect(handler).toHaveBeenCalledTimes(1);
     });
@@ -320,7 +315,7 @@ describe("notebookStore", () => {
     it("emits NOTEBOOKS_CHANGED_EVENT on rename", async () => {
       const handler = vi.fn();
       window.addEventListener(NOTEBOOKS_CHANGED_EVENT, handler);
-      await renameNotebook("notify-ren", CONN, "X");
+      await renameNotebook("notify-ren", CONN, "X", client);
       window.removeEventListener(NOTEBOOKS_CHANGED_EVENT, handler);
       expect(handler).toHaveBeenCalledTimes(1);
     });
@@ -339,7 +334,7 @@ describe("notebookStore", () => {
 
       await vi.advanceTimersByTimeAsync(1500);
 
-      expect(mockedInvoke).toHaveBeenCalledWith("save_notebook", {
+      expect(call).toHaveBeenCalledWith("save_notebook", {
         connectionId: CONN,
         notebookId: "title-2",
         content: expect.stringContaining("Updated Title"),

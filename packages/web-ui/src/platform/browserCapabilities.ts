@@ -27,11 +27,7 @@ import {
 const BROWSER_CAPABILITY_NEGOTIATION = createPlatformCapabilityNegotiation(
   "browser",
   {
-    chooseInputFile: {
-      supported: false,
-      adaptation: "unsupported",
-      reason: "Browser file workflows require an operation-specific upload",
-    },
+    chooseInputFile: { supported: true, adaptation: "adapted" },
     chooseSaveTarget: {
       supported: false,
       adaptation: "unsupported",
@@ -53,24 +49,35 @@ const BROWSER_CAPABILITY_NEGOTIATION = createPlatformCapabilityNegotiation(
   },
 );
 
+type BrowserFilePicker = (accept?: string) => Promise<File | null>;
+
 export class BrowserPlatformCapabilities implements PlatformCapabilities {
   readonly negotiation: PlatformCapabilityNegotiation =
     BROWSER_CAPABILITY_NEGOTIATION;
   private readonly client: TabularisClient;
+  private readonly filePicker: BrowserFilePicker;
+  private readonly inputFiles = new Map<string, File>();
 
-  constructor(client: TabularisClient) {
+  constructor(client: TabularisClient, filePicker: BrowserFilePicker = pickFile) {
     this.client = client;
+    this.filePicker = filePicker;
   }
 
   supports(capability: PlatformCapabilityName): boolean {
     return this.negotiation.capabilities[capability].supported;
   }
 
-  chooseInputFile(
-    _options?: ChooseInputFileOptions,
+  async chooseInputFile(
+    options?: ChooseInputFileOptions,
   ): Promise<ChosenInputFile | null> {
-    void _options;
-    return this.unsupported("chooseInputFile");
+    const accept = options?.filters
+      ?.flatMap(({ extensions }) => extensions.map((extension) => `.${extension}`))
+      .join(",");
+    const file = await this.filePicker(accept);
+    if (!file) return null;
+    const reference = `browser-file:${crypto.randomUUID()}`;
+    this.inputFiles.set(reference, file);
+    return { name: file.name, reference };
   }
 
   chooseSaveTarget(
@@ -78,6 +85,13 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
   ): Promise<ChosenSaveTarget | null> {
     void _options;
     return this.unsupported("chooseSaveTarget");
+  }
+
+  async readInputFile(reference: string): Promise<Uint8Array> {
+    const file = this.inputFiles.get(reference);
+    if (!file) throw new Error("Invalid or expired browser file reference");
+    this.inputFiles.delete(reference);
+    return new Uint8Array(await file.arrayBuffer());
   }
 
   async chooseConnectionIcon(connectionId: string): Promise<string | null> {
@@ -152,7 +166,9 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
   async downloadFile(request: DownloadFileRequest): Promise<boolean> {
     const bytes = new ArrayBuffer(request.contents.byteLength);
     new Uint8Array(bytes).set(request.contents);
-    const blob = new Blob([bytes]);
+    const blob = new Blob([bytes], {
+      type: request.mimeType ?? "application/octet-stream",
+    });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;

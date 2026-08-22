@@ -10,7 +10,6 @@
     "packages/web-ui/src/components/layout/ExplorerSidebar.tsx": 2,
     "packages/web-ui/src/components/layout/Sidebar.tsx": 1,
     "packages/web-ui/src/components/layout/sidebar/DiscordCommunityCallout.tsx": 1,
-    "packages/web-ui/src/components/layout/sidebar/NotebooksSection.tsx": 2,
     "packages/web-ui/src/components/layout/sidebar/SidebarColumnItem.tsx": 1,
     "packages/web-ui/src/components/modals/AiExplainModal.tsx": 1,
     "packages/web-ui/src/components/modals/AiQueryModal.tsx": 1,
@@ -33,7 +32,6 @@
     "packages/web-ui/src/components/modals/WhatsNewModal.tsx": 1,
     "packages/web-ui/src/components/notebook/CellNameAiButton.tsx": 1,
     "packages/web-ui/src/components/notebook/NotebookOutline.tsx": 1,
-    "packages/web-ui/src/components/notebook/NotebookView.tsx": 2,
     "packages/web-ui/src/components/notebook/ResultToolbar.tsx": 2,
     "packages/web-ui/src/components/settings/ai-activity/AiActivityEventsTab.tsx": 2,
     "packages/web-ui/src/components/settings/ai-activity/AiActivitySessionsTab.tsx": 2,
@@ -72,8 +70,7 @@
     "packages/web-ui/src/pages/ResultsWindowPage.tsx": 1,
     "packages/web-ui/src/pages/TaskManagerPage.tsx": 1,
     "packages/web-ui/src/pages/VisualExplainPage.tsx": 2,
-    "packages/web-ui/src/utils/mcpApprovalAttention.ts": 2,
-    "packages/web-ui/src/utils/notebookStore.ts": 1
+    "packages/web-ui/src/utils/mcpApprovalAttention.ts": 2
   },
   "legacyDirectInvokes": {
     "packages/web-ui/src/components/layout/ExplorerSidebar.tsx": 5,
@@ -118,7 +115,6 @@
     "packages/web-ui/src/pages/JsonViewerPage.tsx": 2,
     "packages/web-ui/src/pages/McpPage.tsx": 2,
     "packages/web-ui/src/pages/TaskManagerPage.tsx": 1,
-    "packages/web-ui/src/pages/VisualExplainPage.tsx": 2,
-    "packages/web-ui/src/utils/notebookStore.ts": 7
+    "packages/web-ui/src/pages/VisualExplainPage.tsx": 2
   }
 }

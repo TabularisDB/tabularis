@@ -317,11 +317,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     // Persist the rename to the notebook file too (covers background tabs whose
     // NotebookView isn't mounted to sync the title automatically).
     if (tab.type === "notebook" && tab.notebookId && tab.connectionId) {
-      renameNotebook(tab.notebookId, tab.connectionId, title).catch((e) =>
+      renameNotebook(tab.notebookId, tab.connectionId, title, client).catch((e) =>
         console.error("Failed to rename notebook:", e),
       );
     }
-  }, [editingTabId, editingTabTitle, updateTab]);
+  }, [client, editingTabId, editingTabTitle, updateTab]);
 
   const handleConvertToConsole = useCallback(
     (tabId: string) => {
@@ -3743,7 +3743,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           onClick={async () => {
             if (!activeConnectionId) return;
             const title = "Notebook";
-            const { notebookId } = await createNotebook(title, activeConnectionId);
+            const { notebookId } = await createNotebook(
+              title,
+              activeConnectionId,
+              client,
+            );
             addTab({
               type: "notebook",
               notebookId,

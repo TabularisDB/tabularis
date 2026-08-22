@@ -1,8 +1,9 @@
 use crate::application::{
     connections::ConnectionCommand, database_objects::DatabaseObjectCommand,
-    metadata::MetadataCommand, persistence::PersistenceCommand, productivity::ProductivityCommand,
-    queries::QueryCommand, records::RecordCommand, tunnels::TunnelCommand, ApplicationApi,
-    ApplicationError, ApplicationRequestContext, AuthorizationLevel,
+    metadata::MetadataCommand, notebooks::NotebookCommand, persistence::PersistenceCommand,
+    productivity::ProductivityCommand, queries::QueryCommand, records::RecordCommand,
+    tunnels::TunnelCommand, ApplicationApi, ApplicationError, ApplicationRequestContext,
+    AuthorizationLevel,
 };
 use crate::models::{
     ColumnDefinition, ConnectionAppearance, ConnectionParams, K8sConnectionInput, RoutineCallArg,
@@ -48,6 +49,17 @@ enum RpcCommand {
     Tunnel(TunnelRpcCommand),
     Persistence(PersistenceRpcCommand),
     Productivity(ProductivityRpcCommand),
+    Notebook(NotebookRpcCommand),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum NotebookRpcCommand {
+    Create,
+    Save,
+    Load,
+    Delete,
+    Rename,
+    List,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -317,6 +329,29 @@ struct UpdateSavedQueryRequest {
 struct ConnectionItemRequest {
     connection_id: String,
     id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct NotebookTargetRequest {
+    connection_id: String,
+    notebook_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct NotebookContentRequest {
+    connection_id: String,
+    notebook_id: String,
+    content: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RenameNotebookRequest {
+    connection_id: String,
+    notebook_id: String,
+    title: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1116,6 +1151,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::Notebook(command) => {
+                let command = decode_notebook_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_notebook_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
         }
     }
 
@@ -1158,7 +1201,8 @@ impl RpcCommand {
                 .or_else(|| MetadataRpcCommand::parse(name).map(Self::Metadata))
                 .or_else(|| ConnectionRpcCommand::parse(name).map(Self::Connection))
                 .or_else(|| PersistenceRpcCommand::parse(name).map(Self::Persistence))
-                .or_else(|| ProductivityRpcCommand::parse(name).map(Self::Productivity)),
+                .or_else(|| ProductivityRpcCommand::parse(name).map(Self::Productivity))
+                .or_else(|| NotebookRpcCommand::parse(name).map(Self::Notebook)),
         }
     }
 
@@ -1234,7 +1278,26 @@ impl RpcCommand {
                 application_error_code: "PRODUCTIVITY_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            Self::Notebook(_) => CommandMetadata {
+                authorization: AuthorizationLevel::Database,
+                application_error_code: "NOTEBOOK_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
         }
+    }
+}
+
+impl NotebookRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "create_notebook" => Self::Create,
+            "save_notebook" => Self::Save,
+            "load_notebook" => Self::Load,
+            "delete_notebook" => Self::Delete,
+            "rename_notebook" => Self::Rename,
+            "list_notebooks" => Self::List,
+            _ => return None,
+        })
     }
 }
 
@@ -1470,6 +1533,58 @@ impl ConnectionRpcCommand {
             _ => return None,
         })
     }
+}
+
+fn decode_notebook_command(
+    command: NotebookRpcCommand,
+    body: &[u8],
+) -> Result<NotebookCommand, String> {
+    Ok(match command {
+        NotebookRpcCommand::Create | NotebookRpcCommand::Save => {
+            let request: NotebookContentRequest = decode_payload(body)?;
+            if command == NotebookRpcCommand::Create {
+                NotebookCommand::Create {
+                    connection_id: request.connection_id,
+                    notebook_id: request.notebook_id,
+                    content: request.content,
+                }
+            } else {
+                NotebookCommand::Save {
+                    connection_id: request.connection_id,
+                    notebook_id: request.notebook_id,
+                    content: request.content,
+                }
+            }
+        }
+        NotebookRpcCommand::Load | NotebookRpcCommand::Delete => {
+            let request: NotebookTargetRequest = decode_payload(body)?;
+            if command == NotebookRpcCommand::Load {
+                NotebookCommand::Load {
+                    connection_id: request.connection_id,
+                    notebook_id: request.notebook_id,
+                }
+            } else {
+                NotebookCommand::Delete {
+                    connection_id: request.connection_id,
+                    notebook_id: request.notebook_id,
+                }
+            }
+        }
+        NotebookRpcCommand::Rename => {
+            let request: RenameNotebookRequest = decode_payload(body)?;
+            NotebookCommand::Rename {
+                connection_id: request.connection_id,
+                notebook_id: request.notebook_id,
+                title: request.title,
+            }
+        }
+        NotebookRpcCommand::List => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            NotebookCommand::List {
+                connection_id: request.connection_id,
+            }
+        }
+    })
 }
 
 fn decode_productivity_command(

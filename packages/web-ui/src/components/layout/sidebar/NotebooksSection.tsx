@@ -11,9 +11,9 @@ import {
   Upload,
   FileCode,
 } from "lucide-react";
-import { save, open } from "@tauri-apps/plugin-dialog";
-import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { useSettings } from "../../../hooks/useSettings";
+import { usePlatformCapabilities } from "../../../hooks/usePlatformCapabilities";
+import { useTabularisClient } from "../../../hooks/useTabularisClient";
 import { useAlert } from "../../../hooks/useAlert";
 import { formatHistoryTime } from "../../../utils/dateGroups";
 import {
@@ -23,10 +23,10 @@ import {
   NOTEBOOKS_CHANGED_EVENT,
 } from "../../../utils/notebookStore";
 import {
-  serializeNotebook,
-  deserializeNotebook,
-} from "../../../utils/notebookFile";
-import { exportNotebookToHtml } from "../../../utils/notebookHtmlExport";
+  chooseNotebookImport,
+  downloadNotebook,
+  downloadNotebookHtml,
+} from "../../../utils/notebookTransfer";
 import { ConfirmModal } from "../../modals/ConfirmModal";
 import { ContextMenu, type ContextMenuItem } from "../../ui/ContextMenu";
 import type { NotebookMetadata } from "../../../types/notebook";
@@ -50,6 +50,8 @@ export function NotebooksSection({
   const { t } = useTranslation();
   const { settings } = useSettings();
   const { showAlert } = useAlert();
+  const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const [notebooks, setNotebooks] = useState<NotebookMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -72,7 +74,7 @@ export function NotebooksSection({
     }
     setIsLoading(true);
     try {
-      const list = await listNotebooks(connectionId);
+      const list = await listNotebooks(connectionId, client);
       list.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
       setNotebooks(list);
     } catch {
@@ -80,7 +82,7 @@ export function NotebooksSection({
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId]);
+  }, [client, connectionId]);
 
   useEffect(() => {
     setEditingId(null);
@@ -127,23 +129,10 @@ export function NotebooksSection({
   const handleExport = async (nb: NotebookMetadata) => {
     if (!connectionId) return;
     try {
-      const state = await loadNotebook(nb.id, connectionId);
-      const file = serializeNotebook(
-        nb.title,
-        state.cells,
-        state.params,
-        state.stopOnError,
-      );
-      const safeName = nb.title.replace(/[^a-zA-Z0-9_-]/g, "_");
-      const target = await save({
-        defaultPath: `${safeName}.tabularis-notebook`,
-        filters: [
-          { name: "Tabularis Notebook", extensions: ["tabularis-notebook"] },
-        ],
-      });
-      if (!target) return;
-      await writeTextFile(target, JSON.stringify(file, null, 2));
-      showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      const state = await loadNotebook(nb.id, connectionId, client);
+      if (await downloadNotebook(platform, nb.title, state)) {
+        showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      }
     } catch (e) {
       showAlert(String(e), { kind: "error", title: t("common.error") });
     }
@@ -152,16 +141,10 @@ export function NotebooksSection({
   const handleExportHtml = async (nb: NotebookMetadata) => {
     if (!connectionId) return;
     try {
-      const state = await loadNotebook(nb.id, connectionId);
-      const html = exportNotebookToHtml(nb.title, state.cells);
-      const safeName = nb.title.replace(/[^a-zA-Z0-9_-]/g, "_");
-      const target = await save({
-        defaultPath: `${safeName}.html`,
-        filters: [{ name: "HTML", extensions: ["html"] }],
-      });
-      if (!target) return;
-      await writeTextFile(target, html);
-      showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      const state = await loadNotebook(nb.id, connectionId, client);
+      if (await downloadNotebookHtml(platform, nb.title, state)) {
+        showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      }
     } catch (e) {
       showAlert(String(e), { kind: "error", title: t("common.error") });
     }
@@ -169,20 +152,15 @@ export function NotebooksSection({
 
   const handleImport = async () => {
     if (!connectionId) return;
-    const filePath = await open({
-      filters: [
-        { name: "Tabularis Notebook", extensions: ["tabularis-notebook"] },
-      ],
-    });
-    if (!filePath || typeof filePath !== "string") return;
     try {
-      const content = await readTextFile(filePath);
-      const { title, cells, params, stopOnError } =
-        deserializeNotebook(content);
+      const imported = await chooseNotebookImport(platform);
+      if (!imported) return;
+      const { title, state } = imported;
       const { notebookId } = await createNotebookFromState(
         title,
-        { cells, params, stopOnError },
+        state,
         connectionId,
+        client,
       );
       showAlert(t("editor.notebook.importSuccess"), { kind: "info" });
       // createNotebookFromState emits NOTEBOOKS_CHANGED_EVENT → reload().

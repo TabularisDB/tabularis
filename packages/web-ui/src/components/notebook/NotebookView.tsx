@@ -1,7 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { save, open } from "@tauri-apps/plugin-dialog";
-import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { BookOpen, Loader2 } from "lucide-react";
 import type { Tab } from "../../types/editor";
 import type {
@@ -23,9 +21,10 @@ import {
   reorderCells,
 } from "../../utils/notebookDnd";
 import {
-  serializeNotebook,
-  deserializeNotebook,
-} from "../../utils/notebookFile";
+  chooseNotebookImport,
+  downloadNotebook,
+  downloadNotebookHtml,
+} from "../../utils/notebookTransfer";
 import {
   getExecutableCells,
   createRunAllResult,
@@ -39,7 +38,6 @@ import {
   addHistoryEntry,
   createHistoryEntry,
 } from "../../utils/notebookHistory";
-import { exportNotebookToHtml } from "../../utils/notebookHtmlExport";
 import {
   createHistory,
   recordEdit,
@@ -73,6 +71,7 @@ import { RunAllSummary } from "./RunAllSummary";
 import { ParamsPanel } from "./ParamsPanel";
 import { NotebookOutline } from "./NotebookOutline";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 
 interface NotebookViewProps {
   tab: Tab;
@@ -89,6 +88,7 @@ export function NotebookView({
   isActive,
 }: NotebookViewProps) {
   const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const { t } = useTranslation();
   const { activeSchema, activeCapabilities, selectedDatabases, activeDriver } =
     useDatabase();
@@ -169,14 +169,14 @@ export function NotebookView({
     if (!tab.notebookId || notebook) return;
 
     let cancelled = false;
-    loadNotebook(tab.notebookId, connectionId).then((state) => {
+    loadNotebook(tab.notebookId, connectionId, client).then((state) => {
       if (cancelled) return;
       setNotebook(state);
       cellsRef.current = state.cells;
       setIsLoadingNotebook(false);
     });
     return () => { cancelled = true; };
-  }, [tab.notebookId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [client, connectionId, notebook, tab.notebookId]);
 
   // Sync tab title to notebook store
   useEffect(() => {
@@ -494,18 +494,14 @@ export function NotebookView({
 
   const handleExport = useCallback(async () => {
     try {
-      const notebookFile = serializeNotebook(tab.title, cellsRef.current, params, stopOnError);
-      const safeName = tab.title.replace(/[^a-zA-Z0-9_-]/g, "_");
-      const filePath = await save({
-        defaultPath: `${safeName}.tabularis-notebook`,
-        filters: [
-          { name: "Tabularis Notebook", extensions: ["tabularis-notebook"] },
-        ],
+      const downloaded = await downloadNotebook(platform, tab.title, {
+        cells: cellsRef.current,
+        params,
+        stopOnError,
       });
-      if (!filePath) return;
-
-      await writeTextFile(filePath, JSON.stringify(notebookFile, null, 2));
-      showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      if (downloaded) {
+        showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      }
     } catch (e) {
       console.error("Notebook export failed:", e);
       showAlert(
@@ -514,20 +510,18 @@ export function NotebookView({
         { kind: "error" },
       );
     }
-  }, [tab.title, showAlert, t, params, stopOnError]);
+  }, [params, platform, showAlert, stopOnError, t, tab.title]);
 
   const handleExportHtml = useCallback(async () => {
     try {
-      const html = exportNotebookToHtml(tab.title, cellsRef.current);
-      const safeName = tab.title.replace(/[^a-zA-Z0-9_-]/g, "_");
-      const filePath = await save({
-        defaultPath: `${safeName}.html`,
-        filters: [{ name: "HTML", extensions: ["html"] }],
+      const downloaded = await downloadNotebookHtml(platform, tab.title, {
+        cells: cellsRef.current,
+        params,
+        stopOnError,
       });
-      if (!filePath) return;
-
-      await writeTextFile(filePath, html);
-      showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      if (downloaded) {
+        showAlert(t("editor.notebook.exportSuccess"), { kind: "info" });
+      }
     } catch (e) {
       console.error("HTML export failed:", e);
       showAlert(
@@ -536,27 +530,22 @@ export function NotebookView({
         { kind: "error" },
       );
     }
-  }, [tab.title, showAlert, t]);
+  }, [params, platform, showAlert, stopOnError, t, tab.title]);
 
   const handleImport = useCallback(async () => {
-    const filePath = await open({
-      filters: [
-        { name: "Tabularis Notebook", extensions: ["tabularis-notebook"] },
-      ],
-    });
-    if (!filePath || typeof filePath !== "string") return;
-
     try {
-      const content = await readTextFile(filePath);
-      const { title, cells: importedCells, params: importedParams, stopOnError: importedStopOnError } = deserializeNotebook(content);
-      const importedState: NotebookState = {
-        cells: importedCells,
-        params: importedParams,
-        stopOnError: importedStopOnError,
-      };
+      const imported = await chooseNotebookImport(platform);
+      if (!imported) return;
+      const { title, state: importedState } = imported;
+      const importedCells = importedState.cells;
 
       // Create a new notebook file for the imported content
-      const { notebookId: newId } = await createNotebookFromState(title, importedState, connectionId);
+      const { notebookId: newId } = await createNotebookFromState(
+        title,
+        importedState,
+        connectionId,
+        client,
+      );
 
       // Update the tab to point to the new notebook
       updateTab(tab.id, { notebookId: newId, title });
@@ -571,7 +560,7 @@ export function NotebookView({
     } catch {
       showAlert(t("editor.notebook.invalidFile"), { kind: "error" });
     }
-  }, [tab.id, updateTab, showAlert, t, connectionId, resetHistory]);
+  }, [client, connectionId, platform, resetHistory, showAlert, t, tab.id, updateTab]);
 
   // Drag & Drop handlers
   const handleDragStart = useCallback(

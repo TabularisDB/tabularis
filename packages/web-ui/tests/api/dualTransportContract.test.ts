@@ -52,6 +52,31 @@ defineTransportContractSuite(
         expect(request).toEqual({ connectionId: "metadata-fixture" });
         return ["public"];
       }
+      if (command === "create_notebook" || command === "save_notebook") {
+        return null;
+      }
+      if (command === "load_notebook") {
+        return JSON.stringify({
+          version: 2,
+          title: "Revenue",
+          createdAt: "2026-08-22T00:00:00Z",
+          connectionId: "notebook-fixture",
+          cells: [{ type: "sql", content: "SELECT 42", name: "Answer" }],
+        });
+      }
+      if (command === "rename_notebook" || command === "delete_notebook") {
+        return null;
+      }
+      if (command === "list_notebooks") {
+        return [
+          {
+            id: "notebook-1",
+            title: "Revenue 2026",
+            createdAt: "2026-08-22T00:00:00Z",
+            updatedAt: "2026-08-22T00:01:00Z",
+          },
+        ];
+      }
       if (command === "get_saved_queries") {
         return [
           {

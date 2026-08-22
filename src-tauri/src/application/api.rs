@@ -1,5 +1,6 @@
 use super::{
-    connections, database_objects, metadata, persistence, productivity, queries, records, tunnels,
+    connections, database_objects, metadata, notebooks, persistence, productivity, queries,
+    records, tunnels,
 };
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use async_trait::async_trait;
@@ -113,6 +114,12 @@ pub trait ApplicationApi: Send + Sync {
         &self,
         context: ApplicationRequestContext,
         command: productivity::ProductivityCommand,
+    ) -> Result<Value, ApplicationError>;
+
+    async fn execute_notebook_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: notebooks::NotebookCommand,
     ) -> Result<Value, ApplicationError>;
 }
 
@@ -259,5 +266,13 @@ impl ApplicationApi for RuntimeApplicationApi {
         productivity::execute(self.runtime.paths.config_dir(), command)
             .await
             .map_err(ApplicationError::new)
+    }
+
+    async fn execute_notebook_command(
+        &self,
+        _context: ApplicationRequestContext,
+        command: notebooks::NotebookCommand,
+    ) -> Result<Value, ApplicationError> {
+        notebooks::execute(self.runtime.paths.config_dir(), command).map_err(ApplicationError::new)
     }
 }

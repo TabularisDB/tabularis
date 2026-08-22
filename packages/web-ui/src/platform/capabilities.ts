@@ -71,6 +71,7 @@ export interface ChosenSaveTarget {
 export interface DownloadFileRequest {
   readonly fileName: string;
   readonly contents: Uint8Array;
+  readonly mimeType?: string;
   readonly title?: string;
   readonly filters?: readonly PlatformFileFilter[];
 }
@@ -120,6 +121,7 @@ export interface PlatformCapabilities {
   chooseSaveTarget(
     options?: ChooseSaveTargetOptions,
   ): Promise<ChosenSaveTarget | null>;
+  readInputFile(reference: string): Promise<Uint8Array>;
   chooseConnectionIcon(connectionId: string): Promise<string | null>;
   chooseBlob(): Promise<string | null>;
   previewBlobReference(value: unknown): Promise<string | null>;

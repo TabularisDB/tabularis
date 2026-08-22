@@ -81,6 +81,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
                 tab.title,
                 tab.notebookState,
                 activeConnectionId,
+                client,
               );
               tab.notebookId = notebookId;
               tab.notebookState = undefined;
