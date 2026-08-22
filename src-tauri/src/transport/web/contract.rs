@@ -1,3 +1,4 @@
+use crate::application::AuthorizationLevel;
 use serde::{Deserialize, Serialize};
 
 pub const WEB_API_VERSION: &str = "v1";
@@ -10,8 +11,17 @@ pub struct SessionNegotiation {
     pub server_build: ServerBuildInformation,
     pub authenticated: bool,
     pub csrf_token: String,
+    pub access: WebSessionAccessPolicy,
     pub capabilities: WebTransportCapabilities,
     pub query_response_policy: WebQueryResponsePolicy,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebSessionAccessPolicy {
+    pub remote: bool,
+    pub authorization_level: String,
+    pub high_risk_capabilities: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -44,14 +54,46 @@ pub struct WebQueryResponsePolicy {
 
 impl SessionNegotiation {
     pub fn skeleton() -> Self {
-        Self::new(false, String::new(), false)
+        Self::new(
+            false,
+            String::new(),
+            false,
+            false,
+            AuthorizationLevel::LocalAdmin,
+        )
     }
 
     pub fn authenticated(csrf_token: String, mcp_host_configuration: bool) -> Self {
-        Self::new(true, csrf_token, mcp_host_configuration)
+        Self::authenticated_with_access(
+            csrf_token,
+            mcp_host_configuration,
+            false,
+            AuthorizationLevel::LocalAdmin,
+        )
     }
 
-    fn new(authenticated: bool, csrf_token: String, mcp_host_configuration: bool) -> Self {
+    pub fn authenticated_with_access(
+        csrf_token: String,
+        mcp_host_configuration: bool,
+        remote: bool,
+        authorization: AuthorizationLevel,
+    ) -> Self {
+        Self::new(
+            true,
+            csrf_token,
+            mcp_host_configuration,
+            remote,
+            authorization,
+        )
+    }
+
+    fn new(
+        authenticated: bool,
+        csrf_token: String,
+        mcp_host_configuration: bool,
+        remote: bool,
+        authorization: AuthorizationLevel,
+    ) -> Self {
         Self {
             api_version: WEB_API_VERSION.to_string(),
             server_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -69,6 +111,11 @@ impl SessionNegotiation {
             },
             authenticated,
             csrf_token,
+            access: WebSessionAccessPolicy {
+                remote,
+                authorization_level: authorization_name(authorization).to_string(),
+                high_risk_capabilities: authorization == AuthorizationLevel::LocalAdmin,
+            },
             capabilities: WebTransportCapabilities {
                 rpc: true,
                 events: true,
@@ -84,5 +131,14 @@ impl SessionNegotiation {
                 streaming: false,
             },
         }
+    }
+}
+
+fn authorization_name(authorization: AuthorizationLevel) -> &'static str {
+    match authorization {
+        AuthorizationLevel::Session => "session",
+        AuthorizationLevel::Database => "database",
+        AuthorizationLevel::Sensitive => "sensitive",
+        AuthorizationLevel::LocalAdmin => "local-admin",
     }
 }

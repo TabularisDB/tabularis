@@ -50,9 +50,32 @@ pub struct Args {
     #[arg(long, value_name = "PATH", requires = "web")]
     pub web_root: Option<PathBuf>,
 
-    /// Authentication mode reserved for future remote Web UI access
-    #[arg(long, value_name = "MODE", value_enum, requires = "web")]
+    /// Authentication mode for explicitly configured remote Web UI access
+    #[arg(
+        long,
+        value_name = "MODE",
+        value_enum,
+        requires = "web",
+        requires_all = ["public_url", "allowed_origins"]
+    )]
     pub auth: Option<WebAuthMode>,
+
+    /// Public HTTPS origin used by browsers through the trusted reverse proxy
+    #[arg(long, value_name = "URL", requires = "auth")]
+    pub public_url: Option<String>,
+
+    /// Browser origin allowed to access remote Web UI sessions; repeat as needed
+    #[arg(
+        long = "allowed-origin",
+        value_name = "ORIGIN",
+        action = clap::ArgAction::Append,
+        requires = "auth"
+    )]
+    pub allowed_origins: Vec<String>,
+
+    /// Grant remote sessions high-risk local-administrator capabilities
+    #[arg(long, requires = "auth")]
+    pub allow_high_risk: bool,
 
     /// Enable debug logging (including sqlx queries)
     #[arg(long)]
@@ -74,6 +97,9 @@ impl Args {
             no_open: false,
             web_root: None,
             auth: None,
+            public_url: None,
+            allowed_origins: Vec::new(),
+            allow_high_risk: false,
             debug: false,
             explain: None,
         }

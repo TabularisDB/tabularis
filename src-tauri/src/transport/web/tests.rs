@@ -1,9 +1,12 @@
-use super::auth::{LocalSessionSecurity, LocalSessionSecurityConfig};
+use super::auth::{
+    AuthenticationError, LocalSessionSecurity, LocalSessionSecurityConfig, LoginRateLimitConfig,
+    RemoteAuthentication, RemoteSessionSecurityConfig,
+};
 use super::contract::{SessionNegotiation, WEB_API_VERSION};
 use super::events::{EventBusConfig, WebEventBus};
 use super::rpc::{RPC_CANCELLATION_HEADER_NAME, RPC_DEADLINE_HEADER_NAME};
 use super::{server, static_assets};
-use crate::application::{ApplicationApi, RuntimeApplicationApi};
+use crate::application::{ApplicationApi, AuthorizationLevel, RuntimeApplicationApi};
 use crate::runtime::{
     paths::FixedRuntimePaths, secrets::RuntimeSecrets, state::ApplicationState, RuntimeContext,
 };
@@ -44,6 +47,86 @@ impl RuntimeSecrets for TestRuntimeSecrets {
         self.values.lock().unwrap().remove(account);
         Ok(())
     }
+}
+
+#[test]
+fn enforces_remote_credentials_origins_rate_limits_and_capability_policy() {
+    let config = RemoteSessionSecurityConfig {
+        public_origin: "https://tabularis.example.com".to_string(),
+        allowed_origins: vec![
+            "https://tabularis.example.com".to_string(),
+            "https://admin.example.com".to_string(),
+        ],
+        session_ttl: Duration::from_secs(60),
+        max_body_bytes: 1_048_576,
+        authorization: AuthorizationLevel::Database,
+        rate_limit: LoginRateLimitConfig {
+            max_failures: 2,
+            window: Duration::from_secs(60),
+            lockout: Duration::from_secs(60),
+        },
+    };
+    let mut insecure_config = config.clone();
+    insecure_config.public_origin = "http://tabularis.example.com".to_string();
+    insecure_config.allowed_origins = vec![insecure_config.public_origin.clone()];
+    assert!(LocalSessionSecurity::new_remote(
+        insecure_config,
+        RemoteAuthentication::password("correct horse battery staple"),
+    )
+    .unwrap_err()
+    .contains("HTTPS"));
+
+    let password_security = LocalSessionSecurity::new_remote(
+        config.clone(),
+        RemoteAuthentication::password("correct horse battery staple"),
+    )
+    .unwrap();
+
+    assert!(password_security.is_remote());
+    assert!(password_security.secure_cookie());
+    assert!(password_security.origin_allowed("https://admin.example.com"));
+    assert!(password_security.host_allowed("tabularis.example.com"));
+    assert!(!password_security.origin_allowed("https://attacker.invalid"));
+    assert!(matches!(
+        password_security.authenticate_password("wrong"),
+        Err(AuthenticationError::InvalidCredentials)
+    ));
+    assert!(matches!(
+        password_security.authenticate_password("still-wrong"),
+        Err(AuthenticationError::InvalidCredentials)
+    ));
+    assert!(matches!(
+        password_security.authenticate_password("correct horse battery staple"),
+        Err(AuthenticationError::RateLimited)
+    ));
+
+    let password_security = LocalSessionSecurity::new_remote(
+        config.clone(),
+        RemoteAuthentication::password("correct horse battery staple"),
+    )
+    .unwrap();
+    let issued = password_security
+        .authenticate_password("correct horse battery staple")
+        .unwrap();
+    let session = password_security
+        .authenticate(&issued.cookie_value)
+        .unwrap();
+    assert!(session.is_remote());
+    assert_eq!(session.authorization(), AuthorizationLevel::Database);
+
+    let proxy_security = LocalSessionSecurity::new_remote(
+        config,
+        RemoteAuthentication::proxy("a-proxy-shared-secret-with-32-bytes"),
+    )
+    .unwrap();
+    assert!(matches!(
+        proxy_security.authenticate_proxy("wrong", "alice@example.com"),
+        Err(AuthenticationError::InvalidCredentials)
+    ));
+    let issued = proxy_security
+        .authenticate_proxy("a-proxy-shared-secret-with-32-bytes", "alice@example.com")
+        .unwrap();
+    assert!(proxy_security.authenticate(&issued.cookie_value).is_some());
 }
 
 #[test]
@@ -257,6 +340,9 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
         .is_some_and(|profile| !profile.is_empty()));
     assert!(session.authenticated);
     assert!(!session.csrf_token.is_empty());
+    assert!(!session.access.remote);
+    assert_eq!(session.access.authorization_level, "local-admin");
+    assert!(session.access.high_risk_capabilities);
     assert!(session.capabilities.rpc);
     assert!(session.capabilities.events);
     assert!(session.capabilities.uploads);
@@ -447,6 +533,207 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
 
     shutdown_tx.send(()).unwrap();
     server.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn rejects_non_loopback_binding_without_explicit_remote_authentication() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
+    let error = server::run(server::WebServerOptions {
+        host: "0.0.0.0".to_string(),
+        port: 0,
+        web_root: temp.path().to_path_buf(),
+        data_dir: temp.path().to_path_buf(),
+        open_browser: false,
+        auth: None,
+        public_url: None,
+        allowed_origins: Vec::new(),
+        allow_high_risk: false,
+        application: test_application(temp.path()),
+        events: WebEventBus::default(),
+    })
+    .await
+    .unwrap_err();
+
+    assert!(error.contains("Non-loopback"));
+}
+
+#[tokio::test]
+async fn authenticates_remote_password_and_proxy_requests_with_auditing() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
+    let log_buffer = crate::runtime::bootstrap::initialize_logging(false);
+    let public_origin = "https://tabularis.example.com";
+    let remote_config = RemoteSessionSecurityConfig {
+        public_origin: public_origin.to_string(),
+        allowed_origins: vec![public_origin.to_string()],
+        session_ttl: Duration::from_secs(60),
+        max_body_bytes: 1_048_576,
+        authorization: AuthorizationLevel::Database,
+        rate_limit: LoginRateLimitConfig::default(),
+    };
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let security = LocalSessionSecurity::new_remote(
+        remote_config.clone(),
+        RemoteAuthentication::password("correct horse battery staple"),
+    )
+    .unwrap();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve(
+        listener,
+        temp.path().to_path_buf(),
+        security,
+        test_application(temp.path()),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+
+    let login_page = client
+        .get(format!("{base_url}/login"))
+        .header(HOST, "tabularis.example.com")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(login_page.status(), reqwest::StatusCode::OK);
+    assert!(login_page.text().await.unwrap().contains("Sign in"));
+
+    let login = client
+        .post(format!("{base_url}/api/v1/auth/login"))
+        .header(HOST, "tabularis.example.com")
+        .header(ORIGIN, public_origin)
+        .header(
+            reqwest::header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .body("password=correct%20horse%20battery%20staple")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(login.status(), reqwest::StatusCode::SEE_OTHER);
+    let set_cookie = login.headers().get(SET_COOKIE).unwrap().to_str().unwrap();
+    assert!(set_cookie.contains("Secure"));
+    let cookie = set_cookie.split(';').next().unwrap().to_string();
+
+    for _ in 0..5 {
+        let invalid_login = client
+            .post(format!("{base_url}/api/v1/auth/login"))
+            .header(HOST, "tabularis.example.com")
+            .header(ORIGIN, public_origin)
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
+            .body("password=wrong")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(invalid_login.status(), reqwest::StatusCode::UNAUTHORIZED);
+    }
+    let rate_limited = client
+        .post(format!("{base_url}/api/v1/auth/login"))
+        .header(HOST, "tabularis.example.com")
+        .header(ORIGIN, public_origin)
+        .header(
+            reqwest::header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .body("password=wrong")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        rate_limited.status(),
+        reqwest::StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_eq!(rate_limited.headers().get("retry-after").unwrap(), "300");
+
+    let session = client
+        .get(format!("{base_url}/api/v1/session"))
+        .header(HOST, "tabularis.example.com")
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(session.status(), reqwest::StatusCode::OK);
+    let session: SessionNegotiation = session.json().await.unwrap();
+    assert!(session.access.remote);
+    assert_eq!(session.access.authorization_level, "database");
+    assert!(!session.access.high_risk_capabilities);
+
+    let blocked = client
+        .post(format!("{base_url}/api/v1/rpc/clear_logs"))
+        .header(HOST, "tabularis.example.com")
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, public_origin)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&Value::Null)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(blocked.status(), reqwest::StatusCode::FORBIDDEN);
+
+    shutdown_tx.send(()).unwrap();
+    server.await.unwrap().unwrap();
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let security = LocalSessionSecurity::new_remote(
+        remote_config,
+        RemoteAuthentication::proxy("a-proxy-shared-secret-with-32-bytes"),
+    )
+    .unwrap();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve(
+        listener,
+        temp.path().to_path_buf(),
+        security,
+        test_application(temp.path()),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+
+    let proxy_session = client
+        .get(format!("{base_url}/api/v1/session"))
+        .header(HOST, "tabularis.example.com")
+        .header(
+            "x-tabularis-proxy-secret",
+            "a-proxy-shared-secret-with-32-bytes",
+        )
+        .header("x-tabularis-user", "alice@example.com")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(proxy_session.status(), reqwest::StatusCode::OK);
+    assert!(proxy_session
+        .headers()
+        .get(SET_COOKIE)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .contains("Secure"));
+
+    shutdown_tx.send(()).unwrap();
+    server.await.unwrap().unwrap();
+
+    let logs = log_buffer.lock().unwrap().get_entries(None, None);
+    assert!(logs.iter().any(|entry| {
+        entry.target.as_deref() == Some("tabularis::web_audit")
+            && entry.message.contains("request_id=")
+            && entry.message.contains("session_id=")
+    }));
+    assert!(!logs
+        .iter()
+        .any(|entry| entry.message.contains("correct horse battery staple")));
 }
 
 #[tokio::test]

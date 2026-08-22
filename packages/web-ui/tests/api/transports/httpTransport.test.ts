@@ -15,6 +15,11 @@ const SESSION = {
   },
   authenticated: true,
   csrfToken: "csrf-token",
+  access: {
+    remote: false,
+    authorizationLevel: "local-admin",
+    highRiskCapabilities: true,
+  },
   capabilities: {
     rpc: true,
     events: true,
@@ -117,6 +122,21 @@ describe("HttpTransport", () => {
         jsonResponse({
           ...SESSION,
           capabilities: { ...SESSION.capabilities, nativeUpdater: true },
+        }),
+      ),
+    });
+
+    await expect(transport.initialize()).rejects.toMatchObject({
+      code: "INVALID_SESSION_RESPONSE",
+    });
+  });
+
+  it("rejects an unknown remote authorization policy", async () => {
+    const transport = new HttpTransport({
+      fetch: vi.fn<typeof fetch>().mockResolvedValueOnce(
+        jsonResponse({
+          ...SESSION,
+          access: { ...SESSION.access, authorizationLevel: "super-admin" },
         }),
       ),
     });

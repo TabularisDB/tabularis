@@ -63,6 +63,11 @@ const SESSION = {
   },
   authenticated: true,
   csrfToken: "contract-csrf-token",
+  access: {
+    remote: false,
+    authorizationLevel: "local-admin",
+    highRiskCapabilities: true,
+  },
   capabilities: {
     rpc: true,
     events: false,

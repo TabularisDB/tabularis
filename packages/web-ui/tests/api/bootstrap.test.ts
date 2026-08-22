@@ -24,6 +24,11 @@ const session: SessionNegotiation = {
   },
   authenticated: true,
   csrfToken: "csrf-token",
+  access: {
+    remote: false,
+    authorizationLevel: "local-admin",
+    highRiskCapabilities: true,
+  },
   capabilities: {
     rpc: true,
     events: true,

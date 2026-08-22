@@ -20,12 +20,25 @@ export interface WebQueryResponsePolicy {
   readonly streaming: boolean;
 }
 
+export type WebAuthorizationLevel =
+  | "session"
+  | "database"
+  | "sensitive"
+  | "local-admin";
+
+export interface WebSessionAccessPolicy {
+  readonly remote: boolean;
+  readonly authorizationLevel: WebAuthorizationLevel;
+  readonly highRiskCapabilities: boolean;
+}
+
 export interface SessionNegotiation {
   readonly apiVersion: string;
   readonly serverVersion: string;
   readonly serverBuild: ServerBuildInformation;
   readonly authenticated: boolean;
   readonly csrfToken: string;
+  readonly access: WebSessionAccessPolicy;
   readonly capabilities: WebTransportCapabilities;
   readonly queryResponsePolicy: WebQueryResponsePolicy;
 }

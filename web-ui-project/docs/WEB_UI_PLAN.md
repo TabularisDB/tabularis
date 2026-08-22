@@ -311,6 +311,7 @@ The matrix is a tracked artifact in the branch. Every row must end with automate
 | Area | Web behavior | Parity type | Primary transport needs |
 |---|---|---|---|
 | Application startup | `tabularis --web`, static serving, browser open | Adapted | CLI/HTTP |
+| Remote access | Password or trusted-proxy authentication, HTTPS origin allowlist, restricted-by-default capability policy | Adapted/security-scoped | CLI/HTTP/audit |
 | Connections and groups | Full CRUD, tags, icons, duplicate/import/export | Identical/adapted files | RPC/upload/download |
 | MySQL/PostgreSQL/SQLite | Existing drivers and pools | Identical | Shared services |
 | SSH tunnels and askpass | Prompt delivered to active authorized web session | Adapted | RPC/WebSocket |

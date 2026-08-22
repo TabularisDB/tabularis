@@ -15,6 +15,9 @@ fn parses_desktop_defaults() {
     assert!(!args.no_open);
     assert!(args.web_root.is_none());
     assert_eq!(args.auth, None);
+    assert!(args.public_url.is_none());
+    assert!(args.allowed_origins.is_empty());
+    assert!(!args.allow_high_risk);
 }
 
 #[test]
@@ -31,6 +34,13 @@ fn parses_all_web_options() {
         "/tmp/tabularis-web",
         "--auth",
         "password",
+        "--public-url",
+        "https://tabularis.example.com",
+        "--allowed-origin",
+        "https://tabularis.example.com",
+        "--allowed-origin",
+        "https://admin.example.com",
+        "--allow-high-risk",
         "--debug",
     ])
     .expect("web options should parse");
@@ -41,6 +51,18 @@ fn parses_all_web_options() {
     assert!(args.no_open);
     assert_eq!(args.web_root, Some(PathBuf::from("/tmp/tabularis-web")));
     assert_eq!(args.auth, Some(WebAuthMode::Password));
+    assert_eq!(
+        args.public_url.as_deref(),
+        Some("https://tabularis.example.com")
+    );
+    assert_eq!(
+        args.allowed_origins,
+        [
+            "https://tabularis.example.com".to_string(),
+            "https://admin.example.com".to_string()
+        ]
+    );
+    assert!(args.allow_high_risk);
     assert!(args.debug);
 }
 
@@ -62,12 +84,20 @@ fn web_conflicts_with_explain_mode() {
 
 #[test]
 fn web_options_require_web_mode() {
-    for option in ["--host", "--port", "--web-root", "--auth"] {
+    for option in [
+        "--host",
+        "--port",
+        "--web-root",
+        "--auth",
+        "--public-url",
+        "--allowed-origin",
+    ] {
         let value = match option {
             "--host" => "localhost",
             "--port" => "9090",
             "--web-root" => "/tmp/tabularis-web",
             "--auth" => "proxy",
+            "--public-url" | "--allowed-origin" => "https://tabularis.example.com",
             _ => unreachable!(),
         };
         let error = Args::try_parse_from(["tabularis", option, value])
@@ -75,9 +105,11 @@ fn web_options_require_web_mode() {
         assert_eq!(error.kind(), ErrorKind::MissingRequiredArgument);
     }
 
-    let error =
-        Args::try_parse_from(["tabularis", "--no-open"]).expect_err("--no-open must require --web");
-    assert_eq!(error.kind(), ErrorKind::MissingRequiredArgument);
+    for option in ["--no-open", "--allow-high-risk"] {
+        let error = Args::try_parse_from(["tabularis", option])
+            .expect_err("the Web option must require --web");
+        assert_eq!(error.kind(), ErrorKind::MissingRequiredArgument);
+    }
 }
 
 #[test]
@@ -94,6 +126,9 @@ fn help_lists_web_options_and_defaults() {
         "--no-open",
         "--web-root <PATH>",
         "--auth <MODE>",
+        "--public-url <URL>",
+        "--allowed-origin <ORIGIN>",
+        "--allow-high-risk",
     ] {
         assert!(
             help.contains(option),

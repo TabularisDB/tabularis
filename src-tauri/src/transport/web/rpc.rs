@@ -1274,6 +1274,26 @@ impl RpcDispatcher {
         .await
     }
 
+    pub(crate) async fn dispatch_with_authorization(
+        &self,
+        command_name: &str,
+        request_id: RequestId,
+        headers: &HeaderMap,
+        body: Bytes,
+        session_id: Option<uuid::Uuid>,
+        granted_authorization: AuthorizationLevel,
+    ) -> Response {
+        self.dispatch_authorized(
+            command_name,
+            request_id,
+            headers,
+            body,
+            session_id,
+            granted_authorization,
+        )
+        .await
+    }
+
     async fn dispatch_authorized(
         &self,
         command_name: &str,

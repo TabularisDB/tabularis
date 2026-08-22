@@ -1,6 +1,7 @@
 use super::auth::{
-    AuthenticatedSession, IssuedSession, LocalSessionSecurity, LocalSessionSecurityConfig,
-    CSRF_HEADER_NAME, SESSION_COOKIE_NAME,
+    AuthenticatedSession, AuthenticationError, IssuedSession, LocalSessionSecurity,
+    LocalSessionSecurityConfig, RemoteAuthentication, RemoteSessionSecurityConfig,
+    CSRF_HEADER_NAME, PROXY_SECRET_HEADER_NAME, PROXY_USER_HEADER_NAME, SESSION_COOKIE_NAME,
 };
 use super::contract::SessionNegotiation;
 use super::events::{ClientEventMessage, EventConnection, ServerEventMessage, WebEventBus};
@@ -9,12 +10,14 @@ use crate::application::file_transfers::{
     FileTransferStore, TransferReader, MAX_FILE_TRANSFER_BYTES,
 };
 use crate::application::{ApplicationApi, AuthorizationLevel};
+use crate::cli::WebAuthMode;
 use axum::body::{Body, Bytes};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Extension, Path, Query, Request, State};
 use axum::http::header::{
     CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_SECURITY_POLICY, CONTENT_TYPE,
-    COOKIE, HOST, LOCATION, ORIGIN, REFERRER_POLICY, SET_COOKIE, X_CONTENT_TYPE_OPTIONS,
+    COOKIE, HOST, LOCATION, ORIGIN, REFERRER_POLICY, RETRY_AFTER, SET_COOKIE,
+    X_CONTENT_TYPE_OPTIONS,
 };
 use axum::http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
@@ -35,6 +38,8 @@ use url::Host;
 use uuid::Uuid;
 
 const BOOTSTRAP_PATH: &str = "/api/v1/auth/bootstrap";
+const LOGIN_PATH: &str = "/api/v1/auth/login";
+const LOGIN_PAGE_PATH: &str = "/login";
 const REQUEST_ID_HEADER_NAME: &str = "x-request-id";
 const MAX_EVENT_CONTROL_BYTES: usize = 16 * 1024;
 const FILE_NAME_HEADER_NAME: &str = "x-tabularis-file-name";
@@ -50,6 +55,10 @@ pub struct WebServerOptions {
     pub web_root: PathBuf,
     pub data_dir: PathBuf,
     pub open_browser: bool,
+    pub auth: Option<WebAuthMode>,
+    pub public_url: Option<String>,
+    pub allowed_origins: Vec<String>,
+    pub allow_high_risk: bool,
     pub application: Arc<dyn ApplicationApi>,
     pub events: WebEventBus,
 }
@@ -91,17 +100,62 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
     let address = listener
         .local_addr()
         .map_err(|error| format!("Failed to read the Web UI server address: {error}"))?;
-    let url = format!("http://{address}");
-    let (security, bootstrap_token) =
-        LocalSessionSecurity::new(url.clone(), LocalSessionSecurityConfig::default())?;
-    let bootstrap_url = format!("{url}{BOOTSTRAP_PATH}?token={}", bootstrap_token.expose());
 
-    println!("Tabularis Web is available at {url}");
-    if options.open_browser && open::that(&bootstrap_url).is_err() {
+    let (security, launch_url, public_url) = match options.auth {
+        Some(auth_mode) => {
+            let public_url = options.public_url.clone().ok_or_else(|| {
+                "Remote Web UI mode requires --public-url with an HTTPS origin".to_string()
+            })?;
+            let authentication = remote_authentication(auth_mode)?;
+            let authorization = if options.allow_high_risk {
+                AuthorizationLevel::LocalAdmin
+            } else {
+                AuthorizationLevel::Database
+            };
+            let security = LocalSessionSecurity::new_remote(
+                RemoteSessionSecurityConfig {
+                    public_origin: public_url.clone(),
+                    allowed_origins: options.allowed_origins.clone(),
+                    session_ttl: LocalSessionSecurityConfig::default().session_ttl,
+                    max_body_bytes: LocalSessionSecurityConfig::default().max_body_bytes,
+                    authorization,
+                    rate_limit: Default::default(),
+                },
+                authentication,
+            )?;
+            let launch_url = if auth_mode == WebAuthMode::Password {
+                format!("{}{LOGIN_PAGE_PATH}", security.expected_origin())
+            } else {
+                format!("{}/", security.expected_origin())
+            };
+            (security, launch_url, public_url)
+        }
+        None => {
+            if !address.ip().is_loopback() {
+                return Err(
+                    "Non-loopback Web UI binding requires --auth, --public-url, and --allowed-origin"
+                        .to_string(),
+                );
+            }
+            let public_url = format!("http://{address}");
+            let (security, bootstrap_token) = LocalSessionSecurity::new(
+                public_url.clone(),
+                LocalSessionSecurityConfig::default(),
+            )?;
+            let launch_url = format!(
+                "{public_url}{BOOTSTRAP_PATH}?token={}",
+                bootstrap_token.expose()
+            );
+            drop(bootstrap_token);
+            (security, launch_url, public_url)
+        }
+    };
+
+    println!("Tabularis Web is available at {public_url}");
+    if options.open_browser && open::that(&launch_url).is_err() {
         log::warn!("Failed to open the Web UI in the default browser");
     }
-    drop(bootstrap_url);
-    drop(bootstrap_token);
+    drop(launch_url);
 
     serve_with_events(
         listener,
@@ -114,6 +168,17 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
     )
     .await
     .map_err(|error| format!("Web UI server failed: {error}"))
+}
+
+fn remote_authentication(auth_mode: WebAuthMode) -> Result<RemoteAuthentication, String> {
+    match auth_mode {
+        WebAuthMode::Password => std::env::var("TABULARIS_WEB_PASSWORD")
+            .map(|password| RemoteAuthentication::password(&password))
+            .map_err(|_| "Password authentication requires TABULARIS_WEB_PASSWORD".to_string()),
+        WebAuthMode::Proxy => std::env::var("TABULARIS_WEB_PROXY_SECRET")
+            .map(|secret| RemoteAuthentication::proxy(&secret))
+            .map_err(|_| "Proxy authentication requires TABULARIS_WEB_PROXY_SECRET".to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -170,7 +235,8 @@ fn router(
     let index = web_root.join("index.html");
     let static_files = ServeDir::new(web_root).fallback(ServeFile::new(index));
     let max_body_bytes = security.max_body_bytes();
-    let mcp_host_configuration = mcp_host_configuration_enabled(security.expected_origin());
+    let mcp_host_configuration =
+        !security.is_remote() && mcp_host_configuration_enabled(security.expected_origin());
     let state = WebServerState {
         security,
         rpc: RpcDispatcher::with_access_policy(
@@ -187,6 +253,8 @@ fn router(
 
     let standard_routes = Router::new()
         .route("/api/v1/session", get(session))
+        .route(LOGIN_PAGE_PATH, get(login_page))
+        .route(LOGIN_PATH, post(login))
         .route("/api/v1/logout", post(logout))
         .route("/api/v1/events", get(event_stream))
         .route("/api/v1/rpc/:command", post(rpc))
@@ -237,10 +305,23 @@ async fn health() -> impl IntoResponse {
 async fn bootstrap(
     State(state): State<WebServerState>,
     Query(query): Query<BootstrapQuery>,
+    Extension(request_id): Extension<RequestId>,
 ) -> Response {
     let Some(session) = state.security.consume_bootstrap(&query.token) else {
+        audit_event(
+            "authentication",
+            &request_id.0,
+            None,
+            "method=bootstrap outcome=denied",
+        );
         return status_response(StatusCode::UNAUTHORIZED);
     };
+    audit_event(
+        "authentication",
+        &request_id.0,
+        Some(session.session_id()),
+        "method=bootstrap outcome=success",
+    );
 
     let mut response = StatusCode::SEE_OTHER.into_response();
     response
@@ -252,10 +333,63 @@ async fn bootstrap(
     response
         .headers_mut()
         .insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
+    response.headers_mut().insert(
+        SET_COOKIE,
+        session_cookie(&session, state.security.secure_cookie()),
+    );
     response
-        .headers_mut()
-        .insert(SET_COOKIE, session_cookie(&session));
-    response
+}
+
+async fn login_page(State(state): State<WebServerState>) -> Response {
+    if !state.security.password_authentication() {
+        return status_response(StatusCode::NOT_FOUND);
+    }
+    login_page_response(StatusCode::OK, None)
+}
+
+async fn login(
+    State(state): State<WebServerState>,
+    Extension(request_id): Extension<RequestId>,
+    body: Bytes,
+) -> Response {
+    if !state.security.password_authentication() {
+        return status_response(StatusCode::NOT_FOUND);
+    }
+    let Some(password) = form_password(&body) else {
+        audit_event(
+            "authentication",
+            &request_id.0,
+            None,
+            "method=password outcome=denied",
+        );
+        return login_page_response(StatusCode::UNAUTHORIZED, Some("Invalid credentials"));
+    };
+    match state.security.authenticate_password(&password) {
+        Ok(session) => {
+            audit_event(
+                "authentication",
+                &request_id.0,
+                Some(session.session_id()),
+                "method=password outcome=success",
+            );
+            let mut response = StatusCode::SEE_OTHER.into_response();
+            response
+                .headers_mut()
+                .insert(LOCATION, HeaderValue::from_static("/"));
+            response
+                .headers_mut()
+                .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+            response.headers_mut().insert(
+                SET_COOKIE,
+                session_cookie(&session, state.security.secure_cookie()),
+            );
+            response
+        }
+        Err(error) => {
+            audit_authentication_error(&request_id.0, "password", error);
+            authentication_error_response(error, true)
+        }
+    }
 }
 
 async fn session(
@@ -264,9 +398,11 @@ async fn session(
 ) -> impl IntoResponse {
     (
         [(CACHE_CONTROL, "no-store")],
-        Json(SessionNegotiation::authenticated(
-            session.csrf_token,
+        Json(SessionNegotiation::authenticated_with_access(
+            session.csrf_token.clone(),
             state.mcp_host_configuration,
+            session.is_remote(),
+            session.authorization(),
         )),
     )
 }
@@ -292,16 +428,34 @@ async fn rpc(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    state
+    let session_id = session.event_scope();
+    let request_id_text = request_id.0.clone();
+    let response = state
         .rpc
-        .dispatch(
+        .dispatch_with_authorization(
             &command,
             request_id,
             &headers,
             body,
-            Some(session.event_scope()),
+            Some(session_id),
+            session.authorization(),
         )
-        .await
+        .await;
+    let audited_command = if response.status() == StatusCode::NOT_FOUND {
+        "unknown"
+    } else {
+        command.as_str()
+    };
+    audit_event(
+        "rpc",
+        &request_id_text,
+        Some(session_id),
+        &format!(
+            "command={audited_command} status={}",
+            response.status().as_u16()
+        ),
+    );
+    response
 }
 
 async fn upload_connection_icon(
@@ -562,7 +716,7 @@ async fn event_stream(
 ) -> Response {
     let connection = match state
         .events
-        .connect(session.event_scope(), AuthorizationLevel::LocalAdmin)
+        .connect(session.event_scope(), session.authorization())
     {
         Ok(connection) => connection,
         Err(error) => {
@@ -725,20 +879,29 @@ where
 async fn logout(
     State(state): State<WebServerState>,
     Extension(session): Extension<AuthenticatedSession>,
+    Extension(request_id): Extension<RequestId>,
 ) -> Response {
-    state.events.remove_session(session.event_scope());
+    let session_id = session.event_scope();
+    state.events.remove_session(session_id);
     state.rpc.clear_session(session.event_scope());
     state.transfers.cleanup_session(session.event_scope());
     state.security.logout(&session);
+    audit_event("logout", &request_id.0, Some(session_id), "outcome=success");
     let mut response = StatusCode::NO_CONTENT.into_response();
     response
         .headers_mut()
         .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    let secure = if state.security.secure_cookie() {
+        "; Secure"
+    } else {
+        ""
+    };
     response.headers_mut().insert(
         SET_COOKIE,
-        HeaderValue::from_static(
-            "tabularis_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0",
-        ),
+        HeaderValue::from_str(&format!(
+            "tabularis_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0{secure}"
+        ))
+        .expect("the session cookie attributes are valid"),
     );
     response
 }
@@ -748,12 +911,17 @@ async fn security_gate(
     mut request: Request,
     next: Next,
 ) -> Response {
-    if request
+    let request_id = request
+        .extensions()
+        .get::<RequestId>()
+        .map(|request_id| request_id.0.as_str())
+        .unwrap_or("unknown");
+    let host = request
         .headers()
         .get(HOST)
-        .and_then(|value| value.to_str().ok())
-        != Some(state.security.expected_host())
-    {
+        .and_then(|value| value.to_str().ok());
+    if !host.is_some_and(|host| state.security.host_allowed(host)) {
+        audit_event("request", request_id, None, "outcome=denied reason=host");
         return status_response(StatusCode::FORBIDDEN);
     }
 
@@ -761,36 +929,114 @@ async fn security_gate(
         .headers()
         .get(ORIGIN)
         .and_then(|value| value.to_str().ok());
-    if origin.is_some_and(|value| value != state.security.expected_origin()) {
+    if origin.is_some_and(|value| !state.security.origin_allowed(value)) {
+        audit_event("request", request_id, None, "outcome=denied reason=origin");
         return status_response(StatusCode::FORBIDDEN);
     }
 
     let path = request.uri().path();
-    if path == "/healthz" || (path == BOOTSTRAP_PATH && request.method() == Method::GET) {
+    let local_bootstrap =
+        !state.security.is_remote() && path == BOOTSTRAP_PATH && request.method() == Method::GET;
+    let password_login = state.security.password_authentication()
+        && ((path == LOGIN_PAGE_PATH && request.method() == Method::GET)
+            || (path == LOGIN_PATH && request.method() == Method::POST));
+    if path == "/healthz" || local_bootstrap || password_login {
+        if path == LOGIN_PATH && !origin.is_some_and(|origin| state.security.origin_allowed(origin))
+        {
+            audit_event(
+                "authentication",
+                request_id,
+                None,
+                "method=password outcome=denied reason=origin",
+            );
+            return status_response(StatusCode::FORBIDDEN);
+        }
         return next.run(request).await;
     }
 
-    let Some(cookie_value) = session_cookie_value(request.headers().get(COOKIE)) else {
-        return status_response(StatusCode::UNAUTHORIZED);
-    };
-    let Some(session) = state.security.authenticate(cookie_value) else {
-        return status_response(StatusCode::UNAUTHORIZED);
+    let mut issued_session = None;
+    let session = session_cookie_value(request.headers().get(COOKIE))
+        .and_then(|cookie_value| state.security.authenticate(cookie_value));
+    let session = match session {
+        Some(session) => session,
+        None if state.security.proxy_authentication() => {
+            let secret = request
+                .headers()
+                .get(PROXY_SECRET_HEADER_NAME)
+                .and_then(|value| value.to_str().ok());
+            let user = request
+                .headers()
+                .get(PROXY_USER_HEADER_NAME)
+                .and_then(|value| value.to_str().ok());
+            let (Some(secret), Some(user)) = (secret, user) else {
+                audit_event(
+                    "authentication",
+                    request_id,
+                    None,
+                    "method=proxy outcome=denied reason=missing_headers",
+                );
+                return status_response(StatusCode::UNAUTHORIZED);
+            };
+            match state.security.authenticate_proxy(secret, user) {
+                Ok(issued) => {
+                    let session = state
+                        .security
+                        .authenticate(&issued.cookie_value)
+                        .expect("a newly issued proxy session is active");
+                    audit_event(
+                        "authentication",
+                        request_id,
+                        Some(issued.session_id()),
+                        "method=proxy outcome=success",
+                    );
+                    issued_session = Some(issued);
+                    session
+                }
+                Err(error) => {
+                    audit_authentication_error(request_id, "proxy", error);
+                    return authentication_error_response(error, false);
+                }
+            }
+        }
+        None if state.security.password_authentication() && request.method() == Method::GET => {
+            let mut response = StatusCode::SEE_OTHER.into_response();
+            response
+                .headers_mut()
+                .insert(LOCATION, HeaderValue::from_static(LOGIN_PAGE_PATH));
+            return response;
+        }
+        None => return status_response(StatusCode::UNAUTHORIZED),
     };
 
     if requires_csrf(request.method()) {
-        if origin != Some(state.security.expected_origin())
+        if !origin.is_some_and(|origin| state.security.origin_allowed(origin))
             || request
                 .headers()
                 .get(CSRF_HEADER_NAME)
                 .and_then(|value| value.to_str().ok())
                 != Some(session.csrf_token.as_str())
         {
+            audit_event(
+                "request",
+                request_id,
+                Some(session.event_scope()),
+                "outcome=denied reason=csrf",
+            );
             return status_response(StatusCode::FORBIDDEN);
         }
     }
 
+    request.headers_mut().remove(PROXY_SECRET_HEADER_NAME);
+    request.headers_mut().remove(PROXY_USER_HEADER_NAME);
     request.extensions_mut().insert(session);
-    next.run(request).await
+    let mut response = next.run(request).await;
+    if let Some(issued) = issued_session {
+        response.headers_mut().insert(
+            SET_COOKIE,
+            session_cookie(&issued, state.security.secure_cookie()),
+        );
+    }
+    response
 }
 
 async fn add_request_id(mut request: Request, next: Next) -> Response {
@@ -832,12 +1078,88 @@ fn session_cookie_value(cookie_header: Option<&HeaderValue>) -> Option<&str> {
         .find_map(|(name, value)| (name == SESSION_COOKIE_NAME).then_some(value))
 }
 
-fn session_cookie(session: &IssuedSession) -> HeaderValue {
+fn session_cookie(session: &IssuedSession, secure: bool) -> HeaderValue {
+    let secure = if secure { "; Secure" } else { "" };
     HeaderValue::from_str(&format!(
-        "{SESSION_COOKIE_NAME}={}; Path=/; HttpOnly; SameSite=Strict; Max-Age={}",
+        "{SESSION_COOKIE_NAME}={}; Path=/; HttpOnly; SameSite=Strict; Max-Age={}{secure}",
         session.cookie_value, session.max_age_seconds
     ))
     .expect("generated session cookies contain only valid header characters")
+}
+
+fn form_password(body: &[u8]) -> Option<String> {
+    url::form_urlencoded::parse(body)
+        .find_map(|(name, value)| (name == "password").then(|| value.into_owned()))
+}
+
+fn login_page_response(status: StatusCode, error: Option<&str>) -> Response {
+    let error = error
+        .map(|message| format!("<p role=\"alert\">{message}</p>"))
+        .unwrap_or_default();
+    let body = format!(
+        "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>Tabularis Web sign in</title></head><body><main><h1>Sign in to Tabularis Web</h1>{error}<form method=\"post\" action=\"{LOGIN_PATH}\"><label>Password <input type=\"password\" name=\"password\" required autofocus autocomplete=\"current-password\"></label><button type=\"submit\">Sign in</button></form></main></body></html>"
+    );
+    let mut response = (status, body).into_response();
+    let headers = response.headers_mut();
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    headers.insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("text/html; charset=utf-8"),
+    );
+    headers.insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
+    headers.insert(
+        CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static(
+            "default-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+        ),
+    );
+    response
+}
+
+fn authentication_error_response(error: AuthenticationError, html: bool) -> Response {
+    match error {
+        AuthenticationError::RateLimited => {
+            let mut response = if html {
+                login_page_response(StatusCode::TOO_MANY_REQUESTS, Some("Too many attempts"))
+            } else {
+                status_response(StatusCode::TOO_MANY_REQUESTS)
+            };
+            response
+                .headers_mut()
+                .insert(RETRY_AFTER, HeaderValue::from_static("300"));
+            response
+        }
+        AuthenticationError::InvalidCredentials | AuthenticationError::UnsupportedMode => {
+            if html {
+                login_page_response(StatusCode::UNAUTHORIZED, Some("Invalid credentials"))
+            } else {
+                status_response(StatusCode::UNAUTHORIZED)
+            }
+        }
+    }
+}
+
+fn audit_authentication_error(request_id: &str, method: &str, error: AuthenticationError) {
+    let outcome = match error {
+        AuthenticationError::RateLimited => "rate_limited",
+        AuthenticationError::InvalidCredentials | AuthenticationError::UnsupportedMode => "denied",
+    };
+    audit_event(
+        "authentication",
+        request_id,
+        None,
+        &format!("method={method} outcome={outcome}"),
+    );
+}
+
+fn audit_event(event: &str, request_id: &str, session_id: Option<Uuid>, detail: &str) {
+    let session_id = session_id
+        .map(|session_id| session_id.to_string())
+        .unwrap_or_else(|| "none".to_string());
+    log::info!(
+        target: "tabularis::web_audit",
+        "event={event} request_id={request_id} session_id={session_id} {detail}"
+    );
 }
 
 fn status_response(status: StatusCode) -> Response {

@@ -843,12 +843,14 @@ function isSessionNegotiation(value: unknown): value is SessionNegotiation {
     !isRecord(value) ||
     !isRecord(value.capabilities) ||
     !isRecord(value.serverBuild) ||
+    !isRecord(value.access) ||
     !isRecord(value.queryResponsePolicy)
   ) {
     return false;
   }
   const capabilities = value.capabilities;
   const serverBuild = value.serverBuild;
+  const access = value.access;
   const queryPolicy = value.queryResponsePolicy;
   return (
     typeof value.apiVersion === "string" &&
@@ -859,6 +861,9 @@ function isSessionNegotiation(value: unknown): value is SessionNegotiation {
     (serverBuild.commit === null || typeof serverBuild.commit === "string") &&
     typeof value.authenticated === "boolean" &&
     typeof value.csrfToken === "string" &&
+    typeof access.remote === "boolean" &&
+    isAuthorizationLevel(access.authorizationLevel) &&
+    typeof access.highRiskCapabilities === "boolean" &&
     typeof capabilities.rpc === "boolean" &&
     typeof capabilities.events === "boolean" &&
     typeof capabilities.uploads === "boolean" &&
@@ -873,6 +878,15 @@ function isSessionNegotiation(value: unknown): value is SessionNegotiation {
     Number.isSafeInteger(queryPolicy.maxResponseBytes) &&
     queryPolicy.maxResponseBytes > 0 &&
     typeof queryPolicy.streaming === "boolean"
+  );
+}
+
+function isAuthorizationLevel(value: unknown): boolean {
+  return (
+    value === "session" ||
+    value === "database" ||
+    value === "sensitive" ||
+    value === "local-admin"
   );
 }
 
