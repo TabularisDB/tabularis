@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { X, Github, Star } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { GITHUB_URL, DISCORD_URL } from "../../config/links";
 import { DiscordIcon } from "../icons/DiscordIcon";
 import { SocialLinks } from "../SocialLinks";
@@ -12,6 +12,7 @@ interface CommunityModalProps {
 }
 
 export const CommunityModal = ({ isOpen, onClose }: CommunityModalProps) => {
+  const platform = usePlatformCapabilities();
   const { t } = useTranslation();
 
   return (
@@ -41,7 +42,7 @@ export const CommunityModal = ({ isOpen, onClose }: CommunityModalProps) => {
 
           {/* GitHub Star */}
           <button
-            onClick={() => openUrl(GITHUB_URL)}
+            onClick={() => void platform.openExternalUrl(GITHUB_URL)}
             className="w-full flex items-center gap-4 p-4 bg-base border border-default rounded-lg hover:border-yellow-500/50 hover:bg-yellow-900/10 transition-all group cursor-pointer"
           >
             <div className="p-2.5 bg-surface-secondary rounded-lg group-hover:bg-yellow-900/20 transition-colors">
@@ -56,7 +57,7 @@ export const CommunityModal = ({ isOpen, onClose }: CommunityModalProps) => {
 
           {/* Discord */}
           <button
-            onClick={() => openUrl(DISCORD_URL)}
+            onClick={() => void platform.openExternalUrl(DISCORD_URL)}
             className="w-full flex items-center gap-4 p-4 bg-base border border-default rounded-lg hover:border-indigo-500/50 hover:bg-indigo-900/10 transition-all group cursor-pointer"
           >
             <div className="p-2.5 bg-surface-secondary rounded-lg group-hover:bg-indigo-900/20 transition-colors">

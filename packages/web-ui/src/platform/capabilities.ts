@@ -1,6 +1,9 @@
 export const PLATFORM_CAPABILITY_NAMES = [
   "chooseInputFile",
   "chooseSaveTarget",
+  "chooseServerPath",
+  "confirm",
+  "showMessage",
   "readClipboard",
   "writeClipboard",
   "downloadFile",
@@ -68,6 +71,20 @@ export interface ChosenSaveTarget {
   readonly reference: string;
 }
 
+export interface ChooseServerPathOptions {
+  readonly kind: "file" | "directory";
+  readonly title?: string;
+  readonly filters?: readonly PlatformFileFilter[];
+}
+
+export type PlatformDialogKind = "info" | "warning" | "error";
+
+export interface PlatformDialogRequest {
+  readonly message: string;
+  readonly title?: string;
+  readonly kind?: PlatformDialogKind;
+}
+
 export interface DownloadFileRequest {
   readonly fileName: string;
   readonly contents: Uint8Array;
@@ -93,6 +110,7 @@ export interface FetchedBlob {
 export interface PlatformNotification {
   readonly title: string;
   readonly body?: string;
+  readonly sound?: string;
 }
 
 export type NotificationOutcome = "shown" | "permission-denied";
@@ -137,6 +155,11 @@ export interface PlatformCapabilities {
   chooseSaveTarget(
     options?: ChooseSaveTargetOptions,
   ): Promise<ChosenSaveTarget | null>;
+  chooseServerPath(
+    options: ChooseServerPathOptions,
+  ): Promise<ChosenSaveTarget | null>;
+  confirm(request: PlatformDialogRequest): Promise<boolean>;
+  showMessage(request: PlatformDialogRequest): Promise<void>;
   readInputFile(reference: string): Promise<Uint8Array>;
   readInputBlob(reference: string): Promise<Blob>;
   chooseConnectionIcon(connectionId: string): Promise<string | null>;
@@ -160,6 +183,23 @@ export interface PlatformCapabilities {
   closeRoute(): Promise<void>;
   requestAttention(level?: AttentionLevel): Promise<void>;
   restartApplication(): Promise<void>;
+}
+
+export class PlatformCapabilityPermissionError extends Error {
+  readonly code = "PLATFORM_CAPABILITY_PERMISSION_DENIED";
+  readonly capability: PlatformCapabilityName;
+  readonly environment: PlatformEnvironment;
+
+  constructor(
+    capability: PlatformCapabilityName,
+    environment: PlatformEnvironment,
+    cause?: unknown,
+  ) {
+    super(`${capability} permission was denied in ${environment}`, { cause });
+    this.name = "PlatformCapabilityPermissionError";
+    this.capability = capability;
+    this.environment = environment;
+  }
 }
 
 export class UnsupportedPlatformCapabilityError extends Error {

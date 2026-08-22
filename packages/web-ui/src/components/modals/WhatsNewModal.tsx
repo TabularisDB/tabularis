@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import {
   X,
   Sparkles,
@@ -30,6 +30,7 @@ export const WhatsNewModal = ({
   isLoading,
 }: WhatsNewModalProps) => {
   const { t } = useTranslation();
+  const platform = usePlatformCapabilities();
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
@@ -83,7 +84,7 @@ export const WhatsNewModal = ({
                   {entry.url && (
                     <button
                       onClick={() =>
-                        openUrl(`${entry.url}${UTM_SUFFIX}`)
+                        void platform.openExternalUrl(`${entry.url}${UTM_SUFFIX}`)
                       }
                       className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
                     >
@@ -176,6 +177,7 @@ function ChangelogSection({
 }
 
 function InlineMarkdown({ text }: { text: string }) {
+  const platform = usePlatformCapabilities();
   return (
     <Markdown
       components={{
@@ -188,7 +190,7 @@ function InlineMarkdown({ text }: { text: string }) {
             href={href}
             onClick={(e) => {
               e.preventDefault();
-              if (href) openUrl(href);
+              if (href) void platform.openExternalUrl(href);
             }}
             className="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors cursor-pointer"
           >

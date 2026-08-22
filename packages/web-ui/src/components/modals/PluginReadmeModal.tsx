@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BookOpen, ExternalLink, Globe, Loader2, X } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import DOMPurify from "dompurify";
 
 import { Modal } from "../ui/Modal";
@@ -59,6 +59,7 @@ export function PluginReadmeModal({
   pluginName,
   registryUrl,
 }: PluginReadmeModalProps) {
+  const platform = usePlatformCapabilities();
   const { t, i18n } = useTranslation();
   const client = useTabularisClient();
   const [readme, setReadme] = useState<PluginReadme | null>(null);
@@ -114,7 +115,7 @@ export function PluginReadmeModal({
     // Never let README links navigate the app window — open externally.
     event.preventDefault();
     const href = anchor.getAttribute("href");
-    if (href && /^https?:\/\//i.test(href)) void openUrl(href);
+    if (href && /^https?:\/\//i.test(href)) void platform.openExternalUrl(href);
   };
 
   return (
@@ -195,7 +196,7 @@ export function PluginReadmeModal({
           {docsUrl && (
             <button
               type="button"
-              onClick={() => void openUrl(docsUrl)}
+              onClick={() => void platform.openExternalUrl(docsUrl)}
               className="px-4 py-2 text-sm text-secondary hover:text-primary rounded-lg border border-default transition-colors flex items-center gap-2 cursor-pointer"
             >
               <ExternalLink size={14} />

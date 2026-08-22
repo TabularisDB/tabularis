@@ -1,4 +1,4 @@
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { usePlatformCapabilities } from "../hooks/usePlatformCapabilities";
 import clsx from "clsx";
 import { SOCIAL_LINKS } from "../config/socialLinks";
 
@@ -23,6 +23,7 @@ export function SocialLinks({
   exclude,
   className,
 }: SocialLinksProps) {
+  const platform = usePlatformCapabilities();
   const links = exclude?.length
     ? SOCIAL_LINKS.filter((link) => !exclude.includes(link.label))
     : SOCIAL_LINKS;
@@ -33,7 +34,7 @@ export function SocialLinks({
         <button
           key={label}
           type="button"
-          onClick={() => openUrl(href)}
+          onClick={() => void platform.openExternalUrl(href)}
           title={label}
           aria-label={label}
           className={clsx(

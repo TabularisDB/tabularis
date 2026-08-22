@@ -22,6 +22,8 @@ import { BrowserPlatformCapabilities } from './platform/browserCapabilities';
 import { PlatformCapabilitiesProvider } from './contexts/PlatformCapabilitiesProvider';
 import { detectPlatformEnvironment } from './platform/environment';
 import { toErrorMessage } from './utils/errors';
+import { BrowserCapabilityFallbacks } from './components/ui/BrowserCapabilityFallbacks';
+import { registerActivePlatformCapabilities } from './platform/activeCapabilities';
 
 const rootElement = document.getElementById('root') as HTMLElement;
 const environment = detectPlatformEnvironment();
@@ -31,6 +33,7 @@ async function startApplication() {
   const platformCapabilities = environment === 'tauri'
     ? new TauriPlatformCapabilities()
     : new BrowserPlatformCapabilities(tabularisClient);
+  registerActivePlatformCapabilities(platformCapabilities);
 
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
@@ -40,6 +43,7 @@ async function startApplication() {
             <ThemeProvider>
               <SettingsProvider>
                 <ToastProvider>
+                  <BrowserCapabilityFallbacks />
                   <DatabaseProvider>
                     <SavedQueriesProvider>
                       <QueryHistoryProvider>

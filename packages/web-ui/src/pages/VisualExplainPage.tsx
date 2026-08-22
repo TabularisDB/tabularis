@@ -3,7 +3,6 @@ import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FileJson, FolderOpen, Loader2, RefreshCw } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { ExplainPlan, ExplainQueryOutput } from "@tabularis/explain";
 import {
   parseExplain,
@@ -19,6 +18,7 @@ import {
 import { parseVisualExplainDeepLink } from "../utils/aiActivity";
 import { useSettings } from "../hooks/useSettings";
 import { useTabularisClient } from "../hooks/useTabularisClient";
+import { usePlatformCapabilities } from "../hooks/usePlatformCapabilities";
 
 export interface VisualExplainPageProps {
   /// When provided, render in embedded mode: skip the page header, use the
@@ -34,6 +34,7 @@ export const VisualExplainPage = ({
 }: VisualExplainPageProps = {}) => {
   const { t } = useTranslation();
   const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const { settings } = useSettings();
   const { search } = useLocation();
   const initialParamPath = parseExplainFileParam(search);
@@ -137,18 +138,33 @@ export const VisualExplainPage = ({
   ]);
 
   const handlePickFile = useCallback(async () => {
-    const selected = await openDialog({
-      multiple: false,
+    const selected = await platform.chooseInputFile({
       filters: [
         { name: "Explain", extensions: ["json", "txt"] },
         { name: "All files", extensions: ["*"] },
       ],
     });
-    if (typeof selected === "string" && selected.trim().length > 0) {
-      setFilePath(selected);
-      await loadPlan(selected);
+    if (!selected) return;
+
+    setIsLoading(true);
+    setError(null);
+    setPlan(null);
+    setSelectedNodeId(null);
+    try {
+      const contents = await platform.readInputFile(selected.reference);
+      const parsedPlan = withSourceLabel(
+        parseExplain(new TextDecoder().decode(contents)),
+        selected.name,
+      );
+      setFilePath(selected.name);
+      setPlan(parsedPlan);
+      setSelectedNodeId(parsedPlan.root.id);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setIsLoading(false);
     }
-  }, [loadPlan]);
+  }, [platform]);
 
   const handleReload = useCallback(() => {
     if (filePath) loadPlan(filePath);

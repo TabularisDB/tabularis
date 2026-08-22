@@ -1,4 +1,4 @@
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { ExternalLink, Library, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "../ui/Modal";
@@ -17,6 +17,7 @@ export function OpenSourceLibrariesModal({
   isOpen,
   onClose,
 }: OpenSourceLibrariesModalProps) {
+  const platform = usePlatformCapabilities();
   const { t } = useTranslation();
   const totalLibraries = getOpenSourceLibraryTotal();
 
@@ -96,7 +97,7 @@ export function OpenSourceLibrariesModal({
                         </span>
                         <button
                           onClick={() =>
-                            openUrl(
+                            void platform.openExternalUrl(
                               getOpenSourceLibraryUrl(
                                 section.ecosystem,
                                 library.name,

@@ -5,8 +5,10 @@ import { SOCIAL_LINKS } from "../config/socialLinks";
 import { LINKS } from "../config/links";
 
 const openUrl = vi.fn();
-vi.mock("@tauri-apps/plugin-opener", () => ({
-  openUrl: (url: string) => openUrl(url),
+vi.mock("../hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({
+    openExternalUrl: (url: string) => openUrl(url),
+  }),
 }));
 
 describe("SOCIAL_LINKS", () => {

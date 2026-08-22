@@ -26,7 +26,11 @@ import { AppearanceSection } from "./NewConnectionModal/AppearanceSection";
 import { MaskingOverridesEditor } from "../settings/MaskingOverridesEditor";
 import { TagSelector } from "./NewConnectionModal/TagSelector";
 import { EnvironmentSelect } from "./NewConnectionModal/EnvironmentSelect";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import {
+  choosePlatformSavePath,
+  choosePlatformServerPath,
+} from "../../platform/dialogs";
 import clsx from "clsx";
 import { SshConnectionsModal } from "./SshConnectionsModal";
 import { K8sConnectionsModal } from "./K8sConnectionsModal";
@@ -249,6 +253,11 @@ export const NewConnectionModal = ({
   initialConnection,
 }: NewConnectionModalProps) => {
   const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
+  const open = (options: Parameters<typeof choosePlatformServerPath>[1]) =>
+    choosePlatformServerPath(platform, options);
+  const save = (options: Parameters<typeof choosePlatformSavePath>[1]) =>
+    choosePlatformSavePath(platform, options);
   const { t } = useTranslation();
   const { drivers, refresh: refreshDrivers } = useDrivers();
   const { settings, updateSetting } = useSettings();

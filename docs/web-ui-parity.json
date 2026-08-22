@@ -101,7 +101,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useCreateSqliteDatabase.ts",
-          "line": 30
+          "line": 32
         }
       ]
     },
@@ -115,7 +115,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 1551
+          "line": 1560
         }
       ]
     },
@@ -143,7 +143,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
-          "line": 306
+          "line": 307
         }
       ]
     },
@@ -157,7 +157,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 287
+          "line": 332
         }
       ]
     },
@@ -185,7 +185,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
-          "line": 115
+          "line": 116
         }
       ]
     },
@@ -199,7 +199,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 1601
+          "line": 1610
         }
       ]
     },
@@ -213,7 +213,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 264
+          "line": 309
         }
       ]
     },
@@ -227,7 +227,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/VisualExplainPage.tsx",
-          "line": 58
+          "line": 59
         }
       ]
     },
@@ -259,7 +259,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
-          "line": 91
+          "line": 92
         }
       ]
     },
@@ -273,7 +273,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 155
+          "line": 182
         }
       ]
     },
@@ -287,7 +287,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
-          "line": 712
+          "line": 714
         }
       ]
     },
@@ -301,7 +301,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 272
+          "line": 317
         }
       ]
     },
@@ -319,7 +319,7 @@
         },
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 171
+          "line": 198
         }
       ]
     },
@@ -333,7 +333,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 255
+          "line": 300
         }
       ]
     },

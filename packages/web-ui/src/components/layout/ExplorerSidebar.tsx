@@ -36,7 +36,7 @@ import {
   BookOpen,
   UsersRound,
 } from "lucide-react";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { bindPlatformConfirm } from "../../platform/dialogs";
 import { toErrorMessage } from "../../utils/errors";
 import { useAlert } from "../../hooks/useAlert";
 import { useSettings } from "../../hooks/useSettings";
@@ -115,6 +115,7 @@ interface ExplorerSidebarProps {
 export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebarTab, onSidebarTabChange }: ExplorerSidebarProps) => {
   const client = useTabularisClient();
   const platform = usePlatformCapabilities();
+  const ask = bindPlatformConfirm(platform);
   const { openSchemaDiagram } = useSecondaryWindows();
   const { t } = useTranslation();
   const { settings } = useSettings();

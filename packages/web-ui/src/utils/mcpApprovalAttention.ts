@@ -1,9 +1,5 @@
 import { UserAttentionType, getCurrentWindow } from "@tauri-apps/api/window";
-import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification,
-} from "@tauri-apps/plugin-notification";
+import type { PlatformCapabilities } from "../platform/capabilities";
 
 export interface ApprovalNotificationContent {
   title: string;
@@ -207,22 +203,15 @@ function approvalNotificationSound(): string | undefined {
 
 export async function notifyApprovalRequest(
   content: ApprovalNotificationContent,
+  platform: Pick<PlatformCapabilities, "notify">,
 ): Promise<void> {
-  let permissionGranted = await isPermissionGranted().catch(() => false);
-  if (!permissionGranted) {
-    const permission = await requestPermission().catch(() => "denied" as const);
-    permissionGranted = permission === "granted";
-  }
-
   const sound = approvalNotificationSound();
 
-  if (permissionGranted) {
-    sendNotification({
-      title: content.title,
-      body: content.body,
-      ...(sound ? { sound } : {}),
-    });
-  }
+  await platform.notify({
+    title: content.title,
+    body: content.body,
+    ...(sound ? { sound } : {}),
+  });
 
   // When the OS notification carries the sound (Linux) we skip the in-page tone
   // to avoid a double alert; elsewhere the Web Audio tone is the alert.

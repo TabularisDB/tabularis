@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { confirm } from "@tauri-apps/plugin-dialog";
+import { bindPlatformConfirm } from "../../platform/dialogs";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import clsx from "clsx";
 import {
   Globe,
@@ -149,6 +150,8 @@ function ScopeCard({
  * model that way (roles, column-level) remain visible in the raw list.
  */
 export function UserManagementView({ connectionId, isActive }: Props) {
+  const platform = usePlatformCapabilities();
+  const confirm = bindPlatformConfirm(platform);
   const client = useTabularisClient();
   const { t } = useTranslation();
   const { selectedDatabases } = useDatabase();

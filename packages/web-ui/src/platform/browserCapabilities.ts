@@ -1,11 +1,13 @@
 import type { TabularisClient } from "../api/client";
 import {
   createPlatformCapabilityNegotiation,
+  PlatformCapabilityPermissionError,
   UnsupportedPlatformCapabilityError,
   type AttentionLevel,
   type BlobRecordRequest,
   type ChooseInputFileOptions,
   type ChooseSaveTargetOptions,
+  type ChooseServerPathOptions,
   type ChosenInputFile,
   type ChosenSaveTarget,
   type DownloadFileRequest,
@@ -15,6 +17,7 @@ import {
   type OpenRouteRequest,
   type PlatformCapabilities,
   type PlatformCapabilityName,
+  type PlatformDialogRequest,
   type PlatformCapabilityNegotiation,
   type PlatformNotification,
   type RouteEventHandler,
@@ -30,6 +33,7 @@ import {
   buildConnectionRoute,
   buildRouteWindowLabel,
 } from "../routing";
+import { publishBrowserCapabilityFallback } from "./browserFallbacks";
 
 const BROWSER_CAPABILITY_NEGOTIATION = createPlatformCapabilityNegotiation(
   "browser",
@@ -38,8 +42,15 @@ const BROWSER_CAPABILITY_NEGOTIATION = createPlatformCapabilityNegotiation(
     chooseSaveTarget: {
       supported: false,
       adaptation: "unsupported",
-      reason: "Browsers download files instead of exposing writable paths",
+      reason: "Browsers cannot select writable paths on the Tabularis server",
     },
+    chooseServerPath: {
+      supported: false,
+      adaptation: "unsupported",
+      reason: "Browsers cannot select paths on the Tabularis server",
+    },
+    confirm: { supported: true, adaptation: "adapted" },
+    showMessage: { supported: true, adaptation: "adapted" },
     readClipboard: { supported: true, adaptation: "adapted" },
     writeClipboard: { supported: true, adaptation: "adapted" },
     downloadFile: { supported: true, adaptation: "adapted" },
@@ -92,6 +103,22 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
   ): Promise<ChosenSaveTarget | null> {
     void _options;
     return this.unsupported("chooseSaveTarget");
+  }
+
+  chooseServerPath(
+    _options: ChooseServerPathOptions,
+  ): Promise<ChosenSaveTarget | null> {
+    void _options;
+    return this.unsupported("chooseServerPath");
+  }
+
+  confirm(request: PlatformDialogRequest): Promise<boolean> {
+    return Promise.resolve(window.confirm(dialogText(request)));
+  }
+
+  showMessage(request: PlatformDialogRequest): Promise<void> {
+    window.alert(dialogText(request));
+    return Promise.resolve();
   }
 
   async readInputFile(reference: string): Promise<Uint8Array> {
@@ -168,12 +195,34 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
     );
   }
 
-  readClipboard(): Promise<string> {
-    return navigator.clipboard.readText();
+  async readClipboard(): Promise<string> {
+    try {
+      if (!navigator.clipboard?.readText) {
+        throw new DOMException("Clipboard access is unavailable", "NotAllowedError");
+      }
+      return await navigator.clipboard.readText();
+    } catch (error) {
+      throw new PlatformCapabilityPermissionError(
+        "readClipboard",
+        "browser",
+        error,
+      );
+    }
   }
 
-  writeClipboard(text: string): Promise<void> {
-    return navigator.clipboard.writeText(text);
+  async writeClipboard(text: string): Promise<void> {
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new DOMException("Clipboard access is unavailable", "NotAllowedError");
+      }
+      await navigator.clipboard.writeText(text);
+    } catch (error) {
+      throw new PlatformCapabilityPermissionError(
+        "writeClipboard",
+        "browser",
+        error,
+      );
+    }
   }
 
   async downloadFile(request: DownloadFileRequest): Promise<boolean> {
@@ -192,18 +241,47 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
   }
 
   async openExternalUrl(url: string): Promise<void> {
-    window.open(url, "_blank", "noopener,noreferrer");
+    const externalUrl = normalizeExternalUrl(url);
+    const opened = window.open(
+      externalUrl.href,
+      "_blank",
+      "noopener,noreferrer",
+    );
+    if (!opened) {
+      publishBrowserCapabilityFallback({
+        kind: "external-url",
+        url: externalUrl.href,
+      });
+    }
   }
 
   async notify(
     notification: PlatformNotification,
   ): Promise<NotificationOutcome> {
-    if (Notification.permission === "default") {
-      await Notification.requestPermission();
+    try {
+      if (typeof Notification === "undefined") {
+        publishBrowserCapabilityFallback({
+          kind: "notification",
+          ...notification,
+        });
+        return "permission-denied";
+      }
+      if (Notification.permission === "default") {
+        await Notification.requestPermission();
+      }
+      if (Notification.permission === "granted") {
+        new Notification(notification.title, { body: notification.body });
+        return "shown";
+      }
+    } catch {
+      // The in-app fallback below preserves the notification outcome.
     }
-    if (Notification.permission !== "granted") return "permission-denied";
-    new Notification(notification.title, { body: notification.body });
-    return "shown";
+
+    publishBrowserCapabilityFallback({
+      kind: "notification",
+      ...notification,
+    });
+    return "permission-denied";
   }
 
   async openRoute(request: OpenRouteRequest): Promise<void> {
@@ -269,6 +347,20 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
   }
 }
 
+function dialogText(request: PlatformDialogRequest): string {
+  return request.title
+    ? `${request.title}\n\n${request.message}`
+    : request.message;
+}
+
+function normalizeExternalUrl(value: string): URL {
+  const url = new URL(value);
+  if (!["https:", "http:", "mailto:"].includes(url.protocol)) {
+    throw new Error(`Unsupported external URL protocol: ${url.protocol}`);
+  }
+  return url;
+}
+
 function routeEventChannelName(event: string): string {
   return `tabularis-route:${event}`;
 }
@@ -282,13 +374,24 @@ function pickImageFile(): Promise<File | null> {
 function pickFile(accept?: string): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("focus", handleWindowFocus);
+      input.remove();
+      resolve(input.files?.item(0) ?? null);
+    };
+    const handleWindowFocus = () => {
+      window.setTimeout(finish, 0);
+    };
+
     input.type = "file";
+    input.hidden = true;
     if (accept) input.accept = accept;
-    input.addEventListener(
-      "change",
-      () => resolve(input.files?.item(0) ?? null),
-      { once: true },
-    );
+    input.addEventListener("change", finish, { once: true });
+    window.addEventListener("focus", handleWindowFocus, { once: true });
+    document.body.appendChild(input);
     input.click();
   });
 }

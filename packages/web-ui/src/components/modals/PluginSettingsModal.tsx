@@ -1,7 +1,8 @@
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Settings, X, FolderOpen, RotateCcw } from "lucide-react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { choosePlatformServerPath } from "../../platform/dialogs";
 import { Modal } from "../ui/Modal";
 import { Select } from "../ui/Select";
 import { SlotAnchor } from "../ui/SlotAnchor";
@@ -27,6 +28,7 @@ export const PluginSettingsModal = ({
   manifest,
   onSave,
 }: PluginSettingsModalProps) => {
+  const platform = usePlatformCapabilities();
   const { t } = useTranslation();
   const [interpreter, setInterpreter] = useState(getDisplayInterpreter(currentConfig));
 
@@ -58,7 +60,7 @@ export const PluginSettingsModal = ({
   );
 
   const handleBrowse = async () => {
-    const selected = await open({ multiple: false, directory: false });
+    const selected = await choosePlatformServerPath(platform);
     if (selected) setInterpreter(selected);
   };
 

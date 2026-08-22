@@ -13,7 +13,7 @@ import {
   ShieldAlert,
   ShieldQuestion,
 } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { Modal } from "../ui/Modal";
 import type { RegistryPluginWithStatus } from "../../types/plugins";
 import type { DeepLinkInstallRequest } from "../../hooks/useDeepLinkInstall";
@@ -55,6 +55,7 @@ export const PluginInstallConfirmModal = ({
 }: PluginInstallConfirmModalProps) => {
   const { t } = useTranslation();
   const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const [preview, setPreview] = useState<PluginPreview | null>(null);
   // Starts true for an active request: the modal is keyed by request in App.tsx,
   // so each new request remounts this component with fresh state — no synchronous
@@ -162,7 +163,7 @@ export const PluginInstallConfirmModal = ({
                 {pluginPageUrl ? (
                   <button
                     type="button"
-                    onClick={() => openUrl(pluginPageUrl)}
+                    onClick={() => void platform.openExternalUrl(pluginPageUrl)}
                     title={pluginPageUrl}
                     className="inline-flex min-w-0 items-center gap-1 text-left text-base font-semibold text-primary cursor-pointer hover:underline underline-offset-4 decoration-blue-500/60"
                   >
@@ -177,7 +178,7 @@ export const PluginInstallConfirmModal = ({
                 {homepageDistinct && homepage && (
                   <button
                     type="button"
-                    onClick={() => openUrl(homepage)}
+                    onClick={() => void platform.openExternalUrl(homepage)}
                     title={homepage}
                     aria-label={t("settings.plugins.openHomepage", {
                       defaultValue: "Open homepage",
@@ -249,7 +250,7 @@ export const PluginInstallConfirmModal = ({
             {requestedRegistry ? (
               <button
                 type="button"
-                onClick={() => openUrl(requestedRegistry)}
+                onClick={() => void platform.openExternalUrl(requestedRegistry)}
                 title={requestedRegistry}
                 className="inline-flex items-center gap-1 font-mono text-primary cursor-pointer hover:underline underline-offset-2 truncate ml-2"
               >

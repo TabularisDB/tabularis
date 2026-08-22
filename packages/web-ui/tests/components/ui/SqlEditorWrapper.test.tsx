@@ -27,6 +27,13 @@ const matchesShortcutMock = vi.hoisted(() =>
 const togglePaletteMock = vi.hoisted(() => vi.fn());
 const closePaletteMock = vi.hoisted(() => vi.fn());
 
+vi.mock('../../../src/hooks/usePlatformCapabilities', () => ({
+  usePlatformCapabilities: () => ({
+    readClipboard: vi.fn().mockResolvedValue(''),
+    writeClipboard: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
 // Mock MonacoEditor
 vi.mock('@monaco-editor/react', async () => {
   return {

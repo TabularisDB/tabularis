@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { usePlatformCapabilities } from "../../../hooks/usePlatformCapabilities";
 import { DISCORD_URL } from "../../../config/links";
 import { DiscordIcon } from "../../icons/DiscordIcon";
 
@@ -31,6 +31,7 @@ const computeInitialVisible = (storage?: CalloutStorage): boolean => {
 };
 
 export const DiscordCommunityCallout = ({ storage }: DiscordCommunityCalloutProps) => {
+  const platform = usePlatformCapabilities();
   const { t } = useTranslation();
   const [visible, setVisible] = useState(() => computeInitialVisible(storage));
 
@@ -46,7 +47,7 @@ export const DiscordCommunityCallout = ({ storage }: DiscordCommunityCalloutProp
   };
 
   const handleJoin = () => {
-    void openUrl(DISCORD_URL);
+    void platform.openExternalUrl(DISCORD_URL);
     dismiss();
   };
 

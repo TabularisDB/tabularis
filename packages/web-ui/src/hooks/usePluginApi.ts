@@ -1,6 +1,6 @@
 import { useState, useCallback, useContext, useMemo } from "react";
-import { message } from "@tauri-apps/plugin-dialog";
-import { openUrl as openExternal } from "@tauri-apps/plugin-opener";
+import { getActivePlatformCapabilities } from "../platform/activeCapabilities";
+import { usePlatformCapabilities } from "./usePlatformCapabilities";
 import { useTranslation } from "react-i18next";
 
 import { ThemeContext } from "../contexts/ThemeContext";
@@ -70,17 +70,18 @@ export function usePluginConnection() {
  * Hook for plugin components to show notifications.
  */
 export function usePluginToast() {
+  const platform = usePlatformCapabilities();
   const showInfo = useCallback(async (text: string) => {
-    await message(text, { kind: "info" });
-  }, []);
+    await platform.showMessage({ message: text, kind: "info" });
+  }, [platform]);
 
   const showError = useCallback(async (text: string) => {
-    await message(text, { kind: "error" });
-  }, []);
+    await platform.showMessage({ message: text, kind: "error" });
+  }, [platform]);
 
   const showWarning = useCallback(async (text: string) => {
-    await message(text, { kind: "warning" });
-  }, []);
+    await platform.showMessage({ message: text, kind: "warning" });
+  }, [platform]);
 
   return useMemo(() => ({ showInfo, showError, showWarning }), [showInfo, showError, showWarning]);
 }
@@ -158,7 +159,7 @@ export function usePluginTranslation(pluginId: string) {
  * Plugin components should use this instead of window.open for external URLs.
  */
 export async function openUrl(url: string): Promise<void> {
-  await openExternal(url);
+  await getActivePlatformCapabilities().openExternalUrl(url);
 }
 
 /**

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import {
   Github,
   CheckCircle2,
@@ -35,6 +35,7 @@ import { OpenSourceLibrariesModal } from "../modals/OpenSourceLibrariesModal";
 import { SocialLinks } from "../SocialLinks";
 
 export function InfoTab() {
+  const platform = usePlatformCapabilities();
   const { t } = useTranslation();
   const { openTaskManager } = useSecondaryWindows();
   const { settings, updateSetting } = useSettings();
@@ -85,7 +86,9 @@ export function InfoTab() {
 
         <div className="flex justify-center gap-4 flex-wrap">
           <button
-            onClick={() => openUrl("https://github.com/TabularisDB/tabularis")}
+            onClick={() =>
+              void platform.openExternalUrl("https://github.com/TabularisDB/tabularis")
+            }
             className="flex items-center gap-2 bg-surface-secondary hover:bg-surface-tertiary text-primary px-4 py-2 rounded-lg font-medium transition-colors border border-strong"
           >
             <Github size={18} />
@@ -268,7 +271,7 @@ export function InfoTab() {
                 return (
                   <button
                     key={i}
-                    onClick={() => openUrl(item.url!)}
+                    onClick={() => void platform.openExternalUrl(item.url!)}
                     className="w-full p-4 flex items-center gap-3 hover:bg-surface-secondary/30 transition-colors group cursor-pointer"
                   >
                     {content}
@@ -326,7 +329,9 @@ export function InfoTab() {
       >
         <div className="pt-3 flex flex-col items-center text-center">
           <button
-            onClick={() => openUrl("https://github.com/TabularisDB/tabularis")}
+            onClick={() =>
+              void platform.openExternalUrl("https://github.com/TabularisDB/tabularis")
+            }
             className="text-blue-400 hover:text-blue-300 font-medium text-sm hover:underline"
           >
             github.com/TabularisDB/tabularis

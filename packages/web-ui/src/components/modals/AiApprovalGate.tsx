@@ -8,11 +8,13 @@ import {
   restoreWindowAlwaysOnTop,
 } from "../../utils/mcpApprovalAttention";
 import { AiApprovalModal } from "./AiApprovalModal";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 
 /// Listens for `ai://pending_approval` events emitted by the file watcher
 /// and presents one approval modal at a time. Mounted once at the App
 /// level, so it shows over any current page.
 export function AiApprovalGate() {
+  const platform = usePlatformCapabilities();
   const { t } = useTranslation();
   const {
     settings,
@@ -60,10 +62,10 @@ export function AiApprovalGate() {
         notifiedApprovalIdRef.current = currentApprovalId;
         const title = t("aiApproval.notificationTitle");
         const body = t("aiApproval.notificationBody");
-        await notifyApprovalRequest({ title, body });
+        await notifyApprovalRequest({ title, body }, platform);
       }
     })();
-  }, [currentApprovalId, isSettingsLoading, restoreWindowState, settings.mcpApprovalAlwaysOnTop, settings.mcpApprovalNotifySound, t]);
+  }, [currentApprovalId, isSettingsLoading, platform, restoreWindowState, settings.mcpApprovalAlwaysOnTop, settings.mcpApprovalNotifySound, t]);
 
   useEffect(() => {
     return () => {

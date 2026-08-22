@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification,
-} from "@tauri-apps/plugin-notification";
-
 const getCurrentWindow = vi.fn();
+const notify = vi.fn().mockResolvedValue("shown");
 
 vi.mock("@tauri-apps/api/window", () => ({
   UserAttentionType: {
@@ -19,6 +14,7 @@ describe("mcpApprovalAttention", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.resetModules();
+    notify.mockResolvedValue("shown");
   });
 
   it("restores minimized and hidden state after approval attention", async () => {
@@ -114,10 +110,6 @@ describe("mcpApprovalAttention", () => {
   });
 
   it("sends native notifications and still plays the short alert sound", async () => {
-    vi.mocked(isPermissionGranted).mockResolvedValue(true);
-    vi.mocked(requestPermission).mockResolvedValue("granted");
-    vi.mocked(sendNotification).mockResolvedValue(undefined);
-
     const setValueAtTime = vi.fn();
     const exponentialRampToValueAtTime = vi.fn();
     const connect = vi.fn();
@@ -157,12 +149,15 @@ describe("mcpApprovalAttention", () => {
 
     const attention = await import("../../src/utils/mcpApprovalAttention");
 
-    await attention.notifyApprovalRequest({
-      title: "Approval needed",
-      body: "Review pending approval",
-    });
+    await attention.notifyApprovalRequest(
+      {
+        title: "Approval needed",
+        body: "Review pending approval",
+      },
+      { notify },
+    );
 
-    expect(sendNotification).toHaveBeenCalledWith({
+    expect(notify).toHaveBeenCalledWith({
       title: "Approval needed",
       body: "Review pending approval",
     });
@@ -178,10 +173,6 @@ describe("mcpApprovalAttention", () => {
       value: "Linux x86_64",
     });
 
-    vi.mocked(isPermissionGranted).mockResolvedValue(true);
-    vi.mocked(requestPermission).mockResolvedValue("granted");
-    vi.mocked(sendNotification).mockResolvedValue(undefined);
-
     const audioContext = vi.fn();
     Object.defineProperty(window, "AudioContext", {
       configurable: true,
@@ -190,12 +181,15 @@ describe("mcpApprovalAttention", () => {
 
     const attention = await import("../../src/utils/mcpApprovalAttention");
 
-    await attention.notifyApprovalRequest({
-      title: "Approval needed",
-      body: "Review pending approval",
-    });
+    await attention.notifyApprovalRequest(
+      {
+        title: "Approval needed",
+        body: "Review pending approval",
+      },
+      { notify },
+    );
 
-    expect(sendNotification).toHaveBeenCalledWith({
+    expect(notify).toHaveBeenCalledWith({
       title: "Approval needed",
       body: "Review pending approval",
       sound: "message-new-instant",
@@ -211,8 +205,7 @@ describe("mcpApprovalAttention", () => {
   });
 
   it("still plays the short alert sound when notification permission is denied", async () => {
-    vi.mocked(isPermissionGranted).mockResolvedValue(false);
-    vi.mocked(requestPermission).mockResolvedValue("denied");
+    notify.mockResolvedValue("permission-denied");
 
     const createOscillator = vi.fn(() => ({
       type: "",
@@ -245,12 +238,15 @@ describe("mcpApprovalAttention", () => {
 
     const attention = await import("../../src/utils/mcpApprovalAttention");
 
-    await attention.notifyApprovalRequest({
-      title: "Approval needed",
-      body: "Review pending approval",
-    });
+    await attention.notifyApprovalRequest(
+      {
+        title: "Approval needed",
+        body: "Review pending approval",
+      },
+      { notify },
+    );
 
-    expect(sendNotification).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledOnce();
     expect(audioContext).toHaveBeenCalledTimes(1);
     expect(createOscillator).toHaveBeenCalledTimes(1);
   });
@@ -307,9 +303,6 @@ describe("mcpApprovalAttention", () => {
   });
 
   it("resumes suspended audio contexts before playing the short alert sound", async () => {
-    vi.mocked(isPermissionGranted).mockResolvedValue(true);
-    vi.mocked(sendNotification).mockResolvedValue(undefined);
-
     const setValueAtTime = vi.fn();
     const exponentialRampToValueAtTime = vi.fn();
     const connect = vi.fn();
@@ -353,10 +346,13 @@ describe("mcpApprovalAttention", () => {
 
     const attention = await import("../../src/utils/mcpApprovalAttention");
 
-    await attention.notifyApprovalRequest({
-      title: "Approval needed",
-      body: "Review pending approval",
-    });
+    await attention.notifyApprovalRequest(
+      {
+        title: "Approval needed",
+        body: "Review pending approval",
+      },
+      { notify },
+    );
 
     await Promise.resolve();
 

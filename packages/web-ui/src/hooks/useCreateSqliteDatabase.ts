@@ -1,11 +1,13 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
+import { usePlatformCapabilities } from "./usePlatformCapabilities";
+import { choosePlatformSavePath } from "../platform/dialogs";
 import type { SavedConnection } from "../contexts/DatabaseContext";
 
 export function useCreateSqliteDatabase() {
   const { t } = useTranslation();
+  const platform = usePlatformCapabilities();
   const inFlightRef = useRef(false);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -15,7 +17,7 @@ export function useCreateSqliteDatabase() {
     inFlightRef.current = true;
     setIsCreating(true);
     try {
-      const path = await save({
+      const path = await choosePlatformSavePath(platform, {
         title: t("connections.newSqliteDatabase.dialogTitle"),
         defaultPath: "database.db",
         filters: [

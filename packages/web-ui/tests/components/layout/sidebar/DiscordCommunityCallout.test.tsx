@@ -4,7 +4,11 @@ import {
   DiscordCommunityCallout,
   DISCORD_CALLOUT_STORAGE_KEY,
 } from "../../../../src/components/layout/sidebar/DiscordCommunityCallout";
-import { openUrl } from "@tauri-apps/plugin-opener";
+const openUrl = vi.hoisted(() => vi.fn());
+
+vi.mock("../../../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({ openExternalUrl: openUrl }),
+}));
 
 const createMemoryStorage = (initial: Record<string, string> = {}) => {
   const store: Record<string, string> = { ...initial };

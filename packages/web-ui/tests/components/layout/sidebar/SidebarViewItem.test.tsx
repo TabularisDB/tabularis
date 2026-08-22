@@ -9,6 +9,13 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
+vi.mock("../../../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({
+    confirm: vi.fn().mockResolvedValue(true),
+    writeClipboard: vi.fn(),
+  }),
+}));
+
 vi.mock("../../../../src/hooks/useTabularisClient", () => ({
   useTabularisClient: () => ({
     call: (command: string, request: unknown) => invoke(command, request),

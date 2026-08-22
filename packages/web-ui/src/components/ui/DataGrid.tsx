@@ -60,7 +60,6 @@ import {
   type ColumnDisplayInfo,
   type MergedRow,
 } from "../../utils/dataGrid";
-import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { useSettings } from "../../hooks/useSettings";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
@@ -1812,7 +1811,7 @@ export const DataGrid = React.memo(
 
         let text: string | null = null;
         try {
-          text = await readText();
+          text = await platform.readClipboard();
         } catch (e) {
           console.error("Failed to read clipboard:", e);
           showToast(t("dataGrid.pasteReadFailed"), { kind: "error" });
@@ -1906,6 +1905,7 @@ export const DataGrid = React.memo(
       },
       [
         readonlyProp,
+        platform,
         cellRange,
         focusedCell,
         selectedRowIndices,

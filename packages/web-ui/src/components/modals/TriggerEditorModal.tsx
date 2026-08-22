@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Loader2, Zap, AlertCircle } from "lucide-react";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { confirmPlatformDialog } from "../../platform/dialogs";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { useAlert } from "../../hooks/useAlert";
 import { Modal } from "../ui/Modal";
 import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
@@ -63,6 +64,7 @@ export const TriggerEditorModal = ({
 }: TriggerEditorModalProps) => {
   const client = useTabularisClient();
   const { t } = useTranslation();
+  const platform = usePlatformCapabilities();
   const { activeSchema } = useDatabase();
   const resolvedSchema = schemaProp ?? activeSchema ?? undefined;
   const { showAlert } = useAlert();
@@ -157,7 +159,7 @@ export const TriggerEditorModal = ({
     }
 
     if (!isNewTrigger) {
-      const confirmed = await ask(
+      const confirmed = await confirmPlatformDialog(platform,
         t("triggers.confirmRecreate", { trigger: name }),
         { title: t("triggers.recreateTrigger"), kind: "warning" }
       );

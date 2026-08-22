@@ -1,11 +1,18 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
+const chooseSaveTarget = vi.hoisted(() => vi.fn());
+
+vi.mock("../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({
+    supports: () => true,
+    chooseSaveTarget,
+  }),
+}));
 import { useCreateSqliteDatabase } from "../../src/hooks/useCreateSqliteDatabase";
 
 const mockInvoke = vi.mocked(invoke);
-const mockSave = vi.mocked(save);
+const mockSave = chooseSaveTarget;
 
 const connection = {
   id: "sqlite-1",
@@ -19,7 +26,7 @@ const connection = {
 describe("useCreateSqliteDatabase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSave.mockResolvedValue("/tmp/customers.db");
+    mockSave.mockResolvedValue({ reference: "/tmp/customers.db" });
     mockInvoke.mockResolvedValue(connection);
   });
 
@@ -33,7 +40,7 @@ describe("useCreateSqliteDatabase", () => {
 
     expect(mockSave).toHaveBeenCalledWith({
       title: "connections.newSqliteDatabase.dialogTitle",
-      defaultPath: "database.db",
+      suggestedName: "database.db",
       filters: [
         {
           name: "connections.newSqliteDatabase.fileType",
@@ -62,7 +69,9 @@ describe("useCreateSqliteDatabase", () => {
   });
 
   it("prevents concurrent creation attempts", async () => {
-    let resolvePath: ((path: string | null) => void) | undefined;
+    let resolvePath:
+      | ((path: { reference: string } | null) => void)
+      | undefined;
     mockSave.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -80,7 +89,7 @@ describe("useCreateSqliteDatabase", () => {
     expect(mockSave).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      resolvePath?.("/tmp/customers.db");
+      resolvePath?.({ reference: "/tmp/customers.db" });
       await firstAttempt;
     });
   });

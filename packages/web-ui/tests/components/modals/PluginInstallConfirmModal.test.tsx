@@ -8,6 +8,10 @@ import { TabularisClient } from "../../../src/api/client";
 import { TauriTransport } from "../../../src/api/transports/tauriTransport";
 import { TabularisClientProvider } from "../../../src/contexts/TabularisClientProvider";
 
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({ openExternalUrl: vi.fn() }),
+}));
+
 const request: DeepLinkInstallRequest = { slug: "firestore", version: null, registry: null };
 const client = new TabularisClient(new TauriTransport());
 

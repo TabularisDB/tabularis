@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { open } from "@tauri-apps/plugin-dialog";
+import { choosePlatformServerPath } from "../../platform/dialogs";
 import { FolderOpen, Check, RotateCcw } from "lucide-react";
 import { useSettings } from "../../hooks/useSettings";
 import { useDatabase } from "../../hooks/useDatabase";
@@ -97,7 +97,7 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
   );
 
   const handleBrowse = async () => {
-    const selected = await open({ multiple: false, directory: false });
+    const selected = await choosePlatformServerPath(platform);
     if (selected) setInterpreter(selected);
   };
 

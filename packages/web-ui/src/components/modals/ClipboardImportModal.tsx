@@ -14,7 +14,7 @@ import {
   Table2,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
-import { readText } from '@tauri-apps/plugin-clipboard-manager';
+import { usePlatformCapabilities } from '../../hooks/usePlatformCapabilities';
 import { Modal } from '../ui/Modal';
 import { Select } from '../ui/Select';
 import { useDatabase } from '../../hooks/useDatabase';
@@ -49,6 +49,7 @@ interface ImportResult {
 
 export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardImportModalProps) {
   const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const { t } = useTranslation();
   const titleId = useId();
   const descriptionId = useId();
@@ -109,7 +110,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
     setError(null);
     setSuccess(null);
     try {
-      const text = await readText();
+      const text = await platform.readClipboard();
       if (!text || !text.trim()) {
         setError(t('clipboardImport.noData'));
         setParsed(null);
@@ -125,7 +126,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
     } finally {
       setIsLoadingClipboard(false);
     }
-  }, [t, toSchemaColumns]);
+  }, [platform, t, toSchemaColumns]);
 
   // Load existing tables for conflict detection
   const loadTables = useCallback(async () => {

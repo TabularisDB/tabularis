@@ -4,6 +4,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { InstallGate } from "../../../src/components/modals/connection/InstallGate";
 import type { CatalogueDriver } from "../../../src/utils/connectionCatalogue";
 
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({ openExternalUrl: vi.fn() }),
+}));
+
 vi.mock("../../../src/hooks/useTabularisClient", () => ({
   useTabularisClient: () => ({
     call: (command: string, payload: unknown) => invoke(command, payload),

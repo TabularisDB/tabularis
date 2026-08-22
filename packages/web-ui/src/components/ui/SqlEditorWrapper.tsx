@@ -3,7 +3,7 @@ import MonacoEditor, { type OnMount, type BeforeMount } from "@monaco-editor/rea
 import type * as Monaco from "monaco-editor";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
-import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { useSettings } from "../../hooks/useSettings";
 import { useKeybindings } from "../../hooks/useKeybindings";
 import { CommandPaletteDispatchContext } from "../../contexts/CommandPaletteContext";
@@ -58,6 +58,7 @@ const SqlEditorInternal = ({
   onRunAll,
   onRunContextChange
 }: SqlEditorWrapperProps & { editorKey: string }) => {
+  const platform = usePlatformCapabilities();
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
@@ -174,7 +175,7 @@ const SqlEditorInternal = ({
 
     const tauriPaste = async (ed: Monaco.editor.ICodeEditor) => {
       try {
-        const text = await readText();
+        const text = await platform.readClipboard();
         const selections = ed.getSelections();
         if (selections && selections.length > 0 && text) {
           const lines = text.split('\n');
@@ -207,7 +208,7 @@ const SqlEditorInternal = ({
     const tauriCopy = async (ed: Monaco.editor.ICodeEditor) => {
       try {
         const text = getSelectedText(ed);
-        if (text) await writeText(text);
+        if (text) await platform.writeClipboard(text);
       } catch (err) {
         console.error('Failed to write clipboard:', err);
       }
@@ -217,7 +218,7 @@ const SqlEditorInternal = ({
       try {
         const text = getSelectedText(ed);
         if (!text) return;
-        await writeText(text);
+        await platform.writeClipboard(text);
         const model = ed.getModel();
         const selections = ed.getSelections();
         if (!model || !selections) return;

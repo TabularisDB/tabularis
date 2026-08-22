@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Plug2, Settings, Cpu, PanelLeft, Layers, Star, Clock, BookOpen } from "lucide-react";
 import { DiscordIcon } from "../icons/DiscordIcon";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { DISCORD_URL } from "../../config/links";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useTheme } from "../../hooks/useTheme";
@@ -29,6 +29,7 @@ import { useDrivers } from "../../hooks/useDrivers";
 import { useKeybindings } from "../../hooks/useKeybindings";
 
 export const Sidebar = () => {
+  const platform = usePlatformCapabilities();
   const { t } = useTranslation();
   const { currentTheme } = useTheme();
   const isDarkTheme = !currentTheme?.id?.includes("-light");
@@ -301,7 +302,7 @@ export const Sidebar = () => {
         <div className="mt-auto">
           <div className="relative mb-2">
             <button
-              onClick={() => openUrl(DISCORD_URL)}
+              onClick={() => void platform.openExternalUrl(DISCORD_URL)}
               className="flex items-center justify-center w-12 h-12 rounded-lg transition-colors relative group text-secondary hover:bg-surface-secondary hover:text-indigo-400"
             >
               <RailIndicator isActive={false} className="-left-2" />

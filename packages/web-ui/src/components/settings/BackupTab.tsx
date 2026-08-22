@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { open } from "@tauri-apps/plugin-dialog";
+import { choosePlatformServerPath } from "../../platform/dialogs";
 import { FolderOpen, Loader2, Pencil, Save } from "lucide-react";
 import { useSettings } from "../../hooks/useSettings";
 import { useAlert } from "../../hooks/useAlert";
@@ -71,7 +71,9 @@ export function BackupTab() {
   }, [refreshStatus, target]);
 
   const handlePickDirectory = async () => {
-    const selected = await open({ multiple: false, directory: true });
+    const selected = await choosePlatformServerPath(platform, {
+      directory: true,
+    });
     if (typeof selected === "string") {
       await updateSetting("backupDirectory", selected);
       void refreshStatus();

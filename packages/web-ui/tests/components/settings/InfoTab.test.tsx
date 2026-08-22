@@ -42,6 +42,10 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({ openExternalUrl: vi.fn() }),
+}));
+
 vi.mock("../../../src/hooks/useTheme", () => ({
   useTheme: vi.fn(() => ({
     currentTheme: { id: "tabularis-dark", colors: {} },

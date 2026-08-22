@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Loader2, Eye, AlertCircle, Play, Sparkles } from "lucide-react";
 import type { OnMount } from "@monaco-editor/react";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { confirmPlatformDialog } from "../../platform/dialogs";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { useAlert } from "../../hooks/useAlert";
 import { extractEditableViewDefinition } from "../../utils/sql";
 import { formatSql } from "../../utils/sqlFormat";
@@ -30,6 +31,7 @@ export const ViewEditorModal = ({
 }: ViewEditorModalProps) => {
   const client = useTabularisClient();
   const { t } = useTranslation();
+  const platform = usePlatformCapabilities();
   const { activeSchema, activeCapabilities } = useDatabase();
   const { showAlert } = useAlert();
   const [name, setName] = useState("");
@@ -139,7 +141,7 @@ export const ViewEditorModal = ({
       } else {
         // Check if definition changed
         if (definition !== originalDefinition) {
-          const confirmed = await ask(
+          const confirmed = await confirmPlatformDialog(platform,
             t("views.confirmAlter", { view: name }),
             { title: t("views.alterView"), kind: "warning" }
           );

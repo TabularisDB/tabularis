@@ -9,6 +9,12 @@ import {
   restoreWindowAlwaysOnTop,
 } from "../../../src/utils/mcpApprovalAttention";
 
+const platform = vi.hoisted(() => ({ notify: vi.fn() }));
+
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => platform,
+}));
+
 vi.mock("../../../src/hooks/useSettings", () => ({
   useSettings: vi.fn(),
 }));
@@ -69,10 +75,13 @@ describe("AiApprovalGate", () => {
     });
 
     expect(focusWindowForApproval).toHaveBeenCalledWith("approval-1");
-    expect(notifyApprovalRequest).toHaveBeenCalledWith({
-      title: "aiApproval.notificationTitle",
-      body: "aiApproval.notificationBody",
-    });
+    expect(notifyApprovalRequest).toHaveBeenCalledWith(
+      {
+        title: "aiApproval.notificationTitle",
+        body: "aiApproval.notificationBody",
+      },
+      platform,
+    );
     expect(restoreWindowAlwaysOnTop).not.toHaveBeenCalled();
   });
 
@@ -139,10 +148,13 @@ describe("AiApprovalGate", () => {
     });
 
     expect(focusWindowForApproval).not.toHaveBeenCalled();
-    expect(notifyApprovalRequest).toHaveBeenCalledWith({
-      title: "aiApproval.notificationTitle",
-      body: "aiApproval.notificationBody",
-    });
+    expect(notifyApprovalRequest).toHaveBeenCalledWith(
+      {
+        title: "aiApproval.notificationTitle",
+        body: "aiApproval.notificationBody",
+      },
+      platform,
+    );
   });
 
   it("does not send notifications when notification attention is disabled", async () => {

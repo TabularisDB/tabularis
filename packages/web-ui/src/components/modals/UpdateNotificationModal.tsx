@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Modal } from "../ui/Modal";
 import { X, Download, ExternalLink, CheckCircle, Loader2, AlertCircle } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
 import { SocialLinks } from "../SocialLinks";
 
 interface UpdateNotificationModalProps {
@@ -36,11 +36,12 @@ export const UpdateNotificationModal = ({
   error
 }: UpdateNotificationModalProps) => {
   const { t } = useTranslation();
+  const platform = usePlatformCapabilities();
 
   if (!updateInfo) return null;
 
   const handleViewRelease = async () => {
-    await openUrl(updateInfo.releaseUrl);
+    await platform.openExternalUrl(updateInfo.releaseUrl);
   };
 
   return (

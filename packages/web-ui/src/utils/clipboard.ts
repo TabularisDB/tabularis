@@ -1,4 +1,5 @@
 import { formatCellValue } from './dataGrid';
+import { writeActiveClipboard } from '../platform/activeCapabilities';
 
 export function rowToCSV(row: unknown[], nullLabel: string = "null", delimiter: string = ","): string {
   return row
@@ -191,7 +192,7 @@ export async function copyTextToClipboard(
   onError?: (error: unknown) => void
 ): Promise<void> {
   try {
-    await navigator.clipboard.writeText(text);
+    await writeActiveClipboard(text);
   } catch (e) {
     console.error("Copy failed:", e);
     if (onError) {

@@ -2,7 +2,18 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
+const save = vi.hoisted(() => vi.fn());
+
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({
+    supports: (capability: string) => capability !== "restartApplication",
+    chooseSaveTarget: async (options: unknown) => {
+      const reference = await save(options);
+      return reference ? { reference } : null;
+    },
+    chooseServerPath: vi.fn(),
+  }),
+}));
 import { NewConnectionModal } from "../../../src/components/modals/NewConnectionModal";
 
 interface MockSelectProps {
@@ -1276,7 +1287,7 @@ describe("NewConnectionModal SQLite file creation", () => {
     await waitFor(() => expect(pathInput).toHaveValue("/tmp/customers.db"));
     expect(save).toHaveBeenCalledWith({
       title: "connections.newSqliteDatabase.dialogTitle",
-      defaultPath: "database.db",
+      suggestedName: "database.db",
       filters: [
         {
           name: "connections.newSqliteDatabase.fileType",

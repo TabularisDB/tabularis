@@ -9,6 +9,9 @@ import {
 const createOperations = (): TauriPlatformOperations => ({
   chooseInputPath: vi.fn(),
   chooseSavePath: vi.fn(),
+  chooseServerPath: vi.fn(),
+  confirmDialog: vi.fn(),
+  showMessageDialog: vi.fn(),
   readClipboardText: vi.fn(),
   writeClipboardText: vi.fn(),
   writeFileContents: vi.fn(),
@@ -103,11 +106,20 @@ describe("TauriPlatformCapabilities", () => {
     });
   });
 
-  it("delegates clipboard, URL, route, attention, and restart operations", async () => {
+  it("delegates dialogs, clipboard, URL, route, attention, and restart operations", async () => {
     const operations = createOperations();
     vi.mocked(operations.readClipboardText).mockResolvedValue("SELECT 1");
     const capabilities = new TauriPlatformCapabilities(operations);
 
+    vi.mocked(operations.confirmDialog).mockResolvedValue(true);
+    vi.mocked(operations.chooseServerPath).mockResolvedValue("/tmp/plugins");
+    await expect(
+      capabilities.chooseServerPath({ kind: "directory", title: "Plugins" }),
+    ).resolves.toEqual({ reference: "/tmp/plugins" });
+    await expect(
+      capabilities.confirm({ message: "Continue?", kind: "warning" }),
+    ).resolves.toBe(true);
+    await capabilities.showMessage({ message: "Complete", kind: "info" });
     await expect(capabilities.readClipboard()).resolves.toBe("SELECT 1");
     await capabilities.writeClipboard("SELECT 2");
     await capabilities.openExternalUrl("https://tabularis.dev");
@@ -133,6 +145,18 @@ describe("TauriPlatformCapabilities", () => {
     await capabilities.requestAttention("critical");
     await capabilities.restartApplication();
 
+    expect(operations.chooseServerPath).toHaveBeenCalledWith({
+      kind: "directory",
+      title: "Plugins",
+    });
+    expect(operations.confirmDialog).toHaveBeenCalledWith({
+      message: "Continue?",
+      kind: "warning",
+    });
+    expect(operations.showMessageDialog).toHaveBeenCalledWith({
+      message: "Complete",
+      kind: "info",
+    });
     expect(operations.writeClipboardText).toHaveBeenCalledWith("SELECT 2");
     expect(operations.openUrl).toHaveBeenCalledWith("https://tabularis.dev");
     expect(operations.openRoute).toHaveBeenCalledWith({

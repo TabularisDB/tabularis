@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
-import { openUrl } from "@tauri-apps/plugin-opener";
+const openUrl = vi.hoisted(() => vi.fn());
+
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({ openExternalUrl: openUrl }),
+}));
 import { PluginReadmeModal } from "../../../src/components/modals/PluginReadmeModal";
 import type { PluginReadme } from "../../../src/types/plugins";
 import { TabularisClient } from "../../../src/api/client";
@@ -27,7 +31,7 @@ const renderModal = () =>
 
 beforeEach(() => {
   vi.mocked(invoke).mockReset();
-  vi.mocked(openUrl).mockReset();
+  openUrl.mockReset();
 });
 
 describe("PluginReadmeModal", () => {

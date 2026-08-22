@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { confirmPlatformDialog } from "../../../platform/dialogs";
+import { usePlatformCapabilities } from "../../../hooks/usePlatformCapabilities";
 import { useAlert } from "../../../hooks/useAlert";
 import { Key, Columns, Edit, Copy, Trash2 } from "lucide-react";
 import clsx from "clsx";
@@ -41,6 +42,7 @@ export const SidebarColumnItem = ({
 }: SidebarColumnItemProps) => {
   const client = useTabularisClient();
   const { t } = useTranslation();
+  const platform = usePlatformCapabilities();
   const { showAlert } = useAlert();
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -54,7 +56,7 @@ export const SidebarColumnItem = ({
   };
 
   const handleDelete = async () => {
-    const confirmed = await ask(
+    const confirmed = await confirmPlatformDialog(platform,
       t("sidebar.deleteColumnConfirm", {
         column: column.name,
         table: tableName,

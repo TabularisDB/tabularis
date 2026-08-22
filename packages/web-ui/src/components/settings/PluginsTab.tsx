@@ -8,7 +8,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
@@ -124,6 +123,7 @@ function PluginCard({
   showBand,
   onShowReadme,
 }: PluginCardProps) {
+  const platform = usePlatformCapabilities();
   const { t } = useTranslation();
   const parsedAuthor = author ? parseAuthor(author) : null;
   const band = BAND_PALETTES[nameBandIndex(name)];
@@ -222,7 +222,7 @@ function PluginCard({
               {primaryHref ? (
                 <button
                   type="button"
-                  onClick={() => openUrl(primaryHref)}
+                  onClick={() => void platform.openExternalUrl(primaryHref)}
                   title={primaryHref}
                   className="inline-flex min-w-0 items-center gap-1.5 text-left text-[15px] font-semibold tracking-tight text-primary transition-colors hover:text-blue-300"
                 >
@@ -237,7 +237,7 @@ function PluginCard({
               {secondaryHomepage && (
                 <button
                   type="button"
-                  onClick={() => openUrl(secondaryHomepage)}
+                  onClick={() => void platform.openExternalUrl(secondaryHomepage)}
                   title={secondaryHomepage}
                   aria-label={t("settings.plugins.openHomepage", {
                     defaultValue: "Open homepage",
@@ -274,7 +274,9 @@ function PluginCard({
                 {parsedAuthor.url ?? homepage ? (
                   <button
                     type="button"
-                    onClick={() => openUrl((parsedAuthor.url ?? homepage)!)}
+                    onClick={() =>
+                      void platform.openExternalUrl((parsedAuthor.url ?? homepage)!)
+                    }
                     className="cursor-pointer underline-offset-2 transition-colors hover:text-secondary hover:underline"
                   >
                     {parsedAuthor.name}
@@ -1582,7 +1584,7 @@ export function PluginsTab({
         <span>{t("settings.plugins.poweredBy")}</span>
         <button
           type="button"
-          onClick={() => openUrl("https://tabularium.wiki")}
+          onClick={() => void platform.openExternalUrl("https://tabularium.wiki")}
           className="ml-1 inline-flex items-center gap-1 text-primary cursor-pointer hover:underline underline-offset-2"
         >
           Tabularium

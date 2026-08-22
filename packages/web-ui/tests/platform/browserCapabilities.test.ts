@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { TabularisClient } from "../../src/api/client";
 import { BrowserPlatformCapabilities } from "../../src/platform/browserCapabilities";
+import { BROWSER_CAPABILITY_FALLBACK_EVENT } from "../../src/platform/browserFallbacks";
 
 function clientFixture(overrides: Partial<TabularisClient>): TabularisClient {
   return overrides as TabularisClient;
@@ -48,6 +49,97 @@ describe("BrowserPlatformCapabilities secondary routes", () => {
 
     await expect(received).resolves.toEqual({ sessionId: "session-1" });
     unsubscribe();
+  });
+});
+
+describe("BrowserPlatformCapabilities browser adaptations", () => {
+  it("advertises browser dialogs while keeping server paths explicit", () => {
+    const capabilities = new BrowserPlatformCapabilities(clientFixture({}));
+
+    expect(capabilities.supports("confirm")).toBe(true);
+    expect(capabilities.supports("showMessage")).toBe(true);
+    expect(capabilities.negotiation.capabilities.chooseServerPath).toEqual({
+      supported: false,
+      adaptation: "unsupported",
+      reason: "Browsers cannot select paths on the Tabularis server",
+    });
+  });
+
+  it("normalizes clipboard permission denial as a typed error", async () => {
+    const clipboard = {
+      readText: vi.fn().mockRejectedValue(
+        new DOMException("Permission denied", "NotAllowedError"),
+      ),
+      writeText: vi.fn(),
+    };
+    vi.stubGlobal("navigator", { ...navigator, clipboard });
+    const capabilities = new BrowserPlatformCapabilities(clientFixture({}));
+
+    await expect(capabilities.readClipboard()).rejects.toMatchObject({
+      code: "PLATFORM_CAPABILITY_PERMISSION_DENIED",
+      capability: "readClipboard",
+      environment: "browser",
+    });
+
+    vi.unstubAllGlobals();
+  });
+
+  it("uses browser-native accessible confirmation and message dialogs", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const capabilities = new BrowserPlatformCapabilities(clientFixture({}));
+
+    await expect(
+      capabilities.confirm({ message: "Drop table?", title: "Warning" }),
+    ).resolves.toBe(true);
+    await capabilities.showMessage({ message: "Export complete" });
+
+    expect(confirm).toHaveBeenCalledWith("Warning\n\nDrop table?");
+    expect(alert).toHaveBeenCalledWith("Export complete");
+  });
+
+  it("falls back in-app when browser notification permission is denied", async () => {
+    class DeniedNotification {
+      static permission: NotificationPermission = "default";
+      static requestPermission = vi.fn().mockImplementation(async () => {
+        DeniedNotification.permission = "denied";
+        return "denied" as NotificationPermission;
+      });
+    }
+    vi.stubGlobal("Notification", DeniedNotification);
+    const listener = vi.fn();
+    window.addEventListener(BROWSER_CAPABILITY_FALLBACK_EVENT, listener);
+    const capabilities = new BrowserPlatformCapabilities(clientFixture({}));
+
+    await expect(
+      capabilities.notify({ title: "Ready", body: "Export complete" }),
+    ).resolves.toBe("permission-denied");
+    expect(listener).toHaveBeenCalledOnce();
+    expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual({
+      kind: "notification",
+      title: "Ready",
+      body: "Export complete",
+    });
+
+    window.removeEventListener(BROWSER_CAPABILITY_FALLBACK_EVENT, listener);
+    vi.unstubAllGlobals();
+  });
+
+  it("publishes an accessible fallback when an external popup is blocked", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const listener = vi.fn();
+    window.addEventListener(BROWSER_CAPABILITY_FALLBACK_EVENT, listener);
+    const capabilities = new BrowserPlatformCapabilities(clientFixture({}));
+
+    await capabilities.openExternalUrl("https://tabularis.dev");
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect((listener.mock.calls[0][0] as CustomEvent).detail).toEqual({
+      kind: "external-url",
+      url: "https://tabularis.dev/",
+    });
+    window.removeEventListener(BROWSER_CAPABILITY_FALLBACK_EVENT, listener);
+    open.mockRestore();
   });
 });
 

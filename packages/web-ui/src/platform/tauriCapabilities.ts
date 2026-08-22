@@ -2,6 +2,8 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import {
+  ask as askDialog,
+  message as messageDialog,
   open as openDialog,
   save as saveDialog,
   type OpenDialogOptions,
@@ -25,6 +27,7 @@ import {
   type BlobRecordRequest,
   type ChooseInputFileOptions,
   type ChooseSaveTargetOptions,
+  type ChooseServerPathOptions,
   type ChosenInputFile,
   type ChosenSaveTarget,
   type DownloadFileRequest,
@@ -34,6 +37,7 @@ import {
   type OpenRouteRequest,
   type PlatformCapabilities,
   type PlatformCapabilityNegotiation,
+  type PlatformDialogRequest,
   type PlatformNotification,
   type RouteEventHandler,
   type UnsubscribeRouteEvent,
@@ -51,6 +55,9 @@ export interface TauriPlatformOperations {
     options?: ChooseInputFileOptions,
   ): Promise<string | string[] | null>;
   chooseSavePath(options?: ChooseSaveTargetOptions): Promise<string | null>;
+  chooseServerPath(options: ChooseServerPathOptions): Promise<string | null>;
+  confirmDialog(request: PlatformDialogRequest): Promise<boolean>;
+  showMessageDialog(request: PlatformDialogRequest): Promise<void>;
   readClipboardText(): Promise<string>;
   writeClipboardText(text: string): Promise<void>;
   writeFileContents(reference: string, contents: Uint8Array): Promise<void>;
@@ -142,6 +149,26 @@ const defaultTauriOperations: TauriPlatformOperations = {
     };
     return saveDialog(dialogOptions);
   },
+  chooseServerPath: (options) =>
+    openDialog({
+      multiple: false,
+      directory: options.kind === "directory",
+      ...(options.title ? { title: options.title } : {}),
+      ...(options.filters
+        ? { filters: toDialogFilters(options.filters) }
+        : {}),
+    }),
+  confirmDialog: ({ message, title, kind }) =>
+    askDialog(message, {
+      ...(title ? { title } : {}),
+      ...(kind ? { kind } : {}),
+    }),
+  showMessageDialog: async ({ message, title, kind }) => {
+    await messageDialog(message, {
+      ...(title ? { title } : {}),
+      ...(kind ? { kind } : {}),
+    });
+  },
   readClipboardText: readText,
   writeClipboardText: writeText,
   writeFileContents: writeFile,
@@ -231,6 +258,24 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
     this.require("chooseSaveTarget");
     const reference = await this.operations.chooseSavePath(options);
     return reference ? { reference } : null;
+  }
+
+  async chooseServerPath(
+    options: ChooseServerPathOptions,
+  ): Promise<ChosenSaveTarget | null> {
+    this.require("chooseServerPath");
+    const reference = await this.operations.chooseServerPath(options);
+    return reference ? { reference } : null;
+  }
+
+  async confirm(request: PlatformDialogRequest): Promise<boolean> {
+    this.require("confirm");
+    return this.operations.confirmDialog(request);
+  }
+
+  async showMessage(request: PlatformDialogRequest): Promise<void> {
+    this.require("showMessage");
+    await this.operations.showMessageDialog(request);
   }
 
   readInputFile(reference: string): Promise<Uint8Array> {
