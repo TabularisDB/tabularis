@@ -39,6 +39,7 @@ export interface HttpTransportOptions {
   readonly createWebSocket?: (url: string) => WebSocketLike;
   readonly reconnectDelayMs?: number;
   readonly maxReconnectDelayMs?: number;
+  readonly startDownload?: (url: string) => void;
 }
 
 type EventHandler<K extends EventName> = (payload: EventPayload<K>) => void;
@@ -59,6 +60,7 @@ export class HttpTransport implements TabularisTransport {
   private readonly createSocket: (url: string) => WebSocketLike;
   private readonly reconnectDelayMs: number;
   private readonly maxReconnectDelayMs: number;
+  private readonly startBrowserDownload: (url: string) => void;
   private readonly handlers: EventHandlers = {};
   private session?: SessionNegotiation;
   private sessionPromise?: Promise<SessionNegotiation>;
@@ -78,6 +80,7 @@ export class HttpTransport implements TabularisTransport {
       options.reconnectDelayMs ?? DEFAULT_RECONNECT_DELAY_MS;
     this.maxReconnectDelayMs =
       options.maxReconnectDelayMs ?? DEFAULT_MAX_RECONNECT_DELAY_MS;
+    this.startBrowserDownload = options.startDownload ?? startDownload;
   }
 
   initialize(): Promise<SessionNegotiation> {
@@ -200,6 +203,21 @@ export class HttpTransport implements TabularisTransport {
       );
     }
     return response.blob();
+  }
+
+  async requestDownload(token: string): Promise<void> {
+    const session = await this.initialize();
+    if (!session.capabilities.downloads) {
+      throw clientError(
+        "DOWNLOADS_UNAVAILABLE",
+        "The server did not advertise file downloads",
+      );
+    }
+    this.startBrowserDownload(
+      this.url(
+        `/api/${session.apiVersion}/downloads/${encodeURIComponent(token)}`,
+      ),
+    );
   }
 
   async uploadConnectionIcon(file: Blob): Promise<string> {
@@ -696,6 +714,13 @@ export class HttpTransport implements TabularisTransport {
   private url(path: string): string {
     return new URL(path, this.baseUrl).toString();
   }
+}
+
+function startDownload(url: string): void {
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.rel = "noopener";
+  anchor.click();
 }
 
 function browserOrigin(): string {

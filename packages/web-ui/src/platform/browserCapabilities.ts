@@ -95,10 +95,16 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
   }
 
   async readInputFile(reference: string): Promise<Uint8Array> {
+    return new Uint8Array(await (await this.readInputBlob(reference)).arrayBuffer());
+  }
+
+  readInputBlob(reference: string): Promise<Blob> {
     const file = this.inputFiles.get(reference);
-    if (!file) throw new Error("Invalid or expired browser file reference");
+    if (!file) {
+      return Promise.reject(new Error("Invalid or expired browser file reference"));
+    }
     this.inputFiles.delete(reference);
-    return new Uint8Array(await file.arrayBuffer());
+    return Promise.resolve(file);
   }
 
   async chooseConnectionIcon(connectionId: string): Promise<string | null> {

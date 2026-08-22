@@ -2,6 +2,7 @@ pub mod api;
 pub mod connection_files;
 pub mod connections;
 pub mod database_objects;
+pub mod database_transfers;
 pub mod file_transfers;
 pub mod metadata;
 pub mod notebooks;

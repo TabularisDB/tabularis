@@ -42,6 +42,26 @@ export interface EventMap {
     { requestId: RequestId; connectionId: string },
     "database"
   >;
+  "dump_progress": EventDefinition<
+    {
+      connection_id: string;
+      tables_processed: number;
+      total_tables: number;
+      percentage: number;
+      current_operation: string;
+    },
+    "database"
+  >;
+  "import_progress": EventDefinition<
+    {
+      connection_id: string;
+      statements_executed: number;
+      total_statements: number;
+      percentage: number;
+      current_operation: string;
+    },
+    "database"
+  >;
   "ssh-askpass://request": EventDefinition<SshAskpassRequest, "sensitive">;
   "ssh-askpass://dismiss": EventDefinition<number, "sensitive">;
 }

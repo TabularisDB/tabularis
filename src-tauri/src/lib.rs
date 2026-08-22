@@ -594,7 +594,6 @@ pub fn run() {
             dump_commands::cancel_dump,
             dump_commands::import_database,
             dump_commands::cancel_import,
-            dump_commands::cancel_dump,
             // Updater
             updater::check_for_updates,
             updater::download_and_install_update,

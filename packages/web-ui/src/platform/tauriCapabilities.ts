@@ -184,6 +184,12 @@ export const TAURI_PLATFORM_CAPABILITY_NEGOTIATION =
     nativeCapabilityAvailability,
   );
 
+const copyToArrayBuffer = (contents: Uint8Array): ArrayBuffer => {
+  const copy = new ArrayBuffer(contents.byteLength);
+  new Uint8Array(copy).set(contents);
+  return copy;
+};
+
 const selectedFileName = (reference: string): string => {
   const segments = reference.split(/[\\/]/);
   return segments.at(-1) || reference;
@@ -230,6 +236,10 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
   readInputFile(reference: string): Promise<Uint8Array> {
     this.require("chooseInputFile");
     return this.operations.readFileContents(reference);
+  }
+
+  async readInputBlob(reference: string): Promise<Blob> {
+    return new Blob([copyToArrayBuffer(await this.readInputFile(reference))]);
   }
 
   async chooseConnectionIcon(connectionId: string): Promise<string | null> {

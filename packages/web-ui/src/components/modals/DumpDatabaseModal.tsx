@@ -1,7 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../../hooks/useAlert";
 import { useDatabase } from "../../hooks/useDatabase";
 import { isMultiDatabaseCapable } from "../../utils/database";
@@ -13,6 +11,10 @@ import {
   selectAllTables,
 } from "../../utils/dumpUtils";
 import { formatElapsedTime } from "../../utils/formatTime";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { runDatabaseDump } from "../../utils/databaseTransfers";
+import type { EventPayload } from "../../api/events";
 
 interface DumpDatabaseModalProps {
   isOpen: boolean;
@@ -30,6 +32,8 @@ export const DumpDatabaseModal = ({
   tables,
 }: DumpDatabaseModalProps) => {
   const { t } = useTranslation();
+  const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const { activeSchema, activeCapabilities, databaseDataMap, refreshDatabaseData } =
     useDatabase();
   const { showAlert } = useAlert();
@@ -41,6 +45,8 @@ export const DumpDatabaseModal = ({
   const [isExporting, setIsExporting] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0); // in seconds
   const [startTime, setStartTime] = useState<number | null>(null);
+  const [progress, setProgress] =
+    useState<EventPayload<"dump_progress"> | null>(null);
 
   const isMultiDb = isMultiDatabaseCapable(activeCapabilities);
 
@@ -82,6 +88,16 @@ export const DumpDatabaseModal = ({
     }
   }, [isOpen, tablesKey]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const subscription = client.subscribe("dump_progress", (update) => {
+      if (update.connection_id === connectionId) setProgress(update);
+    });
+    return () => {
+      void subscription.then((unsubscribe) => unsubscribe());
+    };
+  }, [client, connectionId, isOpen]);
+
   // Timer for elapsed time
   useEffect(() => {
     if (!isExporting || !startTime) return;
@@ -115,19 +131,8 @@ export const DumpDatabaseModal = ({
     }
 
     try {
-      const filePath = await save({
-        filters: [
-          {
-            name: "SQL File",
-            extensions: ["sql"],
-          },
-        ],
-        defaultPath: `${databaseName}_dump_${new Date().toISOString().slice(0, 10)}.sql`,
-      });
-
-      if (!filePath) return;
-
       setIsExporting(true);
+      setProgress(null);
       setStartTime(Date.now());
       setElapsedTime(0);
 
@@ -136,21 +141,26 @@ export const DumpDatabaseModal = ({
       const databaseParam =
         isMultiDb && databaseName ? { database: databaseName } : {};
 
-      // Rust command expects `options` struct
-      await invoke("dump_database", {
-        connectionId,
-        filePath,
-        options: {
-          structure: includeStructure,
-          data: includeData,
-          tables: Array.from(selectedTables),
+      const saved = await runDatabaseDump(
+        client,
+        platform,
+        {
+          connectionId,
+          options: {
+            structure: includeStructure,
+            data: includeData,
+            tables: Array.from(selectedTables),
+          },
+          ...(activeSchema ? { schema: activeSchema } : {}),
+          ...databaseParam,
         },
-        ...(activeSchema ? { schema: activeSchema } : {}),
-        ...databaseParam,
-      });
+        `${databaseName}_dump_${new Date().toISOString().slice(0, 10)}.sql`,
+      );
 
-      showAlert(t("dump.success"), { kind: "info" });
-      onClose();
+      if (saved) {
+        showAlert(t("dump.success"), { kind: "info" });
+        onClose();
+      }
     } catch (e) {
       // Check if it's a cancellation error (optional logic, but usually we just log)
       console.error(e);
@@ -162,7 +172,7 @@ export const DumpDatabaseModal = ({
 
   const handleStop = async () => {
     try {
-      await invoke("cancel_dump", { connectionId });
+      await client.call("cancel_dump", { connectionId });
     } catch (e) {
       console.error("Failed to cancel dump:", e);
     }
@@ -238,6 +248,21 @@ export const DumpDatabaseModal = ({
                     )}
                 </div>
             </div>
+
+            {isExporting && progress && (
+              <div className="space-y-2">
+                <div className="w-full bg-surface-secondary rounded-full h-2 overflow-hidden border border-default">
+                  <div
+                    className="h-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${progress.percentage}%` }}
+                  />
+                </div>
+                <div className="text-center text-xs text-muted">
+                  {progress.current_operation} ({progress.tables_processed}/
+                  {progress.total_tables})
+                </div>
+              </div>
+            )}
 
             {/* Elapsed Time */}
             {isExporting && elapsedTime > 0 && (

@@ -1,19 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { useAlert } from "../../hooks/useAlert";
 import { Loader2, Database, X, CheckCircle2, XCircle } from "lucide-react";
 import { formatElapsedTime } from "../../utils/formatTime";
 import { useDatabase } from "../../hooks/useDatabase";
 import { Modal } from "../ui/Modal";
-
-interface ImportProgress {
-  statements_executed: number;
-  total_statements: number;
-  percentage: number;
-  current_operation: string;
-}
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import {
+  DATABASE_TRANSFER_DEADLINE_MS,
+  prepareDatabaseImportSource,
+} from "../../utils/databaseTransfers";
+import type { ChosenInputFile } from "../../platform/capabilities";
+import type { EventPayload } from "../../api/events";
 
 interface ImportDatabaseModalProps {
   isOpen: boolean;
@@ -23,7 +22,7 @@ interface ImportDatabaseModalProps {
   databaseName: string;
   /** Actual database to scope the import to. Undefined when unknown. */
   targetDatabase?: string;
-  filePath: string;
+  inputFile: ChosenInputFile;
   onSuccess?: () => void;
 }
 
@@ -33,14 +32,17 @@ export const ImportDatabaseModal = ({
   connectionId,
   databaseName,
   targetDatabase,
-  filePath,
+  inputFile,
   onSuccess,
 }: ImportDatabaseModalProps) => {
   const { t } = useTranslation();
+  const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const { activeSchema } = useDatabase();
   const { showAlert } = useAlert();
   const [isImporting, setIsImporting] = useState(false);
-  const [progress, setProgress] = useState<ImportProgress | null>(null);
+  const [progress, setProgress] =
+    useState<EventPayload<"import_progress"> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0); // in seconds
@@ -58,12 +60,24 @@ export const ImportDatabaseModal = ({
     setElapsedTime(0);
 
     try {
-      await invoke("import_database", {
-        connectionId,
-        filePath,
-        ...(activeSchema ? { schema: activeSchema } : {}),
-        ...(targetDatabase ? { database: targetDatabase } : {}),
-      });
+      const source = await prepareDatabaseImportSource(
+        client,
+        platform,
+        inputFile,
+      );
+      await client.call(
+        "import_database",
+        {
+          connectionId,
+          ...source,
+          ...(activeSchema ? { schema: activeSchema } : {}),
+          ...(targetDatabase ? { database: targetDatabase } : {}),
+        },
+        {
+          deadlineMs: DATABASE_TRANSFER_DEADLINE_MS,
+          cancellationId: crypto.randomUUID(),
+        },
+      );
 
       setSuccess(true);
       setIsImporting(false);
@@ -76,7 +90,15 @@ export const ImportDatabaseModal = ({
       setError(String(e));
       setIsImporting(false);
     }
-  }, [connectionId, filePath, activeSchema, targetDatabase, onSuccess]);
+  }, [
+    activeSchema,
+    client,
+    connectionId,
+    inputFile,
+    onSuccess,
+    platform,
+    targetDatabase,
+  ]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -107,14 +129,13 @@ export const ImportDatabaseModal = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    const unlisten = listen<ImportProgress>("import_progress", (event) => {
-      setProgress(event.payload);
+    const subscription = client.subscribe("import_progress", (update) => {
+      if (update.connection_id === connectionId) setProgress(update);
     });
-
     return () => {
-      unlisten.then((fn) => fn());
+      void subscription.then((unsubscribe) => unsubscribe());
     };
-  }, [isOpen]);
+  }, [client, connectionId, isOpen]);
 
   // Timer for elapsed time
   useEffect(() => {
@@ -135,7 +156,7 @@ export const ImportDatabaseModal = ({
     }
 
     try {
-      await invoke("cancel_import", { connectionId });
+      await client.call("cancel_import", { connectionId });
       showAlert(t("dump.importCancelled"), { kind: "info" });
       onClose();
     } catch (e) {
@@ -264,7 +285,7 @@ export const ImportDatabaseModal = ({
 
           {/* File Info */}
           <div className="text-xs text-muted text-center mt-2">
-            {t("dump.importingFrom")}: {filePath.split(/[/\\]/).pop()}
+            {t("dump.importingFrom")}: {inputFile.name}
           </div>
         </div>
 

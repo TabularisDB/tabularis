@@ -122,6 +122,39 @@ export function defineTransportContractSuite(
       });
     });
 
+    it("preserves database dump and import job contracts", async () => {
+      await expect(
+        harness.transport.call("dump_database", {
+          connectionId: "database-transfer-fixture",
+          options: { structure: true, data: true, tables: ["users"] },
+          schema: "public",
+        }),
+      ).resolves.toEqual({
+        kind: "download",
+        fileName: "database-transfer-fixture.sql",
+        mimeType: "application/sql",
+        token: "database-transfer-download-token",
+        size: 128,
+      });
+      await expect(
+        harness.transport.call("import_database", {
+          connectionId: "database-transfer-fixture",
+          uploadToken: "database-transfer-upload-token",
+          schema: "public",
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("cancel_dump", {
+          connectionId: "database-transfer-fixture",
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("cancel_import", {
+          connectionId: "database-transfer-fixture",
+        }),
+      ).resolves.toBeNull();
+    });
+
     it("preserves metadata explorer contracts", async () => {
       await expect(
         harness.transport.call("get_tables", {
@@ -710,6 +743,36 @@ async function handleRequest(
         targetKind: "serverDirectory",
         download: null,
       },
+    },
+    dump_database: {
+      request: {
+        connectionId: "database-transfer-fixture",
+        options: { structure: true, data: true, tables: ["users"] },
+        schema: "public",
+      },
+      response: {
+        kind: "download",
+        fileName: "database-transfer-fixture.sql",
+        mimeType: "application/sql",
+        token: "database-transfer-download-token",
+        size: 128,
+      },
+    },
+    import_database: {
+      request: {
+        connectionId: "database-transfer-fixture",
+        uploadToken: "database-transfer-upload-token",
+        schema: "public",
+      },
+      response: null,
+    },
+    cancel_dump: {
+      request: { connectionId: "database-transfer-fixture" },
+      response: null,
+    },
+    cancel_import: {
+      request: { connectionId: "database-transfer-fixture" },
+      response: null,
     },
     get_saved_queries: {
       request: { connectionId: "saved-query-fixture" },

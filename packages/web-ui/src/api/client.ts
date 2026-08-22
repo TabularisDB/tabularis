@@ -19,6 +19,7 @@ export interface TabularisTransport
     EventSubscriber {
   uploadFile?(request: FileUploadRequest): Promise<FileTransferMetadata>;
   consumeDownload?(token: string): Promise<Blob>;
+  requestDownload?(token: string): Promise<void>;
   uploadConnectionIcon?(file: Blob): Promise<string>;
   uploadBlob?(file: Blob): Promise<string>;
   uploadedBlobUrl?(token: string): string;
@@ -75,6 +76,15 @@ export class TabularisClient implements TabularisTransport {
       );
     }
     return this.transport.consumeDownload(token);
+  }
+
+  requestDownload(token: string): Promise<void> {
+    if (!this.transport.requestDownload) {
+      return Promise.reject(
+        new Error("The active transport does not support streamed browser downloads"),
+      );
+    }
+    return this.transport.requestDownload(token);
   }
 
   uploadConnectionIcon(file: Blob): Promise<string> {

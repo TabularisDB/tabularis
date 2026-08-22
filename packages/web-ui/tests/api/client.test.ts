@@ -50,6 +50,15 @@ describe("TabularisClient", () => {
     );
   });
 
+  it("delegates streamed browser downloads to transport adapters", async () => {
+    const transport = createTransport();
+    transport.requestDownload = vi.fn().mockResolvedValue(undefined);
+    const client = new TabularisClient(transport);
+
+    await expect(client.requestDownload("download-token")).resolves.toBeUndefined();
+    expect(transport.requestDownload).toHaveBeenCalledWith("download-token");
+  });
+
   it("delegates browser BLOB transfers to transport adapters", async () => {
     const upload = new Blob([new Uint8Array([0, 1, 2, 3])]);
     const download = new Blob([new Uint8Array([3, 2, 1, 0])]);

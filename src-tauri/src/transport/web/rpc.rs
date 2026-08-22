@@ -2,6 +2,7 @@ use crate::application::{
     connection_files::{ConnectionExportMode, ConnectionFilesCommand, ConnectionImportFile},
     connections::ConnectionCommand,
     database_objects::DatabaseObjectCommand,
+    database_transfers::{DatabaseTransferCommand, DumpOptions},
     metadata::MetadataCommand,
     notebooks::NotebookCommand,
     persistence::PersistenceCommand,
@@ -30,7 +31,7 @@ pub const RPC_DEADLINE_HEADER_NAME: &str = "x-tabularis-deadline-ms";
 pub const RPC_CANCELLATION_HEADER_NAME: &str = "x-tabularis-cancellation-id";
 
 const DEFAULT_DEADLINE: Duration = Duration::from_secs(30);
-const MAX_DEADLINE: Duration = Duration::from_secs(5 * 60);
+const MAX_DEADLINE: Duration = Duration::from_secs(6 * 60 * 60);
 const MAX_CANCELLATION_ID_LENGTH: usize = 128;
 
 #[derive(Clone)]
@@ -49,6 +50,7 @@ enum RpcCommand {
     CancelQuery,
     Connection(ConnectionRpcCommand),
     ConnectionFiles(ConnectionFilesRpcCommand),
+    DatabaseTransfer(DatabaseTransferRpcCommand),
     Metadata(MetadataRpcCommand),
     DatabaseObject(DatabaseObjectRpcCommand),
     Query(QueryRpcCommand),
@@ -57,6 +59,14 @@ enum RpcCommand {
     Persistence(PersistenceRpcCommand),
     Productivity(ProductivityRpcCommand),
     Notebook(NotebookRpcCommand),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DatabaseTransferRpcCommand {
+    Dump,
+    CancelDump,
+    Import,
+    CancelImport,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -306,6 +316,24 @@ struct SetBackupPasswordRequest {
 struct SetBackupTargetPasswordRequest {
     target_id: String,
     password: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DumpDatabaseRequest {
+    connection_id: String,
+    options: DumpOptions,
+    schema: Option<String>,
+    database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ImportDatabaseRequest {
+    connection_id: String,
+    upload_token: String,
+    schema: Option<String>,
+    database: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1181,6 +1209,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::DatabaseTransfer(command) => {
+                let command = decode_database_transfer_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_database_transfer_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
             RpcCommand::Metadata(command) => {
                 let command = decode_metadata_command(command, body)
                     .map_err(InvocationError::InvalidPayload)?;
@@ -1279,6 +1315,7 @@ impl RpcCommand {
                 .or_else(|| MetadataRpcCommand::parse(name).map(Self::Metadata))
                 .or_else(|| ConnectionRpcCommand::parse(name).map(Self::Connection))
                 .or_else(|| ConnectionFilesRpcCommand::parse(name).map(Self::ConnectionFiles))
+                .or_else(|| DatabaseTransferRpcCommand::parse(name).map(Self::DatabaseTransfer))
                 .or_else(|| PersistenceRpcCommand::parse(name).map(Self::Persistence))
                 .or_else(|| ProductivityRpcCommand::parse(name).map(Self::Productivity))
                 .or_else(|| NotebookRpcCommand::parse(name).map(Self::Notebook)),
@@ -1315,6 +1352,11 @@ impl RpcCommand {
             Self::ConnectionFiles(command) => CommandMetadata {
                 authorization: command.authorization(),
                 application_error_code: "CONNECTION_FILE_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
+            Self::DatabaseTransfer(_) => CommandMetadata {
+                authorization: AuthorizationLevel::Sensitive,
+                application_error_code: "DATABASE_TRANSFER_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
             Self::Metadata(_) => CommandMetadata {
@@ -1368,6 +1410,18 @@ impl RpcCommand {
                 application_error_status: StatusCode::CONFLICT,
             },
         }
+    }
+}
+
+impl DatabaseTransferRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "dump_database" => Self::Dump,
+            "cancel_dump" => Self::CancelDump,
+            "import_database" => Self::Import,
+            "cancel_import" => Self::CancelImport,
+            _ => return None,
+        })
     }
 }
 
@@ -1650,6 +1704,44 @@ impl ConnectionRpcCommand {
             _ => return None,
         })
     }
+}
+
+fn decode_database_transfer_command(
+    command: DatabaseTransferRpcCommand,
+    body: &[u8],
+) -> Result<DatabaseTransferCommand, String> {
+    Ok(match command {
+        DatabaseTransferRpcCommand::Dump => {
+            let request: DumpDatabaseRequest = decode_payload(body)?;
+            DatabaseTransferCommand::Dump {
+                connection_id: request.connection_id,
+                options: request.options,
+                schema: request.schema,
+                database: request.database,
+            }
+        }
+        DatabaseTransferRpcCommand::CancelDump => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            DatabaseTransferCommand::CancelDump {
+                connection_id: request.connection_id,
+            }
+        }
+        DatabaseTransferRpcCommand::Import => {
+            let request: ImportDatabaseRequest = decode_payload(body)?;
+            DatabaseTransferCommand::Import {
+                connection_id: request.connection_id,
+                upload_token: request.upload_token,
+                schema: request.schema,
+                database: request.database,
+            }
+        }
+        DatabaseTransferRpcCommand::CancelImport => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            DatabaseTransferCommand::CancelImport {
+                connection_id: request.connection_id,
+            }
+        }
+    })
 }
 
 fn decode_connection_files_command(

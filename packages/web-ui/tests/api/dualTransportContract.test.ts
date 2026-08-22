@@ -55,6 +55,32 @@ defineTransportContractSuite(
           download: null,
         };
       }
+      if (command === "dump_database") {
+        expect(request).toEqual({
+          connectionId: "database-transfer-fixture",
+          options: { structure: true, data: true, tables: ["users"] },
+          schema: "public",
+        });
+        return {
+          kind: "download",
+          fileName: "database-transfer-fixture.sql",
+          mimeType: "application/sql",
+          token: "database-transfer-download-token",
+          size: 128,
+        };
+      }
+      if (command === "import_database") {
+        expect(request).toEqual({
+          connectionId: "database-transfer-fixture",
+          uploadToken: "database-transfer-upload-token",
+          schema: "public",
+        });
+        return null;
+      }
+      if (command === "cancel_dump" || command === "cancel_import") {
+        expect(request).toEqual({ connectionId: "database-transfer-fixture" });
+        return null;
+      }
       if (command === "get_tables") {
         expect(request).toEqual({
           connectionId: "metadata-fixture",

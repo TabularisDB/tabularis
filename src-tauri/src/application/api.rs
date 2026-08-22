@@ -1,6 +1,6 @@
 use super::{
-    connection_files, connections, database_objects, metadata, notebooks, persistence,
-    productivity, queries, records, tunnels,
+    connection_files, connections, database_objects, database_transfers, metadata, notebooks,
+    persistence, productivity, queries, records, tunnels,
 };
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use async_trait::async_trait;
@@ -86,6 +86,12 @@ pub trait ApplicationApi: Send + Sync {
         command: connection_files::ConnectionFilesCommand,
     ) -> Result<Value, ApplicationError>;
 
+    async fn execute_database_transfer_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: database_transfers::DatabaseTransferCommand,
+    ) -> Result<Value, ApplicationError>;
+
     async fn execute_metadata_command(
         &self,
         context: ApplicationRequestContext,
@@ -144,6 +150,7 @@ impl RuntimeApplicationApi {
 impl ApplicationApi for RuntimeApplicationApi {
     fn clear_session(&self, session_id: Uuid) {
         self.state.import_envelope_cache.clear_session(session_id);
+        database_transfers::cancel_session_jobs(&self.state.dump_cancellation, session_id);
         self.state
             .web_preferences
             .lock()
@@ -223,6 +230,21 @@ impl ApplicationApi for RuntimeApplicationApi {
         connection_files::execute(&self.runtime, &self.state, context.session_id, command)
             .await
             .map_err(ApplicationError::new)
+    }
+
+    async fn execute_database_transfer_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: database_transfers::DatabaseTransferCommand,
+    ) -> Result<Value, ApplicationError> {
+        database_transfers::execute(
+            &self.runtime,
+            &self.state.dump_cancellation,
+            context.session_id,
+            command,
+        )
+        .await
+        .map_err(ApplicationError::new)
     }
 
     async fn execute_metadata_command(

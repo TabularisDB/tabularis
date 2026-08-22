@@ -138,6 +138,7 @@ export interface PlatformCapabilities {
     options?: ChooseSaveTargetOptions,
   ): Promise<ChosenSaveTarget | null>;
   readInputFile(reference: string): Promise<Uint8Array>;
+  readInputBlob(reference: string): Promise<Blob>;
   chooseConnectionIcon(connectionId: string): Promise<string | null>;
   chooseBlob(): Promise<string | null>;
   previewBlobReference(value: unknown): Promise<string | null>;

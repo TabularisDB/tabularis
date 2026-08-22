@@ -187,6 +187,31 @@ describe("HttpTransport", () => {
     );
   });
 
+  it("hands generic downloads directly to the browser without buffering", async () => {
+    const transferSession = {
+      ...SESSION,
+      capabilities: { ...SESSION.capabilities, downloads: true },
+    };
+    const fetchRequest = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse(transferSession));
+    const startDownload = vi.fn();
+    const transport = new HttpTransport({
+      baseUrl: "http://127.0.0.1:8080",
+      fetch: fetchRequest,
+      startDownload,
+    });
+
+    await expect(
+      transport.requestDownload("opaque file token"),
+    ).resolves.toBeUndefined();
+
+    expect(startDownload).toHaveBeenCalledWith(
+      "http://127.0.0.1:8080/api/v1/downloads/opaque%20file%20token",
+    );
+    expect(fetchRequest).toHaveBeenCalledTimes(1);
+  });
+
   it("uploads BLOBs and consumes single-use downloads with the authenticated session", async () => {
     const transferSession = {
       ...SESSION,

@@ -32,6 +32,9 @@ vi.mock("../../../src/hooks/useDatabaseObjectNavigation", () => ({
 vi.mock("../../../src/hooks/useSecondaryWindows", () => ({
   useSecondaryWindows: () => ({ openSchemaDiagram: vi.fn() }),
 }));
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({ chooseInputFile: vi.fn() }),
+}));
 vi.mock("../../../src/hooks/useTabularisClient", () => ({
   useTabularisClient: () => ({
     call: (command: string, request: unknown) => invoke(command, request),

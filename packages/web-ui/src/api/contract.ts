@@ -329,6 +329,29 @@ export interface BackupRunResult {
   download: GeneratedFile | null;
 }
 
+export interface DumpOptions {
+  structure: boolean;
+  data: boolean;
+  tables?: string[] | null;
+}
+
+export interface DatabaseDumpRequest extends ConnectionIdRequest {
+  options: DumpOptions;
+  schema?: string;
+  database?: string;
+  /** Desktop-only save path. Browser requests omit this and receive a download. */
+  filePath?: string;
+}
+
+export interface DatabaseImportRequest extends ConnectionIdRequest {
+  schema?: string;
+  database?: string;
+  /** Desktop-only source path. */
+  filePath?: string;
+  /** Browser-only opaque upload token. */
+  uploadToken?: string;
+}
+
 export interface PersistedConfig extends Partial<Settings> {
   theme?: string;
   checkForUpdates?: boolean;
@@ -502,6 +525,15 @@ export interface CommandMap {
     string | BackupRunResult,
     "sensitive"
   >;
+
+  dump_database: CommandDefinition<
+    DatabaseDumpRequest,
+    GeneratedFile | null,
+    "sensitive"
+  >;
+  cancel_dump: CommandDefinition<ConnectionIdRequest, void, "sensitive">;
+  import_database: CommandDefinition<DatabaseImportRequest, void, "sensitive">;
+  cancel_import: CommandDefinition<ConnectionIdRequest, void, "sensitive">;
 
   get_ssh_connections: CommandDefinition<undefined, SshConnection[], "local-admin">;
   save_ssh_connection: CommandDefinition<

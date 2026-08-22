@@ -36,7 +36,7 @@ import {
   BookOpen,
   UsersRound,
 } from "lucide-react";
-import { ask, open } from "@tauri-apps/plugin-dialog";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { toErrorMessage } from "../../utils/errors";
 import { useAlert } from "../../hooks/useAlert";
 import { useSettings } from "../../hooks/useSettings";
@@ -94,6 +94,8 @@ import { newConsoleForDatabase } from "../../utils/newConsole";
 import { openEditor } from "../../utils/editorNavigation";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { useSecondaryWindows } from "../../hooks/useSecondaryWindows";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import type { ChosenInputFile } from "../../platform/capabilities";
 import {
   DEFAULT_CREATE_TABLE_TARGET,
   getCreateTableRefreshPlan,
@@ -112,6 +114,7 @@ interface ExplorerSidebarProps {
 
 export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebarTab, onSidebarTabChange }: ExplorerSidebarProps) => {
   const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const { openSchemaDiagram } = useSecondaryWindows();
   const { t } = useTranslation();
   const { settings } = useSettings();
@@ -261,7 +264,11 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   }>({ isOpen: false });
   const [dumpModal, setDumpModal] = useState<{ database: string } | null>(null);
   const [importModal, setImportModal] = useState<{
-    filePath: string;
+    inputFile: ChosenInputFile;
+    database: string;
+  } | null>(null);
+  const [pendingImport, setPendingImport] = useState<{
+    inputFile: ChosenInputFile;
     database: string;
   } | null>(null);
   const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
@@ -494,16 +501,14 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
   };
 
   const handleImportDatabase = async (database?: string) => {
-    const file = await open({
+    const inputFile = await platform.chooseInputFile({
       filters: [{ name: "SQL / Zip File", extensions: ["sql", "zip"] }],
     });
-    if (file && typeof file === "string") {
-      const confirmed = await ask(
-        t("dump.confirmImport", { file: file.split(/[\\/]/).pop() }),
-        { title: t("dump.importDatabase"), kind: "warning" },
-      );
-      if (!confirmed) return;
-      setImportModal({ filePath: file, database: database ?? activeDatabaseName ?? "" });
+    if (inputFile) {
+      setPendingImport({
+        inputFile,
+        database: database ?? activeDatabaseName ?? "",
+      });
     }
   };
 
@@ -2633,7 +2638,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           connectionId={activeConnectionId}
           databaseName={importModal.database || activeDatabaseName || "Database"}
           targetDatabase={importModal.database || activeDatabaseName || undefined}
-          filePath={importModal.filePath}
+          inputFile={importModal.inputFile}
           onSuccess={() => {
             if (refreshTables) refreshTables();
           }}
@@ -2669,6 +2674,20 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
           }}
         />
       )}
+
+      <ConfirmModal
+        isOpen={pendingImport !== null}
+        onClose={() => setPendingImport(null)}
+        title={t("dump.importDatabase")}
+        message={t("dump.confirmImport", {
+          file: pendingImport?.inputFile.name ?? "",
+        })}
+        variant="warning"
+        onConfirm={() => {
+          if (pendingImport) setImportModal(pendingImport);
+          setPendingImport(null);
+        }}
+      />
 
       {/* Delete favorite confirmation */}
       <ConfirmModal

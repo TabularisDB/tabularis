@@ -102,6 +102,26 @@ impl ApplicationApi for FixtureApplication {
         })
     }
 
+    async fn execute_database_transfer_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: crate::application::database_transfers::DatabaseTransferCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(match command {
+            crate::application::database_transfers::DatabaseTransferCommand::Dump { .. } => {
+                serde_json::json!({
+                    "kind": "download",
+                    "fileName": "fixture.sql",
+                    "mimeType": "application/sql",
+                    "token": "fixture-download-token",
+                    "size": 128
+                })
+            }
+            _ => Value::Null,
+        })
+    }
+
     async fn execute_metadata_command(
         &self,
         context: ApplicationRequestContext,
@@ -283,6 +303,20 @@ fn declares_authorization_for_each_registered_command() {
                 .metadata()
                 .authorization,
             AuthorizationLevel::LocalAdmin,
+            "{command:?}",
+        );
+    }
+    for command in [
+        DatabaseTransferRpcCommand::Dump,
+        DatabaseTransferRpcCommand::CancelDump,
+        DatabaseTransferRpcCommand::Import,
+        DatabaseTransferRpcCommand::CancelImport,
+    ] {
+        assert_eq!(
+            RpcCommand::DatabaseTransfer(command)
+                .metadata()
+                .authorization,
+            AuthorizationLevel::Sensitive,
             "{command:?}",
         );
     }
@@ -499,6 +533,51 @@ async fn routes_connection_file_commands_through_the_shared_application_api() {
                 &json_headers(),
                 Bytes::from(serde_json::to_vec(&payload).unwrap()),
                 Some(Uuid::new_v4()),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK, "{command}");
+    }
+}
+
+#[tokio::test]
+async fn routes_database_transfer_jobs_through_the_shared_application_api() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let session_id = Some(Uuid::new_v4());
+    let commands = [
+        (
+            "dump_database",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "options": {"structure": true, "data": true, "tables": ["users"]},
+                "schema": "public"
+            }),
+        ),
+        (
+            "import_database",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "uploadToken": Uuid::new_v4().to_string(),
+                "schema": "public"
+            }),
+        ),
+        (
+            "cancel_dump",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "cancel_import",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+    ];
+
+    for (command, payload) in commands {
+        let response = dispatcher
+            .dispatch(
+                command,
+                RequestId(format!("request-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                session_id,
             )
             .await;
         assert_eq!(response.status(), StatusCode::OK, "{command}");

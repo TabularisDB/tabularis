@@ -728,6 +728,93 @@ async fn executes_representative_commands_over_versioned_rpc() {
     )
     .await;
 
+    let dump = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "dump_database",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "options": {"structure": true, "data": true, "tables": ["teams"]}
+        }),
+    )
+    .await;
+    assert_eq!(dump["kind"], "download");
+    let dump_token = dump["token"].as_str().unwrap();
+    let dump_response = client
+        .get(format!("{base_url}/api/v1/downloads/{dump_token}"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(dump_response.status(), reqwest::StatusCode::OK);
+    let dump_sql = dump_response.text().await.unwrap();
+    assert!(dump_sql.contains("CREATE TABLE teams"));
+    assert!(!dump_sql.contains(temp.path().to_string_lossy().as_ref()));
+
+    let database_import = client
+        .post(format!("{base_url}/api/v1/uploads"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header("content-type", "application/sql")
+        .header("x-tabularis-file-name", "database-import.sql")
+        .header("x-tabularis-purpose", "database-import")
+        .body(
+            "CREATE TABLE imported_transfer (id INTEGER PRIMARY KEY, name TEXT);\n\
+             INSERT INTO imported_transfer (id, name) VALUES (1, 'Platform');\n",
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(database_import.status(), reqwest::StatusCode::CREATED);
+    let database_import_token = database_import.json::<Value>().await.unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "import_database",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "uploadToken": database_import_token
+        }),
+    )
+    .await;
+    let imported_rows = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "execute_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "query": "SELECT name FROM imported_transfer WHERE id = 1",
+            "limit": 10,
+            "page": 1
+        }),
+    )
+    .await;
+    assert_eq!(imported_rows["rows"][0][0], "Platform");
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "execute_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "query": "DROP TABLE imported_transfer",
+            "limit": 10,
+            "page": 1
+        }),
+    )
+    .await;
+
     rpc_data(
         &client,
         &base_url,
