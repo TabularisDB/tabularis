@@ -307,8 +307,15 @@ export function defineTransportContractSuite(
         }),
       ).resolves.toBe(true);
 
+      await expect(
+        harness.transport.call("install_plugin", {
+          pluginId: "postgres-driver",
+          version: "1.2.3",
+          registryUrl: "https://registry.example/api",
+        }),
+      ).resolves.toBeNull();
+
       for (const command of [
-        "install_plugin",
         "disable_plugin",
         "enable_plugin",
         "kill_plugin_process",
@@ -1147,7 +1154,11 @@ async function handleRequest(
       response: true,
     },
     install_plugin: {
-      request: { pluginId: "postgres-driver" },
+      request: {
+        pluginId: "postgres-driver",
+        version: "1.2.3",
+        registryUrl: "https://registry.example/api",
+      },
       response: null,
     },
     disable_plugin: {

@@ -27,6 +27,7 @@ const directNavigationUrls = [
   `${BROWSER_ROUTES.jsonViewer}?session=json-1`,
   BROWSER_ROUTES.taskManager,
   `${BROWSER_ROUTES.resultsWindow}?session=result-1`,
+  "/install/postgres-driver?version=1.2.3&registry=https%3A%2F%2Fregistry.example",
 ] as const;
 
 let viteProcess: ChildProcess;
@@ -107,6 +108,7 @@ describe("web UI routing", () => {
       "/visual-explain",
       "/json-viewer",
       "/results-window",
+      "/install/:slug",
     ]);
   });
 

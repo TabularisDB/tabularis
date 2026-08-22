@@ -432,6 +432,31 @@ async fn preserves_shared_serialization_fixture_in_success_envelopes() {
 }
 
 #[test]
+fn decodes_selected_registry_for_plugin_install() {
+    let command = decode_plugin_command(
+        PluginRpcCommand::Install,
+        br#"{"pluginId":"postgres-driver","version":"1.2.3","registryUrl":"https://registry.example/api"}"#,
+    )
+    .expect("plugin install request");
+
+    match command {
+        PluginCommand::Install {
+            plugin_id,
+            version,
+            registry_url,
+        } => {
+            assert_eq!(plugin_id, "postgres-driver");
+            assert_eq!(version.as_deref(), Some("1.2.3"));
+            assert_eq!(
+                registry_url.as_deref(),
+                Some("https://registry.example/api")
+            );
+        }
+        _ => panic!("unexpected plugin command"),
+    }
+}
+
+#[test]
 fn declares_authorization_for_each_registered_command() {
     assert_eq!(
         RpcCommand::IsDebugMode.metadata().authorization,

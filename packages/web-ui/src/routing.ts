@@ -11,6 +11,7 @@ export const BROWSER_ROUTES = {
   visualExplain: "/visual-explain",
   jsonViewer: "/json-viewer",
   resultsWindow: "/results-window",
+  pluginInstall: "/install/:slug",
 } as const;
 
 export const BROWSER_ROUTE_PATHS = Object.values(BROWSER_ROUTES);

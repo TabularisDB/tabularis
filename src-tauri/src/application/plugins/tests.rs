@@ -1,6 +1,8 @@
 use super::{
-    cancel_plugin_install, get_installed_plugins, get_plugin_manifest, validate_plugin_id,
+    cancel_plugin_install, get_installed_plugins, get_plugin_manifest, install_registry_base_url,
+    validate_plugin_id,
 };
+use crate::config::AppConfig;
 use crate::runtime::{
     events::NoopRuntimeEvents, paths::FixedRuntimePaths, secrets::KeyringRuntimeSecrets,
     RuntimeContext,
@@ -33,6 +35,38 @@ fn plugin_identifiers_reject_paths_and_accept_registry_slugs() {
         "nested\\plugin",
     ] {
         assert!(validate_plugin_id(invalid).is_err(), "{invalid}");
+    }
+}
+
+#[test]
+fn selected_install_registries_are_explicit_and_safe() {
+    let config = AppConfig::default();
+    assert_eq!(
+        install_registry_base_url(&config, None),
+        Ok((
+            crate::plugins::registry::DEFAULT_TABULARIUM_URL.to_string(),
+            false,
+        )),
+    );
+    assert_eq!(
+        install_registry_base_url(&config, Some("https://registry.example/api/")),
+        Ok(("https://registry.example/api".to_string(), true)),
+    );
+    assert_eq!(
+        install_registry_base_url(&config, Some("http://127.0.0.1:9000/registry")),
+        Ok(("http://127.0.0.1:9000/registry".to_string(), true)),
+    );
+
+    for invalid in [
+        "file:///tmp/plugins",
+        "https://user:secret@registry.example",
+        "https://registry.example/api?token=secret",
+        "https://registry.example/api#release",
+    ] {
+        assert!(
+            install_registry_base_url(&config, Some(invalid)).is_err(),
+            "{invalid}",
+        );
     }
 }
 

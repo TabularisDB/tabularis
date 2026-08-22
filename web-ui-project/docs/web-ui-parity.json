@@ -87,7 +87,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useDeepLinkInstall.ts",
-          "line": 69
+          "line": 68
         }
       ]
     },

@@ -16,6 +16,7 @@ import { TaskManagerPage } from "./pages/TaskManagerPage";
 import { VisualExplainPage } from "./pages/VisualExplainPage";
 import { JsonViewerPage } from "./pages/JsonViewerPage";
 import { ResultsWindowPage } from "./pages/ResultsWindowPage";
+import { PluginInstallRoutePage } from "./pages/PluginInstallRoutePage";
 import { ConnectionHealthMonitor } from "./components/ConnectionHealthMonitor";
 import { EditorErrorBoundary } from "./components/ui/EditorErrorBoundary";
 import { UpdateNotificationModal } from "./components/modals/UpdateNotificationModal";
@@ -150,6 +151,10 @@ export function App() {
                     <Route
                       path={BROWSER_ROUTES.resultsWindow}
                       element={<ResultsWindowPage />}
+                    />
+                    <Route
+                      path={BROWSER_ROUTES.pluginInstall}
+                      element={<PluginInstallRoutePage />}
                     />
                   </Routes>
                   </RightSidebarProvider>

@@ -555,7 +555,11 @@ export interface CommandMap {
     "local-admin"
   >;
   install_plugin: CommandDefinition<
-    { pluginId: string; version?: string | null },
+    {
+      pluginId: string;
+      version?: string | null;
+      registryUrl?: string | null;
+    },
     void,
     "local-admin"
   >;

@@ -27,6 +27,7 @@ pub enum PluginCommand {
     Install {
         plugin_id: String,
         version: Option<String>,
+        registry_url: Option<String>,
     },
     CancelInstall {
         plugin_id: String,
@@ -66,8 +67,12 @@ pub async fn execute(runtime: &RuntimeContext, command: PluginCommand) -> Result
             locale,
             registry_url,
         } => json(fetch_plugin_readme(runtime, slug, locale, registry_url).await?),
-        PluginCommand::Install { plugin_id, version } => {
-            install_plugin(runtime, plugin_id, version).await?;
+        PluginCommand::Install {
+            plugin_id,
+            version,
+            registry_url,
+        } => {
+            install_plugin(runtime, plugin_id, version, registry_url).await?;
             Ok(Value::Null)
         }
         PluginCommand::CancelInstall { plugin_id } => json(cancel_plugin_install(plugin_id)?),
@@ -126,6 +131,7 @@ pub async fn install_plugin(
     runtime: &RuntimeContext,
     plugin_id: String,
     version: Option<String>,
+    registry_url: Option<String>,
 ) -> Result<(), String> {
     validate_plugin_id(&plugin_id)?;
     let install_guard = crate::plugins::install_cancellation::begin(&plugin_id)?;
@@ -134,10 +140,11 @@ pub async fn install_plugin(
 
     let config = super::persistence::load_config(runtime);
     let platform = registry::get_current_platform();
-    let base = registry_base_url(&config);
+    let (base, has_selected_registry) =
+        install_registry_base_url(&config, registry_url.as_deref())?;
     let (download_url, expected_sha256, target_version) = if let Some(result) =
         crate::plugins::compat::resolve_static_asset(
-            base,
+            &base,
             &plugin_id,
             version.as_deref(),
             &platform,
@@ -147,8 +154,9 @@ pub async fn install_plugin(
         let asset = result?;
         (asset.download_url, asset.expected_sha256, asset.version)
     } else {
-        match resolve_api_install_asset(base, &plugin_id, version.as_deref(), &platform).await {
+        match resolve_api_install_asset(&base, &plugin_id, version.as_deref(), &platform).await {
             Ok(resolved) => resolved,
+            Err(api_error) if has_selected_registry => return Err(api_error),
             Err(api_error) => {
                 let legacy_url = crate::plugins::compat::legacy_registry_url(&config);
                 match crate::plugins::compat::fetch_static_asset(
@@ -301,6 +309,27 @@ fn registry_base_url(config: &AppConfig) -> &str {
         .tabularium_registry_url
         .as_deref()
         .unwrap_or(registry::DEFAULT_TABULARIUM_URL)
+}
+
+fn install_registry_base_url(
+    config: &AppConfig,
+    selected_registry: Option<&str>,
+) -> Result<(String, bool), String> {
+    let Some(selected_registry) = selected_registry else {
+        return Ok((registry_base_url(config).to_string(), false));
+    };
+    let parsed = url::Url::parse(selected_registry)
+        .map_err(|_| "The selected plugin registry URL is invalid".to_string())?;
+    if !matches!(parsed.scheme(), "http" | "https")
+        || parsed.host_str().is_none()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+    {
+        return Err("The selected plugin registry URL is invalid".to_string());
+    }
+    Ok((selected_registry.trim_end_matches('/').to_string(), true))
 }
 
 pub(crate) fn validate_plugin_id(plugin_id: &str) -> Result<(), String> {

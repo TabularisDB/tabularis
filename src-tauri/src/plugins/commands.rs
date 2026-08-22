@@ -16,8 +16,10 @@ pub async fn install_plugin(
     runtime: State<'_, RuntimeContext>,
     plugin_id: String,
     version: Option<String>,
+    registry_url: Option<String>,
 ) -> Result<(), String> {
-    crate::application::plugins::install_plugin(runtime.inner(), plugin_id, version).await
+    crate::application::plugins::install_plugin(runtime.inner(), plugin_id, version, registry_url)
+        .await
 }
 
 #[tauri::command]

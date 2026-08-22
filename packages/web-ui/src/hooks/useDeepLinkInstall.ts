@@ -2,18 +2,17 @@ import { useCallback, useEffect, useState } from "react";
 import { listen, type UnlistenFn, emit } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useTabularisClient } from "./useTabularisClient";
-import { PLUGIN_INSTALL_DEADLINE_MS } from "../api/pluginLifecycle";
+import {
+  PLUGIN_INSTALL_DEADLINE_MS,
+  type PluginInstallRequest,
+} from "../api/pluginLifecycle";
 
 /**
  * Payload emitted by the Rust backend when the OS hands us a
  * `tabularis://install/<slug>?version=&registry=` URL. Field names match
  * the camelCased Serde rename of `plugins::deep_link::PluginInstallRequest`.
  */
-export interface DeepLinkInstallRequest {
-  slug: string;
-  version?: string | null;
-  registry?: string | null;
-}
+export type DeepLinkInstallRequest = PluginInstallRequest;
 
 const EVENT_NAME = "tabularis://plugin-install";
 

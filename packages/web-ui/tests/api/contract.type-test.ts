@@ -119,6 +119,7 @@ function assertCommandContract(caller: TypedCommandCaller): void {
   const pluginInstall: Promise<void> = caller.call("install_plugin", {
     pluginId: "postgres-driver",
     version: "1.2.3",
+    registryUrl: "https://registry.example/api",
   });
   const pluginCancellation: Promise<boolean> = caller.call(
     "cancel_plugin_install",

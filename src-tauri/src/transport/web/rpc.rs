@@ -577,6 +577,7 @@ struct McpClientRequest {
 struct InstallPluginRequest {
     plugin_id: String,
     version: Option<String>,
+    registry_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2527,6 +2528,7 @@ fn decode_plugin_command(command: PluginRpcCommand, body: &[u8]) -> Result<Plugi
             PluginCommand::Install {
                 plugin_id: request.plugin_id,
                 version: request.version,
+                registry_url: request.registry_url,
             }
         }
         PluginRpcCommand::CancelInstall => {
