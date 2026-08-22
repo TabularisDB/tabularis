@@ -65,6 +65,9 @@ jobs:
       - name: Check Web UI packaging contract
         run: pnpm run web:packaging
 
+      - name: Check signed Web UI parity audit
+        run: pnpm run web:manual-parity
+
       - name: Build
         run: pnpm run build
 
