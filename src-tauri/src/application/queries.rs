@@ -442,6 +442,31 @@ pub fn cancel_query(
     cancel_registered_queries(cancellation, session_id, connection_id, query_request_id)
 }
 
+pub fn cancel_session_queries(
+    cancellation: &crate::commands::QueryCancellationState,
+    session_id: Uuid,
+) {
+    let prefix = format!("web-query:{session_id}:");
+    let handles = {
+        let mut registered = cancellation
+            .handles
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let slots = registered
+            .keys()
+            .filter(|slot| slot.starts_with(&prefix))
+            .cloned()
+            .collect::<Vec<_>>();
+        slots
+            .into_iter()
+            .flat_map(|slot| registered.remove(&slot).unwrap_or_default())
+            .collect::<Vec<_>>()
+    };
+    for handle in handles {
+        handle.abort();
+    }
+}
+
 pub(crate) fn cancel_registered_queries(
     cancellation: &crate::commands::QueryCancellationState,
     session_id: Option<Uuid>,

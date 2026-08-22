@@ -50,6 +50,46 @@ async fn dropping_a_query_registration_aborts_and_unregisters_the_task() {
 }
 
 #[tokio::test]
+async fn session_cleanup_aborts_only_queries_owned_by_that_browser_session() {
+    let state = QueryCancellationState::default();
+    let owner = Uuid::new_v4();
+    let other = Uuid::new_v4();
+    let owner_task = sleeper().await;
+    let other_task = sleeper().await;
+    let owner_slot = cancellation_slot(
+        QueryRequestScope {
+            session_id: Some(owner),
+            request_id: Some("request-owner"),
+        },
+        "connection-1",
+    );
+    let other_slot = cancellation_slot(
+        QueryRequestScope {
+            session_id: Some(other),
+            request_id: Some("request-other"),
+        },
+        "connection-1",
+    );
+    register_abort_handle(
+        &state.handles,
+        owner_slot,
+        Arc::new(owner_task.abort_handle()),
+    );
+    register_abort_handle(
+        &state.handles,
+        other_slot.clone(),
+        Arc::new(other_task.abort_handle()),
+    );
+
+    cancel_session_queries(&state, owner);
+
+    assert!(owner_task.await.unwrap_err().is_cancelled());
+    assert!(!other_task.is_finished());
+    assert!(state.handles.lock().unwrap().contains_key(&other_slot));
+    other_task.abort();
+}
+
+#[tokio::test]
 async fn cancellation_slots_are_isolated_by_session_and_request() {
     let state = QueryCancellationState::default();
     let session_a = Uuid::new_v4();

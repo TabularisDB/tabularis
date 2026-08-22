@@ -28,9 +28,10 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 pub const RPC_DEADLINE_HEADER_NAME: &str = "x-tabularis-deadline-ms";
 pub const RPC_CANCELLATION_HEADER_NAME: &str = "x-tabularis-cancellation-id";
@@ -38,12 +39,95 @@ pub const RPC_CANCELLATION_HEADER_NAME: &str = "x-tabularis-cancellation-id";
 const DEFAULT_DEADLINE: Duration = Duration::from_secs(30);
 const MAX_DEADLINE: Duration = Duration::from_secs(6 * 60 * 60);
 const MAX_CANCELLATION_ID_LENGTH: usize = 128;
+const DEFAULT_MAX_CONCURRENT_RPC_REQUESTS: usize = 64;
+const DEFAULT_MAX_CONCURRENT_RPC_REQUESTS_PER_SESSION: usize = 16;
 
 #[derive(Clone)]
 pub struct RpcDispatcher {
     application: Arc<dyn ApplicationApi>,
     active_cancellations: Arc<Mutex<HashSet<String>>>,
     access_policy: RpcAccessPolicy,
+    concurrency: RpcConcurrency,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct RpcConcurrencyLimits {
+    max_global: usize,
+    max_per_session: usize,
+}
+
+impl Default for RpcConcurrencyLimits {
+    fn default() -> Self {
+        Self {
+            max_global: DEFAULT_MAX_CONCURRENT_RPC_REQUESTS,
+            max_per_session: DEFAULT_MAX_CONCURRENT_RPC_REQUESTS_PER_SESSION,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct RpcConcurrency {
+    global: Arc<Semaphore>,
+    sessions: Arc<Mutex<HashMap<uuid::Uuid, Weak<Semaphore>>>>,
+    max_per_session: usize,
+}
+
+struct RpcConcurrencyPermit {
+    _global: OwnedSemaphorePermit,
+    _session: Option<OwnedSemaphorePermit>,
+}
+
+enum RpcAdmissionError {
+    SessionBusy,
+    ServerBusy,
+}
+
+impl RpcConcurrency {
+    fn new(limits: RpcConcurrencyLimits) -> Self {
+        assert!(limits.max_global > 0);
+        assert!(limits.max_per_session > 0);
+        Self {
+            global: Arc::new(Semaphore::new(limits.max_global)),
+            sessions: Arc::new(Mutex::new(HashMap::new())),
+            max_per_session: limits.max_per_session,
+        }
+    }
+
+    fn try_acquire(
+        &self,
+        session_id: Option<uuid::Uuid>,
+    ) -> Result<RpcConcurrencyPermit, RpcAdmissionError> {
+        let session = session_id.map(|session_id| {
+            let mut sessions = self
+                .sessions
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            sessions.retain(|_, semaphore| semaphore.strong_count() > 0);
+            if let Some(semaphore) = sessions.get(&session_id).and_then(Weak::upgrade) {
+                semaphore
+            } else {
+                let semaphore = Arc::new(Semaphore::new(self.max_per_session));
+                sessions.insert(session_id, Arc::downgrade(&semaphore));
+                semaphore
+            }
+        });
+        let session_permit = session
+            .map(|semaphore| {
+                semaphore
+                    .try_acquire_owned()
+                    .map_err(|_| RpcAdmissionError::SessionBusy)
+            })
+            .transpose()?;
+        let global_permit = self
+            .global
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| RpcAdmissionError::ServerBusy)?;
+        Ok(RpcConcurrencyPermit {
+            _global: global_permit,
+            _session: session_permit,
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1244,10 +1328,23 @@ impl RpcDispatcher {
         application: Arc<dyn ApplicationApi>,
         access_policy: RpcAccessPolicy,
     ) -> Self {
+        Self::with_access_policy_and_limits(
+            application,
+            access_policy,
+            RpcConcurrencyLimits::default(),
+        )
+    }
+
+    fn with_access_policy_and_limits(
+        application: Arc<dyn ApplicationApi>,
+        access_policy: RpcAccessPolicy,
+        concurrency_limits: RpcConcurrencyLimits,
+    ) -> Self {
         Self {
             application,
             active_cancellations: Arc::new(Mutex::new(HashSet::new())),
             access_policy,
+            concurrency: RpcConcurrency::new(concurrency_limits),
         }
     }
 
@@ -1361,6 +1458,27 @@ impl RpcDispatcher {
                     StatusCode::BAD_REQUEST,
                     "INVALID_CANCELLATION_ID",
                     message,
+                    None,
+                    request_id.0,
+                )
+            }
+        };
+        let _concurrency_permit = match self.concurrency.try_acquire(session_id) {
+            Ok(permit) => permit,
+            Err(RpcAdmissionError::SessionBusy) => {
+                return failure(
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "SESSION_BUSY",
+                    "The session has too many active RPC requests".to_string(),
+                    None,
+                    request_id.0,
+                )
+            }
+            Err(RpcAdmissionError::ServerBusy) => {
+                return failure(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "SERVER_BUSY",
+                    "The server has too many active RPC requests".to_string(),
                     None,
                     request_id.0,
                 )

@@ -21,6 +21,7 @@
     "test:coverage": "pnpm --filter @tabularis/web-ui test:coverage",
     "test:rust": "cd src-tauri && cargo test",
     "test:web-contract": "pnpm --filter @tabularis/web-ui test:contract && cd src-tauri && cargo test transport::web::rpc::tests::preserves_shared_serialization_fixture_in_success_envelopes --lib",
+    "test:web-resilience": "bash web-ui-project/scripts/run-web-ui-resilience-tests.sh",
     "test:all": "pnpm test:rust && pnpm test:coverage",
     "web:inventory": "node web-ui-project/scripts/generate-web-ui-api-inventory.mjs --check",
     "web:inventory:write": "node web-ui-project/scripts/generate-web-ui-api-inventory.mjs --write",

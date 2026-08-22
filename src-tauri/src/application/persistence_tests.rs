@@ -163,8 +163,8 @@ async fn desktop_preferences_keep_the_existing_disk_locations() {
     assert!(config.last_active_connection_id.is_none());
 }
 
-#[test]
-fn runtime_api_clears_browser_preferences_when_a_session_ends() {
+#[tokio::test]
+async fn runtime_api_clears_browser_preferences_when_a_session_ends() {
     use crate::application::{ApplicationApi, RuntimeApplicationApi};
 
     let temp = tempfile::tempdir().unwrap();
@@ -181,6 +181,12 @@ fn runtime_api_clears_browser_preferences_when_a_session_ends() {
         .lock()
         .unwrap()
         .insert(session_id, std::collections::HashSet::new());
+    let query = tokio::spawn(std::future::pending::<()>());
+    crate::commands::register_abort_handle(
+        &state.query_cancellation.handles,
+        format!("web-query:{session_id}:12:connection-1:request-1"),
+        Arc::new(query.abort_handle()),
+    );
 
     RuntimeApplicationApi::new(runtime, state.clone()).clear_session(session_id);
 
@@ -194,6 +200,8 @@ fn runtime_api_clears_browser_preferences_when_a_session_ends() {
         .lock()
         .unwrap()
         .contains_key(&session_id));
+    assert!(query.await.unwrap_err().is_cancelled());
+    assert!(state.query_cancellation.handles.lock().unwrap().is_empty());
 }
 
 #[test]

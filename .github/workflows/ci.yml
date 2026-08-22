@@ -71,5 +71,8 @@ jobs:
       - name: Check dual-transport contract
         run: pnpm run test:web-contract
 
+      - name: Check Web UI resilience
+        run: pnpm run test:web-resilience
+
       - name: Test
         run: pnpm run test:all

@@ -412,6 +412,25 @@ async fn response_json(response: Response) -> Value {
     serde_json::from_slice(&body).unwrap()
 }
 
+async fn wait_for_recorded_contexts(application: &FixtureApplication, expected: usize) {
+    tokio::time::timeout(Duration::from_secs(1), async {
+        loop {
+            if application
+                .contexts
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .len()
+                >= expected
+            {
+                return;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("RPC fixture did not start in time");
+}
+
 #[tokio::test]
 async fn preserves_shared_serialization_fixture_in_success_envelopes() {
     let fixture: Value = serde_json::from_str(include_str!(
@@ -1868,6 +1887,87 @@ async fn scopes_active_cancellation_identifiers_to_browser_sessions() {
 
     assert_eq!(second.status(), StatusCode::OK);
     assert_eq!(first.await.unwrap().status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn bounds_slow_rpc_work_per_session_and_across_the_server() {
+    let defaults = RpcConcurrencyLimits::default();
+    assert_eq!(defaults.max_global, 64);
+    assert_eq!(defaults.max_per_session, 16);
+
+    let application = Arc::new(FixtureApplication::new(Duration::from_millis(100)));
+    let dispatcher = RpcDispatcher::with_access_policy_and_limits(
+        application.clone(),
+        RpcAccessPolicy::default(),
+        RpcConcurrencyLimits {
+            max_global: 2,
+            max_per_session: 1,
+        },
+    );
+    let session_a = Uuid::new_v4();
+    let session_b = Uuid::new_v4();
+    let session_c = Uuid::new_v4();
+
+    let first_dispatcher = dispatcher.clone();
+    let first = tokio::spawn(async move {
+        first_dispatcher
+            .dispatch(
+                "is_debug_mode",
+                RequestId("request-session-a-first".to_string()),
+                &json_headers(),
+                Bytes::from_static(b"null"),
+                Some(session_a),
+            )
+            .await
+    });
+    wait_for_recorded_contexts(&application, 1).await;
+
+    let same_session = dispatcher
+        .dispatch(
+            "is_debug_mode",
+            RequestId("request-session-a-overload".to_string()),
+            &json_headers(),
+            Bytes::from_static(b"null"),
+            Some(session_a),
+        )
+        .await;
+    assert_eq!(same_session.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(
+        response_json(same_session).await["error"]["code"],
+        "SESSION_BUSY"
+    );
+
+    let second_dispatcher = dispatcher.clone();
+    let second = tokio::spawn(async move {
+        second_dispatcher
+            .dispatch(
+                "is_debug_mode",
+                RequestId("request-session-b".to_string()),
+                &json_headers(),
+                Bytes::from_static(b"null"),
+                Some(session_b),
+            )
+            .await
+    });
+    wait_for_recorded_contexts(&application, 2).await;
+
+    let server_busy = dispatcher
+        .dispatch(
+            "is_debug_mode",
+            RequestId("request-server-overload".to_string()),
+            &json_headers(),
+            Bytes::from_static(b"null"),
+            Some(session_c),
+        )
+        .await;
+    assert_eq!(server_busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        response_json(server_busy).await["error"]["code"],
+        "SERVER_BUSY"
+    );
+
+    assert_eq!(first.await.unwrap().status(), StatusCode::OK);
+    assert_eq!(second.await.unwrap().status(), StatusCode::OK);
 }
 
 fn json_headers_with_cancellation(id: &str) -> HeaderMap {

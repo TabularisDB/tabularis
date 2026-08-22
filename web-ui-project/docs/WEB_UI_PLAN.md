@@ -338,6 +338,7 @@ The matrix is a tracked artifact in the branch. Every row must end with automate
 | Deep links | Browser URL or explicit install route | Adapted | Routing |
 | Updater | Desktop updater; web shows server version/upgrade guidance | Not applicable/adapted | Capability flag |
 | DevTools/window title | Browser-native behavior | Not applicable | Capability flag |
+| Performance and resilience | Bounded RPC, results, events, transfers, jobs, sessions, and recovery paths | Identical/adapted lifecycle | RPC/events/runtime/CI |
 
 ## 7. Standard task loop
 

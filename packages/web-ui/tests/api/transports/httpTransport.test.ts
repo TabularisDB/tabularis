@@ -497,6 +497,61 @@ describe("HttpTransport", () => {
     expect(sockets[1].readyState).toBe(3);
   });
 
+  it("restores active-operation event subscriptions after a browser refresh", async () => {
+    const sockets: FakeWebSocket[] = [];
+    const createTransport = () =>
+      new HttpTransport({
+        baseUrl: "http://127.0.0.1:8080",
+        fetch: vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse(SESSION)),
+        createWebSocket: () => {
+          const socket = new FakeWebSocket();
+          sockets.push(socket);
+          return socket;
+        },
+      });
+
+    const beforeRefresh = createTransport();
+    await beforeRefresh.initialize();
+    const firstSubscription = beforeRefresh.subscribe("query-status", vi.fn());
+    await Promise.resolve();
+    sockets[0].open();
+    const unsubscribeBeforeRefresh = await firstSubscription;
+    unsubscribeBeforeRefresh();
+
+    const afterRefresh = createTransport();
+    const refreshedHandler = vi.fn();
+    await afterRefresh.initialize();
+    const refreshedSubscription = afterRefresh.subscribe(
+      "query-status",
+      refreshedHandler,
+    );
+    await Promise.resolve();
+    sockets[1].open();
+    const unsubscribeAfterRefresh = await refreshedSubscription;
+    expect(JSON.parse(sockets[1].sent[0])).toEqual({
+      type: "subscribe",
+      events: ["query-status"],
+    });
+
+    sockets[1].message({
+      type: "event",
+      event: "query-status",
+      payload: {
+        requestId: "request-active",
+        connectionId: "connection-1",
+        status: "completed",
+      },
+      sequence: 9,
+    });
+    expect(refreshedHandler).toHaveBeenCalledWith({
+      requestId: "request-active",
+      connectionId: "connection-1",
+      status: "completed",
+    });
+
+    unsubscribeAfterRefresh();
+  });
+
   it("rejects browser-side event emission explicitly", async () => {
     const transport = new HttpTransport({
       fetch: vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse(SESSION)),
