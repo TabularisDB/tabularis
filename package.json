@@ -30,6 +30,7 @@
     "web:inventory:write": "node web-ui-project/scripts/generate-web-ui-api-inventory.mjs --write",
     "web:boundaries": "node web-ui-project/scripts/check-web-ui-frontend-boundaries.mjs --check",
     "web:packaging": "node --test web-ui-project/scripts/check-web-ui-packaging.test.mjs",
+    "web:docs": "node --test web-ui-project/scripts/check-web-ui-documentation.test.mjs",
     "web:manual-parity": "vitest --config packages/web-ui/vitest.config.ts run web-ui-project/tests/webManualParityAudit.test.mjs",
     "web:tasks": "bash web-ui-project/scripts/run-web-ui-tasks.sh",
     "tauri": "tauri",
