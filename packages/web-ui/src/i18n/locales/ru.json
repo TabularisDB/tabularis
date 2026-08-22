@@ -829,7 +829,12 @@
     "error": "Ошибка обновления",
     "currentVersion": "Текущая версия",
     "managedByPackageManager": "Обновления управляются через {{source}}",
-    "managedByPackageManagerDesc": "Для обновления Tabularis используйте менеджер пакетов."
+    "managedByPackageManagerDesc": "Для обновления Tabularis используйте менеджер пакетов.",
+    "serverManagedTitle": "Обновления под управлением сервера",
+    "serverManagedDesc": "Браузер не может заменить бинарный файл сервера Tabularis. Попросите администратора следовать руководству по обновлению.",
+    "serverVersion": "Версия сервера",
+    "serverBuild": "Сборка сервера",
+    "openServerUpgradeGuide": "Открыть руководство по обновлению сервера"
   },
   "ai": {
     "assist": "AI-помощник",

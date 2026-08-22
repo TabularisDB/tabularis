@@ -861,7 +861,12 @@
     "error": "Errore Aggiornamento",
     "currentVersion": "Versione attuale",
     "managedByPackageManager": "Aggiornamenti gestiti da {{source}}",
-    "managedByPackageManagerDesc": "Usa il tuo package manager per aggiornare Tabularis."
+    "managedByPackageManagerDesc": "Usa il tuo package manager per aggiornare Tabularis.",
+    "serverManagedTitle": "Aggiornamenti gestiti dal server",
+    "serverManagedDesc": "Un browser non può sostituire il binario del server Tabularis. Chiedi all’amministratore di seguire la guida all’aggiornamento.",
+    "serverVersion": "Versione del server",
+    "serverBuild": "Build del server",
+    "openServerUpgradeGuide": "Apri la guida all’aggiornamento del server"
   },
   "ai": {
     "assist": "AI Assist",

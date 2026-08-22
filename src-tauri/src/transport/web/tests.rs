@@ -4,12 +4,15 @@ use super::events::{EventBusConfig, WebEventBus};
 use super::rpc::{RPC_CANCELLATION_HEADER_NAME, RPC_DEADLINE_HEADER_NAME};
 use super::{server, static_assets};
 use crate::application::{ApplicationApi, RuntimeApplicationApi};
-use crate::runtime::{paths::FixedRuntimePaths, state::ApplicationState, RuntimeContext};
+use crate::runtime::{
+    paths::FixedRuntimePaths, secrets::RuntimeSecrets, state::ApplicationState, RuntimeContext,
+};
 use futures::{SinkExt, StreamExt};
 use reqwest::header::{COOKIE, HOST, LOCATION, ORIGIN, SET_COOKIE};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
@@ -18,6 +21,30 @@ use tokio_tungstenite::tungstenite::{Error as WebSocketError, Message as WebSock
 
 const CSRF_HEADER: &str = "x-tabularis-csrf";
 const REQUEST_ID_HEADER: &str = "x-request-id";
+
+#[derive(Default)]
+struct TestRuntimeSecrets {
+    values: Mutex<HashMap<String, String>>,
+}
+
+impl RuntimeSecrets for TestRuntimeSecrets {
+    fn get(&self, account: &str) -> Result<Option<String>, String> {
+        Ok(self.values.lock().unwrap().get(account).cloned())
+    }
+
+    fn set(&self, account: &str, secret: &str) -> Result<(), String> {
+        self.values
+            .lock()
+            .unwrap()
+            .insert(account.to_string(), secret.to_string());
+        Ok(())
+    }
+
+    fn delete(&self, account: &str) -> Result<(), String> {
+        self.values.lock().unwrap().remove(account);
+        Ok(())
+    }
+}
 
 #[test]
 fn advertises_mcp_host_configuration_only_for_loopback_web_origins() {
@@ -73,7 +100,7 @@ fn test_application_with_state(
             root.to_path_buf(),
         )),
         Arc::new(crate::runtime::events::NoopRuntimeEvents),
-        Arc::new(crate::runtime::secrets::KeyringRuntimeSecrets),
+        Arc::new(TestRuntimeSecrets::default()),
     );
     Arc::new(RuntimeApplicationApi::new(context, state))
 }
@@ -220,6 +247,14 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
     let session: SessionNegotiation = session.json().await.unwrap();
     assert_eq!(session.api_version, WEB_API_VERSION);
     assert_eq!(session.server_version, env!("CARGO_PKG_VERSION"));
+    let session_json = serde_json::to_value(&session).unwrap();
+    assert_eq!(session_json["capabilities"]["nativeUpdater"], false);
+    assert!(session_json["serverBuild"]["target"]
+        .as_str()
+        .is_some_and(|target| !target.is_empty()));
+    assert!(session_json["serverBuild"]["profile"]
+        .as_str()
+        .is_some_and(|profile| !profile.is_empty()));
     assert!(session.authenticated);
     assert!(!session.csrf_token.is_empty());
     assert!(session.capabilities.rpc);

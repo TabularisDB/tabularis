@@ -4,9 +4,23 @@ import { listen } from "@tauri-apps/api/event";
 import { UpdateContext, type UpdateCheckResult } from "./UpdateContext";
 import { toErrorMessage } from "../utils/errors";
 import { useTabularisClient } from "../hooks/useTabularisClient";
+import type { SessionNegotiation } from "../api/session";
 
-export const UpdateProvider = ({ children }: { children: ReactNode }) => {
+interface UpdateProviderProps {
+  readonly children: ReactNode;
+  readonly session?: SessionNegotiation | null;
+}
+
+export const UpdateProvider = ({
+  children,
+  session = null,
+}: UpdateProviderProps) => {
   const client = useTabularisClient();
+  const nativeUpdater = session?.capabilities.nativeUpdater ?? true;
+  const updaterMode = nativeUpdater ? "native" : "server-managed";
+  const serverInfo = session
+    ? { version: session.serverVersion, build: session.serverBuild }
+    : null;
   const [updateInfo, setUpdateInfo] = useState<UpdateCheckResult | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -15,8 +29,10 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
   const [isUpToDate, setIsUpToDate] = useState(false);
   const [installationSource, setInstallationSource] = useState<string | null>(null);
 
-  // Listen for download progress events
+  // Native updater events do not exist in browser-hosted sessions.
   useEffect(() => {
+    if (!nativeUpdater) return;
+
     const unlistenProgress = listen<number>("update-progress", (event) => {
       setDownloadProgress(event.payload);
     });
@@ -29,9 +45,11 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
       unlistenProgress.then((fn) => fn());
       unlistenInstalling.then((fn) => fn());
     };
-  }, []);
+  }, [nativeUpdater]);
 
   const checkForUpdates = useCallback(async (force = false) => {
+    if (!nativeUpdater) return;
+
     setIsChecking(true);
     setError(null);
     setIsUpToDate(false);
@@ -69,9 +87,11 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsChecking(false);
     }
-  }, [client]);
+  }, [client, nativeUpdater]);
 
   const downloadAndInstall = async () => {
+    if (!nativeUpdater) return;
+
     setIsDownloading(true);
     setDownloadProgress(0);
     setError(null);
@@ -94,8 +114,10 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Check on mount (startup)
+  // Check on mount (startup) only when the host advertises the native updater.
   useEffect(() => {
+    if (!nativeUpdater) return;
+
     const performStartupCheck = async () => {
       try {
         // Detect installation source first; managed packages skip built-in updates
@@ -116,7 +138,7 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
     // Delay startup checks so they do not block application initialization.
     const timer = setTimeout(performStartupCheck, 2000);
     return () => clearTimeout(timer);
-  }, [checkForUpdates, client]);
+  }, [checkForUpdates, client, nativeUpdater]);
 
   return (
     <UpdateContext.Provider
@@ -131,6 +153,8 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
         error,
         isUpToDate,
         installationSource,
+        updaterMode,
+        serverInfo,
       }}
     >
       {children}

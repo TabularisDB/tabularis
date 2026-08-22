@@ -13,18 +13,30 @@ interface ClientBootstrapDependencies {
   readonly createHttpTransport?: () => InitializableBrowserTransport;
 }
 
-export async function bootstrapTabularisClient(
+export interface TabularisRuntimeBootstrap {
+  readonly client: TabularisClient;
+  readonly session: SessionNegotiation | null;
+}
+
+export async function bootstrapTabularisRuntime(
   environment: PlatformEnvironment,
   dependencies: ClientBootstrapDependencies = {},
-): Promise<TabularisClient> {
+): Promise<TabularisRuntimeBootstrap> {
   if (environment === "tauri") {
     const transport =
       dependencies.createTauriTransport?.() ?? new TauriTransport();
-    return new TabularisClient(transport);
+    return { client: new TabularisClient(transport), session: null };
   }
 
   const transport =
     dependencies.createHttpTransport?.() ?? new HttpTransport();
-  await transport.initialize();
-  return new TabularisClient(transport);
+  const session = await transport.initialize();
+  return { client: new TabularisClient(transport), session };
+}
+
+export async function bootstrapTabularisClient(
+  environment: PlatformEnvironment,
+  dependencies: ClientBootstrapDependencies = {},
+): Promise<TabularisClient> {
+  return (await bootstrapTabularisRuntime(environment, dependencies)).client;
 }

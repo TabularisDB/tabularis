@@ -73,7 +73,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
-          "line": 39
+          "line": 57
         }
       ]
     },
@@ -129,7 +129,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
-          "line": 79
+          "line": 99
         }
       ]
     },

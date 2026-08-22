@@ -880,7 +880,12 @@
     "currentVersion": "Current version",
     "managedByPackageManager": "Updates managed by {{source}}",
     "managedByPackageManagerDesc": "Use your package manager to update Tabularis.",
-    "nightlyWarning": "Nightly builds are unstable pre-releases. Only assets built for the nightly channel are installed."
+    "nightlyWarning": "Nightly builds are unstable pre-releases. Only assets built for the nightly channel are installed.",
+    "serverManagedTitle": "Server-managed updates",
+    "serverManagedDesc": "A browser cannot replace the Tabularis server binary. Ask the server administrator to follow the upgrade guide.",
+    "serverVersion": "Server version",
+    "serverBuild": "Server build",
+    "openServerUpgradeGuide": "Open server upgrade guide"
   },
   "ai": {
     "assist": "AI Assist",

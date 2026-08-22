@@ -811,7 +811,12 @@
     "error": "업데이트 오류",
     "currentVersion": "현재 버전",
     "managedByPackageManager": "{{source}}(으)로 관리되는 업데이트",
-    "managedByPackageManagerDesc": "패키지 관리자를 사용해 Tabularis를 업데이트하세요."
+    "managedByPackageManagerDesc": "패키지 관리자를 사용해 Tabularis를 업데이트하세요.",
+    "serverManagedTitle": "서버 관리 업데이트",
+    "serverManagedDesc": "브라우저에서는 Tabularis 서버 바이너리를 교체할 수 없습니다. 서버 관리자에게 업그레이드 가이드를 따르도록 요청하세요.",
+    "serverVersion": "서버 버전",
+    "serverBuild": "서버 빌드",
+    "openServerUpgradeGuide": "서버 업그레이드 가이드 열기"
   },
   "ai": {
     "assist": "AI 어시스트",

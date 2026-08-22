@@ -850,7 +850,12 @@
     "currentVersion": "Versão atual",
     "managedByPackageManager": "Atualizações gerenciadas por {{source}}",
     "managedByPackageManagerDesc": "Use seu gerenciador de pacotes para atualizar o Tabularis.",
-    "nightlyWarning": "As versões Nightly são pré-lançamentos instáveis. Apenas os artefatos compilados para o canal nightly são instalados."
+    "nightlyWarning": "As versões Nightly são pré-lançamentos instáveis. Apenas os artefatos compilados para o canal nightly são instalados.",
+    "serverManagedTitle": "Atualizações gerenciadas pelo servidor",
+    "serverManagedDesc": "Um navegador não pode substituir o binário do servidor Tabularis. Peça ao administrador para seguir o guia de atualização.",
+    "serverVersion": "Versão do servidor",
+    "serverBuild": "Build do servidor",
+    "openServerUpgradeGuide": "Abrir guia de atualização do servidor"
   },
   "ai": {
     "assist": "Assistente de IA",

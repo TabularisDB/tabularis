@@ -804,7 +804,12 @@
     "error": "更新错误",
     "currentVersion": "当前版本",
     "managedByPackageManager": "更新由 {{source}} 管理",
-    "managedByPackageManagerDesc": "使用您的包管理器更新 Tabularis。"
+    "managedByPackageManagerDesc": "使用您的包管理器更新 Tabularis。",
+    "serverManagedTitle": "服务器管理的更新",
+    "serverManagedDesc": "浏览器无法替换 Tabularis 服务器二进制文件。请让服务器管理员按照升级指南操作。",
+    "serverVersion": "服务器版本",
+    "serverBuild": "服务器构建",
+    "openServerUpgradeGuide": "打开服务器升级指南"
   },
   "ai": {
     "assist": "AI 辅助",

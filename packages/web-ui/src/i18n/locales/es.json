@@ -861,7 +861,12 @@
     "error": "Error de Actualización",
     "currentVersion": "Versión actual",
     "managedByPackageManager": "Actualizaciones gestionadas por {{source}}",
-    "managedByPackageManagerDesc": "Usa tu gestor de paquetes para actualizar Tabularis."
+    "managedByPackageManagerDesc": "Usa tu gestor de paquetes para actualizar Tabularis.",
+    "serverManagedTitle": "Actualizaciones gestionadas por el servidor",
+    "serverManagedDesc": "Un navegador no puede sustituir el binario del servidor Tabularis. Pide al administrador que siga la guía de actualización.",
+    "serverVersion": "Versión del servidor",
+    "serverBuild": "Compilación del servidor",
+    "openServerUpgradeGuide": "Abrir la guía de actualización del servidor"
   },
   "ai": {
     "assist": "Asistente IA",

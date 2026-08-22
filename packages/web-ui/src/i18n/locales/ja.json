@@ -850,7 +850,12 @@
     "error": "アップデートエラー",
     "currentVersion": "現在のバージョン",
     "managedByPackageManager": "アップデートは {{source}} によって管理されています",
-    "managedByPackageManagerDesc": "Tabularis のアップデートにはパッケージマネージャを使用してください。"
+    "managedByPackageManagerDesc": "Tabularis のアップデートにはパッケージマネージャを使用してください。",
+    "serverManagedTitle": "サーバー管理のアップデート",
+    "serverManagedDesc": "ブラウザから Tabularis サーバーのバイナリを置き換えることはできません。サーバー管理者にアップグレードガイドの手順を依頼してください。",
+    "serverVersion": "サーバーバージョン",
+    "serverBuild": "サーバービルド",
+    "openServerUpgradeGuide": "サーバーアップグレードガイドを開く"
   },
   "ai": {
     "assist": "AI Assist",

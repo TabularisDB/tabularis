@@ -56,6 +56,11 @@ const PLUGIN_REGISTRY_ENTRY = {
 const SESSION = {
   apiVersion: "v1",
   serverVersion: "contract-fixture",
+  serverBuild: {
+    target: "test-contract",
+    profile: "debug",
+    commit: null,
+  },
   authenticated: true,
   csrfToken: "contract-csrf-token",
   capabilities: {
@@ -65,6 +70,7 @@ const SESSION = {
     downloads: false,
     pluginAssets: false,
     mcpHostConfiguration: true,
+    nativeUpdater: false,
   },
   queryResponsePolicy: {
     maxRowsPerPage: 10_000,

@@ -8,6 +8,11 @@ import {
 const SESSION = {
   apiVersion: "v1",
   serverVersion: "0.20.0",
+  serverBuild: {
+    target: "linux-x86_64",
+    profile: "release",
+    commit: "abc1234",
+  },
   authenticated: true,
   csrfToken: "csrf-token",
   capabilities: {
@@ -17,6 +22,7 @@ const SESSION = {
     downloads: false,
     pluginAssets: false,
     mcpHostConfiguration: true,
+    nativeUpdater: false,
   },
   queryResponsePolicy: {
     maxRowsPerPage: 10_000,
@@ -103,6 +109,21 @@ describe("HttpTransport", () => {
     expect(headers.get("x-request-id")).toBe("request-1");
     expect(headers.get("x-tabularis-deadline-ms")).toBe("1500");
     expect(headers.get("x-tabularis-cancellation-id")).toBe("startup-debug");
+  });
+
+  it("rejects a browser session that advertises native binary updates", async () => {
+    const transport = new HttpTransport({
+      fetch: vi.fn<typeof fetch>().mockResolvedValueOnce(
+        jsonResponse({
+          ...SESSION,
+          capabilities: { ...SESSION.capabilities, nativeUpdater: true },
+        }),
+      ),
+    });
+
+    await expect(transport.initialize()).rejects.toMatchObject({
+      code: "INVALID_SESSION_RESPONSE",
+    });
   });
 
   it("loads authenticated plugin assets when advertised by the server", async () => {

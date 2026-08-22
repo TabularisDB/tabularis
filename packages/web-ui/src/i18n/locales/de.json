@@ -836,7 +836,12 @@
     "error": "Update-Fehler",
     "currentVersion": "Aktuelle Version",
     "managedByPackageManager": "Updates werden von {{source}} verwaltet",
-    "managedByPackageManagerDesc": "Verwende deinen Paketmanager, um Tabularis zu aktualisieren."
+    "managedByPackageManagerDesc": "Verwende deinen Paketmanager, um Tabularis zu aktualisieren.",
+    "serverManagedTitle": "Serververwaltete Updates",
+    "serverManagedDesc": "Ein Browser kann die Tabularis-Serverdatei nicht ersetzen. Bitte den Serveradministrator, der Upgrade-Anleitung zu folgen.",
+    "serverVersion": "Serverversion",
+    "serverBuild": "Server-Build",
+    "openServerUpgradeGuide": "Server-Upgrade-Anleitung öffnen"
   },
   "ai": {
     "assist": "AI Assist",

@@ -842,15 +842,21 @@ function isSessionNegotiation(value: unknown): value is SessionNegotiation {
   if (
     !isRecord(value) ||
     !isRecord(value.capabilities) ||
+    !isRecord(value.serverBuild) ||
     !isRecord(value.queryResponsePolicy)
   ) {
     return false;
   }
   const capabilities = value.capabilities;
+  const serverBuild = value.serverBuild;
   const queryPolicy = value.queryResponsePolicy;
   return (
     typeof value.apiVersion === "string" &&
     typeof value.serverVersion === "string" &&
+    typeof serverBuild.target === "string" &&
+    serverBuild.target.length > 0 &&
+    (serverBuild.profile === "debug" || serverBuild.profile === "release") &&
+    (serverBuild.commit === null || typeof serverBuild.commit === "string") &&
     typeof value.authenticated === "boolean" &&
     typeof value.csrfToken === "string" &&
     typeof capabilities.rpc === "boolean" &&
@@ -859,6 +865,7 @@ function isSessionNegotiation(value: unknown): value is SessionNegotiation {
     typeof capabilities.downloads === "boolean" &&
     typeof capabilities.pluginAssets === "boolean" &&
     typeof capabilities.mcpHostConfiguration === "boolean" &&
+    capabilities.nativeUpdater === false &&
     typeof queryPolicy.maxRowsPerPage === "number" &&
     Number.isSafeInteger(queryPolicy.maxRowsPerPage) &&
     queryPolicy.maxRowsPerPage > 0 &&

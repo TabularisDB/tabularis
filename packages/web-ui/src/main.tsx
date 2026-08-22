@@ -15,7 +15,7 @@ import { EditorProvider } from './contexts/EditorProvider';
 import { ThemeProvider } from './contexts/ThemeProvider';
 import { UpdateProvider } from './contexts/UpdateProvider';
 import { ProductionGuardProvider } from './contexts/ProductionGuardContext';
-import { bootstrapTabularisClient } from './api/bootstrap';
+import { bootstrapTabularisRuntime } from './api/bootstrap';
 import { TabularisClientProvider } from './contexts/TabularisClientProvider';
 import { TauriPlatformCapabilities } from './platform/tauriCapabilities';
 import { BrowserPlatformCapabilities } from './platform/browserCapabilities';
@@ -29,7 +29,8 @@ const rootElement = document.getElementById('root') as HTMLElement;
 const environment = detectPlatformEnvironment();
 
 async function startApplication() {
-  const tabularisClient = await bootstrapTabularisClient(environment);
+  const { client: tabularisClient, session } =
+    await bootstrapTabularisRuntime(environment);
   const platformCapabilities = environment === 'tauri'
     ? new TauriPlatformCapabilities()
     : new BrowserPlatformCapabilities(tabularisClient);
@@ -39,7 +40,7 @@ async function startApplication() {
     <React.StrictMode>
       <TabularisClientProvider client={tabularisClient}>
         <PlatformCapabilitiesProvider capabilities={platformCapabilities}>
-          <UpdateProvider>
+          <UpdateProvider session={session}>
             <ThemeProvider>
               <SettingsProvider>
                 <ToastProvider>

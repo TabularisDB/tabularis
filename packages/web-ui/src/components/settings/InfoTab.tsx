@@ -47,6 +47,8 @@ export function InfoTab() {
     error: updateError,
     isUpToDate,
     installationSource,
+    updaterMode,
+    serverInfo,
   } = useUpdate();
   const {
     entries: changelogEntries,
@@ -127,14 +129,54 @@ export function InfoTab() {
         <div className="space-y-4 pt-3">
           <div className="bg-base p-4 rounded-lg border border-default">
             <div className="text-sm text-secondary">
-              {t("settings.currentVersion")}
+              {updaterMode === "server-managed"
+                ? t("update.serverVersion")
+                : t("settings.currentVersion")}
             </div>
             <div className="text-lg font-mono text-primary mt-1">
-              v{APP_VERSION}
+              v{serverInfo?.version ?? APP_VERSION}
             </div>
           </div>
 
-          {installationSource ? (
+          {updaterMode === "server-managed" ? (
+            <div className="space-y-4">
+              {serverInfo && (
+                <div className="bg-base p-4 rounded-lg border border-default">
+                  <div className="text-sm text-secondary">
+                    {t("update.serverBuild")}
+                  </div>
+                  <div className="text-sm font-mono text-primary mt-1 break-all">
+                    {[
+                      serverInfo.build.target,
+                      serverInfo.build.profile,
+                      serverInfo.build.commit,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+                </div>
+              )}
+              <div className="bg-blue-900/20 border border-blue-900/50 text-blue-300 px-4 py-4 rounded-lg">
+                <div className="text-sm font-medium">
+                  {t("update.serverManagedTitle")}
+                </div>
+                <div className="text-xs mt-1 text-blue-300/80">
+                  {t("update.serverManagedDesc")}
+                </div>
+                <button
+                  onClick={() =>
+                    void platform.openExternalUrl(
+                      "https://github.com/TabularisDB/tabularis/blob/main/web-ui-project/docs/WEB_MODE_UPGRADES.md",
+                    )
+                  }
+                  className="mt-3 flex items-center gap-2 text-sm font-medium text-blue-300 hover:text-blue-200 hover:underline"
+                >
+                  <ExternalLink size={14} />
+                  {t("update.openServerUpgradeGuide")}
+                </button>
+              </div>
+            </div>
+          ) : installationSource ? (
             <div className="bg-yellow-900/20 border border-yellow-900/50 text-yellow-400 px-4 py-3 rounded-lg">
               <div className="text-sm font-medium">
                 {t("update.managedByPackageManager", {

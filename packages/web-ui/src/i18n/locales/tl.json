@@ -866,7 +866,12 @@
     "error": "Error sa Update",
     "currentVersion": "Kasalukuyang bersyon",
     "managedByPackageManager": "Ang mga update ay pinamamahalaan ng {{source}}",
-    "managedByPackageManagerDesc": "Gamitin ang iyong package manager para i-update ang Tabularis."
+    "managedByPackageManagerDesc": "Gamitin ang iyong package manager para i-update ang Tabularis.",
+    "serverManagedTitle": "Mga update na pinamamahalaan ng server",
+    "serverManagedDesc": "Hindi mapapalitan ng browser ang binary ng Tabularis server. Hilingin sa administrator na sundin ang gabay sa pag-upgrade.",
+    "serverVersion": "Bersyon ng server",
+    "serverBuild": "Build ng server",
+    "openServerUpgradeGuide": "Buksan ang gabay sa pag-upgrade ng server"
   },
   "ai": {
     "assist": "AI Assist",

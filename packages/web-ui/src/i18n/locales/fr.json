@@ -870,7 +870,12 @@
     "error": "Erreur de mise à jour",
     "currentVersion": "Version actuelle",
     "managedByPackageManager": "Mises à jour gérées par {{source}}",
-    "managedByPackageManagerDesc": "Utilisez votre gestionnaire de paquets pour mettre à jour Tabularis."
+    "managedByPackageManagerDesc": "Utilisez votre gestionnaire de paquets pour mettre à jour Tabularis.",
+    "serverManagedTitle": "Mises à jour gérées par le serveur",
+    "serverManagedDesc": "Un navigateur ne peut pas remplacer le binaire du serveur Tabularis. Demandez à l’administrateur de suivre le guide de mise à niveau.",
+    "serverVersion": "Version du serveur",
+    "serverBuild": "Build du serveur",
+    "openServerUpgradeGuide": "Ouvrir le guide de mise à niveau du serveur"
   },
   "ai": {
     "assist": "AI Assist",

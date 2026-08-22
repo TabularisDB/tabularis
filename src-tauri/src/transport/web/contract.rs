@@ -7,6 +7,7 @@ pub const WEB_API_VERSION: &str = "v1";
 pub struct SessionNegotiation {
     pub api_version: String,
     pub server_version: String,
+    pub server_build: ServerBuildInformation,
     pub authenticated: bool,
     pub csrf_token: String,
     pub capabilities: WebTransportCapabilities,
@@ -22,6 +23,15 @@ pub struct WebTransportCapabilities {
     pub downloads: bool,
     pub plugin_assets: bool,
     pub mcp_host_configuration: bool,
+    pub native_updater: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerBuildInformation {
+    pub target: String,
+    pub profile: String,
+    pub commit: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -45,6 +55,18 @@ impl SessionNegotiation {
         Self {
             api_version: WEB_API_VERSION.to_string(),
             server_version: env!("CARGO_PKG_VERSION").to_string(),
+            server_build: ServerBuildInformation {
+                target: format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH),
+                profile: if cfg!(debug_assertions) {
+                    "debug".to_string()
+                } else {
+                    "release".to_string()
+                },
+                commit: option_env!("TABULARIS_BUILD_COMMIT")
+                    .map(str::trim)
+                    .filter(|commit| !commit.is_empty())
+                    .map(str::to_string),
+            },
             authenticated,
             csrf_token,
             capabilities: WebTransportCapabilities {
@@ -54,6 +76,7 @@ impl SessionNegotiation {
                 downloads: true,
                 plugin_assets: true,
                 mcp_host_configuration,
+                native_updater: false,
             },
             query_response_policy: WebQueryResponsePolicy {
                 max_rows_per_page: crate::application::queries::WEB_MAX_ROWS_PER_PAGE,

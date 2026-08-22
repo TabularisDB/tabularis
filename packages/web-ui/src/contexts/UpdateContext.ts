@@ -1,5 +1,5 @@
 import { createContext } from "react";
-
+import type { ServerBuildInformation } from "../api/session";
 
 export interface UpdateCheckResult {
   hasUpdate: boolean;
@@ -18,6 +18,13 @@ interface DownloadAsset {
   platform: string;
 }
 
+export type UpdaterMode = "native" | "server-managed";
+
+export interface ServerRuntimeInformation {
+  readonly version: string;
+  readonly build: ServerBuildInformation;
+}
+
 interface UpdateContextType {
   updateInfo: UpdateCheckResult | null;
   isChecking: boolean;
@@ -29,6 +36,8 @@ interface UpdateContextType {
   error: string | null;
   isUpToDate: boolean;
   installationSource: string | null;
+  updaterMode: UpdaterMode;
+  serverInfo: ServerRuntimeInformation | null;
 }
 
 export const UpdateContext = createContext<UpdateContextType | undefined>(

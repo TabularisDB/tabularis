@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import React from "react";
 import type { UpdateCheckResult } from "../../src/contexts/UpdateContext";
+import type { SessionNegotiation } from "../../src/api/session";
 
 vi.mock("@tauri-apps/api/core");
 vi.mock("@tauri-apps/api/event");
@@ -14,6 +15,32 @@ const mockClient = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock("../../src/hooks/useTabularisClient", () => ({
   useTabularisClient: () => mockClient,
 }));
+
+const WEB_SESSION: SessionNegotiation = {
+  apiVersion: "v1",
+  serverVersion: "1.4.2",
+  serverBuild: {
+    target: "linux-x86_64",
+    profile: "release",
+    commit: "abc1234",
+  },
+  authenticated: true,
+  csrfToken: "csrf-token",
+  capabilities: {
+    rpc: true,
+    events: true,
+    uploads: true,
+    downloads: true,
+    pluginAssets: true,
+    mcpHostConfiguration: true,
+    nativeUpdater: false,
+  },
+  queryResponsePolicy: {
+    maxRowsPerPage: 10_000,
+    maxResponseBytes: 16_777_216,
+    streaming: false,
+  },
+};
 
 describe("UpdateProvider", () => {
   let unlistenProgressMock: () => void;
@@ -68,6 +95,33 @@ describe("UpdateProvider", () => {
     expect(result.current.downloadProgress).toBe(0);
     expect(result.current.error).toBeNull();
     expect(result.current.isUpToDate).toBe(false);
+  });
+
+  it("exposes server information without starting native updater work in web mode", async () => {
+    vi.useFakeTimers();
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(UpdateProvider, { session: WEB_SESSION }, children);
+
+    const { result } = renderHook(() => useUpdate(), { wrapper });
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    expect(result.current.updaterMode).toBe("server-managed");
+    expect(result.current.serverInfo).toEqual({
+      version: "1.4.2",
+      build: WEB_SESSION.serverBuild,
+    });
+    expect(listen).not.toHaveBeenCalled();
+    expect(invoke).not.toHaveBeenCalled();
+    expect(mockClient.call).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.checkForUpdates(true);
+      await result.current.downloadAndInstall();
+    });
+    expect(invoke).not.toHaveBeenCalled();
   });
 
   it("should check for updates when available", async () => {

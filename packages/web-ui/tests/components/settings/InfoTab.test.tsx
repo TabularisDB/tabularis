@@ -14,6 +14,12 @@ const translations: Record<string, string> = {
   "update.managedByPackageManager": "Updates managed by {{source}}",
   "update.managedByPackageManagerDesc":
     "Use your package manager to update Tabularis.",
+  "update.serverManagedTitle": "Server-managed updates",
+  "update.serverManagedDesc":
+    "A browser cannot replace the Tabularis server binary. Ask the server administrator to follow the upgrade guide.",
+  "update.serverVersion": "Server version",
+  "update.serverBuild": "Server build",
+  "update.openServerUpgradeGuide": "Open server upgrade guide",
 };
 
 vi.mock("lucide-react", () => ({
@@ -42,8 +48,9 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+const openExternalUrl = vi.hoisted(() => vi.fn());
 vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
-  usePlatformCapabilities: () => ({ openExternalUrl: vi.fn() }),
+  usePlatformCapabilities: () => ({ openExternalUrl }),
 }));
 
 vi.mock("../../../src/hooks/useTheme", () => ({
@@ -86,12 +93,14 @@ interface RenderInfoTabOptions {
   installationSource?: string | null;
   releaseChannel?: Settings["releaseChannel"];
   updateSetting?: (...args: unknown[]) => void;
+  updaterMode?: "native" | "server-managed";
 }
 
 function renderInfoTab({
   installationSource = null,
   releaseChannel,
   updateSetting = vi.fn(),
+  updaterMode = "native",
 }: RenderInfoTabOptions) {
   mockUseSettings.mockReturnValue({
     settings: { releaseChannel } as Settings,
@@ -104,6 +113,18 @@ function renderInfoTab({
     error: null,
     isUpToDate: false,
     installationSource,
+    updaterMode,
+    serverInfo:
+      updaterMode === "server-managed"
+        ? {
+            version: "1.4.2",
+            build: {
+              target: "linux-x86_64",
+              profile: "release",
+              commit: "abc1234",
+            },
+          }
+        : null,
   });
   return render(<InfoTab />);
 }
@@ -143,5 +164,25 @@ describe("InfoTab", () => {
         "Nightly builds are unstable pre-releases. Only assets built for the nightly channel are installed.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("shows server build details and upgrade guidance in web mode", () => {
+    renderInfoTab({ updaterMode: "server-managed" });
+
+    expect(screen.getByText("Server-managed updates")).toBeInTheDocument();
+    expect(screen.getByText("v1.4.2")).toBeInTheDocument();
+    expect(
+      screen.getByText("linux-x86_64 · release · abc1234"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open server upgrade guide" }),
+    );
+    expect(openExternalUrl).toHaveBeenCalledWith(
+      "https://github.com/TabularisDB/tabularis/blob/main/web-ui-project/docs/WEB_MODE_UPGRADES.md",
+    );
+    expect(screen.queryByText("Release channel")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "settings.checkNow" }),
+    ).not.toBeInTheDocument();
   });
 });
