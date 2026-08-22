@@ -186,6 +186,10 @@ pub struct UIExtensionEntry {
     /// matches this identifier (e.g. `"wordpress"`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub driver: Option<String>,
+    /// `@tabularis/plugin-api` version used to build the UI bundle.
+    /// Absent for legacy bundles, which remain supported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_version: Option<String>,
 }
 
 /// A single user-configurable setting declared in a plugin's manifest.

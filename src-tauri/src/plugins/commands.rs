@@ -1,5 +1,3 @@
-use std::fs;
-
 use crate::drivers::driver_trait::PluginManifest;
 use crate::plugins::installer::{self, InstalledPluginInfo};
 use crate::plugins::registry::{PluginReadme, RegistryPluginWithStatus};
@@ -116,18 +114,14 @@ pub async fn fetch_plugin_readme(
 /// Reads a file from an installed plugin's directory for the desktop UI loader.
 /// Browser plugin assets use the authenticated asset route implemented separately.
 #[tauri::command]
-pub fn read_plugin_file(plugin_id: String, file_path: String) -> Result<String, String> {
-    if file_path.contains("..") || file_path.starts_with('/') || file_path.starts_with('\\') {
-        return Err(
-            "Invalid file path: must be relative and contain no '..' components".to_string(),
-        );
-    }
-    let plugins_dir = installer::get_plugins_dir()?;
-    let full_path = plugins_dir.join(&plugin_id).join(&file_path);
-    fs::read_to_string(&full_path).map_err(|error| {
-        format!(
-            "Failed to read '{}' from plugin '{}': {}",
-            file_path, plugin_id, error
-        )
-    })
+pub fn read_plugin_file(
+    runtime: State<'_, RuntimeContext>,
+    plugin_id: String,
+    file_path: String,
+) -> Result<String, String> {
+    crate::application::plugin_assets::read_plugin_asset_text(
+        &runtime.paths.plugins_dir(),
+        &plugin_id,
+        &file_path,
+    )
 }

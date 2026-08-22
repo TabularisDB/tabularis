@@ -11,7 +11,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,6 +50,12 @@ function scaffoldOne(kind: "network" | "file", withUi: boolean): void {
       if (!existsSync(p) || statSync(p).size === 0) {
         throw new Error(`missing or empty: ${p}`);
       }
+    }
+    const manifest = JSON.parse(readFileSync(join(target, ".tabularium"), "utf8")) as {
+      ui_extensions?: Array<{ api_version?: string }>;
+    };
+    if (manifest.ui_extensions?.[0]?.api_version !== "0.1.1") {
+      throw new Error("UI extension manifest is missing plugin API compatibility metadata");
     }
   }
 

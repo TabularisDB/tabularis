@@ -116,6 +116,8 @@ export interface UIExtensionManifestEntry {
   order?: number;
   /** If set, the contribution is only active when context.driver matches this value. */
   driver?: string;
+  /** @tabularis/plugin-api version used to build this bundle. */
+  api_version?: string;
 }
 
 /**

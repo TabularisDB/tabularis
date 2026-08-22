@@ -43,6 +43,20 @@ describe("TauriTransport", () => {
     });
   });
 
+  it("loads plugin assets through the desktop command adapter", async () => {
+    const transport = new TauriTransport();
+    vi.mocked(invoke).mockResolvedValueOnce("window.pluginLoaded = true;");
+
+    await expect(
+      transport.readPluginAsset("plugin-id", "ui/dist/index.js"),
+    ).resolves.toBe("window.pluginLoaded = true;");
+
+    expect(invoke).toHaveBeenCalledWith("read_plugin_file", {
+      pluginId: "plugin-id",
+      filePath: "ui/dist/index.js",
+    });
+  });
+
   it("normalizes Tauri failures to the shared frontend error model", async () => {
     const transport = new TauriTransport();
     vi.mocked(invoke).mockRejectedValueOnce(new Error("query failed"));

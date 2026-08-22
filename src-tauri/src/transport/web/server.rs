@@ -16,7 +16,7 @@ use axum::http::header::{
     CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_SECURITY_POLICY, CONTENT_TYPE,
     COOKIE, HOST, LOCATION, ORIGIN, REFERRER_POLICY, SET_COOKIE, X_CONTENT_TYPE_OPTIONS,
 };
-use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
+use axum::http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get, post};
@@ -39,6 +39,9 @@ const MAX_EVENT_CONTROL_BYTES: usize = 16 * 1024;
 const FILE_NAME_HEADER_NAME: &str = "x-tabularis-file-name";
 const FILE_PURPOSE_HEADER_NAME: &str = "x-tabularis-purpose";
 const BLOB_TRANSFER_PURPOSE: &str = "blob";
+const PLUGIN_ASSET_CSP: &str = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; sandbox";
+const CROSS_ORIGIN_RESOURCE_POLICY: HeaderName =
+    HeaderName::from_static("cross-origin-resource-policy");
 
 pub struct WebServerOptions {
     pub host: String,
@@ -185,6 +188,10 @@ fn router(
         .route(
             "/api/v1/assets/connection-icons/:filename",
             get(connection_icon_asset),
+        )
+        .route(
+            "/api/v1/assets/plugins/:plugin_id/*asset_path",
+            get(plugin_asset),
         )
         .route("/api/*path", any(StatusCode::NOT_FOUND))
         .layer(RequestBodyLimitLayer::new(max_body_bytes));
@@ -452,6 +459,38 @@ fn upload_error_response(error: String) -> Response {
         StatusCode::BAD_REQUEST
     };
     (status, [(CACHE_CONTROL, "no-store")], error).into_response()
+}
+
+async fn plugin_asset(
+    State(state): State<WebServerState>,
+    Path((plugin_id, asset_path)): Path<(String, String)>,
+) -> Response {
+    let plugins_dir = state.data_dir.join("plugins");
+    let asset = match crate::application::plugin_assets::read_plugin_asset(
+        &plugins_dir,
+        &plugin_id,
+        &asset_path,
+    ) {
+        Ok(asset) => asset,
+        Err(_) => return status_response(StatusCode::NOT_FOUND),
+    };
+
+    let mut response = Response::new(Body::from(asset.bytes));
+    *response.status_mut() = StatusCode::OK;
+    let headers = response.headers_mut();
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static(asset.content_type));
+    headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    headers.insert(REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
+    headers.insert(
+        CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static(PLUGIN_ASSET_CSP),
+    );
+    headers.insert(
+        CROSS_ORIGIN_RESOURCE_POLICY,
+        HeaderValue::from_static("same-origin"),
+    );
+    response
 }
 
 async fn connection_icon_asset(

@@ -303,7 +303,7 @@ fn registry_base_url(config: &AppConfig) -> &str {
         .unwrap_or(registry::DEFAULT_TABULARIUM_URL)
 }
 
-fn validate_plugin_id(plugin_id: &str) -> Result<(), String> {
+pub(crate) fn validate_plugin_id(plugin_id: &str) -> Result<(), String> {
     let mut characters = plugin_id.chars();
     let valid_first = characters
         .next()

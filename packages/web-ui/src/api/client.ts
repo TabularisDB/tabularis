@@ -25,6 +25,7 @@ export interface TabularisTransport
   uploadedBlobUrl?(token: string): string;
   readUploadedBlob?(token: string): Promise<Blob>;
   consumeBlobDownload?(token: string): Promise<Blob>;
+  readPluginAsset?(pluginId: string, assetPath: string): Promise<string>;
   emit<K extends EventName>(
     event: K,
     payload: EventPayload<K>,
@@ -128,6 +129,15 @@ export class TabularisClient implements TabularisTransport {
       );
     }
     return this.transport.consumeBlobDownload(token);
+  }
+
+  readPluginAsset(pluginId: string, assetPath: string): Promise<string> {
+    if (!this.transport.readPluginAsset) {
+      return Promise.reject(
+        new Error("The active transport does not support plugin UI assets"),
+      );
+    }
+    return this.transport.readPluginAsset(pluginId, assetPath);
   }
 
   subscribe<K extends EventName>(

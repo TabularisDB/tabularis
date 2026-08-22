@@ -220,6 +220,51 @@ export class HttpTransport implements TabularisTransport {
     );
   }
 
+  async readPluginAsset(pluginId: string, assetPath: string): Promise<string> {
+    const session = await this.initialize();
+    if (!session.capabilities.pluginAssets) {
+      throw clientError(
+        "PLUGIN_ASSETS_UNAVAILABLE",
+        "The server did not advertise plugin UI assets",
+      );
+    }
+    const requestId = createRequestId();
+    let response: Response;
+    try {
+      response = await this.fetchRequest(
+        this.url(
+          `/api/${session.apiVersion}/assets/plugins/${encodeURIComponent(pluginId)}/${encodeAssetPath(assetPath)}`,
+        ),
+        {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: {
+            accept: "text/javascript, application/json;q=0.9, text/plain;q=0.8",
+            "x-request-id": requestId,
+          },
+        },
+      );
+    } catch (error) {
+      throw normalizeTabularisError(
+        error,
+        "PLUGIN_ASSET_NETWORK_ERROR",
+        requestId,
+      );
+    }
+    const responseRequestId = response.headers.get("x-request-id") ?? requestId;
+    if (!response.ok) {
+      throw clientError(
+        response.status === 404
+          ? "PLUGIN_ASSET_NOT_FOUND"
+          : "PLUGIN_ASSET_READ_FAILED",
+        `Plugin asset request failed with HTTP ${response.status}`,
+        responseRequestId,
+      );
+    }
+    return response.text();
+  }
+
   async uploadConnectionIcon(file: Blob): Promise<string> {
     const session = await this.initialize();
     if (!session.capabilities.uploads) {
@@ -714,6 +759,10 @@ export class HttpTransport implements TabularisTransport {
   private url(path: string): string {
     return new URL(path, this.baseUrl).toString();
   }
+}
+
+function encodeAssetPath(assetPath: string): string {
+  return assetPath.split("/").map(encodeURIComponent).join("/");
 }
 
 function startDownload(url: string): void {

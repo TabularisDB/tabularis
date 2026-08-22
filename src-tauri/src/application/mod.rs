@@ -9,6 +9,7 @@ pub mod generic_exports;
 pub mod metadata;
 pub mod notebooks;
 pub mod persistence;
+pub mod plugin_assets;
 pub mod plugins;
 pub mod productivity;
 #[cfg(test)]

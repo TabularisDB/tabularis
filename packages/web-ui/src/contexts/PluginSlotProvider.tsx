@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import * as React from "react";
 import * as ReactJSXRuntime from "react/jsx-runtime";
-import { invoke } from "@tauri-apps/api/core";
 import i18n from "i18next";
 
 import { PluginSlotContext } from "./PluginSlotContext";
@@ -9,7 +8,10 @@ import type { PluginSlotRegistryType } from "./PluginSlotContext";
 import type { SlotContribution, SlotName, SlotContext } from "../types/pluginSlots";
 import { VALID_SLOTS } from "../types/pluginSlots";
 import type { PluginManifest } from "../types/plugins";
+import type { TabularisClient } from "../api/client";
 import * as pluginApi from "../pluginApi";
+import { API_VERSION } from "../pluginApiVersion";
+import { isPluginApiCompatible } from "../utils/pluginApiCompatibility";
 import { useSettings } from "../hooks/useSettings";
 import { useTabularisClient } from "../hooks/useTabularisClient";
 
@@ -21,12 +23,6 @@ interface PluginSlotProviderProps {
  * Expose host globals so external plugin bundles (IIFE format) can access
  * React and the Tabularis plugin API without bundling their own copies.
  */
-/**
- * Keep in sync with `packages/plugin-api/src/version.ts` (API_VERSION).
- * Bump when the host API shape changes in a way plugin bundles can observe.
- */
-const HOST_API_VERSION = "0.1.1";
-
 let globalsExposed = false;
 function exposePluginGlobals() {
   if (globalsExposed) return;
@@ -34,7 +30,7 @@ function exposePluginGlobals() {
   (window as unknown as Record<string, unknown>).React = React;
   (window as unknown as Record<string, unknown>).ReactJSXRuntime = ReactJSXRuntime;
   (window as unknown as Record<string, unknown>).__TABULARIS_API__ = pluginApi;
-  (window as unknown as Record<string, unknown>).__TABULARIS_API_VERSION__ = HOST_API_VERSION;
+  (window as unknown as Record<string, unknown>).__TABULARIS_API_VERSION__ = API_VERSION;
 }
 
 /**
@@ -43,15 +39,18 @@ function exposePluginGlobals() {
  * Missing locale files are silently skipped.
  * Each plugin's translations are registered under its own namespace (plugin id).
  */
-async function loadPluginTranslations(pluginId: string): Promise<void> {
+async function loadPluginTranslations(
+  client: TabularisClient,
+  pluginId: string,
+): Promise<void> {
   const langs = Array.from(new Set([i18n.language?.split("-")[0], "en"])).filter(Boolean) as string[];
   for (const lang of langs) {
     if (i18n.hasResourceBundle(lang, pluginId)) continue;
     try {
-      const raw = await invoke<string>("read_plugin_file", {
+      const raw = await client.readPluginAsset(
         pluginId,
-        filePath: `locales/${lang}.json`,
-      });
+        `locales/${lang}.json`,
+      );
       const translations = JSON.parse(raw) as Record<string, unknown>;
       i18n.addResourceBundle(lang, pluginId, translations, true, true);
     } catch {
@@ -70,6 +69,7 @@ async function loadPluginTranslations(pluginId: string): Promise<void> {
  *               '@tabularis/plugin-api': '__TABULARIS_API__' }
  */
 async function loadExternalPluginContributions(
+  client: TabularisClient,
   manifest: PluginManifest,
 ): Promise<SlotContribution[]> {
   if (!manifest.ui_extensions?.length) return [];
@@ -79,6 +79,12 @@ async function loadExternalPluginContributions(
   // Group entries by module path to load each bundle once.
   const byModule = new Map<string, typeof manifest.ui_extensions>();
   for (const entry of manifest.ui_extensions) {
+    if (!isPluginApiCompatible(API_VERSION, entry.api_version)) {
+      console.warn(
+        `[PluginSlot] Plugin "${manifest.id}" requires incompatible plugin API ${entry.api_version ?? "unknown"}; host is ${API_VERSION}. Skipping.`,
+      );
+      continue;
+    }
     const list = byModule.get(entry.module) ?? [];
     list.push(entry);
     byModule.set(entry.module, list);
@@ -88,10 +94,7 @@ async function loadExternalPluginContributions(
 
   for (const [modulePath, entries] of byModule) {
     try {
-      const source = await invoke<string>("read_plugin_file", {
-        pluginId: manifest.id,
-        filePath: modulePath,
-      });
+      const source = await client.readPluginAsset(manifest.id, modulePath);
 
       // Execute the IIFE, passing React globals as parameters.
       // The bundle assigns its exports to the local `__tabularis_plugin__` var.
@@ -180,8 +183,11 @@ export const PluginSlotProvider = ({ children }: PluginSlotProviderProps) => {
         if (cancelled) break;
         try {
           const manifest = await client.call("get_plugin_manifest", { pluginId });
-          await loadPluginTranslations(pluginId);
-          const pluginContributions = await loadExternalPluginContributions(manifest);
+          await loadPluginTranslations(client, pluginId);
+          const pluginContributions = await loadExternalPluginContributions(
+            client,
+            manifest,
+          );
           loaded.push(...pluginContributions);
         } catch (err) {
           console.error(`[PluginSlot] Failed to load UI extensions for plugin "${pluginId}":`, err);

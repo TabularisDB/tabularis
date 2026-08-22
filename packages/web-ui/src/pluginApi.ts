@@ -12,6 +12,8 @@ export { usePluginQuery, usePluginConnection, usePluginToast, usePluginSetting, 
 export type { SlotComponentProps, SlotContext, SlotName } from "./types/pluginSlots";
 export type { PluginModalOptions } from "./contexts/PluginModalContext";
 
+export { API_VERSION } from "./pluginApiVersion";
+
 // Slot registration helper — must be exposed via __TABULARIS_API__ so plugin
 // IIFE bundles that externalize @tabularis/plugin-api can call defineSlot().
 export function defineSlot(slot: string, component: unknown): { readonly __slot: string; readonly component: unknown } {

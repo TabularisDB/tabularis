@@ -104,6 +104,46 @@ describe("HttpTransport", () => {
     expect(headers.get("x-tabularis-cancellation-id")).toBe("startup-debug");
   });
 
+  it("loads authenticated plugin assets when advertised by the server", async () => {
+    const pluginSession = {
+      ...SESSION,
+      capabilities: { ...SESSION.capabilities, pluginAssets: true },
+    };
+    const fetchRequest = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse(pluginSession))
+      .mockResolvedValueOnce(
+        new Response("window.pluginLoaded = true;", {
+          headers: { "content-type": "text/javascript" },
+        }),
+      );
+    const transport = new HttpTransport({
+      baseUrl: "http://127.0.0.1:8080",
+      fetch: fetchRequest,
+    });
+
+    await expect(
+      transport.readPluginAsset("my plugin", "ui/dist/index.js"),
+    ).resolves.toBe("window.pluginLoaded = true;");
+
+    expect(fetchRequest.mock.calls[1]?.[0]).toBe(
+      "http://127.0.0.1:8080/api/v1/assets/plugins/my%20plugin/ui/dist/index.js",
+    );
+    expect(fetchRequest.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({ method: "GET", credentials: "same-origin" }),
+    );
+  });
+
+  it("rejects plugin asset reads when the capability is unavailable", async () => {
+    const transport = new HttpTransport({
+      fetch: vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse(SESSION)),
+    });
+
+    await expect(
+      transport.readPluginAsset("plugin", "ui/index.js"),
+    ).rejects.toMatchObject({ code: "PLUGIN_ASSETS_UNAVAILABLE" });
+  });
+
   it("uploads connection icons with the authenticated session", async () => {
     const uploadSession = {
       ...SESSION,

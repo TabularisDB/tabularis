@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, act } from "@testing-library/react";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+import { render, act, waitFor } from "@testing-library/react";
 import { useContext } from "react";
 import { PluginSlotProvider } from "../../src/contexts/PluginSlotProvider";
 import { PluginSlotContext } from "../../src/contexts/PluginSlotContext";
@@ -7,8 +7,21 @@ import { SettingsContext, DEFAULT_SETTINGS } from "../../src/contexts/SettingsCo
 import type { PluginSlotRegistryType } from "../../src/contexts/PluginSlotContext";
 import type { SlotContribution, SlotComponentProps } from "../../src/types/pluginSlots";
 
+const clientMock = vi.hoisted(() => ({
+  call: vi.fn(),
+  readPluginAsset: vi.fn(),
+}));
+
 vi.mock("../../src/hooks/useTabularisClient", () => ({
-  useTabularisClient: () => ({ call: vi.fn() }),
+  useTabularisClient: () => clientMock,
+}));
+
+vi.mock("i18next", () => ({
+  default: {
+    language: "en",
+    hasResourceBundle: vi.fn().mockReturnValue(false),
+    addResourceBundle: vi.fn(),
+  },
 }));
 
 const TestComponent = ({ context: _ctx, pluginId }: SlotComponentProps) => (
@@ -27,14 +40,20 @@ const settingsValue = {
   isLoading: false,
 };
 
-const renderWithSettings = (ui: React.ReactNode) =>
+const renderWithSettings = (
+  ui: React.ReactNode,
+  value = settingsValue,
+) =>
   render(
-    <SettingsContext.Provider value={settingsValue}>
+    <SettingsContext.Provider value={value}>
       {ui}
     </SettingsContext.Provider>,
   );
 
 describe("PluginSlotProvider", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
   it("should provide a registry with no contributions initially", () => {
     let registry: PluginSlotRegistryType | undefined;
 
@@ -46,6 +65,94 @@ describe("PluginSlotProvider", () => {
 
     expect(registry).toBeDefined();
     expect(registry!.contributions).toHaveLength(0);
+  });
+
+  it("should load compatible bundles through the active transport", async () => {
+    let registry: PluginSlotRegistryType | undefined;
+    clientMock.call.mockResolvedValue({
+      id: "example-plugin",
+      name: "Example Plugin",
+      version: "1.0.0",
+      description: "Fixture",
+      default_port: null,
+      capabilities: {},
+      ui_extensions: [
+        {
+          slot: "sidebar.footer.actions",
+          module: "ui/index.js",
+          api_version: "0.1.1",
+        },
+      ],
+    });
+    clientMock.readPluginAsset.mockImplementation(
+      (_pluginId: string, assetPath: string) =>
+        assetPath.startsWith("locales/")
+          ? Promise.reject(new Error("missing locale"))
+          : Promise.resolve(
+              "var __tabularis_plugin__ = function PluginSlot() { return null; };",
+            ),
+    );
+    const activeSettings = {
+      ...settingsValue,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        activeExternalDrivers: ["example-plugin"],
+      },
+    };
+
+    renderWithSettings(
+      <PluginSlotProvider>
+        <RegistryConsumer onRegistry={(value) => { registry = value; }} />
+      </PluginSlotProvider>,
+      activeSettings,
+    );
+
+    await waitFor(() => expect(registry?.contributions).toHaveLength(1));
+    expect(clientMock.readPluginAsset).toHaveBeenCalledWith(
+      "example-plugin",
+      "ui/index.js",
+    );
+  });
+
+  it("should skip bundles that require an incompatible plugin API", async () => {
+    let registry: PluginSlotRegistryType | undefined;
+    clientMock.call.mockResolvedValue({
+      id: "future-plugin",
+      name: "Future Plugin",
+      version: "1.0.0",
+      description: "Fixture",
+      default_port: null,
+      capabilities: {},
+      ui_extensions: [
+        {
+          slot: "sidebar.footer.actions",
+          module: "ui/index.js",
+          api_version: "0.2.0",
+        },
+      ],
+    });
+    clientMock.readPluginAsset.mockRejectedValue(new Error("missing locale"));
+    const activeSettings = {
+      ...settingsValue,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        activeExternalDrivers: ["future-plugin"],
+      },
+    };
+
+    renderWithSettings(
+      <PluginSlotProvider>
+        <RegistryConsumer onRegistry={(value) => { registry = value; }} />
+      </PluginSlotProvider>,
+      activeSettings,
+    );
+
+    await waitFor(() => expect(clientMock.call).toHaveBeenCalledOnce());
+    expect(registry?.contributions).toHaveLength(0);
+    expect(clientMock.readPluginAsset).not.toHaveBeenCalledWith(
+      "future-plugin",
+      "ui/index.js",
+    );
   });
 
   it("should register and unregister a contribution", () => {

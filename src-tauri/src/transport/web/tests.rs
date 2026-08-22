@@ -66,6 +66,29 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
     std::fs::create_dir_all(assets.join("assets")).unwrap();
     std::fs::write(assets.join("index.html"), "<main>Tabularis Web</main>").unwrap();
     std::fs::write(assets.join("assets/app.js"), "window.tabularis = true;").unwrap();
+    let plugin_dir = assets.join("plugins/example-plugin");
+    std::fs::create_dir_all(plugin_dir.join("ui/dist")).unwrap();
+    std::fs::write(
+        plugin_dir.join(".tabularium"),
+        r#"{
+  "id": "example-plugin",
+  "name": "Example Plugin",
+  "version": "1.0.0",
+  "description": "Web asset fixture",
+  "ui_extensions": [{
+    "slot": "data-grid.toolbar.actions",
+    "module": "ui/dist/index.js",
+    "api_version": "0.1.1"
+  }]
+}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        plugin_dir.join("ui/dist/index.js"),
+        "window.pluginLoaded = true;",
+    )
+    .unwrap();
+    std::fs::write(plugin_dir.join("ui/dist/private.txt"), "not public").unwrap();
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
@@ -105,6 +128,17 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
         .await
         .unwrap();
     assert_eq!(unauthorized.status(), reqwest::StatusCode::UNAUTHORIZED);
+    let unauthorized_plugin_asset = client
+        .get(format!(
+            "{base_url}/api/v1/assets/plugins/example-plugin/ui/dist/index.js"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        unauthorized_plugin_asset.status(),
+        reqwest::StatusCode::UNAUTHORIZED
+    );
     assert!(uuid::Uuid::parse_str(
         unauthorized
             .headers()
@@ -173,6 +207,7 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
     assert!(session.capabilities.events);
     assert!(session.capabilities.uploads);
     assert!(session.capabilities.downloads);
+    assert!(session.capabilities.plugin_assets);
     assert_eq!(
         session.query_response_policy.max_rows_per_page,
         crate::application::queries::WEB_MAX_ROWS_PER_PAGE
@@ -200,6 +235,48 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
         .unwrap();
     assert_eq!(asset.status(), reqwest::StatusCode::OK);
     assert_eq!(asset.text().await.unwrap(), "window.tabularis = true;");
+
+    let plugin_asset = client
+        .get(format!(
+            "{base_url}/api/v1/assets/plugins/example-plugin/ui/dist/index.js"
+        ))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(plugin_asset.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        plugin_asset.headers().get("content-type").unwrap(),
+        "text/javascript; charset=utf-8"
+    );
+    assert_eq!(
+        plugin_asset.headers().get("content-security-policy").unwrap(),
+        "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; sandbox"
+    );
+    assert_eq!(
+        plugin_asset
+            .headers()
+            .get("cross-origin-resource-policy")
+            .unwrap(),
+        "same-origin"
+    );
+    assert_eq!(
+        plugin_asset.text().await.unwrap(),
+        "window.pluginLoaded = true;"
+    );
+
+    let undeclared_plugin_asset = client
+        .get(format!(
+            "{base_url}/api/v1/assets/plugins/example-plugin/ui/dist/private.txt"
+        ))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        undeclared_plugin_asset.status(),
+        reqwest::StatusCode::NOT_FOUND
+    );
 
     let spa_route = client
         .get(format!("{base_url}/connections/example"))

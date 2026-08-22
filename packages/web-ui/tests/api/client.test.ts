@@ -50,6 +50,20 @@ describe("TabularisClient", () => {
     );
   });
 
+  it("delegates plugin asset reads to transport adapters", async () => {
+    const transport = createTransport();
+    transport.readPluginAsset = vi.fn().mockResolvedValue("plugin source");
+    const client = new TabularisClient(transport);
+
+    await expect(
+      client.readPluginAsset("plugin-id", "ui/index.js"),
+    ).resolves.toBe("plugin source");
+    expect(transport.readPluginAsset).toHaveBeenCalledWith(
+      "plugin-id",
+      "ui/index.js",
+    );
+  });
+
   it("delegates streamed browser downloads to transport adapters", async () => {
     const transport = createTransport();
     transport.requestDownload = vi.fn().mockResolvedValue(undefined);

@@ -127,6 +127,8 @@ export interface UIExtensionDeclaration {
   module: string;
   order?: number;
   driver?: string;
+  /** @tabularis/plugin-api version used to build the bundle. */
+  api_version?: string;
 }
 
 /**

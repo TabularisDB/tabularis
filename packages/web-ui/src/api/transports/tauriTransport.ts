@@ -67,6 +67,20 @@ export class TauriTransport implements TabularisTransport {
     );
   }
 
+  readPluginAsset(pluginId: string, assetPath: string): Promise<string> {
+    const requestId = createRequestId();
+    return this.invokeCommand<string>("read_plugin_file", {
+      pluginId,
+      filePath: assetPath,
+    }).catch((error: unknown) => {
+      throw normalizeTabularisError(
+        error,
+        "PLUGIN_ASSET_READ_FAILED",
+        requestId,
+      );
+    });
+  }
+
   subscribe<K extends EventName>(
     event: K,
     handler: (payload: EventPayload<K>) => void,

@@ -53,14 +53,14 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 32,
-    "literalCallSiteCount": 40,
+    "literalCommandCount": 31,
+    "literalCallSiteCount": 38,
     "dynamicCallSiteCount": 0,
     "handlerRegistrationCount": 258,
     "registeredCommandCount": 258,
     "duplicateHandlerRegistrations": [],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 226
+    "registeredCommandsWithoutFrontendCall": 227
   },
   "commands": [
     {
@@ -426,24 +426,6 @@
       ]
     },
     {
-      "name": "read_plugin_file",
-      "featureGroup": "plugins",
-      "eventUse": "none",
-      "filesystemUse": "read",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/PluginSlotProvider.tsx",
-          "line": 51
-        },
-        {
-          "file": "packages/web-ui/src/contexts/PluginSlotProvider.tsx",
-          "line": 91
-        }
-      ]
-    },
-    {
       "name": "relaunch_app",
       "featureGroup": "application",
       "eventUse": "none",
@@ -719,6 +701,7 @@
     "preview_connection_import",
     "preview_tabularis_import",
     "preview_tabularis_import_file",
+    "read_plugin_file",
     "refresh_materialized_view",
     "register_active_connection",
     "rename_notebook",

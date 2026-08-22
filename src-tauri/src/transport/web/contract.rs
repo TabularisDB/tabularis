@@ -51,7 +51,7 @@ impl SessionNegotiation {
                 events: true,
                 uploads: true,
                 downloads: true,
-                plugin_assets: false,
+                plugin_assets: true,
             },
             query_response_policy: WebQueryResponsePolicy {
                 max_rows_per_page: crate::application::queries::WEB_MAX_ROWS_PER_PAGE,
