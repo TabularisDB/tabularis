@@ -26,6 +26,21 @@ describe("resolveCommandTable", () => {
     });
   });
 
+  it("should expose the table target on a connection editor route", () => {
+    expect(
+      resolveCommandTable({
+        pathname: "/connections/connection-1/editor",
+        activeConnectionId: "connection-1",
+        activeSchema: "public",
+        activeTab: tableTab,
+      }),
+    ).toEqual({
+      connectionId: "connection-1",
+      tableName: "users",
+      schema: "public",
+    });
+  });
+
   it("should not leak the last editor table onto settings", () => {
     expect(
       resolveCommandTable({

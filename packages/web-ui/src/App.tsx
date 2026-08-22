@@ -8,7 +8,7 @@ import { PluginSlotProvider } from "./contexts/PluginSlotProvider";
 import { PluginModalProvider } from "./contexts/PluginModalProvider";
 import { AlertProvider } from "./contexts/AlertProvider";
 import { Connections } from "./pages/Connections";
-import { Editor } from "./pages/Editor";
+import { ConnectionEditorRoute } from "./pages/ConnectionEditorRoute";
 import { McpPage } from "./pages/McpPage";
 import { Settings } from "./pages/Settings";
 import { SchemaDiagramPage } from "./pages/SchemaDiagramPage";
@@ -18,7 +18,6 @@ import { JsonViewerPage } from "./pages/JsonViewerPage";
 import { ResultsWindowPage } from "./pages/ResultsWindowPage";
 import { PluginInstallRoutePage } from "./pages/PluginInstallRoutePage";
 import { ConnectionHealthMonitor } from "./components/ConnectionHealthMonitor";
-import { EditorErrorBoundary } from "./components/ui/EditorErrorBoundary";
 import { UpdateNotificationModal } from "./components/modals/UpdateNotificationModal";
 import { CommunityModal } from "./components/modals/CommunityModal";
 import { WhatsNewModal } from "./components/modals/WhatsNewModal";
@@ -132,11 +131,11 @@ export function App() {
                       <Route path={BROWSER_ROUTES.connections} element={<Connections />} />
                       <Route
                         path={BROWSER_ROUTES.editor}
-                        element={
-                          <EditorErrorBoundary>
-                            <Editor />
-                          </EditorErrorBoundary>
-                        }
+                        element={<ConnectionEditorRoute />}
+                      />
+                      <Route
+                        path={BROWSER_ROUTES.connectionEditor}
+                        element={<ConnectionEditorRoute />}
                       />
                       <Route path={BROWSER_ROUTES.mcp} element={<McpPage />} />
                       <Route path={BROWSER_ROUTES.settings} element={<Settings />} />

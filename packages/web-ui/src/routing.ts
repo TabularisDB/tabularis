@@ -4,6 +4,7 @@ export const BROWSER_ROUTES = {
   root: "/",
   connections: "/connections",
   editor: "/editor",
+  connectionEditor: "/connections/:connectionId/editor",
   mcp: "/mcp",
   settings: "/settings",
   schemaDiagram: "/schema-diagram",
@@ -26,6 +27,17 @@ export interface SchemaDiagramRouteParams {
 
 export function buildConnectionRoute(connectionId: string): string {
   return `${BROWSER_ROUTES.connections}?connect=${encodeURIComponent(connectionId)}&standalone=connection`;
+}
+
+export function buildEditorRoute(connectionId: string): string {
+  return `/connections/${encodeURIComponent(connectionId)}/editor`;
+}
+
+export function isEditorRoute(pathname: string): boolean {
+  return (
+    pathname === BROWSER_ROUTES.editor ||
+    /^\/connections\/[^/]+\/editor\/?$/.test(pathname)
+  );
 }
 
 export function buildResultsWindowRoute(sessionId: string): string {

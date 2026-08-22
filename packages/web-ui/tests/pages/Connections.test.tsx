@@ -143,7 +143,9 @@ describe("Connections SQLite database action", () => {
       expect(mocks.createSqliteDatabase).toHaveBeenCalledTimes(1);
       expect(mocks.loadConnections).toHaveBeenCalledTimes(2);
       expect(mocks.connect).toHaveBeenCalledWith("sqlite-1");
-      expect(mocks.navigate).toHaveBeenCalledWith("/editor");
+      expect(mocks.navigate).toHaveBeenCalledWith(
+        "/connections/sqlite-1/editor",
+      );
     });
   });
 

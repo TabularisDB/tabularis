@@ -1,3 +1,4 @@
+import { isEditorRoute } from "../routing";
 import type { TableTarget } from "../types/databaseObjects";
 import type { Tab } from "../types/editor";
 
@@ -15,7 +16,7 @@ export function resolveCommandTable({
   pathname,
 }: ResolveCommandTableOptions): TableTarget | null {
   if (
-    pathname !== "/editor" ||
+    !isEditorRoute(pathname) ||
     activeConnectionId === null ||
     activeTab?.type !== "table" ||
     activeTab.activeTable === null

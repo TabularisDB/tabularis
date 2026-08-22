@@ -11,6 +11,7 @@ import { RailIndicator } from "./RailIndicator";
 import type { PluginManifest } from "../../../types/plugins";
 import { getConnectionAccent, getConnectionIcon } from "../../../utils/driverUI";
 import { useDatabase } from "../../../hooks/useDatabase";
+import { isEditorRoute } from "../../../routing";
 
 interface Props {
   connection: ConnectionStatus;
@@ -52,7 +53,7 @@ export const OpenConnectionItem = ({
   const { isActive, isConnecting, name, database, sshEnabled, error } = connection;
   // The rail indicator marks the current view: a connection "owns" it only in
   // the editor, otherwise it belongs to the active nav item (connections/mcp/settings)
-  const isCurrentView = isActive && location.pathname === "/editor";
+  const isCurrentView = isActive && isEditorRoute(location.pathname);
   const savedConnection = connections.find(c => c.id === connection.id);
   const driverColor = getConnectionAccent(savedConnection, driverManifest);
   const hasError = !!error;

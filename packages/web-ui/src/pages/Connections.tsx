@@ -47,6 +47,7 @@ import { useCreateSqliteDatabase } from "../hooks/useCreateSqliteDatabase";
 import { useTabularisClient } from "../hooks/useTabularisClient";
 import { usePlatformCapabilities } from "../hooks/usePlatformCapabilities";
 import { saveGeneratedFile } from "../utils/connectionFiles";
+import { buildEditorRoute } from "../routing";
 
 let autoConnectAttempted = false;
 
@@ -175,7 +176,7 @@ export const Connections = () => {
             ? activeId
             : connected[connected.length - 1];
         switchConnection(target);
-        navigate("/editor");
+        navigate(buildEditorRoute(target));
       } catch (e) {
         console.error("Auto-connect to last connections failed:", e);
       } finally {
@@ -446,7 +447,7 @@ export const Connections = () => {
     setError(null);
     if (isConnectionOpen(conn.id)) {
       switchConnection(conn.id);
-      navigate("/editor");
+      navigate(buildEditorRoute(conn.id));
       return;
     }
     // Open in another window: focus that window instead of opening a duplicate.
@@ -457,7 +458,7 @@ export const Connections = () => {
     setConnectingId(conn.id);
     try {
       await connect(conn.id);
-      navigate("/editor");
+      navigate(buildEditorRoute(conn.id));
     } catch (e) {
       setError(
         `${t("connections.failConnect", { name: conn.name })}\n\nError: ${toErrorMessage(e)}`,

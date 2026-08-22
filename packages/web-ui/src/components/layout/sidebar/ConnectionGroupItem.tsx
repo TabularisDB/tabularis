@@ -10,6 +10,7 @@ import { rectContains, startPointerDrag } from '../../../utils/pointerDrag';
 import { ContextMenu } from '../../ui/ContextMenu';
 import { RailIndicator } from './RailIndicator';
 import type { ConnectionStatus } from '../../../hooks/useConnectionManager';
+import { isEditorRoute } from '../../../routing';
 
 interface Props {
   connections: ConnectionStatus[];
@@ -115,7 +116,7 @@ export const ConnectionGroupItem = ({ connections, mode, isDropTarget = false }:
   return (
     <>
       <div className="relative group w-full flex justify-center mb-1">
-        <RailIndicator isActive={isSplitVisible && location.pathname === "/editor"} />
+        <RailIndicator isActive={isSplitVisible && isEditorRoute(location.pathname)} />
         <div
           role="button"
           tabIndex={0}

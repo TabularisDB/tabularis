@@ -10,6 +10,8 @@ import {
   BROWSER_ROUTE_PATHS,
   BROWSER_ROUTES,
   WEB_UI_BASE_PATH,
+  buildEditorRoute,
+  isEditorRoute,
 } from "../src/routing";
 
 const webUiRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -20,6 +22,7 @@ const directNavigationUrls = [
   BROWSER_ROUTES.root,
   BROWSER_ROUTES.connections,
   BROWSER_ROUTES.editor,
+  buildEditorRoute("connection-1"),
   BROWSER_ROUTES.settings,
   BROWSER_ROUTES.mcp,
   `${BROWSER_ROUTES.schemaDiagram}?connection=connection-1&database=main`,
@@ -101,6 +104,7 @@ describe("web UI routing", () => {
       "/",
       "/connections",
       "/editor",
+      "/connections/:connectionId/editor",
       "/mcp",
       "/settings",
       "/schema-diagram",
@@ -110,6 +114,18 @@ describe("web UI routing", () => {
       "/results-window",
       "/install/:slug",
     ]);
+  });
+
+  it("builds an editor route for a specific connection", () => {
+    expect(buildEditorRoute("team/database 1")).toBe(
+      "/connections/team%2Fdatabase%201/editor",
+    );
+  });
+
+  it("recognizes legacy and connection editor routes", () => {
+    expect(isEditorRoute("/editor")).toBe(true);
+    expect(isEditorRoute("/connections/connection-1/editor")).toBe(true);
+    expect(isEditorRoute("/connections")).toBe(false);
   });
 
   it.each(directNavigationUrls)("serves the SPA shell for %s", async (url) => {
