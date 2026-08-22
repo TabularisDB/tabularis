@@ -18,7 +18,7 @@ vi.mock("../../../src/components/layout/SplitPaneLayout", () => ({
 }));
 
 vi.mock("../../../src/components/layout/ProductionBanner", () => ({
-  ProductionBanner: () => null,
+  ProductionBanner: () => <div data-testid="production-banner" />,
 }));
 
 vi.mock("../../../src/components/layout/CommandPaletteScopeBridge", () => ({
@@ -67,5 +67,41 @@ describe("MainLayout", () => {
     );
 
     expect(screen.getByTestId("palette-host")).toBeInTheDocument();
+  });
+
+  it("should show the production banner only on the connection editor route", () => {
+    const { unmount } = render(
+      <MemoryRouter initialEntries={["/connections/prod-id/editor"]}>
+        <Routes>
+          <Route element={<MainLayout />}>
+            <Route
+              path="connections/:connectionId/editor"
+              element={<div>Editor</div>}
+            />
+            <Route path="settings" element={<div>Settings</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("production-banner")).toBeInTheDocument();
+
+    unmount();
+
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Routes>
+          <Route element={<MainLayout />}>
+            <Route
+              path="connections/:connectionId/editor"
+              element={<div>Editor</div>}
+            />
+            <Route path="settings" element={<div>Settings</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("production-banner")).not.toBeInTheDocument();
   });
 });
