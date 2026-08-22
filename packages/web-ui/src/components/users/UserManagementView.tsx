@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import clsx from "clsx";
 import {
@@ -18,29 +17,12 @@ import {
 } from "lucide-react";
 import { useDatabase } from "../../hooks/useDatabase";
 import { toErrorMessage } from "../../utils/errors";
-
-interface DbUserInfo {
-  user: string;
-  host: string;
-  locked: boolean;
-}
-
-/** The dialect's privilege keywords, supplied by the driver. */
-interface DbPrivilegeCatalog {
-  /** Privileges valid at the database scope (and also globally). */
-  database: string[];
-  /** Privileges valid only at the global scope. */
-  global: string[];
-  /** Privileges valid at the table scope. */
-  table: string[];
-}
-
-/** One scope's parsed privileges. `database === null` is the global scope. */
-interface DbUserGrantSet {
-  database: string | null;
-  table: string | null;
-  privileges: string[];
-}
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import type {
+  DbPrivilegeCatalog,
+  DbUserGrantSet,
+  DbUserInfo,
+} from "../../api/contract";
 
 const scopeKey = (s: Pick<DbUserGrantSet, "database" | "table">) =>
   `${s.database ?? "*"}\0${s.table ?? "*"}`;
@@ -167,6 +149,7 @@ function ScopeCard({
  * model that way (roles, column-level) remain visible in the raw list.
  */
 export function UserManagementView({ connectionId, isActive }: Props) {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { selectedDatabases } = useDatabase();
 
@@ -211,21 +194,21 @@ export function UserManagementView({ connectionId, isActive }: Props) {
   const [addTable, setAddTable] = useState("");
 
   useEffect(() => {
-    invoke<DbPrivilegeCatalog>("get_db_privilege_catalog", { connectionId })
+    client.call("get_db_privilege_catalog", { connectionId })
       .then(setCatalog)
       .catch((e: unknown) => {
         console.error("Failed to load privilege catalog:", e);
       });
-  }, [connectionId]);
+  }, [client, connectionId]);
 
   const refreshUsers = useCallback(() => {
     setLoading(true);
     setLoadError(null);
-    return invoke<DbUserInfo[]>("get_db_users", { connectionId })
+    return client.call("get_db_users", { connectionId })
       .then(setUsers)
       .catch((e: unknown) => setLoadError(toErrorMessage(e)))
       .finally(() => setLoading(false));
-  }, [connectionId]);
+  }, [client, connectionId]);
 
   useEffect(() => {
     refreshUsers();
@@ -241,8 +224,8 @@ export function UserManagementView({ connectionId, isActive }: Props) {
         host: account.host,
       };
       return Promise.all([
-        invoke<string[]>("get_db_user_grants", target),
-        invoke<DbUserGrantSet[]>("get_db_user_privileges", target),
+        client.call("get_db_user_grants", target),
+        client.call("get_db_user_privileges", target),
       ])
         .then(([lines, sets]) => {
           setGrants(lines);
@@ -251,7 +234,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
         .catch((e: unknown) => setGrantsError(toErrorMessage(e)))
         .finally(() => setGrantsLoading(false));
     },
-    [connectionId],
+    [client, connectionId],
   );
 
   useEffect(() => {
@@ -312,7 +295,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
     runAction(async () => {
       const user = newUser.trim();
       const host = newHost.trim() || "%";
-      await invoke("create_db_user", {
+      await client.call("create_db_user", {
         connectionId,
         user,
         host,
@@ -321,7 +304,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
       // Initial privileges, scoped to the chosen database (or globally
       // when the field is left empty on purpose).
       if (newPrivs.size > 0) {
-        await invoke("apply_db_user_privileges", {
+        await client.call("apply_db_user_privileges", {
           connectionId,
           user,
           host,
@@ -350,7 +333,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
     );
     if (!ok) return;
     await runAction(async () => {
-      await invoke("drop_db_user", {
+      await client.call("drop_db_user", {
         connectionId,
         user: account.user,
         host: account.host,
@@ -365,7 +348,7 @@ export function UserManagementView({ connectionId, isActive }: Props) {
   const handleChangePassword = () =>
     runAction(async () => {
       if (!selected) return;
-      await invoke("set_db_user_password", {
+      await client.call("set_db_user_password", {
         connectionId,
         user: selected.user,
         host: selected.host,
@@ -408,14 +391,14 @@ export function UserManagementView({ connectionId, isActive }: Props) {
       // Revoke first: switching away from ALL PRIVILEGES is expressed as
       // "revoke ALL, grant the subset", which only works in this order.
       if (toRevoke.length > 0) {
-        await invoke("apply_db_user_privileges", {
+        await client.call("apply_db_user_privileges", {
           ...base,
           privileges: toRevoke,
           grant: false,
         });
       }
       if (toGrant.length > 0) {
-        await invoke("apply_db_user_privileges", {
+        await client.call("apply_db_user_privileges", {
           ...base,
           privileges: toGrant,
           grant: true,

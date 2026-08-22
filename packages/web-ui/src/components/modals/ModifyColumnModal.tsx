@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Save, Loader2, AlertTriangle, Columns, Plus } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { SqlPreview } from "../ui/SqlPreview";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useDataTypes } from "../../hooks/useDataTypes";
@@ -113,7 +112,7 @@ export const ModifyColumnModal = ({
           isAutoInc: column!.is_auto_increment,
         });
         const newCol = buildColumnDefinition(form);
-        stmts = await invoke<string[]>("get_alter_column_sql", {
+        stmts = await client.call("get_alter_column_sql", {
           connectionId,
           table: tableName,
           oldColumn: oldCol,
@@ -122,7 +121,7 @@ export const ModifyColumnModal = ({
         });
       } else {
         const col = buildColumnDefinition(form);
-        stmts = await invoke<string[]>("get_add_column_sql", {
+        stmts = await client.call("get_add_column_sql", {
           connectionId,
           table: tableName,
           column: col,
@@ -133,7 +132,7 @@ export const ModifyColumnModal = ({
     } catch (e) {
       setSqlPreview("-- " + String(e));
     }
-  }, [form, isEdit, column, connectionId, tableName, activeSchema, availableTypes, t]);
+  }, [client, form, isEdit, column, connectionId, tableName, activeSchema, availableTypes, t]);
 
   // Debounced preview generation
   useEffect(() => {
@@ -162,7 +161,7 @@ export const ModifyColumnModal = ({
           isAutoInc: column!.is_auto_increment,
         });
         const newCol = buildColumnDefinition(form);
-        stmts = await invoke<string[]>("get_alter_column_sql", {
+        stmts = await client.call("get_alter_column_sql", {
           connectionId,
           table: tableName,
           oldColumn: oldCol,
@@ -171,7 +170,7 @@ export const ModifyColumnModal = ({
         });
       } else {
         const col = buildColumnDefinition(form);
-        stmts = await invoke<string[]>("get_add_column_sql", {
+        stmts = await client.call("get_add_column_sql", {
           connectionId,
           table: tableName,
           column: col,

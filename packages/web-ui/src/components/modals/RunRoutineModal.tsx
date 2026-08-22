@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Loader2, Play, Variable } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { Modal } from "../ui/Modal";
 import type { RoutineInfo } from "../../contexts/DatabaseContext";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 import {
   buildRoutineCallArgs,
   isCallParameter,
@@ -31,6 +31,7 @@ export const RunRoutineModal = ({
   schema,
   onRun,
 }: RunRoutineModalProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const [parameters, setParameters] = useState<RoutineParameterInfo[]>([]);
   const [inputs, setInputs] = useState<Record<number, RoutineArgInput>>({});
@@ -43,7 +44,7 @@ export const RunRoutineModal = ({
     let cancelled = false;
     setIsLoading(true);
     setError("");
-    invoke<RoutineParameterInfo[]>("get_routine_parameters", {
+    client.call("get_routine_parameters", {
       connectionId,
       routineName: routine.name,
       ...(schema ? { schema } : {}),
@@ -71,7 +72,7 @@ export const RunRoutineModal = ({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, connectionId, routine.name, schema]);
+  }, [client, isOpen, connectionId, routine.name, schema]);
 
   const updateInput = useCallback(
     (position: number, partial: Partial<RoutineArgInput>) => {
@@ -88,7 +89,7 @@ export const RunRoutineModal = ({
     setError("");
     try {
       const args = buildRoutineCallArgs(parameters, inputs);
-      const sql = await invoke<string>("build_routine_call_sql", {
+      const sql = await client.call("build_routine_call_sql", {
         connectionId,
         routineName: routine.name,
         routineType: routine.routine_type,

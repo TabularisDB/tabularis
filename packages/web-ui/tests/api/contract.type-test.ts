@@ -71,6 +71,17 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     pkMap: { id: 1 },
     colName: "payload",
   });
+  const viewDefinition: Promise<string> = caller.call("get_view_definition", {
+    connectionId: "connection-1",
+    viewName: "active_users",
+    schema: "public",
+  });
+  const passwordChange: Promise<void> = caller.call("set_db_user_password", {
+    connectionId: "connection-1",
+    user: "app",
+    host: "%",
+    password: "write-only-secret",
+  });
 
   // @ts-expect-error execute_query requires a connection id.
   caller.call("execute_query", { query: "SELECT 1" });
@@ -110,6 +121,8 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     selectedSchemas,
     updatedRows,
     blob,
+    viewDefinition,
+    passwordChange,
     explainResult,
     cancellation,
     wrongResponse,
@@ -149,6 +162,8 @@ type DatabaseDroppedEnvelope = EventEnvelope<"database-dropped">;
 const executeQueryAuthorization: CommandAuthorization<"execute_query"> = "database";
 const sshAuthorization: CommandAuthorization<"get_ssh_connections"> = "local-admin";
 const askpassAuthorization: CommandAuthorization<"respond_ssh_askpass"> = "sensitive";
+const passwordAuthorization: CommandAuthorization<"set_db_user_password"> = "sensitive";
+const userListAuthorization: CommandAuthorization<"get_db_users"> = "sensitive";
 // @ts-expect-error execute_query is not a local-admin operation.
 const wrongAuthorization: CommandAuthorization<"execute_query"> = "local-admin";
 const rpcFailure: RpcFailure = {
@@ -178,6 +193,8 @@ void (null as unknown as DatabaseDroppedEnvelope);
 void executeQueryAuthorization;
 void sshAuthorization;
 void askpassAuthorization;
+void passwordAuthorization;
+void userListAuthorization;
 void wrongAuthorization;
 void rpcFailure;
 void failureWithoutRequestId;

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Loader2, Eye, AlertCircle, Play, Sparkles } from "lucide-react";
 import type { OnMount } from "@monaco-editor/react";
-import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../../hooks/useAlert";
 import { extractEditableViewDefinition } from "../../utils/sql";
@@ -50,7 +49,7 @@ export const ViewEditorModal = ({
     setLoading(true);
     setError(null);
     try {
-      const def = await invoke<string>("get_view_definition", {
+      const def = await client.call("get_view_definition", {
         connectionId,
         viewName: vName,
         ...(activeSchema ? { schema: activeSchema } : {}),
@@ -63,7 +62,7 @@ export const ViewEditorModal = ({
     } finally {
       setLoading(false);
     }
-  }, [connectionId, t, activeSchema]);
+  }, [activeSchema, client, connectionId, t]);
 
   useEffect(() => {
     if (isOpen) {
@@ -130,7 +129,7 @@ export const ViewEditorModal = ({
 
     try {
       if (isNewView) {
-        await invoke("create_view", {
+        await client.call("create_view", {
           connectionId,
           viewName: name,
           definition,
@@ -150,7 +149,7 @@ export const ViewEditorModal = ({
           }
         }
 
-        await invoke("alter_view", {
+        await client.call("alter_view", {
           connectionId,
           viewName: name,
           definition,

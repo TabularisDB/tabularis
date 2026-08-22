@@ -9,17 +9,19 @@ import {
 } from "../utils/databaseObjectActions";
 import { openEditor } from "../utils/editorNavigation";
 import { useAlert } from "./useAlert";
+import { useTabularisClient } from "./useTabularisClient";
 
 export function useDatabaseObjectActionRuntime(): DatabaseObjectActionRuntime {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { showAlert } = useAlert();
+  const client = useTabularisClient();
 
   return useMemo(
     () => ({
       navigateToEditor: (request) => openEditor(navigate, request),
-      loadRoutineDefinition,
-      loadTriggerDefinition,
+      loadRoutineDefinition: (target) => loadRoutineDefinition(client, target),
+      loadTriggerDefinition: (target) => loadTriggerDefinition(client, target),
       showDefinitionError: (type, error) => {
         console.error(error);
         showAlert(
@@ -32,6 +34,6 @@ export function useDatabaseObjectActionRuntime(): DatabaseObjectActionRuntime {
         );
       },
     }),
-    [navigate, showAlert, t],
+    [client, navigate, showAlert, t],
   );
 }

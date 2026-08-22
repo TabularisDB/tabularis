@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import {
   Code2,
   Folder,
@@ -12,6 +11,7 @@ import {
 import clsx from "clsx";
 import type { RoutineInfo } from "../../../contexts/DatabaseContext";
 import type { ContextMenuData } from "../../../types/sidebar";
+import { useTabularisClient } from "../../../hooks/useTabularisClient";
 
 interface RoutineParameter {
   name: string;
@@ -41,6 +41,7 @@ export const SidebarRoutineItem = ({
   connectionId,
   schema,
 }: SidebarRoutineItemProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
 
   const [isExpanded, setIsExpanded] = useState(false);
@@ -51,21 +52,18 @@ export const SidebarRoutineItem = ({
     if (!connectionId) return;
     setIsLoading(true);
     try {
-      const params = await invoke<RoutineParameter[]>(
-        "get_routine_parameters",
-        {
-          connectionId,
-          routineName: routine.name,
-          ...(schema ? { schema } : {}),
-        },
-      );
+      const params = await client.call("get_routine_parameters", {
+        connectionId,
+        routineName: routine.name,
+        ...(schema ? { schema } : {}),
+      });
       setParameters(params);
     } catch (err) {
       console.error("Failed to load routine parameters:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [connectionId, routine.name, schema]);
+  }, [client, connectionId, routine.name, schema]);
 
   useEffect(() => {
     if (isExpanded) {

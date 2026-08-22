@@ -199,6 +199,62 @@ export interface BlobColumnRequest extends RecordIdentityRequest {
   colName: string;
 }
 
+export interface ColumnDefinition {
+  name: string;
+  data_type: string;
+  is_nullable: boolean;
+  is_pk: boolean;
+  is_auto_increment: boolean;
+  default_value: string | null;
+}
+
+export interface RoutineParameterInfo {
+  name: string;
+  data_type: string;
+  mode: string;
+  ordinal_position: number;
+}
+
+export interface RoutineCallArg {
+  name: string;
+  mode: string;
+  value: string | null;
+  is_raw: boolean;
+}
+
+export interface DbUserInfo {
+  user: string;
+  host: string;
+  locked: boolean;
+}
+
+export interface DbPrivilegeCatalog {
+  database: string[];
+  global: string[];
+  table: string[];
+}
+
+export interface DbUserGrantSet {
+  database: string | null;
+  table: string | null;
+  privileges: string[];
+}
+
+interface RoutineTargetRequest extends MetadataRequest {
+  routineName: string;
+  routineType: string;
+}
+
+interface TriggerTargetRequest extends MetadataRequest {
+  triggerName: string;
+  tableName: string;
+}
+
+interface DbUserTargetRequest extends ConnectionIdRequest {
+  user: string;
+  host: string;
+}
+
 export type BlobFetchResponse =
   | {
       kind: "inline";
@@ -439,6 +495,134 @@ export interface CommandMap {
     ConnectionIdRequest & { schema: string },
     void,
     "database"
+  >;
+
+  get_view_definition: CommandDefinition<ViewMetadataRequest, string, "database">;
+  create_view: CommandDefinition<
+    ViewMetadataRequest & { definition: string },
+    void,
+    "database"
+  >;
+  alter_view: CommandDefinition<
+    ViewMetadataRequest & { definition: string },
+    void,
+    "database"
+  >;
+  drop_view: CommandDefinition<ViewMetadataRequest, void, "database">;
+  refresh_materialized_view: CommandDefinition<ViewMetadataRequest, void, "database">;
+
+  get_routine_parameters: CommandDefinition<
+    MetadataRequest & { routineName: string },
+    RoutineParameterInfo[],
+    "database"
+  >;
+  get_routine_definition: CommandDefinition<RoutineTargetRequest, string, "database">;
+  build_routine_call_sql: CommandDefinition<
+    RoutineTargetRequest & { args: RoutineCallArg[] },
+    string,
+    "database"
+  >;
+  get_routine_create_template: CommandDefinition<
+    MetadataRequest & { routineType: string },
+    string,
+    "database"
+  >;
+  get_routine_edit_script: CommandDefinition<RoutineTargetRequest, string, "database">;
+  drop_routine: CommandDefinition<RoutineTargetRequest, void, "database">;
+
+  get_trigger_definition: CommandDefinition<TriggerTargetRequest, string, "database">;
+  create_trigger: CommandDefinition<
+    MetadataRequest & { triggerSql: string },
+    void,
+    "database"
+  >;
+  drop_trigger: CommandDefinition<TriggerTargetRequest, void, "database">;
+
+  get_create_table_sql: CommandDefinition<
+    MetadataRequest & { tableName: string; columns: ColumnDefinition[] },
+    string[],
+    "database"
+  >;
+  get_add_column_sql: CommandDefinition<
+    MetadataRequest & { table: string; column: ColumnDefinition },
+    string[],
+    "database"
+  >;
+  get_alter_column_sql: CommandDefinition<
+    MetadataRequest & {
+      table: string;
+      oldColumn: ColumnDefinition;
+      newColumn: ColumnDefinition;
+    },
+    string[],
+    "database"
+  >;
+  get_create_index_sql: CommandDefinition<
+    MetadataRequest & {
+      table: string;
+      indexName: string;
+      columns: string[];
+      isUnique: boolean;
+    },
+    string[],
+    "database"
+  >;
+  get_create_foreign_key_sql: CommandDefinition<
+    MetadataRequest & {
+      table: string;
+      fkName: string;
+      column: string;
+      refTable: string;
+      refColumn: string;
+      onDelete?: string | null;
+      onUpdate?: string | null;
+    },
+    string[],
+    "database"
+  >;
+  drop_index_action: CommandDefinition<
+    MetadataRequest & { table: string; indexName: string },
+    void,
+    "database"
+  >;
+  drop_foreign_key_action: CommandDefinition<
+    MetadataRequest & { table: string; fkName: string },
+    void,
+    "database"
+  >;
+
+  get_db_privilege_catalog: CommandDefinition<
+    ConnectionIdRequest,
+    DbPrivilegeCatalog,
+    "sensitive"
+  >;
+  get_db_users: CommandDefinition<ConnectionIdRequest, DbUserInfo[], "sensitive">;
+  get_db_user_grants: CommandDefinition<DbUserTargetRequest, string[], "sensitive">;
+  get_db_user_privileges: CommandDefinition<
+    DbUserTargetRequest,
+    DbUserGrantSet[],
+    "sensitive"
+  >;
+  create_db_user: CommandDefinition<
+    DbUserTargetRequest & { password: string },
+    void,
+    "sensitive"
+  >;
+  drop_db_user: CommandDefinition<DbUserTargetRequest, void, "sensitive">;
+  set_db_user_password: CommandDefinition<
+    DbUserTargetRequest & { password: string },
+    void,
+    "sensitive"
+  >;
+  apply_db_user_privileges: CommandDefinition<
+    DbUserTargetRequest & {
+      database: string | null;
+      table: string | null;
+      privileges: string[];
+      grant: boolean;
+    },
+    void,
+    "sensitive"
   >;
 
   execute_query: CommandDefinition<ExecuteQueryRequest, QueryResult, "database">;

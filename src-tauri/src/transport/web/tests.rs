@@ -630,6 +630,117 @@ async fn executes_representative_commands_over_versioned_rpc() {
         "main"
     );
 
+    assert!(rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_view_definition",
+        serde_json::json!({"connectionId": "metadata-fixture", "viewName": "active_users"}),
+    )
+    .await
+    .as_str()
+    .unwrap()
+    .contains("SELECT id, name FROM users"));
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "create_view",
+            serde_json::json!({
+                "connectionId": "metadata-fixture",
+                "viewName": "web_users",
+                "definition": "SELECT id FROM users"
+            }),
+        )
+        .await,
+        serde_json::Value::Null
+    );
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "alter_view",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "viewName": "web_users",
+            "definition": "SELECT id, name FROM users"
+        }),
+    )
+    .await;
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "drop_view",
+        serde_json::json!({"connectionId": "metadata-fixture", "viewName": "web_users"}),
+    )
+    .await;
+    assert!(rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_trigger_definition",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "triggerName": "users_name_required",
+            "tableName": "users"
+        }),
+    )
+    .await
+    .as_str()
+    .unwrap()
+    .contains("CREATE TRIGGER"));
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "create_trigger",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "triggerSql": "CREATE TRIGGER web_users_audit AFTER UPDATE ON users BEGIN SELECT 1; END"
+        }),
+    )
+    .await;
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "drop_trigger",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "triggerName": "web_users_audit",
+            "tableName": "users"
+        }),
+    )
+    .await;
+    let create_index_sql = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_create_index_sql",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "table": "users",
+            "indexName": "idx_users_team",
+            "columns": ["team_id"],
+            "isUnique": false
+        }),
+    )
+    .await;
+    assert!(create_index_sql[0]
+        .as_str()
+        .unwrap()
+        .contains("idx_users_team"));
+
     let inserted = rpc_data(
         &client,
         &base_url,

@@ -442,8 +442,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
 
   const handleNewRoutine = async (routineType: string) => {
     try {
-      const template = await invoke<string>("get_routine_create_template", {
-        connectionId: activeConnectionId,
+      const template = await client.call("get_routine_create_template", {
+        connectionId: activeConnectionId!,
         routineType,
         ...(activeSchema ? { schema: activeSchema } : {}),
       });
@@ -463,8 +463,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
     const { name, routineType, schema } = routineDropConfirm;
     setRoutineDropConfirm(null);
     try {
-      await invoke("drop_routine", {
-        connectionId: activeConnectionId,
+      await client.call("drop_routine", {
+        connectionId: activeConnectionId!,
         routineName: name,
         routineType,
         ...(schema ? { schema } : {}),
@@ -1166,8 +1166,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               )
                             ) {
                               try {
-                                await invoke("drop_index_action", {
-                                  connectionId: activeConnectionId,
+                                await client.call("drop_index_action", {
+                                  connectionId: activeConnectionId!,
                                   table: t_name,
                                   indexName: name,
                                   ...(schemaName ? { schema: schemaName } : {}),
@@ -1189,8 +1189,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               )
                             ) {
                               try {
-                                await invoke("drop_foreign_key_action", {
-                                  connectionId: activeConnectionId,
+                                await client.call("drop_foreign_key_action", {
+                                  connectionId: activeConnectionId!,
                                   table: t_name,
                                   fkName: name,
                                   ...(schemaName ? { schema: schemaName } : {}),
@@ -1425,8 +1425,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           )
                         ) {
                           try {
-                            await invoke("drop_index_action", {
-                              connectionId: activeConnectionId,
+                            await client.call("drop_index_action", {
+                              connectionId: activeConnectionId!,
                               table: t_name,
                               indexName: name,
                               schema: dbName,
@@ -1448,8 +1448,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                           )
                         ) {
                           try {
-                            await invoke("drop_foreign_key_action", {
-                              connectionId: activeConnectionId,
+                            await client.call("drop_foreign_key_action", {
+                              connectionId: activeConnectionId!,
                               table: t_name,
                               fkName: name,
                               schema: dbName,
@@ -1601,8 +1601,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   )
                                 ) {
                                   try {
-                                    await invoke("drop_index_action", {
-                                      connectionId: activeConnectionId,
+                                    await client.call("drop_index_action", {
+                                      connectionId: activeConnectionId!,
                                       table: t_name,
                                       indexName: name,
                                     });
@@ -1623,8 +1623,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   )
                                 ) {
                                   try {
-                                    await invoke("drop_foreign_key_action", {
-                                      connectionId: activeConnectionId,
+                                    await client.call("drop_foreign_key_action", {
+                                      connectionId: activeConnectionId!,
                                       table: t_name,
                                       fkName: name,
                                     });
@@ -2015,8 +2015,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                             )
                           ) {
                             try {
-                              await invoke("drop_index_action", {
-                                connectionId: activeConnectionId,
+                              await client.call("drop_index_action", {
+                                connectionId: activeConnectionId!,
                                 table: t_name,
                                 indexName: contextMenu.id,
                                 ...(ctxSchema ? { schema: ctxSchema } : {}),
@@ -2055,8 +2055,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                               )
                             ) {
                               try {
-                                await invoke("drop_foreign_key_action", {
-                                  connectionId: activeConnectionId,
+                                await client.call("drop_foreign_key_action", {
+                                  connectionId: activeConnectionId!,
                                   table: t_name,
                                   fkName: contextMenu.id,
                                   ...(ctxSchema ? { schema: ctxSchema } : {}),
@@ -2146,8 +2146,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                     )
                                   ) {
                                     try {
-                                      await invoke("drop_view", {
-                                        connectionId: activeConnectionId,
+                                      await client.call("drop_view", {
+                                        connectionId: activeConnectionId!,
                                         viewName: contextMenu.id,
                                         ...(activeSchema ? { schema: activeSchema } : {}),
                                       });
@@ -2193,8 +2193,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   const mvName = contextMenu.id;
                                   setRefreshingMatView(mvName);
                                   try {
-                                    await invoke("refresh_materialized_view", {
-                                      connectionId: activeConnectionId,
+                                    await client.call("refresh_materialized_view", {
+                                      connectionId: activeConnectionId!,
                                       viewName: mvName,
                                       ...(mvCtxSchema ? { schema: mvCtxSchema } : {}),
                                     });
@@ -2277,8 +2277,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   icon: Edit,
                                   action: async () => {
                                     try {
-                                      const script = await invoke<string>("get_routine_edit_script", {
-                                        connectionId: activeConnectionId,
+                                      const script = await client.call("get_routine_edit_script", {
+                                        connectionId: activeConnectionId!,
                                         routineName: contextMenu.id,
                                         routineType: routineType,
                                         ...(routineSchema ? { schema: routineSchema } : {}),
@@ -2374,8 +2374,8 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                         )
                                       ) {
                                         try {
-                                          await invoke("drop_trigger", {
-                                            connectionId: activeConnectionId,
+                                          await client.call("drop_trigger", {
+                                            connectionId: activeConnectionId!,
                                             triggerName: contextMenu.id,
                                             tableName: triggerData?.table_name ?? "",
                                             ...(triggerSchema ? { schema: triggerSchema } : {}),

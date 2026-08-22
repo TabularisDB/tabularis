@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Save, Loader2, AlertTriangle, Link } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
 import { SqlPreview } from '../ui/SqlPreview';
 import { useDatabase } from '../../hooks/useDatabase';
 import { useDrivers } from '../../hooks/useDrivers';
@@ -106,7 +105,7 @@ export const CreateForeignKeyModal = ({
       return;
     }
     try {
-      const stmts = await invoke<string[]>('get_create_foreign_key_sql', {
+      const stmts = await client.call('get_create_foreign_key_sql', {
         connectionId,
         table: tableName,
         fkName,
@@ -121,7 +120,7 @@ export const CreateForeignKeyModal = ({
     } catch (e) {
       setSqlPreview('-- ' + String(e));
     }
-  }, [fkName, localColumn, refTable, refColumn, onDelete, onUpdate, connectionId, tableName, activeSchema, t]);
+  }, [client, fkName, localColumn, refTable, refColumn, onDelete, onUpdate, connectionId, tableName, activeSchema, t]);
 
   useEffect(() => {
     const timer = setTimeout(generatePreview, 300);
@@ -134,7 +133,7 @@ export const CreateForeignKeyModal = ({
       setLoading(true);
       setError('');
       try {
-          const stmts = await invoke<string[]>('get_create_foreign_key_sql', {
+          const stmts = await client.call('get_create_foreign_key_sql', {
             connectionId,
             table: tableName,
             fkName,

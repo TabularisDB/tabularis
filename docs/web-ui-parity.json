@@ -53,8 +53,8 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 155,
-    "literalCallSiteCount": 218,
+    "literalCommandCount": 126,
+    "literalCallSiteCount": 173,
     "dynamicCallSiteCount": 2,
     "handlerRegistrationCount": 256,
     "registeredCommandCount": 255,
@@ -62,7 +62,7 @@
       "cancel_dump"
     ],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 100
+    "registeredCommandsWithoutFrontendCall": 129
   },
   "commands": [
     {
@@ -76,20 +76,6 @@
         {
           "file": "packages/web-ui/src/contexts/QueryHistoryProvider.tsx",
           "line": 68
-        }
-      ]
-    },
-    {
-      "name": "alter_view",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ViewEditorModal.tsx",
-          "line": 153
         }
       ]
     },
@@ -122,28 +108,6 @@
       ]
     },
     {
-      "name": "apply_db_user_privileges",
-      "featureGroup": "users",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
-          "line": 324
-        },
-        {
-          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
-          "line": 411
-        },
-        {
-          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
-          "line": 418
-        }
-      ]
-    },
-    {
       "name": "apply_tabularis_import",
       "featureGroup": "connections",
       "eventUse": "none",
@@ -154,20 +118,6 @@
         {
           "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
           "line": 289
-        }
-      ]
-    },
-    {
-      "name": "build_routine_call_sql",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/RunRoutineModal.tsx",
-          "line": 91
         }
       ]
     },
@@ -386,20 +336,6 @@
       ]
     },
     {
-      "name": "create_db_user",
-      "featureGroup": "users",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
-          "line": 315
-        }
-      ]
-    },
-    {
       "name": "create_notebook",
       "featureGroup": "notebooks",
       "eventUse": "none",
@@ -442,34 +378,6 @@
         {
           "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
           "line": 1546
-        }
-      ]
-    },
-    {
-      "name": "create_trigger",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/TriggerEditorModal.tsx",
-          "line": 181
-        }
-      ]
-    },
-    {
-      "name": "create_view",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ViewEditorModal.tsx",
-          "line": 133
         }
       ]
     },
@@ -604,118 +512,6 @@
         {
           "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
           "line": 79
-        }
-      ]
-    },
-    {
-      "name": "drop_db_user",
-      "featureGroup": "users",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
-          "line": 353
-        }
-      ]
-    },
-    {
-      "name": "drop_foreign_key_action",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 1192
-        },
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 1451
-        },
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 1626
-        },
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 2058
-        }
-      ]
-    },
-    {
-      "name": "drop_index_action",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 1169
-        },
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 1428
-        },
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 1604
-        },
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 2018
-        }
-      ]
-    },
-    {
-      "name": "drop_routine",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 466
-        }
-      ]
-    },
-    {
-      "name": "drop_trigger",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 2377
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/TriggerEditorModal.tsx",
-          "line": 166
-        }
-      ]
-    },
-    {
-      "name": "drop_view",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 2149
         }
       ]
     },
@@ -992,24 +788,6 @@
       ]
     },
     {
-      "name": "get_add_column_sql",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ModifyColumnModal.tsx",
-          "line": 125
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/ModifyColumnModal.tsx",
-          "line": 174
-        }
-      ]
-    },
-    {
       "name": "get_ai_activity",
       "featureGroup": "ai",
       "eventUse": "none",
@@ -1098,24 +876,6 @@
       ]
     },
     {
-      "name": "get_alter_column_sql",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ModifyColumnModal.tsx",
-          "line": 116
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/ModifyColumnModal.tsx",
-          "line": 165
-        }
-      ]
-    },
-    {
       "name": "get_cellname_prompt",
       "featureGroup": "ai",
       "eventUse": "none",
@@ -1184,60 +944,6 @@
       ]
     },
     {
-      "name": "get_create_foreign_key_sql",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/CreateForeignKeyModal.tsx",
-          "line": 109
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/CreateForeignKeyModal.tsx",
-          "line": 137
-        }
-      ]
-    },
-    {
-      "name": "get_create_index_sql",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/CreateIndexModal.tsx",
-          "line": 72
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/CreateIndexModal.tsx",
-          "line": 98
-        }
-      ]
-    },
-    {
-      "name": "get_create_table_sql",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/CreateTableModal.tsx",
-          "line": 74
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/CreateTableModal.tsx",
-          "line": 134
-        }
-      ]
-    },
-    {
       "name": "get_data_types",
       "featureGroup": "drivers",
       "eventUse": "none",
@@ -1248,62 +954,6 @@
         {
           "file": "packages/web-ui/src/hooks/useDataTypes.ts",
           "line": 30
-        }
-      ]
-    },
-    {
-      "name": "get_db_privilege_catalog",
-      "featureGroup": "users",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
-          "line": 214
-        }
-      ]
-    },
-    {
-      "name": "get_db_user_grants",
-      "featureGroup": "users",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
-          "line": 244
-        }
-      ]
-    },
-    {
-      "name": "get_db_user_privileges",
-      "featureGroup": "users",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
-          "line": 245
-        }
-      ]
-    },
-    {
-      "name": "get_db_users",
-      "featureGroup": "users",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
-          "line": 224
         }
       ]
     },
@@ -1540,66 +1190,6 @@
       ]
     },
     {
-      "name": "get_routine_create_template",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 445
-        }
-      ]
-    },
-    {
-      "name": "get_routine_definition",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/databaseObjectActions.ts",
-          "line": 268
-        }
-      ]
-    },
-    {
-      "name": "get_routine_edit_script",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 2280
-        }
-      ]
-    },
-    {
-      "name": "get_routine_parameters",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/sidebar/SidebarRoutineItem.tsx",
-          "line": 54
-        },
-        {
-          "file": "packages/web-ui/src/components/modals/RunRoutineModal.tsx",
-          "line": 46
-        }
-      ]
-    },
-    {
       "name": "get_saved_queries",
       "featureGroup": "saved-queries",
       "eventUse": "none",
@@ -1666,38 +1256,6 @@
         {
           "file": "packages/web-ui/src/pages/TaskManagerPage.tsx",
           "line": 108
-        }
-      ]
-    },
-    {
-      "name": "get_trigger_definition",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/TriggerEditorModal.tsx",
-          "line": 84
-        },
-        {
-          "file": "packages/web-ui/src/utils/databaseObjectActions.ts",
-          "line": 279
-        }
-      ]
-    },
-    {
-      "name": "get_view_definition",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ViewEditorModal.tsx",
-          "line": 53
         }
       ]
     },
@@ -2078,20 +1636,6 @@
       ]
     },
     {
-      "name": "refresh_materialized_view",
-      "featureGroup": "database-objects",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 2196
-        }
-      ]
-    },
-    {
       "name": "relaunch_app",
       "featureGroup": "application",
       "eventUse": "none",
@@ -2328,20 +1872,6 @@
       ]
     },
     {
-      "name": "set_db_user_password",
-      "featureGroup": "users",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/users/UserManagementView.tsx",
-          "line": 368
-        }
-      ]
-    },
-    {
       "name": "set_last_active_connection",
       "featureGroup": "connections",
       "eventUse": "none",
@@ -2527,12 +2057,18 @@
     }
   ],
   "registeredCommandsWithoutFrontendCall": [
+    "alter_view",
+    "apply_db_user_privileges",
+    "build_routine_call_sql",
     "cancel_query",
     "close_devtools",
     "count_query",
     "create_connection_group",
     "create_connection_tag",
+    "create_db_user",
     "create_group_path",
+    "create_trigger",
+    "create_view",
     "delete_connection",
     "delete_connection_group",
     "delete_connection_icon",
@@ -2544,6 +2080,12 @@
     "detect_blob_mime",
     "detect_mime_type",
     "disconnect_connection",
+    "drop_db_user",
+    "drop_foreign_key_action",
+    "drop_index_action",
+    "drop_routine",
+    "drop_trigger",
+    "drop_view",
     "duplicate_connection",
     "execute_query",
     "execute_query_batch",
@@ -2551,12 +2093,21 @@
     "export_theme",
     "fetch_blob_as_data_url",
     "get_active_connections",
+    "get_add_column_sql",
+    "get_alter_column_sql",
     "get_available_databases",
     "get_columns",
     "get_connection_by_id",
     "get_connection_groups",
     "get_connections",
     "get_connections_with_groups",
+    "get_create_foreign_key_sql",
+    "get_create_index_sql",
+    "get_create_table_sql",
+    "get_db_privilege_catalog",
+    "get_db_user_grants",
+    "get_db_user_privileges",
+    "get_db_users",
     "get_driver_manifest",
     "get_file_stats",
     "get_foreign_keys",
@@ -2571,6 +2122,10 @@
     "get_materialized_views",
     "get_plugin_dir",
     "get_registered_drivers",
+    "get_routine_create_template",
+    "get_routine_definition",
+    "get_routine_edit_script",
+    "get_routine_parameters",
     "get_routines",
     "get_schema_preference",
     "get_schema_snapshot",
@@ -2580,8 +2135,10 @@
     "get_ssh_connections",
     "get_tables",
     "get_theme",
+    "get_trigger_definition",
     "get_triggers",
     "get_view_columns",
+    "get_view_definition",
     "get_views",
     "import_connections_payload",
     "import_theme",
@@ -2593,6 +2150,7 @@
     "move_group_to_parent",
     "open_devtools",
     "open_visual_explain_window",
+    "refresh_materialized_view",
     "register_active_connection",
     "reorder_connections_in_group",
     "reorder_groups",
@@ -2614,6 +2172,7 @@
     "save_tabrename_prompt",
     "set_connection_appearance",
     "set_connection_tags",
+    "set_db_user_password",
     "set_schema_preference",
     "set_selected_schemas",
     "test_connection",

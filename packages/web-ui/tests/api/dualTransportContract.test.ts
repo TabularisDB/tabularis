@@ -52,6 +52,31 @@ defineTransportContractSuite(
         expect(request).toEqual({ connectionId: "metadata-fixture" });
         return ["public"];
       }
+      if (command === "get_view_definition") {
+        return "SELECT id FROM users WHERE active = 1";
+      }
+      if (command === "get_routine_parameters") {
+        return [
+          {
+            name: "batch_size",
+            data_type: "integer",
+            mode: "IN",
+            ordinal_position: 1,
+          },
+        ];
+      }
+      if (command === "get_trigger_definition") {
+        return "CREATE TRIGGER audit_users AFTER UPDATE ON users";
+      }
+      if (command === "get_create_index_sql") {
+        return [
+          'CREATE UNIQUE INDEX "idx_users_email" ON "public"."users" ("email")',
+        ];
+      }
+      if (command === "get_db_users") {
+        return [{ user: "app", host: "%", locked: false }];
+      }
+      if (command === "apply_db_user_privileges") return null;
       if (
         command === "insert_record" ||
         command === "update_record" ||

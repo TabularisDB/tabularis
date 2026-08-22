@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Loader2, Zap, AlertCircle } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../../hooks/useAlert";
 import { Modal } from "../ui/Modal";
@@ -9,6 +8,7 @@ import { SqlEditorWrapper } from "../ui/SqlEditorWrapper";
 import { useDatabase } from "../../hooks/useDatabase";
 import { quoteIdentifier } from "../../utils/identifiers";
 import type { DriverCapabilities } from "../../types/plugins";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 
 interface TriggerEditorModalProps {
   isOpen: boolean;
@@ -61,6 +61,7 @@ export const TriggerEditorModal = ({
   isNewTrigger = false,
   onSuccess,
 }: TriggerEditorModalProps) => {
+  const client = useTabularisClient();
   const { t } = useTranslation();
   const { activeSchema } = useDatabase();
   const resolvedSchema = schemaProp ?? activeSchema ?? undefined;
@@ -81,7 +82,7 @@ export const TriggerEditorModal = ({
     setLoading(true);
     setError(null);
     try {
-      const def = await invoke<string>("get_trigger_definition", {
+      const def = await client.call("get_trigger_definition", {
         connectionId,
         triggerName: tName,
         tableName: tTable,
@@ -105,7 +106,7 @@ export const TriggerEditorModal = ({
     } finally {
       setLoading(false);
     }
-  }, [connectionId, t, resolvedSchema]);
+  }, [client, connectionId, t, resolvedSchema]);
 
   useEffect(() => {
     if (isOpen) {
@@ -163,7 +164,7 @@ export const TriggerEditorModal = ({
       if (!confirmed) return;
 
       try {
-        await invoke("drop_trigger", {
+        await client.call("drop_trigger", {
           connectionId,
           triggerName: name,
           tableName,
@@ -178,7 +179,7 @@ export const TriggerEditorModal = ({
     setSaving(true);
     setError(null);
     try {
-      await invoke("create_trigger", {
+      await client.call("create_trigger", {
         connectionId,
         triggerSql: sql,
         ...(resolvedSchema ? { schema: resolvedSchema } : {}),

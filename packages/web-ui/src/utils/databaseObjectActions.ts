@@ -1,5 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
-
+import type { TypedCommandCaller } from "../api/contract";
 import type {
   ConsoleEditorNavigationRequest,
   DefinitionEditorNavigationRequest,
@@ -263,9 +262,10 @@ export function createDefinitionRequest({
 }
 
 export function loadRoutineDefinition(
+  client: Pick<TypedCommandCaller, "call">,
   target: RoutineDefinitionTarget,
 ): Promise<string> {
-  return invoke<string>("get_routine_definition", {
+  return client.call("get_routine_definition", {
     connectionId: target.connectionId,
     routineName: target.routineName,
     routineType: target.routineType,
@@ -274,9 +274,10 @@ export function loadRoutineDefinition(
 }
 
 export function loadTriggerDefinition(
+  client: Pick<TypedCommandCaller, "call">,
   target: TriggerDefinitionTarget,
 ): Promise<string> {
-  return invoke<string>("get_trigger_definition", {
+  return client.call("get_trigger_definition", {
     connectionId: target.connectionId,
     triggerName: target.triggerName,
     tableName: target.tableName,

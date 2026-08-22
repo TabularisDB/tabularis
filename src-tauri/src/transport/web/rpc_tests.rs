@@ -85,6 +85,15 @@ impl ApplicationApi for FixtureApplication {
         Ok(Value::Null)
     }
 
+    async fn execute_database_object_command(
+        &self,
+        context: ApplicationRequestContext,
+        _command: DatabaseObjectCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(Value::Null)
+    }
+
     async fn execute_record_command(
         &self,
         context: ApplicationRequestContext,
@@ -186,6 +195,28 @@ fn declares_authorization_for_each_registered_command() {
             .authorization,
         AuthorizationLevel::Sensitive
     );
+    assert_eq!(
+        RpcCommand::DatabaseObject(DatabaseObjectRpcCommand::CreateView)
+            .metadata()
+            .authorization,
+        AuthorizationLevel::Database
+    );
+    for command in [
+        DatabaseObjectRpcCommand::GetDbPrivilegeCatalog,
+        DatabaseObjectRpcCommand::GetDbUsers,
+        DatabaseObjectRpcCommand::GetDbUserGrants,
+        DatabaseObjectRpcCommand::GetDbUserPrivileges,
+        DatabaseObjectRpcCommand::CreateDbUser,
+        DatabaseObjectRpcCommand::DropDbUser,
+        DatabaseObjectRpcCommand::SetDbUserPassword,
+        DatabaseObjectRpcCommand::ApplyDbUserPrivileges,
+    ] {
+        assert_eq!(
+            RpcCommand::DatabaseObject(command).metadata().authorization,
+            AuthorizationLevel::Sensitive,
+            "{command:?}",
+        );
+    }
     assert_eq!(
         RpcCommand::Tunnel(TunnelRpcCommand::GetSshConnections)
             .metadata()
@@ -290,6 +321,146 @@ async fn routes_all_metadata_commands_through_the_shared_application_api() {
             .await;
         assert_eq!(response.status(), StatusCode::OK, "{command}");
     }
+}
+
+#[tokio::test]
+async fn routes_database_object_commands_through_the_shared_application_api() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let connection = "connection-1";
+    let user = serde_json::json!({"connectionId": connection, "user": "app", "host": "%"});
+    let commands = [
+        (
+            "get_view_definition",
+            serde_json::json!({"connectionId": connection, "viewName": "active_users"}),
+        ),
+        (
+            "create_view",
+            serde_json::json!({"connectionId": connection, "viewName": "active_users", "definition": "SELECT 1"}),
+        ),
+        (
+            "alter_view",
+            serde_json::json!({"connectionId": connection, "viewName": "active_users", "definition": "SELECT 2"}),
+        ),
+        (
+            "drop_view",
+            serde_json::json!({"connectionId": connection, "viewName": "active_users"}),
+        ),
+        (
+            "refresh_materialized_view",
+            serde_json::json!({"connectionId": connection, "viewName": "active_users"}),
+        ),
+        (
+            "get_routine_parameters",
+            serde_json::json!({"connectionId": connection, "routineName": "refresh_users"}),
+        ),
+        (
+            "get_routine_definition",
+            serde_json::json!({"connectionId": connection, "routineName": "refresh_users", "routineType": "FUNCTION"}),
+        ),
+        (
+            "build_routine_call_sql",
+            serde_json::json!({"connectionId": connection, "routineName": "refresh_users", "routineType": "FUNCTION", "args": []}),
+        ),
+        (
+            "get_routine_create_template",
+            serde_json::json!({"connectionId": connection, "routineType": "FUNCTION"}),
+        ),
+        (
+            "get_routine_edit_script",
+            serde_json::json!({"connectionId": connection, "routineName": "refresh_users", "routineType": "FUNCTION"}),
+        ),
+        (
+            "drop_routine",
+            serde_json::json!({"connectionId": connection, "routineName": "refresh_users", "routineType": "FUNCTION"}),
+        ),
+        (
+            "get_trigger_definition",
+            serde_json::json!({"connectionId": connection, "triggerName": "audit_users", "tableName": "users"}),
+        ),
+        (
+            "create_trigger",
+            serde_json::json!({"connectionId": connection, "triggerSql": "CREATE TRIGGER audit_users"}),
+        ),
+        (
+            "drop_trigger",
+            serde_json::json!({"connectionId": connection, "triggerName": "audit_users", "tableName": "users"}),
+        ),
+        (
+            "get_create_table_sql",
+            serde_json::json!({"connectionId": connection, "tableName": "users", "columns": []}),
+        ),
+        (
+            "get_add_column_sql",
+            serde_json::json!({"connectionId": connection, "table": "users", "column": column_fixture("email")}),
+        ),
+        (
+            "get_alter_column_sql",
+            serde_json::json!({"connectionId": connection, "table": "users", "oldColumn": column_fixture("email"), "newColumn": column_fixture("address")}),
+        ),
+        (
+            "get_create_index_sql",
+            serde_json::json!({"connectionId": connection, "table": "users", "indexName": "idx_users", "columns": ["email"], "isUnique": true}),
+        ),
+        (
+            "get_create_foreign_key_sql",
+            serde_json::json!({"connectionId": connection, "table": "users", "fkName": "fk_users_org", "column": "org_id", "refTable": "orgs", "refColumn": "id"}),
+        ),
+        (
+            "drop_index_action",
+            serde_json::json!({"connectionId": connection, "table": "users", "indexName": "idx_users"}),
+        ),
+        (
+            "drop_foreign_key_action",
+            serde_json::json!({"connectionId": connection, "table": "users", "fkName": "fk_users_org"}),
+        ),
+        (
+            "get_db_privilege_catalog",
+            serde_json::json!({"connectionId": connection}),
+        ),
+        (
+            "get_db_users",
+            serde_json::json!({"connectionId": connection}),
+        ),
+        ("get_db_user_grants", user.clone()),
+        ("get_db_user_privileges", user.clone()),
+        (
+            "create_db_user",
+            serde_json::json!({"connectionId": connection, "user": "app", "host": "%", "password": "secret"}),
+        ),
+        ("drop_db_user", user.clone()),
+        (
+            "set_db_user_password",
+            serde_json::json!({"connectionId": connection, "user": "app", "host": "%", "password": "secret"}),
+        ),
+        (
+            "apply_db_user_privileges",
+            serde_json::json!({"connectionId": connection, "user": "app", "host": "%", "database": "app_db", "table": null, "privileges": ["SELECT"], "grant": true}),
+        ),
+    ];
+
+    for (command, payload) in commands {
+        let response = dispatcher
+            .dispatch(
+                command,
+                RequestId(format!("request-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                Some(uuid::Uuid::new_v4()),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK, "{command}");
+    }
+}
+
+fn column_fixture(name: &str) -> Value {
+    serde_json::json!({
+        "name": name,
+        "data_type": "TEXT",
+        "is_nullable": true,
+        "is_pk": false,
+        "is_auto_increment": false,
+        "default_value": null
+    })
 }
 
 #[tokio::test]

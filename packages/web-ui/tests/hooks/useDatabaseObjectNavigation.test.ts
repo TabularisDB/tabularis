@@ -20,6 +20,12 @@ vi.mock("../../src/hooks/useAlert", () => ({
   useAlert: vi.fn(() => ({ showAlert: showAlertMock })),
 }));
 
+vi.mock("../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({
+    call: (command: string, request: unknown) => invoke(command, request),
+  }),
+}));
+
 describe("useDatabaseObjectNavigation", () => {
   beforeEach(() => {
     navigateMock.mockReset();

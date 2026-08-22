@@ -1,11 +1,12 @@
 use crate::application::{
-    connections::ConnectionCommand, metadata::MetadataCommand, queries::QueryCommand,
-    records::RecordCommand, tunnels::TunnelCommand, ApplicationApi, ApplicationError,
-    ApplicationRequestContext, AuthorizationLevel,
+    connections::ConnectionCommand, database_objects::DatabaseObjectCommand,
+    metadata::MetadataCommand, queries::QueryCommand, records::RecordCommand,
+    tunnels::TunnelCommand, ApplicationApi, ApplicationError, ApplicationRequestContext,
+    AuthorizationLevel,
 };
 use crate::models::{
-    ConnectionAppearance, ConnectionParams, K8sConnectionInput, SshConnectionInput, SshTestParams,
-    TestConnectionRequest,
+    ColumnDefinition, ConnectionAppearance, ConnectionParams, K8sConnectionInput, RoutineCallArg,
+    SshConnectionInput, SshTestParams, TestConnectionRequest,
 };
 use axum::body::Bytes;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
@@ -41,6 +42,7 @@ enum RpcCommand {
     CancelQuery,
     Connection(ConnectionRpcCommand),
     Metadata(MetadataRpcCommand),
+    DatabaseObject(DatabaseObjectRpcCommand),
     Query(QueryRpcCommand),
     Record(RecordRpcCommand),
     Tunnel(TunnelRpcCommand),
@@ -63,6 +65,39 @@ enum RecordRpcCommand {
     FetchBlob,
     DetectBlobMime,
     DetectMimeType,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DatabaseObjectRpcCommand {
+    GetViewDefinition,
+    CreateView,
+    AlterView,
+    DropView,
+    RefreshMaterializedView,
+    GetRoutineParameters,
+    GetRoutineDefinition,
+    BuildRoutineCallSql,
+    GetRoutineCreateTemplate,
+    GetRoutineEditScript,
+    DropRoutine,
+    GetTriggerDefinition,
+    CreateTrigger,
+    DropTrigger,
+    GetCreateTableSql,
+    GetAddColumnSql,
+    GetAlterColumnSql,
+    GetCreateIndexSql,
+    GetCreateForeignKeySql,
+    DropIndex,
+    DropForeignKey,
+    GetDbPrivilegeCatalog,
+    GetDbUsers,
+    GetDbUserGrants,
+    GetDbUserPrivileges,
+    CreateDbUser,
+    DropDbUser,
+    SetDbUserPassword,
+    ApplyDbUserPrivileges,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -187,6 +222,167 @@ struct ViewMetadataRequest {
     connection_id: String,
     view_name: String,
     schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ViewDefinitionRequest {
+    connection_id: String,
+    view_name: String,
+    definition: String,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RoutineNameRequest {
+    connection_id: String,
+    routine_name: String,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RoutineTargetRequest {
+    connection_id: String,
+    routine_name: String,
+    routine_type: String,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RoutineCallRequest {
+    connection_id: String,
+    routine_name: String,
+    routine_type: String,
+    args: Vec<RoutineCallArg>,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RoutineTemplateRequest {
+    connection_id: String,
+    routine_type: String,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TriggerTargetRequest {
+    connection_id: String,
+    trigger_name: String,
+    table_name: String,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreateTriggerRequest {
+    connection_id: String,
+    trigger_sql: String,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreateTableSqlRequest {
+    connection_id: String,
+    table_name: String,
+    columns: Vec<ColumnDefinition>,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AddColumnSqlRequest {
+    connection_id: String,
+    table: String,
+    column: ColumnDefinition,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AlterColumnSqlRequest {
+    connection_id: String,
+    table: String,
+    old_column: ColumnDefinition,
+    new_column: ColumnDefinition,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreateIndexSqlRequest {
+    connection_id: String,
+    table: String,
+    index_name: String,
+    columns: Vec<String>,
+    is_unique: bool,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreateForeignKeySqlRequest {
+    connection_id: String,
+    table: String,
+    fk_name: String,
+    column: String,
+    ref_table: String,
+    ref_column: String,
+    on_delete: Option<String>,
+    on_update: Option<String>,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DropIndexRequest {
+    connection_id: String,
+    table: String,
+    index_name: String,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DropForeignKeyRequest {
+    connection_id: String,
+    table: String,
+    fk_name: String,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DbUserTargetRequest {
+    connection_id: String,
+    user: String,
+    host: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DbUserPasswordRequest {
+    connection_id: String,
+    user: String,
+    host: String,
+    password: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ApplyDbUserPrivilegesRequest {
+    connection_id: String,
+    user: String,
+    host: String,
+    database: Option<String>,
+    table: Option<String>,
+    privileges: Vec<String>,
+    grant: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -736,6 +932,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::DatabaseObject(command) => {
+                let command = decode_database_object_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_database_object_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
             RpcCommand::Tunnel(command) => {
                 let command = decode_tunnel_command(command, body)
                     .map_err(InvocationError::InvalidPayload)?;
@@ -782,6 +986,7 @@ impl RpcCommand {
                 .map(Self::Query)
                 .or_else(|| RecordRpcCommand::parse(name).map(Self::Record))
                 .or_else(|| TunnelRpcCommand::parse(name).map(Self::Tunnel))
+                .or_else(|| DatabaseObjectRpcCommand::parse(name).map(Self::DatabaseObject))
                 .or_else(|| MetadataRpcCommand::parse(name).map(Self::Metadata))
                 .or_else(|| ConnectionRpcCommand::parse(name).map(Self::Connection)),
         }
@@ -831,6 +1036,15 @@ impl RpcCommand {
                 application_error_code: "RECORD_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            Self::DatabaseObject(command) => CommandMetadata {
+                authorization: if command.requires_sensitive_authorization() {
+                    AuthorizationLevel::Sensitive
+                } else {
+                    AuthorizationLevel::Database
+                },
+                application_error_code: "DATABASE_OBJECT_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
             Self::Tunnel(command) => CommandMetadata {
                 authorization: if command == TunnelRpcCommand::RespondSshAskpass {
                     AuthorizationLevel::Sensitive
@@ -868,6 +1082,57 @@ impl RecordRpcCommand {
             "detect_mime_type" => Self::DetectMimeType,
             _ => return None,
         })
+    }
+}
+
+impl DatabaseObjectRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "get_view_definition" => Self::GetViewDefinition,
+            "create_view" => Self::CreateView,
+            "alter_view" => Self::AlterView,
+            "drop_view" => Self::DropView,
+            "refresh_materialized_view" => Self::RefreshMaterializedView,
+            "get_routine_parameters" => Self::GetRoutineParameters,
+            "get_routine_definition" => Self::GetRoutineDefinition,
+            "build_routine_call_sql" => Self::BuildRoutineCallSql,
+            "get_routine_create_template" => Self::GetRoutineCreateTemplate,
+            "get_routine_edit_script" => Self::GetRoutineEditScript,
+            "drop_routine" => Self::DropRoutine,
+            "get_trigger_definition" => Self::GetTriggerDefinition,
+            "create_trigger" => Self::CreateTrigger,
+            "drop_trigger" => Self::DropTrigger,
+            "get_create_table_sql" => Self::GetCreateTableSql,
+            "get_add_column_sql" => Self::GetAddColumnSql,
+            "get_alter_column_sql" => Self::GetAlterColumnSql,
+            "get_create_index_sql" => Self::GetCreateIndexSql,
+            "get_create_foreign_key_sql" => Self::GetCreateForeignKeySql,
+            "drop_index_action" => Self::DropIndex,
+            "drop_foreign_key_action" => Self::DropForeignKey,
+            "get_db_privilege_catalog" => Self::GetDbPrivilegeCatalog,
+            "get_db_users" => Self::GetDbUsers,
+            "get_db_user_grants" => Self::GetDbUserGrants,
+            "get_db_user_privileges" => Self::GetDbUserPrivileges,
+            "create_db_user" => Self::CreateDbUser,
+            "drop_db_user" => Self::DropDbUser,
+            "set_db_user_password" => Self::SetDbUserPassword,
+            "apply_db_user_privileges" => Self::ApplyDbUserPrivileges,
+            _ => return None,
+        })
+    }
+
+    fn requires_sensitive_authorization(self) -> bool {
+        matches!(
+            self,
+            Self::GetDbPrivilegeCatalog
+                | Self::GetDbUsers
+                | Self::GetDbUserGrants
+                | Self::GetDbUserPrivileges
+                | Self::CreateDbUser
+                | Self::DropDbUser
+                | Self::SetDbUserPassword
+                | Self::ApplyDbUserPrivileges
+        )
     }
 }
 
@@ -1062,6 +1327,281 @@ fn decode_record_command(command: RecordRpcCommand, body: &[u8]) -> Result<Recor
             let request: DetectMimeTypeRequest = decode_payload(body)?;
             RecordCommand::DetectMimeType {
                 header_base64: request.header_base64,
+            }
+        }
+    })
+}
+
+fn decode_database_object_command(
+    command: DatabaseObjectRpcCommand,
+    body: &[u8],
+) -> Result<DatabaseObjectCommand, String> {
+    Ok(match command {
+        DatabaseObjectRpcCommand::GetViewDefinition
+        | DatabaseObjectRpcCommand::DropView
+        | DatabaseObjectRpcCommand::RefreshMaterializedView => {
+            let request: ViewMetadataRequest = decode_payload(body)?;
+            match command {
+                DatabaseObjectRpcCommand::GetViewDefinition => {
+                    DatabaseObjectCommand::GetViewDefinition {
+                        connection_id: request.connection_id,
+                        view_name: request.view_name,
+                        schema: request.schema,
+                    }
+                }
+                DatabaseObjectRpcCommand::DropView => DatabaseObjectCommand::DropView {
+                    connection_id: request.connection_id,
+                    view_name: request.view_name,
+                    schema: request.schema,
+                },
+                DatabaseObjectRpcCommand::RefreshMaterializedView => {
+                    DatabaseObjectCommand::RefreshMaterializedView {
+                        connection_id: request.connection_id,
+                        view_name: request.view_name,
+                        schema: request.schema,
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        DatabaseObjectRpcCommand::CreateView | DatabaseObjectRpcCommand::AlterView => {
+            let request: ViewDefinitionRequest = decode_payload(body)?;
+            if command == DatabaseObjectRpcCommand::CreateView {
+                DatabaseObjectCommand::CreateView {
+                    connection_id: request.connection_id,
+                    view_name: request.view_name,
+                    definition: request.definition,
+                    schema: request.schema,
+                }
+            } else {
+                DatabaseObjectCommand::AlterView {
+                    connection_id: request.connection_id,
+                    view_name: request.view_name,
+                    definition: request.definition,
+                    schema: request.schema,
+                }
+            }
+        }
+        DatabaseObjectRpcCommand::GetRoutineParameters => {
+            let request: RoutineNameRequest = decode_payload(body)?;
+            DatabaseObjectCommand::GetRoutineParameters {
+                connection_id: request.connection_id,
+                routine_name: request.routine_name,
+                schema: request.schema,
+            }
+        }
+        DatabaseObjectRpcCommand::GetRoutineDefinition
+        | DatabaseObjectRpcCommand::GetRoutineEditScript
+        | DatabaseObjectRpcCommand::DropRoutine => {
+            let request: RoutineTargetRequest = decode_payload(body)?;
+            match command {
+                DatabaseObjectRpcCommand::GetRoutineDefinition => {
+                    DatabaseObjectCommand::GetRoutineDefinition {
+                        connection_id: request.connection_id,
+                        routine_name: request.routine_name,
+                        routine_type: request.routine_type,
+                        schema: request.schema,
+                    }
+                }
+                DatabaseObjectRpcCommand::GetRoutineEditScript => {
+                    DatabaseObjectCommand::GetRoutineEditScript {
+                        connection_id: request.connection_id,
+                        routine_name: request.routine_name,
+                        routine_type: request.routine_type,
+                        schema: request.schema,
+                    }
+                }
+                DatabaseObjectRpcCommand::DropRoutine => DatabaseObjectCommand::DropRoutine {
+                    connection_id: request.connection_id,
+                    routine_name: request.routine_name,
+                    routine_type: request.routine_type,
+                    schema: request.schema,
+                },
+                _ => unreachable!(),
+            }
+        }
+        DatabaseObjectRpcCommand::BuildRoutineCallSql => {
+            let request: RoutineCallRequest = decode_payload(body)?;
+            DatabaseObjectCommand::BuildRoutineCallSql {
+                connection_id: request.connection_id,
+                routine_name: request.routine_name,
+                routine_type: request.routine_type,
+                args: request.args,
+                schema: request.schema,
+            }
+        }
+        DatabaseObjectRpcCommand::GetRoutineCreateTemplate => {
+            let request: RoutineTemplateRequest = decode_payload(body)?;
+            DatabaseObjectCommand::GetRoutineCreateTemplate {
+                connection_id: request.connection_id,
+                routine_type: request.routine_type,
+                schema: request.schema,
+            }
+        }
+        DatabaseObjectRpcCommand::GetTriggerDefinition | DatabaseObjectRpcCommand::DropTrigger => {
+            let request: TriggerTargetRequest = decode_payload(body)?;
+            if command == DatabaseObjectRpcCommand::GetTriggerDefinition {
+                DatabaseObjectCommand::GetTriggerDefinition {
+                    connection_id: request.connection_id,
+                    trigger_name: request.trigger_name,
+                    table_name: request.table_name,
+                    schema: request.schema,
+                }
+            } else {
+                DatabaseObjectCommand::DropTrigger {
+                    connection_id: request.connection_id,
+                    trigger_name: request.trigger_name,
+                    table_name: request.table_name,
+                    schema: request.schema,
+                }
+            }
+        }
+        DatabaseObjectRpcCommand::CreateTrigger => {
+            let request: CreateTriggerRequest = decode_payload(body)?;
+            DatabaseObjectCommand::CreateTrigger {
+                connection_id: request.connection_id,
+                trigger_sql: request.trigger_sql,
+                schema: request.schema,
+            }
+        }
+        DatabaseObjectRpcCommand::GetCreateTableSql => {
+            let request: CreateTableSqlRequest = decode_payload(body)?;
+            DatabaseObjectCommand::GetCreateTableSql {
+                connection_id: request.connection_id,
+                table_name: request.table_name,
+                columns: request.columns,
+                schema: request.schema,
+            }
+        }
+        DatabaseObjectRpcCommand::GetAddColumnSql => {
+            let request: AddColumnSqlRequest = decode_payload(body)?;
+            DatabaseObjectCommand::GetAddColumnSql {
+                connection_id: request.connection_id,
+                table: request.table,
+                column: request.column,
+                schema: request.schema,
+            }
+        }
+        DatabaseObjectRpcCommand::GetAlterColumnSql => {
+            let request: AlterColumnSqlRequest = decode_payload(body)?;
+            DatabaseObjectCommand::GetAlterColumnSql {
+                connection_id: request.connection_id,
+                table: request.table,
+                old_column: request.old_column,
+                new_column: request.new_column,
+                schema: request.schema,
+            }
+        }
+        DatabaseObjectRpcCommand::GetCreateIndexSql => {
+            let request: CreateIndexSqlRequest = decode_payload(body)?;
+            DatabaseObjectCommand::GetCreateIndexSql {
+                connection_id: request.connection_id,
+                table: request.table,
+                index_name: request.index_name,
+                columns: request.columns,
+                is_unique: request.is_unique,
+                schema: request.schema,
+            }
+        }
+        DatabaseObjectRpcCommand::GetCreateForeignKeySql => {
+            let request: CreateForeignKeySqlRequest = decode_payload(body)?;
+            DatabaseObjectCommand::GetCreateForeignKeySql {
+                connection_id: request.connection_id,
+                table: request.table,
+                fk_name: request.fk_name,
+                column: request.column,
+                ref_table: request.ref_table,
+                ref_column: request.ref_column,
+                on_delete: request.on_delete,
+                on_update: request.on_update,
+                schema: request.schema,
+            }
+        }
+        DatabaseObjectRpcCommand::DropIndex => {
+            let request: DropIndexRequest = decode_payload(body)?;
+            DatabaseObjectCommand::DropIndex {
+                connection_id: request.connection_id,
+                table: request.table,
+                index_name: request.index_name,
+                schema: request.schema,
+            }
+        }
+        DatabaseObjectRpcCommand::DropForeignKey => {
+            let request: DropForeignKeyRequest = decode_payload(body)?;
+            DatabaseObjectCommand::DropForeignKey {
+                connection_id: request.connection_id,
+                table: request.table,
+                fk_name: request.fk_name,
+                schema: request.schema,
+            }
+        }
+        DatabaseObjectRpcCommand::GetDbPrivilegeCatalog => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            DatabaseObjectCommand::GetDbPrivilegeCatalog {
+                connection_id: request.connection_id,
+            }
+        }
+        DatabaseObjectRpcCommand::GetDbUsers => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            DatabaseObjectCommand::GetDbUsers {
+                connection_id: request.connection_id,
+            }
+        }
+        DatabaseObjectRpcCommand::GetDbUserGrants
+        | DatabaseObjectRpcCommand::GetDbUserPrivileges
+        | DatabaseObjectRpcCommand::DropDbUser => {
+            let request: DbUserTargetRequest = decode_payload(body)?;
+            match command {
+                DatabaseObjectRpcCommand::GetDbUserGrants => {
+                    DatabaseObjectCommand::GetDbUserGrants {
+                        connection_id: request.connection_id,
+                        user: request.user,
+                        host: request.host,
+                    }
+                }
+                DatabaseObjectRpcCommand::GetDbUserPrivileges => {
+                    DatabaseObjectCommand::GetDbUserPrivileges {
+                        connection_id: request.connection_id,
+                        user: request.user,
+                        host: request.host,
+                    }
+                }
+                DatabaseObjectRpcCommand::DropDbUser => DatabaseObjectCommand::DropDbUser {
+                    connection_id: request.connection_id,
+                    user: request.user,
+                    host: request.host,
+                },
+                _ => unreachable!(),
+            }
+        }
+        DatabaseObjectRpcCommand::CreateDbUser | DatabaseObjectRpcCommand::SetDbUserPassword => {
+            let request: DbUserPasswordRequest = decode_payload(body)?;
+            if command == DatabaseObjectRpcCommand::CreateDbUser {
+                DatabaseObjectCommand::CreateDbUser {
+                    connection_id: request.connection_id,
+                    user: request.user,
+                    host: request.host,
+                    password: request.password,
+                }
+            } else {
+                DatabaseObjectCommand::SetDbUserPassword {
+                    connection_id: request.connection_id,
+                    user: request.user,
+                    host: request.host,
+                    password: request.password,
+                }
+            }
+        }
+        DatabaseObjectRpcCommand::ApplyDbUserPrivileges => {
+            let request: ApplyDbUserPrivilegesRequest = decode_payload(body)?;
+            DatabaseObjectCommand::ApplyDbUserPrivileges {
+                connection_id: request.connection_id,
+                user: request.user,
+                host: request.host,
+                database: request.database,
+                table: request.table,
+                privileges: request.privileges,
+                grant: request.grant,
             }
         }
     })

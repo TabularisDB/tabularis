@@ -1,5 +1,6 @@
 pub mod api;
 pub mod connections;
+pub mod database_objects;
 pub mod metadata;
 pub mod queries;
 pub mod records;

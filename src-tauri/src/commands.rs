@@ -543,20 +543,14 @@ pub async fn get_routine_parameters<R: Runtime>(
     routine_name: String,
     schema: Option<String>,
 ) -> Result<Vec<RoutineParameter>, String> {
-    log::info!(
-        "Fetching routine parameters for: {} on connection: {}",
+    crate::application::database_objects::get_routine_parameters(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         routine_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_routine_parameters(&params, &routine_name, schema.as_deref())
-        .await
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -567,21 +561,15 @@ pub async fn get_routine_definition<R: Runtime>(
     routine_type: String, // "PROCEDURE" or "FUNCTION" - mainly for MySQL SHOW CREATE
     schema: Option<String>,
 ) -> Result<String, String> {
-    log::info!(
-        "Fetching routine definition for: {} ({}) on connection: {}",
+    crate::application::database_objects::get_routine_definition(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         routine_name,
         routine_type,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_routine_definition(&params, &routine_name, &routine_type, schema.as_deref())
-        .await
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -593,18 +581,14 @@ pub async fn build_routine_call_sql<R: Runtime>(
     args: Vec<crate::models::RoutineCallArg>,
     schema: Option<String>,
 ) -> Result<String, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.build_routine_call_sql(
-        &params,
-        &routine_name,
-        &routine_type,
-        &args,
-        schema.as_deref(),
+    crate::application::database_objects::build_routine_call_sql(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        routine_name,
+        routine_type,
+        args,
+        schema,
     )
     .await
 }
@@ -616,10 +600,13 @@ pub async fn get_routine_create_template<R: Runtime>(
     routine_type: String,
     schema: Option<String>,
 ) -> Result<String, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.routine_create_template(&routine_type, schema.as_deref())
-        .await
+    crate::application::database_objects::get_routine_create_template(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        routine_type,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -630,14 +617,15 @@ pub async fn get_routine_edit_script<R: Runtime>(
     routine_type: String,
     schema: Option<String>,
 ) -> Result<String, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_routine_edit_script(&params, &routine_name, &routine_type, schema.as_deref())
-        .await
+    crate::application::database_objects::get_routine_edit_script(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        routine_name,
+        routine_type,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -648,21 +636,15 @@ pub async fn drop_routine<R: Runtime>(
     routine_type: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!(
-        "Dropping routine: {} ({}) on connection: {}",
+    crate::application::database_objects::drop_routine(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         routine_name,
         routine_type,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.drop_routine(&params, &routine_name, &routine_type, schema.as_deref())
-        .await
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -3666,28 +3648,14 @@ pub async fn get_view_definition<R: Runtime>(
     view_name: String,
     schema: Option<String>,
 ) -> Result<String, String> {
-    log::info!(
-        "Fetching view definition for: {} on connection: {}",
+    crate::application::database_objects::get_view_definition(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv
-        .get_view_definition(&params, &view_name, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully retrieved view definition for {}", view_name),
-        Err(e) => log::error!("Failed to get view definition for {}: {}", view_name, e),
-    }
-
-    result
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -3698,28 +3666,15 @@ pub async fn create_view<R: Runtime>(
     definition: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!(
-        "Creating view: {} on connection: {}",
+    crate::application::database_objects::create_view(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv
-        .create_view(&params, &view_name, &definition, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully created view: {}", view_name),
-        Err(e) => log::error!("Failed to create view {}: {}", view_name, e),
-    }
-
-    result
+        definition,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -3730,28 +3685,15 @@ pub async fn alter_view<R: Runtime>(
     definition: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!(
-        "Altering view: {} on connection: {}",
+    crate::application::database_objects::alter_view(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv
-        .alter_view(&params, &view_name, &definition, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully altered view: {}", view_name),
-        Err(e) => log::error!("Failed to alter view {}: {}", view_name, e),
-    }
-
-    result
+        definition,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -3761,26 +3703,14 @@ pub async fn drop_view<R: Runtime>(
     view_name: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!(
-        "Dropping view: {} on connection: {}",
+    crate::application::database_objects::drop_view(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv.drop_view(&params, &view_name, schema.as_deref()).await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully dropped view: {}", view_name),
-        Err(e) => log::error!("Failed to drop view {}: {}", view_name, e),
-    }
-
-    result
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -3856,28 +3786,14 @@ pub async fn refresh_materialized_view<R: Runtime>(
     view_name: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!(
-        "Refreshing materialized view: {} on connection: {}",
+    crate::application::database_objects::refresh_materialized_view(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         view_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv
-        .refresh_materialized_view(&params, &view_name, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully refreshed materialized view: {}", view_name),
-        Err(e) => log::error!("Failed to refresh materialized view {}: {}", view_name, e),
-    }
-
-    result
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -3903,20 +3819,15 @@ pub async fn get_trigger_definition<R: Runtime>(
     table_name: String,
     schema: Option<String>,
 ) -> Result<String, String> {
-    log::info!(
-        "Fetching trigger definition for: {} on connection: {}",
+    crate::application::database_objects::get_trigger_definition(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         trigger_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_trigger_definition(&params, &trigger_name, &table_name, schema.as_deref())
-        .await
+        table_name,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -3926,24 +3837,14 @@ pub async fn create_trigger<R: Runtime>(
     trigger_sql: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!("Creating trigger on connection: {}", connection_id);
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv
-        .create_trigger(&params, &trigger_sql, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully created trigger"),
-        Err(e) => log::error!("Failed to create trigger: {}", e),
-    }
-
-    result
+    crate::application::database_objects::create_trigger(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        trigger_sql,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -3954,59 +3855,29 @@ pub async fn drop_trigger<R: Runtime>(
     table_name: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    log::info!(
-        "Dropping trigger: {} on connection: {}",
+    crate::application::database_objects::drop_trigger(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
         trigger_name,
-        connection_id
-    );
-
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    let result = drv
-        .drop_trigger(&params, &trigger_name, &table_name, schema.as_deref())
-        .await;
-
-    match &result {
-        Ok(_) => log::info!("Successfully dropped trigger: {}", trigger_name),
-        Err(e) => log::error!("Failed to drop trigger {}: {}", trigger_name, e),
-    }
-
-    result
+        table_name,
+        schema,
+    )
+    .await
 }
 
 // --- User management (gated by `DriverCapabilities::user_management`) -------
-
-/// Resolves the connection and driver shared by every user-management command.
-async fn user_mgmt_context<R: Runtime>(
-    app: &AppHandle<R>,
-    connection_id: &str,
-) -> Result<
-    (
-        std::sync::Arc<dyn crate::drivers::driver_trait::DatabaseDriver>,
-        ConnectionParams,
-    ),
-    String,
-> {
-    let saved_conn = find_connection_by_id(app, connection_id)?;
-    let expanded_params = expand_ssh_connection_params(app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    Ok((drv, params))
-}
 
 #[tauri::command]
 pub async fn get_db_privilege_catalog<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<crate::models::DbPrivilegeCatalog, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_db_privilege_catalog().await
+    crate::application::database_objects::get_db_privilege_catalog(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4014,8 +3885,12 @@ pub async fn get_db_users<R: Runtime>(
     app: AppHandle<R>,
     connection_id: String,
 ) -> Result<Vec<crate::models::DbUserInfo>, String> {
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    drv.get_db_users(&params).await
+    crate::application::database_objects::get_db_users(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4025,8 +3900,14 @@ pub async fn get_db_user_grants<R: Runtime>(
     user: String,
     host: String,
 ) -> Result<Vec<String>, String> {
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    drv.get_db_user_grants(&params, &user, &host).await
+    crate::application::database_objects::get_db_user_grants(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        user,
+        host,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4037,13 +3918,15 @@ pub async fn create_db_user<R: Runtime>(
     host: String,
     password: String,
 ) -> Result<(), String> {
-    log::info!("Creating database user '{user}'@'{host}'");
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    let result = drv.create_db_user(&params, &user, &host, &password).await;
-    if let Err(e) = &result {
-        log::error!("Failed to create user '{user}'@'{host}': {e}");
-    }
-    result
+    crate::application::database_objects::create_db_user(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        user,
+        host,
+        password,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4053,13 +3936,14 @@ pub async fn drop_db_user<R: Runtime>(
     user: String,
     host: String,
 ) -> Result<(), String> {
-    log::info!("Dropping database user '{user}'@'{host}'");
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    let result = drv.drop_db_user(&params, &user, &host).await;
-    if let Err(e) = &result {
-        log::error!("Failed to drop user '{user}'@'{host}': {e}");
-    }
-    result
+    crate::application::database_objects::drop_db_user(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        user,
+        host,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4070,13 +3954,15 @@ pub async fn set_db_user_password<R: Runtime>(
     host: String,
     password: String,
 ) -> Result<(), String> {
-    log::info!("Changing password for database user '{user}'@'{host}'");
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    let result = drv.set_db_user_password(&params, &user, &host, &password).await;
-    if let Err(e) = &result {
-        log::error!("Failed to change password for '{user}'@'{host}': {e}");
-    }
-    result
+    crate::application::database_objects::set_db_user_password(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        user,
+        host,
+        password,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4086,8 +3972,14 @@ pub async fn get_db_user_privileges<R: Runtime>(
     user: String,
     host: String,
 ) -> Result<Vec<crate::models::DbUserGrantSet>, String> {
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    drv.get_db_user_privileges(&params, &user, &host).await
+    crate::application::database_objects::get_db_user_privileges(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        user,
+        host,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4101,31 +3993,18 @@ pub async fn apply_db_user_privileges<R: Runtime>(
     privileges: Vec<String>,
     grant: bool,
 ) -> Result<(), String> {
-    let scope = match (database.as_deref(), table.as_deref()) {
-        (Some(db), Some(tbl)) => format!("{db}.{tbl}"),
-        (Some(db), None) => format!("{db}.*"),
-        _ => "*.*".to_string(),
-    };
-    log::info!(
-        "{} privileges for '{user}'@'{host}' on {scope}",
-        if grant { "Granting" } else { "Revoking" },
-    );
-    let (drv, params) = user_mgmt_context(&app, &connection_id).await?;
-    let result = drv
-        .apply_db_user_privileges(
-            &params,
-            &user,
-            &host,
-            database.as_deref(),
-            table.as_deref(),
-            &privileges,
-            grant,
-        )
-        .await;
-    if let Err(e) = &result {
-        log::error!("Failed to apply privileges for '{user}'@'{host}': {e}");
-    }
-    result
+    crate::application::database_objects::apply_db_user_privileges(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        user,
+        host,
+        database,
+        table,
+        privileges,
+        grant,
+    )
+    .await
 }
 
 /// Register a connection as active for health-check pinging.
@@ -4195,10 +4074,14 @@ pub async fn get_create_table_sql<R: Runtime>(
     columns: Vec<ColumnDefinition>,
     schema: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_create_table_sql(&table_name, columns, schema.as_deref())
-        .await
+    crate::application::database_objects::get_create_table_sql(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        table_name,
+        columns,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4209,10 +4092,14 @@ pub async fn get_add_column_sql<R: Runtime>(
     column: ColumnDefinition,
     schema: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_add_column_sql(&table, column, schema.as_deref())
-        .await
+    crate::application::database_objects::get_add_column_sql(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        table,
+        column,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4224,10 +4111,15 @@ pub async fn get_alter_column_sql<R: Runtime>(
     new_column: ColumnDefinition,
     schema: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_alter_column_sql(&table, old_column, new_column, schema.as_deref())
-        .await
+    crate::application::database_objects::get_alter_column_sql(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        table,
+        old_column,
+        new_column,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4240,10 +4132,16 @@ pub async fn get_create_index_sql<R: Runtime>(
     is_unique: bool,
     schema: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_create_index_sql(&table, &index_name, columns, is_unique, schema.as_deref())
-        .await
+    crate::application::database_objects::get_create_index_sql(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        table,
+        index_name,
+        columns,
+        is_unique,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4259,18 +4157,17 @@ pub async fn get_create_foreign_key_sql<R: Runtime>(
     on_update: Option<String>,
     schema: Option<String>,
 ) -> Result<Vec<String>, String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.get_create_foreign_key_sql(
-        &saved_conn.params,
-        &table,
-        &fk_name,
-        &column,
-        &ref_table,
-        &ref_column,
-        on_delete.as_deref(),
-        on_update.as_deref(),
-        schema.as_deref(),
+    crate::application::database_objects::get_create_foreign_key_sql(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &connection_id,
+        table,
+        fk_name,
+        column,
+        ref_table,
+        ref_column,
+        on_delete,
+        on_update,
+        schema,
     )
     .await
 }
@@ -4283,13 +4180,15 @@ pub async fn drop_index_action<R: Runtime>(
     index_name: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.drop_index(&params, &table, &index_name, schema.as_deref())
-        .await
+    crate::application::database_objects::drop_index(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table,
+        index_name,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4300,13 +4199,15 @@ pub async fn drop_foreign_key_action<R: Runtime>(
     fk_name: String,
     schema: Option<String>,
 ) -> Result<(), String> {
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    let drv = driver_for(&saved_conn.params.driver).await?;
-    drv.drop_foreign_key(&params, &table, &fk_name, schema.as_deref())
-        .await
+    crate::application::database_objects::drop_foreign_key(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        None,
+        &connection_id,
+        table,
+        fk_name,
+        schema,
+    )
+    .await
 }
 
 #[tauri::command]

@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Plus, Trash2, Save, Loader2, AlertTriangle } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
 import { useDatabase } from '../../hooks/useDatabase';
 import { SqlPreview } from '../ui/SqlPreview';
 import { useDataTypes } from '../../hooks/useDataTypes';
@@ -52,6 +51,10 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
   const [sqlPreview, setSqlPreview] = useState('-- ...');
 
   const generatePreview = useCallback(async () => {
+    if (!activeConnectionId) {
+      setSqlPreview('-- ' + t('common.noConnection'));
+      return;
+    }
     if (!tableName.trim()) {
       setSqlPreview('-- ' + t('createTable.nameRequired'));
       return;
@@ -71,7 +74,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
         default_value: col.defaultValue || null,
       }));
 
-      const stmts = await invoke<string[]>('get_create_table_sql', {
+      const stmts = await client.call('get_create_table_sql', {
         connectionId: activeConnectionId,
         tableName,
         columns: colDefs,
@@ -81,7 +84,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
     } catch (e) {
       setSqlPreview('-- ' + String(e));
     }
-  }, [tableName, columns, activeConnectionId, targetSchema, t]);
+  }, [client, tableName, columns, activeConnectionId, targetSchema, t]);
 
   useEffect(() => {
     const timer = setTimeout(generatePreview, 300);
@@ -131,7 +134,7 @@ export const CreateTableModal = ({ isOpen, onClose, onSuccess, schema }: CreateT
           default_value: col.defaultValue || null,
         }));
 
-        const stmts = await invoke<string[]>('get_create_table_sql', {
+        const stmts = await client.call('get_create_table_sql', {
           connectionId: activeConnectionId,
           tableName,
           columns: colDefs,

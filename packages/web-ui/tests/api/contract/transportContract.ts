@@ -113,6 +113,66 @@ export function defineTransportContractSuite(
       ).resolves.toEqual(["public"]);
     });
 
+    it("preserves database object and user-management contracts", async () => {
+      await expect(
+        harness.transport.call("get_view_definition", {
+          connectionId: "object-fixture",
+          viewName: "active_users",
+          schema: "public",
+        }),
+      ).resolves.toBe("SELECT id FROM users WHERE active = 1");
+      await expect(
+        harness.transport.call("get_routine_parameters", {
+          connectionId: "object-fixture",
+          routineName: "refresh_users",
+          schema: "public",
+        }),
+      ).resolves.toEqual([
+        {
+          name: "batch_size",
+          data_type: "integer",
+          mode: "IN",
+          ordinal_position: 1,
+        },
+      ]);
+      await expect(
+        harness.transport.call("get_trigger_definition", {
+          connectionId: "object-fixture",
+          triggerName: "audit_users",
+          tableName: "users",
+          schema: "public",
+        }),
+      ).resolves.toBe("CREATE TRIGGER audit_users AFTER UPDATE ON users");
+      await expect(
+        harness.transport.call("get_create_index_sql", {
+          connectionId: "object-fixture",
+          table: "users",
+          indexName: "idx_users_email",
+          columns: ["email"],
+          isUnique: true,
+          schema: "public",
+        }),
+      ).resolves.toEqual([
+        'CREATE UNIQUE INDEX "idx_users_email" ON "public"."users" ("email")',
+      ]);
+      await expect(
+        harness.transport.call("get_db_users", {
+          connectionId: "object-fixture",
+        }),
+      ).resolves.toEqual([{ user: "app", host: "%", locked: false }]);
+      await expect(
+        harness.transport.call("apply_db_user_privileges", {
+          connectionId: "object-fixture",
+          user: "app",
+          host: "%",
+          database: "app_db",
+          table: null,
+          privileges: ["SELECT"],
+          grant: true,
+        }),
+      ).resolves.toBeNull();
+    });
+
     it("preserves query execution contracts and request-scoped cancellation", async () => {
       await expect(
         harness.transport.call(
@@ -359,6 +419,67 @@ async function handleRequest(
     return;
   }
   const queryRequests: Record<string, unknown> = {
+    get_view_definition: {
+      request: {
+        connectionId: "object-fixture",
+        viewName: "active_users",
+        schema: "public",
+      },
+      response: "SELECT id FROM users WHERE active = 1",
+    },
+    get_routine_parameters: {
+      request: {
+        connectionId: "object-fixture",
+        routineName: "refresh_users",
+        schema: "public",
+      },
+      response: [
+        {
+          name: "batch_size",
+          data_type: "integer",
+          mode: "IN",
+          ordinal_position: 1,
+        },
+      ],
+    },
+    get_trigger_definition: {
+      request: {
+        connectionId: "object-fixture",
+        triggerName: "audit_users",
+        tableName: "users",
+        schema: "public",
+      },
+      response: "CREATE TRIGGER audit_users AFTER UPDATE ON users",
+    },
+    get_create_index_sql: {
+      request: {
+        connectionId: "object-fixture",
+        table: "users",
+        indexName: "idx_users_email",
+        columns: ["email"],
+        isUnique: true,
+        schema: "public",
+      },
+      response: [
+        'CREATE UNIQUE INDEX "idx_users_email" ON "public"."users" ("email")',
+      ],
+    },
+    get_db_users: {
+      request: { connectionId: "object-fixture" },
+      response: [{ user: "app", host: "%", locked: false }],
+    },
+    apply_db_user_privileges: {
+      request: {
+        connectionId: "object-fixture",
+        user: "app",
+        host: "%",
+        database: "app_db",
+        table: null,
+        privileges: ["SELECT"],
+        grant: true,
+      },
+      response: null,
+    },
     insert_record: {
       request: {
         connectionId: "record-fixture",

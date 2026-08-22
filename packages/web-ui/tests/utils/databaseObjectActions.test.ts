@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { describe, expect, it, vi } from "vitest";
+import { TauriTransport } from "../../src/api/transports/tauriTransport";
 
 import {
   createDefinitionRequest,
@@ -193,8 +194,10 @@ describe("definition actions", () => {
       .mockResolvedValueOnce("routine sql")
       .mockResolvedValueOnce("trigger sql");
 
+    const client = new TauriTransport();
+
     await expect(
-      loadRoutineDefinition({
+      loadRoutineDefinition(client, {
         connectionId: "connection-b",
         routineName: "refresh_orders",
         routineType: "FUNCTION",
@@ -202,7 +205,7 @@ describe("definition actions", () => {
       }),
     ).resolves.toBe("routine sql");
     await expect(
-      loadTriggerDefinition({
+      loadTriggerDefinition(client, {
         connectionId: "connection-b",
         triggerName: "audit_orders",
         tableName: "orders",

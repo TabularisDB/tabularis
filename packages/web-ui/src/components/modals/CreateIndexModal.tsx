@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Save, Loader2, ListTree, AlertTriangle } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
 import { SqlPreview } from '../ui/SqlPreview';
 import { useDatabase } from '../../hooks/useDatabase';
 import { Modal } from '../ui/Modal';
@@ -69,7 +68,7 @@ export const CreateIndexModal = ({
       return;
     }
     try {
-      const stmts = await invoke<string[]>('get_create_index_sql', {
+      const stmts = await client.call('get_create_index_sql', {
         connectionId,
         table: tableName,
         indexName,
@@ -81,7 +80,7 @@ export const CreateIndexModal = ({
     } catch (e) {
       setSqlPreview('-- ' + String(e));
     }
-  }, [indexName, isUnique, selectedColumns, connectionId, tableName, activeSchema, t]);
+  }, [client, indexName, isUnique, selectedColumns, connectionId, tableName, activeSchema, t]);
 
   useEffect(() => {
     const timer = setTimeout(generatePreview, 300);
@@ -95,7 +94,7 @@ export const CreateIndexModal = ({
       setLoading(true);
       setError('');
       try {
-          const stmts = await invoke<string[]>('get_create_index_sql', {
+          const stmts = await client.call('get_create_index_sql', {
             connectionId,
             table: tableName,
             indexName,

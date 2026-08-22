@@ -50,6 +50,12 @@ vi.mock("../../../src/hooks/useAlert", () => ({
   useAlert: () => ({ showAlert: showAlertMock }),
 }));
 
+vi.mock("../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({
+    call: (command: string, request: unknown) => invokeMock(command, request),
+  }),
+}));
+
 vi.mock("../../../src/hooks/useCommandPaletteScope", () => ({
   useActiveCommandPaletteScope: () => ({
     connectionId: "connection-1",
