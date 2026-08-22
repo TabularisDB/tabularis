@@ -53,6 +53,12 @@ export default defineConfig([
     },
   },
   {
+    files: ["web-ui-project/e2e/**/*.ts"],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+    },
+  },
+  {
     files: tauriImportExceptions,
     rules: {
       "no-restricted-imports": "off",

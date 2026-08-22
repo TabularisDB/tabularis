@@ -8,6 +8,7 @@ import React from 'react';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
+  isTauri: vi.fn(() => false),
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({

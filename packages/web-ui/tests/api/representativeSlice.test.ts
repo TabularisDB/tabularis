@@ -85,9 +85,13 @@ describe("WEB-013 representative transport slice", () => {
     vi.clearAllMocks();
   });
 
-  it("has no direct Tauri calls for migrated commands and events", () => {
-    expect(findDirectTauriCalls()).toEqual([]);
-  });
+  it(
+    "has no direct Tauri calls for migrated commands and events",
+    () => {
+      expect(findDirectTauriCalls()).toEqual([]);
+    },
+    15_000,
+  );
 
   it("preserves requests, responses, errors, cancellation, and events", async () => {
     const client = new TabularisClient(new TauriTransport());

@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { detectPlatformEnvironment } from '../platform/environment';
 import {
   DatabaseContext,
   type ViewInfo,
@@ -1165,17 +1165,19 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   // close with their connection. Other windows pick the change up on their next
   // refresh.
   useEffect(() => {
-    if (getCurrentWindow().label !== MAIN_WINDOW_LABEL) return;
-    const unlisten = listen<{ connectionId: string; database: string }>(
-      'database-dropped',
-      (event) => {
-        void refreshDatabaseSelectionRef.current(event.payload.connectionId, {
-          notifyWhenUnchanged: false,
-        });
-      },
-    );
+    if (
+      detectPlatformEnvironment() === 'tauri' &&
+      getCurrentWindow().label !== MAIN_WINDOW_LABEL
+    ) {
+      return;
+    }
+    const unlisten = client.subscribe('database-dropped', (payload) => {
+      void refreshDatabaseSelectionRef.current(payload.connectionId, {
+        notifyWhenUnchanged: false,
+      });
+    });
     return () => { unlisten.then(fn => fn()); };
-  }, []);
+  }, [client]);
 
   // Connection Group methods
   const createGroup = useCallback(async (
