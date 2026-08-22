@@ -124,6 +124,80 @@ Protect and retain logs according to the deployment's incident-response policy. 
 | Malicious plugin or imported file | Untrusted content cannot silently gain host authority | Existing plugin trust, CSP, opaque upload/download tokens, authorization levels | Install only trusted plugins and validate backups/imports |
 | Denial of service | Authentication and request resources are bounded | Login lockout, body limits, event queues, session expiry | Add proxy connection and request-rate limits |
 
+## systemd example
+
+Run the packaged binary as a dedicated account and keep its listener on loopback behind the TLS reverse proxy. Create `/etc/tabularis/web.env`, owned by `root:tabularis` with mode `0640`:
+
+```ini
+TABULARIS_WEB_PASSWORD=replace-with-a-long-unique-password
+```
+
+Example `/etc/systemd/system/tabularis-web.service`:
+
+```ini
+[Unit]
+Description=Tabularis Web
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tabularis
+Group=tabularis
+EnvironmentFile=/etc/tabularis/web.env
+Environment=HOME=/var/lib/tabularis
+StateDirectory=tabularis
+UMask=0077
+ExecStart=/usr/bin/tabularis --web --host 127.0.0.1 --port 8080 --no-open --auth password --public-url https://tabularis.example.com --allowed-origin https://tabularis.example.com
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Create the service account before enabling the unit, replace the public origin, and configure the reverse proxy as described above. Do not place `--allow-high-risk` in a shared deployment. The packaged binary resolves its Web UI resources independently of the service working directory.
+
+## Container example
+
+Containers do not remove the remote-mode requirements. Build from an official `.deb` so the image contains the same binary and packaged `web-ui` resource tree:
+
+```dockerfile
+FROM ubuntu:22.04
+
+ARG TABULARIS_DEB=tabularis.deb
+COPY ${TABULARIS_DEB} /tmp/tabularis.deb
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends /tmp/tabularis.deb ca-certificates \
+    && rm -rf /var/lib/apt/lists/* /tmp/tabularis.deb \
+    && useradd --system --home-dir /var/lib/tabularis --create-home tabularis
+
+USER tabularis
+ENV HOME=/var/lib/tabularis
+VOLUME ["/var/lib/tabularis"]
+EXPOSE 8080
+ENTRYPOINT ["tabularis", "--web", "--host", "0.0.0.0", "--port", "8080", "--no-open", "--auth", "password", "--public-url", "https://tabularis.example.com", "--allowed-origin", "https://tabularis.example.com"]
+```
+
+Pass `TABULARIS_WEB_PASSWORD` through a protected runtime environment or secret manager, never in the image. Attach the container only to an internal reverse-proxy network and do not publish port 8080 directly:
+
+```bash
+docker build --build-arg TABULARIS_DEB=tabularis_0.20.0_amd64.deb -t tabularis-web .
+docker network create tabularis-internal
+docker run -d --name tabularis-web \
+  --network tabularis-internal \
+  --env-file /etc/tabularis/web.env \
+  --mount type=volume,src=tabularis-data,dst=/var/lib/tabularis \
+  tabularis-web
+```
+
+The TLS reverse proxy must join `tabularis-internal`, proxy to `http://tabularis-web:8080`, preserve `Host`, and support WebSocket upgrades. Integrating an OS secret service for backend credential storage is deployment-specific; verify it before relying on saved database passwords in a container.
+
 ## Verification checklist
 
 1. Confirm the upstream port is unreachable from a client network.

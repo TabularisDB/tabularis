@@ -25,6 +25,7 @@
     "web:inventory": "node web-ui-project/scripts/generate-web-ui-api-inventory.mjs --check",
     "web:inventory:write": "node web-ui-project/scripts/generate-web-ui-api-inventory.mjs --write",
     "web:boundaries": "node web-ui-project/scripts/check-web-ui-frontend-boundaries.mjs --check",
+    "web:packaging": "node --test web-ui-project/scripts/check-web-ui-packaging.test.mjs",
     "web:tasks": "bash web-ui-project/scripts/run-web-ui-tasks.sh",
     "tauri": "tauri",
     "build:explain": "pnpm --filter @tabularis/explain build",

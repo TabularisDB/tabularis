@@ -849,6 +849,12 @@ fn resolves_explicit_and_packaged_web_roots() {
         Path::new("/workspace/packages/web-ui/dist"),
     );
     assert!(linux_candidates.contains(&Path::new("/usr/lib/tabularis/web-ui").to_path_buf()));
+
+    let portable_candidates = static_assets::candidate_web_roots(
+        Path::new("/portable/tabularis.exe"),
+        Path::new("/workspace/packages/web-ui/dist"),
+    );
+    assert!(portable_candidates.contains(&Path::new("/portable/web-ui").to_path_buf()));
 }
 
 #[test]

@@ -62,6 +62,9 @@ jobs:
       - name: Check web frontend boundaries
         run: pnpm run web:boundaries
 
+      - name: Check Web UI packaging contract
+        run: pnpm run web:packaging
+
       - name: Build
         run: pnpm run build
 
