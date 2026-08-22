@@ -5,7 +5,7 @@ import {
   extractFrontendInvocations,
   extractTauriHandlers,
   validateInventory,
-} from "../../scripts/generate-web-ui-api-inventory.mjs";
+} from "../scripts/generate-web-ui-api-inventory.mjs";
 
 describe("web UI API inventory", () => {
   it("extracts literal and dynamic calls through imported invoke aliases", () => {

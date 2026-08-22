@@ -8,7 +8,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 
 const tauriBoundaryAllowlist = JSON.parse(
   fs.readFileSync(
-    new URL("./scripts/web-ui-tauri-boundary-allowlist.json", import.meta.url),
+    new URL("./web-ui-project/scripts/web-ui-tauri-boundary-allowlist.json", import.meta.url),
     "utf8",
   ),
 );
@@ -21,6 +21,7 @@ export default defineConfig([
   globalIgnores([
     "dist",
     "packages/web-ui/tests",
+    "web-ui-project/tests",
     "tests",
     "coverage",
     "src-tauri/target/**",

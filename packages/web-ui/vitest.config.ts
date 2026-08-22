@@ -23,8 +23,8 @@ export default defineConfig({
       'packages/web-ui/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       // Workspace packages keep their tests next to their own source.
       'packages/*/tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      // Repository tooling tests remain outside the frontend package.
-      'tests/scripts/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      // Web UI project tooling tests live with the tracked migration process.
+      'web-ui-project/tests/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
     coverage: {
       provider: 'v8',

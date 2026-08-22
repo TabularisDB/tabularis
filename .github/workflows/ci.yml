@@ -13,10 +13,7 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'eslint.config.js'
-      - 'scripts/check-web-ui-frontend-boundaries.mjs'
-      - 'scripts/generate-web-ui-api-inventory.mjs'
-      - 'scripts/web-ui-tauri-boundary-allowlist.json'
-      - 'docs/web-ui-parity.json'
+      - 'web-ui-project/**'
       - '.github/workflows/**'
   pull_request:
     branches: [main, feat/web-ui]
@@ -26,10 +23,7 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'eslint.config.js'
-      - 'scripts/check-web-ui-frontend-boundaries.mjs'
-      - 'scripts/generate-web-ui-api-inventory.mjs'
-      - 'scripts/web-ui-tauri-boundary-allowlist.json'
-      - 'docs/web-ui-parity.json'
+      - 'web-ui-project/**'
       - '.github/workflows/**'
 
 jobs:

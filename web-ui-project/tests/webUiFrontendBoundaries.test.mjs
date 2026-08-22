@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectBoundaryUsage,
   validateBoundaryUsage,
-} from "../../scripts/check-web-ui-frontend-boundaries.mjs";
+} from "../scripts/check-web-ui-frontend-boundaries.mjs";
 
 const emptyAllowlist = {
   schemaVersion: 1,

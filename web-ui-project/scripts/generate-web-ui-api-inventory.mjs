@@ -5,10 +5,10 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const FRONTEND_ROOT = "packages/web-ui/src";
 const TAURI_HANDLER_PATH = "src-tauri/src/lib.rs";
-const INVENTORY_PATH = "docs/web-ui-parity.json";
+const INVENTORY_PATH = "web-ui-project/docs/web-ui-parity.json";
 
 const CLASSIFICATION_VALUES = {
   featureGroup: [
@@ -469,7 +469,7 @@ function formatInventory(inventory) {
 function run() {
   const mode = process.argv[2] ?? "--check";
   if (!["--check", "--write"].includes(mode)) {
-    console.error("Usage: node scripts/generate-web-ui-api-inventory.mjs [--check|--write]");
+    console.error("Usage: node web-ui-project/scripts/generate-web-ui-api-inventory.mjs [--check|--write]");
     process.exitCode = 2;
     return;
   }

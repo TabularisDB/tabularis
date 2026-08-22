@@ -5,9 +5,9 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const FRONTEND_ROOT = "packages/web-ui/src";
-const ALLOWLIST_PATH = "scripts/web-ui-tauri-boundary-allowlist.json";
+const ALLOWLIST_PATH = "web-ui-project/scripts/web-ui-tauri-boundary-allowlist.json";
 
 function scriptKind(filePath) {
   if (filePath.endsWith(".tsx")) return ts.ScriptKind.TSX;
@@ -196,7 +196,7 @@ export function collectFrontendBoundaryUsage() {
 
 function run() {
   if (process.argv.length > 2 && process.argv[2] !== "--check") {
-    console.error("Usage: node scripts/check-web-ui-frontend-boundaries.mjs [--check]");
+    console.error("Usage: node web-ui-project/scripts/check-web-ui-frontend-boundaries.mjs [--check]");
     process.exitCode = 2;
     return;
   }

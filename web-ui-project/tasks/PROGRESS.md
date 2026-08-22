@@ -1,6 +1,6 @@
 # Web UI task progress
 
-This file is the authoritative completion ledger for `scripts/run-web-ui-tasks.sh`.
+This file is the authoritative completion ledger for `web-ui-project/scripts/run-web-ui-tasks.sh`.
 Allowed statuses are `PENDING`, `IN_PROGRESS`, `BLOCKED`, and `COMPLETED`.
 A completed row must include a concise summary, verification evidence, and an
 ISO date. Do not use `|` inside table fields.
