@@ -13,6 +13,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @tabularis/web-ui dev",
+    "dev:web": "node scripts/dev-web.mjs",
     "build": "pnpm --filter @tabularis/web-ui build",
     "lint": "pnpm --filter @tabularis/web-ui lint",
     "preview": "pnpm --filter @tabularis/web-ui preview",
