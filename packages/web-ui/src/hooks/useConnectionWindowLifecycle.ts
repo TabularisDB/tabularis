@@ -1,9 +1,6 @@
 import { useEffect, useRef } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useDatabase } from "./useDatabase";
-
-/** Label prefix used for dedicated single-connection windows. */
-const CONNECTION_WINDOW_PREFIX = "connection-window-";
+import { usePlatformCapabilities } from "./usePlatformCapabilities";
 
 /**
  * Lifecycle for a dedicated connection window: once its bound connection has
@@ -12,13 +9,16 @@ const CONNECTION_WINDOW_PREFIX = "connection-window-";
  * is never auto-closed by this hook.
  */
 export function useConnectionWindowLifecycle() {
+  const platform = usePlatformCapabilities();
   const { globallyOpenConnectionIds } = useDatabase();
 
   // The connection id this window was launched to show. Captured on first
   // render (before the app navigates away and strips the `?connect=` param).
   const boundIdRef = useRef<string | null | undefined>(undefined);
   if (boundIdRef.current === undefined) {
-    boundIdRef.current = new URLSearchParams(window.location.search).get("connect");
+    const search = new URLSearchParams(window.location.search);
+    boundIdRef.current =
+      search.get("standalone") === "connection" ? search.get("connect") : null;
   }
 
   // Guard so we don't close before the connection has finished opening on first
@@ -27,16 +27,14 @@ export function useConnectionWindowLifecycle() {
 
   useEffect(() => {
     const boundId = boundIdRef.current;
-    const label = getCurrentWindow().label;
-    const isDedicated = label.startsWith(CONNECTION_WINDOW_PREFIX);
-    if (!isDedicated || !boundId) return;
+    if (!boundId) return;
 
     if (globallyOpenConnectionIds.includes(boundId)) {
       hasBeenOpenRef.current = true;
       return;
     }
     if (hasBeenOpenRef.current) {
-      void getCurrentWindow().close();
+      void platform.closeRoute();
     }
-  }, [globallyOpenConnectionIds]);
+  }, [globallyOpenConnectionIds, platform]);
 }

@@ -11,11 +11,14 @@ import {
   type DownloadFileRequest,
   type FetchedBlob,
   type NotificationOutcome,
+  type OpenConnectionRouteRequest,
   type OpenRouteRequest,
   type PlatformCapabilities,
   type PlatformCapabilityName,
   type PlatformCapabilityNegotiation,
   type PlatformNotification,
+  type RouteEventHandler,
+  type UnsubscribeRouteEvent,
 } from "./capabilities";
 import {
   blobPayloadToBytes,
@@ -23,6 +26,10 @@ import {
   extractBlobMetadata,
   parseBlobUploadRef,
 } from "../utils/blob";
+import {
+  buildConnectionRoute,
+  buildRouteWindowLabel,
+} from "../routing";
 
 const BROWSER_CAPABILITY_NEGOTIATION = createPlatformCapabilityNegotiation(
   "browser",
@@ -201,6 +208,36 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
     }
   }
 
+  async openConnectionRoute(
+    request: OpenConnectionRouteRequest,
+  ): Promise<void> {
+    await this.openRoute({
+      route: buildConnectionRoute(request.connectionId),
+      target: "new",
+      label: buildRouteWindowLabel("connection-window", request.connectionId),
+      title: request.title ? `tabularis - ${request.title}` : "tabularis",
+    });
+  }
+
+  async publishRouteEvent<T>(event: string, payload: T): Promise<void> {
+    const channel = new BroadcastChannel(routeEventChannelName(event));
+    channel.postMessage(payload);
+    channel.close();
+  }
+
+  async subscribeRouteEvent<T>(
+    event: string,
+    handler: RouteEventHandler<T>,
+  ): Promise<UnsubscribeRouteEvent> {
+    const channel = new BroadcastChannel(routeEventChannelName(event));
+    const listener = ({ data }: MessageEvent<T>) => handler(data);
+    channel.addEventListener("message", listener);
+    return () => {
+      channel.removeEventListener("message", listener);
+      channel.close();
+    };
+  }
+
   async closeRoute(): Promise<void> {
     window.close();
   }
@@ -224,6 +261,10 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
       ),
     );
   }
+}
+
+function routeEventChannelName(event: string): string {
+  return `tabularis-route:${event}`;
 }
 
 function pickImageFile(): Promise<File | null> {

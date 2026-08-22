@@ -13,6 +13,44 @@ const request = {
   pkMap: { id: 1 },
 };
 
+describe("BrowserPlatformCapabilities secondary routes", () => {
+  it("opens a standalone connection route in a browser tab", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const capabilities = new BrowserPlatformCapabilities(clientFixture({}));
+
+    await capabilities.openConnectionRoute({
+      connectionId: "connection/id",
+      title: "Primary",
+    });
+
+    expect(open).toHaveBeenCalledWith(
+      "/connections?connect=connection%2Fid&standalone=connection",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    open.mockRestore();
+  });
+
+  it("shares typed route events between browser contexts", async () => {
+    const publisher = new BrowserPlatformCapabilities(clientFixture({}));
+    const subscriber = new BrowserPlatformCapabilities(clientFixture({}));
+    const event = `secondary-route-test:${crypto.randomUUID()}`;
+    let resolveReceived: (payload: { sessionId: string }) => void = () => {};
+    const received = new Promise<{ sessionId: string }>((resolve) => {
+      resolveReceived = resolve;
+    });
+    const unsubscribe = await subscriber.subscribeRouteEvent(
+      event,
+      resolveReceived,
+    );
+
+    await publisher.publishRouteEvent(event, { sessionId: "session-1" });
+
+    await expect(received).resolves.toEqual({ sessionId: "session-1" });
+    unsubscribe();
+  });
+});
+
 describe("BrowserPlatformCapabilities file transfers", () => {
   it("adapts browser-selected files to single-use opaque references", async () => {
     const file = {

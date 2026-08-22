@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { invoke } from "@tauri-apps/api/core";
 import {
   Github,
   CheckCircle2,
@@ -22,6 +21,7 @@ import { useSettings } from "../../hooks/useSettings";
 import { useTheme } from "../../hooks/useTheme";
 import { useUpdate } from "../../hooks/useUpdate";
 import { useChangelog } from "../../hooks/useChangelog";
+import { useSecondaryWindows } from "../../hooks/useSecondaryWindows";
 import { APP_VERSION } from "../../version";
 import { ROADMAP } from "../../utils/settings";
 import {
@@ -36,6 +36,7 @@ import { SocialLinks } from "../SocialLinks";
 
 export function InfoTab() {
   const { t } = useTranslation();
+  const { openTaskManager } = useSecondaryWindows();
   const { settings, updateSetting } = useSettings();
   const { currentTheme } = useTheme();
   const {
@@ -295,7 +296,7 @@ export function InfoTab() {
         description={t("taskManager.header.description")}
         action={
           <button
-            onClick={() => invoke("open_task_manager_window")}
+            onClick={() => void openTaskManager()}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-500/15 border border-blue-500/25 text-blue-400 hover:bg-blue-500/25 transition-colors"
           >
             <Activity size={14} />

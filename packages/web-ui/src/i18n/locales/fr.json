@@ -1722,7 +1722,12 @@
   },
   "jsonViewer": {
     "close": "Fermer",
-    "save": "Enregistrer"
+    "save": "Enregistrer",
+    "noSession": "Aucun identifiant de session fourni",
+    "sessionExpired": "Cette session du visualiseur JSON a expiré. Revenez à la source et ouvrez-la à nouveau."
+  },
+  "secondaryWindows": {
+    "sessionExpired": "Cette session de fenêtre secondaire a expiré. Revenez à la source et ouvrez-la à nouveau."
   },
   "jsonCell": {
     "expand": "Afficher/masquer l'arbre JSON",

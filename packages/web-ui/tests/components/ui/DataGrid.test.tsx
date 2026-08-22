@@ -20,6 +20,14 @@ vi.mock("../../../src/hooks/useTabularisClient", () => ({
   useTabularisClient: () => ({ call: vi.fn() }),
 }));
 
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({}),
+}));
+
+vi.mock("../../../src/platform/secondaryWindowSessions", () => ({
+  getJsonViewerSessionHost: () => ({ open: vi.fn() }),
+}));
+
 const { showToastMock } = vi.hoisted(() => ({ showToastMock: vi.fn() }));
 
 vi.mock("../../../src/hooks/useToast", () => ({

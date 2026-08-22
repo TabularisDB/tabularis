@@ -1658,7 +1658,12 @@
   },
   "jsonViewer": {
     "close": "닫기",
-    "save": "저장"
+    "save": "저장",
+    "noSession": "세션 ID가 제공되지 않았습니다",
+    "sessionExpired": "이 JSON 뷰어 세션이 만료되었습니다. 원본으로 돌아가 다시 여세요."
+  },
+  "secondaryWindows": {
+    "sessionExpired": "이 보조 창 세션이 만료되었습니다. 원본으로 돌아가 다시 여세요."
   },
   "jsonCell": {
     "expand": "인라인 JSON 트리 토글",

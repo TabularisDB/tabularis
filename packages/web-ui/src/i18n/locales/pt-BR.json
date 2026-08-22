@@ -1695,7 +1695,12 @@
   },
   "jsonViewer": {
     "close": "Fechar",
-    "save": "Salvar"
+    "save": "Salvar",
+    "noSession": "Nenhum ID de sessão foi fornecido",
+    "sessionExpired": "Esta sessão do visualizador JSON expirou. Volte à origem e abra-a novamente."
+  },
+  "secondaryWindows": {
+    "sessionExpired": "Esta sessão da janela secundária expirou. Volte à origem e abra-a novamente."
   },
   "jsonCell": {
     "expand": "Alternar árvore JSON em linha",

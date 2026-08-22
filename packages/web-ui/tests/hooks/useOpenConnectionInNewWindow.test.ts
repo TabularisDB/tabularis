@@ -6,12 +6,19 @@ import { useOpenConnectionInNewWindow } from "../../src/hooks/useOpenConnectionI
 const detachConnectionMock = vi.fn();
 const isConnectionOpenMock = vi.fn<(id: string) => boolean>();
 const isConnectionOpenAnywhereMock = vi.fn<(id: string) => boolean>();
+const openConnectionRouteMock = vi.fn();
 
 vi.mock("../../src/hooks/useDatabase", () => ({
   useDatabase: () => ({
     detachConnection: detachConnectionMock,
     isConnectionOpen: isConnectionOpenMock,
     isConnectionOpenAnywhere: isConnectionOpenAnywhereMock,
+  }),
+}));
+
+vi.mock("../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({
+    openConnectionRoute: openConnectionRouteMock,
   }),
 }));
 
@@ -31,6 +38,8 @@ describe("useOpenConnectionInNewWindow", () => {
     detachConnectionMock.mockReset();
     isConnectionOpenMock.mockReset();
     isConnectionOpenAnywhereMock.mockReset();
+    openConnectionRouteMock.mockReset();
+    openConnectionRouteMock.mockResolvedValue(undefined);
     invokeMock.mockImplementation((cmd: string) => {
       if (cmd === "get_connections") return Promise.resolve([conn]);
       return Promise.resolve(undefined);
@@ -47,14 +56,12 @@ describe("useOpenConnectionInNewWindow", () => {
     expect(invokeMock).toHaveBeenCalledWith("test_connection", {
       request: { params: conn.params, connection_id: "conn-1" },
     });
-    expect(invokeMock).toHaveBeenCalledWith("open_connection_window", {
+    expect(openConnectionRouteMock).toHaveBeenCalledWith({
       connectionId: "conn-1",
       title: "My DB",
     });
-    // test_connection must be called before open_connection_window
-    const order = invokeMock.mock.calls.map((c) => c[0]);
-    expect(order.indexOf("test_connection")).toBeLessThan(
-      order.indexOf("open_connection_window"),
+    expect(invokeMock.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      openConnectionRouteMock.mock.invocationCallOrder[0],
     );
   });
 
@@ -69,10 +76,7 @@ describe("useOpenConnectionInNewWindow", () => {
     const { result } = renderHook(() => useOpenConnectionInNewWindow());
 
     await expect(result.current("conn-1", "My DB")).rejects.toThrow("bad creds");
-    expect(invokeMock).not.toHaveBeenCalledWith(
-      "open_connection_window",
-      expect.anything(),
-    );
+    expect(openConnectionRouteMock).not.toHaveBeenCalled();
   });
 
   it("skips validation when the connection is already open somewhere", async () => {
@@ -83,7 +87,7 @@ describe("useOpenConnectionInNewWindow", () => {
     await result.current("conn-1", "My DB");
 
     expect(invokeMock).not.toHaveBeenCalledWith("test_connection", expect.anything());
-    expect(invokeMock).toHaveBeenCalledWith("open_connection_window", {
+    expect(openConnectionRouteMock).toHaveBeenCalledWith({
       connectionId: "conn-1",
       title: "My DB",
     });
@@ -106,7 +110,7 @@ describe("useOpenConnectionInNewWindow", () => {
 
     await result.current("conn-1");
 
-    expect(invokeMock).toHaveBeenCalledWith("open_connection_window", {
+    expect(openConnectionRouteMock).toHaveBeenCalledWith({
       connectionId: "conn-1",
       title: null,
     });

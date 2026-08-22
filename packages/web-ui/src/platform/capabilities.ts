@@ -97,6 +97,13 @@ export interface PlatformNotification {
 
 export type NotificationOutcome = "shown" | "permission-denied";
 
+export interface RouteWindowOptions {
+  readonly width?: number;
+  readonly height?: number;
+  readonly minWidth?: number;
+  readonly minHeight?: number;
+}
+
 export type OpenRouteRequest =
   | {
       readonly route: string;
@@ -107,7 +114,16 @@ export type OpenRouteRequest =
       readonly target: "new";
       readonly label: string;
       readonly title?: string;
+      readonly window?: RouteWindowOptions;
     };
+
+export interface OpenConnectionRouteRequest {
+  readonly connectionId: string;
+  readonly title?: string | null;
+}
+
+export type RouteEventHandler<T> = (payload: T) => void;
+export type UnsubscribeRouteEvent = () => void;
 
 export type AttentionLevel = "informational" | "critical";
 
@@ -134,6 +150,12 @@ export interface PlatformCapabilities {
   openExternalUrl(url: string): Promise<void>;
   notify(notification: PlatformNotification): Promise<NotificationOutcome>;
   openRoute(request: OpenRouteRequest): Promise<void>;
+  openConnectionRoute(request: OpenConnectionRouteRequest): Promise<void>;
+  publishRouteEvent<T>(event: string, payload: T): Promise<void>;
+  subscribeRouteEvent<T>(
+    event: string,
+    handler: RouteEventHandler<T>,
+  ): Promise<UnsubscribeRouteEvent>;
   closeRoute(): Promise<void>;
   requestAttention(level?: AttentionLevel): Promise<void>;
   restartApplication(): Promise<void>;

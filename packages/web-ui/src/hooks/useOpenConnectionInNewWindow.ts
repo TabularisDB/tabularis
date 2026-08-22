@@ -1,6 +1,6 @@
 import { useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { useDatabase } from "./useDatabase";
+import { usePlatformCapabilities } from "./usePlatformCapabilities";
 import { useTabularisClient } from "./useTabularisClient";
 
 /**
@@ -18,6 +18,7 @@ import { useTabularisClient } from "./useTabularisClient";
  */
 export function useOpenConnectionInNewWindow() {
   const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const { detachConnection, isConnectionOpen, isConnectionOpenAnywhere } = useDatabase();
 
   return useCallback(
@@ -34,7 +35,7 @@ export function useOpenConnectionInNewWindow() {
         });
       }
 
-      await invoke("open_connection_window", {
+      await platform.openConnectionRoute({
         connectionId,
         title: name ?? null,
       });
@@ -43,6 +44,12 @@ export function useOpenConnectionInNewWindow() {
         detachConnection(connectionId);
       }
     },
-    [client, detachConnection, isConnectionOpen, isConnectionOpenAnywhere],
+    [
+      client,
+      detachConnection,
+      isConnectionOpen,
+      isConnectionOpenAnywhere,
+      platform,
+    ],
   );
 }

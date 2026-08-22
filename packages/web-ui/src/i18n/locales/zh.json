@@ -1598,7 +1598,12 @@
   },
   "jsonViewer": {
     "close": "关闭",
-    "save": "保存"
+    "save": "保存",
+    "noSession": "未提供会话 ID",
+    "sessionExpired": "此 JSON 查看器会话已过期。请返回来源并重新打开。"
+  },
+  "secondaryWindows": {
+    "sessionExpired": "此次级窗口会话已过期。请返回来源并重新打开。"
   },
   "jsonCell": {
     "expand": "展开/收起 JSON 树",

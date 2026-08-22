@@ -1679,6 +1679,15 @@
     "valid": "有効な JSON",
     "invalid": "無効な JSON"
   },
+  "jsonViewer": {
+    "close": "閉じる",
+    "save": "保存",
+    "noSession": "セッション ID が指定されていません",
+    "sessionExpired": "この JSON ビューアーのセッションは期限切れです。元の画面に戻って、もう一度開いてください。"
+  },
+  "secondaryWindows": {
+    "sessionExpired": "このサブウィンドウのセッションは期限切れです。元の画面に戻って、もう一度開いてください。"
+  },
   "rowEditor": {
     "title": "行を編集",
     "subtitle": "行 #{{row}}",

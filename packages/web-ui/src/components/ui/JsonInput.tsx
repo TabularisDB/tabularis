@@ -11,7 +11,8 @@ import {
   WrapText,
   X,
 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { getJsonViewerSessionHost } from "../../platform/secondaryWindowSessions";
 import {
   formatJsonForEditor,
   parseJsonEditorValue,
@@ -53,6 +54,7 @@ export const JsonInput: React.FC<JsonInputProps> = ({
   originalValue,
 }) => {
   const { t } = useTranslation();
+  const platform = usePlatformCapabilities();
   const [mode, setMode] = useState<JsonInputMode>("code");
   const valueKey = JSON.stringify(value);
   const [text, setText] = useState(() => formatJsonForEditor(value));
@@ -156,18 +158,21 @@ export const JsonInput: React.FC<JsonInputProps> = ({
 
   const handleExpandToWindow = useCallback(async () => {
     try {
-      await invoke<string>("open_json_viewer_window", {
-        value: expandValue,
-        originalValue: originalValue ?? expandValue,
-        colName: "",
-        rowLabel: null,
-        readOnly,
-        cellKey: null,
-      });
+      await getJsonViewerSessionHost(platform).open(
+        {
+          value: expandValue,
+          originalValue: originalValue ?? expandValue,
+          columnName: "",
+          rowLabel: null,
+          readOnly,
+          cellKey: null,
+        },
+        readOnly ? undefined : onChange,
+      );
     } catch (e) {
       console.error("Failed to open JSON viewer window:", e);
     }
-  }, [expandValue, originalValue, readOnly]);
+  }, [expandValue, onChange, originalValue, platform, readOnly]);
 
   const showToolbar = isTextMode || !disableExpand;
 

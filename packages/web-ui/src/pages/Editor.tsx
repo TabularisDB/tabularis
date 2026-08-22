@@ -67,7 +67,7 @@ import {
   WrapText,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen, emit } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import { TableToolbar } from "../components/ui/TableToolbar";
 import { DataGrid } from "../components/ui/DataGrid";
 import { MultiResultPanel } from "../components/ui/MultiResultPanel";
@@ -111,10 +111,13 @@ import {
   RESULTS_READY_EVENT,
   RESULTS_CLOSED_EVENT,
   type ResultsWindowActionHandlers,
-  type ResultsReadyPayload,
-  type ResultsActionEnvelope,
-  type ResultsClosedPayload,
 } from "../utils/resultsWindowSync";
+import type {
+  ResultsSessionAction,
+  ResultsSessionClosed,
+  ResultsSessionRequest,
+  ResultsSessionSnapshot,
+} from "../platform/secondaryWindowSessions";
 import { SqlEditorWrapper } from "../components/ui/SqlEditorWrapper";
 import { NotebookView } from "../components/notebook/NotebookView";
 import { UserManagementView } from "../components/users/UserManagementView";
@@ -133,6 +136,8 @@ import { useSettings } from "../hooks/useSettings";
 import { useEditor } from "../hooks/useEditor";
 import { useConnectionLayoutContext } from "../hooks/useConnectionLayoutContext";
 import { useKeybindings } from "../hooks/useKeybindings";
+import { usePlatformCapabilities } from "../hooks/usePlatformCapabilities";
+import { useSecondaryWindows } from "../hooks/useSecondaryWindows";
 import type {
   BatchStatementResult,
   Tab,
@@ -194,6 +199,8 @@ interface EditorProps {
 
 export const Editor = ({ commandScopeId }: EditorProps) => {
   const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
+  const { openResultsWindow, closeResultsWindow } = useSecondaryWindows();
   const { t } = useTranslation();
   const {
     activeConnectionId,
@@ -384,6 +391,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   // Mirror of detachedTabIds for use inside callbacks/refs without re-creating
   // them or reading stale closures. Kept in sync alongside tabsRef below.
   const detachedTabIdsRef = useRef(detachedTabIds);
+  const resultSessionIdsRef = useRef(new Map<string, string>());
+  const resultTabIdsBySessionRef = useRef(new Map<string, string>());
   const isDragging = useRef(false);
   const rafRef = useRef<number | null>(null);
   const editorsRef = useRef<Record<string, Parameters<OnMount>[0]>>({});
@@ -1620,29 +1629,37 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const handleDetachResults = useCallback(async () => {
     if (!activeTab) return;
     const tabId = activeTab.id;
+    const sessionId = crypto.randomUUID();
+    resultSessionIdsRef.current.set(tabId, sessionId);
+    resultTabIdsBySessionRef.current.set(sessionId, tabId);
     try {
-      await invoke("open_results_window", {
-        tabId,
-        title: `${activeTab.title} — Query Results`,
-      });
+      await openResultsWindow(
+        sessionId,
+        `${activeTab.title} — Query Results`,
+      );
       setDetachedTabIds((prev) => new Set(prev).add(tabId));
     } catch (e) {
+      resultSessionIdsRef.current.delete(tabId);
+      resultTabIdsBySessionRef.current.delete(sessionId);
       console.error("Failed to detach results", e);
     }
-  }, [activeTab]);
+  }, [activeTab, openResultsWindow]);
 
   const handleReattachResults = useCallback(async (tabId: string) => {
+    const sessionId = resultSessionIdsRef.current.get(tabId) ?? tabId;
     try {
-      await invoke("close_results_window", { tabId });
+      await closeResultsWindow(sessionId);
     } catch (e) {
       console.error("Failed to close results window", e);
     }
+    resultSessionIdsRef.current.delete(tabId);
+    resultTabIdsBySessionRef.current.delete(sessionId);
     setDetachedTabIds((prev) => {
       const next = new Set(prev);
       next.delete(tabId);
       return next;
     });
-  }, []);
+  }, [closeResultsWindow]);
 
   // Push each detached tab's result state to its window whenever the tabs
   // change (every detached tab is re-synced; its window filters by tabId).
@@ -1650,15 +1667,19 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     if (detachedTabIds.size === 0) return;
     for (const id of detachedTabIds) {
       const tab = tabs.find((t) => t.id === id);
-      if (tab) {
-        emit(
+      const sessionId = resultSessionIdsRef.current.get(id);
+      if (tab && sessionId) {
+        void platform.publishRouteEvent<ResultsSessionSnapshot>(
           RESULTS_SYNC_EVENT,
-          buildSyncPayload(tab, {
-            connectionId: activeConnectionId,
-            copyFormat,
-            csvDelimiter,
-            csvIncludeHeaders,
-          }),
+          {
+            sessionId,
+            payload: buildSyncPayload(tab, {
+              connectionId: activeConnectionId,
+              copyFormat,
+              csvDelimiter,
+              csvIncludeHeaders,
+            }),
+          },
         );
       }
     }
@@ -1669,6 +1690,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     copyFormat,
     csvDelimiter,
     csvIncludeHeaders,
+    platform,
   ]);
 
   // If a detached tab is closed in the main window, close its orphaned window.
@@ -1677,10 +1699,11 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   useEffect(() => {
     for (const id of detachedTabIds) {
       if (!tabs.some((t) => t.id === id)) {
-        invoke("close_results_window", { tabId: id }).catch(() => {});
+        const sessionId = resultSessionIdsRef.current.get(id) ?? id;
+        void closeResultsWindow(sessionId).catch(() => {});
       }
     }
-  }, [tabs, detachedTabIds]);
+  }, [closeResultsWindow, tabs, detachedTabIds]);
 
   // Respond to the detached windows' handshakes and forwarded actions. The main
   // window owns all query/DB logic, so actions map onto the existing handlers
@@ -1692,17 +1715,21 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   // the window stuck on "Loading…". Each handler self-guards (action via
   // detachedTabIdsRef, ready via the tabsRef lookup, closed via prev.has).
   useEffect(() => {
-    const emitSyncFor = (tabId: string) => {
-      const tab = tabsRef.current.find((t) => t.id === tabId);
+    const emitSyncFor = (sessionId: string) => {
+      const tabId = resultTabIdsBySessionRef.current.get(sessionId);
+      const tab = tabsRef.current.find((candidate) => candidate.id === tabId);
       if (tab) {
-        emit(
+        void platform.publishRouteEvent<ResultsSessionSnapshot>(
           RESULTS_SYNC_EVENT,
-          buildSyncPayload(tab, {
-            connectionId: activeConnectionId,
-            copyFormat,
-            csvDelimiter,
-            csvIncludeHeaders,
-          }),
+          {
+            sessionId,
+            payload: buildSyncPayload(tab, {
+              connectionId: activeConnectionId,
+              copyFormat,
+              csvDelimiter,
+              csvIncludeHeaders,
+            }),
+          },
         );
       }
     };
@@ -1786,23 +1813,27 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
       };
     };
 
-    const readyP = listen<ResultsReadyPayload>(RESULTS_READY_EVENT, (event) =>
-      emitSyncFor(event.payload.tabId),
+    const readyP = platform.subscribeRouteEvent<ResultsSessionRequest>(
+      RESULTS_READY_EVENT,
+      ({ sessionId }) => emitSyncFor(sessionId),
     );
-    const actionP = listen<ResultsActionEnvelope>(
+    const actionP = platform.subscribeRouteEvent<ResultsSessionAction>(
       RESULTS_ACTION_EVENT,
-      (event) => {
-        // Only honor actions for tabs we actually have detached — defense in
-        // depth against events arriving for a reattached/unknown tab.
-        const { tabId, action } = event.payload;
-        if (!detachedTabIdsRef.current.has(tabId)) return;
+      ({ sessionId, action }) => {
+        const tabId = resultTabIdsBySessionRef.current.get(sessionId);
+        // Only honor actions for sessions we actually have detached — defense
+        // in depth against events arriving for an expired route.
+        if (!tabId || !detachedTabIdsRef.current.has(tabId)) return;
         applyAction(action, makeHandlers(tabId));
       },
     );
-    const closedP = listen<ResultsClosedPayload>(
+    const closedP = platform.subscribeRouteEvent<ResultsSessionClosed>(
       RESULTS_CLOSED_EVENT,
-      (event) => {
-        const closedId = event.payload.tabId;
+      ({ sessionId }) => {
+        const closedId = resultTabIdsBySessionRef.current.get(sessionId);
+        if (!closedId) return;
+        resultTabIdsBySessionRef.current.delete(sessionId);
+        resultSessionIdsRef.current.delete(closedId);
         setDetachedTabIds((prev) => {
           if (!prev.has(closedId)) return prev;
           const next = new Set(prev);
@@ -1826,6 +1857,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     runResultEntryPage,
     loadCount,
     updateTab,
+    platform,
   ]);
 
   // Keep the Run button honest about its target: with no selection a pasted

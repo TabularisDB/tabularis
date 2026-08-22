@@ -1733,7 +1733,12 @@
   },
   "jsonViewer": {
     "close": "Close",
-    "save": "Save"
+    "save": "Save",
+    "noSession": "No session ID provided",
+    "sessionExpired": "This JSON viewer session expired. Return to the source and open it again."
+  },
+  "secondaryWindows": {
+    "sessionExpired": "This secondary window session expired. Return to the source and open it again."
   },
   "jsonCell": {
     "expand": "Toggle inline JSON tree",

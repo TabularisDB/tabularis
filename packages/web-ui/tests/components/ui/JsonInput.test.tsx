@@ -16,6 +16,15 @@ interface TreeViewMockProps {
 
 const codeProps: { current: CodeEditorMockProps | null } = { current: null };
 const treeProps: { current: TreeViewMockProps | null } = { current: null };
+const openJsonViewerMock = vi.fn();
+
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({}),
+}));
+
+vi.mock("../../../src/platform/secondaryWindowSessions", () => ({
+  getJsonViewerSessionHost: () => ({ open: openJsonViewerMock }),
+}));
 
 vi.mock("../../../src/components/ui/CellCodeEditor", () => ({
   CellCodeEditor: (props: CodeEditorMockProps) => {
@@ -51,6 +60,7 @@ describe("JsonInput", () => {
   beforeEach(() => {
     codeProps.current = null;
     treeProps.current = null;
+    openJsonViewerMock.mockReset();
   });
 
   it("renders Code mode by default", () => {

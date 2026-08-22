@@ -1,63 +1,148 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { JsonInput } from "../components/ui/JsonInput";
+import { usePlatformCapabilities } from "../hooks/usePlatformCapabilities";
+import {
+  JSON_VIEWER_SESSION_CLOSED_EVENT,
+  JSON_VIEWER_SESSION_DATA_EVENT,
+  JSON_VIEWER_SESSION_EXPIRED_EVENT,
+  JSON_VIEWER_SESSION_REQUEST_EVENT,
+  JSON_VIEWER_SESSION_SAVED_EVENT,
+  type JsonViewerSession,
+  type JsonViewerSessionClosed,
+  type JsonViewerSessionData,
+  type JsonViewerSessionExpired,
+  type JsonViewerSessionRequest,
+  type JsonViewerSessionSaved,
+} from "../platform/secondaryWindowSessions";
 
-interface SessionDto {
-  value: unknown;
-  original_value: unknown;
-  col_name: string;
-  read_only: boolean;
-}
+const SESSION_RESPONSE_TIMEOUT_MS = 2_000;
 
 export const JsonViewerPage = () => {
   const { t } = useTranslation();
+  const platform = usePlatformCapabilities();
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get("session") ?? "";
+  const completedRef = useRef(false);
 
-  const [session, setSession] = useState<SessionDto | null>(null);
+  const [session, setSession] = useState<JsonViewerSession | null>(null);
   const [currentValue, setCurrentValue] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!sessionId) return;
-    invoke<SessionDto>("get_json_viewer_session", { sessionId })
-      .then((data) => {
-        setSession(data);
-        setCurrentValue(data.value);
-      })
-      .catch((e) => setError(String(e)));
-  }, [sessionId]);
+    let cancelled = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let unsubscribers: Array<() => void> = [];
 
-  const handleClose = useCallback(async () => {
-    await getCurrentWindow().close();
-  }, []);
+    void (async () => {
+      try {
+        unsubscribers = await Promise.all([
+          platform.subscribeRouteEvent<JsonViewerSessionData>(
+            JSON_VIEWER_SESSION_DATA_EVENT,
+            ({ sessionId: receivedId, session: receivedSession }) => {
+              if (cancelled || receivedId !== sessionId) return;
+              if (timeout) clearTimeout(timeout);
+              setError(null);
+              setSession(receivedSession);
+              setCurrentValue(receivedSession.value);
+            },
+          ),
+          platform.subscribeRouteEvent<JsonViewerSessionExpired>(
+            JSON_VIEWER_SESSION_EXPIRED_EVENT,
+            ({ sessionId: expiredId }) => {
+              if (cancelled || expiredId !== sessionId) return;
+              if (timeout) clearTimeout(timeout);
+              setError(
+                t("jsonViewer.sessionExpired", {
+                  defaultValue:
+                    "This JSON viewer session expired. Return to the source and open it again.",
+                }),
+              );
+            },
+          ),
+        ]);
+        if (cancelled) {
+          for (const unsubscribe of unsubscribers) unsubscribe();
+          return;
+        }
+
+        timeout = setTimeout(() => {
+          setError(
+            t("jsonViewer.sessionExpired", {
+              defaultValue:
+                "This JSON viewer session expired. Return to the source and open it again.",
+            }),
+          );
+        }, SESSION_RESPONSE_TIMEOUT_MS);
+        await platform.publishRouteEvent<JsonViewerSessionRequest>(
+          JSON_VIEWER_SESSION_REQUEST_EVENT,
+          { sessionId },
+        );
+      } catch (cause) {
+        if (!cancelled) setError(String(cause));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (timeout) clearTimeout(timeout);
+      for (const unsubscribe of unsubscribers) unsubscribe();
+    };
+  }, [platform, sessionId, t]);
+
+  const closeSession = useCallback(async () => {
+    if (sessionId && !completedRef.current) {
+      completedRef.current = true;
+      await platform.publishRouteEvent<JsonViewerSessionClosed>(
+        JSON_VIEWER_SESSION_CLOSED_EVENT,
+        { sessionId },
+      );
+    }
+    await platform.closeRoute();
+  }, [platform, sessionId]);
 
   const handleSave = useCallback(async () => {
     try {
-      await invoke("complete_json_viewer_session", {
-        sessionId,
-        value: currentValue,
-      });
-    } catch (e) {
-      setError(String(e));
-      return;
+      completedRef.current = true;
+      await platform.publishRouteEvent<JsonViewerSessionSaved>(
+        JSON_VIEWER_SESSION_SAVED_EVENT,
+        { sessionId, value: currentValue },
+      );
+      await platform.closeRoute();
+    } catch (cause) {
+      completedRef.current = false;
+      setError(String(cause));
     }
-    await getCurrentWindow().close();
-  }, [sessionId, currentValue]);
+  }, [currentValue, platform, sessionId]);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleClose();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") void closeSession();
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [handleClose]);
+    const handlePageHide = () => {
+      if (!sessionId || completedRef.current) return;
+      completedRef.current = true;
+      void platform.publishRouteEvent<JsonViewerSessionClosed>(
+        JSON_VIEWER_SESSION_CLOSED_EVENT,
+        { sessionId },
+      );
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [closeSession, platform, sessionId]);
 
-  const showSave = session && !session.read_only;
-  const displayError = error ?? (!sessionId ? "No session ID provided" : null);
+  const showSave = session && !session.readOnly;
+  const displayError =
+    error ??
+    (!sessionId
+      ? t("jsonViewer.noSession", { defaultValue: "No session ID provided" })
+      : null);
 
   return (
     <div className="w-screen h-screen flex flex-col bg-base text-primary">
@@ -67,9 +152,9 @@ export const JsonViewerPage = () => {
         ) : session ? (
           <JsonInput
             value={currentValue}
-            originalValue={session.original_value}
+            originalValue={session.originalValue}
             onChange={setCurrentValue}
-            readOnly={session.read_only}
+            readOnly={session.readOnly}
             className="h-full"
             disableExpand
             fillHeight
@@ -84,14 +169,14 @@ export const JsonViewerPage = () => {
           <>
             <button
               type="button"
-              onClick={handleClose}
+              onClick={() => void closeSession()}
               className="px-4 py-2 text-secondary hover:text-primary transition-colors text-sm"
             >
               {t("common.cancel")}
             </button>
             <button
               type="button"
-              onClick={handleSave}
+              onClick={() => void handleSave()}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
             >
               {t("jsonViewer.save")}
@@ -100,7 +185,7 @@ export const JsonViewerPage = () => {
         ) : (
           <button
             type="button"
-            onClick={handleClose}
+            onClick={() => void closeSession()}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors"
           >
             {t("jsonViewer.close")}

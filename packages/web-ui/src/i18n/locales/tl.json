@@ -1714,7 +1714,12 @@
   },
   "jsonViewer": {
     "close": "Isara",
-    "save": "I-save"
+    "save": "I-save",
+    "noSession": "Walang ibinigay na session ID",
+    "sessionExpired": "Nag-expire ang session ng JSON viewer. Bumalik sa pinagmulan at buksan itong muli."
+  },
+  "secondaryWindows": {
+    "sessionExpired": "Nag-expire ang session ng pangalawang window. Bumalik sa pinagmulan at buksan itong muli."
   },
   "jsonCell": {
     "expand": "I-toggle ang inline JSON tree",

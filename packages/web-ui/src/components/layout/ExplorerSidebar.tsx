@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { quoteTableRef } from "../../utils/identifiers";
-import { invoke } from "@tauri-apps/api/core";
 import {
   Database,
   Plus,
@@ -94,6 +93,7 @@ import { supportsManageTables } from "../../utils/driverCapabilities";
 import { newConsoleForDatabase } from "../../utils/newConsole";
 import { openEditor } from "../../utils/editorNavigation";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { useSecondaryWindows } from "../../hooks/useSecondaryWindows";
 import {
   DEFAULT_CREATE_TABLE_TARGET,
   getCreateTableRefreshPlan,
@@ -112,6 +112,7 @@ interface ExplorerSidebarProps {
 
 export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebarTab, onSidebarTabChange }: ExplorerSidebarProps) => {
   const client = useTabularisClient();
+  const { openSchemaDiagram } = useSecondaryWindows();
   const { t } = useTranslation();
   const { settings } = useSettings();
   const {
@@ -626,7 +627,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       <button
                         onClick={async () => {
                           try {
-                            await invoke("open_er_diagram_window", {
+                            await openSchemaDiagram({
                               connectionId: activeConnectionId || "",
                               connectionName: activeConnectionName || "Unknown",
                               databaseName: activeDatabaseName || "Unknown",
@@ -677,7 +678,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                 <button
                   onClick={async () => {
                     try {
-                      await invoke("open_er_diagram_window", {
+                      await openSchemaDiagram({
                         connectionId: activeConnectionId || "",
                         connectionName: activeConnectionName || "Unknown",
                         databaseName: activeDatabaseName || "Unknown",
@@ -1472,7 +1473,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       onImport={activeCapabilities?.no_connection_required !== true ? (db) => handleImportDatabase(db) : undefined}
                       onViewDiagram={activeCapabilities?.no_connection_required !== true ? async (db) => {
                         try {
-                          await invoke("open_er_diagram_window", {
+                          await openSchemaDiagram({
                             connectionId: activeConnectionId || "",
                             connectionName: activeConnectionName || "Unknown",
                             databaseName: db,
@@ -1923,7 +1924,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                       icon: Network,
                       action: async () => {
                         try {
-                          await invoke("open_er_diagram_window", {
+                          await openSchemaDiagram({
                             connectionId: activeConnectionId || "",
                             connectionName: activeConnectionName || "Unknown",
                             databaseName: activeDatabaseName || "Unknown",
@@ -2415,7 +2416,7 @@ export const ExplorerSidebar = ({ sidebarWidth, startResize, onCollapse, sidebar
                                   icon: Network,
                                   action: async () => {
                                     try {
-                                      await invoke("open_er_diagram_window", {
+                                      await openSchemaDiagram({
                                         connectionId: activeConnectionId || "",
                                         connectionName: activeConnectionName || "Unknown",
                                         databaseName: contextMenu.id,

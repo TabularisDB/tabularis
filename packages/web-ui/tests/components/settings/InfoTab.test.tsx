@@ -56,6 +56,10 @@ vi.mock("../../../src/hooks/useChangelog", () => ({
   })),
 }));
 
+vi.mock("../../../src/hooks/useSecondaryWindows", () => ({
+  useSecondaryWindows: () => ({ openTaskManager: vi.fn() }),
+}));
+
 // Not under test here; avoid pulling in their own icon/markdown dependencies.
 vi.mock("../../../src/components/modals/WhatsNewModal", () => ({
   WhatsNewModal: () => null,

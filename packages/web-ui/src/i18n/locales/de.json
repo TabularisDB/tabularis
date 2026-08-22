@@ -1654,7 +1654,12 @@
   },
   "jsonViewer": {
     "close": "Schließen",
-    "save": "Speichern"
+    "save": "Speichern",
+    "noSession": "Keine Sitzungs-ID angegeben",
+    "sessionExpired": "Diese JSON-Viewer-Sitzung ist abgelaufen. Kehren Sie zur Quelle zurück und öffnen Sie sie erneut."
+  },
+  "secondaryWindows": {
+    "sessionExpired": "Diese Sitzung des sekundären Fensters ist abgelaufen. Kehren Sie zur Quelle zurück und öffnen Sie es erneut."
   },
   "jsonCell": {
     "expand": "JSON-Baum ein-/ausklappen",

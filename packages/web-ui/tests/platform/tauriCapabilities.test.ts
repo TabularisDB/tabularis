@@ -18,6 +18,9 @@ const createOperations = (): TauriPlatformOperations => ({
   requestNotificationPermission: vi.fn(),
   sendNotification: vi.fn(),
   openRoute: vi.fn(),
+  openConnectionRoute: vi.fn(),
+  publishRouteEvent: vi.fn(),
+  subscribeRouteEvent: vi.fn().mockResolvedValue(vi.fn()),
   closeRoute: vi.fn(),
   requestAttention: vi.fn(),
   restartApplication: vi.fn(),
@@ -109,10 +112,23 @@ describe("TauriPlatformCapabilities", () => {
     await capabilities.writeClipboard("SELECT 2");
     await capabilities.openExternalUrl("https://tabularis.dev");
     await capabilities.openRoute({
-      route: "/results-window?tab=1",
+      route: "/results-window?session=1",
       target: "new",
       label: "results-window-1",
+      window: { width: 900, height: 600 },
     });
+    await capabilities.openConnectionRoute({
+      connectionId: "connection-1",
+      title: "Primary",
+    });
+    await capabilities.publishRouteEvent("results-window:ready", {
+      sessionId: "1",
+    });
+    const unsubscribe = await capabilities.subscribeRouteEvent(
+      "results-window:sync",
+      vi.fn(),
+    );
+    unsubscribe();
     await capabilities.closeRoute();
     await capabilities.requestAttention("critical");
     await capabilities.restartApplication();
@@ -120,10 +136,23 @@ describe("TauriPlatformCapabilities", () => {
     expect(operations.writeClipboardText).toHaveBeenCalledWith("SELECT 2");
     expect(operations.openUrl).toHaveBeenCalledWith("https://tabularis.dev");
     expect(operations.openRoute).toHaveBeenCalledWith({
-      route: "/results-window?tab=1",
+      route: "/results-window?session=1",
       target: "new",
       label: "results-window-1",
+      window: { width: 900, height: 600 },
     });
+    expect(operations.openConnectionRoute).toHaveBeenCalledWith({
+      connectionId: "connection-1",
+      title: "Primary",
+    });
+    expect(operations.publishRouteEvent).toHaveBeenCalledWith(
+      "results-window:ready",
+      { sessionId: "1" },
+    );
+    expect(operations.subscribeRouteEvent).toHaveBeenCalledWith(
+      "results-window:sync",
+      expect.any(Function),
+    );
     expect(operations.closeRoute).toHaveBeenCalledOnce();
     expect(operations.requestAttention).toHaveBeenCalledWith("critical");
     expect(operations.restartApplication).toHaveBeenCalledOnce();

@@ -53,8 +53,8 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 91,
-    "literalCallSiteCount": 123,
+    "literalCommandCount": 84,
+    "literalCallSiteCount": 110,
     "dynamicCallSiteCount": 0,
     "handlerRegistrationCount": 256,
     "registeredCommandCount": 255,
@@ -62,7 +62,7 @@
       "cancel_dump"
     ],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 164
+    "registeredCommandsWithoutFrontendCall": 171
   },
   "commands": [
     {
@@ -131,7 +131,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 3339
+          "line": 3371
         }
       ]
     },
@@ -258,38 +258,6 @@
         {
           "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
           "line": 82
-        }
-      ]
-    },
-    {
-      "name": "close_results_window",
-      "featureGroup": "windows",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "local-admin",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 1636
-        },
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 1680
-        }
-      ]
-    },
-    {
-      "name": "complete_json_viewer_session",
-      "featureGroup": "windows",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "local-admin",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/JsonViewerPage.tsx",
-          "line": 40
         }
       ]
     },
@@ -575,7 +543,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 3399
+          "line": 3431
         }
       ]
     },
@@ -589,7 +557,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 253
+          "line": 277
         }
       ]
     },
@@ -798,20 +766,6 @@
         {
           "file": "packages/web-ui/src/hooks/useDrivers.ts",
           "line": 145
-        }
-      ]
-    },
-    {
-      "name": "get_json_viewer_session",
-      "featureGroup": "windows",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "local-admin",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/JsonViewerPage.tsx",
-          "line": 26
         }
       ]
     },
@@ -1069,7 +1023,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 230
+          "line": 254
         }
       ]
     },
@@ -1128,56 +1082,8 @@
       "registered": true,
       "callSites": [
         {
-          "file": "packages/web-ui/src/hooks/useOpenConnectionInNewWindow.ts",
-          "line": 37
-        }
-      ]
-    },
-    {
-      "name": "open_er_diagram_window",
-      "featureGroup": "windows",
-      "eventUse": "emits",
-      "filesystemUse": "none",
-      "authorizationLevel": "local-admin",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 629
-        },
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 680
-        },
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 1475
-        },
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 1926
-        },
-        {
-          "file": "packages/web-ui/src/components/layout/ExplorerSidebar.tsx",
-          "line": 2418
-        }
-      ]
-    },
-    {
-      "name": "open_json_viewer_window",
-      "featureGroup": "windows",
-      "eventUse": "emits",
-      "filesystemUse": "none",
-      "authorizationLevel": "local-admin",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/ui/DataGrid.tsx",
-          "line": 489
-        },
-        {
-          "file": "packages/web-ui/src/components/ui/JsonInput.tsx",
-          "line": 159
+          "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
+          "line": 155
         }
       ]
     },
@@ -1192,34 +1098,6 @@
         {
           "file": "packages/web-ui/src/components/settings/PluginsTab.tsx",
           "line": 709
-        }
-      ]
-    },
-    {
-      "name": "open_results_window",
-      "featureGroup": "windows",
-      "eventUse": "emits",
-      "filesystemUse": "none",
-      "authorizationLevel": "local-admin",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 1624
-        }
-      ]
-    },
-    {
-      "name": "open_task_manager_window",
-      "featureGroup": "windows",
-      "eventUse": "emits",
-      "filesystemUse": "none",
-      "authorizationLevel": "local-admin",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/InfoTab.tsx",
-          "line": 298
         }
       ]
     },
@@ -1261,7 +1139,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 238
+          "line": 262
         }
       ]
     },
@@ -1297,7 +1175,7 @@
         },
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 147
+          "line": 171
         }
       ]
     },
@@ -1325,7 +1203,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
-          "line": 221
+          "line": 245
         }
       ]
     },
@@ -1435,7 +1313,7 @@
         },
         {
           "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 499
+          "line": 508
         }
       ]
     },
@@ -1477,6 +1355,8 @@
     "cancel_query",
     "clear_query_history",
     "close_devtools",
+    "close_results_window",
+    "complete_json_viewer_session",
     "count_query",
     "create_connection_group",
     "create_connection_tag",
@@ -1539,6 +1419,7 @@
     "get_foreign_keys",
     "get_indexes",
     "get_installation_source",
+    "get_json_viewer_session",
     "get_k8s_connections",
     "get_k8s_contexts_cmd",
     "get_k8s_namespaces_cmd",
@@ -1586,6 +1467,10 @@
     "move_connection_to_group",
     "move_group_to_parent",
     "open_devtools",
+    "open_er_diagram_window",
+    "open_json_viewer_window",
+    "open_results_window",
+    "open_task_manager_window",
     "open_visual_explain_window",
     "refresh_materialized_view",
     "register_active_connection",

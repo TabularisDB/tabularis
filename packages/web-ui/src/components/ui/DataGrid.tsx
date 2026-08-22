@@ -37,8 +37,8 @@ import {
   EyeOff,
   ListChecks,
 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { getJsonViewerSessionHost } from "../../platform/secondaryWindowSessions";
 import { useAlert } from "../../hooks/useAlert";
 import { useToast } from "../../hooks/useToast";
 import {
@@ -208,6 +208,7 @@ export const DataGrid = React.memo(
   }: DataGridProps) => {
     const { t } = useTranslation();
     const client = useTabularisClient();
+    const platform = usePlatformCapabilities();
     const { activeSchema, connections } = useDatabase();
     const guardProductionWrite = useProductionGuard();
     const { showAlert } = useAlert();
@@ -336,10 +337,6 @@ export const DataGrid = React.memo(
     useEffect(() => {
       editingCellRef.current = editingCell;
     }, [editingCell]);
-    const pendingJsonSessions = useRef<
-      Map<string, { colName: string; rowData: unknown[]; isInsertion: boolean; tempId?: string }>
-    >(new Map());
-
     const selectedRowIndices =
       externalSelectedRows || internalSelectedRowIndices;
 
@@ -486,49 +483,47 @@ export const DataGrid = React.memo(
               cellKey = `pk:${serialized}:${colName}`;
             }
           }
-          const sessionId = await invoke<string>("open_json_viewer_window", {
-            value,
-            originalValue,
-            colName,
-            rowLabel,
-            readOnly: readOnly || !canSaveBack,
-            cellKey,
-          });
-          pendingJsonSessions.current.set(sessionId, {
-            colName,
-            rowData,
-            isInsertion,
-            tempId,
-          });
+          await getJsonViewerSessionHost(platform).open(
+            {
+              value,
+              originalValue,
+              columnName: colName,
+              rowLabel,
+              readOnly: readOnly || !canSaveBack,
+              cellKey,
+            },
+            readOnly || !canSaveBack
+              ? undefined
+              : (savedValue) => {
+                  if (isInsertion && onPendingInsertionChange && tempId) {
+                    onPendingInsertionChange(tempId, colName, savedValue);
+                  } else if (
+                    !isInsertion &&
+                    onPendingChange &&
+                    pkIndexMaps.length > 0
+                  ) {
+                    const pkMapVal = buildPkMap(
+                      pkColumns!,
+                      rowData,
+                      pkIndexMaps,
+                    );
+                    onPendingChange(pkMapVal, colName, savedValue);
+                  }
+                },
+          );
         } catch (e) {
           console.error("Failed to open JSON viewer window:", e);
         }
       },
-      [buildRowLabel, pkIndexMaps, pkColumns],
+      [
+        buildRowLabel,
+        onPendingChange,
+        onPendingInsertionChange,
+        pkIndexMaps,
+        pkColumns,
+        platform,
+      ],
     );
-
-    useEffect(() => {
-      const unlistenPromise = listen<{ session_id: string; value: unknown }>(
-        "json-viewer:saved",
-        (event) => {
-          const { session_id, value } = event.payload;
-          const session = pendingJsonSessions.current.get(session_id);
-          if (!session) return;
-          pendingJsonSessions.current.delete(session_id);
-
-          const { colName, rowData, isInsertion, tempId } = session;
-          if (isInsertion && onPendingInsertionChange && tempId) {
-            onPendingInsertionChange(tempId, colName, value);
-          } else if (!isInsertion && onPendingChange && pkIndexMaps.length > 0) {
-            const pkMapVal = buildPkMap(pkColumns!, rowData, pkIndexMaps);
-            onPendingChange(pkMapVal, colName, value);
-          }
-        },
-      );
-      return () => {
-        unlistenPromise.then((fn) => fn());
-      };
-    }, [onPendingChange, onPendingInsertionChange, pkIndexMaps, pkColumns]);
 
     const fksByColumn = useMemo(
       () => pickPrimaryForeignKeyByColumn(foreignKeys),

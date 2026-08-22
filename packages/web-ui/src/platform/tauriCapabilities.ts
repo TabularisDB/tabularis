@@ -1,4 +1,5 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { emit, listen } from "@tauri-apps/api/event";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import {
   open as openDialog,
@@ -29,10 +30,13 @@ import {
   type DownloadFileRequest,
   type FetchedBlob,
   type NotificationOutcome,
+  type OpenConnectionRouteRequest,
   type OpenRouteRequest,
   type PlatformCapabilities,
   type PlatformCapabilityNegotiation,
   type PlatformNotification,
+  type RouteEventHandler,
+  type UnsubscribeRouteEvent,
 } from "./capabilities";
 import type { BlobFetchResponse } from "../api/contract";
 import {
@@ -56,6 +60,12 @@ export interface TauriPlatformOperations {
   requestNotificationPermission(): Promise<string>;
   sendNotification(notification: PlatformNotification): void;
   openRoute(request: OpenRouteRequest): Promise<void>;
+  openConnectionRoute(request: OpenConnectionRouteRequest): Promise<void>;
+  publishRouteEvent<T>(event: string, payload: T): Promise<void>;
+  subscribeRouteEvent<T>(
+    event: string,
+    handler: RouteEventHandler<T>,
+  ): Promise<UnsubscribeRouteEvent>;
   closeRoute(): Promise<void>;
   requestAttention(level: AttentionLevel): Promise<void>;
   restartApplication(): Promise<void>;
@@ -86,6 +96,10 @@ const openTauriRoute = async (request: OpenRouteRequest): Promise<void> => {
   const routeWindow = new WebviewWindow(request.label, {
     url: request.route,
     ...(request.title ? { title: request.title } : {}),
+    ...(request.window?.width ? { width: request.window.width } : {}),
+    ...(request.window?.height ? { height: request.window.height } : {}),
+    ...(request.window?.minWidth ? { minWidth: request.window.minWidth } : {}),
+    ...(request.window?.minHeight ? { minHeight: request.window.minHeight } : {}),
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -137,6 +151,16 @@ const defaultTauriOperations: TauriPlatformOperations = {
   requestNotificationPermission: requestPermission,
   sendNotification,
   openRoute: openTauriRoute,
+  openConnectionRoute: ({ connectionId, title }) =>
+    invoke<void>("open_connection_window", {
+      connectionId,
+      title: title ?? null,
+    }),
+  publishRouteEvent: (event, payload) => emit(event, payload),
+  subscribeRouteEvent: async <T>(
+    event: string,
+    handler: RouteEventHandler<T>,
+  ) => listen<T>(event, ({ payload }) => handler(payload)),
   closeRoute: () => getCurrentWindow().close(),
   requestAttention: (level) =>
     getCurrentWindow().requestUserAttention(
@@ -316,6 +340,26 @@ export class TauriPlatformCapabilities implements PlatformCapabilities {
   async openRoute(request: OpenRouteRequest): Promise<void> {
     this.require("openRoute");
     await this.operations.openRoute(request);
+  }
+
+  async openConnectionRoute(
+    request: OpenConnectionRouteRequest,
+  ): Promise<void> {
+    this.require("openRoute");
+    await this.operations.openConnectionRoute(request);
+  }
+
+  async publishRouteEvent<T>(event: string, payload: T): Promise<void> {
+    this.require("openRoute");
+    await this.operations.publishRouteEvent(event, payload);
+  }
+
+  async subscribeRouteEvent<T>(
+    event: string,
+    handler: RouteEventHandler<T>,
+  ): Promise<UnsubscribeRouteEvent> {
+    this.require("openRoute");
+    return this.operations.subscribeRouteEvent(event, handler);
   }
 
   async closeRoute(): Promise<void> {
