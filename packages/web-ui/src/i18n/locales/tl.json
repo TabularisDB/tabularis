@@ -799,6 +799,7 @@
       "title": "Backup",
       "directory": "Folder ng backup",
       "directoryDesc": "Wala pang napipiling folder.",
+      "serverDirectoryDesc": "Path ng folder sa server. Isinusulat ang mga backup sa Tabularis host; nagda-download din ang manual na aksyon ng kopya sa browser.",
       "chooseDirectory": "Pumili ng folder",
       "password": "Password ng backup",
       "passwordDesc": "Palaging naka-encrypt ang mga backup. Nakatago ang password sa system keychain.",

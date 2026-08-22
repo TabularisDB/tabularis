@@ -732,6 +732,7 @@
       "title": "备份",
       "directory": "备份文件夹",
       "directoryDesc": "尚未选择文件夹。",
+      "serverDirectoryDesc": "服务器文件夹路径。备份会写入 Tabularis 主机；手动执行时还会在浏览器中下载一份副本。",
       "chooseDirectory": "选择文件夹",
       "password": "备份密码",
       "passwordDesc": "备份始终加密。密码保存在系统钥匙串中。",

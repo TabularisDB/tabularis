@@ -812,6 +812,7 @@
       "title": "Backup",
       "directory": "Backup folder",
       "directoryDesc": "No folder selected yet.",
+      "serverDirectoryDesc": "Server folder path. Backups are written on the Tabularis host; the manual action also downloads a browser copy.",
       "chooseDirectory": "Choose folder",
       "password": "Backup password",
       "passwordDesc": "Backups are always encrypted. The password is stored in the system keychain.",

@@ -1,31 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
-import { readTextFile } from "@tauri-apps/plugin-fs";
 import { ImportFromAppModal } from "../../../src/components/modals/ImportFromAppModal";
 
-// The global plugin-fs mock only exposes writeTextFile; the modal also needs
-// readTextFile for the Tabularis JSON path.
-vi.mock("@tauri-apps/plugin-fs", () => ({
-  writeTextFile: vi.fn(),
-  readTextFile: vi.fn(),
-  BaseDirectory: { Document: 1 },
+const mocks = vi.hoisted(() => ({
+  call: vi.fn(),
+  chooseInputFile: vi.fn(),
+  readInputFile: vi.fn(),
+  openExternalUrl: vi.fn(),
 }));
 
 vi.mock("../../../src/hooks/useDatabase", () => ({
   useDatabase: () => ({ connectionGroups: [] }),
 }));
 
-// The real Select is portal/ref-heavy; these tests drive the modal via the
-// default resolutions, so a no-op stand-in is enough.
+vi.mock("../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => mocks,
+}));
+
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({
+    negotiation: { environment: "tauri" },
+    chooseInputFile: mocks.chooseInputFile,
+    readInputFile: mocks.readInputFile,
+    openExternalUrl: mocks.openExternalUrl,
+  }),
+}));
+
 vi.mock("../../../src/components/ui/Select", () => ({
   Select: () => null,
 }));
-
-const mockInvoke = vi.mocked(invoke);
-const mockOpen = vi.mocked(open);
-const mockReadTextFile = vi.mocked(readTextFile);
 
 const TAB_PAYLOAD = {
   version: 1,
@@ -73,37 +76,38 @@ function passwordInput(): HTMLInputElement {
 describe("ImportFromAppModal — Tabularis JSON import", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "list_connection_import_sources") return Promise.resolve([]);
-      if (cmd === "preview_tabularis_import") return Promise.resolve(PREVIEW);
+    mocks.chooseInputFile.mockResolvedValue({
+      name: "export.json",
+      reference: "/tmp/export.json",
+    });
+    mocks.readInputFile.mockResolvedValue(
+      new TextEncoder().encode(JSON.stringify(TAB_PAYLOAD)),
+    );
+    mocks.call.mockImplementation((command: string) => {
+      if (command === "list_connection_import_sources") return Promise.resolve([]);
+      if (command === "preview_tabularis_import_file") {
+        return Promise.resolve({ kind: "preview", preview: PREVIEW });
+      }
       return Promise.resolve(undefined);
     });
-    mockOpen.mockResolvedValue("/tmp/export.json");
   });
 
-  it("previews a plaintext export (no silent import), then applies on confirm", async () => {
-    mockReadTextFile.mockResolvedValue(JSON.stringify(TAB_PAYLOAD));
+  it("previews a plaintext export through an opaque file reference, then applies", async () => {
     const { onImported, onClose } = renderModal();
 
     await clickContinue();
 
-    // Preview is fetched; nothing is imported yet and the modal stays open.
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith("preview_tabularis_import", {
-        payload: TAB_PAYLOAD,
+      expect(mocks.call).toHaveBeenCalledWith("preview_tabularis_import_file", {
+        file: { kind: "serverPath", path: "/tmp/export.json" },
       });
     });
-    expect(mockInvoke).not.toHaveBeenCalledWith(
-      "apply_tabularis_import",
-      expect.anything(),
-    );
     expect(onClose).not.toHaveBeenCalled();
 
     fireEvent.click(await screen.findByText("connections.importFromApp.importCount"));
 
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith("apply_tabularis_import", {
-        payload: TAB_PAYLOAD,
+      expect(mocks.call).toHaveBeenCalledWith("apply_prepared_tabularis_import", {
         resolutions: [{ index: 0, action: "import", groupId: "" }],
       });
     });
@@ -111,65 +115,55 @@ describe("ImportFromAppModal — Tabularis JSON import", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("prompts for a password on an encrypted export, decrypts, then previews", async () => {
-    const envelope = { encrypted: true, ciphertext: "…" };
-    mockReadTextFile.mockResolvedValue(JSON.stringify(envelope));
-    mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "list_connection_import_sources") return Promise.resolve([]);
-      if (cmd === "decrypt_export_payload") return Promise.resolve(TAB_PAYLOAD);
-      if (cmd === "preview_tabularis_import") return Promise.resolve(PREVIEW);
+  it("prompts for a password before the backend decrypts and previews", async () => {
+    mocks.call.mockImplementation((command: string, request?: { password?: string }) => {
+      if (command === "list_connection_import_sources") return Promise.resolve([]);
+      if (command === "preview_tabularis_import_file") {
+        return Promise.resolve(
+          request?.password
+            ? { kind: "preview", preview: PREVIEW }
+            : { kind: "passwordRequired" },
+        );
+      }
       return Promise.resolve(undefined);
     });
     renderModal();
 
     await clickContinue();
-
     await waitFor(() => expect(passwordInput()).toBeInTheDocument());
-    expect(mockInvoke).not.toHaveBeenCalledWith(
-      "preview_tabularis_import",
-      expect.anything(),
-    );
 
     fireEvent.change(passwordInput(), { target: { value: "hunter2" } });
     fireEvent.click(screen.getByText("connections.importPasswordModal.unlock"));
 
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith("decrypt_export_payload", {
-        envelope,
+      expect(mocks.call).toHaveBeenCalledWith("preview_tabularis_import_file", {
+        file: { kind: "serverPath", path: "/tmp/export.json" },
         password: "hunter2",
       });
-    });
-    // After decrypt it previews (rather than importing and closing silently).
-    expect(mockInvoke).toHaveBeenCalledWith("preview_tabularis_import", {
-      payload: TAB_PAYLOAD,
     });
     await screen.findByText("connections.importFromApp.importCount");
   });
 
   it("surfaces a wrong-password error and keeps the modal open", async () => {
-    const envelope = { encrypted: true, ciphertext: "…" };
-    mockReadTextFile.mockResolvedValue(JSON.stringify(envelope));
-    mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "list_connection_import_sources") return Promise.resolve([]);
-      if (cmd === "decrypt_export_payload")
-        return Promise.reject("wrong password or corrupted file");
+    mocks.call.mockImplementation((command: string, request?: { password?: string }) => {
+      if (command === "list_connection_import_sources") return Promise.resolve([]);
+      if (command === "preview_tabularis_import_file") {
+        return request?.password
+          ? Promise.reject("wrong password or corrupted file")
+          : Promise.resolve({ kind: "passwordRequired" });
+      }
       return Promise.resolve(undefined);
     });
     const { onImported, onClose } = renderModal();
 
     await clickContinue();
     await waitFor(() => expect(passwordInput()).toBeInTheDocument());
-
     fireEvent.change(passwordInput(), { target: { value: "bad" } });
     fireEvent.click(screen.getByText("connections.importPasswordModal.unlock"));
 
     await waitFor(() => {
       expect(screen.getByText(/wrong password or corrupted file/)).toBeInTheDocument();
     });
-    expect(mockInvoke).not.toHaveBeenCalledWith(
-      "preview_tabularis_import",
-      expect.anything(),
-    );
     expect(onImported).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });

@@ -744,6 +744,7 @@
       "title": "백업",
       "directory": "백업 폴더",
       "directoryDesc": "아직 폴더가 선택되지 않았습니다.",
+      "serverDirectoryDesc": "서버 폴더 경로입니다. 백업은 Tabularis 호스트에 저장되며 수동 실행 시 브라우저 사본도 다운로드됩니다.",
       "chooseDirectory": "폴더 선택",
       "password": "백업 비밀번호",
       "passwordDesc": "백업은 항상 암호화됩니다. 비밀번호는 시스템 키체인에 저장됩니다.",

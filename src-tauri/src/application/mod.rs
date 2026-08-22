@@ -1,4 +1,5 @@
 pub mod api;
+pub mod connection_files;
 pub mod connections;
 pub mod database_objects;
 pub mod file_transfers;

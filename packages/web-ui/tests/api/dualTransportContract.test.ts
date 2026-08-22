@@ -25,6 +25,36 @@ defineTransportContractSuite(
         expect(request).toBeUndefined();
         return [];
       }
+      if (command === "export_connections_file") {
+        expect(request).toEqual({
+          mode: "noSecrets",
+          connectionIds: ["connection-fixture"],
+        });
+        return {
+          kind: "inline",
+          fileName: "tabularis-connections.json",
+          mimeType: "application/json",
+          contents: "{\"version\":1}",
+        };
+      }
+      if (command === "list_connection_import_sources") return [];
+      if (command === "get_connections_backup_status") {
+        return {
+          passwordSet: true,
+          targetPasswordSet: true,
+          lastBackupAt: null,
+          targetKind: "serverDirectory",
+          targetDisplay: "/srv/tabularis/backups",
+        };
+      }
+      if (command === "set_connections_backup_password") return null;
+      if (command === "run_connections_backup") {
+        return {
+          serverLocation: "/srv/tabularis/backups/tabularis-backup.json",
+          targetKind: "serverDirectory",
+          download: null,
+        };
+      }
       if (command === "get_tables") {
         expect(request).toEqual({
           connectionId: "metadata-fixture",

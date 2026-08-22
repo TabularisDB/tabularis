@@ -53,16 +53,16 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 84,
-    "literalCallSiteCount": 110,
+    "literalCommandCount": 72,
+    "literalCallSiteCount": 98,
     "dynamicCallSiteCount": 0,
-    "handlerRegistrationCount": 256,
-    "registeredCommandCount": 255,
+    "handlerRegistrationCount": 259,
+    "registeredCommandCount": 258,
     "duplicateHandlerRegistrations": [
       "cancel_dump"
     ],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 171
+    "registeredCommandsWithoutFrontendCall": 186
   },
   "commands": [
     {
@@ -76,34 +76,6 @@
         {
           "file": "packages/web-ui/src/components/modals/visual-explain/ExplainAiAnalysis.tsx",
           "line": 39
-        }
-      ]
-    },
-    {
-      "name": "apply_connection_import",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
-          "line": 294
-        }
-      ]
-    },
-    {
-      "name": "apply_tabularis_import",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
-          "line": 289
         }
       ]
     },
@@ -318,20 +290,6 @@
       ]
     },
     {
-      "name": "decrypt_export_payload",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
-          "line": 239
-        }
-      ]
-    },
-    {
       "name": "delete_ai_key",
       "featureGroup": "ai",
       "eventUse": "none",
@@ -422,20 +380,6 @@
       ]
     },
     {
-      "name": "encrypt_export_payload",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/Connections.tsx",
-          "line": 332
-        }
-      ]
-    },
-    {
       "name": "execute_clipboard_import",
       "featureGroup": "data",
       "eventUse": "none",
@@ -502,20 +446,6 @@
         {
           "file": "packages/web-ui/src/hooks/useAiActivity.ts",
           "line": 237
-        }
-      ]
-    },
-    {
-      "name": "export_connections_payload",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/Connections.tsx",
-          "line": 323
         }
       ]
     },
@@ -724,20 +654,6 @@
         {
           "file": "packages/web-ui/src/hooks/useAiActivity.ts",
           "line": 81
-        }
-      ]
-    },
-    {
-      "name": "get_connections_backup_status",
-      "featureGroup": "backup",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/BackupTab.tsx",
-          "line": 59
         }
       ]
     },
@@ -972,20 +888,6 @@
       ]
     },
     {
-      "name": "list_connection_import_sources",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
-          "line": 124
-        }
-      ]
-    },
-    {
       "name": "list_databases",
       "featureGroup": "metadata",
       "eventUse": "none",
@@ -1102,34 +1004,6 @@
       ]
     },
     {
-      "name": "preview_connection_import",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
-          "line": 221
-        }
-      ]
-    },
-    {
-      "name": "preview_tabularis_import",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ImportFromAppModal.tsx",
-          "line": 174
-        }
-      ]
-    },
-    {
       "name": "read_file_as_data_url",
       "featureGroup": "files",
       "eventUse": "none",
@@ -1180,20 +1054,6 @@
       ]
     },
     {
-      "name": "run_connections_backup",
-      "featureGroup": "backup",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "write",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/BackupTab.tsx",
-          "line": 116
-        }
-      ]
-    },
-    {
       "name": "save_connection_icon",
       "featureGroup": "connections",
       "eventUse": "none",
@@ -1218,34 +1078,6 @@
         {
           "file": "packages/web-ui/src/components/settings/AiTab.tsx",
           "line": 178
-        }
-      ]
-    },
-    {
-      "name": "set_connections_backup_password",
-      "featureGroup": "backup",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/BackupTab.tsx",
-          "line": 82
-        }
-      ]
-    },
-    {
-      "name": "set_connections_backup_target_password",
-      "featureGroup": "backup",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/BackupTab.tsx",
-          "line": 98
         }
       ]
     },
@@ -1350,7 +1182,10 @@
   "registeredCommandsWithoutFrontendCall": [
     "add_query_history_entry",
     "alter_view",
+    "apply_connection_import",
     "apply_db_user_privileges",
+    "apply_prepared_tabularis_import",
+    "apply_tabularis_import",
     "build_routine_call_sql",
     "cancel_query",
     "clear_query_history",
@@ -1365,6 +1200,7 @@
     "create_notebook",
     "create_trigger",
     "create_view",
+    "decrypt_export_payload",
     "delete_connection",
     "delete_connection_group",
     "delete_connection_icon",
@@ -1387,9 +1223,12 @@
     "drop_trigger",
     "drop_view",
     "duplicate_connection",
+    "encrypt_export_payload",
     "execute_query",
     "execute_query_batch",
     "explain_query_plan",
+    "export_connections_file",
+    "export_connections_payload",
     "export_theme",
     "fetch_blob_as_data_url",
     "get_active_connections",
@@ -1404,6 +1243,7 @@
     "get_connection_by_id",
     "get_connection_groups",
     "get_connections",
+    "get_connections_backup_status",
     "get_connections_with_groups",
     "get_create_foreign_key_sql",
     "get_create_index_sql",
@@ -1460,6 +1300,7 @@
     "insert_record",
     "is_debug_mode",
     "list_all_preferences",
+    "list_connection_import_sources",
     "list_connection_tags",
     "list_notebooks",
     "load_editor_preferences",
@@ -1472,6 +1313,9 @@
     "open_results_window",
     "open_task_manager_window",
     "open_visual_explain_window",
+    "preview_connection_import",
+    "preview_tabularis_import",
+    "preview_tabularis_import_file",
     "refresh_materialized_view",
     "register_active_connection",
     "rename_notebook",
@@ -1484,6 +1328,7 @@
     "reset_tabrename_prompt",
     "respond_ssh_askpass",
     "restart_plugin_process",
+    "run_connections_backup",
     "save_blob_to_file",
     "save_cellname_prompt",
     "save_config",
@@ -1502,6 +1347,8 @@
     "save_tabrename_prompt",
     "set_connection_appearance",
     "set_connection_tags",
+    "set_connections_backup_password",
+    "set_connections_backup_target_password",
     "set_db_user_password",
     "set_last_active_connection",
     "set_last_open_connections",

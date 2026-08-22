@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, Loader2, Pencil, Save } from "lucide-react";
 import { useSettings } from "../../hooks/useSettings";
 import { useAlert } from "../../hooks/useAlert";
 import { DEFAULT_SETTINGS } from "../../contexts/SettingsContext";
 import { toErrorMessage } from "../../utils/errors";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { saveGeneratedFile } from "../../utils/connectionFiles";
+import type { BackupStatus } from "../../api/contract";
 import { PasswordInput } from "../ui/PasswordInput";
 import {
   SettingSection,
@@ -14,12 +17,6 @@ import {
   SettingButtonGroup,
   SettingNumberInput,
 } from "./SettingControls";
-
-interface BackupStatus {
-  passwordSet: boolean;
-  targetPasswordSet: boolean;
-  lastBackupAt: string | null;
-}
 
 const INTERVAL_PRESETS = [360, 720, 1440, 10080];
 
@@ -30,9 +27,14 @@ export function BackupTab() {
   const { t } = useTranslation();
   const { settings, updateSetting } = useSettings();
   const { showAlert } = useAlert();
+  const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const [status, setStatus] = useState<BackupStatus | null>(null);
   const [password, setPassword] = useState("");
   const [webdavPassword, setWebdavPassword] = useState("");
+  const [serverDirectory, setServerDirectory] = useState(
+    settings.backupDirectory ?? "",
+  );
   const [webdavUrl, setWebdavUrl] = useState(settings.backupWebdavUrl ?? "");
   const [webdavUsername, setWebdavUsername] = useState(
     settings.backupWebdavUsername ?? "",
@@ -56,11 +58,11 @@ export function BackupTab() {
 
   const refreshStatus = useCallback(async () => {
     try {
-      setStatus(await invoke<BackupStatus>("get_connections_backup_status"));
+      setStatus(await client.call("get_connections_backup_status", undefined));
     } catch (e) {
       console.error("Failed to load backup status:", e);
     }
-  }, []);
+  }, [client]);
 
   // Status (stored credential, newest backup) is per target, so re-fetch it
   // when the user switches the destination.
@@ -79,7 +81,7 @@ export function BackupTab() {
   const handleSavePassword = async () => {
     setSavingPassword(true);
     try {
-      await invoke("set_connections_backup_password", { password });
+      await client.call("set_connections_backup_password", { password });
       setPassword("");
       setEditingPassword(false);
       await refreshStatus();
@@ -95,7 +97,7 @@ export function BackupTab() {
     if (!webdavPassword) return;
     setSavingWebdav(true);
     try {
-      await invoke("set_connections_backup_target_password", {
+      await client.call("set_connections_backup_target_password", {
         targetId: "webdav",
         password: webdavPassword,
       });
@@ -113,9 +115,18 @@ export function BackupTab() {
   const handleBackupNow = async () => {
     setRunningBackup(true);
     try {
-      const path = await invoke<string>("run_connections_backup");
+      const result = await client.call("run_connections_backup", undefined);
       await refreshStatus();
-      showAlert(t("settings.backup.backupDone", { path }));
+      if (typeof result === "string") {
+        showAlert(t("settings.backup.backupDone", { path: result }));
+      } else {
+        if (result.download) {
+          await saveGeneratedFile(client, platform, result.download);
+        }
+        showAlert(
+          t("settings.backup.backupDone", { path: result.serverLocation }),
+        );
+      }
     } catch (e) {
       showAlert(toErrorMessage(e));
     } finally {
@@ -153,16 +164,32 @@ export function BackupTab() {
           <SettingRow
             label={t("settings.backup.directory")}
             description={
-              settings.backupDirectory || t("settings.backup.directoryDesc")
+              platform.negotiation.environment === "browser"
+                ? t("settings.backup.serverDirectoryDesc")
+                : settings.backupDirectory || t("settings.backup.directoryDesc")
             }
           >
-            <button
-              onClick={() => void handlePickDirectory()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-blue-400 hover:border-blue-500/50 transition-colors"
-            >
-              <FolderOpen size={14} />
-              {t("settings.backup.chooseDirectory")}
-            </button>
+            {platform.negotiation.environment === "browser" ? (
+              <input
+                type="text"
+                value={serverDirectory}
+                onChange={(event) => setServerDirectory(event.target.value)}
+                onBlur={() =>
+                  void updateSetting("backupDirectory", serverDirectory.trim())
+                }
+                placeholder="/srv/tabularis/backups"
+                aria-label={t("settings.backup.directory")}
+                className={textInputClass}
+              />
+            ) : (
+              <button
+                onClick={() => void handlePickDirectory()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-base border border-strong text-sm text-secondary hover:text-blue-400 hover:border-blue-500/50 transition-colors"
+              >
+                <FolderOpen size={14} />
+                {t("settings.backup.chooseDirectory")}
+              </button>
+            )}
           </SettingRow>
         )}
 

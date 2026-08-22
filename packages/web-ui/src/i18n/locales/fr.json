@@ -803,6 +803,7 @@
       "title": "Backup",
       "directory": "Dossier de sauvegarde",
       "directoryDesc": "Aucun dossier sélectionné.",
+      "serverDirectoryDesc": "Chemin du dossier serveur. Les sauvegardes sont écrites sur l’hôte Tabularis ; l’action manuelle télécharge aussi une copie dans le navigateur.",
       "chooseDirectory": "Choisir un dossier",
       "password": "Mot de passe de sauvegarde",
       "passwordDesc": "Les sauvegardes sont toujours chiffrées. Le mot de passe est stocké dans le trousseau du système.",

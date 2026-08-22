@@ -1482,22 +1482,6 @@ pub async fn validate_k8s_path_cmd<R: Runtime>(
     crate::k8s_tunnel::validate_k8s_path(&path, &kind)
 }
 
-fn load_k8s_connections_sync<R: Runtime>(
-    app: &AppHandle<R>,
-) -> Result<Vec<K8sConnection>, String> {
-    crate::application::tunnels::get_k8s_connections(
-        &app.state::<crate::runtime::RuntimeContext>(),
-    )
-}
-
-fn get_k8s_config_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    Ok(app
-        .state::<crate::runtime::RuntimeContext>()
-        .paths
-        .config_dir()
-        .join("k8s_connections.json"))
-}
-
 /// Expand K8s connection params by loading saved config and creating/reusing a tunnel.
 pub async fn expand_k8s_connection_params<R: Runtime>(
     app: &AppHandle<R>,
@@ -4607,114 +4591,12 @@ pub async fn export_connections_payload<R: Runtime>(
     include_secrets: Option<bool>,
     connection_ids: Option<Vec<String>>,
 ) -> Result<ExportPayload, String> {
-    let include_secrets = include_secrets.unwrap_or(true);
-    let conn_path = get_config_path(&app)?;
-    let ssh_path = get_ssh_config_path(&app)?;
-
-    let mut conn_file = persistence::load_connections_file(&conn_path)?;
-    let mut ssh_connections = if ssh_path.exists() {
-        let content = fs::read_to_string(&ssh_path).map_err(|e| e.to_string())?;
-        serde_json::from_str::<Vec<SshConnection>>(&content).unwrap_or_default()
-    } else {
-        Vec::new()
-    };
-    let mut k8s_connections = load_k8s_connections_sync(&app)?;
-
-    // When a selection is provided, keep only the selected connections (of any
-    // kind) plus the group chains needed to preserve their hierarchy. Done
-    // before password resolution so unselected credentials never leave the
-    // keychain.
-    if let Some(ids) = &connection_ids {
-        let selected: std::collections::HashSet<&str> =
-            ids.iter().map(String::as_str).collect();
-        conn_file
-            .connections
-            .retain(|c| selected.contains(c.id.as_str()));
-        ssh_connections.retain(|s| selected.contains(s.id.as_str()));
-        k8s_connections.retain(|k| selected.contains(k.id.as_str()));
-        let kept_groups = crate::models::collect_group_ancestors(
-            &conn_file.groups,
-            conn_file
-                .connections
-                .iter()
-                .filter_map(|c| c.group_id.as_deref()),
-        );
-        conn_file.groups.retain(|g| kept_groups.contains(&g.id));
-        // Same for tags: only export the ones the selection actually uses.
-        let kept_tags: std::collections::HashSet<String> = conn_file
-            .connections
-            .iter()
-            .flat_map(|c| c.tag_ids.iter().flatten())
-            .cloned()
-            .collect();
-        conn_file.tags.retain(|t| kept_tags.contains(&t.id));
-    }
-
-    let cache = app
-        .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
-        .inner()
-        .clone();
-
-    // Resolve passwords for database connections
-    for conn in &mut conn_file.connections {
-        if !include_secrets {
-            // Strip any secrets that may already live in the connections file
-            conn.params.password = None;
-            conn.params.ssh_password = None;
-            conn.params.ssh_key_passphrase = None;
-            conn.params.connection_uri = None;
-            continue;
-        }
-        if conn.params.save_in_keychain.unwrap_or(false) {
-            // Without this the export carries the marker but not the URI, and
-            // restoring elsewhere yields a connection that cannot resolve it.
-            if let Ok(Some(uri)) =
-                credential_cache::get_connection_uri_cached(&cache, &conn.id, true)
-            {
-                conn.params.connection_uri = Some(uri);
-            }
-            if let Ok(pwd) = credential_cache::get_db_password_cached(&cache, &conn.id) {
-                conn.params.password = Some(pwd);
-            }
-            if conn.params.ssh_enabled.unwrap_or(false) {
-                if let Ok(ssh_pwd) = credential_cache::get_ssh_password_cached(&cache, &conn.id) {
-                    conn.params.ssh_password = Some(ssh_pwd);
-                }
-                if let Ok(ssh_passphrase) =
-                    credential_cache::get_ssh_key_passphrase_cached(&cache, &conn.id)
-                {
-                    conn.params.ssh_key_passphrase = Some(ssh_passphrase);
-                }
-            }
-        }
-    }
-
-    // Resolve passwords for SSH connections
-    for ssh in &mut ssh_connections {
-        if !include_secrets {
-            ssh.password = None;
-            ssh.key_passphrase = None;
-            continue;
-        }
-        if ssh.save_in_keychain.unwrap_or(false) {
-            if let Ok(pwd) = credential_cache::get_ssh_password_cached(&cache, &ssh.id) {
-                ssh.password = Some(pwd);
-            }
-            if let Ok(passphrase) = credential_cache::get_ssh_key_passphrase_cached(&cache, &ssh.id)
-            {
-                ssh.key_passphrase = Some(passphrase);
-            }
-        }
-    }
-
-    Ok(ExportPayload {
-        version: 1,
-        groups: conn_file.groups,
-        connections: conn_file.connections,
-        ssh_connections,
-        k8s_connections,
-        tags: conn_file.tags,
-    })
+    crate::application::connection_files::export_payload(
+        app.state::<crate::runtime::RuntimeContext>().inner(),
+        include_secrets.unwrap_or(true),
+        connection_ids,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4750,148 +4632,15 @@ pub async fn apply_export_payload<R: Runtime>(
     app: AppHandle<R>,
     payload: ExportPayload,
 ) -> Result<(), String> {
-    let conn_path = get_config_path(&app)?;
-    let ssh_path = get_ssh_config_path(&app)?;
-
-    let mut current_file = persistence::load_connections_file(&conn_path).unwrap_or_default();
-    let mut current_ssh = if ssh_path.exists() {
-        let content = fs::read_to_string(&ssh_path).map_err(|e| e.to_string())?;
-        serde_json::from_str::<Vec<SshConnection>>(&content).unwrap_or_default()
-    } else {
-        Vec::new()
-    };
-
-    let cache = app
-        .state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
-        .inner()
-        .clone();
-
-    // Merge groups (preserves hierarchy; demotes orphaned parent_ids to root)
-    merge_groups(&mut current_file.groups, payload.groups);
-
-    // Merge tags (import wins on id collision, name matches are unified onto
-    // the existing tag) and remap the imported connections' tag_ids so
-    // name-merged tags keep resolving.
-    let tag_remap =
-        crate::connection_tags::merge_imported_tags(&mut current_file.tags, payload.tags);
-    let mut payload_connections = payload.connections;
-    if !tag_remap.is_empty() {
-        // Existing connections may reference a tag id that the merge unified
-        // onto another tag, so the remap applies to both sides.
-        for conn in payload_connections
-            .iter_mut()
-            .chain(current_file.connections.iter_mut())
-        {
-            if let Some(tag_ids) = &mut conn.tag_ids {
-                let mut seen = std::collections::HashSet::new();
-                *tag_ids = tag_ids
-                    .iter()
-                    .map(|id| tag_remap.get(id).unwrap_or(id).clone())
-                    .filter(|id| seen.insert(id.clone()))
-                    .collect();
-            }
-        }
-    }
-
-    // Environments come from an external file: normalize instead of failing
-    // the whole import — an unknown tier just becomes "unclassified".
-    for conn in &mut payload_connections {
-        conn.environment = validate_environment(conn.environment.take()).unwrap_or(None);
-    }
-
-    // Merge connections and handle passwords
-    for mut new_conn in payload_connections {
-        // An imported payload is untrusted input and may carry an inline URI.
-        // Hold it to the same rule as a save: keychain or nothing.
-        validate_connection_uri_persistence(&new_conn.params)?;
-
-        // Handle passwords in keychain
-        if new_conn.params.save_in_keychain.unwrap_or(false) {
-            if let Some(uri) = runtime_connection_uri(&new_conn.params) {
-                let uri = uri.to_string();
-                keychain_utils::set_connection_uri(&new_conn.id, &uri)?;
-                credential_cache::set_connection_uri_cached(&cache, &new_conn.id, &uri);
-            }
-            if let Some(pwd) = &new_conn.params.password {
-                keychain_utils::set_db_password(&new_conn.id, pwd)?;
-                credential_cache::set_db_password_cached(&cache, &new_conn.id, pwd);
-            }
-            if new_conn.params.ssh_enabled.unwrap_or(false) {
-                if let Some(ssh_pwd) = &new_conn.params.ssh_password {
-                    keychain_utils::set_ssh_password(&new_conn.id, ssh_pwd)?;
-                    credential_cache::set_ssh_password_cached(&cache, &new_conn.id, ssh_pwd);
-                }
-                if let Some(ssh_passphrase) = &new_conn.params.ssh_key_passphrase {
-                    keychain_utils::set_ssh_key_passphrase(&new_conn.id, ssh_passphrase)?;
-                    credential_cache::set_ssh_key_passphrase_cached(
-                        &cache,
-                        &new_conn.id,
-                        ssh_passphrase,
-                    );
-                }
-            }
-            // Clear passwords from struct before saving to disk
-            new_conn.params.password = None;
-            new_conn.params.ssh_password = None;
-            new_conn.params.ssh_key_passphrase = None;
-        }
-
-        // The URI never reaches disk: it is either in the keychain by now, or
-        // `validate_connection_uri_persistence` rejected the payload above.
-        let imported_uri_in_keychain = runtime_connection_uri(&new_conn.params).is_some();
-        new_conn.params = params_for_persistence(&new_conn.params, imported_uri_in_keychain);
-
-        if let Some(existing) = current_file
-            .connections
-            .iter_mut()
-            .find(|c| c.id == new_conn.id)
-        {
-            *existing = new_conn;
-        } else {
-            current_file.connections.push(new_conn);
-        }
-    }
-
-    // Merge SSH connections and handle passwords
-    for mut new_ssh in payload.ssh_connections {
-        if new_ssh.save_in_keychain.unwrap_or(false) {
-            if let Some(pwd) = &new_ssh.password {
-                keychain_utils::set_ssh_password(&new_ssh.id, pwd)?;
-                credential_cache::set_ssh_password_cached(&cache, &new_ssh.id, pwd);
-            }
-            if let Some(passphrase) = &new_ssh.key_passphrase {
-                keychain_utils::set_ssh_key_passphrase(&new_ssh.id, passphrase)?;
-                credential_cache::set_ssh_key_passphrase_cached(&cache, &new_ssh.id, passphrase);
-            }
-            // Clear passwords from struct before saving to disk
-            new_ssh.password = None;
-            new_ssh.key_passphrase = None;
-        }
-
-        if let Some(existing) = current_ssh.iter_mut().find(|s| s.id == new_ssh.id) {
-            *existing = new_ssh;
-        } else {
-            current_ssh.push(new_ssh);
-        }
-    }
-
-    // Save files
-    save_connections_and_invalidate(&app, &conn_path, &current_file)?;
-    let ssh_json = serde_json::to_string_pretty(&current_ssh).map_err(|e| e.to_string())?;
-    fs::write(ssh_path, ssh_json).map_err(|e| e.to_string())?;
-
-    // Merge K8s connections
-    let k8s_path = get_k8s_config_path(&app)?;
-    let mut current_k8s = load_k8s_connections_sync(&app)?;
-    for new_k8s in payload.k8s_connections {
-        if let Some(existing) = current_k8s.iter_mut().find(|k| k.id == new_k8s.id) {
-            *existing = new_k8s;
-        } else {
-            current_k8s.push(new_k8s);
-        }
-    }
-    let k8s_json = serde_json::to_string_pretty(&current_k8s).map_err(|e| e.to_string())?;
-    fs::write(k8s_path, k8s_json).map_err(|e| e.to_string())?;
-
-    Ok(())
+    crate::application::connection_files::apply_export_payload(
+        app.state::<crate::runtime::RuntimeContext>().inner(),
+        app.state::<std::sync::Arc<crate::connection_cache::ConnectionCache>>()
+            .inner()
+            .as_ref(),
+        app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>()
+            .inner()
+            .as_ref(),
+        payload,
+    )
+    .await
 }

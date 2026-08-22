@@ -549,6 +549,14 @@ fn delete_connection_secrets(runtime: &RuntimeContext, id: &str) -> Result<(), S
     Ok(())
 }
 
+pub(crate) fn restore_connection_secrets(
+    runtime: &RuntimeContext,
+    id: &str,
+    params: &mut ConnectionParams,
+) -> Result<(), String> {
+    restore_secrets(runtime, id, params)
+}
+
 fn restore_secrets(
     runtime: &RuntimeContext,
     id: &str,

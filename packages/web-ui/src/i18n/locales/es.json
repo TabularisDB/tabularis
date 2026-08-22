@@ -794,6 +794,7 @@
       "title": "Backup",
       "directory": "Carpeta de copias",
       "directoryDesc": "Ninguna carpeta seleccionada.",
+      "serverDirectoryDesc": "Ruta de carpeta del servidor. Las copias se guardan en el host de Tabularis; la acción manual también descarga una copia en el navegador.",
       "chooseDirectory": "Elegir carpeta",
       "password": "Contraseña de copia",
       "passwordDesc": "Las copias siempre están cifradas. La contraseña se guarda en el llavero del sistema.",

@@ -84,6 +84,44 @@ export function defineTransportContractSuite(
       ).resolves.toEqual([]);
     });
 
+    it("preserves connection file and backup contracts", async () => {
+      await expect(
+        harness.transport.call("export_connections_file", {
+          mode: "noSecrets",
+          connectionIds: ["connection-fixture"],
+        }),
+      ).resolves.toEqual({
+        kind: "inline",
+        fileName: "tabularis-connections.json",
+        mimeType: "application/json",
+        contents: "{\"version\":1}",
+      });
+      await expect(
+        harness.transport.call("list_connection_import_sources", undefined),
+      ).resolves.toEqual([]);
+      await expect(
+        harness.transport.call("get_connections_backup_status", undefined),
+      ).resolves.toEqual({
+        passwordSet: true,
+        targetPasswordSet: true,
+        lastBackupAt: null,
+        targetKind: "serverDirectory",
+        targetDisplay: "/srv/tabularis/backups",
+      });
+      await expect(
+        harness.transport.call("set_connections_backup_password", {
+          password: "backup-password",
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("run_connections_backup", undefined),
+      ).resolves.toEqual({
+        serverLocation: "/srv/tabularis/backups/tabularis-backup.json",
+        targetKind: "serverDirectory",
+        download: null,
+      });
+    });
+
     it("preserves metadata explorer contracts", async () => {
       await expect(
         harness.transport.call("get_tables", {
@@ -640,6 +678,38 @@ async function handleRequest(
     delete_notebook: {
       request: notebookTarget,
       response: null,
+    },
+    export_connections_file: {
+      request: { mode: "noSecrets", connectionIds: ["connection-fixture"] },
+      response: {
+        kind: "inline",
+        fileName: "tabularis-connections.json",
+        mimeType: "application/json",
+        contents: "{\"version\":1}",
+      },
+    },
+    list_connection_import_sources: { request: null, response: [] },
+    get_connections_backup_status: {
+      request: null,
+      response: {
+        passwordSet: true,
+        targetPasswordSet: true,
+        lastBackupAt: null,
+        targetKind: "serverDirectory",
+        targetDisplay: "/srv/tabularis/backups",
+      },
+    },
+    set_connections_backup_password: {
+      request: { password: "backup-password" },
+      response: null,
+    },
+    run_connections_backup: {
+      request: null,
+      response: {
+        serverLocation: "/srv/tabularis/backups/tabularis-backup.json",
+        targetKind: "serverDirectory",
+        download: null,
+      },
     },
     get_saved_queries: {
       request: { connectionId: "saved-query-fixture" },

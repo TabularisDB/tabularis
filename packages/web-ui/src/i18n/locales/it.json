@@ -794,6 +794,7 @@
       "title": "Backup",
       "directory": "Cartella di backup",
       "directoryDesc": "Nessuna cartella selezionata.",
+      "serverDirectoryDesc": "Percorso della cartella sul server. I backup vengono scritti sull’host Tabularis; l’azione manuale scarica anche una copia nel browser.",
       "chooseDirectory": "Scegli cartella",
       "password": "Password di backup",
       "passwordDesc": "I backup sono sempre cifrati. La password è salvata nel portachiavi di sistema.",

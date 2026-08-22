@@ -14,10 +14,6 @@ import {
   FlaskConical,
   ListChecks,
 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
-import { readTextFile } from "@tauri-apps/plugin-fs";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import clsx from "clsx";
 import { toErrorMessage } from "../../utils/errors";
 import { useDatabase } from "../../hooks/useDatabase";
@@ -27,6 +23,7 @@ import { Select } from "../ui/Select";
 import { PasswordInput } from "../ui/PasswordInput";
 import { BetaBadge } from "../ui/BetaBadge";
 import { GITHUB_ISSUES_URL } from "../../config/links";
+import type { ConnectionImportFile } from "../../api/contract";
 import type {
   ImportSourceInfo,
   ImportPreview,
@@ -34,6 +31,9 @@ import type {
   ImportResolution,
   ImportAction,
 } from "../../types/connectionImport";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { prepareConnectionImportFile } from "../../utils/connectionFiles";
 
 interface ImportFromAppModalProps {
   isOpen: boolean;
@@ -62,6 +62,8 @@ export const ImportFromAppModal = ({
   onImported,
 }: ImportFromAppModalProps) => {
   const { t } = useTranslation();
+  const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const { connectionGroups } = useDatabase();
 
   const [step, setStep] = useState<Step>("picker");
@@ -77,12 +79,9 @@ export const ImportFromAppModal = ({
   const [newGroupParent, setNewGroupParent] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Encrypted Tabularis export: the parsed envelope awaiting a password.
-  const [pendingEnvelope, setPendingEnvelope] = useState<unknown>(null);
+  // Encrypted Tabularis export: the opaque backend file reference awaiting a password.
+  const [pendingFile, setPendingFile] = useState<ConnectionImportFile | null>(null);
   const [password, setPassword] = useState("");
-  // Parsed (and decrypted) Tabularis payload backing the preview, so `apply`
-  // can re-send it without re-reading the file.
-  const [tabularisPayload, setTabularisPayload] = useState<unknown>(null);
   // Bulk actions shown above the preview list.
   const [bulkAction, setBulkAction] = useState<string>(ACTION_KEEP);
   const [bulkGroup, setBulkGroup] = useState<string>(GROUP_KEEP);
@@ -99,9 +98,8 @@ export const ImportFromAppModal = ({
     setNewGroupName({});
     setError(null);
     setLoading(false);
-    setPendingEnvelope(null);
+    setPendingFile(null);
     setPassword("");
-    setTabularisPayload(null);
     setBulkAction(ACTION_KEEP);
     setBulkGroup(GROUP_KEEP);
     setBulkNewName("");
@@ -121,7 +119,7 @@ export const ImportFromAppModal = ({
       readsPasswordsFromKeychain: false,
       needsFile: true,
     };
-    invoke<ImportSourceInfo[]>("list_connection_import_sources")
+    client.call("list_connection_import_sources", undefined)
       .then((list) => {
         const all = [tabularisSource, ...list];
         setSources(all);
@@ -130,7 +128,7 @@ export const ImportFromAppModal = ({
       })
       .catch((e) => setError(toErrorMessage(e)))
       .finally(() => setLoading(false));
-  }, [isOpen, reset]);
+  }, [client, isOpen, reset]);
 
   const selectedSource = sources.find((s) => s.id === selectedId) ?? null;
 
@@ -168,16 +166,6 @@ export const ImportFromAppModal = ({
     setStep("preview");
   };
 
-  // Preview a parsed Tabularis payload (plain or already decrypted) so it goes
-  // through the same per-item group picker as a foreign-app import.
-  const previewTabularis = async (payload: unknown) => {
-    const result = await invoke<ImportPreview>("preview_tabularis_import", {
-      payload,
-    });
-    setTabularisPayload(payload);
-    showPreview(result);
-  };
-
   const handleContinue = async () => {
     if (!selectedSource || !selectedSource.available) return;
     setError(null);
@@ -185,43 +173,35 @@ export const ImportFromAppModal = ({
     try {
       // Tabularis export file: parse (decrypt if needed), then preview.
       if (selectedSource.id === TABULARIS_SOURCE_ID) {
-        const picked = await open({
+        const picked = await platform.chooseInputFile({
           filters: [{ name: "JSON", extensions: ["json"] }],
-          multiple: false,
         });
-        if (!picked || Array.isArray(picked)) {
-          setLoading(false);
-          return;
-        }
-        const content = await readTextFile(picked);
-        const payload = JSON.parse(content) as { encrypted?: boolean };
-        // Encrypted exports are an opaque envelope: prompt for the password
-        // and decrypt before previewing.
-        if (payload && payload.encrypted === true) {
-          setPendingEnvelope(payload);
+        if (!picked) return;
+        const file = await prepareConnectionImportFile(client, platform, picked);
+        const result = await client.call("preview_tabularis_import_file", {
+          file,
+        });
+        if (result.kind === "passwordRequired") {
+          setPendingFile(file);
           setPassword("");
           setError(null);
           setStep("password");
-          setLoading(false);
           return;
         }
-        await previewTabularis(payload);
+        showPreview(result.preview);
         return;
       }
 
-      let filePath: string | null = null;
+      let file: ConnectionImportFile | null = null;
       if (selectedSource.needsFile) {
-        const picked = await open({ multiple: false });
-        if (!picked || Array.isArray(picked)) {
-          setLoading(false);
-          return;
-        }
-        filePath = picked;
+        const picked = await platform.chooseInputFile();
+        if (!picked) return;
+        file = await prepareConnectionImportFile(client, platform, picked);
       }
-      const result = await invoke<ImportPreview>("preview_connection_import", {
+      const result = await client.call("preview_connection_import", {
         sourceId: selectedSource.id,
         includePasswords,
-        filePath,
+        file,
       });
       showPreview(result);
     } catch (e) {
@@ -232,15 +212,18 @@ export const ImportFromAppModal = ({
   };
 
   const handleDecryptImport = async () => {
-    if (!pendingEnvelope || !password) return;
+    if (!pendingFile || !password) return;
     setError(null);
     setLoading(true);
     try {
-      const payload = await invoke("decrypt_export_payload", {
-        envelope: pendingEnvelope,
+      const result = await client.call("preview_tabularis_import_file", {
+        file: pendingFile,
         password,
       });
-      await previewTabularis(payload);
+      if (result.kind === "passwordRequired") {
+        throw new Error("This connection export requires a password");
+      }
+      showPreview(result.preview);
     } catch (e) {
       setError(toErrorMessage(e));
     } finally {
@@ -286,12 +269,11 @@ export const ImportFromAppModal = ({
         return { index: item.index, action };
       });
       if (selectedSource.id === TABULARIS_SOURCE_ID) {
-        await invoke("apply_tabularis_import", {
-          payload: tabularisPayload,
+        await client.call("apply_prepared_tabularis_import", {
           resolutions: payload,
         });
       } else {
-        await invoke("apply_connection_import", {
+        await client.call("apply_connection_import", {
           sourceId: selectedSource.id,
           resolutions: payload,
         });
@@ -415,7 +397,7 @@ export const ImportFromAppModal = ({
             <span>
               {t("connections.importFromApp.betaNotice")}{" "}
               <button
-                onClick={() => openUrl(GITHUB_ISSUES_URL)}
+                onClick={() => void platform.openExternalUrl(GITHUB_ISSUES_URL)}
                 className="font-medium underline underline-offset-2 hover:text-amber-200"
               >
                 {t("connections.importFromApp.reportIssue")}

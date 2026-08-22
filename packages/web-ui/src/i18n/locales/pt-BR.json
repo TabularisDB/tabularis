@@ -782,6 +782,7 @@
       "title": "Backup",
       "directory": "Pasta de backup",
       "directoryDesc": "Nenhuma pasta selecionada ainda.",
+      "serverDirectoryDesc": "Caminho da pasta no servidor. Os backups são gravados no host do Tabularis; a ação manual também baixa uma cópia no navegador.",
       "chooseDirectory": "Escolher pasta",
       "password": "Senha do backup",
       "passwordDesc": "Os backups são sempre criptografados. A senha é armazenada no chaveiro do sistema.",

@@ -1,9 +1,15 @@
 use crate::application::{
-    connections::ConnectionCommand, database_objects::DatabaseObjectCommand,
-    metadata::MetadataCommand, notebooks::NotebookCommand, persistence::PersistenceCommand,
-    productivity::ProductivityCommand, queries::QueryCommand, records::RecordCommand,
-    tunnels::TunnelCommand, ApplicationApi, ApplicationError, ApplicationRequestContext,
-    AuthorizationLevel,
+    connection_files::{ConnectionExportMode, ConnectionFilesCommand, ConnectionImportFile},
+    connections::ConnectionCommand,
+    database_objects::DatabaseObjectCommand,
+    metadata::MetadataCommand,
+    notebooks::NotebookCommand,
+    persistence::PersistenceCommand,
+    productivity::ProductivityCommand,
+    queries::QueryCommand,
+    records::RecordCommand,
+    tunnels::TunnelCommand,
+    ApplicationApi, ApplicationError, ApplicationRequestContext, AuthorizationLevel,
 };
 use crate::models::{
     ColumnDefinition, ConnectionAppearance, ConnectionParams, K8sConnectionInput, RoutineCallArg,
@@ -42,6 +48,7 @@ enum RpcCommand {
     GetConnections,
     CancelQuery,
     Connection(ConnectionRpcCommand),
+    ConnectionFiles(ConnectionFilesRpcCommand),
     Metadata(MetadataRpcCommand),
     DatabaseObject(DatabaseObjectRpcCommand),
     Query(QueryRpcCommand),
@@ -50,6 +57,20 @@ enum RpcCommand {
     Persistence(PersistenceRpcCommand),
     Productivity(ProductivityRpcCommand),
     Notebook(NotebookRpcCommand),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ConnectionFilesRpcCommand {
+    Export,
+    ListImportSources,
+    PreviewForeignImport,
+    ApplyForeignImport,
+    PreviewTabularisImport,
+    ApplyPreparedTabularisImport,
+    GetBackupStatus,
+    SetBackupPassword,
+    SetBackupTargetPassword,
+    RunBackup,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -236,6 +257,55 @@ struct CommandMetadata {
 struct CancelQueryRequest {
     connection_id: String,
     query_request_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ExportConnectionsFileRequest {
+    mode: ConnectionExportMode,
+    password: Option<String>,
+    connection_ids: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PreviewConnectionImportRequest {
+    source_id: String,
+    include_passwords: bool,
+    file: Option<ConnectionImportFile>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ApplyConnectionImportRequest {
+    source_id: String,
+    resolutions: Vec<crate::connection_import::convert::ImportResolution>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PreviewTabularisImportRequest {
+    file: ConnectionImportFile,
+    password: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ApplyPreparedImportRequest {
+    resolutions: Vec<crate::connection_import::convert::ImportResolution>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SetBackupPasswordRequest {
+    password: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetBackupTargetPasswordRequest {
+    target_id: String,
+    password: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1103,6 +1173,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::ConnectionFiles(command) => {
+                let command = decode_connection_files_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_connection_files_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
             RpcCommand::Metadata(command) => {
                 let command = decode_metadata_command(command, body)
                     .map_err(InvocationError::InvalidPayload)?;
@@ -1200,6 +1278,7 @@ impl RpcCommand {
                 .or_else(|| DatabaseObjectRpcCommand::parse(name).map(Self::DatabaseObject))
                 .or_else(|| MetadataRpcCommand::parse(name).map(Self::Metadata))
                 .or_else(|| ConnectionRpcCommand::parse(name).map(Self::Connection))
+                .or_else(|| ConnectionFilesRpcCommand::parse(name).map(Self::ConnectionFiles))
                 .or_else(|| PersistenceRpcCommand::parse(name).map(Self::Persistence))
                 .or_else(|| ProductivityRpcCommand::parse(name).map(Self::Productivity))
                 .or_else(|| NotebookRpcCommand::parse(name).map(Self::Notebook)),
@@ -1231,6 +1310,11 @@ impl RpcCommand {
             Self::Connection(_) => CommandMetadata {
                 authorization: AuthorizationLevel::Database,
                 application_error_code: "CONNECTION_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
+            Self::ConnectionFiles(command) => CommandMetadata {
+                authorization: command.authorization(),
+                application_error_code: "CONNECTION_FILE_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
             Self::Metadata(_) => CommandMetadata {
@@ -1283,6 +1367,39 @@ impl RpcCommand {
                 application_error_code: "NOTEBOOK_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+        }
+    }
+}
+
+impl ConnectionFilesRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "export_connections_file" => Self::Export,
+            "list_connection_import_sources" => Self::ListImportSources,
+            "preview_connection_import" => Self::PreviewForeignImport,
+            "apply_connection_import" => Self::ApplyForeignImport,
+            "preview_tabularis_import_file" => Self::PreviewTabularisImport,
+            "apply_prepared_tabularis_import" => Self::ApplyPreparedTabularisImport,
+            "get_connections_backup_status" => Self::GetBackupStatus,
+            "set_connections_backup_password" => Self::SetBackupPassword,
+            "set_connections_backup_target_password" => Self::SetBackupTargetPassword,
+            "run_connections_backup" => Self::RunBackup,
+            _ => return None,
+        })
+    }
+
+    fn authorization(self) -> AuthorizationLevel {
+        match self {
+            Self::ListImportSources
+            | Self::PreviewForeignImport
+            | Self::ApplyForeignImport
+            | Self::GetBackupStatus => AuthorizationLevel::LocalAdmin,
+            Self::Export
+            | Self::PreviewTabularisImport
+            | Self::ApplyPreparedTabularisImport
+            | Self::SetBackupPassword
+            | Self::SetBackupTargetPassword
+            | Self::RunBackup => AuthorizationLevel::Sensitive,
         }
     }
 }
@@ -1533,6 +1650,75 @@ impl ConnectionRpcCommand {
             _ => return None,
         })
     }
+}
+
+fn decode_connection_files_command(
+    command: ConnectionFilesRpcCommand,
+    body: &[u8],
+) -> Result<ConnectionFilesCommand, String> {
+    Ok(match command {
+        ConnectionFilesRpcCommand::Export => {
+            let request: ExportConnectionsFileRequest = decode_payload(body)?;
+            ConnectionFilesCommand::Export {
+                mode: request.mode,
+                password: request.password,
+                connection_ids: request.connection_ids,
+            }
+        }
+        ConnectionFilesRpcCommand::ListImportSources => {
+            decode_empty_payload(body)?;
+            ConnectionFilesCommand::ListImportSources
+        }
+        ConnectionFilesRpcCommand::PreviewForeignImport => {
+            let request: PreviewConnectionImportRequest = decode_payload(body)?;
+            ConnectionFilesCommand::PreviewForeignImport {
+                source_id: request.source_id,
+                include_passwords: request.include_passwords,
+                file: request.file,
+            }
+        }
+        ConnectionFilesRpcCommand::ApplyForeignImport => {
+            let request: ApplyConnectionImportRequest = decode_payload(body)?;
+            ConnectionFilesCommand::ApplyForeignImport {
+                source_id: request.source_id,
+                resolutions: request.resolutions,
+            }
+        }
+        ConnectionFilesRpcCommand::PreviewTabularisImport => {
+            let request: PreviewTabularisImportRequest = decode_payload(body)?;
+            ConnectionFilesCommand::PreviewTabularisImport {
+                file: request.file,
+                password: request.password,
+            }
+        }
+        ConnectionFilesRpcCommand::ApplyPreparedTabularisImport => {
+            let request: ApplyPreparedImportRequest = decode_payload(body)?;
+            ConnectionFilesCommand::ApplyPreparedTabularisImport {
+                resolutions: request.resolutions,
+            }
+        }
+        ConnectionFilesRpcCommand::GetBackupStatus => {
+            decode_empty_payload(body)?;
+            ConnectionFilesCommand::GetBackupStatus
+        }
+        ConnectionFilesRpcCommand::SetBackupPassword => {
+            let request: SetBackupPasswordRequest = decode_payload(body)?;
+            ConnectionFilesCommand::SetBackupPassword {
+                password: request.password,
+            }
+        }
+        ConnectionFilesRpcCommand::SetBackupTargetPassword => {
+            let request: SetBackupTargetPasswordRequest = decode_payload(body)?;
+            ConnectionFilesCommand::SetBackupTargetPassword {
+                target_id: request.target_id,
+                password: request.password,
+            }
+        }
+        ConnectionFilesRpcCommand::RunBackup => {
+            decode_empty_payload(body)?;
+            ConnectionFilesCommand::RunBackup
+        }
+    })
 }
 
 fn decode_notebook_command(

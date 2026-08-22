@@ -9,9 +9,6 @@ import {
   type ExportMode,
 } from "../components/modals/ExportConnectionsModal";
 import { ImportFromAppModal } from "../components/modals/ImportFromAppModal";
-import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
 import {
   Database,
   Plus,
@@ -48,12 +45,15 @@ import { ConnectionErrorBanner } from "../components/ConnectionErrorBanner";
 import { BetaBadge } from "../components/ui/BetaBadge";
 import { useCreateSqliteDatabase } from "../hooks/useCreateSqliteDatabase";
 import { useTabularisClient } from "../hooks/useTabularisClient";
+import { usePlatformCapabilities } from "../hooks/usePlatformCapabilities";
+import { saveGeneratedFile } from "../utils/connectionFiles";
 
 let autoConnectAttempted = false;
 
 export const Connections = () => {
   const { t } = useTranslation();
   const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const { settings } = useSettings();
   const navigate = useNavigate();
   const location = useLocation();
@@ -320,24 +320,15 @@ export const Connections = () => {
 
   const handleExport = async (mode: ExportMode, password?: string) => {
     try {
-      const payload = await invoke("export_connections_payload", {
-        includeSecrets: mode !== "noSecrets",
+      const generated = await client.call("export_connections_file", {
+        mode,
+        ...(password ? { password } : {}),
         connectionIds:
           exportSelectionOnly && selectedIds.size > 0
             ? [...selectedIds]
             : null,
       });
-      const fileContent =
-        mode === "encrypted"
-          ? await invoke("encrypt_export_payload", { payload, password })
-          : payload;
-      const path = await save({
-        defaultPath: "tabularis-connections.json",
-        filters: [{ name: "JSON", extensions: ["json"] }],
-      });
-      if (path) {
-        await writeTextFile(path, JSON.stringify(fileContent, null, 2));
-      }
+      await saveGeneratedFile(client, platform, generated);
     } catch (e) {
       console.error("Export failed:", e);
       setError(toErrorMessage(e));

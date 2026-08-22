@@ -661,6 +661,73 @@ async fn executes_representative_commands_over_versioned_rpc() {
         serde_json::json!({"connectionIds": ["metadata-fixture"]}),
     )
     .await;
+    let exported = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "export_connections_file",
+        serde_json::json!({"mode": "noSecrets"}),
+    )
+    .await;
+    assert_eq!(exported["kind"], "download");
+    let export_token = exported["token"].as_str().unwrap();
+    let export_response = client
+        .get(format!("{base_url}/api/v1/downloads/{export_token}"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(export_response.status(), reqwest::StatusCode::OK);
+    let export_content = export_response.text().await.unwrap();
+    assert!(export_content.contains("metadata-fixture"));
+    let exported_payload: Value = serde_json::from_str(&export_content).unwrap();
+    assert!(exported_payload["connections"][0]["params"]["password"].is_null());
+    assert!(exported_payload["connections"][0]["params"]["connection_uri"].is_null());
+
+    let upload = client
+        .post(format!("{base_url}/api/v1/uploads"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header("content-type", "application/json")
+        .header("x-tabularis-file-name", "connections.json")
+        .header("x-tabularis-purpose", "connection-import")
+        .body(export_content)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(upload.status(), reqwest::StatusCode::CREATED);
+    let upload_token = upload.json::<Value>().await.unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let preview = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "preview_tabularis_import_file",
+        serde_json::json!({
+            "file": {"kind": "upload", "token": upload_token}
+        }),
+    )
+    .await;
+    assert_eq!(preview["kind"], "preview");
+    assert_eq!(
+        preview["preview"]["items"][0]["status"]["kind"],
+        "duplicate"
+    );
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "apply_prepared_tabularis_import",
+        serde_json::json!({"resolutions": [{"index": 0, "action": "skip"}]}),
+    )
+    .await;
+
     rpc_data(
         &client,
         &base_url,

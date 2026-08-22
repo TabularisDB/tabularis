@@ -769,6 +769,7 @@
       "title": "Backup",
       "directory": "Sicherungsordner",
       "directoryDesc": "Noch kein Ordner ausgewählt.",
+      "serverDirectoryDesc": "Serverordnerpfad. Sicherungen werden auf dem Tabularis-Host gespeichert; die manuelle Aktion lädt zusätzlich eine Browserkopie herunter.",
       "chooseDirectory": "Ordner wählen",
       "password": "Sicherungspasswort",
       "passwordDesc": "Sicherungen sind immer verschlüsselt. Das Passwort wird im System-Schlüsselbund gespeichert.",

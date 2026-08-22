@@ -28,6 +28,11 @@ import type {
 } from "../types/queryHistory";
 import type { UserOverrides } from "../utils/keybindings";
 import type { NotebookMetadata } from "../types/notebook";
+import type {
+  ImportPreview,
+  ImportResolution,
+  ImportSourceInfo,
+} from "../types/connectionImport";
 import type { RequestId } from "./errors";
 
 export type AuthorizationLevel =
@@ -285,6 +290,45 @@ export type BlobFetchResponse =
       mimeType: string;
     };
 
+export type ConnectionExportMode = "encrypted" | "noSecrets" | "plaintext";
+
+export type GeneratedFile =
+  | {
+      kind: "inline";
+      fileName: string;
+      mimeType: string;
+      contents: string;
+    }
+  | {
+      kind: "download";
+      fileName: string;
+      mimeType: string;
+      token: string;
+      size: number;
+    };
+
+export type ConnectionImportFile =
+  | { kind: "serverPath"; path: string }
+  | { kind: "upload"; token: string };
+
+export type TabularisImportPreviewResult =
+  | { kind: "passwordRequired" }
+  | { kind: "preview"; preview: ImportPreview };
+
+export interface BackupStatus {
+  passwordSet: boolean;
+  targetPasswordSet: boolean;
+  lastBackupAt: string | null;
+  targetKind: "serverDirectory" | "webdav";
+  targetDisplay: string | null;
+}
+
+export interface BackupRunResult {
+  serverLocation: string;
+  targetKind: "serverDirectory" | "webdav";
+  download: GeneratedFile | null;
+}
+
 export interface PersistedConfig extends Partial<Settings> {
   theme?: string;
   checkForUpdates?: boolean;
@@ -399,6 +443,65 @@ export interface CommandMap {
     "database"
   >;
   disconnect_connection: CommandDefinition<ConnectionIdRequest, void, "database">;
+
+  export_connections_file: CommandDefinition<
+    {
+      mode: ConnectionExportMode;
+      password?: string;
+      connectionIds?: string[] | null;
+    },
+    GeneratedFile,
+    "sensitive"
+  >;
+  list_connection_import_sources: CommandDefinition<
+    undefined,
+    ImportSourceInfo[],
+    "local-admin"
+  >;
+  preview_connection_import: CommandDefinition<
+    {
+      sourceId: string;
+      includePasswords: boolean;
+      file?: ConnectionImportFile | null;
+    },
+    ImportPreview,
+    "local-admin"
+  >;
+  apply_connection_import: CommandDefinition<
+    { sourceId: string; resolutions: ImportResolution[] },
+    void,
+    "local-admin"
+  >;
+  preview_tabularis_import_file: CommandDefinition<
+    { file: ConnectionImportFile; password?: string },
+    TabularisImportPreviewResult,
+    "sensitive"
+  >;
+  apply_prepared_tabularis_import: CommandDefinition<
+    { resolutions: ImportResolution[] },
+    void,
+    "sensitive"
+  >;
+  get_connections_backup_status: CommandDefinition<
+    undefined,
+    BackupStatus,
+    "local-admin"
+  >;
+  set_connections_backup_password: CommandDefinition<
+    { password: string },
+    void,
+    "sensitive"
+  >;
+  set_connections_backup_target_password: CommandDefinition<
+    { targetId: string; password: string },
+    void,
+    "sensitive"
+  >;
+  run_connections_backup: CommandDefinition<
+    undefined,
+    string | BackupRunResult,
+    "sensitive"
+  >;
 
   get_ssh_connections: CommandDefinition<undefined, SshConnection[], "local-admin">;
   save_ssh_connection: CommandDefinition<

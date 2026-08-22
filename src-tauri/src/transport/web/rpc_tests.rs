@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use axum::body::to_bytes;
 use axum::http::header::CONTENT_TYPE;
 use axum::http::HeaderValue;
+use uuid::Uuid;
 
 struct FixtureApplication {
     delay: Duration,
@@ -76,6 +77,29 @@ impl ApplicationApi for FixtureApplication {
     ) -> Result<Value, ApplicationError> {
         self.record(context).await;
         Ok(Value::Null)
+    }
+
+    async fn execute_connection_files_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: crate::application::connection_files::ConnectionFilesCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(match command {
+            crate::application::connection_files::ConnectionFilesCommand::ListImportSources => {
+                serde_json::json!([])
+            }
+            crate::application::connection_files::ConnectionFilesCommand::GetBackupStatus => {
+                serde_json::json!({
+                    "passwordSet": true,
+                    "targetPasswordSet": true,
+                    "lastBackupAt": null,
+                    "targetKind": "serverDirectory",
+                    "targetDisplay": "/srv/tabularis/backups"
+                })
+            }
+            _ => Value::Null,
+        })
     }
 
     async fn execute_metadata_command(
@@ -232,6 +256,36 @@ fn declares_authorization_for_each_registered_command() {
         RpcCommand::CancelQuery.metadata().authorization,
         AuthorizationLevel::Database
     );
+    for command in [
+        ConnectionFilesRpcCommand::Export,
+        ConnectionFilesRpcCommand::PreviewTabularisImport,
+        ConnectionFilesRpcCommand::ApplyPreparedTabularisImport,
+        ConnectionFilesRpcCommand::SetBackupPassword,
+        ConnectionFilesRpcCommand::SetBackupTargetPassword,
+        ConnectionFilesRpcCommand::RunBackup,
+    ] {
+        assert_eq!(
+            RpcCommand::ConnectionFiles(command)
+                .metadata()
+                .authorization,
+            AuthorizationLevel::Sensitive,
+            "{command:?}",
+        );
+    }
+    for command in [
+        ConnectionFilesRpcCommand::ListImportSources,
+        ConnectionFilesRpcCommand::PreviewForeignImport,
+        ConnectionFilesRpcCommand::ApplyForeignImport,
+        ConnectionFilesRpcCommand::GetBackupStatus,
+    ] {
+        assert_eq!(
+            RpcCommand::ConnectionFiles(command)
+                .metadata()
+                .authorization,
+            AuthorizationLevel::LocalAdmin,
+            "{command:?}",
+        );
+    }
     assert_eq!(
         RpcCommand::Metadata(MetadataRpcCommand::GetTables)
             .metadata()
@@ -391,6 +445,63 @@ fn registers_every_settings_and_preference_command_with_explicit_authorization()
             command.metadata().authorization,
             AuthorizationLevel::Session
         );
+    }
+}
+
+#[tokio::test]
+async fn routes_connection_file_commands_through_the_shared_application_api() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let resolution = serde_json::json!({"index": 0, "action": "import", "groupId": ""});
+    let file = serde_json::json!({"kind": "upload", "token": Uuid::new_v4().to_string()});
+    let commands = [
+        (
+            "export_connections_file",
+            serde_json::json!({"mode": "encrypted", "password": "secret"}),
+        ),
+        ("list_connection_import_sources", Value::Null),
+        (
+            "preview_connection_import",
+            serde_json::json!({
+                "sourceId": "dbeaver",
+                "includePasswords": false,
+                "file": file.clone()
+            }),
+        ),
+        (
+            "apply_connection_import",
+            serde_json::json!({"sourceId": "dbeaver", "resolutions": [resolution.clone()]}),
+        ),
+        (
+            "preview_tabularis_import_file",
+            serde_json::json!({"file": file, "password": "secret"}),
+        ),
+        (
+            "apply_prepared_tabularis_import",
+            serde_json::json!({"resolutions": [resolution]}),
+        ),
+        ("get_connections_backup_status", Value::Null),
+        (
+            "set_connections_backup_password",
+            serde_json::json!({"password": "secret"}),
+        ),
+        (
+            "set_connections_backup_target_password",
+            serde_json::json!({"targetId": "webdav", "password": "secret"}),
+        ),
+        ("run_connections_backup", Value::Null),
+    ];
+
+    for (command, payload) in commands {
+        let response = dispatcher
+            .dispatch(
+                command,
+                RequestId(format!("request-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                Some(Uuid::new_v4()),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK, "{command}");
     }
 }
 
