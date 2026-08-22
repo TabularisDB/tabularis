@@ -89,6 +89,16 @@ defineTransportContractSuite(
           size: 64,
         };
       }
+      if (command === "set_ai_key" || command === "delete_ai_key") return null;
+      if (command === "check_ai_key_status") {
+        return { configured: true, fromEnv: false };
+      }
+      if (command === "get_ai_models") return { openai: ["gpt-contract"] };
+      if (command === "generate_ai_query") return "SELECT 1";
+      if (command === "get_ai_activity" || command === "list_pending_approvals") {
+        return [];
+      }
+      if (command === "decide_pending_approval") return null;
       if (command === "dump_database") {
         expect(request).toEqual({
           connectionId: "database-transfer-fixture",

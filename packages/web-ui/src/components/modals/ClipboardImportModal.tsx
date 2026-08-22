@@ -235,7 +235,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
     if (!settings.aiProvider || !parsed) return;
     setIsAiLoading(true);
     try {
-      const name = await invoke<string>('suggest_table_name', {
+      const name = await client.call('suggest_table_name', {
         req: {
           provider: settings.aiProvider,
           model: settings.aiModel || '',
@@ -251,7 +251,7 @@ export function ClipboardImportModal({ isOpen, onClose, onSuccess }: ClipboardIm
     } finally {
       setIsAiLoading(false);
     }
-  }, [settings, parsed]);
+  }, [client, settings, parsed]);
 
   const handleImport = useCallback(async () => {
     if (!activeConnectionId || !parsed || !tableName.trim() || columns.length === 0) return;

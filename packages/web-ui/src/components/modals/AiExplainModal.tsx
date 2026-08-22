@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Loader2, BookOpen } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { useSettings } from "../../hooks/useSettings";
 import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { getAiExplanationLanguage } from "../../i18n/language";
@@ -17,6 +17,7 @@ interface AiExplainModalProps {
 
 export const AiExplainModal = ({ isOpen, onClose, query }: AiExplainModalProps) => {
   const { settings } = useSettings();
+  const client = useTabularisClient();
   const editorTheme = useEditorTheme();
   const monacoRef = useRef<typeof MonacoTypes | null>(null);
   const [explanation, setExplanation] = useState("");
@@ -54,7 +55,7 @@ export const AiExplainModal = ({ isOpen, onClose, query }: AiExplainModalProps) 
     setExplanation("");
 
     try {
-      const result = await invoke<string>("explain_ai_query", {
+      const result = await client.call("explain_ai_query", {
         req: {
           provider: settings.aiProvider,
           model: settings.aiModel || "",

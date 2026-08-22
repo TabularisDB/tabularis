@@ -210,6 +210,27 @@ async fn driver_and_params(
     Ok((driver, params))
 }
 
+pub async fn get_ai_schema_context(
+    runtime: &RuntimeContext,
+    session_id: Option<Uuid>,
+    connection_id: &str,
+    schema: Option<String>,
+) -> Result<String, String> {
+    let (driver, params) = driver_and_params(runtime, session_id, connection_id).await?;
+    let identifier_quote = driver.manifest().capabilities.identifier_quote.as_str();
+    let context = driver
+        .get_ai_schema_context(
+            &params,
+            schema.as_deref(),
+            crate::ai_schema_context::DEFAULT_MAX_TABLES,
+        )
+        .await?;
+    Ok(crate::ai_schema_context::format_for_prompt(
+        &context,
+        identifier_quote,
+    ))
+}
+
 pub async fn get_available_databases(
     runtime: &RuntimeContext,
     session_id: Option<Uuid>,

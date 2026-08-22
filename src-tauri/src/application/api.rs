@@ -1,6 +1,6 @@
 use super::{
-    connection_files, connections, database_objects, database_transfers, generic_exports, metadata,
-    notebooks, persistence, productivity, queries, records, tunnels,
+    ai, connection_files, connections, database_objects, database_transfers, generic_exports,
+    metadata, notebooks, persistence, productivity, queries, records, tunnels,
 };
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use async_trait::async_trait;
@@ -98,6 +98,12 @@ pub trait ApplicationApi: Send + Sync {
         command: generic_exports::GenericExportCommand,
     ) -> Result<Value, ApplicationError>;
 
+    async fn execute_ai_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: ai::AiCommand,
+    ) -> Result<Value, ApplicationError>;
+
     async fn execute_metadata_command(
         &self,
         context: ApplicationRequestContext,
@@ -168,6 +174,11 @@ impl ApplicationApi for RuntimeApplicationApi {
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .remove(&session_id);
+        self.state
+            .web_approval_owners
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .retain(|_, owner| *owner != session_id);
     }
 
     async fn is_debug_mode(
@@ -267,6 +278,16 @@ impl ApplicationApi for RuntimeApplicationApi {
         )
         .await
         .map_err(ApplicationError::new)
+    }
+
+    async fn execute_ai_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: ai::AiCommand,
+    ) -> Result<Value, ApplicationError> {
+        ai::execute(&self.runtime, &self.state, context.session_id, command)
+            .await
+            .map_err(ApplicationError::new)
     }
 
     async fn execute_metadata_command(

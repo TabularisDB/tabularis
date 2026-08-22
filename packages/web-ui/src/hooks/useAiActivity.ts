@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { useTabularisClient } from "./useTabularisClient";
 import type { TabularisClient } from "../api/client";
 import type {
   AiActivityEvent,
@@ -27,6 +26,7 @@ export interface UseAiActivityEventsResult {
 export function useAiActivityEvents(
   filter: AiEventFilter = {},
 ): UseAiActivityEventsResult {
+  const client = useTabularisClient();
   const [events, setEvents] = useState<AiActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export function useAiActivityEvents(
     setLoading(true);
     setError(null);
     try {
-      const data = await invoke<AiActivityEvent[]>("get_ai_activity", {
+      const data = await client.call("get_ai_activity", {
         filter: stableFilter,
       });
       setEvents(data);
@@ -50,7 +50,7 @@ export function useAiActivityEvents(
     } finally {
       setLoading(false);
     }
-  }, [stableFilter]);
+  }, [client, stableFilter]);
 
   useEffect(() => {
     refetch();
@@ -71,6 +71,7 @@ export interface UseAiSessionsResult {
 }
 
 export function useAiSessions(): UseAiSessionsResult {
+  const client = useTabularisClient();
   const [sessions, setSessions] = useState<AiSessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,14 +80,14 @@ export function useAiSessions(): UseAiSessionsResult {
     setLoading(true);
     setError(null);
     try {
-      const data = await invoke<AiSessionSummary[]>("get_ai_sessions");
+      const data = await client.call("get_ai_sessions", undefined);
       setSessions(data);
     } catch (err) {
       setError(String(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [client]);
 
   useEffect(() => {
     refetch();
@@ -108,6 +109,7 @@ export interface UseAiSessionEventsResult {
 export function useAiSessionEvents(
   sessionId: string | null,
 ): UseAiSessionEventsResult {
+  const client = useTabularisClient();
   const [events, setEvents] = useState<AiActivityEvent[]>([]);
   const [loadedSessionId, setLoadedSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -118,7 +120,7 @@ export function useAiSessionEvents(
       setLoading(true);
       setError(null);
       try {
-        const data = await invoke<AiActivityEvent[]>("get_ai_session_events", {
+        const data = await client.call("get_ai_session_events", {
           sessionId: id,
         });
         if (!isCancelled()) {
@@ -131,7 +133,7 @@ export function useAiSessionEvents(
         if (!isCancelled()) setLoading(false);
       }
     },
-    [],
+    [client],
   );
 
   useEffect(() => {
@@ -164,6 +166,7 @@ export interface UsePendingApprovalsResult {
 }
 
 export function usePendingApprovals(): UsePendingApprovalsResult {
+  const client = useTabularisClient();
   const [pending, setPending] = useState<PendingApproval[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -173,25 +176,25 @@ export function usePendingApprovals(): UsePendingApprovalsResult {
     setLoading(true);
     setError(null);
     try {
-      const data = await invoke<PendingApproval[]>("list_pending_approvals");
+      const data = await client.call("list_pending_approvals", undefined);
       setPending(data);
     } catch (err) {
       setError(String(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [client]);
   refetchRef.current = refetch;
 
   useEffect(() => {
     refetch();
-    const unlisten = listen<PendingApproval>(PENDING_APPROVAL_EVENT, () => {
+    const unsubscribe = client.subscribe(PENDING_APPROVAL_EVENT, () => {
       refetchRef.current();
     });
     return () => {
-      unlisten.then((fn) => fn()).catch(() => {});
+      unsubscribe.then((fn) => fn()).catch(() => {});
     };
-  }, [refetch]);
+  }, [client, refetch]);
 
   const decide = useCallback(
     async ({
@@ -200,7 +203,7 @@ export function usePendingApprovals(): UsePendingApprovalsResult {
       reason,
       editedQuery,
     }: ApprovalDecisionPayload) => {
-      await invoke("decide_pending_approval", {
+      await client.call("decide_pending_approval", {
         approvalId,
         decision,
         reason,
@@ -210,7 +213,7 @@ export function usePendingApprovals(): UsePendingApprovalsResult {
       // will reconcile if anything else changes.
       setPending((prev) => prev.filter((p) => p.id !== approvalId));
     },
-    [],
+    [client],
   );
 
   return { pending, loading, error, refetch, decide };
@@ -220,8 +223,8 @@ export function usePendingApprovals(): UsePendingApprovalsResult {
 // Mutations
 // ---------------------------------------------------------------------------
 
-export async function clearAiActivity(): Promise<void> {
-  await invoke("clear_ai_activity");
+export async function clearAiActivity(client: TabularisClient): Promise<void> {
+  await client.call("clear_ai_activity", undefined);
 }
 
 export function exportAiActivityJson(client: TabularisClient): Promise<string> {

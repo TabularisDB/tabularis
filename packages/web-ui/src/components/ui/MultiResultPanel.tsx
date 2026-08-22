@@ -23,7 +23,7 @@ import {
   ChevronsUpDown,
 } from "lucide-react";
 import clsx from "clsx";
-import { invoke } from "@tauri-apps/api/core";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { ResultEntryContent } from "./ResultEntryContent";
 import { StackedResultItem } from "./StackedResultItem";
 import { ContextMenu } from "./ContextMenu";
@@ -248,6 +248,7 @@ export function MultiResultPanel({
 }: MultiResultPanelProps) {
   const { t } = useTranslation();
   const { settings } = useSettings();
+  const client = useTabularisClient();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -326,7 +327,7 @@ export function MultiResultPanel({
     if (!entry?.query.trim() || !settings.aiProvider) return;
     setAiRenamingEntryId(entryId);
     try {
-      const name = await invoke<string>("generate_tab_rename", {
+      const name = await client.call("generate_tab_rename", {
         req: {
           provider: settings.aiProvider,
           model: settings.aiModel || "",

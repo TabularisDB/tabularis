@@ -168,6 +168,10 @@ pub fn run() {
             let application_state =
                 std::sync::Arc::new(runtime::state::ApplicationState::default());
             let web_data_dir = application.context.paths.data_dir().to_path_buf();
+            let approval_watcher = ai_approval_watcher::spawn_headless(
+                application.context.clone(),
+                application_state.clone(),
+            );
             let application_api = std::sync::Arc::new(
                 application::RuntimeApplicationApi::new(
                     application.context,
@@ -188,6 +192,7 @@ pub fn run() {
             )
             .await;
 
+            approval_watcher.abort();
             runtime::lifecycle::shutdown_headless_runtime(&application_state).await;
             server_result.expect("Failed to run Tabularis Web server");
         });

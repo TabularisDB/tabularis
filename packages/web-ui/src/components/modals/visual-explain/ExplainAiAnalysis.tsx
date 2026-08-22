@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, Sparkles } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
+import { useTabularisClient } from "../../../hooks/useTabularisClient";
 import { useSettings } from "../../../hooks/useSettings";
 import { getAiExplanationLanguage } from "../../../i18n/language";
 import type { ExplainPlan } from "@tabularis/explain";
@@ -13,6 +13,7 @@ interface ExplainAiAnalysisProps {
 export function ExplainAiAnalysis({ plan }: ExplainAiAnalysisProps) {
   const { t } = useTranslation();
   const { settings } = useSettings();
+  const client = useTabularisClient();
   const [analysis, setAnalysis] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +37,7 @@ export function ExplainAiAnalysis({ plan }: ExplainAiAnalysisProps) {
     ].join("\n");
 
     try {
-      const result = await invoke<string>("analyze_ai_explain_plan", {
+      const result = await client.call("analyze_ai_explain_plan", {
         req: {
           provider: settings.aiProvider,
           model: settings.aiModel || "",
@@ -50,7 +51,7 @@ export function ExplainAiAnalysis({ plan }: ExplainAiAnalysisProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [plan, settings.aiProvider, settings.aiModel, settings.language, t]);
+  }, [client, plan, settings.aiProvider, settings.aiModel, settings.language, t]);
 
   useEffect(() => {
     if (plan.raw_output) {

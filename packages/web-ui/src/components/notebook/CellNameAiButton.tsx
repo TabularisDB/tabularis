@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Sparkles, Loader2 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { useSettings } from "../../hooks/useSettings";
 
 interface CellNameAiButtonProps {
@@ -15,18 +15,20 @@ export function CellNameAiButton({
 }: CellNameAiButtonProps) {
   const { t } = useTranslation();
   const { settings } = useSettings();
+  const client = useTabularisClient();
   const [isLoading, setIsLoading] = useState(false);
 
   if (!settings.aiEnabled || !settings.aiProvider) return null;
 
   const handleGenerate = async () => {
-    if (!content.trim() || isLoading) return;
+    const provider = settings.aiProvider;
+    if (!content.trim() || isLoading || !provider) return;
 
     setIsLoading(true);
     try {
-      const name = await invoke<string>("generate_cell_name", {
+      const name = await client.call("generate_cell_name", {
         req: {
-          provider: settings.aiProvider,
+          provider,
           model: settings.aiModel || "",
           query: content,
         },

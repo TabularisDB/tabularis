@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useTranslation, Trans } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import {
   CheckCircle2,
   Code2,
@@ -17,6 +16,7 @@ import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
 import { useAlert } from "../../hooks/useAlert";
 import type { AiProvider } from "../../contexts/SettingsContext";
+import type { AiKeyStatus } from "../../types/ai";
 import { getProviderLabel } from "../../utils/settingsUI";
 import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { Select } from "../ui/Select";
@@ -28,11 +28,6 @@ import {
   OpenRouterIcon,
   OllamaIcon,
 } from "../icons/ClientIcons";
-
-interface AiKeyStatus {
-  configured: boolean;
-  fromEnv: boolean;
-}
 
 const PROVIDERS: Array<{
   id: AiProvider;
@@ -98,10 +93,9 @@ export function AiTab() {
   const loadModels = useCallback(
     async (force: boolean = false) => {
       try {
-        const models = await invoke<Record<string, string[]>>(
-          "get_ai_models",
-          { forceRefresh: force },
-        );
+        const models = await client.call("get_ai_models", {
+          forceRefresh: force,
+        });
         setAvailableModels(models);
         if (force) {
           showAlert(t("settings.ai.refreshSuccess"), {
@@ -117,26 +111,17 @@ export function AiTab() {
         });
       }
     },
-    [t, showAlert],
+    [client, t, showAlert],
   );
 
   const checkKeys = useCallback(async () => {
     try {
-      const openai = await invoke<AiKeyStatus>("check_ai_key_status", {
-        provider: "openai",
-      });
-      const anthropic = await invoke<AiKeyStatus>("check_ai_key_status", {
-        provider: "anthropic",
-      });
-      const openrouter = await invoke<AiKeyStatus>("check_ai_key_status", {
-        provider: "openrouter",
-      });
-      const minimax = await invoke<AiKeyStatus>("check_ai_key_status", {
-        provider: "minimax",
-      });
-      const customOpenai = await invoke<AiKeyStatus>("check_ai_key_status", {
-        provider: "custom-openai",
-      });
+      const [openai, anthropic, openrouter, minimax, customOpenai] =
+        await Promise.all(
+          ["openai", "anthropic", "openrouter", "minimax", "custom-openai"].map(
+            (provider) => client.call("check_ai_key_status", { provider }),
+          ),
+        );
       const ollama = { configured: true, fromEnv: false };
       setAiKeyStatus({
         openai,
@@ -149,7 +134,7 @@ export function AiTab() {
     } catch (e) {
       console.error("Failed to check keys", e);
     }
-  }, []);
+  }, [client]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -175,7 +160,7 @@ export function AiTab() {
   const handleSaveKey = async (provider: string) => {
     if (!keyInput.trim()) return;
     try {
-      await invoke("set_ai_key", { provider, key: keyInput });
+      await client.call("set_ai_key", { provider, key: keyInput });
       await checkKeys();
       setKeyInput("");
       setEditingKey(false);
@@ -356,8 +341,8 @@ export function AiTab() {
                             <button
                               onClick={async () => {
                                 try {
-                                  await invoke("delete_ai_key", {
-                                    provider: settings.aiProvider,
+                                  await client.call("delete_ai_key", {
+                                    provider: settings.aiProvider!,
                                   });
                                   await checkKeys();
                                   showAlert(

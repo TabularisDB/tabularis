@@ -1,4 +1,6 @@
 use crate::config;
+use crate::credential_cache::CredentialCache;
+use crate::runtime::RuntimeContext;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -131,15 +133,12 @@ fn load_default_models() -> HashMap<String, Vec<String>> {
     })
 }
 
-fn get_cache_path(app: &AppHandle) -> Option<std::path::PathBuf> {
-    app.path()
-        .app_config_dir()
-        .ok()
-        .map(|p| p.join("ai_models_cache.json"))
+fn get_cache_path(runtime: &RuntimeContext) -> std::path::PathBuf {
+    runtime.paths.config_dir().join("ai_models_cache.json")
 }
 
-fn load_cache(app: &AppHandle) -> Option<AiModelsCache> {
-    let path = get_cache_path(app)?;
+fn load_cache(runtime: &RuntimeContext) -> Option<AiModelsCache> {
+    let path = get_cache_path(runtime);
     if path.exists() {
         let content = fs::read_to_string(path).ok()?;
         serde_json::from_str(&content).ok()
@@ -148,21 +147,21 @@ fn load_cache(app: &AppHandle) -> Option<AiModelsCache> {
     }
 }
 
-fn save_cache(app: &AppHandle, models: &HashMap<String, Vec<String>>) {
-    if let Some(path) = get_cache_path(app) {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+fn save_cache(runtime: &RuntimeContext, models: &HashMap<String, Vec<String>>) {
+    let path = get_cache_path(runtime);
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
 
-        let cache = AiModelsCache {
-            last_updated: timestamp,
-            models: models.clone(),
-        };
+    let cache = AiModelsCache {
+        last_updated: timestamp,
+        models: models.clone(),
+    };
 
-        if let Ok(content) = serde_json::to_string(&cache) {
-            let _ = fs::write(path, content);
-        }
+    if let Ok(content) = serde_json::to_string(&cache) {
+        let _ = fs::create_dir_all(runtime.paths.config_dir());
+        let _ = fs::write(path, content);
     }
 }
 
@@ -332,10 +331,13 @@ async fn fetch_custom_openai_models(base_url: &str, api_key: &str) -> Vec<String
 
 #[tauri::command]
 pub fn clear_ai_models_cache(app: AppHandle) -> Result<(), String> {
-    if let Some(path) = get_cache_path(&app) {
-        if path.exists() {
-            fs::remove_file(path).map_err(|e| e.to_string())?;
-        }
+    clear_models_cache(&app.state::<RuntimeContext>())
+}
+
+pub fn clear_models_cache(runtime: &RuntimeContext) -> Result<(), String> {
+    let path = get_cache_path(runtime);
+    if path.exists() {
+        fs::remove_file(path).map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -345,20 +347,32 @@ pub async fn get_ai_models(
     app: AppHandle,
     force_refresh: bool,
 ) -> Result<HashMap<String, Vec<String>>, String> {
-    // Load config to get Ollama port
-    let app_config = config::load_config_internal(&app);
+    get_models(
+        &app.state::<RuntimeContext>(),
+        &app.state::<std::sync::Arc<CredentialCache>>(),
+        force_refresh,
+    )
+    .await
+}
+
+pub async fn get_models(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    force_refresh: bool,
+) -> Result<HashMap<String, Vec<String>>, String> {
+    let app_config = crate::application::persistence::load_config(runtime);
     let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
 
     // 1. Check Cache (if not forced)
     if !force_refresh {
-        if let Some(cache) = load_cache(&app) {
+        if let Some(models_cache) = load_cache(runtime) {
             let now = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs();
             // 24 hours = 86400 seconds
-            if now - cache.last_updated < 86400 {
-                let mut cached_models = cache.models;
+            if now - models_cache.last_updated < 86400 {
+                let mut cached_models = models_cache.models;
 
                 // Always refresh Ollama as it is local and fast
                 let ollama_models = fetch_ollama_models(ollama_port).await;
@@ -372,7 +386,7 @@ pub async fn get_ai_models(
                 // Always refresh custom-openai as it depends on user configuration
                 if let (Some(base_url), Ok(api_key)) = (
                     app_config.ai_custom_openai_url.clone(),
-                    config::get_ai_api_key(&app, "custom-openai"),
+                    crate::application::ai::get_api_key(runtime, cache, "custom-openai"),
                 ) {
                     if !base_url.is_empty() && !api_key.is_empty() {
                         let custom_models = fetch_custom_openai_models(&base_url, &api_key).await;
@@ -385,7 +399,7 @@ pub async fn get_ai_models(
                 }
 
                 // Always refresh Anthropic if API key is present
-                if let Ok(key) = config::get_ai_api_key(&app, "anthropic") {
+                if let Ok(key) = crate::application::ai::get_api_key(runtime, cache, "anthropic") {
                     let anthropic_models = fetch_anthropic_models(&key).await;
                     if !anthropic_models.is_empty() {
                         cached_models.insert("anthropic".to_string(), anthropic_models);
@@ -393,7 +407,7 @@ pub async fn get_ai_models(
                 }
 
                 // Always refresh MiniMax if API key is present
-                if let Ok(key) = config::get_ai_api_key(&app, "minimax") {
+                if let Ok(key) = crate::application::ai::get_api_key(runtime, cache, "minimax") {
                     let minimax_models = fetch_minimax_models(&key).await;
                     if !minimax_models.is_empty() {
                         cached_models.insert("minimax".to_string(), minimax_models);
@@ -414,7 +428,7 @@ pub async fn get_ai_models(
     }
 
     // 2. OpenAI (Dynamic if key exists)
-    if let Ok(key) = config::get_ai_api_key(&app, "openai") {
+    if let Ok(key) = crate::application::ai::get_api_key(runtime, cache, "openai") {
         let remote_models = fetch_openai_models(&key).await;
         if !remote_models.is_empty() {
             if let Some(static_list) = models.get_mut("openai") {
@@ -427,7 +441,7 @@ pub async fn get_ai_models(
     }
 
     // 3. Anthropic (Dynamic if key exists)
-    if let Ok(key) = config::get_ai_api_key(&app, "anthropic") {
+    if let Ok(key) = crate::application::ai::get_api_key(runtime, cache, "anthropic") {
         let remote_models = fetch_anthropic_models(&key).await;
         if !remote_models.is_empty() {
             if let Some(static_list) = models.get_mut("anthropic") {
@@ -440,7 +454,7 @@ pub async fn get_ai_models(
     }
 
     // 4. MiniMax (Dynamic if key exists)
-    if let Ok(key) = config::get_ai_api_key(&app, "minimax") {
+    if let Ok(key) = crate::application::ai::get_api_key(runtime, cache, "minimax") {
         let remote_models = fetch_minimax_models(&key).await;
         if !remote_models.is_empty() {
             if let Some(static_list) = models.get_mut("minimax") {
@@ -471,7 +485,7 @@ pub async fn get_ai_models(
     // 6. Custom OpenAI (Dynamic if configured)
     if let (Some(base_url), Ok(api_key)) = (
         app_config.ai_custom_openai_url,
-        config::get_ai_api_key(&app, "custom-openai"),
+        crate::application::ai::get_api_key(runtime, cache, "custom-openai"),
     ) {
         if !base_url.is_empty() && !api_key.is_empty() {
             let custom_models = fetch_custom_openai_models(&base_url, &api_key).await;
@@ -488,19 +502,29 @@ pub async fn get_ai_models(
     }
 
     // Save to Cache
-    save_cache(&app, &models);
+    save_cache(runtime, &models);
 
     Ok(models)
 }
 
 #[tauri::command]
 pub async fn generate_ai_query(app: AppHandle, req: AiGenerateRequest) -> Result<String, String> {
-    generate_query(app, req).await
+    generate_query(
+        &app.state::<RuntimeContext>(),
+        &app.state::<std::sync::Arc<CredentialCache>>(),
+        req,
+    )
+    .await
 }
 
 #[tauri::command]
 pub async fn explain_ai_query(app: AppHandle, req: AiExplainRequest) -> Result<String, String> {
-    explain_query(app, req).await
+    explain_query(
+        &app.state::<RuntimeContext>(),
+        &app.state::<std::sync::Arc<CredentialCache>>(),
+        req,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -508,12 +532,22 @@ pub async fn analyze_ai_explain_plan(
     app: AppHandle,
     req: AiExplainRequest,
 ) -> Result<String, String> {
-    analyze_explain_plan(app, req).await
+    analyze_explain_plan(
+        &app.state::<RuntimeContext>(),
+        &app.state::<std::sync::Arc<CredentialCache>>(),
+        req,
+    )
+    .await
 }
 
 #[tauri::command]
 pub async fn generate_cell_name(app: AppHandle, req: AiCellNameRequest) -> Result<String, String> {
-    generate_cellname(app, req).await
+    generate_cellname(
+        &app.state::<RuntimeContext>(),
+        &app.state::<std::sync::Arc<CredentialCache>>(),
+        req,
+    )
+    .await
 }
 
 // --- Shared helpers ---
@@ -553,14 +587,15 @@ async fn resolve_model(
 }
 
 async fn dispatch_provider(
-    app: &AppHandle,
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
     app_config: &config::AppConfig,
     gen_req: &AiGenerateRequest,
     system_prompt: &str,
     ollama_port: u16,
 ) -> Result<String, String> {
     let api_key = if gen_req.provider != "ollama" {
-        config::get_ai_api_key(app, &gen_req.provider)?
+        crate::application::ai::get_api_key(runtime, cache, &gen_req.provider)?
     } else {
         String::new()
     };
@@ -586,17 +621,32 @@ async fn dispatch_provider(
 
 // --- Logic Implementation ---
 
-pub async fn generate_query(app: AppHandle, mut req: AiGenerateRequest) -> Result<String, String> {
+pub async fn generate_query(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    mut req: AiGenerateRequest,
+) -> Result<String, String> {
     log::info!("Generating AI query using provider: {}", req.provider);
 
-    let app_config = config::load_config_internal(&app);
+    let app_config = crate::application::persistence::load_config(runtime);
     let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
     req.model = resolve_model(&req.provider, &req.model, &app_config, ollama_port).await?;
 
-    let raw_prompt = config::get_system_prompt(app.clone());
+    let raw_prompt = crate::application::persistence::get_prompt(
+        runtime,
+        crate::application::persistence::PromptKind::System,
+    );
     let system_prompt = raw_prompt.replace("{{SCHEMA}}", &req.schema);
 
-    let result = dispatch_provider(&app, &app_config, &req, &system_prompt, ollama_port).await;
+    let result = dispatch_provider(
+        runtime,
+        cache,
+        &app_config,
+        &req,
+        &system_prompt,
+        ollama_port,
+    )
+    .await;
 
     match &result {
         Ok(_) => log::info!("AI query generated successfully using {}", req.model),
@@ -606,14 +656,21 @@ pub async fn generate_query(app: AppHandle, mut req: AiGenerateRequest) -> Resul
     result
 }
 
-pub async fn explain_query(app: AppHandle, mut req: AiExplainRequest) -> Result<String, String> {
+pub async fn explain_query(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    mut req: AiExplainRequest,
+) -> Result<String, String> {
     log::info!("Explaining query using AI provider: {}", req.provider);
 
-    let app_config = config::load_config_internal(&app);
+    let app_config = crate::application::persistence::load_config(runtime);
     let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
     req.model = resolve_model(&req.provider, &req.model, &app_config, ollama_port).await?;
 
-    let raw_prompt = config::get_explain_prompt(app.clone());
+    let raw_prompt = crate::application::persistence::get_prompt(
+        runtime,
+        crate::application::persistence::PromptKind::Explain,
+    );
     let system_prompt = raw_prompt.replace("{{LANGUAGE}}", &req.language);
 
     let gen_req = AiGenerateRequest {
@@ -623,7 +680,15 @@ pub async fn explain_query(app: AppHandle, mut req: AiExplainRequest) -> Result<
         schema: String::new(),
     };
 
-    let result = dispatch_provider(&app, &app_config, &gen_req, &system_prompt, ollama_port).await;
+    let result = dispatch_provider(
+        runtime,
+        cache,
+        &app_config,
+        &gen_req,
+        &system_prompt,
+        ollama_port,
+    )
+    .await;
 
     match &result {
         Ok(_) => log::info!(
@@ -637,16 +702,20 @@ pub async fn explain_query(app: AppHandle, mut req: AiExplainRequest) -> Result<
 }
 
 pub async fn analyze_explain_plan(
-    app: AppHandle,
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
     mut req: AiExplainRequest,
 ) -> Result<String, String> {
     log::info!("Analyzing explain plan using AI provider: {}", req.provider);
 
-    let app_config = config::load_config_internal(&app);
+    let app_config = crate::application::persistence::load_config(runtime);
     let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
     req.model = resolve_model(&req.provider, &req.model, &app_config, ollama_port).await?;
 
-    let raw_prompt = config::get_explainplan_prompt(app.clone());
+    let raw_prompt = crate::application::persistence::get_prompt(
+        runtime,
+        crate::application::persistence::PromptKind::ExplainPlan,
+    );
     let system_prompt = raw_prompt.replace("{{LANGUAGE}}", &req.language);
 
     let gen_req = AiGenerateRequest {
@@ -656,7 +725,15 @@ pub async fn analyze_explain_plan(
         schema: String::new(),
     };
 
-    let result = dispatch_provider(&app, &app_config, &gen_req, &system_prompt, ollama_port).await;
+    let result = dispatch_provider(
+        runtime,
+        cache,
+        &app_config,
+        &gen_req,
+        &system_prompt,
+        ollama_port,
+    )
+    .await;
 
     match &result {
         Ok(_) => log::info!(
@@ -670,20 +747,20 @@ pub async fn analyze_explain_plan(
 }
 
 async fn generate_with_simple_prompt(
-    app: AppHandle,
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
     provider: String,
     model: String,
     query: String,
-    get_prompt: fn(AppHandle) -> String,
+    prompt_kind: crate::application::persistence::PromptKind,
     label: &str,
 ) -> Result<String, String> {
     log::info!("Generating {} using AI provider: {}", label, provider);
 
-    let app_config = config::load_config_internal(&app);
+    let app_config = crate::application::persistence::load_config(runtime);
     let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
     let resolved_model = resolve_model(&provider, &model, &app_config, ollama_port).await?;
-
-    let system_prompt = get_prompt(app.clone());
+    let system_prompt = crate::application::persistence::get_prompt(runtime, prompt_kind);
 
     let gen_req = AiGenerateRequest {
         provider: provider.clone(),
@@ -692,7 +769,15 @@ async fn generate_with_simple_prompt(
         schema: String::new(),
     };
 
-    let result = dispatch_provider(&app, &app_config, &gen_req, &system_prompt, ollama_port).await;
+    let result = dispatch_provider(
+        runtime,
+        cache,
+        &app_config,
+        &gen_req,
+        &system_prompt,
+        ollama_port,
+    )
+    .await;
 
     match &result {
         Ok(v) => log::info!("{} generated: {}", label, v),
@@ -702,13 +787,18 @@ async fn generate_with_simple_prompt(
     result
 }
 
-pub async fn generate_cellname(app: AppHandle, req: AiCellNameRequest) -> Result<String, String> {
+pub async fn generate_cellname(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    req: AiCellNameRequest,
+) -> Result<String, String> {
     generate_with_simple_prompt(
-        app,
+        runtime,
+        cache,
         req.provider,
         req.model,
         req.query,
-        config::get_cellname_prompt,
+        crate::application::persistence::PromptKind::CellName,
         "Cell name",
     )
     .await
@@ -719,9 +809,22 @@ pub async fn suggest_table_name(
     app: AppHandle,
     req: AiSuggestTableNameRequest,
 ) -> Result<String, String> {
+    suggest_table_name_with_runtime(
+        &app.state::<RuntimeContext>(),
+        &app.state::<std::sync::Arc<CredentialCache>>(),
+        req,
+    )
+    .await
+}
+
+pub async fn suggest_table_name_with_runtime(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    req: AiSuggestTableNameRequest,
+) -> Result<String, String> {
     log::info!("Suggesting table name using AI provider: {}", req.provider);
 
-    let app_config = config::load_config_internal(&app);
+    let app_config = crate::application::persistence::load_config(runtime);
     let ollama_port = app_config.ai_ollama_port.unwrap_or(11434);
     let resolved_model = resolve_model(&req.provider, &req.model, &app_config, ollama_port).await?;
 
@@ -747,7 +850,15 @@ pub async fn suggest_table_name(
     };
 
     let system_prompt = "You are a database naming expert. Reply with only a snake_case table name, no explanation.";
-    let result = dispatch_provider(&app, &app_config, &gen_req, system_prompt, ollama_port).await;
+    let result = dispatch_provider(
+        runtime,
+        cache,
+        &app_config,
+        &gen_req,
+        system_prompt,
+        ollama_port,
+    )
+    .await;
 
     match &result {
         Ok(name) => {
@@ -774,12 +885,26 @@ pub async fn generate_tab_rename(
     app: AppHandle,
     req: AiTabRenameRequest,
 ) -> Result<String, String> {
+    generate_tab_name(
+        &app.state::<RuntimeContext>(),
+        &app.state::<std::sync::Arc<CredentialCache>>(),
+        req,
+    )
+    .await
+}
+
+pub async fn generate_tab_name(
+    runtime: &RuntimeContext,
+    cache: &CredentialCache,
+    req: AiTabRenameRequest,
+) -> Result<String, String> {
     generate_with_simple_prompt(
-        app,
+        runtime,
+        cache,
         req.provider,
         req.model,
         req.query,
-        config::get_tabrename_prompt,
+        crate::application::persistence::PromptKind::TabRename,
         "Tab name",
     )
     .await
@@ -1010,8 +1135,7 @@ async fn generate_minimax(
             .await
         {
             Ok(res) if res.status().is_success() => {
-                let json: serde_json::Value =
-                    res.json().await.map_err(|e| e.to_string())?;
+                let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
                 let content = json["choices"][0]["message"]["content"]
                     .as_str()
                     .ok_or("Invalid response format from MiniMax")?;

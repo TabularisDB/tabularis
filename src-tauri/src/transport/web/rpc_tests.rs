@@ -162,6 +162,33 @@ impl ApplicationApi for FixtureApplication {
         })
     }
 
+    async fn execute_ai_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: crate::application::ai::AiCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(match command {
+            crate::application::ai::AiCommand::CheckKeyStatus { .. } => {
+                serde_json::json!({"configured": true, "fromEnv": false})
+            }
+            crate::application::ai::AiCommand::GetModels { .. } => {
+                serde_json::json!({"openai": ["gpt-contract"]})
+            }
+            crate::application::ai::AiCommand::GenerateQuery(_) => {
+                serde_json::json!("SELECT 1")
+            }
+            crate::application::ai::AiCommand::GetActivity { .. }
+            | crate::application::ai::AiCommand::GetSessions
+            | crate::application::ai::AiCommand::GetSessionEvents { .. }
+            | crate::application::ai::AiCommand::ListPendingApprovals => serde_json::json!([]),
+            crate::application::ai::AiCommand::GetSchemaContext { .. } => {
+                serde_json::json!("table values(id integer)")
+            }
+            _ => Value::Null,
+        })
+    }
+
     async fn execute_metadata_command(
         &self,
         context: ApplicationRequestContext,
@@ -443,6 +470,43 @@ fn registers_generic_export_commands_with_explicit_authorization() {
             "{name}",
         );
     }
+}
+
+#[test]
+fn registers_ai_commands_with_explicit_authorization() {
+    for name in [
+        "set_ai_key",
+        "delete_ai_key",
+        "check_ai_key",
+        "check_ai_key_status",
+        "get_ai_models",
+        "generate_ai_query",
+        "explain_ai_query",
+        "analyze_ai_explain_plan",
+        "generate_cell_name",
+        "generate_tab_rename",
+        "suggest_table_name",
+        "get_ai_activity",
+        "get_ai_sessions",
+        "get_ai_session_events",
+        "clear_ai_activity",
+        "list_pending_approvals",
+        "decide_pending_approval",
+    ] {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(
+            command.metadata().authorization,
+            AuthorizationLevel::Sensitive,
+            "{name}",
+        );
+    }
+
+    let schema_context =
+        RpcCommand::parse("get_ai_schema_context").expect("missing get_ai_schema_context");
+    assert_eq!(
+        schema_context.metadata().authorization,
+        AuthorizationLevel::Database
+    );
 }
 
 #[test]
@@ -919,6 +983,87 @@ async fn routes_query_execution_commands_through_the_shared_application_api() {
         (
             "get_server_now",
             serde_json::json!({"connectionId": "connection-1"}),
+        ),
+    ];
+
+    for (command, payload) in commands {
+        let response = dispatcher
+            .dispatch(
+                command,
+                RequestId(format!("request-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                Some(uuid::Uuid::new_v4()),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK, "{command}");
+    }
+}
+
+#[tokio::test]
+async fn routes_ai_commands_through_the_shared_application_api() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let generate = serde_json::json!({
+        "req": {
+            "provider": "openai",
+            "model": "gpt-contract",
+            "prompt": "Select one",
+            "schema": "table values(id integer)"
+        }
+    });
+    let explain = serde_json::json!({
+        "req": {
+            "provider": "openai",
+            "model": "gpt-contract",
+            "query": "SELECT 1",
+            "language": "English"
+        }
+    });
+    let commands = [
+        (
+            "set_ai_key",
+            serde_json::json!({"provider": "openai", "key": "write-only"}),
+        ),
+        ("delete_ai_key", serde_json::json!({"provider": "openai"})),
+        ("check_ai_key", serde_json::json!({"provider": "openai"})),
+        (
+            "check_ai_key_status",
+            serde_json::json!({"provider": "openai"}),
+        ),
+        ("get_ai_models", serde_json::json!({"forceRefresh": false})),
+        ("generate_ai_query", generate),
+        ("explain_ai_query", explain.clone()),
+        ("analyze_ai_explain_plan", explain),
+        (
+            "generate_cell_name",
+            serde_json::json!({"req": {"provider": "openai", "model": "gpt-contract", "query": "SELECT 1"}}),
+        ),
+        (
+            "generate_tab_rename",
+            serde_json::json!({"req": {"provider": "openai", "model": "gpt-contract", "query": "SELECT 1"}}),
+        ),
+        (
+            "suggest_table_name",
+            serde_json::json!({"req": {"provider": "openai", "model": "gpt-contract", "headers": ["id"], "sample_rows": [["1"]]}}),
+        ),
+        (
+            "get_ai_schema_context",
+            serde_json::json!({"connectionId": "connection-1", "schema": "public"}),
+        ),
+        (
+            "get_ai_activity",
+            serde_json::json!({"filter": {"status": "success"}}),
+        ),
+        ("get_ai_sessions", Value::Null),
+        (
+            "get_ai_session_events",
+            serde_json::json!({"sessionId": "mcp-session"}),
+        ),
+        ("clear_ai_activity", Value::Null),
+        ("list_pending_approvals", Value::Null),
+        (
+            "decide_pending_approval",
+            serde_json::json!({"approvalId": "approval-1", "decision": "deny", "reason": "fixture"}),
         ),
     ];
 

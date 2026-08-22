@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { List, ChevronDown, Sparkles, Loader2 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 import type { NotebookCell } from "../../types/notebook";
 import { extractOutline } from "../../utils/notebookOutline";
 import { getUnnamedCellsWithContent } from "../../utils/notebookOutline";
@@ -22,6 +22,7 @@ function OutlineAiButton({
 }) {
   const { t } = useTranslation();
   const { settings } = useSettings();
+  const client = useTabularisClient();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const unnamed = getUnnamedCellsWithContent(cells);
@@ -29,14 +30,15 @@ function OutlineAiButton({
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isGenerating) return;
+    const provider = settings.aiProvider;
+    if (isGenerating || !provider) return;
     setIsGenerating(true);
     try {
       for (const cell of unnamed) {
         try {
-          const name = await invoke<string>("generate_cell_name", {
+          const name = await client.call("generate_cell_name", {
             req: {
-              provider: settings.aiProvider,
+              provider,
               model: settings.aiModel || "",
               query: cell.content,
             },

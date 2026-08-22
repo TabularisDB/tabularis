@@ -3,6 +3,7 @@ import type { BatchStatementResult } from "../types/editor";
 import type { AuthorizationLevel } from "./contract";
 import type { SshAskpassRequest } from "../types/askpass";
 import type { RequestId } from "./errors";
+import type { AiActivityEvent, PendingApproval } from "../types/ai";
 
 export interface EventDefinition<
   Payload,
@@ -68,6 +69,8 @@ export interface EventMap {
   >;
   "ssh-askpass://request": EventDefinition<SshAskpassRequest, "sensitive">;
   "ssh-askpass://dismiss": EventDefinition<number, "sensitive">;
+  "ai://pending_approval": EventDefinition<PendingApproval, "sensitive">;
+  "ai://activity": EventDefinition<AiActivityEvent, "sensitive">;
 }
 
 export type EventName = keyof EventMap;

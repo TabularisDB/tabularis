@@ -164,6 +164,47 @@ export function defineTransportContractSuite(
       });
     });
 
+    it("preserves AI, activity, and approval contracts without returning keys", async () => {
+      await expect(
+        harness.transport.call("set_ai_key", {
+          provider: "openai",
+          key: "write-only-contract-key",
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("check_ai_key_status", { provider: "openai" }),
+      ).resolves.toEqual({ configured: true, fromEnv: false });
+      await expect(
+        harness.transport.call("get_ai_models", { forceRefresh: false }),
+      ).resolves.toEqual({ openai: ["gpt-contract"] });
+      await expect(
+        harness.transport.call("generate_ai_query", {
+          req: {
+            provider: "openai",
+            model: "gpt-contract",
+            prompt: "Select one",
+            schema: "table values(id integer)",
+          },
+        }),
+      ).resolves.toBe("SELECT 1");
+      await expect(
+        harness.transport.call("get_ai_activity", { filter: { status: "success" } }),
+      ).resolves.toEqual([]);
+      await expect(
+        harness.transport.call("list_pending_approvals", undefined),
+      ).resolves.toEqual([]);
+      await expect(
+        harness.transport.call("decide_pending_approval", {
+          approvalId: "approval-contract",
+          decision: "deny",
+          reason: "contract fixture",
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("delete_ai_key", { provider: "openai" }),
+      ).resolves.toBeNull();
+    });
+
     it("preserves database dump and import job contracts", async () => {
       await expect(
         harness.transport.call("dump_database", {
@@ -826,6 +867,46 @@ async function handleRequest(
         token: "logs-download-token",
         size: 64,
       },
+    },
+    set_ai_key: {
+      request: { provider: "openai", key: "write-only-contract-key" },
+      response: null,
+    },
+    check_ai_key_status: {
+      request: { provider: "openai" },
+      response: { configured: true, fromEnv: false },
+    },
+    get_ai_models: {
+      request: { forceRefresh: false },
+      response: { openai: ["gpt-contract"] },
+    },
+    generate_ai_query: {
+      request: {
+        req: {
+          provider: "openai",
+          model: "gpt-contract",
+          prompt: "Select one",
+          schema: "table values(id integer)",
+        },
+      },
+      response: "SELECT 1",
+    },
+    get_ai_activity: {
+      request: { filter: { status: "success" } },
+      response: [],
+    },
+    list_pending_approvals: { request: null, response: [] },
+    decide_pending_approval: {
+      request: {
+        approvalId: "approval-contract",
+        decision: "deny",
+        reason: "contract fixture",
+      },
+      response: null,
+    },
+    delete_ai_key: {
+      request: { provider: "openai" },
+      response: null,
     },
     dump_database: {
       request: {

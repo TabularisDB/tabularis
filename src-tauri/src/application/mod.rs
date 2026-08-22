@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod api;
 pub mod connection_files;
 pub mod connections;

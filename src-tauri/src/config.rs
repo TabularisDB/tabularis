@@ -1,4 +1,3 @@
-use crate::keychain_utils;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -346,20 +345,21 @@ pub fn set_selected_schemas(
 
 #[tauri::command]
 pub fn set_ai_key(app: AppHandle, provider: String, key: String) -> Result<(), String> {
-    keychain_utils::set_ai_key(&provider, &key)?;
-    // Write-through so subsequent reads avoid hitting the keychain (and its prompt).
-    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    crate::credential_cache::set_ai_key_cached(&cache, &provider, &key);
-    Ok(())
+    crate::application::ai::set_key(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>(),
+        &provider,
+        &key,
+    )
 }
 
 #[tauri::command]
 pub fn delete_ai_key(app: AppHandle, provider: String) -> Result<(), String> {
-    keychain_utils::delete_ai_key(&provider)?;
-    // Drop the cached value so the next read reflects the deletion.
-    let cache = app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>();
-    crate::credential_cache::invalidate_ai_key(&cache, &provider);
-    Ok(())
+    crate::application::ai::delete_key(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>(),
+        &provider,
+    )
 }
 
 /// Get the configured maximum BLOB size in bytes, or DEFAULT_MAX_BLOB_SIZE if not set
@@ -459,12 +459,24 @@ pub fn get_ai_api_key_status(app: &AppHandle, provider: &str) -> AiKeyStatus {
 
 #[tauri::command]
 pub fn check_ai_key(app: AppHandle, provider: String) -> bool {
-    get_ai_api_key(&app, &provider).is_ok()
+    crate::application::ai::get_api_key(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>(),
+        &provider,
+    )
+    .is_ok()
 }
 
 #[tauri::command]
-pub fn check_ai_key_status(app: AppHandle, provider: String) -> AiKeyStatus {
-    get_ai_api_key_status(&app, &provider)
+pub fn check_ai_key_status(
+    app: AppHandle,
+    provider: String,
+) -> crate::application::ai::AiKeyStatus {
+    crate::application::ai::key_status(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &app.state::<std::sync::Arc<crate::credential_cache::CredentialCache>>(),
+        &provider,
+    )
 }
 
 fn prompt_kind(app: &AppHandle, kind: crate::application::persistence::PromptKind) -> String {

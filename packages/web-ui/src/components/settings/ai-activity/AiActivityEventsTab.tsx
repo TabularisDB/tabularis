@@ -74,7 +74,7 @@ export function AiActivityEventsTab() {
   const handleClear = async () => {
     setClearConfirmOpen(false);
     try {
-      await clearAiActivity();
+      await clearAiActivity(client);
       await refetch();
     } catch (err) {
       showAlert(String(err), { kind: "error", title: t("common.error") });

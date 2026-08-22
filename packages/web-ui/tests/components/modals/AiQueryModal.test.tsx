@@ -7,8 +7,8 @@ const { invokeMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: invokeMock,
+vi.mock("../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({ call: invokeMock }),
 }));
 
 vi.mock("../../../src/hooks/useDatabase", () => ({

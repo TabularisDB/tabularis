@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { invoke } from "@tauri-apps/api/core";
 import {
   SettingsContext,
   DEFAULT_SETTINGS,
@@ -187,24 +186,24 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         ) {
           // First, detect which provider has an API key
           let detectedProvider: string | null = null;
-          const hasOpenAI = await invoke<boolean>("check_ai_key", {
+          const hasOpenAI = await client.call("check_ai_key", {
             provider: "openai",
           });
           if (hasOpenAI) {
             detectedProvider = "openai";
           } else {
-            const hasAnthropic = await invoke<boolean>("check_ai_key", {
+            const hasAnthropic = await client.call("check_ai_key", {
               provider: "anthropic",
             });
             if (hasAnthropic) {
               detectedProvider = "anthropic";
             } else {
-              const hasOpenRouter = await invoke<boolean>("check_ai_key", {
+              const hasOpenRouter = await client.call("check_ai_key", {
                 provider: "openrouter",
               });
               if (hasOpenRouter) detectedProvider = "openrouter";
             else {
-              const hasMiniMax = await invoke<boolean>("check_ai_key", {
+              const hasMiniMax = await client.call("check_ai_key", {
                 provider: "minimax",
               });
               if (hasMiniMax) detectedProvider = "minimax";
@@ -214,8 +213,9 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
           if (detectedProvider) {
             // Get available models for the detected provider
-            const models =
-              await invoke<Record<string, string[]>>("get_ai_models");
+            const models = await client.call("get_ai_models", {
+              forceRefresh: false,
+            });
             const providerModels = models[detectedProvider] || [];
             const firstModel = providerModels[0] || null;
 

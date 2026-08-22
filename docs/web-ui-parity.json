@@ -53,30 +53,16 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 62,
-    "literalCallSiteCount": 88,
+    "literalCommandCount": 44,
+    "literalCallSiteCount": 61,
     "dynamicCallSiteCount": 0,
     "handlerRegistrationCount": 258,
     "registeredCommandCount": 258,
     "duplicateHandlerRegistrations": [],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 196
+    "registeredCommandsWithoutFrontendCall": 214
   },
   "commands": [
-    {
-      "name": "analyze_ai_explain_plan",
-      "featureGroup": "ai",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/visual-explain/ExplainAiAnalysis.tsx",
-          "line": 39
-        }
-      ]
-    },
     {
       "name": "cancel_plugin_install",
       "featureGroup": "plugins",
@@ -92,62 +78,6 @@
       ]
     },
     {
-      "name": "check_ai_key",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
-          "line": 190
-        },
-        {
-          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
-          "line": 196
-        },
-        {
-          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
-          "line": 202
-        },
-        {
-          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
-          "line": 207
-        }
-      ]
-    },
-    {
-      "name": "check_ai_key_status",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 125
-        },
-        {
-          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 128
-        },
-        {
-          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 131
-        },
-        {
-          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 134
-        },
-        {
-          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 137
-        }
-      ]
-    },
-    {
       "name": "check_for_updates",
       "featureGroup": "application",
       "eventUse": "none",
@@ -158,20 +88,6 @@
         {
           "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
           "line": 39
-        }
-      ]
-    },
-    {
-      "name": "clear_ai_activity",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 224
         }
       ]
     },
@@ -228,34 +144,6 @@
         {
           "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
           "line": 1546
-        }
-      ]
-    },
-    {
-      "name": "decide_pending_approval",
-      "featureGroup": "ai",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 203
-        }
-      ]
-    },
-    {
-      "name": "delete_ai_key",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 359
         }
       ]
     },
@@ -336,20 +224,6 @@
       ]
     },
     {
-      "name": "explain_ai_query",
-      "featureGroup": "ai",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/AiExplainModal.tsx",
-          "line": 57
-        }
-      ]
-    },
-    {
       "name": "fetch_blob",
       "featureGroup": "data",
       "eventUse": "none",
@@ -406,126 +280,6 @@
         {
           "file": "packages/web-ui/src/components/modals/PluginInstallConfirmModal.tsx",
           "line": 69
-        }
-      ]
-    },
-    {
-      "name": "generate_ai_query",
-      "featureGroup": "ai",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/AiQueryModal.tsx",
-          "line": 116
-        }
-      ]
-    },
-    {
-      "name": "generate_cell_name",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/notebook/CellNameAiButton.tsx",
-          "line": 27
-        },
-        {
-          "file": "packages/web-ui/src/components/notebook/NotebookOutline.tsx",
-          "line": 37
-        }
-      ]
-    },
-    {
-      "name": "generate_tab_rename",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/ui/MultiResultPanel.tsx",
-          "line": 329
-        }
-      ]
-    },
-    {
-      "name": "get_ai_activity",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 44
-        }
-      ]
-    },
-    {
-      "name": "get_ai_models",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 101
-        },
-        {
-          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
-          "line": 218
-        }
-      ]
-    },
-    {
-      "name": "get_ai_schema_context",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/AiQueryModal.tsx",
-          "line": 60
-        }
-      ]
-    },
-    {
-      "name": "get_ai_session_events",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 121
-        }
-      ]
-    },
-    {
-      "name": "get_ai_sessions",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 82
         }
       ]
     },
@@ -760,20 +514,6 @@
       ]
     },
     {
-      "name": "list_pending_approvals",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 176
-        }
-      ]
-    },
-    {
       "name": "load_blob_from_file",
       "featureGroup": "data",
       "eventUse": "none",
@@ -926,20 +666,6 @@
       ]
     },
     {
-      "name": "set_ai_key",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 178
-        }
-      ]
-    },
-    {
       "name": "set_log_enabled",
       "featureGroup": "logs",
       "eventUse": "none",
@@ -1008,20 +734,6 @@
       ]
     },
     {
-      "name": "suggest_table_name",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ClipboardImportModal.tsx",
-          "line": 238
-        }
-      ]
-    },
-    {
       "name": "uninstall_plugin",
       "featureGroup": "plugins",
       "eventUse": "none",
@@ -1040,6 +752,7 @@
   "registeredCommandsWithoutFrontendCall": [
     "add_query_history_entry",
     "alter_view",
+    "analyze_ai_explain_plan",
     "apply_connection_import",
     "apply_db_user_privileges",
     "apply_prepared_tabularis_import",
@@ -1049,6 +762,9 @@
     "cancel_export",
     "cancel_import",
     "cancel_query",
+    "check_ai_key",
+    "check_ai_key_status",
+    "clear_ai_activity",
     "clear_query_history",
     "close_devtools",
     "close_results_window",
@@ -1061,7 +777,9 @@
     "create_notebook",
     "create_trigger",
     "create_view",
+    "decide_pending_approval",
     "decrypt_export_payload",
+    "delete_ai_key",
     "delete_connection",
     "delete_connection_group",
     "delete_connection_icon",
@@ -1088,6 +806,7 @@
     "encrypt_export_payload",
     "execute_query",
     "execute_query_batch",
+    "explain_ai_query",
     "explain_query_plan",
     "export_ai_activity_csv",
     "export_ai_activity_json",
@@ -1098,8 +817,16 @@
     "export_query_to_file",
     "export_theme",
     "fetch_blob_as_data_url",
+    "generate_ai_query",
+    "generate_cell_name",
+    "generate_tab_rename",
     "get_active_connections",
     "get_add_column_sql",
+    "get_ai_activity",
+    "get_ai_models",
+    "get_ai_schema_context",
+    "get_ai_session_events",
+    "get_ai_sessions",
     "get_all_themes",
     "get_alter_column_sql",
     "get_available_databases",
@@ -1171,6 +898,7 @@
     "list_connection_import_sources",
     "list_connection_tags",
     "list_notebooks",
+    "list_pending_approvals",
     "load_editor_preferences",
     "load_notebook",
     "move_connection_to_group",
@@ -1213,6 +941,7 @@
     "save_ssh_connection",
     "save_system_prompt",
     "save_tabrename_prompt",
+    "set_ai_key",
     "set_connection_appearance",
     "set_connection_tags",
     "set_connections_backup_password",
@@ -1222,6 +951,7 @@
     "set_last_open_connections",
     "set_schema_preference",
     "set_selected_schemas",
+    "suggest_table_name",
     "test_connection",
     "test_k8s_connection_cmd",
     "test_log",

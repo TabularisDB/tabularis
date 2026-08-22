@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { X, Sparkles, Loader2 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { useDatabase } from "../../hooks/useDatabase";
 import { useSettings } from "../../hooks/useSettings";
 import { Modal } from "../ui/Modal";
@@ -28,6 +28,7 @@ export const AiQueryModal = ({
 }: AiQueryModalProps) => {
   const { activeConnectionId, activeSchema } = useDatabase();
   const { settings } = useSettings();
+  const client = useTabularisClient();
   const resolvedConnectionId = connectionId ?? activeConnectionId;
   const resolvedSchema = schema ?? activeSchema ?? undefined;
   const schemaKey = `${resolvedConnectionId ?? ""}:${resolvedSchema ?? ""}`;
@@ -57,7 +58,7 @@ export const AiQueryModal = ({
       return inFlightSchemaLoad.current.promise;
     }
 
-    const promise = invoke<string>("get_ai_schema_context", {
+    const promise = client.call("get_ai_schema_context", {
       connectionId: resolvedConnectionId,
       ...(resolvedSchema ? { schema: resolvedSchema } : {}),
     });
@@ -69,7 +70,7 @@ export const AiQueryModal = ({
     };
     void promise.then(clearInFlight, clearInFlight);
     return promise;
-  }, [resolvedConnectionId, resolvedSchema, schemaKey]);
+  }, [client, resolvedConnectionId, resolvedSchema, schemaKey]);
 
   useEffect(() => {
     if (!isOpen || !resolvedConnectionId) {
@@ -113,13 +114,13 @@ export const AiQueryModal = ({
         schemaLoad.key === schemaKey && schemaLoad.error === null
           ? schemaLoad.context
           : await loadSchema();
-      const sql = await invoke<string>("generate_ai_query", {
+      const sql = await client.call("generate_ai_query", {
         req: {
           provider: settings.aiProvider,
           model: settings.aiModel || "", // Default fallback handled by backend (first model in list)
           prompt,
           schema: schemaContext,
-        }
+        },
       });
       onInsert(sql);
       onClose();

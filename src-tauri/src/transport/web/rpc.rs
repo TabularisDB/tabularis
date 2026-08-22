@@ -1,4 +1,5 @@
 use crate::application::{
+    ai::AiCommand,
     connection_files::{ConnectionExportMode, ConnectionFilesCommand, ConnectionImportFile},
     connections::ConnectionCommand,
     database_objects::DatabaseObjectCommand,
@@ -53,6 +54,7 @@ enum RpcCommand {
     ConnectionFiles(ConnectionFilesRpcCommand),
     DatabaseTransfer(DatabaseTransferRpcCommand),
     GenericExport(GenericExportRpcCommand),
+    Ai(AiRpcCommand),
     Metadata(MetadataRpcCommand),
     DatabaseObject(DatabaseObjectRpcCommand),
     Query(QueryRpcCommand),
@@ -61,6 +63,28 @@ enum RpcCommand {
     Persistence(PersistenceRpcCommand),
     Productivity(ProductivityRpcCommand),
     Notebook(NotebookRpcCommand),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AiRpcCommand {
+    SetKey,
+    DeleteKey,
+    CheckKey,
+    CheckKeyStatus,
+    GetModels,
+    GenerateQuery,
+    ExplainQuery,
+    AnalyzeExplainPlan,
+    GenerateCellName,
+    GenerateTabRename,
+    SuggestTableName,
+    GetSchemaContext,
+    GetActivity,
+    GetSessions,
+    GetSessionEvents,
+    ClearActivity,
+    ListPendingApprovals,
+    DecidePendingApproval,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -279,6 +303,60 @@ struct CommandMetadata {
 struct CancelQueryRequest {
     connection_id: String,
     query_request_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AiProviderRequest {
+    provider: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SetAiKeyRequest {
+    provider: String,
+    key: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AiModelsRequest {
+    #[serde(default)]
+    force_refresh: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AiRequest<T> {
+    req: T,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AiSchemaContextRequest {
+    connection_id: String,
+    schema: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AiActivityRequest {
+    filter: Option<crate::ai_activity::EventFilter>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AiSessionRequest {
+    session_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AiApprovalDecisionRequest {
+    approval_id: String,
+    decision: String,
+    reason: Option<String>,
+    edited_query: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1253,6 +1331,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::Ai(command) => {
+                let command =
+                    decode_ai_command(command, body).map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_ai_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
             RpcCommand::Metadata(command) => {
                 let command = decode_metadata_command(command, body)
                     .map_err(InvocationError::InvalidPayload)?;
@@ -1353,6 +1439,7 @@ impl RpcCommand {
                 .or_else(|| ConnectionFilesRpcCommand::parse(name).map(Self::ConnectionFiles))
                 .or_else(|| DatabaseTransferRpcCommand::parse(name).map(Self::DatabaseTransfer))
                 .or_else(|| GenericExportRpcCommand::parse(name).map(Self::GenericExport))
+                .or_else(|| AiRpcCommand::parse(name).map(Self::Ai))
                 .or_else(|| PersistenceRpcCommand::parse(name).map(Self::Persistence))
                 .or_else(|| ProductivityRpcCommand::parse(name).map(Self::Productivity))
                 .or_else(|| NotebookRpcCommand::parse(name).map(Self::Notebook)),
@@ -1399,6 +1486,15 @@ impl RpcCommand {
             Self::GenericExport(command) => CommandMetadata {
                 authorization: command.authorization(),
                 application_error_code: "EXPORT_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
+            Self::Ai(command) => CommandMetadata {
+                authorization: if command == AiRpcCommand::GetSchemaContext {
+                    AuthorizationLevel::Database
+                } else {
+                    AuthorizationLevel::Sensitive
+                },
+                application_error_code: "AI_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
             Self::Metadata(_) => CommandMetadata {
@@ -1452,6 +1548,32 @@ impl RpcCommand {
                 application_error_status: StatusCode::CONFLICT,
             },
         }
+    }
+}
+
+impl AiRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "set_ai_key" => Self::SetKey,
+            "delete_ai_key" => Self::DeleteKey,
+            "check_ai_key" => Self::CheckKey,
+            "check_ai_key_status" => Self::CheckKeyStatus,
+            "get_ai_models" => Self::GetModels,
+            "generate_ai_query" => Self::GenerateQuery,
+            "explain_ai_query" => Self::ExplainQuery,
+            "analyze_ai_explain_plan" => Self::AnalyzeExplainPlan,
+            "generate_cell_name" => Self::GenerateCellName,
+            "generate_tab_rename" => Self::GenerateTabRename,
+            "suggest_table_name" => Self::SuggestTableName,
+            "get_ai_schema_context" => Self::GetSchemaContext,
+            "get_ai_activity" => Self::GetActivity,
+            "get_ai_sessions" => Self::GetSessions,
+            "get_ai_session_events" => Self::GetSessionEvents,
+            "clear_ai_activity" => Self::ClearActivity,
+            "list_pending_approvals" => Self::ListPendingApprovals,
+            "decide_pending_approval" => Self::DecidePendingApproval,
+            _ => return None,
+        })
     }
 }
 
@@ -1770,6 +1892,103 @@ impl ConnectionRpcCommand {
             _ => return None,
         })
     }
+}
+
+fn decode_ai_command(command: AiRpcCommand, body: &[u8]) -> Result<AiCommand, String> {
+    Ok(match command {
+        AiRpcCommand::SetKey => {
+            let request: SetAiKeyRequest = decode_payload(body)?;
+            AiCommand::SetKey {
+                provider: request.provider,
+                key: request.key,
+            }
+        }
+        AiRpcCommand::DeleteKey | AiRpcCommand::CheckKey | AiRpcCommand::CheckKeyStatus => {
+            let request: AiProviderRequest = decode_payload(body)?;
+            match command {
+                AiRpcCommand::DeleteKey => AiCommand::DeleteKey {
+                    provider: request.provider,
+                },
+                AiRpcCommand::CheckKey => AiCommand::CheckKey {
+                    provider: request.provider,
+                },
+                AiRpcCommand::CheckKeyStatus => AiCommand::CheckKeyStatus {
+                    provider: request.provider,
+                },
+                _ => unreachable!(),
+            }
+        }
+        AiRpcCommand::GetModels => {
+            let request: Option<AiModelsRequest> = decode_payload(body)?;
+            AiCommand::GetModels {
+                force_refresh: request.is_some_and(|request| request.force_refresh),
+            }
+        }
+        AiRpcCommand::GenerateQuery => {
+            let request: AiRequest<crate::ai::AiGenerateRequest> = decode_payload(body)?;
+            AiCommand::GenerateQuery(request.req)
+        }
+        AiRpcCommand::ExplainQuery => {
+            let request: AiRequest<crate::ai::AiExplainRequest> = decode_payload(body)?;
+            AiCommand::ExplainQuery(request.req)
+        }
+        AiRpcCommand::AnalyzeExplainPlan => {
+            let request: AiRequest<crate::ai::AiExplainRequest> = decode_payload(body)?;
+            AiCommand::AnalyzeExplainPlan(request.req)
+        }
+        AiRpcCommand::GenerateCellName => {
+            let request: AiRequest<crate::ai::AiCellNameRequest> = decode_payload(body)?;
+            AiCommand::GenerateCellName(request.req)
+        }
+        AiRpcCommand::GenerateTabRename => {
+            let request: AiRequest<crate::ai::AiTabRenameRequest> = decode_payload(body)?;
+            AiCommand::GenerateTabRename(request.req)
+        }
+        AiRpcCommand::SuggestTableName => {
+            let request: AiRequest<crate::ai::AiSuggestTableNameRequest> = decode_payload(body)?;
+            AiCommand::SuggestTableName(request.req)
+        }
+        AiRpcCommand::GetSchemaContext => {
+            let request: AiSchemaContextRequest = decode_payload(body)?;
+            AiCommand::GetSchemaContext {
+                connection_id: request.connection_id,
+                schema: request.schema,
+            }
+        }
+        AiRpcCommand::GetActivity => {
+            let request: Option<AiActivityRequest> = decode_payload(body)?;
+            AiCommand::GetActivity {
+                filter: request.and_then(|request| request.filter),
+            }
+        }
+        AiRpcCommand::GetSessions => {
+            decode_empty_payload(body)?;
+            AiCommand::GetSessions
+        }
+        AiRpcCommand::GetSessionEvents => {
+            let request: AiSessionRequest = decode_payload(body)?;
+            AiCommand::GetSessionEvents {
+                session_id: request.session_id,
+            }
+        }
+        AiRpcCommand::ClearActivity => {
+            decode_empty_payload(body)?;
+            AiCommand::ClearActivity
+        }
+        AiRpcCommand::ListPendingApprovals => {
+            decode_empty_payload(body)?;
+            AiCommand::ListPendingApprovals
+        }
+        AiRpcCommand::DecidePendingApproval => {
+            let request: AiApprovalDecisionRequest = decode_payload(body)?;
+            AiCommand::DecidePendingApproval {
+                approval_id: request.approval_id,
+                decision: request.decision,
+                reason: request.reason,
+                edited_query: request.edited_query,
+            }
+        }
+    })
 }
 
 fn decode_database_transfer_command(

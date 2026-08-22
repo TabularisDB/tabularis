@@ -28,7 +28,20 @@ import type {
 } from "../types/queryHistory";
 import type { UserOverrides } from "../utils/keybindings";
 import type { NotebookMetadata } from "../types/notebook";
-import type { AiNotebookExport } from "../types/ai";
+import type {
+  AiActivityEvent,
+  AiEventFilter,
+  AiExplainRequest,
+  AiGenerateRequest,
+  AiKeyStatus,
+  AiNameRequest,
+  AiNotebookExport,
+  AiProviderModels,
+  AiSessionSummary,
+  AiTableNameRequest,
+  ApprovalDecisionPayload,
+  PendingApproval,
+} from "../types/ai";
 import type {
   ImportPreview,
   ImportResolution,
@@ -911,6 +924,65 @@ export interface CommandMap {
   export_logs: CommandDefinition<
     { filePath?: string },
     GeneratedFile | null,
+    "sensitive"
+  >;
+
+  set_ai_key: CommandDefinition<
+    { provider: string; key: string },
+    void,
+    "sensitive"
+  >;
+  delete_ai_key: CommandDefinition<{ provider: string }, void, "sensitive">;
+  check_ai_key: CommandDefinition<{ provider: string }, boolean, "sensitive">;
+  check_ai_key_status: CommandDefinition<
+    { provider: string },
+    AiKeyStatus,
+    "sensitive"
+  >;
+  get_ai_models: CommandDefinition<
+    { forceRefresh?: boolean } | undefined,
+    AiProviderModels,
+    "sensitive"
+  >;
+  generate_ai_query: CommandDefinition<{ req: AiGenerateRequest }, string, "sensitive">;
+  explain_ai_query: CommandDefinition<{ req: AiExplainRequest }, string, "sensitive">;
+  analyze_ai_explain_plan: CommandDefinition<
+    { req: AiExplainRequest },
+    string,
+    "sensitive"
+  >;
+  generate_cell_name: CommandDefinition<{ req: AiNameRequest }, string, "sensitive">;
+  generate_tab_rename: CommandDefinition<{ req: AiNameRequest }, string, "sensitive">;
+  suggest_table_name: CommandDefinition<
+    { req: AiTableNameRequest },
+    string,
+    "sensitive"
+  >;
+  get_ai_schema_context: CommandDefinition<
+    { connectionId: string; schema?: string },
+    string,
+    "database"
+  >;
+  get_ai_activity: CommandDefinition<
+    { filter?: AiEventFilter } | undefined,
+    AiActivityEvent[],
+    "sensitive"
+  >;
+  get_ai_sessions: CommandDefinition<undefined, AiSessionSummary[], "sensitive">;
+  get_ai_session_events: CommandDefinition<
+    { sessionId: string },
+    AiActivityEvent[],
+    "sensitive"
+  >;
+  clear_ai_activity: CommandDefinition<undefined, void, "sensitive">;
+  list_pending_approvals: CommandDefinition<
+    undefined,
+    PendingApproval[],
+    "sensitive"
+  >;
+  decide_pending_approval: CommandDefinition<
+    ApprovalDecisionPayload,
+    void,
     "sensitive"
   >;
 

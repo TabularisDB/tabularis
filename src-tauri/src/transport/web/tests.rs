@@ -231,6 +231,43 @@ async fn requires_a_single_use_bootstrap_and_authenticated_session() {
         .unwrap();
     assert_eq!(bad_host.status(), reqwest::StatusCode::FORBIDDEN);
 
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_ai_activity",
+            Value::Null,
+        )
+        .await,
+        serde_json::json!([])
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_ai_sessions",
+            Value::Null,
+        )
+        .await,
+        serde_json::json!([])
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "list_pending_approvals",
+            Value::Null,
+        )
+        .await,
+        serde_json::json!([])
+    );
+
     let missing_csrf = client
         .post(format!("{base_url}/api/v1/logout"))
         .header(COOKIE, &cookie)

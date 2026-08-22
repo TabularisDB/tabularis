@@ -3,6 +3,40 @@
 
 export type AiQueryKind = "select" | "write" | "ddl" | "unknown";
 
+export interface AiKeyStatus {
+  configured: boolean;
+  fromEnv: boolean;
+}
+
+export type AiProviderModels = Record<string, string[]>;
+
+export interface AiGenerateRequest {
+  provider: string;
+  model: string;
+  prompt: string;
+  schema: string;
+}
+
+export interface AiExplainRequest {
+  provider: string;
+  model: string;
+  query: string;
+  language: string;
+}
+
+export interface AiNameRequest {
+  provider: string;
+  model: string;
+  query: string;
+}
+
+export interface AiTableNameRequest {
+  provider: string;
+  model: string;
+  headers: string[];
+  sample_rows: string[][];
+}
+
 export type AiActivityStatus =
   | "success"
   | "blocked_readonly"

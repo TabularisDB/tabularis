@@ -15,6 +15,10 @@ vi.mock("../../../src/components/ui/ErrorDisplay", () => ({
   ),
 }));
 
+vi.mock("../../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({ call: vi.fn() }),
+}));
+
 // Mock useSettings
 vi.mock("../../../src/hooks/useSettings", () => ({
   useSettings: () => ({
