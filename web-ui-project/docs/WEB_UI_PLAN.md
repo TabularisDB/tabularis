@@ -1,4 +1,4 @@
-# Plan — Web UI feature parity via `tabularis --web`
+# Plan — Web UI feature parity via `tabularis web`
 
 ## 1. Goal
 
@@ -7,7 +7,7 @@ Deliver a browser-based Tabularis UI with functional parity with the desktop app
 Target user experience:
 
 ```bash
-tabularis --web
+tabularis web
 # Tabularis Web is available at http://127.0.0.1:8080
 ```
 
@@ -16,7 +16,7 @@ The implementation will live on the long-running branch `feat/web-ui`. The exist
 ### Success criteria
 
 - `tabularis` continues to launch the desktop application.
-- `tabularis --web` starts an HTTP server and serves `packages/web-ui/dist` without creating a desktop window.
+- `tabularis web` starts an HTTP server and serves `packages/web-ui/dist` without creating a desktop window.
 - Desktop and web use the same React components, contexts, hooks, types, translations, and styles.
 - Tauri IPC and HTTP/WebSocket are transport adapters over the same Rust application services.
 - Database drivers, connection management, persistence, credentials, plugins, AI, imports, exports, and query logic are not duplicated.
@@ -267,7 +267,7 @@ Desktop implementations use Tauri plugins. Browser implementations use browser A
 ### 5.1 Defaults
 
 ```bash
-tabularis --web
+tabularis web
 ```
 
 means:
@@ -285,7 +285,7 @@ means:
 Binding to a non-loopback interface must require an explicit option:
 
 ```bash
-tabularis --web --host 0.0.0.0 --auth password
+tabularis web --host 0.0.0.0 --auth password
 ```
 
 Remote mode acceptance requirements:
@@ -310,7 +310,7 @@ The matrix is a tracked artifact in the branch. Every row must end with automate
 
 | Area | Web behavior | Parity type | Primary transport needs |
 |---|---|---|---|
-| Application startup | `tabularis --web`, static serving, browser open | Adapted | CLI/HTTP |
+| Application startup | `tabularis web`, static serving, browser open | Adapted | CLI/HTTP |
 | Remote access | Password or trusted-proxy authentication, HTTPS origin allowlist, restricted-by-default capability policy | Adapted/security-scoped | CLI/HTTP/audit |
 | Connections and groups | Full CRUD, tags, icons, duplicate/import/export | Identical/adapted files | RPC/upload/download |
 | MySQL/PostgreSQL/SQLite | Existing drivers and pools | Identical | Shared services |
@@ -504,7 +504,7 @@ Includes WEB-000 through WEB-043.
 Demo:
 
 ```bash
-tabularis --web
+tabularis web
 ```
 
 loads `packages/web-ui` and executes a representative connection/query flow over HTTP/WebSocket. Desktop remains green.

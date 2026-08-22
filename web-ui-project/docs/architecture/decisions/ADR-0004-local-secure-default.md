@@ -9,7 +9,7 @@ Tabularis can administer databases, credentials, tunnels, plugins, files, AI pro
 
 ## Decision
 
-`tabularis --web` binds to `127.0.0.1` by default and still requires an authenticated browser session. Startup generates high-entropy ephemeral credentials and opens a URL containing a single-use, short-lived bootstrap token. The server exchanges it for an `HttpOnly`, `SameSite=Strict` session cookie and removes the token from subsequent URLs.
+`tabularis web` binds to `127.0.0.1` by default and still requires an authenticated browser session. Startup generates high-entropy ephemeral credentials and opens a URL containing a single-use, short-lived bootstrap token. The server exchanges it for an `HttpOnly`, `SameSite=Strict` session cookie and removes the token from subsequent URLs.
 
 The local server rejects unexpected origins and hosts, redacts credentials and bootstrap URLs from logs, and exposes no sensitive data from its liveness endpoint. Session and request IDs may be logged, but secrets and full SQL result payloads may not.
 

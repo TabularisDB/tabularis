@@ -60,7 +60,7 @@ export BROWSER="$RUNTIME_DIR/bin/xdg-open"
 export PATH="$RUNTIME_DIR/bin:$PATH"
 
 exec "$ROOT_DIR/src-tauri/target/debug/tabularis" \
-  --web \
+  web \
   --host 127.0.0.1 \
   --port "$PORT" \
   --web-root "$ROOT_DIR/packages/web-ui/dist"

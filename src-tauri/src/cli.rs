@@ -1,10 +1,10 @@
 //! Command-line argument parsing for the Tabularis binary.
 //!
 //! Keeping this in its own module means `lib.rs` does not have to know about
-//! clap, and the flag surface (`--mcp`, `--web`, `--debug`, `--explain`,
+//! clap, and the command surface (`--mcp`, `web`, `--debug`, `--explain`,
 //! `--help`, `--version`) lives in one place.
 
-use clap::{Parser, ValueEnum};
+use clap::{Args as ClapArgs, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[cfg(test)]
@@ -19,35 +19,47 @@ pub enum WebAuthMode {
 }
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(version, about, long_about = None, args_conflicts_with_subcommands = true)]
 pub struct Args {
     /// Start in MCP Server mode (Model Context Protocol)
     #[arg(long)]
     pub mcp: bool,
 
-    /// Start the browser-based Web UI
-    #[arg(long, conflicts_with_all = ["mcp", "explain"])]
-    pub web: bool,
+    #[command(subcommand)]
+    pub command: Option<Command>,
 
+    /// Enable debug logging (including sqlx queries)
+    #[arg(long, global = true)]
+    pub debug: bool,
+
+    /// Open a Visual Explain window for a previously-saved EXPLAIN file
+    /// (Postgres `EXPLAIN (FORMAT JSON)` output).
+    #[arg(long, value_name = "FILE")]
+    pub explain: Option<String>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum Command {
+    /// Start the browser-based Web UI
+    Web(WebArgs),
+}
+
+#[derive(Debug, ClapArgs)]
+pub struct WebArgs {
     /// Address for the Web UI server to bind
-    #[arg(
-        long,
-        value_name = "HOST",
-        default_value = "127.0.0.1",
-        requires = "web"
-    )]
+    #[arg(long, value_name = "HOST", default_value = "127.0.0.1")]
     pub host: String,
 
     /// Port for the Web UI server to bind
-    #[arg(long, value_name = "PORT", default_value_t = 8080, requires = "web")]
+    #[arg(long, value_name = "PORT", default_value_t = 8080)]
     pub port: u16,
 
     /// Do not open the Web UI in the default browser
-    #[arg(long, requires = "web")]
+    #[arg(long)]
     pub no_open: bool,
 
     /// Override the directory containing built Web UI assets
-    #[arg(long, value_name = "PATH", requires = "web")]
+    #[arg(long, value_name = "PATH")]
     pub web_root: Option<PathBuf>,
 
     /// Authentication mode for explicitly configured remote Web UI access
@@ -55,7 +67,6 @@ pub struct Args {
         long,
         value_name = "MODE",
         value_enum,
-        requires = "web",
         requires_all = ["public_url", "allowed_origins"]
     )]
     pub auth: Option<WebAuthMode>,
@@ -76,30 +87,13 @@ pub struct Args {
     /// Grant remote sessions high-risk local-administrator capabilities
     #[arg(long, requires = "auth")]
     pub allow_high_risk: bool,
-
-    /// Enable debug logging (including sqlx queries)
-    #[arg(long)]
-    pub debug: bool,
-
-    /// Open a Visual Explain window for a previously-saved EXPLAIN file
-    /// (Postgres `EXPLAIN (FORMAT JSON)` output).
-    #[arg(long, value_name = "FILE")]
-    pub explain: Option<String>,
 }
 
 impl Args {
     fn defaults() -> Self {
         Self {
             mcp: false,
-            web: false,
-            host: "127.0.0.1".to_string(),
-            port: 8080,
-            no_open: false,
-            web_root: None,
-            auth: None,
-            public_url: None,
-            allowed_origins: Vec::new(),
-            allow_high_risk: false,
+            command: None,
             debug: false,
             explain: None,
         }

@@ -1,13 +1,13 @@
 # Tabularis Web operator guide
 
-This guide covers day-to-day use and operation of the browser UI started by `tabularis --web`. Running `tabularis` without `--web` still starts the desktop application.
+This guide covers day-to-day use and operation of the browser UI started by `tabularis web`. Running `tabularis` without the `web` subcommand still starts the desktop application.
 
 ## CLI options
 
 Start an interactive loopback server with the secure defaults:
 
 ```bash
-tabularis --web
+tabularis web
 # Tabularis Web is available at http://127.0.0.1:8080
 ```
 
@@ -15,7 +15,7 @@ The Web-specific options are:
 
 | Option | Purpose and constraints |
 |---|---|
-| `--web` | Start the HTTP and WebSocket server without creating a desktop window. It conflicts with `--mcp` and `--explain`. |
+| `web` | Start the HTTP and WebSocket server without creating a desktop window. It conflicts with `--mcp` and `--explain`. |
 | `--host` | Bind address. The default is `127.0.0.1`. A non-loopback address is rejected unless remote authentication is fully configured. |
 | `--port` | Bind port. The default is `8080`; there is no automatic port fallback, so choose another port if it is occupied. |
 | `--no-open` | Do not launch a browser. Use this for services, remote deployments, and liveness-only automation. For an interactive local session, let Tabularis open the one-time bootstrap URL. |
@@ -31,7 +31,7 @@ Development example:
 
 ```bash
 pnpm --filter @tabularis/web-ui build
-tabularis --web --port 8081 --web-root packages/web-ui/dist
+tabularis web --port 8081 --web-root packages/web-ui/dist
 ```
 
 `--web-root` must point to assets from the same source revision as the server. Do not combine a server binary and UI bundle from different releases.
@@ -48,7 +48,7 @@ Local mode is authenticated even though it listens only on loopback:
 
 The local cookie is sent over loopback HTTP and is not marked `Secure`; remote cookies are always `Secure` because their public origin must be HTTPS. Closing a browser tab does not stop the server. Stop the foreground process with `Ctrl+C`, or stop its service unit. Sessions, active jobs, pools, tunnels, and temporary transfer state are cleaned up on logout, expiry, disconnect where applicable, or process shutdown.
 
-`--no-open` intentionally does not print the secret bootstrap URL. It is therefore unsuitable for creating a new interactive loopback session by hand. If browser launch fails, configure a working system browser opener and restart `tabularis --web` to obtain a fresh one-time bootstrap.
+`--no-open` intentionally does not print the secret bootstrap URL. It is therefore unsuitable for creating a new interactive loopback session by hand. If browser launch fails, configure a working system browser opener and restart `tabularis web` to obtain a fresh one-time bootstrap.
 
 ## Remote deployment and reverse proxy
 
@@ -64,7 +64,7 @@ Minimal password-mode service command:
 ```bash
 export TABULARIS_WEB_PASSWORD='replace-with-a-long-unique-password'
 
-tabularis --web \
+tabularis web \
   --host 127.0.0.1 \
   --port 8080 \
   --no-open \
@@ -78,7 +78,7 @@ Minimal trusted-proxy command:
 ```bash
 export TABULARIS_WEB_PROXY_SECRET="$(openssl rand -base64 48)"
 
-tabularis --web \
+tabularis web \
   --host 127.0.0.1 \
   --port 8080 \
   --no-open \

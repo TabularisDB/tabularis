@@ -147,11 +147,11 @@ pub fn run() {
     // stream clean while providing the same diagnostics in every launch mode.
     let log_buffer = runtime::bootstrap::initialize_logging(args.debug);
 
-    if args.web {
+    if let Some(cli::Command::Web(web_args)) = &args.command {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
         rt.block_on(async {
             let web_root =
-                transport::web::static_assets::resolve_web_root(args.web_root.as_deref())
+                transport::web::static_assets::resolve_web_root(web_args.web_root.as_deref())
                     .expect("Failed to locate Tabularis Web assets");
             let web_events = transport::web::events::WebEventBus::default();
             let runtime_context = runtime::RuntimeContext::new(
@@ -181,15 +181,15 @@ pub fn run() {
 
             let server_result = transport::web::server::run(
                 transport::web::server::WebServerOptions {
-                    host: args.host.clone(),
-                    port: args.port,
+                    host: web_args.host.clone(),
+                    port: web_args.port,
                     web_root,
                     data_dir: web_data_dir,
-                    open_browser: !args.no_open,
-                    auth: args.auth,
-                    public_url: args.public_url.clone(),
-                    allowed_origins: args.allowed_origins.clone(),
-                    allow_high_risk: args.allow_high_risk,
+                    open_browser: !web_args.no_open,
+                    auth: web_args.auth,
+                    public_url: web_args.public_url.clone(),
+                    allowed_origins: web_args.allowed_origins.clone(),
+                    allow_high_risk: web_args.allow_high_risk,
                     application: application_api,
                     events: web_events,
                 },

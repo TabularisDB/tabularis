@@ -12,9 +12,9 @@ Tabularis Web deliberately does not let a browser replace or restart the server 
 ## Upgrade procedure
 
 1. Stop accepting new browser sessions.
-2. Stop the `tabularis --web` process or its service manager unit.
+2. Stop the `tabularis web` process or its service manager unit.
 3. Upgrade Tabularis through the original installation method. For a package-managed installation, use that package manager. For a directly installed release, replace it with the matching release artifact.
-4. Start `tabularis --web` with the same service account, data locations, and arguments.
+4. Start `tabularis web` with the same service account, data locations, and arguments.
 5. Reopen the Web UI and verify that **Settings → Info → Updates** reports the expected server version and build.
 6. Run a connection and read-only query smoke test before restoring normal access.
 

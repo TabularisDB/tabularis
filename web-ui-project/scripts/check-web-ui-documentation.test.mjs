@@ -11,7 +11,7 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "u
 test("the Web operator guide covers every Web CLI option", () => {
   const guide = read(guidePath);
   const cli = read("src-tauri/src/cli.rs");
-  const webOptions = cli.slice(cli.indexOf("    pub web:"), cli.indexOf("    pub debug:"));
+  const webOptions = cli.slice(cli.indexOf("pub struct WebArgs"));
   const optionOverrides = { allowed_origins: "allowed-origin" };
   const optionNames = [...webOptions.matchAll(/pub ([a-z_]+):/g)].map(([, name]) => {
     const optionName = optionOverrides[name] ?? name.replaceAll("_", "-");
@@ -19,7 +19,6 @@ test("the Web operator guide covers every Web CLI option", () => {
   });
 
   assert.deepEqual(optionNames, [
-    "--web",
     "--host",
     "--port",
     "--no-open",
@@ -29,6 +28,7 @@ test("the Web operator guide covers every Web CLI option", () => {
     "--allowed-origin",
     "--allow-high-risk",
   ]);
+  assert.ok(guide.includes("`web`"), "web subcommand is undocumented");
   for (const option of optionNames) {
     assert.ok(guide.includes(`\`${option}`), `${option} is undocumented`);
   }

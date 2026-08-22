@@ -15,7 +15,7 @@ Set the password through the process environment rather than the command line so
 ```bash
 export TABULARIS_WEB_PASSWORD='replace-with-a-long-unique-password'
 
-tabularis --web \
+tabularis web \
   --host 127.0.0.1 \
   --port 8080 \
   --no-open \
@@ -33,7 +33,7 @@ Proxy mode trusts an authenticated identity only when the proxy also supplies a 
 ```bash
 export TABULARIS_WEB_PROXY_SECRET="$(openssl rand -base64 48)"
 
-tabularis --web \
+tabularis web \
   --host 127.0.0.1 \
   --port 8080 \
   --no-open \
@@ -148,7 +148,7 @@ EnvironmentFile=/etc/tabularis/web.env
 Environment=HOME=/var/lib/tabularis
 StateDirectory=tabularis
 UMask=0077
-ExecStart=/usr/bin/tabularis --web --host 127.0.0.1 --port 8080 --no-open --auth password --public-url https://tabularis.example.com --allowed-origin https://tabularis.example.com
+ExecStart=/usr/bin/tabularis web --host 127.0.0.1 --port 8080 --no-open --auth password --public-url https://tabularis.example.com --allowed-origin https://tabularis.example.com
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
@@ -181,7 +181,7 @@ USER tabularis
 ENV HOME=/var/lib/tabularis
 VOLUME ["/var/lib/tabularis"]
 EXPOSE 8080
-ENTRYPOINT ["tabularis", "--web", "--host", "0.0.0.0", "--port", "8080", "--no-open", "--auth", "password", "--public-url", "https://tabularis.example.com", "--allowed-origin", "https://tabularis.example.com"]
+ENTRYPOINT ["tabularis", "web", "--host", "0.0.0.0", "--port", "8080", "--no-open", "--auth", "password", "--public-url", "https://tabularis.example.com", "--allowed-origin", "https://tabularis.example.com"]
 ```
 
 Pass `TABULARIS_WEB_PASSWORD` through a protected runtime environment or secret manager, never in the image. Attach the container only to an internal reverse-proxy network and do not publish port 8080 directly:

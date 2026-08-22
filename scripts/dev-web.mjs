@@ -27,7 +27,7 @@ const server = spawnSync(
     "--manifest-path",
     "src-tauri/Cargo.toml",
     "--",
-    "--web",
+    "web",
     "--web-root",
     join(rootDir, "packages/web-ui/dist"),
     ...forwardedArguments,

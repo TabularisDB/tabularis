@@ -78,7 +78,7 @@ smoke_headless() {
     HOME="$extract_root/home" \
       XDG_CONFIG_HOME="$extract_root/config" \
       XDG_DATA_HOME="$extract_root/data" \
-      "$binary" --web --no-open --port "$port" >"$log" 2>&1
+      "$binary" web --no-open --port "$port" >"$log" 2>&1
   ) &
   server_pid=$!
 
