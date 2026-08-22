@@ -24,6 +24,13 @@ test("release builds verify packaged Web UI assets on every desktop platform", (
   assert.match(workflow, /Smoke-test headless Web mode \(Linux\)/);
 });
 
+test("Windows package extraction waits for MSI completion and checks its exit code", () => {
+  const workflow = read(".github/workflows/build.yml");
+
+  assert.match(workflow, /Start-Process msiexec\.exe/);
+  assert.match(workflow, /\$msiExtraction\.ExitCode/);
+});
+
 test("the Windows portable artifact carries its Web UI resources", () => {
   const workflow = read(".github/workflows/build.yml");
 

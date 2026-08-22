@@ -247,8 +247,10 @@ jobs:
 
           $extract = Join-Path $env:RUNNER_TEMP "tabularis-msi-$([guid]::NewGuid())"
           New-Item -ItemType Directory -Path $extract | Out-Null
-          & msiexec.exe /a $msi.FullName /qn "TARGETDIR=$extract"
-          if ($LASTEXITCODE -ne 0) { throw "MSI extraction failed with exit code $LASTEXITCODE" }
+          $msiExtraction = Start-Process msiexec.exe -ArgumentList "/a", "`"$($msi.FullName)`"", "/qn", "TARGETDIR=`"$extract`"" -Wait -PassThru
+          if ($msiExtraction.ExitCode -ne 0) {
+            throw "MSI extraction failed with exit code $($msiExtraction.ExitCode)"
+          }
 
           $index = Get-ChildItem $extract -Recurse -File -Filter index.html |
             Where-Object { $_.FullName -match '[\\/]web-ui[\\/]index\.html$' } |
