@@ -52,6 +52,77 @@ defineTransportContractSuite(
         expect(request).toEqual({ connectionId: "metadata-fixture" });
         return ["public"];
       }
+      if (command === "get_saved_queries") {
+        return [
+          {
+            id: "saved-query-1",
+            name: "Active users",
+            sql: "SELECT * FROM users WHERE active = 1",
+            connection_id: "saved-query-fixture",
+            database: "app",
+            created_at: "2026-08-22T00:00:00Z",
+            updated_at: "2026-08-22T00:00:00Z",
+          },
+        ];
+      }
+      if (command === "save_query") {
+        return {
+          id: "saved-query-1",
+          name: "Active users",
+          sql: "SELECT * FROM users WHERE active = 1",
+          connection_id: "saved-query-fixture",
+          database: "app",
+          created_at: "2026-08-22T00:00:00Z",
+          updated_at: "2026-08-22T00:00:00Z",
+        };
+      }
+      if (command === "update_saved_query") {
+        return {
+          id: "saved-query-1",
+          name: "Recently active users",
+          sql: "SELECT * FROM users WHERE active = 1",
+          connection_id: "saved-query-fixture",
+          database: "analytics",
+          created_at: "2026-08-22T00:00:00Z",
+          updated_at: "2026-08-22T00:00:00Z",
+        };
+      }
+      if (command === "delete_saved_query") return null;
+      if (command === "get_query_history") {
+        return {
+          entries: [
+            {
+              id: "history-1",
+              sql: "SELECT 1",
+              executedAt: "2026-08-22T00:00:00Z",
+              executionTimeMs: 2.5,
+              status: "success",
+              rowsAffected: 1,
+              error: null,
+              database: "app",
+            },
+          ],
+          recoveredBackupPath: null,
+        };
+      }
+      if (command === "add_query_history_entry") {
+        return {
+          id: "history-1",
+          sql: "SELECT 1",
+          executedAt: "2026-08-22T00:00:00Z",
+          executionTimeMs: 2.5,
+          status: "success",
+          rowsAffected: 1,
+          error: null,
+          database: "app",
+        };
+      }
+      if (
+        command === "delete_query_history_entry" ||
+        command === "clear_query_history"
+      ) {
+        return null;
+      }
       if (command === "get_config") {
         expect(request).toBeUndefined();
         return { theme: "tabularis-dark", resultPageSize: 500 };

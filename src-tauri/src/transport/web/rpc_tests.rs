@@ -160,6 +160,15 @@ impl ApplicationApi for FixtureApplication {
             _ => Value::Null,
         })
     }
+
+    async fn execute_productivity_command(
+        &self,
+        context: ApplicationRequestContext,
+        _command: crate::application::productivity::ProductivityCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(Value::Null)
+    }
 }
 
 fn json_headers() -> HeaderMap {
@@ -264,6 +273,27 @@ fn declares_authorization_for_each_registered_command() {
             .authorization,
         AuthorizationLevel::Sensitive
     );
+}
+
+#[test]
+fn registers_saved_query_and_history_commands_with_database_authorization() {
+    for name in [
+        "get_saved_queries",
+        "save_query",
+        "update_saved_query",
+        "delete_saved_query",
+        "get_query_history",
+        "add_query_history_entry",
+        "delete_query_history_entry",
+        "clear_query_history",
+    ] {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(
+            command.metadata().authorization,
+            AuthorizationLevel::Database,
+            "{name}",
+        );
+    }
 }
 
 #[test]

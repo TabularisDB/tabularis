@@ -3,6 +3,9 @@ pub mod connections;
 pub mod database_objects;
 pub mod metadata;
 pub mod persistence;
+pub mod productivity;
+#[cfg(test)]
+mod productivity_tests;
 pub mod queries;
 pub mod records;
 pub mod tunnels;

@@ -1,8 +1,8 @@
 use crate::application::{
     connections::ConnectionCommand, database_objects::DatabaseObjectCommand,
-    metadata::MetadataCommand, persistence::PersistenceCommand, queries::QueryCommand,
-    records::RecordCommand, tunnels::TunnelCommand, ApplicationApi, ApplicationError,
-    ApplicationRequestContext, AuthorizationLevel,
+    metadata::MetadataCommand, persistence::PersistenceCommand, productivity::ProductivityCommand,
+    queries::QueryCommand, records::RecordCommand, tunnels::TunnelCommand, ApplicationApi,
+    ApplicationError, ApplicationRequestContext, AuthorizationLevel,
 };
 use crate::models::{
     ColumnDefinition, ConnectionAppearance, ConnectionParams, K8sConnectionInput, RoutineCallArg,
@@ -47,6 +47,19 @@ enum RpcCommand {
     Record(RecordRpcCommand),
     Tunnel(TunnelRpcCommand),
     Persistence(PersistenceRpcCommand),
+    Productivity(ProductivityRpcCommand),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ProductivityRpcCommand {
+    GetSavedQueries,
+    SaveQuery,
+    UpdateSavedQuery,
+    DeleteSavedQuery,
+    GetQueryHistory,
+    AddQueryHistoryEntry,
+    DeleteQueryHistoryEntry,
+    ClearQueryHistory,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -278,6 +291,62 @@ struct IdRequest {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ConnectionIdRequest {
     connection_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SaveQueryRequest {
+    connection_id: String,
+    name: String,
+    sql: String,
+    database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct UpdateSavedQueryRequest {
+    connection_id: String,
+    id: String,
+    name: String,
+    sql: String,
+    database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ConnectionItemRequest {
+    connection_id: String,
+    id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AddQueryHistoryEntryRequest {
+    connection_id: String,
+    sql: String,
+    executed_at: String,
+    execution_time_ms: Option<f64>,
+    status: QueryHistoryStatus,
+    rows_affected: Option<i64>,
+    error: Option<String>,
+    database: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum QueryHistoryStatus {
+    Success,
+    Error,
+}
+
+impl QueryHistoryStatus {
+    fn into_string(self) -> String {
+        match self {
+            Self::Success => "success",
+            Self::Error => "error",
+        }
+        .to_string()
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1039,6 +1108,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::Productivity(command) => {
+                let command = decode_productivity_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_productivity_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
         }
     }
 
@@ -1080,7 +1157,8 @@ impl RpcCommand {
                 .or_else(|| DatabaseObjectRpcCommand::parse(name).map(Self::DatabaseObject))
                 .or_else(|| MetadataRpcCommand::parse(name).map(Self::Metadata))
                 .or_else(|| ConnectionRpcCommand::parse(name).map(Self::Connection))
-                .or_else(|| PersistenceRpcCommand::parse(name).map(Self::Persistence)),
+                .or_else(|| PersistenceRpcCommand::parse(name).map(Self::Persistence))
+                .or_else(|| ProductivityRpcCommand::parse(name).map(Self::Productivity)),
         }
     }
 
@@ -1151,7 +1229,28 @@ impl RpcCommand {
                 application_error_code: "PREFERENCE_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            Self::Productivity(_) => CommandMetadata {
+                authorization: AuthorizationLevel::Database,
+                application_error_code: "PRODUCTIVITY_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
         }
+    }
+}
+
+impl ProductivityRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "get_saved_queries" => Self::GetSavedQueries,
+            "save_query" => Self::SaveQuery,
+            "update_saved_query" => Self::UpdateSavedQuery,
+            "delete_saved_query" => Self::DeleteSavedQuery,
+            "get_query_history" => Self::GetQueryHistory,
+            "add_query_history_entry" => Self::AddQueryHistoryEntry,
+            "delete_query_history_entry" => Self::DeleteQueryHistoryEntry,
+            "clear_query_history" => Self::ClearQueryHistory,
+            _ => return None,
+        })
     }
 }
 
@@ -1371,6 +1470,78 @@ impl ConnectionRpcCommand {
             _ => return None,
         })
     }
+}
+
+fn decode_productivity_command(
+    command: ProductivityRpcCommand,
+    body: &[u8],
+) -> Result<ProductivityCommand, String> {
+    Ok(match command {
+        ProductivityRpcCommand::GetSavedQueries => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            ProductivityCommand::GetSavedQueries {
+                connection_id: request.connection_id,
+            }
+        }
+        ProductivityRpcCommand::SaveQuery => {
+            let request: SaveQueryRequest = decode_payload(body)?;
+            ProductivityCommand::SaveQuery {
+                connection_id: request.connection_id,
+                name: request.name,
+                sql: request.sql,
+                database: request.database,
+            }
+        }
+        ProductivityRpcCommand::UpdateSavedQuery => {
+            let request: UpdateSavedQueryRequest = decode_payload(body)?;
+            ProductivityCommand::UpdateSavedQuery {
+                connection_id: Some(request.connection_id),
+                id: request.id,
+                name: request.name,
+                sql: request.sql,
+                database: request.database,
+            }
+        }
+        ProductivityRpcCommand::DeleteSavedQuery => {
+            let request: ConnectionItemRequest = decode_payload(body)?;
+            ProductivityCommand::DeleteSavedQuery {
+                connection_id: Some(request.connection_id),
+                id: request.id,
+            }
+        }
+        ProductivityRpcCommand::GetQueryHistory => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            ProductivityCommand::GetQueryHistory {
+                connection_id: request.connection_id,
+            }
+        }
+        ProductivityRpcCommand::AddQueryHistoryEntry => {
+            let request: AddQueryHistoryEntryRequest = decode_payload(body)?;
+            ProductivityCommand::AddQueryHistoryEntry {
+                connection_id: request.connection_id,
+                sql: request.sql,
+                executed_at: request.executed_at,
+                execution_time_ms: request.execution_time_ms,
+                status: request.status.into_string(),
+                rows_affected: request.rows_affected,
+                error: request.error,
+                database: request.database,
+            }
+        }
+        ProductivityRpcCommand::DeleteQueryHistoryEntry => {
+            let request: ConnectionItemRequest = decode_payload(body)?;
+            ProductivityCommand::DeleteQueryHistoryEntry {
+                connection_id: request.connection_id,
+                id: request.id,
+            }
+        }
+        ProductivityRpcCommand::ClearQueryHistory => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            ProductivityCommand::ClearQueryHistory {
+                connection_id: request.connection_id,
+            }
+        }
+    })
 }
 
 fn decode_persistence_command(

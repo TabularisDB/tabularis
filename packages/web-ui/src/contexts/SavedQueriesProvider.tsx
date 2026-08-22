@@ -1,67 +1,116 @@
-import { useState, useEffect, useCallback, type ReactNode } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { useDatabase } from '../hooks/useDatabase';
-import { SavedQueriesContext, type SavedQuery } from './SavedQueriesContext';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useDatabase } from "../hooks/useDatabase";
+import { useTabularisClient } from "../hooks/useTabularisClient";
+import { SavedQueriesContext, type SavedQuery } from "./SavedQueriesContext";
 
 export const SavedQueriesProvider = ({ children }: { children: ReactNode }) => {
   const { activeConnectionId } = useDatabase();
+  const client = useTabularisClient();
+  const activeConnectionIdRef = useRef(activeConnectionId);
+  activeConnectionIdRef.current = activeConnectionId;
   const [queries, setQueries] = useState<SavedQuery[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const refreshQueries = useCallback(async () => {
-    if (!activeConnectionId) {
-        setQueries([]);
-        return;
+    const connectionId = activeConnectionIdRef.current;
+    if (!connectionId) {
+      setQueries([]);
+      setIsLoading(false);
+      return;
     }
-    
+
     setIsLoading(true);
     try {
-      const result = await invoke<SavedQuery[]>('get_saved_queries', { connectionId: activeConnectionId });
-      setQueries(result);
-    } catch (e) {
-      console.error("Failed to load saved queries:", e);
+      const result = await client.call("get_saved_queries", { connectionId });
+      if (activeConnectionIdRef.current === connectionId) {
+        setQueries(result);
+      }
+    } catch (error) {
+      console.error("Failed to load saved queries:", error);
     } finally {
-      setIsLoading(false);
+      if (activeConnectionIdRef.current === connectionId) {
+        setIsLoading(false);
+      }
     }
-  }, [activeConnectionId]);
+  }, [client]);
 
   useEffect(() => {
-    refreshQueries();
-  }, [refreshQueries]);
+    void refreshQueries();
+  }, [activeConnectionId, refreshQueries]);
 
-  const saveQuery = async (name: string, sql: string, database?: string | null) => {
-    if (!activeConnectionId) return;
+  const saveQuery = async (
+    name: string,
+    sql: string,
+    database?: string | null,
+  ) => {
+    const connectionId = activeConnectionIdRef.current;
+    if (!connectionId) return;
     try {
-      await invoke('save_query', { connectionId: activeConnectionId, name, sql, database: database ?? null });
+      await client.call("save_query", {
+        connectionId,
+        name,
+        sql,
+        database: database ?? null,
+      });
       await refreshQueries();
-    } catch (e) {
-      console.error("Failed to save query:", e);
-      throw e;
+    } catch (error) {
+      console.error("Failed to save query:", error);
+      throw error;
     }
   };
 
-  const updateQuery = async (id: string, name: string, sql: string, database?: string | null) => {
+  const updateQuery = async (
+    id: string,
+    name: string,
+    sql: string,
+    database?: string | null,
+  ) => {
+    const connectionId = activeConnectionIdRef.current;
+    if (!connectionId) return;
     try {
-      await invoke('update_saved_query', { id, name, sql, database: database ?? null });
+      await client.call("update_saved_query", {
+        connectionId,
+        id,
+        name,
+        sql,
+        database: database ?? null,
+      });
       await refreshQueries();
-    } catch (e) {
-      console.error("Failed to update query:", e);
-      throw e;
+    } catch (error) {
+      console.error("Failed to update query:", error);
+      throw error;
     }
   };
 
   const deleteQuery = async (id: string) => {
+    const connectionId = activeConnectionIdRef.current;
+    if (!connectionId) return;
     try {
-      await invoke('delete_saved_query', { id });
+      await client.call("delete_saved_query", { connectionId, id });
       await refreshQueries();
-    } catch (e) {
-      console.error("Failed to delete query:", e);
-      throw e;
+    } catch (error) {
+      console.error("Failed to delete query:", error);
+      throw error;
     }
   };
 
   return (
-    <SavedQueriesContext.Provider value={{ queries, isLoading, saveQuery, updateQuery, deleteQuery, refreshQueries }}>
+    <SavedQueriesContext.Provider
+      value={{
+        queries,
+        isLoading,
+        saveQuery,
+        updateQuery,
+        deleteQuery,
+        refreshQueries,
+      }}
+    >
       {children}
     </SavedQueriesContext.Provider>
   );

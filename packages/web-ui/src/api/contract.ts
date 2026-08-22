@@ -21,6 +21,11 @@ import type {
 import type { ForeignKey, Index } from "../types/schema";
 import type { Theme } from "../types/theme";
 import type { Settings } from "../contexts/SettingsContext";
+import type { SavedQuery } from "../contexts/SavedQueriesContext";
+import type {
+  QueryHistoryEntry,
+  QueryHistoryResponse,
+} from "../types/queryHistory";
 import type { UserOverrides } from "../utils/keybindings";
 import type { RequestId } from "./errors";
 
@@ -655,6 +660,56 @@ export interface CommandMap {
   >;
   cancel_query: CommandDefinition<CancelQueryRequest, void, "database">;
   get_server_now: CommandDefinition<ConnectionIdRequest, string, "database">;
+
+  get_saved_queries: CommandDefinition<ConnectionIdRequest, SavedQuery[], "database">;
+  save_query: CommandDefinition<
+    ConnectionIdRequest & {
+      name: string;
+      sql: string;
+      database: string | null;
+    },
+    SavedQuery,
+    "database"
+  >;
+  update_saved_query: CommandDefinition<
+    ConnectionIdRequest & {
+      id: string;
+      name: string;
+      sql: string;
+      database: string | null;
+    },
+    SavedQuery,
+    "database"
+  >;
+  delete_saved_query: CommandDefinition<
+    ConnectionIdRequest & { id: string },
+    void,
+    "database"
+  >;
+  get_query_history: CommandDefinition<
+    ConnectionIdRequest,
+    QueryHistoryResponse,
+    "database"
+  >;
+  add_query_history_entry: CommandDefinition<
+    ConnectionIdRequest & {
+      sql: string;
+      executedAt: string;
+      executionTimeMs: number | null;
+      status: "success" | "error";
+      rowsAffected: number | null;
+      error: string | null;
+      database: string | null;
+    },
+    QueryHistoryEntry,
+    "database"
+  >;
+  delete_query_history_entry: CommandDefinition<
+    ConnectionIdRequest & { id: string },
+    void,
+    "database"
+  >;
+  clear_query_history: CommandDefinition<ConnectionIdRequest, void, "database">;
 
   delete_record: CommandDefinition<RecordIdentityRequest, number, "database">;
   update_record: CommandDefinition<

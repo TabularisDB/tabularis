@@ -93,7 +93,19 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     "get_last_open_connections",
     undefined,
   );
+  const savedQueries = caller.call("get_saved_queries", {
+    connectionId: "connection-1",
+  });
+  const history = caller.call("get_query_history", {
+    connectionId: "connection-1",
+  });
+  const deletedSavedQuery: Promise<void> = caller.call("delete_saved_query", {
+    connectionId: "connection-1",
+    id: "saved-query-1",
+  });
 
+  // @ts-expect-error Saved-query mutations require explicit connection scoping.
+  caller.call("delete_saved_query", { id: "saved-query-1" });
   // @ts-expect-error execute_query requires a connection id.
   caller.call("execute_query", { query: "SELECT 1" });
   // @ts-expect-error Unknown commands must use the tracked escape hatch.
@@ -138,6 +150,9 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     savedConfig,
     editorPreferences,
     sessionSelection,
+    savedQueries,
+    history,
+    deletedSavedQuery,
     explainResult,
     cancellation,
     wrongResponse,
@@ -182,6 +197,8 @@ const userListAuthorization: CommandAuthorization<"get_db_users"> = "sensitive";
 const configAuthorization: CommandAuthorization<"get_config"> = "local-admin";
 const editorPreferencesAuthorization: CommandAuthorization<"load_editor_preferences"> = "database";
 const sessionSelectionAuthorization: CommandAuthorization<"get_last_open_connections"> = "session";
+const savedQueryAuthorization: CommandAuthorization<"save_query"> = "database";
+const queryHistoryAuthorization: CommandAuthorization<"get_query_history"> = "database";
 // @ts-expect-error execute_query is not a local-admin operation.
 const wrongAuthorization: CommandAuthorization<"execute_query"> = "local-admin";
 const rpcFailure: RpcFailure = {
@@ -216,6 +233,8 @@ void userListAuthorization;
 void configAuthorization;
 void editorPreferencesAuthorization;
 void sessionSelectionAuthorization;
+void savedQueryAuthorization;
+void queryHistoryAuthorization;
 void wrongAuthorization;
 void rpcFailure;
 void failureWithoutRequestId;

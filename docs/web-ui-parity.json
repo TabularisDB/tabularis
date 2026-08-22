@@ -53,8 +53,8 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 105,
-    "literalCallSiteCount": 138,
+    "literalCommandCount": 97,
+    "literalCallSiteCount": 130,
     "dynamicCallSiteCount": 0,
     "handlerRegistrationCount": 256,
     "registeredCommandCount": 255,
@@ -62,23 +62,9 @@
       "cancel_dump"
     ],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 150
+    "registeredCommandsWithoutFrontendCall": 158
   },
   "commands": [
-    {
-      "name": "add_query_history_entry",
-      "featureGroup": "saved-queries",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/QueryHistoryProvider.tsx",
-          "line": 68
-        }
-      ]
-    },
     {
       "name": "analyze_ai_explain_plan",
       "featureGroup": "ai",
@@ -276,20 +262,6 @@
       ]
     },
     {
-      "name": "clear_query_history",
-      "featureGroup": "saved-queries",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/QueryHistoryProvider.tsx",
-          "line": 109
-        }
-      ]
-    },
-    {
       "name": "close_results_window",
       "featureGroup": "windows",
       "eventUse": "none",
@@ -434,34 +406,6 @@
         {
           "file": "packages/web-ui/src/utils/notebookStore.ts",
           "line": 195
-        }
-      ]
-    },
-    {
-      "name": "delete_query_history_entry",
-      "featureGroup": "saved-queries",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/QueryHistoryProvider.tsx",
-          "line": 95
-        }
-      ]
-    },
-    {
-      "name": "delete_saved_query",
-      "featureGroup": "saved-queries",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/SavedQueriesProvider.tsx",
-          "line": 55
         }
       ]
     },
@@ -1010,34 +954,6 @@
       ]
     },
     {
-      "name": "get_query_history",
-      "featureGroup": "saved-queries",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/QueryHistoryProvider.tsx",
-          "line": 33
-        }
-      ]
-    },
-    {
-      "name": "get_saved_queries",
-      "featureGroup": "saved-queries",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/SavedQueriesProvider.tsx",
-          "line": 19
-        }
-      ]
-    },
-    {
       "name": "get_system_stats",
       "featureGroup": "tasks",
       "eventUse": "none",
@@ -1502,20 +1418,6 @@
       ]
     },
     {
-      "name": "save_query",
-      "featureGroup": "saved-queries",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/SavedQueriesProvider.tsx",
-          "line": 35
-        }
-      ]
-    },
-    {
       "name": "set_ai_key",
       "featureGroup": "ai",
       "eventUse": "none",
@@ -1652,28 +1554,16 @@
           "line": 797
         }
       ]
-    },
-    {
-      "name": "update_saved_query",
-      "featureGroup": "saved-queries",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/SavedQueriesProvider.tsx",
-          "line": 45
-        }
-      ]
     }
   ],
   "dynamicInvocations": [],
   "registeredCommandsWithoutFrontendCall": [
+    "add_query_history_entry",
     "alter_view",
     "apply_db_user_privileges",
     "build_routine_call_sql",
     "cancel_query",
+    "clear_query_history",
     "close_devtools",
     "count_query",
     "create_connection_group",
@@ -1689,7 +1579,9 @@
     "delete_custom_theme",
     "delete_editor_preferences",
     "delete_k8s_connection",
+    "delete_query_history_entry",
     "delete_record",
+    "delete_saved_query",
     "delete_ssh_connection",
     "detect_blob_mime",
     "detect_mime_type",
@@ -1745,12 +1637,14 @@
     "get_materialized_view_definition",
     "get_materialized_views",
     "get_plugin_dir",
+    "get_query_history",
     "get_registered_drivers",
     "get_routine_create_template",
     "get_routine_definition",
     "get_routine_edit_script",
     "get_routine_parameters",
     "get_routines",
+    "get_saved_queries",
     "get_schema_preference",
     "get_schema_snapshot",
     "get_schemas",
@@ -1799,6 +1693,7 @@
     "save_explainplan_prompt",
     "save_k8s_connection",
     "save_keybindings",
+    "save_query",
     "save_ssh_connection",
     "save_system_prompt",
     "save_tabrename_prompt",
@@ -1818,6 +1713,7 @@
     "update_connection_tag",
     "update_k8s_connection",
     "update_record",
+    "update_saved_query",
     "update_ssh_connection",
     "validate_k8s_path_cmd"
   ]

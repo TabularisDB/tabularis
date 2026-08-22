@@ -1,4 +1,6 @@
-use super::{connections, database_objects, metadata, persistence, queries, records, tunnels};
+use super::{
+    connections, database_objects, metadata, persistence, productivity, queries, records, tunnels,
+};
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use async_trait::async_trait;
 use serde_json::Value;
@@ -105,6 +107,12 @@ pub trait ApplicationApi: Send + Sync {
         &self,
         context: ApplicationRequestContext,
         command: persistence::PersistenceCommand,
+    ) -> Result<Value, ApplicationError>;
+
+    async fn execute_productivity_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: productivity::ProductivityCommand,
     ) -> Result<Value, ApplicationError>;
 }
 
@@ -239,6 +247,16 @@ impl ApplicationApi for RuntimeApplicationApi {
         command: persistence::PersistenceCommand,
     ) -> Result<Value, ApplicationError> {
         persistence::execute(&self.runtime, &self.state, context.session_id, command)
+            .await
+            .map_err(ApplicationError::new)
+    }
+
+    async fn execute_productivity_command(
+        &self,
+        _context: ApplicationRequestContext,
+        command: productivity::ProductivityCommand,
+    ) -> Result<Value, ApplicationError> {
+        productivity::execute(self.runtime.paths.config_dir(), command)
             .await
             .map_err(ApplicationError::new)
     }

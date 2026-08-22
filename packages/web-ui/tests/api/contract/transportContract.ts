@@ -231,6 +231,92 @@ export function defineTransportContractSuite(
       ).resolves.toBeNull();
     });
 
+    it("preserves saved query and query history contracts", async () => {
+      const savedQuery = {
+        id: "saved-query-1",
+        name: "Active users",
+        sql: "SELECT * FROM users WHERE active = 1",
+        connection_id: "saved-query-fixture",
+        database: "app",
+        created_at: "2026-08-22T00:00:00Z",
+        updated_at: "2026-08-22T00:00:00Z",
+      };
+      await expect(
+        harness.transport.call("get_saved_queries", {
+          connectionId: "saved-query-fixture",
+        }),
+      ).resolves.toEqual([savedQuery]);
+      await expect(
+        harness.transport.call("save_query", {
+          connectionId: "saved-query-fixture",
+          name: savedQuery.name,
+          sql: savedQuery.sql,
+          database: "app",
+        }),
+      ).resolves.toEqual(savedQuery);
+      await expect(
+        harness.transport.call("update_saved_query", {
+          connectionId: "saved-query-fixture",
+          id: savedQuery.id,
+          name: "Recently active users",
+          sql: savedQuery.sql,
+          database: "analytics",
+        }),
+      ).resolves.toEqual({
+        ...savedQuery,
+        name: "Recently active users",
+        database: "analytics",
+      });
+      await expect(
+        harness.transport.call("delete_saved_query", {
+          connectionId: "saved-query-fixture",
+          id: savedQuery.id,
+        }),
+      ).resolves.toBeNull();
+
+      const historyEntry = {
+        id: "history-1",
+        sql: "SELECT 1",
+        executedAt: "2026-08-22T00:00:00Z",
+        executionTimeMs: 2.5,
+        status: "success" as const,
+        rowsAffected: 1,
+        error: null,
+        database: "app",
+      };
+      await expect(
+        harness.transport.call("get_query_history", {
+          connectionId: "saved-query-fixture",
+        }),
+      ).resolves.toEqual({
+        entries: [historyEntry],
+        recoveredBackupPath: null,
+      });
+      await expect(
+        harness.transport.call("add_query_history_entry", {
+          connectionId: "saved-query-fixture",
+          sql: historyEntry.sql,
+          executedAt: historyEntry.executedAt,
+          executionTimeMs: historyEntry.executionTimeMs,
+          status: historyEntry.status,
+          rowsAffected: historyEntry.rowsAffected,
+          error: null,
+          database: "app",
+        }),
+      ).resolves.toEqual(historyEntry);
+      await expect(
+        harness.transport.call("delete_query_history_entry", {
+          connectionId: "saved-query-fixture",
+          id: historyEntry.id,
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("clear_query_history", {
+          connectionId: "saved-query-fixture",
+        }),
+      ).resolves.toBeNull();
+    });
+
     it("preserves data editing and blob contracts", async () => {
       const locator = {
         connectionId: "record-fixture",
@@ -467,6 +553,107 @@ async function handleRequest(
     return;
   }
   const queryRequests: Record<string, unknown> = {
+    get_saved_queries: {
+      request: { connectionId: "saved-query-fixture" },
+      response: [
+        {
+          id: "saved-query-1",
+          name: "Active users",
+          sql: "SELECT * FROM users WHERE active = 1",
+          connection_id: "saved-query-fixture",
+          database: "app",
+          created_at: "2026-08-22T00:00:00Z",
+          updated_at: "2026-08-22T00:00:00Z",
+        },
+      ],
+    },
+    save_query: {
+      request: {
+        connectionId: "saved-query-fixture",
+        name: "Active users",
+        sql: "SELECT * FROM users WHERE active = 1",
+        database: "app",
+      },
+      response: {
+        id: "saved-query-1",
+        name: "Active users",
+        sql: "SELECT * FROM users WHERE active = 1",
+        connection_id: "saved-query-fixture",
+        database: "app",
+        created_at: "2026-08-22T00:00:00Z",
+        updated_at: "2026-08-22T00:00:00Z",
+      },
+    },
+    update_saved_query: {
+      request: {
+        connectionId: "saved-query-fixture",
+        id: "saved-query-1",
+        name: "Recently active users",
+        sql: "SELECT * FROM users WHERE active = 1",
+        database: "analytics",
+      },
+      response: {
+        id: "saved-query-1",
+        name: "Recently active users",
+        sql: "SELECT * FROM users WHERE active = 1",
+        connection_id: "saved-query-fixture",
+        database: "analytics",
+        created_at: "2026-08-22T00:00:00Z",
+        updated_at: "2026-08-22T00:00:00Z",
+      },
+    },
+    delete_saved_query: {
+      request: { connectionId: "saved-query-fixture", id: "saved-query-1" },
+      response: null,
+    },
+    get_query_history: {
+      request: { connectionId: "saved-query-fixture" },
+      response: {
+        entries: [
+          {
+            id: "history-1",
+            sql: "SELECT 1",
+            executedAt: "2026-08-22T00:00:00Z",
+            executionTimeMs: 2.5,
+            status: "success",
+            rowsAffected: 1,
+            error: null,
+            database: "app",
+          },
+        ],
+        recoveredBackupPath: null,
+      },
+    },
+    add_query_history_entry: {
+      request: {
+        connectionId: "saved-query-fixture",
+        sql: "SELECT 1",
+        executedAt: "2026-08-22T00:00:00Z",
+        executionTimeMs: 2.5,
+        status: "success",
+        rowsAffected: 1,
+        error: null,
+        database: "app",
+      },
+      response: {
+        id: "history-1",
+        sql: "SELECT 1",
+        executedAt: "2026-08-22T00:00:00Z",
+        executionTimeMs: 2.5,
+        status: "success",
+        rowsAffected: 1,
+        error: null,
+        database: "app",
+      },
+    },
+    delete_query_history_entry: {
+      request: { connectionId: "saved-query-fixture", id: "history-1" },
+      response: null,
+    },
+    clear_query_history: {
+      request: { connectionId: "saved-query-fixture" },
+      response: null,
+    },
     get_config: {
       request: null,
       response: { theme: "tabularis-dark", resultPageSize: 500 },

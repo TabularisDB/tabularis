@@ -3,11 +3,11 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { SavedQueriesProvider } from '../../src/contexts/SavedQueriesProvider';
 import { useSavedQueries } from '../../src/hooks/useSavedQueries';
 import { useDatabase } from '../../src/hooks/useDatabase';
-import { invoke } from '@tauri-apps/api/core';
 import React from 'react';
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
+const mockClient = vi.hoisted(() => ({ call: vi.fn() }));
+vi.mock('../../src/hooks/useTabularisClient', () => ({
+  useTabularisClient: () => mockClient,
 }));
 
 // Mock useDatabase
@@ -29,7 +29,7 @@ describe('SavedQueriesProvider', () => {
   });
 
   it('should provide initial empty state', () => {
-    vi.mocked(invoke).mockResolvedValue([]);
+    mockClient.call.mockResolvedValue([]);
 
     const wrapper = ({ children }: { children: React.ReactNode }) =>
       React.createElement(SavedQueriesProvider, null, children);
@@ -41,7 +41,7 @@ describe('SavedQueriesProvider', () => {
   });
 
   it('should load saved queries on mount', async () => {
-    vi.mocked(invoke).mockResolvedValue(mockQueries);
+    mockClient.call.mockResolvedValue(mockQueries);
 
     const wrapper = ({ children }: { children: React.ReactNode }) =>
       React.createElement(SavedQueriesProvider, null, children);
@@ -55,11 +55,11 @@ describe('SavedQueriesProvider', () => {
 
     expect(result.current.queries[0].name).toBe('All Users');
     expect(result.current.queries[1].sql).toBe('SELECT * FROM orders WHERE status = "active"');
-    expect(invoke).toHaveBeenCalledWith('get_saved_queries', { connectionId: 'conn-123' });
+    expect(mockClient.call).toHaveBeenCalledWith('get_saved_queries', { connectionId: 'conn-123' });
   });
 
   it('should clear queries when disconnected', async () => {
-    vi.mocked(invoke).mockResolvedValue(mockQueries);
+    mockClient.call.mockResolvedValue(mockQueries);
     vi.mocked(useDatabase).mockReturnValue({
       activeConnectionId: null,
     } as ReturnType<typeof useDatabase>);
@@ -76,7 +76,7 @@ describe('SavedQueriesProvider', () => {
   });
 
   it('should save a new query', async () => {
-    vi.mocked(invoke)
+    mockClient.call
       .mockResolvedValueOnce(mockQueries) // Initial load
       .mockResolvedValueOnce(undefined) // save_query
       .mockResolvedValueOnce([...mockQueries, { id: 'query-3', name: 'New Query', sql: 'SELECT 1', connection_id: 'conn-123' }]);
@@ -90,7 +90,7 @@ describe('SavedQueriesProvider', () => {
 
     await result.current.saveQuery('New Query', 'SELECT 1');
 
-    expect(invoke).toHaveBeenCalledWith('save_query', {
+    expect(mockClient.call).toHaveBeenCalledWith('save_query', {
       connectionId: 'conn-123',
       name: 'New Query',
       sql: 'SELECT 1',
@@ -114,11 +114,11 @@ describe('SavedQueriesProvider', () => {
 
     await result.current.saveQuery('New Query', 'SELECT 1');
 
-    expect(invoke).not.toHaveBeenCalledWith('save_query', expect.anything());
+    expect(mockClient.call).not.toHaveBeenCalledWith('save_query', expect.anything());
   });
 
   it('should update an existing query', async () => {
-    vi.mocked(invoke)
+    mockClient.call
       .mockResolvedValueOnce(mockQueries)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce([
@@ -135,7 +135,8 @@ describe('SavedQueriesProvider', () => {
 
     await result.current.updateQuery('query-1', 'Updated Users', 'SELECT id, name FROM users');
 
-    expect(invoke).toHaveBeenCalledWith('update_saved_query', {
+    expect(mockClient.call).toHaveBeenCalledWith('update_saved_query', {
+      connectionId: 'conn-123',
       id: 'query-1',
       name: 'Updated Users',
       sql: 'SELECT id, name FROM users',
@@ -148,7 +149,7 @@ describe('SavedQueriesProvider', () => {
   });
 
   it('should delete a query', async () => {
-    vi.mocked(invoke)
+    mockClient.call
       .mockResolvedValueOnce(mockQueries)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce([mockQueries[1]]);
@@ -162,7 +163,7 @@ describe('SavedQueriesProvider', () => {
 
     await result.current.deleteQuery('query-1');
 
-    expect(invoke).toHaveBeenCalledWith('delete_saved_query', { id: 'query-1' });
+    expect(mockClient.call).toHaveBeenCalledWith('delete_saved_query', { connectionId: 'conn-123', id: 'query-1' });
 
     await waitFor(() => {
       expect(result.current.queries).toHaveLength(1);
@@ -171,7 +172,7 @@ describe('SavedQueriesProvider', () => {
   });
 
   it('should handle save error', async () => {
-    vi.mocked(invoke)
+    mockClient.call
       .mockResolvedValueOnce(mockQueries)
       .mockRejectedValueOnce(new Error('Save failed'));
 
@@ -186,7 +187,7 @@ describe('SavedQueriesProvider', () => {
   });
 
   it('should refresh queries manually', async () => {
-    vi.mocked(invoke)
+    mockClient.call
       .mockResolvedValueOnce(mockQueries)
       .mockResolvedValueOnce([...mockQueries, { id: 'query-3', name: 'Another Query', sql: 'SELECT 2', connection_id: 'conn-123' }]);
 

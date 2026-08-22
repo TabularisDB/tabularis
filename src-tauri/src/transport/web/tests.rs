@@ -634,6 +634,133 @@ async fn executes_representative_commands_over_versioned_rpc() {
     );
     assert!(!temp.path().join("preferences").exists());
 
+    let saved_query = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "save_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "name": "All users",
+            "sql": "SELECT * FROM users",
+            "database": "main"
+        }),
+    )
+    .await;
+    let saved_query_id = saved_query["id"].as_str().unwrap();
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_saved_queries",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await[0]["sql"],
+        "SELECT * FROM users"
+    );
+    let cross_connection_update = client
+        .post(format!("{base_url}/api/v1/rpc/update_saved_query"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "connectionId": "another-connection",
+            "id": saved_query_id,
+            "name": "Unsafe update",
+            "sql": "SELECT 2",
+            "database": null
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        cross_connection_update.status(),
+        reqwest::StatusCode::CONFLICT
+    );
+    let updated_query = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "update_saved_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "id": saved_query_id,
+            "name": "Named users",
+            "sql": "SELECT name FROM users",
+            "database": "main"
+        }),
+    )
+    .await;
+    assert_eq!(updated_query["name"], "Named users");
+
+    let history_entry = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "add_query_history_entry",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "sql": "SELECT name FROM users",
+            "executedAt": "2026-08-22T00:00:00Z",
+            "executionTimeMs": 1.5,
+            "status": "success",
+            "rowsAffected": 0,
+            "error": null,
+            "database": "main"
+        }),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_query_history",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await["entries"][0]["id"],
+        history_entry["id"]
+    );
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "delete_query_history_entry",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "id": history_entry["id"]
+        }),
+    )
+    .await;
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "clear_query_history",
+        serde_json::json!({"connectionId": "metadata-fixture"}),
+    )
+    .await;
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "delete_saved_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "id": saved_query_id
+        }),
+    )
+    .await;
+
     assert_eq!(
         rpc_data(
             &client,
