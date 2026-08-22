@@ -28,6 +28,7 @@ import type {
 } from "../types/queryHistory";
 import type { UserOverrides } from "../utils/keybindings";
 import type { NotebookMetadata } from "../types/notebook";
+import type { AiNotebookExport } from "../types/ai";
 import type {
   ImportPreview,
   ImportResolution,
@@ -350,6 +351,15 @@ export interface DatabaseImportRequest extends ConnectionIdRequest {
   filePath?: string;
   /** Browser-only opaque upload token. */
   uploadToken?: string;
+}
+
+export interface QueryExportRequest extends ConnectionIdRequest {
+  query: string;
+  format: "csv" | "json" | "markdown";
+  csvDelimiter?: string;
+  database?: string;
+  /** Desktop-only save path. Browser requests omit this and receive a download. */
+  filePath?: string;
 }
 
 export interface PersistedConfig extends Partial<Settings> {
@@ -884,6 +894,25 @@ export interface CommandMap {
   fetch_blob: CommandDefinition<BlobColumnRequest, BlobFetchResponse, "database">;
   detect_blob_mime: CommandDefinition<{ base64Data: string }, string, "sensitive">;
   detect_mime_type: CommandDefinition<{ headerBase64: string }, string, "sensitive">;
+
+  cancel_export: CommandDefinition<ConnectionIdRequest, void, "database">;
+  export_query_to_file: CommandDefinition<
+    QueryExportRequest,
+    GeneratedFile | null,
+    "database"
+  >;
+  export_ai_activity_json: CommandDefinition<undefined, string, "sensitive">;
+  export_ai_activity_csv: CommandDefinition<undefined, string, "sensitive">;
+  export_ai_session_as_notebook: CommandDefinition<
+    { sessionId: string },
+    AiNotebookExport,
+    "sensitive"
+  >;
+  export_logs: CommandDefinition<
+    { filePath?: string },
+    GeneratedFile | null,
+    "sensitive"
+  >;
 
   get_config: CommandDefinition<undefined, PersistedConfig, "local-admin">;
   save_config: CommandDefinition<{ config: PersistedConfig }, void, "local-admin">;

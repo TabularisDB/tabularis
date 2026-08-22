@@ -440,6 +440,8 @@
     "appearance": "Darstellung",
     "localization": "Lokalisierung",
     "themeSelection": "Themaauswahl",
+    "importTheme": "Theme importieren",
+    "exportTheme": "Theme exportieren",
     "fontFamily": "Schriftfamilie",
     "fonts": {
       "system": "Systemstandard",

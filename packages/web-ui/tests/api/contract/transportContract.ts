@@ -122,6 +122,48 @@ export function defineTransportContractSuite(
       });
     });
 
+    it("preserves generic export contracts", async () => {
+      await expect(
+        harness.transport.call("export_query_to_file", {
+          connectionId: "query-export-fixture",
+          query: "SELECT 1 AS value",
+          format: "csv",
+          csvDelimiter: ";",
+        }),
+      ).resolves.toEqual({
+        kind: "download",
+        fileName: "result.csv",
+        mimeType: "text/csv",
+        token: "query-export-download-token",
+        size: 14,
+      });
+      await expect(
+        harness.transport.call("cancel_export", {
+          connectionId: "query-export-fixture",
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("export_ai_activity_json", undefined),
+      ).resolves.toBe('{"id":"activity-1"}\n');
+      await expect(
+        harness.transport.call("export_ai_activity_csv", undefined),
+      ).resolves.toBe("id,status\nactivity-1,success\n");
+      await expect(
+        harness.transport.call("export_ai_session_as_notebook", {
+          sessionId: "ai-session-fixture",
+        }),
+      ).resolves.toMatchObject({ title: "AI session" });
+      await expect(
+        harness.transport.call("export_logs", {}),
+      ).resolves.toEqual({
+        kind: "download",
+        fileName: "tabularis-logs.log",
+        mimeType: "text/plain",
+        token: "logs-download-token",
+        size: 64,
+      });
+    });
+
     it("preserves database dump and import job contracts", async () => {
       await expect(
         harness.transport.call("dump_database", {
@@ -742,6 +784,47 @@ async function handleRequest(
         serverLocation: "/srv/tabularis/backups/tabularis-backup.json",
         targetKind: "serverDirectory",
         download: null,
+      },
+    },
+    export_query_to_file: {
+      request: {
+        connectionId: "query-export-fixture",
+        query: "SELECT 1 AS value",
+        format: "csv",
+        csvDelimiter: ";",
+      },
+      response: {
+        kind: "download",
+        fileName: "result.csv",
+        mimeType: "text/csv",
+        token: "query-export-download-token",
+        size: 14,
+      },
+    },
+    cancel_export: {
+      request: { connectionId: "query-export-fixture" },
+      response: null,
+    },
+    export_ai_activity_json: {
+      request: null,
+      response: '{"id":"activity-1"}\n',
+    },
+    export_ai_activity_csv: {
+      request: null,
+      response: "id,status\nactivity-1,success\n",
+    },
+    export_ai_session_as_notebook: {
+      request: { sessionId: "ai-session-fixture" },
+      response: { title: "AI session", cells: [] },
+    },
+    export_logs: {
+      request: {},
+      response: {
+        kind: "download",
+        fileName: "tabularis-logs.log",
+        mimeType: "text/plain",
+        token: "logs-download-token",
+        size: 64,
       },
     },
     dump_database: {

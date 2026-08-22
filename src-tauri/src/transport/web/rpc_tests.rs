@@ -122,6 +122,46 @@ impl ApplicationApi for FixtureApplication {
         })
     }
 
+    async fn execute_generic_export_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: crate::application::generic_exports::GenericExportCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(match command {
+            crate::application::generic_exports::GenericExportCommand::ExportQuery { .. } => {
+                serde_json::json!({
+                    "kind": "download",
+                    "fileName": "result.csv",
+                    "mimeType": "text/csv",
+                    "token": "query-export-download-token",
+                    "size": 14
+                })
+            }
+            crate::application::generic_exports::GenericExportCommand::ExportAiActivityJson => {
+                serde_json::json!("{\"id\":\"activity-1\"}\n")
+            }
+            crate::application::generic_exports::GenericExportCommand::ExportAiActivityCsv => {
+                serde_json::json!("id,status\nactivity-1,success\n")
+            }
+            crate::application::generic_exports::GenericExportCommand::ExportAiSessionAsNotebook { .. } => {
+                serde_json::json!({"title": "AI session", "cells": []})
+            }
+            crate::application::generic_exports::GenericExportCommand::ExportLogs => {
+                serde_json::json!({
+                    "kind": "download",
+                    "fileName": "tabularis-logs.log",
+                    "mimeType": "text/plain",
+                    "token": "logs-download-token",
+                    "size": 64
+                })
+            }
+            crate::application::generic_exports::GenericExportCommand::CancelExport { .. } => {
+                Value::Null
+            }
+        })
+    }
+
     async fn execute_metadata_command(
         &self,
         context: ApplicationRequestContext,
@@ -378,6 +418,31 @@ fn declares_authorization_for_each_registered_command() {
             .authorization,
         AuthorizationLevel::Sensitive
     );
+}
+
+#[test]
+fn registers_generic_export_commands_with_explicit_authorization() {
+    for name in ["export_query_to_file", "cancel_export"] {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(
+            command.metadata().authorization,
+            AuthorizationLevel::Database,
+            "{name}",
+        );
+    }
+    for name in [
+        "export_ai_activity_json",
+        "export_ai_activity_csv",
+        "export_ai_session_as_notebook",
+        "export_logs",
+    ] {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(
+            command.metadata().authorization,
+            AuthorizationLevel::Sensitive,
+            "{name}",
+        );
+    }
 }
 
 #[test]

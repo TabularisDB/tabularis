@@ -55,6 +55,40 @@ defineTransportContractSuite(
           download: null,
         };
       }
+      if (command === "export_query_to_file") {
+        expect(request).toEqual({
+          connectionId: "query-export-fixture",
+          query: "SELECT 1 AS value",
+          format: "csv",
+          csvDelimiter: ";",
+        });
+        return {
+          kind: "download",
+          fileName: "result.csv",
+          mimeType: "text/csv",
+          token: "query-export-download-token",
+          size: 14,
+        };
+      }
+      if (command === "cancel_export") return null;
+      if (command === "export_ai_activity_json") {
+        return '{"id":"activity-1"}\n';
+      }
+      if (command === "export_ai_activity_csv") {
+        return "id,status\nactivity-1,success\n";
+      }
+      if (command === "export_ai_session_as_notebook") {
+        return { title: "AI session", cells: [] };
+      }
+      if (command === "export_logs") {
+        return {
+          kind: "download",
+          fileName: "tabularis-logs.log",
+          mimeType: "text/plain",
+          token: "logs-download-token",
+          size: 64,
+        };
+      }
       if (command === "dump_database") {
         expect(request).toEqual({
           connectionId: "database-transfer-fixture",

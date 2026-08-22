@@ -67,7 +67,6 @@ import {
   WrapText,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { TableToolbar } from "../components/ui/TableToolbar";
 import { DataGrid } from "../components/ui/DataGrid";
 import { MultiResultPanel } from "../components/ui/MultiResultPanel";
@@ -124,7 +123,6 @@ import { UserManagementView } from "../components/users/UserManagementView";
 import { useSqlAutocompleteRegistration } from "../hooks/useSqlAutocompleteRegistration";
 import { createNotebook, renameNotebook } from "../utils/notebookStore";
 import { type OnMount, type Monaco } from "@monaco-editor/react";
-import { save } from "@tauri-apps/plugin-dialog";
 import { useAlert } from "../hooks/useAlert";
 import { useToast } from "../hooks/useToast";
 import { useDatabase } from "../hooks/useDatabase";
@@ -164,10 +162,7 @@ import { computeAutoScrollSpeed } from "../utils/notebookDnd";
 import clsx from "clsx";
 import { useTabularisClient } from "../hooks/useTabularisClient";
 import { createRequestId } from "../api/errors";
-
-interface ExportProgress {
-  rows_processed: number;
-}
+import { downloadGeneratedFile } from "../utils/fileDownloads";
 
 const CHEVRON_SELECT_STYLE: React.CSSProperties = {
   backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
@@ -289,16 +284,21 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   }, [activeTabId]);
 
   useEffect(() => {
-    const unlisten = listen<ExportProgress>("export_progress", (event) => {
-      setExportState((prev) => ({
-        ...prev,
-        rowsProcessed: event.payload.rows_processed,
-      }));
-    });
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    void client
+      .subscribe("export_progress", ({ rows_processed: rowsProcessed }) => {
+        setExportState((prev) => ({ ...prev, rowsProcessed }));
+      })
+      .then((stop) => {
+        if (disposed) stop();
+        else unsubscribe = stop;
+      });
     return () => {
-      unlisten.then((f) => f());
+      disposed = true;
+      unsubscribe?.();
     };
-  }, []);
+  }, [client]);
 
   const handleTabContextMenu = (e: React.MouseEvent, tabId: string) => {
     e.preventDefault();
@@ -3368,7 +3368,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const cancelExport = useCallback(async () => {
     if (!activeConnectionId) return;
     try {
-      await invoke("cancel_export", { connectionId: activeConnectionId });
+      await client.call("cancel_export", { connectionId: activeConnectionId });
       setExportState((prev) => ({
         ...prev,
         isOpen: false,
@@ -3376,7 +3376,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     } catch (e) {
       console.error("Failed to cancel export", e);
     }
-  }, [activeConnectionId]);
+  }, [activeConnectionId, client]);
 
   const closeExportModal = useCallback(() => {
     setExportState((prev) => ({ ...prev, isOpen: false }));
@@ -3397,23 +3397,24 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
 
     try {
       const extension = format === "markdown" ? "md" : format;
-      const filePath = await save({
-        filters: [
-          {
-            name: format === "markdown" ? "Markdown" : format.toUpperCase(),
-            extensions: [extension],
-          },
-        ],
-        defaultPath: `result_${Date.now()}.${extension}`,
-      });
-
-      if (!filePath) return;
+      const fileName = `result_${Date.now()}.${extension}`;
+      const filter = {
+        name: format === "markdown" ? "Markdown" : format.toUpperCase(),
+        extensions: [extension],
+      };
+      const target = platform.supports("chooseSaveTarget")
+        ? await platform.chooseSaveTarget({
+            suggestedName: fileName,
+            filters: [filter],
+          })
+        : null;
+      if (platform.supports("chooseSaveTarget") && !target) return;
 
       setExportState({
         isOpen: true,
         status: "exporting",
         rowsProcessed: 0,
-        fileName: filePath.split(/[/\\]/).pop() || filePath, // Show only filename
+        fileName,
       });
       setExportMenuOpen(false);
 
@@ -3428,14 +3429,19 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
           ? { database: targetDatabase }
           : {};
 
-      await invoke("export_query_to_file", {
-        connectionId: activeConnectionId,
-        query,
-        filePath,
-        format,
-        csvDelimiter: format === "csv" ? csvDelimiter : undefined,
-        ...databaseParam,
-      });
+      const generated = await client.call(
+        "export_query_to_file",
+        {
+          connectionId: activeConnectionId,
+          query,
+          ...(target ? { filePath: target.reference } : {}),
+          format,
+          csvDelimiter: format === "csv" ? csvDelimiter : undefined,
+          ...databaseParam,
+        },
+        { deadlineMs: 6 * 60 * 60 * 1000 },
+      );
+      await downloadGeneratedFile(client, platform, generated);
 
       // Success: update modal state instead of showing toast
       setExportState((prev) => ({

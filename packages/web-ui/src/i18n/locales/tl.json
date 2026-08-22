@@ -458,6 +458,8 @@
     "appearance": "Hitsura",
     "localization": "Lokalization",
     "themeSelection": "Pagpili ng Theme",
+    "importTheme": "Mag-import ng theme",
+    "exportTheme": "Mag-export ng theme",
     "fontFamily": "Font Family",
     "fonts": {
       "system": "System Default",

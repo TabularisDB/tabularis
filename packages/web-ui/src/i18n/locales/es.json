@@ -465,6 +465,8 @@
     "appearance": "Apariencia",
     "localization": "Localización",
     "themeSelection": "Selección de Tema",
+    "importTheme": "Importar tema",
+    "exportTheme": "Exportar tema",
     "fontFamily": "Familia de Fuente",
     "fonts": {
       "system": "Sistema",

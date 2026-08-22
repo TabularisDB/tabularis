@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
-import { ask, save } from "@tauri-apps/plugin-dialog";
+import { ask } from "@tauri-apps/plugin-dialog";
 import {
   Trash2,
   FileDown,
@@ -12,6 +12,9 @@ import {
 import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
 import { useAlert } from "../../hooks/useAlert";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { downloadGeneratedFile } from "../../utils/fileDownloads";
 import {
   SettingSection,
   SettingRow,
@@ -37,6 +40,8 @@ export function LogsTab() {
   const { t } = useTranslation();
   const { settings, updateSetting } = useSettings();
   const { showAlert } = useAlert();
+  const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [levelFilter, setLevelFilter] = useState<string>("");
@@ -88,12 +93,18 @@ export function LogsTab() {
 
   const handleExportLogs = useCallback(async () => {
     try {
-      const filePath = await save({
-        filters: [{ name: "Log Files", extensions: ["log"] }],
-        defaultPath: `tabularis_logs_${new Date().toISOString().split("T")[0]}.log`,
+      const fileName = `tabularis_logs_${new Date().toISOString().split("T")[0]}.log`;
+      const target = platform.supports("chooseSaveTarget")
+        ? await platform.chooseSaveTarget({
+            suggestedName: fileName,
+            filters: [{ name: "Log Files", extensions: ["log"] }],
+          })
+        : null;
+      if (platform.supports("chooseSaveTarget") && !target) return;
+      const generated = await client.call("export_logs", {
+        ...(target ? { filePath: target.reference } : {}),
       });
-      if (!filePath) return;
-      await invoke("export_logs", { filePath });
+      await downloadGeneratedFile(client, platform, generated);
       showAlert(t("settings.exportLogsSuccess"), {
         title: t("common.success"),
         kind: "info",
@@ -101,7 +112,7 @@ export function LogsTab() {
     } catch (e) {
       console.error("Failed to export logs", e);
     }
-  }, [t, showAlert]);
+  }, [client, platform, showAlert, t]);
 
   const handleToggleLogging = useCallback(
     async (enabled: boolean) => {

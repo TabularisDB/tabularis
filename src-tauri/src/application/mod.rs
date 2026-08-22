@@ -4,6 +4,7 @@ pub mod connections;
 pub mod database_objects;
 pub mod database_transfers;
 pub mod file_transfers;
+pub mod generic_exports;
 pub mod metadata;
 pub mod notebooks;
 pub mod persistence;

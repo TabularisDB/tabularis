@@ -403,6 +403,8 @@
     "appearance": "모양",
     "localization": "지역화",
     "themeSelection": "테마 선택",
+    "importTheme": "테마 가져오기",
+    "exportTheme": "테마 내보내기",
     "fontFamily": "글꼴",
     "fonts": {
       "system": "시스템 기본값",

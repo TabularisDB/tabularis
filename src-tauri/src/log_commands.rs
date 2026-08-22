@@ -64,40 +64,20 @@ pub struct LogSettings {
 }
 
 #[tauri::command]
-pub fn export_logs(log_buffer: State<SharedLogBuffer>, file_path: String) -> Result<(), String> {
-    let buffer = log_buffer.lock().unwrap();
-    let entries = buffer.get_entries(None, None);
-
-    if entries.is_empty() {
-        return Err("No logs to export".to_string());
-    }
-
-    let mut content = String::new();
-    content.push_str("Tabularis Application Logs\n");
-    content.push_str("==========================\n\n");
-
-    for entry in entries {
-        content.push_str(&format!(
-            "[{}] [{}] {}",
-            entry.timestamp,
-            entry.level.to_uppercase(),
-            entry.message
-        ));
-        if let Some(target) = &entry.target {
-            content.push_str(&format!(" (target: {})", target));
-        }
-        content.push('\n');
-    }
-
-    // Release the lock before writing
-    drop(buffer);
-
-    // Write to file synchronously
+pub async fn export_logs(
+    runtime: State<'_, crate::runtime::RuntimeContext>,
+    log_buffer: State<'_, SharedLogBuffer>,
+    file_path: String,
+) -> Result<Option<crate::application::connection_files::GeneratedFile>, String> {
     let path = PathBuf::from(file_path);
-    std::fs::write(&path, content).map_err(|e| format!("Failed to write log file: {}", e))?;
-
+    let result = crate::application::generic_exports::export_logs(
+        runtime.inner(),
+        log_buffer.inner().clone(),
+        crate::application::generic_exports::ExportDestination::ServerPath(path.clone()),
+    )
+    .await?;
     log::info!("Logs exported to: {:?}", path);
-    Ok(())
+    Ok(result)
 }
 
 /// Lets the frontend record user-relevant events (e.g. a database pruned from

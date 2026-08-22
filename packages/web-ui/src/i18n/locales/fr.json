@@ -458,6 +458,8 @@
     "appearance": "Apparence",
     "localization": "Localisation",
     "themeSelection": "Choix du thème",
+    "importTheme": "Importer un thème",
+    "exportTheme": "Exporter le thème",
     "fontFamily": "Famille de police",
     "fonts": {
       "system": "Police système par défaut",

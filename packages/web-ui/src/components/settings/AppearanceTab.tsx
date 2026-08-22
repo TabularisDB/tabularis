@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Monitor, Code2 } from "lucide-react";
+import { Monitor, Code2, Download, Upload } from "lucide-react";
 import clsx from "clsx";
 import { useSettings } from "../../hooks/useSettings";
 import { useTheme } from "../../hooks/useTheme";
@@ -16,12 +16,51 @@ import {
 import { FontPicker } from "./FontPicker";
 import { ThemePicker } from "./ThemePicker";
 import { ResultColorsSection } from "./ResultColorsSection";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { useAlert } from "../../hooks/useAlert";
+import { downloadTextFile } from "../../utils/fileDownloads";
 
 export function AppearanceTab() {
   const { t } = useTranslation();
   const { settings, updateSetting } = useSettings();
-  const { currentTheme, allThemes, setTheme } = useTheme();
+  const {
+    currentTheme,
+    allThemes,
+    setTheme,
+    importTheme,
+    exportTheme,
+  } = useTheme();
+  const platform = usePlatformCapabilities();
+  const { showAlert } = useAlert();
   const [subTab, setSubTab] = useState<"general" | "editor">("general");
+
+  const handleImportTheme = async () => {
+    try {
+      const selected = await platform.chooseInputFile({
+        filters: [{ name: "Tabularis Theme", extensions: ["json"] }],
+      });
+      if (!selected) return;
+      const contents = await platform.readInputFile(selected.reference);
+      const theme = await importTheme(new TextDecoder().decode(contents));
+      await setTheme(theme.id);
+    } catch (error) {
+      showAlert(String(error), { kind: "error", title: t("common.error") });
+    }
+  };
+
+  const handleExportTheme = async () => {
+    try {
+      const contents = await exportTheme(currentTheme.id);
+      await downloadTextFile(platform, {
+        fileName: `${currentTheme.id}.json`,
+        contents,
+        mimeType: "application/json",
+        filters: [{ name: "Tabularis Theme", extensions: ["json"] }],
+      });
+    } catch (error) {
+      showAlert(String(error), { kind: "error", title: t("common.error") });
+    }
+  };
 
   return (
     <div>
@@ -63,6 +102,24 @@ export function AppearanceTab() {
                 onChange={setTheme}
                 themes={allThemes}
               />
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleImportTheme}
+                  className="flex items-center gap-2 rounded-lg border border-strong bg-surface-secondary px-3 py-2 text-sm text-secondary transition-colors hover:bg-surface-tertiary hover:text-primary"
+                >
+                  <Upload size={15} />
+                  {t("settings.importTheme", { defaultValue: "Import theme" })}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportTheme}
+                  className="flex items-center gap-2 rounded-lg border border-strong bg-surface-secondary px-3 py-2 text-sm text-secondary transition-colors hover:bg-surface-tertiary hover:text-primary"
+                >
+                  <Download size={15} />
+                  {t("settings.exportTheme", { defaultValue: "Export theme" })}
+                </button>
+              </div>
             </div>
           </SettingSection>
 

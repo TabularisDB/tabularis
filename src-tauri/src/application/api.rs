@@ -1,6 +1,6 @@
 use super::{
-    connection_files, connections, database_objects, database_transfers, metadata, notebooks,
-    persistence, productivity, queries, records, tunnels,
+    connection_files, connections, database_objects, database_transfers, generic_exports, metadata,
+    notebooks, persistence, productivity, queries, records, tunnels,
 };
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use async_trait::async_trait;
@@ -92,6 +92,12 @@ pub trait ApplicationApi: Send + Sync {
         command: database_transfers::DatabaseTransferCommand,
     ) -> Result<Value, ApplicationError>;
 
+    async fn execute_generic_export_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: generic_exports::GenericExportCommand,
+    ) -> Result<Value, ApplicationError>;
+
     async fn execute_metadata_command(
         &self,
         context: ApplicationRequestContext,
@@ -151,6 +157,7 @@ impl ApplicationApi for RuntimeApplicationApi {
     fn clear_session(&self, session_id: Uuid) {
         self.state.import_envelope_cache.clear_session(session_id);
         database_transfers::cancel_session_jobs(&self.state.dump_cancellation, session_id);
+        generic_exports::cancel_session_exports(&self.state.export_cancellation, session_id);
         self.state
             .web_preferences
             .lock()
@@ -240,6 +247,21 @@ impl ApplicationApi for RuntimeApplicationApi {
         database_transfers::execute(
             &self.runtime,
             &self.state.dump_cancellation,
+            context.session_id,
+            command,
+        )
+        .await
+        .map_err(ApplicationError::new)
+    }
+
+    async fn execute_generic_export_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: generic_exports::GenericExportCommand,
+    ) -> Result<Value, ApplicationError> {
+        generic_exports::execute(
+            &self.runtime,
+            &self.state.export_cancellation,
             context.session_id,
             command,
         )

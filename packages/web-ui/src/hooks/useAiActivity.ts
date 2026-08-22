@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { TabularisClient } from "../api/client";
 import type {
   AiActivityEvent,
   AiEventFilter,
@@ -223,18 +224,17 @@ export async function clearAiActivity(): Promise<void> {
   await invoke("clear_ai_activity");
 }
 
-export async function exportAiActivityJson(): Promise<string> {
-  return invoke<string>("export_ai_activity_json");
+export function exportAiActivityJson(client: TabularisClient): Promise<string> {
+  return client.call("export_ai_activity_json", undefined);
 }
 
-export async function exportAiActivityCsv(): Promise<string> {
-  return invoke<string>("export_ai_activity_csv");
+export function exportAiActivityCsv(client: TabularisClient): Promise<string> {
+  return client.call("export_ai_activity_csv", undefined);
 }
 
-export async function exportSessionAsNotebook(
+export function exportSessionAsNotebook(
+  client: TabularisClient,
   sessionId: string,
 ): Promise<AiNotebookExport> {
-  return invoke<AiNotebookExport>("export_ai_session_as_notebook", {
-    sessionId,
-  });
+  return client.call("export_ai_session_as_notebook", { sessionId });
 }

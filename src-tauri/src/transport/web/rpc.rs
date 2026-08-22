@@ -3,6 +3,7 @@ use crate::application::{
     connections::ConnectionCommand,
     database_objects::DatabaseObjectCommand,
     database_transfers::{DatabaseTransferCommand, DumpOptions},
+    generic_exports::GenericExportCommand,
     metadata::MetadataCommand,
     notebooks::NotebookCommand,
     persistence::PersistenceCommand,
@@ -51,6 +52,7 @@ enum RpcCommand {
     Connection(ConnectionRpcCommand),
     ConnectionFiles(ConnectionFilesRpcCommand),
     DatabaseTransfer(DatabaseTransferRpcCommand),
+    GenericExport(GenericExportRpcCommand),
     Metadata(MetadataRpcCommand),
     DatabaseObject(DatabaseObjectRpcCommand),
     Query(QueryRpcCommand),
@@ -67,6 +69,16 @@ enum DatabaseTransferRpcCommand {
     CancelDump,
     Import,
     CancelImport,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum GenericExportRpcCommand {
+    ExportQuery,
+    CancelExport,
+    ExportAiActivityJson,
+    ExportAiActivityCsv,
+    ExportAiSessionAsNotebook,
+    ExportLogs,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -720,6 +732,22 @@ struct ExplainQueryRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct QueryExportRequest {
+    connection_id: String,
+    query: String,
+    format: String,
+    csv_delimiter: Option<String>,
+    database: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AiSessionExportRequest {
+    session_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RecordIdentityRequest {
     connection_id: String,
     table: String,
@@ -1217,6 +1245,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::GenericExport(command) => {
+                let command = decode_generic_export_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_generic_export_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
             RpcCommand::Metadata(command) => {
                 let command = decode_metadata_command(command, body)
                     .map_err(InvocationError::InvalidPayload)?;
@@ -1316,6 +1352,7 @@ impl RpcCommand {
                 .or_else(|| ConnectionRpcCommand::parse(name).map(Self::Connection))
                 .or_else(|| ConnectionFilesRpcCommand::parse(name).map(Self::ConnectionFiles))
                 .or_else(|| DatabaseTransferRpcCommand::parse(name).map(Self::DatabaseTransfer))
+                .or_else(|| GenericExportRpcCommand::parse(name).map(Self::GenericExport))
                 .or_else(|| PersistenceRpcCommand::parse(name).map(Self::Persistence))
                 .or_else(|| ProductivityRpcCommand::parse(name).map(Self::Productivity))
                 .or_else(|| NotebookRpcCommand::parse(name).map(Self::Notebook)),
@@ -1357,6 +1394,11 @@ impl RpcCommand {
             Self::DatabaseTransfer(_) => CommandMetadata {
                 authorization: AuthorizationLevel::Sensitive,
                 application_error_code: "DATABASE_TRANSFER_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
+            Self::GenericExport(command) => CommandMetadata {
+                authorization: command.authorization(),
+                application_error_code: "EXPORT_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
             Self::Metadata(_) => CommandMetadata {
@@ -1422,6 +1464,30 @@ impl DatabaseTransferRpcCommand {
             "cancel_import" => Self::CancelImport,
             _ => return None,
         })
+    }
+}
+
+impl GenericExportRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "export_query_to_file" => Self::ExportQuery,
+            "cancel_export" => Self::CancelExport,
+            "export_ai_activity_json" => Self::ExportAiActivityJson,
+            "export_ai_activity_csv" => Self::ExportAiActivityCsv,
+            "export_ai_session_as_notebook" => Self::ExportAiSessionAsNotebook,
+            "export_logs" => Self::ExportLogs,
+            _ => return None,
+        })
+    }
+
+    fn authorization(self) -> AuthorizationLevel {
+        match self {
+            Self::ExportQuery | Self::CancelExport => AuthorizationLevel::Database,
+            Self::ExportAiActivityJson
+            | Self::ExportAiActivityCsv
+            | Self::ExportAiSessionAsNotebook
+            | Self::ExportLogs => AuthorizationLevel::Sensitive,
+        }
     }
 }
 
@@ -1740,6 +1806,48 @@ fn decode_database_transfer_command(
             DatabaseTransferCommand::CancelImport {
                 connection_id: request.connection_id,
             }
+        }
+    })
+}
+
+fn decode_generic_export_command(
+    command: GenericExportRpcCommand,
+    body: &[u8],
+) -> Result<GenericExportCommand, String> {
+    Ok(match command {
+        GenericExportRpcCommand::ExportQuery => {
+            let request: QueryExportRequest = decode_payload(body)?;
+            GenericExportCommand::ExportQuery {
+                connection_id: request.connection_id,
+                query: request.query,
+                format: request.format,
+                csv_delimiter: request.csv_delimiter,
+                database: request.database,
+            }
+        }
+        GenericExportRpcCommand::CancelExport => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            GenericExportCommand::CancelExport {
+                connection_id: request.connection_id,
+            }
+        }
+        GenericExportRpcCommand::ExportAiActivityJson => {
+            decode_empty_payload(body)?;
+            GenericExportCommand::ExportAiActivityJson
+        }
+        GenericExportRpcCommand::ExportAiActivityCsv => {
+            decode_empty_payload(body)?;
+            GenericExportCommand::ExportAiActivityCsv
+        }
+        GenericExportRpcCommand::ExportAiSessionAsNotebook => {
+            let request: AiSessionExportRequest = decode_payload(body)?;
+            GenericExportCommand::ExportAiSessionAsNotebook {
+                session_id: request.session_id,
+            }
+        }
+        GenericExportRpcCommand::ExportLogs => {
+            decode_empty_payload(body)?;
+            GenericExportCommand::ExportLogs
         }
     })
 }

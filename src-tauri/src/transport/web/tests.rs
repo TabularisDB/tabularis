@@ -559,6 +559,33 @@ async fn executes_representative_commands_over_versioned_rpc() {
         .await
         .unwrap();
 
+    let query_export = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "export_query_to_file",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "query": "SELECT 1 AS value UNION ALL SELECT 2",
+            "format": "csv",
+            "csvDelimiter": ";"
+        }),
+    )
+    .await;
+    assert_eq!(query_export["kind"], "download");
+    let query_export_response = client
+        .get(format!(
+            "{base_url}/api/v1/downloads/{}",
+            query_export["token"].as_str().unwrap()
+        ))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(query_export_response.status(), reqwest::StatusCode::OK);
+    assert_eq!(query_export_response.text().await.unwrap(), "value\n1\n2\n");
+
     rpc_data(
         &client,
         &base_url,

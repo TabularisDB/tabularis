@@ -458,6 +458,8 @@
     "appearance": "Appearance",
     "localization": "Localization",
     "themeSelection": "Theme Selection",
+    "importTheme": "Import theme",
+    "exportTheme": "Export theme",
     "fontFamily": "Font Family",
     "fonts": {
       "system": "System Default",

@@ -435,6 +435,8 @@
     "appearance": "Внешний вид",
     "localization": "Локализация",
     "themeSelection": "Выбор темы",
+    "importTheme": "Импортировать тему",
+    "exportTheme": "Экспортировать тему",
     "fontFamily": "Шрифт",
     "fonts": {
       "system": "Системный по умолчанию",

@@ -439,6 +439,8 @@
     "appearance": "外观",
     "localization": "本地化",
     "themeSelection": "主题选择",
+    "importTheme": "导入主题",
+    "exportTheme": "导出主题",
     "fontFamily": "字体",
     "fonts": {
       "system": "系统默认",

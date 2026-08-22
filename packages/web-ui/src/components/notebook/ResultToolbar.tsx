@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { Download } from "lucide-react";
 import type { QueryResult } from "../../types/editor";
 import { resultToCsv, resultToJson } from "../../utils/notebookExport";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { downloadTextFile } from "../../utils/fileDownloads";
 
 interface ResultToolbarProps {
   result: QueryResult;
@@ -16,26 +16,23 @@ interface ResultToolbarProps {
  */
 export function ResultToolbar({ result, executionTime }: ResultToolbarProps) {
   const { t } = useTranslation();
+  const platform = usePlatformCapabilities();
 
-  const handleExportCsv = async () => {
-    const filePath = await save({
-      defaultPath: "result.csv",
+  const handleExportCsv = () =>
+    downloadTextFile(platform, {
+      fileName: "result.csv",
+      contents: resultToCsv(result),
+      mimeType: "text/csv",
       filters: [{ name: "CSV", extensions: ["csv"] }],
     });
-    if (!filePath) return;
-    const csv = resultToCsv(result);
-    await writeTextFile(filePath, csv);
-  };
 
-  const handleExportJson = async () => {
-    const filePath = await save({
-      defaultPath: "result.json",
+  const handleExportJson = () =>
+    downloadTextFile(platform, {
+      fileName: "result.json",
+      contents: resultToJson(result),
+      mimeType: "application/json",
       filters: [{ name: "JSON", extensions: ["json"] }],
     });
-    if (!filePath) return;
-    const json = resultToJson(result);
-    await writeTextFile(filePath, json);
-  };
 
   return (
     <>

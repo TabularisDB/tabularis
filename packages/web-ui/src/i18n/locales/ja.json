@@ -451,6 +451,8 @@
     "appearance": "外観",
     "localization": "ローカライズ",
     "themeSelection": "テーマ選択",
+    "importTheme": "テーマをインポート",
+    "exportTheme": "テーマをエクスポート",
     "fontFamily": "フォントファミリー",
     "fonts": {
       "system": "システム既定",

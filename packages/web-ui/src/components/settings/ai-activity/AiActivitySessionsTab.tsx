@@ -8,8 +8,6 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react";
-import { save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
 import {
   exportSessionAsNotebook,
   useAiSessionEvents,
@@ -32,6 +30,9 @@ import {
 import type { AiSessionSummary } from "../../../types/ai";
 import { StatusBadge } from "./StatusBadge";
 import { Select } from "../../ui/Select";
+import { usePlatformCapabilities } from "../../../hooks/usePlatformCapabilities";
+import { useTabularisClient } from "../../../hooks/useTabularisClient";
+import { downloadTextFile } from "../../../utils/fileDownloads";
 
 export function AiActivitySessionsTab() {
   const { t } = useTranslation();
@@ -176,13 +177,22 @@ function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
   const { t } = useTranslation();
   const { showAlert } = useAlert();
   const { settings } = useSettings();
+  const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
 
   const handleExport = async () => {
     try {
-      const exp = await exportSessionAsNotebook(session.sessionId);
+      const exp = await exportSessionAsNotebook(client, session.sessionId);
       const file = notebookFileFromExport(exp);
-      const target = await saveDialog({
-        defaultPath: defaultExportFilename(session.sessionId, exp, settings.displayTimezone),
+      const fileName = defaultExportFilename(
+        session.sessionId,
+        exp,
+        settings.displayTimezone,
+      );
+      const downloaded = await downloadTextFile(platform, {
+        fileName,
+        contents: JSON.stringify(file, null, 2),
+        mimeType: "application/json",
         filters: [
           {
             name: "Tabularis Notebook",
@@ -190,9 +200,8 @@ function SessionCard({ session, expanded, onToggle }: SessionCardProps) {
           },
         ],
       });
-      if (typeof target === "string" && target.length > 0) {
-        await writeTextFile(target, JSON.stringify(file, null, 2));
-        showAlert(t("aiActivity.exportSuccess", { path: target }), {
+      if (downloaded) {
+        showAlert(t("aiActivity.exportSuccess", { path: fileName }), {
           kind: "info",
         });
       }

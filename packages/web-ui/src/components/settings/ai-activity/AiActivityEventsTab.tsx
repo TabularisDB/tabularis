@@ -12,8 +12,6 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-import { save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
 import {
   clearAiActivity,
   exportAiActivityCsv,
@@ -37,6 +35,9 @@ import { EventDetailModal } from "./EventDetailModal";
 import { ConfirmModal } from "../../modals/ConfirmModal";
 import { VisualExplainModal } from "../../modals/VisualExplainModal";
 import { Select } from "../../ui/Select";
+import { usePlatformCapabilities } from "../../../hooks/usePlatformCapabilities";
+import { useTabularisClient } from "../../../hooks/useTabularisClient";
+import { downloadTextFile } from "../../../utils/fileDownloads";
 
 interface ExplainTarget {
   query: string;
@@ -47,6 +48,8 @@ interface ExplainTarget {
 export function AiActivityEventsTab() {
   const { t } = useTranslation();
   const { showAlert } = useAlert();
+  const client = useTabularisClient();
+  const platform = usePlatformCapabilities();
   const [filter, setFilter] = useState<AiEventFilter>({});
   const [detail, setDetail] = useState<AiActivityEvent | null>(null);
   const [explainTarget, setExplainTarget] = useState<ExplainTarget | null>(
@@ -81,10 +84,15 @@ export function AiActivityEventsTab() {
   const handleExport = async (format: "json" | "csv") => {
     try {
       const content =
-        format === "json" ? await exportAiActivityJson() : await exportAiActivityCsv();
-      const target = await saveDialog({
-        defaultPath:
-          format === "json" ? "ai-activity.jsonl" : "ai-activity.csv",
+        format === "json"
+          ? await exportAiActivityJson(client)
+          : await exportAiActivityCsv(client);
+      const fileName =
+        format === "json" ? "ai-activity.jsonl" : "ai-activity.csv";
+      const downloaded = await downloadTextFile(platform, {
+        fileName,
+        contents: content,
+        mimeType: format === "json" ? "application/x-ndjson" : "text/csv",
         filters: [
           {
             name: format === "json" ? "JSON Lines" : "CSV",
@@ -92,9 +100,8 @@ export function AiActivityEventsTab() {
           },
         ],
       });
-      if (typeof target === "string" && target.length > 0) {
-        await writeTextFile(target, content);
-        showAlert(t("aiActivity.exportSuccess", { path: target }), {
+      if (downloaded) {
+        showAlert(t("aiActivity.exportSuccess", { path: fileName }), {
           kind: "info",
         });
       }

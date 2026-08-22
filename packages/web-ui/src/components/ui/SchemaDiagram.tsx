@@ -28,8 +28,6 @@ import {
   Lock,
   LockOpen,
 } from "lucide-react";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { generateMermaidErDiagram, generateDbml } from "../../utils/schemaExport";
 import { useAlert } from "../../hooks/useAlert";
 import { useTranslation } from "react-i18next";
@@ -37,6 +35,8 @@ import { ContextMenu } from "./ContextMenu";
 import { useSearchParams } from "react-router-dom";
 import { useSettings } from "../../hooks/useSettings";
 import { DEFAULT_SETTINGS } from "../../contexts/SettingsContext";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { downloadTextFile } from "../../utils/fileDownloads";
 
 const nodeTypes = {
   schemaTable: SchemaTableNodeComponent,
@@ -125,6 +125,7 @@ const SchemaDiagramContent = ({
   const { getSchema } = useEditor();
   const { showAlert } = useAlert();
   const { settings } = useSettings();
+  const platform = usePlatformCapabilities();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView, zoomIn, zoomOut } = useReactFlow();
@@ -193,28 +194,28 @@ const SchemaDiagramContent = ({
       const extension = isMermaid ? "mmd" : "dbml";
 
       try {
-        const filePath = await save({
+        const content = isMermaid
+          ? generateMermaidErDiagram(allNodes, allEdges)
+          : generateDbml(allNodes, allEdges);
+        const downloaded = await downloadTextFile(platform, {
+          fileName: `schema_${new Date().toISOString().slice(0, 10)}.${extension}`,
+          contents: content,
+          mimeType: "text/plain",
           filters: [
             {
               name: isMermaid ? "Mermaid" : "DBML",
               extensions: [extension],
             },
           ],
-          defaultPath: `schema_${new Date().toISOString().slice(0, 10)}.${extension}`,
         });
-        if (!filePath) return;
-
-        const content = isMermaid
-          ? generateMermaidErDiagram(allNodes, allEdges)
-          : generateDbml(allNodes, allEdges);
-
-        await writeTextFile(filePath, content);
-        showAlert(t("erDiagram.exportSuccess"), { kind: "info" });
+        if (downloaded) {
+          showAlert(t("erDiagram.exportSuccess"), { kind: "info" });
+        }
       } catch (err) {
         showAlert(String(err), { kind: "error" });
       }
     },
-    [allNodes, allEdges, showAlert, t],
+    [allNodes, allEdges, platform, showAlert, t],
   );
 
   // Callback per tornare alla vista completa

@@ -53,14 +53,14 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 68,
-    "literalCallSiteCount": 94,
+    "literalCommandCount": 62,
+    "literalCallSiteCount": 88,
     "dynamicCallSiteCount": 0,
     "handlerRegistrationCount": 258,
     "registeredCommandCount": 258,
     "duplicateHandlerRegistrations": [],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 190
+    "registeredCommandsWithoutFrontendCall": 196
   },
   "commands": [
     {
@@ -74,20 +74,6 @@
         {
           "file": "packages/web-ui/src/components/modals/visual-explain/ExplainAiAnalysis.tsx",
           "line": 39
-        }
-      ]
-    },
-    {
-      "name": "cancel_export",
-      "featureGroup": "files",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 3371
         }
       ]
     },
@@ -185,7 +171,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 223
+          "line": 224
         }
       ]
     },
@@ -199,7 +185,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
-          "line": 82
+          "line": 87
         }
       ]
     },
@@ -255,7 +241,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 202
+          "line": 203
         }
       ]
     },
@@ -360,76 +346,6 @@
         {
           "file": "packages/web-ui/src/components/modals/AiExplainModal.tsx",
           "line": 57
-        }
-      ]
-    },
-    {
-      "name": "export_ai_activity_csv",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "write",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 231
-        }
-      ]
-    },
-    {
-      "name": "export_ai_activity_json",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "write",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 227
-        }
-      ]
-    },
-    {
-      "name": "export_ai_session_as_notebook",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 237
-        }
-      ]
-    },
-    {
-      "name": "export_logs",
-      "featureGroup": "logs",
-      "eventUse": "none",
-      "filesystemUse": "write",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
-          "line": 96
-        }
-      ]
-    },
-    {
-      "name": "export_query_to_file",
-      "featureGroup": "queries",
-      "eventUse": "event-coordinated",
-      "filesystemUse": "write",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/Editor.tsx",
-          "line": 3431
         }
       ]
     },
@@ -549,7 +465,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 43
+          "line": 44
         }
       ]
     },
@@ -595,7 +511,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 120
+          "line": 121
         }
       ]
     },
@@ -609,7 +525,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 81
+          "line": 82
         }
       ]
     },
@@ -651,7 +567,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
-          "line": 62
+          "line": 67
         }
       ]
     },
@@ -665,7 +581,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
-          "line": 54
+          "line": 59
         }
       ]
     },
@@ -853,7 +769,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/hooks/useAiActivity.ts",
-          "line": 175
+          "line": 176
         }
       ]
     },
@@ -1033,7 +949,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
-          "line": 109
+          "line": 120
         }
       ]
     },
@@ -1047,7 +963,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/settings/LogsTab.tsx",
-          "line": 122
+          "line": 133
         }
       ]
     },
@@ -1130,6 +1046,7 @@
     "apply_tabularis_import",
     "build_routine_call_sql",
     "cancel_dump",
+    "cancel_export",
     "cancel_import",
     "cancel_query",
     "clear_query_history",
@@ -1172,8 +1089,13 @@
     "execute_query",
     "execute_query_batch",
     "explain_query_plan",
+    "export_ai_activity_csv",
+    "export_ai_activity_json",
+    "export_ai_session_as_notebook",
     "export_connections_file",
     "export_connections_payload",
+    "export_logs",
+    "export_query_to_file",
     "export_theme",
     "fetch_blob_as_data_url",
     "get_active_connections",
