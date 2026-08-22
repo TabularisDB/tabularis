@@ -17,6 +17,11 @@ import {
 import { formatSql } from "../../utils/sqlFormat";
 import type { SqlDialect } from "../../utils/sql";
 import type { RunContext } from "../../utils/runTarget";
+import {
+  registerSqlFoldingProvider,
+  setSqlFoldingDialect,
+} from "../../utils/sqlFolding";
+import { installSqlFoldPreview } from "../../utils/sqlFoldPreview";
 
 interface SqlEditorWrapperProps {
   initialValue: string;
@@ -36,6 +41,8 @@ interface SqlEditorWrapperProps {
    * the button with its actual target. Requires `dialect`.
    */
   onRunContextChange?: (context: RunContext) => void;
+  /** Shows the complete query when hovering a collapsed fold. */
+  foldPreview?: boolean;
 }
 
 function isLinux(): boolean {
@@ -56,12 +63,14 @@ const SqlEditorInternal = ({
   options,
   dialect,
   onRunAll,
-  onRunContextChange
+  onRunContextChange,
+  foldPreview = false,
 }: SqlEditorWrapperProps & { editorKey: string }) => {
   const platform = usePlatformCapabilities();
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
+  const foldPreviewRef = useRef<Monaco.IDisposable | null>(null);
   const onRunRef = useRef(onRun);
   onRunRef.current = onRun;
   const onRunAllRef = useRef(onRunAll);
@@ -96,6 +105,8 @@ const SqlEditorInternal = ({
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
       }
+      foldPreviewRef.current?.dispose();
+      foldPreviewRef.current = null;
       editorRef.current?.dispose();
       editorRef.current = null;
       monacoRef.current = null;
@@ -114,6 +125,10 @@ const SqlEditorInternal = ({
       if (selections && selections.length > 0) editor.setSelections(selections);
     }
   }, [initialValue]);
+
+  useEffect(() => {
+    setSqlFoldingDialect(editorRef.current?.getModel() ?? null, dialect);
+  }, [dialect]);
 
   // Update Monaco theme when theme changes
   useEffect(() => {
@@ -169,8 +184,9 @@ const SqlEditorInternal = ({
     );
 
     const handleBeforeMount: BeforeMount = (monaco) => {
-      // Load Monaco theme before editor is created
+      // Load Monaco theme and SQL language features before the editor is created.
       loadMonacoTheme(editorTheme, monaco);
+      registerSqlFoldingProvider(monaco);
     };
 
     const tauriPaste = async (ed: Monaco.editor.ICodeEditor) => {
@@ -243,6 +259,14 @@ const SqlEditorInternal = ({
     const handleEditorMount: OnMount = (editor, monaco) => {
       editorRef.current = editor;
       monacoRef.current = monaco;
+      setSqlFoldingDialect(editor.getModel(), dialectRef.current);
+      if (foldPreview) {
+        foldPreviewRef.current = installSqlFoldPreview(
+          editor,
+          monaco,
+          () => dialectRef.current,
+        );
+      }
 
       if (typeof document !== "undefined" && document.fonts) {
         document.fonts.ready.then(() => monaco.editor.remeasureFonts());
@@ -507,6 +531,8 @@ const SqlEditorInternal = ({
           tabSize: settings.editorTabSize ?? 2,
           wordWrap: (settings.editorWordWrap ?? true) ? 'on' : 'off',
           lineNumbers: (settings.editorShowLineNumbers ?? true) ? 'on' : 'off',
+          folding: true,
+          showFoldingControls: 'always',
           padding: { top: 16, bottom: 32 },
           scrollBeyondLastLine: false,
           overviewRulerLanes: 0,

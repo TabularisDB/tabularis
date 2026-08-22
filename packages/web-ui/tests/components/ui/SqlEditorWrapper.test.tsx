@@ -7,9 +7,14 @@ import type { ReactNode } from 'react';
 
 interface MonacoEditorMockProps {
   onChange?: (value: string) => void;
+  beforeMount?: (monaco: unknown) => void;
   onMount?: (editor: unknown, monaco: unknown) => void;
   defaultValue?: string;
-  options?: { acceptSuggestionOnEnter?: string };
+  options?: {
+    acceptSuggestionOnEnter?: string;
+    folding?: boolean;
+    showFoldingControls?: string;
+  };
 }
 
 interface MonacoKeyDownEventMock {
@@ -19,8 +24,14 @@ interface MonacoKeyDownEventMock {
 }
 
 const monacoRenderState = vi.hoisted(() => ({
+  beforeMount: undefined as MonacoEditorMockProps['beforeMount'],
   onMount: undefined as MonacoEditorMockProps['onMount'],
 }));
+const registerSqlFoldingProviderMock = vi.hoisted(() => vi.fn());
+const setSqlFoldingDialectMock = vi.hoisted(() => vi.fn());
+const installSqlFoldPreviewMock = vi.hoisted(() =>
+  vi.fn(() => ({ dispose: vi.fn() })),
+);
 const matchesShortcutMock = vi.hoisted(() =>
   vi.fn<(event: KeyboardEvent, id: string) => boolean>(),
 );
@@ -37,12 +48,15 @@ vi.mock('../../../src/hooks/usePlatformCapabilities', () => ({
 // Mock MonacoEditor
 vi.mock('@monaco-editor/react', async () => {
   return {
-    default: ({ onChange, onMount, defaultValue, options }: MonacoEditorMockProps) => {
+    default: ({ onChange, beforeMount, onMount, defaultValue, options }: MonacoEditorMockProps) => {
+      monacoRenderState.beforeMount = beforeMount;
       monacoRenderState.onMount = onMount;
       return (
         <textarea
           data-testid="monaco-editor"
           data-accept-suggestion-on-enter={options?.acceptSuggestionOnEnter}
+          data-folding={String(options?.folding)}
+          data-folding-controls={options?.showFoldingControls}
           defaultValue={defaultValue}
           onChange={(e) => onChange?.(e.target.value)}
         />
@@ -68,6 +82,15 @@ vi.mock('../../../src/hooks/useKeybindings', () => ({
 // Mock themeUtils
 vi.mock('../../../src/themes/themeUtils', () => ({
   loadMonacoTheme: vi.fn(),
+}));
+
+vi.mock('../../../src/utils/sqlFolding', () => ({
+  registerSqlFoldingProvider: registerSqlFoldingProviderMock,
+  setSqlFoldingDialect: setSqlFoldingDialectMock,
+}));
+
+vi.mock('../../../src/utils/sqlFoldPreview', () => ({
+  installSqlFoldPreview: installSqlFoldPreviewMock,
 }));
 
 // Mock monaco KeyMod and KeyCode
@@ -109,6 +132,7 @@ describe('SqlEditorWrapper', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    monacoRenderState.beforeMount = undefined;
     monacoRenderState.onMount = undefined;
     matchesShortcutMock.mockReturnValue(false);
   });
@@ -122,6 +146,7 @@ describe('SqlEditorWrapper', () => {
       addCommand,
       dispose: vi.fn(),
       getContribution: vi.fn(() => null),
+      getModel: vi.fn(() => null),
       onKeyDown: vi.fn((handler: (event: MonacoKeyDownEventMock) => void) => {
         keyDownHandlers.push(handler);
       }),
@@ -149,6 +174,43 @@ describe('SqlEditorWrapper', () => {
     );
 
     expect(screen.getByTestId('monaco-editor')).toHaveValue('SELECT * FROM users');
+  });
+
+  it('enables and registers SQL code folding', () => {
+    render(
+      <SqlEditorWrapper
+        initialValue="SELECT 1"
+        onChange={mockOnChange}
+        onRun={mockOnRun}
+        dialect="postgres"
+      />,
+      { wrapper },
+    );
+
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute('data-folding', 'true');
+    expect(screen.getByTestId('monaco-editor')).toHaveAttribute(
+      'data-folding-controls',
+      'always',
+    );
+
+    const monaco = {};
+    monacoRenderState.beforeMount?.(monaco);
+    expect(registerSqlFoldingProviderMock).toHaveBeenCalledWith(monaco);
+  });
+
+  it('installs fold previews only when requested', () => {
+    render(
+      <SqlEditorWrapper
+        initialValue="SELECT 1"
+        onChange={mockOnChange}
+        onRun={mockOnRun}
+        foldPreview
+      />,
+      { wrapper },
+    );
+
+    mountCapturedEditor();
+    expect(installSqlFoldPreviewMock).toHaveBeenCalledOnce();
   });
 
   it('renders editor component', async () => {

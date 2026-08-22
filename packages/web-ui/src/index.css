@@ -471,6 +471,39 @@ select option:active {
   background-color: color-mix(in srgb, var(--accent-primary) 10%, transparent);
 }
 
+/* Read-only preview shown when hovering a collapsed SQL query. */
+.sql-fold-preview {
+  position: fixed;
+  z-index: 10000;
+  min-width: 240px;
+  max-width: min(620px, calc(100vw - 24px));
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-base);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 28%);
+  pointer-events: auto;
+}
+
+.sql-fold-preview-code {
+  max-height: min(480px, calc(100vh - 48px));
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.sql-fold-preview-footer {
+  padding: 5px 10px;
+  border-top: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
 /* Sidebar slide-in animation */
 @keyframes slide-in-right {
   from {
