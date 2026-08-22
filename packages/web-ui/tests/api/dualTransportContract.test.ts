@@ -52,6 +52,31 @@ defineTransportContractSuite(
         expect(request).toEqual({ connectionId: "metadata-fixture" });
         return ["public"];
       }
+      if (command === "get_config") {
+        expect(request).toBeUndefined();
+        return { theme: "tabularis-dark", resultPageSize: 500 };
+      }
+      if (command === "save_config") return null;
+      if (command === "get_keybindings") {
+        return {
+          "editor.run": {
+            mac: { key: "Enter", metaKey: true },
+            win: { key: "Enter", ctrlKey: true },
+          },
+        };
+      }
+      if (command === "save_keybindings") return null;
+      if (command === "get_all_themes") return [];
+      if (command === "get_system_prompt" || command === "reset_system_prompt") {
+        return "Generate SQL only";
+      }
+      if (command === "save_system_prompt") return null;
+      if (command === "load_editor_preferences") return null;
+      if (command === "save_editor_preferences") return null;
+      if (command === "get_last_open_connections") {
+        return ["preference-fixture"];
+      }
+      if (command === "set_last_active_connection") return null;
       if (command === "get_view_definition") {
         return "SELECT id FROM users WHERE active = 1";
       }

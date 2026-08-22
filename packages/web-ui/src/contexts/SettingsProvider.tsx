@@ -7,6 +7,7 @@ import {
   type Settings,
 } from "./SettingsContext";
 import { getFontCSS, stripSessionFields } from "../utils/settings";
+import { useTabularisClient } from "../hooks/useTabularisClient";
 
 const LANGUAGE_APPLICATION_TIMEOUT_MS = 3000;
 
@@ -37,6 +38,7 @@ function matchesAppliedLanguage(
 
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const { i18n } = useTranslation();
+  const client = useTabularisClient();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const [languageState, setLanguageState] = useState<LanguageState>({
@@ -132,7 +134,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
     const loadSettings = async () => {
       try {
-        const config = await invoke<Partial<Settings>>("get_config");
+        const config = await client.call("get_config", undefined);
 
         // Migration logic: Check localStorage if backend is empty/default
         const savedLocal = localStorage.getItem("tabularis_settings");
@@ -148,7 +150,9 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
           };
           // Save migrated data to backend. Strip session-persistence fields —
           // those belong to the DatabaseProvider's own write path.
-          await invoke("save_config", { config: stripSessionFields(finalSettings) });
+          await client.call("save_config", {
+            config: stripSessionFields(finalSettings),
+          });
         } else {
           // Use backend config
           finalSettings = {
@@ -264,7 +268,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     };
 
     loadSettings();
-  }, [isLanguageApplied, queueLanguageApplication]);
+  }, [client, isLanguageApplied, queueLanguageApplication]);
 
   // Update i18n when language changes
   useEffect(() => {
@@ -369,12 +373,12 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     setSettings((prev) => {
       const newSettings = { ...prev, [key]: value };
 
-      // Persist to backend. Strip session-persistence fields — they are
-      // managed by DatabaseProvider through dedicated backend commands
-      // (set_last_open_connections, set_last_active_connection); the Rust
-      // merge treats any Some as authoritative, so forwarding a stale copy
-      // captured at app start would clobber what the session code wrote.
-      persistPromise = invoke<void>("save_config", { config: stripSessionFields(newSettings) }).catch((err) => {
+      // Persist only the changed user preference. Sending the full snapshot
+      // would let concurrent browser sessions overwrite one another's changes;
+      // session restore state is owned by DatabaseProvider's dedicated commands.
+      persistPromise = client.call("save_config", {
+        config: stripSessionFields({ [key]: value }),
+      }).catch((err) => {
         console.error("Failed to save settings:", err);
       });
 

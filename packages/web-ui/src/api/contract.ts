@@ -13,11 +13,15 @@ import type { ConnectionTag } from "../types/tags";
 import type { ExplainQueryOutput } from "@tabularis/explain";
 import type {
   BatchStatementResult,
+  EditorPreferences,
   QueryResult,
   TableColumn,
   TableSchema,
 } from "../types/editor";
 import type { ForeignKey, Index } from "../types/schema";
+import type { Theme } from "../types/theme";
+import type { Settings } from "../contexts/SettingsContext";
+import type { UserOverrides } from "../utils/keybindings";
 import type { RequestId } from "./errors";
 
 export type AuthorizationLevel =
@@ -266,6 +270,14 @@ export type BlobFetchResponse =
       size: number;
       mimeType: string;
     };
+
+export interface PersistedConfig extends Partial<Settings> {
+  theme?: string;
+  checkForUpdates?: boolean;
+  lastDismissedVersion?: string;
+  lastActiveConnectionId?: string;
+  lastOpenConnectionIds?: string[];
+}
 
 export interface CommandMap {
   is_debug_mode: CommandDefinition<undefined, boolean, "local-admin">;
@@ -658,6 +670,63 @@ export interface CommandMap {
   fetch_blob: CommandDefinition<BlobColumnRequest, BlobFetchResponse, "database">;
   detect_blob_mime: CommandDefinition<{ base64Data: string }, string, "sensitive">;
   detect_mime_type: CommandDefinition<{ headerBase64: string }, string, "sensitive">;
+
+  get_config: CommandDefinition<undefined, PersistedConfig, "local-admin">;
+  save_config: CommandDefinition<{ config: PersistedConfig }, void, "local-admin">;
+  get_config_json: CommandDefinition<undefined, string, "local-admin">;
+  save_config_json: CommandDefinition<{ json: string }, void, "local-admin">;
+
+  get_keybindings: CommandDefinition<undefined, UserOverrides, "local-admin">;
+  save_keybindings: CommandDefinition<
+    { keybindings: UserOverrides },
+    void,
+    "local-admin"
+  >;
+
+  get_all_themes: CommandDefinition<undefined, Theme[], "local-admin">;
+  save_custom_theme: CommandDefinition<{ theme: Theme }, void, "local-admin">;
+  delete_custom_theme: CommandDefinition<{ themeId: string }, void, "local-admin">;
+
+  get_system_prompt: CommandDefinition<undefined, string, "local-admin">;
+  save_system_prompt: CommandDefinition<{ prompt: string }, void, "local-admin">;
+  reset_system_prompt: CommandDefinition<undefined, string, "local-admin">;
+  get_explain_prompt: CommandDefinition<undefined, string, "local-admin">;
+  save_explain_prompt: CommandDefinition<{ prompt: string }, void, "local-admin">;
+  reset_explain_prompt: CommandDefinition<undefined, string, "local-admin">;
+  get_explainplan_prompt: CommandDefinition<undefined, string, "local-admin">;
+  save_explainplan_prompt: CommandDefinition<{ prompt: string }, void, "local-admin">;
+  reset_explainplan_prompt: CommandDefinition<undefined, string, "local-admin">;
+  get_cellname_prompt: CommandDefinition<undefined, string, "local-admin">;
+  save_cellname_prompt: CommandDefinition<{ prompt: string }, void, "local-admin">;
+  reset_cellname_prompt: CommandDefinition<undefined, string, "local-admin">;
+  get_tabrename_prompt: CommandDefinition<undefined, string, "local-admin">;
+  save_tabrename_prompt: CommandDefinition<{ prompt: string }, void, "local-admin">;
+  reset_tabrename_prompt: CommandDefinition<undefined, string, "local-admin">;
+
+  load_editor_preferences: CommandDefinition<
+    ConnectionIdRequest,
+    EditorPreferences | null,
+    "database"
+  >;
+  save_editor_preferences: CommandDefinition<
+    ConnectionIdRequest & { preferences: EditorPreferences },
+    void,
+    "database"
+  >;
+  delete_editor_preferences: CommandDefinition<ConnectionIdRequest, void, "database">;
+
+  get_last_active_connection: CommandDefinition<undefined, string | null, "session">;
+  set_last_active_connection: CommandDefinition<
+    { connectionId: string | null },
+    void,
+    "session"
+  >;
+  get_last_open_connections: CommandDefinition<undefined, string[], "session">;
+  set_last_open_connections: CommandDefinition<
+    { connectionIds: string[] },
+    void,
+    "session"
+  >;
 }
 
 export type CommandName = keyof CommandMap;

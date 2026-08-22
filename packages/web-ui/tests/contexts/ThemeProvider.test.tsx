@@ -8,6 +8,11 @@ import type { Theme } from "../../src/types/theme";
 
 vi.mock("@tauri-apps/api/core");
 
+const mockClient = vi.hoisted(() => ({ call: vi.fn() }));
+vi.mock("../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => mockClient,
+}));
+
 vi.mock("../../src/themes/themeUtils", () => ({
   applyThemeToCSS: vi.fn(),
 }));
@@ -136,6 +141,8 @@ describe("ThemeProvider", () => {
         dispatchEvent: vi.fn(),
       })),
     });
+
+    mockClient.call.mockImplementation((command, request) => invoke(command, request));
 
     // Default mock for invoke
     vi.mocked(invoke).mockImplementation((cmd: string) => {

@@ -2,6 +2,7 @@ use super::*;
 use crate::runtime::{
     events::NoopRuntimeEvents, paths::FixedRuntimePaths, secrets::RuntimeSecrets,
 };
+use std::fs;
 
 #[derive(Default)]
 struct NoopSecrets;

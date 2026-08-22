@@ -497,6 +497,143 @@ async fn executes_representative_commands_over_versioned_rpc() {
         .await
         .unwrap();
 
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "save_config",
+        serde_json::json!({"config": {"language": "en", "formatterTabWidth": 4}}),
+    )
+    .await;
+    let config = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_config",
+        serde_json::Value::Null,
+    )
+    .await;
+    assert_eq!(config["language"], "en");
+    assert_eq!(config["formatterTabWidth"], 4);
+
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "save_keybindings",
+        serde_json::json!({"keybindings": {"editor.run": {"key": "Enter"}}}),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_keybindings",
+            serde_json::Value::Null,
+        )
+        .await["editor.run"]["key"],
+        "Enter"
+    );
+
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "save_system_prompt",
+        serde_json::json!({"prompt": "Generate safe SQL"}),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_system_prompt",
+            serde_json::Value::Null,
+        )
+        .await,
+        "Generate safe SQL"
+    );
+
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "save_editor_preferences",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "preferences": {
+                "tabs": [{"id": "tab-1", "title": "Browser console"}],
+                "active_tab_id": "tab-1"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "load_editor_preferences",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await["active_tab_id"],
+        "tab-1"
+    );
+
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "set_last_open_connections",
+        serde_json::json!({"connectionIds": ["metadata-fixture"]}),
+    )
+    .await;
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "set_last_active_connection",
+        serde_json::json!({"connectionId": "metadata-fixture"}),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_last_open_connections",
+            serde_json::Value::Null,
+        )
+        .await,
+        serde_json::json!(["metadata-fixture"])
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_last_active_connection",
+            serde_json::Value::Null,
+        )
+        .await,
+        "metadata-fixture"
+    );
+    assert!(!temp.path().join("preferences").exists());
+
     assert_eq!(
         rpc_data(
             &client,

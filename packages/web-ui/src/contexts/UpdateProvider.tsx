@@ -1,10 +1,12 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { useCallback, useState, useEffect, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { UpdateContext, type UpdateCheckResult } from "./UpdateContext";
 import { toErrorMessage } from "../utils/errors";
+import { useTabularisClient } from "../hooks/useTabularisClient";
 
 export const UpdateProvider = ({ children }: { children: ReactNode }) => {
+  const client = useTabularisClient();
   const [updateInfo, setUpdateInfo] = useState<UpdateCheckResult | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -29,7 +31,7 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  const checkForUpdates = async (force = false) => {
+  const checkForUpdates = useCallback(async (force = false) => {
     setIsChecking(true);
     setError(null);
     setIsUpToDate(false);
@@ -44,9 +46,7 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
         // a version has been dismissed.
         let dismissed = false;
         if (!force) {
-          const config = await invoke<{ lastDismissedVersion: string }>(
-            "get_config",
-          );
+          const config = await client.call("get_config", undefined);
           dismissed = config.lastDismissedVersion === result.latestVersion;
         }
 
@@ -69,7 +69,7 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsChecking(false);
     }
-  };
+  }, [client]);
 
   const downloadAndInstall = async () => {
     setIsDownloading(true);
@@ -77,7 +77,7 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     try {
       await invoke("download_and_install_update");
-      // L'app si riavvierà automaticamente dopo l'installazione
+      // The application restarts automatically after installation.
     } catch (err) {
       console.error("Failed to download/install update:", err);
       setError(toErrorMessage(err));
@@ -87,7 +87,7 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
 
   const dismissUpdate = async () => {
     if (updateInfo) {
-      await invoke("save_config", {
+      await client.call("save_config", {
         config: { lastDismissedVersion: updateInfo.latestVersion },
       });
       setUpdateInfo(null);
@@ -99,13 +99,11 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
     const performStartupCheck = async () => {
       try {
         // Detect installation source first; managed packages skip built-in updates
-        const source = await invoke<string | null>("get_installation_source");
+        const source = await client.call("get_installation_source", undefined);
         setInstallationSource(source ?? null);
         if (source) return;
 
-        const config = await invoke<{ autoCheckUpdatesOnStartup: boolean }>(
-          "get_config",
-        );
+        const config = await client.call("get_config", undefined);
         if (config.autoCheckUpdatesOnStartup !== false) {
           // Default: check on startup
           await checkForUpdates(false);
@@ -115,10 +113,10 @@ export const UpdateProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    // Delay di 2 secondi per non bloccare l'avvio dell'app
+    // Delay startup checks so they do not block application initialization.
     const timer = setTimeout(performStartupCheck, 2000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [checkForUpdates, client]);
 
   return (
     <UpdateContext.Provider

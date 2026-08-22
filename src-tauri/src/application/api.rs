@@ -1,4 +1,4 @@
-use super::{connections, database_objects, metadata, queries, records, tunnels};
+use super::{connections, database_objects, metadata, persistence, queries, records, tunnels};
 use crate::runtime::{state::ApplicationState, RuntimeContext};
 use async_trait::async_trait;
 use serde_json::Value;
@@ -46,6 +46,8 @@ impl ApplicationError {
 
 #[async_trait]
 pub trait ApplicationApi: Send + Sync {
+    fn clear_session(&self, session_id: Uuid);
+
     async fn is_debug_mode(
         &self,
         context: ApplicationRequestContext,
@@ -98,6 +100,12 @@ pub trait ApplicationApi: Send + Sync {
         context: ApplicationRequestContext,
         command: tunnels::TunnelCommand,
     ) -> Result<Value, ApplicationError>;
+
+    async fn execute_persistence_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: persistence::PersistenceCommand,
+    ) -> Result<Value, ApplicationError>;
 }
 
 pub struct RuntimeApplicationApi {
@@ -113,6 +121,19 @@ impl RuntimeApplicationApi {
 
 #[async_trait]
 impl ApplicationApi for RuntimeApplicationApi {
+    fn clear_session(&self, session_id: Uuid) {
+        self.state
+            .web_preferences
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .remove(&session_id);
+        self.state
+            .web_active_connections
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .remove(&session_id);
+    }
+
     async fn is_debug_mode(
         &self,
         _context: ApplicationRequestContext,
@@ -208,6 +229,16 @@ impl ApplicationApi for RuntimeApplicationApi {
         command: tunnels::TunnelCommand,
     ) -> Result<Value, ApplicationError> {
         tunnels::execute(&self.runtime, context.session_id, command)
+            .await
+            .map_err(ApplicationError::new)
+    }
+
+    async fn execute_persistence_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: persistence::PersistenceCommand,
+    ) -> Result<Value, ApplicationError> {
+        persistence::execute(&self.runtime, &self.state, context.session_id, command)
             .await
             .map_err(ApplicationError::new)
     }

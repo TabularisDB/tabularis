@@ -53,16 +53,16 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 126,
-    "literalCallSiteCount": 173,
-    "dynamicCallSiteCount": 2,
+    "literalCommandCount": 105,
+    "literalCallSiteCount": 138,
+    "dynamicCallSiteCount": 0,
     "handlerRegistrationCount": 256,
     "registeredCommandCount": 255,
     "duplicateHandlerRegistrations": [
       "cancel_dump"
     ],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 129
+    "registeredCommandsWithoutFrontendCall": 150
   },
   "commands": [
     {
@@ -187,19 +187,19 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
-          "line": 186
+          "line": 190
         },
         {
           "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
-          "line": 192
+          "line": 196
         },
         {
           "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
-          "line": 198
+          "line": 202
         },
         {
           "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
-          "line": 203
+          "line": 207
         }
       ]
     },
@@ -213,23 +213,23 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 123
+          "line": 125
         },
         {
           "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 126
+          "line": 128
         },
         {
           "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 129
+          "line": 131
         },
         {
           "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 132
+          "line": 134
         },
         {
           "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 135
+          "line": 137
         }
       ]
     },
@@ -243,7 +243,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
-          "line": 37
+          "line": 39
         }
       ]
     },
@@ -419,21 +419,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 347
-        }
-      ]
-    },
-    {
-      "name": "delete_custom_theme",
-      "featureGroup": "themes",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
-          "line": 235
+          "line": 359
         }
       ]
     },
@@ -565,7 +551,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Connections.tsx",
-          "line": 331
+          "line": 332
         }
       ]
     },
@@ -649,7 +635,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/pages/Connections.tsx",
-          "line": 322
+          "line": 323
         }
       ]
     },
@@ -811,11 +797,11 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 99
+          "line": 101
         },
         {
           "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
-          "line": 214
+          "line": 218
         }
       ]
     },
@@ -862,74 +848,6 @@
       ]
     },
     {
-      "name": "get_all_themes",
-      "featureGroup": "themes",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
-          "line": 95
-        }
-      ]
-    },
-    {
-      "name": "get_cellname_prompt",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 162
-        }
-      ]
-    },
-    {
-      "name": "get_config",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
-          "line": 135
-        },
-        {
-          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
-          "line": 55
-        },
-        {
-          "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
-          "line": 47
-        },
-        {
-          "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
-          "line": 106
-        }
-      ]
-    },
-    {
-      "name": "get_config_json",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ConfigJsonModal.tsx",
-          "line": 30
-        }
-      ]
-    },
-    {
       "name": "get_connections_backup_status",
       "featureGroup": "backup",
       "eventUse": "none",
@@ -958,48 +876,6 @@
       ]
     },
     {
-      "name": "get_explain_prompt",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 159
-        }
-      ]
-    },
-    {
-      "name": "get_explainplan_prompt",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 168
-        }
-      ]
-    },
-    {
-      "name": "get_installation_source",
-      "featureGroup": "application",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "local-admin",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
-          "line": 102
-        }
-      ]
-    },
-    {
       "name": "get_installed_plugins",
       "featureGroup": "plugins",
       "eventUse": "none",
@@ -1024,48 +900,6 @@
         {
           "file": "packages/web-ui/src/pages/JsonViewerPage.tsx",
           "line": 26
-        }
-      ]
-    },
-    {
-      "name": "get_keybindings",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/KeybindingsProvider.tsx",
-          "line": 20
-        }
-      ]
-    },
-    {
-      "name": "get_last_active_connection",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/Connections.tsx",
-          "line": 156
-        }
-      ]
-    },
-    {
-      "name": "get_last_open_connections",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/pages/Connections.tsx",
-          "line": 155
         }
       ]
     },
@@ -1204,20 +1038,6 @@
       ]
     },
     {
-      "name": "get_system_prompt",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 156
-        }
-      ]
-    },
-    {
       "name": "get_system_stats",
       "featureGroup": "tasks",
       "eventUse": "none",
@@ -1228,20 +1048,6 @@
         {
           "file": "packages/web-ui/src/hooks/useTaskManager.ts",
           "line": 33
-        }
-      ]
-    },
-    {
-      "name": "get_tabrename_prompt",
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 165
         }
       ]
     },
@@ -1394,20 +1200,6 @@
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
           "line": 225
-        }
-      ]
-    },
-    {
-      "name": "load_editor_preferences",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/editor.ts",
-          "line": 33
         }
       ]
     },
@@ -1645,7 +1437,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/modals/ConfigJsonModal.tsx",
-          "line": 55
+          "line": 57
         },
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
@@ -1682,54 +1474,6 @@
       ]
     },
     {
-      "name": "save_config",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
-          "line": 151
-        },
-        {
-          "file": "packages/web-ui/src/contexts/SettingsProvider.tsx",
-          "line": 377
-        },
-        {
-          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
-          "line": 70
-        },
-        {
-          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
-          "line": 89
-        },
-        {
-          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
-          "line": 134
-        },
-        {
-          "file": "packages/web-ui/src/contexts/UpdateProvider.tsx",
-          "line": 90
-        }
-      ]
-    },
-    {
-      "name": "save_config_json",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/ConfigJsonModal.tsx",
-          "line": 45
-        }
-      ]
-    },
-    {
       "name": "save_connection_icon",
       "featureGroup": "connections",
       "eventUse": "none",
@@ -1740,64 +1484,6 @@
         {
           "file": "packages/web-ui/src/platform/tauriCapabilities.ts",
           "line": 216
-        }
-      ]
-    },
-    {
-      "name": "save_custom_theme",
-      "featureGroup": "themes",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
-          "line": 190
-        },
-        {
-          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
-          "line": 214
-        },
-        {
-          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
-          "line": 270
-        },
-        {
-          "file": "packages/web-ui/src/contexts/ThemeProvider.tsx",
-          "line": 301
-        }
-      ]
-    },
-    {
-      "name": "save_editor_preferences",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/utils/editor.ts",
-          "line": 68
-        }
-      ]
-    },
-    {
-      "name": "save_keybindings",
-      "featureGroup": "configuration",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "session",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/KeybindingsProvider.tsx",
-          "line": 50
-        },
-        {
-          "file": "packages/web-ui/src/contexts/KeybindingsProvider.tsx",
-          "line": 60
         }
       ]
     },
@@ -1839,7 +1525,7 @@
       "callSites": [
         {
           "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-          "line": 176
+          "line": 178
         }
       ]
     },
@@ -1868,42 +1554,6 @@
         {
           "file": "packages/web-ui/src/components/settings/BackupTab.tsx",
           "line": 98
-        }
-      ]
-    },
-    {
-      "name": "set_last_active_connection",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1001
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1095
-        }
-      ]
-    },
-    {
-      "name": "set_last_open_connections",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "database",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 993
-        },
-        {
-          "file": "packages/web-ui/src/contexts/DatabaseProvider.tsx",
-          "line": 1112
         }
       ]
     },
@@ -2018,44 +1668,7 @@
       ]
     }
   ],
-  "dynamicInvocations": [
-    {
-      "expression": "cmd",
-      "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-      "line": 195,
-      "context": "handleSavePrompt",
-      "possibleCommands": [
-        "save_cellname_prompt",
-        "save_explain_prompt",
-        "save_explainplan_prompt",
-        "save_system_prompt",
-        "save_tabrename_prompt"
-      ],
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "unregisteredPossibleCommands": []
-    },
-    {
-      "expression": "cmd",
-      "file": "packages/web-ui/src/components/settings/AiTab.tsx",
-      "line": 211,
-      "context": "handleResetPrompt",
-      "possibleCommands": [
-        "reset_cellname_prompt",
-        "reset_explain_prompt",
-        "reset_explainplan_prompt",
-        "reset_system_prompt",
-        "reset_tabrename_prompt"
-      ],
-      "featureGroup": "ai",
-      "eventUse": "none",
-      "filesystemUse": "none",
-      "authorizationLevel": "sensitive",
-      "unregisteredPossibleCommands": []
-    }
-  ],
+  "dynamicInvocations": [],
   "registeredCommandsWithoutFrontendCall": [
     "alter_view",
     "apply_db_user_privileges",
@@ -2073,6 +1686,7 @@
     "delete_connection_group",
     "delete_connection_icon",
     "delete_connection_tag",
+    "delete_custom_theme",
     "delete_editor_preferences",
     "delete_k8s_connection",
     "delete_record",
@@ -2094,9 +1708,13 @@
     "fetch_blob_as_data_url",
     "get_active_connections",
     "get_add_column_sql",
+    "get_all_themes",
     "get_alter_column_sql",
     "get_available_databases",
+    "get_cellname_prompt",
     "get_columns",
+    "get_config",
+    "get_config_json",
     "get_connection_by_id",
     "get_connection_groups",
     "get_connections",
@@ -2109,14 +1727,20 @@
     "get_db_user_privileges",
     "get_db_users",
     "get_driver_manifest",
+    "get_explain_prompt",
+    "get_explainplan_prompt",
     "get_file_stats",
     "get_foreign_keys",
     "get_indexes",
+    "get_installation_source",
     "get_k8s_connections",
     "get_k8s_contexts_cmd",
     "get_k8s_namespaces_cmd",
     "get_k8s_resource_ports_cmd",
     "get_k8s_resources_cmd",
+    "get_keybindings",
+    "get_last_active_connection",
+    "get_last_open_connections",
     "get_materialized_view_columns",
     "get_materialized_view_definition",
     "get_materialized_views",
@@ -2133,7 +1757,9 @@
     "get_selected_schemas",
     "get_server_now",
     "get_ssh_connections",
+    "get_system_prompt",
     "get_tables",
+    "get_tabrename_prompt",
     "get_theme",
     "get_trigger_definition",
     "get_triggers",
@@ -2146,6 +1772,7 @@
     "is_debug_mode",
     "list_all_preferences",
     "list_connection_tags",
+    "load_editor_preferences",
     "move_connection_to_group",
     "move_group_to_parent",
     "open_devtools",
@@ -2163,16 +1790,23 @@
     "restart_plugin_process",
     "save_blob_to_file",
     "save_cellname_prompt",
+    "save_config",
+    "save_config_json",
     "save_connection",
+    "save_custom_theme",
+    "save_editor_preferences",
     "save_explain_prompt",
     "save_explainplan_prompt",
     "save_k8s_connection",
+    "save_keybindings",
     "save_ssh_connection",
     "save_system_prompt",
     "save_tabrename_prompt",
     "set_connection_appearance",
     "set_connection_tags",
     "set_db_user_password",
+    "set_last_active_connection",
+    "set_last_open_connections",
     "set_schema_preference",
     "set_selected_schemas",
     "test_connection",

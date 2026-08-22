@@ -8,6 +8,11 @@ import type { Settings } from "../../src/contexts/SettingsContext";
 
 vi.mock("@tauri-apps/api/core");
 
+const mockClient = vi.hoisted(() => ({ call: vi.fn() }));
+vi.mock("../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => mockClient,
+}));
+
 // Mock react-i18next
 const mockChangeLanguage = vi.fn();
 const mockI18n = {
@@ -27,6 +32,8 @@ describe("SettingsProvider", () => {
     vi.resetAllMocks();
     mockI18n.language = "en";
     localStorage.clear();
+
+    mockClient.call.mockImplementation((command, request) => invoke(command, request));
 
     // Default mock for invoke
     vi.mocked(invoke).mockImplementation((cmd: string) => {
@@ -367,9 +374,7 @@ describe("SettingsProvider", () => {
     });
 
     expect(invoke).toHaveBeenCalledWith("save_config", {
-      config: expect.objectContaining({
-        resultPageSize: 200,
-      }),
+      config: { resultPageSize: 200 },
     });
   });
 

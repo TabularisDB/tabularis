@@ -270,6 +270,54 @@ export function defineTransportContractSuite(
       ).resolves.toBe(1);
     });
 
+    it("preserves settings and session preference contracts", async () => {
+      await expect(
+        harness.transport.call("get_config", undefined),
+      ).resolves.toEqual({ theme: "tabularis-dark", resultPageSize: 500 });
+      await expect(
+        harness.transport.call("save_config", {
+          config: { language: "en", resultPageSize: 250 },
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("get_keybindings", undefined),
+      ).resolves.toEqual({ "editor.run": { mac: { key: "Enter", metaKey: true }, win: { key: "Enter", ctrlKey: true } } });
+      await expect(
+        harness.transport.call("save_keybindings", { keybindings: {} }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("get_all_themes", undefined),
+      ).resolves.toEqual([]);
+      await expect(
+        harness.transport.call("get_system_prompt", undefined),
+      ).resolves.toBe("Generate SQL only");
+      await expect(
+        harness.transport.call("save_system_prompt", { prompt: "Generate safe SQL" }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("reset_system_prompt", undefined),
+      ).resolves.toBe("Generate SQL only");
+      await expect(
+        harness.transport.call("load_editor_preferences", {
+          connectionId: "preference-fixture",
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("save_editor_preferences", {
+          connectionId: "preference-fixture",
+          preferences: { tabs: [], active_tab_id: null },
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        harness.transport.call("get_last_open_connections", undefined),
+      ).resolves.toEqual(["preference-fixture"]);
+      await expect(
+        harness.transport.call("set_last_active_connection", {
+          connectionId: "preference-fixture",
+        }),
+      ).resolves.toBeNull();
+    });
+
     it("preserves complex JSON serialization without coercion", async () => {
       const result = await harness.transport.callUnmigrated(
         "contract_serialization_fixture",
@@ -419,6 +467,50 @@ async function handleRequest(
     return;
   }
   const queryRequests: Record<string, unknown> = {
+    get_config: {
+      request: null,
+      response: { theme: "tabularis-dark", resultPageSize: 500 },
+    },
+    save_config: {
+      request: { config: { language: "en", resultPageSize: 250 } },
+      response: null,
+    },
+    get_keybindings: {
+      request: null,
+      response: {
+        "editor.run": {
+          mac: { key: "Enter", metaKey: true },
+          win: { key: "Enter", ctrlKey: true },
+        },
+      },
+    },
+    save_keybindings: { request: { keybindings: {} }, response: null },
+    get_all_themes: { request: null, response: [] },
+    get_system_prompt: { request: null, response: "Generate SQL only" },
+    save_system_prompt: {
+      request: { prompt: "Generate safe SQL" },
+      response: null,
+    },
+    reset_system_prompt: { request: null, response: "Generate SQL only" },
+    load_editor_preferences: {
+      request: { connectionId: "preference-fixture" },
+      response: null,
+    },
+    save_editor_preferences: {
+      request: {
+        connectionId: "preference-fixture",
+        preferences: { tabs: [], active_tab_id: null },
+      },
+      response: null,
+    },
+    get_last_open_connections: {
+      request: null,
+      response: ["preference-fixture"],
+    },
+    set_last_active_connection: {
+      request: { connectionId: "preference-fixture" },
+      response: null,
+    },
     get_view_definition: {
       request: {
         connectionId: "object-fixture",

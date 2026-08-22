@@ -18,6 +18,7 @@ import { useSettings } from "../../hooks/useSettings";
 import { useAlert } from "../../hooks/useAlert";
 import type { AiProvider } from "../../contexts/SettingsContext";
 import { getProviderLabel } from "../../utils/settingsUI";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 import { Select } from "../ui/Select";
 import { SettingSection, SettingRow, SettingToggle } from "./SettingControls";
 import {
@@ -72,6 +73,7 @@ const PROVIDERS: Array<{
 
 export function AiTab() {
   const { t } = useTranslation();
+  const client = useTabularisClient();
   const { settings, updateSetting } = useSettings();
   const { showAlert } = useAlert();
 
@@ -153,22 +155,22 @@ export function AiTab() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     checkKeys();
     loadModels(false);
-    invoke<string>("get_system_prompt")
+    client.call("get_system_prompt", undefined)
       .then(setSystemPrompt)
       .catch(console.error);
-    invoke<string>("get_explain_prompt")
+    client.call("get_explain_prompt", undefined)
       .then(setExplainPrompt)
       .catch(console.error);
-    invoke<string>("get_cellname_prompt")
+    client.call("get_cellname_prompt", undefined)
       .then(setCellnamePrompt)
       .catch(console.error);
-    invoke<string>("get_tabrename_prompt")
+    client.call("get_tabrename_prompt", undefined)
       .then(setTabrenamePrompt)
       .catch(console.error);
-    invoke<string>("get_explainplan_prompt")
+    client.call("get_explainplan_prompt", undefined)
       .then(setExplainplanPrompt)
       .catch(console.error);
-  }, [checkKeys, loadModels]);
+  }, [checkKeys, client, loadModels]);
 
   const handleSaveKey = async (provider: string) => {
     if (!keyInput.trim()) return;
@@ -187,12 +189,17 @@ export function AiTab() {
   };
 
   const handleSavePrompt = async (type: "system" | "explain" | "cellname" | "tabrename" | "explainplan") => {
-    const cmdMap = { system: "save_system_prompt", explain: "save_explain_prompt", cellname: "save_cellname_prompt", tabrename: "save_tabrename_prompt", explainplan: "save_explainplan_prompt" } as const;
-    const cmd = cmdMap[type];
     const promptMap = { system: systemPrompt, explain: explainPrompt, cellname: cellnamePrompt, tabrename: tabrenamePrompt, explainplan: explainplanPrompt };
     const prompt = promptMap[type];
+    const savePrompt = {
+      system: () => client.call("save_system_prompt", { prompt }),
+      explain: () => client.call("save_explain_prompt", { prompt }),
+      cellname: () => client.call("save_cellname_prompt", { prompt }),
+      tabrename: () => client.call("save_tabrename_prompt", { prompt }),
+      explainplan: () => client.call("save_explainplan_prompt", { prompt }),
+    };
     try {
-      await invoke(cmd, { prompt });
+      await savePrompt[type]();
       showAlert(t("settings.ai.promptSaved"), {
         title: t("common.success"),
         kind: "info",
@@ -203,12 +210,17 @@ export function AiTab() {
   };
 
   const handleResetPrompt = async (type: "system" | "explain" | "cellname" | "tabrename" | "explainplan") => {
-    const cmdMap = { system: "reset_system_prompt", explain: "reset_explain_prompt", cellname: "reset_cellname_prompt", tabrename: "reset_tabrename_prompt", explainplan: "reset_explainplan_prompt" } as const;
-    const cmd = cmdMap[type];
     const setterMap = { system: setSystemPrompt, explain: setExplainPrompt, cellname: setCellnamePrompt, tabrename: setTabrenamePrompt, explainplan: setExplainplanPrompt };
     const setter = setterMap[type];
+    const resetPrompt = {
+      system: () => client.call("reset_system_prompt", undefined),
+      explain: () => client.call("reset_explain_prompt", undefined),
+      cellname: () => client.call("reset_cellname_prompt", undefined),
+      tabrename: () => client.call("reset_tabrename_prompt", undefined),
+      explainplan: () => client.call("reset_explainplan_prompt", undefined),
+    };
     try {
-      const defaultPrompt = await invoke<string>(cmd);
+      const defaultPrompt = await resetPrompt[type]();
       setter(defaultPrompt);
       showAlert(t("settings.ai.promptResetSuccess"), {
         title: t("common.success"),

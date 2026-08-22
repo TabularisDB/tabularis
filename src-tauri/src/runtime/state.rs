@@ -17,6 +17,8 @@ pub struct ApplicationState {
     pub results_window_store: crate::results_window::ResultsWindowStore,
     pub query_history_state: crate::query_history::QueryHistoryState,
     pub web_active_connections: Mutex<HashMap<Uuid, HashSet<String>>>,
+    pub web_preferences:
+        Mutex<HashMap<Uuid, crate::application::persistence::WebSessionPreferences>>,
 }
 
 impl ApplicationState {
@@ -56,6 +58,7 @@ impl Default for ApplicationState {
             results_window_store: crate::results_window::ResultsWindowStore::default(),
             query_history_state: crate::query_history::QueryHistoryState::default(),
             web_active_connections: Mutex::new(HashMap::new()),
+            web_preferences: Mutex::new(HashMap::new()),
         }
     }
 }

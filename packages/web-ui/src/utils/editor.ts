@@ -2,11 +2,10 @@ import type {
   Tab,
   SchemaCache,
   TableSchema,
-  EditorPreferences,
 } from "../types/editor";
 import type { DriverCapabilities, PluginManifest } from "../types/plugins";
 import { quoteTableRef } from "./identifiers";
-import { invoke } from "@tauri-apps/api/core";
+import type { TypedCommandCaller } from "../api/contract";
 import { cleanTabForStorage, restoreTabFromStorage } from "./tabCleaner";
 import {
   filterTabsByConnection,
@@ -25,15 +24,13 @@ export function generateTabId(): string {
 }
 
 export async function loadEditorPreferences(
+  client: TypedCommandCaller,
   connectionId: string | null,
 ): Promise<{ tabs: Tab[]; activeTabId: string | null }> {
   if (!connectionId) return { tabs: [], activeTabId: null };
 
   try {
-    const prefs = await invoke<EditorPreferences | null>(
-      "load_editor_preferences",
-      { connectionId },
-    );
+    const prefs = await client.call("load_editor_preferences", { connectionId });
     const tabs = (prefs?.tabs || []).map(restoreTabFromStorage);
     return { tabs, activeTabId: prefs?.active_tab_id || null };
   } catch (e) {
@@ -44,19 +41,22 @@ export async function loadEditorPreferences(
 
 /** @deprecated Use loadEditorPreferences instead */
 export async function loadTabsFromStorage(
+  client: TypedCommandCaller,
   connectionId: string | null,
 ): Promise<Tab[]> {
-  return (await loadEditorPreferences(connectionId)).tabs;
+  return (await loadEditorPreferences(client, connectionId)).tabs;
 }
 
 /** @deprecated Use loadEditorPreferences instead */
 export async function loadActiveTabId(
+  client: TypedCommandCaller,
   connectionId: string | null,
 ): Promise<string | null> {
-  return (await loadEditorPreferences(connectionId)).activeTabId;
+  return (await loadEditorPreferences(client, connectionId)).activeTabId;
 }
 
 export async function saveTabsToStorage(
+  client: TypedCommandCaller,
   connectionId: string,
   tabs: Tab[],
   activeTabId: string | null,
@@ -65,7 +65,7 @@ export async function saveTabsToStorage(
     // Clean tabs before saving: remove temporary data like results, errors, etc.
     const cleanedTabs = tabs.map(cleanTabForStorage);
 
-    await invoke("save_editor_preferences", {
+    await client.call("save_editor_preferences", {
       connectionId,
       preferences: {
         tabs: cleanedTabs,

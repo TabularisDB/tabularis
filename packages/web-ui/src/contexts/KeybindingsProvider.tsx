@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import shortcutDefs from "../config/shortcuts.json";
 import {
   mergeShortcuts,
@@ -10,21 +9,23 @@ import {
   type KeyMatch,
 } from "../utils/keybindings";
 import { KeybindingsContext } from "./KeybindingsContext";
+import { useTabularisClient } from "../hooks/useTabularisClient";
 
 const isMac = typeof navigator !== "undefined" && navigator.platform.toUpperCase().includes("MAC");
 
 export const KeybindingsProvider = ({ children }: { children: ReactNode }) => {
+  const client = useTabularisClient();
   const [overrides, setOverrides] = useState<UserOverrides>({});
 
   useEffect(() => {
-    invoke<UserOverrides>("get_keybindings")
+    client.call("get_keybindings", undefined)
       .then((data) => {
-        if (data && typeof data === "object") setOverrides(data as UserOverrides);
+        if (data && typeof data === "object") setOverrides(data);
       })
       .catch(() => {
         // no keybindings file yet — use defaults
       });
-  }, []);
+  }, [client]);
 
   const shortcuts = mergeShortcuts(shortcutDefs as ShortcutDef[], overrides, isMac);
 
@@ -47,9 +48,9 @@ export const KeybindingsProvider = ({ children }: { children: ReactNode }) => {
     async (id: string, mac: KeyMatch, win: KeyMatch) => {
       const next = { ...overrides, [id]: { mac, win } };
       setOverrides(next);
-      await invoke("save_keybindings", { keybindings: next });
+      await client.call("save_keybindings", { keybindings: next });
     },
-    [overrides],
+    [client, overrides],
   );
 
   const resetOverride = useCallback(
@@ -57,9 +58,9 @@ export const KeybindingsProvider = ({ children }: { children: ReactNode }) => {
       const next = { ...overrides };
       delete next[id];
       setOverrides(next);
-      await invoke("save_keybindings", { keybindings: next });
+      await client.call("save_keybindings", { keybindings: next });
     },
-    [overrides],
+    [client, overrides],
   );
 
   return (

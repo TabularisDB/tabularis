@@ -126,7 +126,7 @@ export interface Tab {
 }
 
 export interface EditorPreferences {
-  tabs: Tab[];
+  tabs: Array<Partial<Tab>>;
   active_tab_id: string | null;
 }
 

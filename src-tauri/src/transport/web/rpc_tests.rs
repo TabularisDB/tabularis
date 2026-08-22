@@ -28,6 +28,8 @@ impl FixtureApplication {
 
 #[async_trait]
 impl ApplicationApi for FixtureApplication {
+    fn clear_session(&self, _session_id: uuid::Uuid) {}
+
     async fn is_debug_mode(
         &self,
         context: ApplicationRequestContext,
@@ -124,6 +126,39 @@ impl ApplicationApi for FixtureApplication {
     ) -> Result<Value, ApplicationError> {
         self.record(context).await;
         Ok(Value::Null)
+    }
+
+    async fn execute_persistence_command(
+        &self,
+        context: ApplicationRequestContext,
+        command: crate::application::persistence::PersistenceCommand,
+    ) -> Result<Value, ApplicationError> {
+        self.record(context).await;
+        Ok(match command {
+            crate::application::persistence::PersistenceCommand::GetConfig => {
+                serde_json::json!({"theme": "tabularis-dark"})
+            }
+            crate::application::persistence::PersistenceCommand::GetKeybindings => {
+                serde_json::json!({})
+            }
+            crate::application::persistence::PersistenceCommand::GetAllThemes => {
+                serde_json::json!([])
+            }
+            crate::application::persistence::PersistenceCommand::GetPrompt(_)
+            | crate::application::persistence::PersistenceCommand::ResetPrompt(_) => {
+                serde_json::json!("Generate SQL only")
+            }
+            crate::application::persistence::PersistenceCommand::LoadEditorPreferences(_) => {
+                Value::Null
+            }
+            crate::application::persistence::PersistenceCommand::GetLastActiveConnection => {
+                Value::Null
+            }
+            crate::application::persistence::PersistenceCommand::GetLastOpenConnections => {
+                serde_json::json!([])
+            }
+            _ => Value::Null,
+        })
     }
 }
 
@@ -229,6 +264,68 @@ fn declares_authorization_for_each_registered_command() {
             .authorization,
         AuthorizationLevel::Sensitive
     );
+}
+
+#[test]
+fn registers_every_settings_and_preference_command_with_explicit_authorization() {
+    let local_admin_commands = [
+        "get_config",
+        "save_config",
+        "get_config_json",
+        "save_config_json",
+        "get_keybindings",
+        "save_keybindings",
+        "get_all_themes",
+        "save_custom_theme",
+        "delete_custom_theme",
+        "get_system_prompt",
+        "save_system_prompt",
+        "reset_system_prompt",
+        "get_explain_prompt",
+        "save_explain_prompt",
+        "reset_explain_prompt",
+        "get_explainplan_prompt",
+        "save_explainplan_prompt",
+        "reset_explainplan_prompt",
+        "get_cellname_prompt",
+        "save_cellname_prompt",
+        "reset_cellname_prompt",
+        "get_tabrename_prompt",
+        "save_tabrename_prompt",
+        "reset_tabrename_prompt",
+    ];
+    for name in local_admin_commands {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(
+            command.metadata().authorization,
+            AuthorizationLevel::LocalAdmin
+        );
+    }
+
+    for name in [
+        "load_editor_preferences",
+        "save_editor_preferences",
+        "delete_editor_preferences",
+    ] {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(
+            command.metadata().authorization,
+            AuthorizationLevel::Database
+        );
+    }
+
+    for name in [
+        "get_last_active_connection",
+        "set_last_active_connection",
+        "get_last_open_connections",
+        "set_last_open_connections",
+    ] {
+        let command = RpcCommand::parse(name).unwrap_or_else(|| panic!("missing {name}"));
+        assert_eq!(
+            command.metadata().authorization,
+            AuthorizationLevel::Session
+        );
+    }
 }
 
 #[tokio::test]
@@ -576,6 +673,59 @@ async fn routes_data_editing_and_blob_commands_through_the_shared_application_ap
                 &json_headers(),
                 Bytes::from(serde_json::to_vec(&payload).unwrap()),
                 Some(session_id),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK, "{command}");
+    }
+}
+
+#[tokio::test]
+async fn routes_settings_and_preferences_through_the_shared_application_api() {
+    let dispatcher = RpcDispatcher::new(Arc::new(FixtureApplication::new(Duration::ZERO)));
+    let commands = [
+        ("get_config", serde_json::Value::Null),
+        (
+            "save_config",
+            serde_json::json!({"config": {"language": "en", "resultPageSize": 250}}),
+        ),
+        ("get_keybindings", serde_json::Value::Null),
+        (
+            "save_keybindings",
+            serde_json::json!({"keybindings": {"editor.run": {}}}),
+        ),
+        ("get_all_themes", serde_json::Value::Null),
+        ("get_system_prompt", serde_json::Value::Null),
+        (
+            "save_system_prompt",
+            serde_json::json!({"prompt": "Generate safe SQL"}),
+        ),
+        ("reset_system_prompt", serde_json::Value::Null),
+        (
+            "load_editor_preferences",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+        (
+            "save_editor_preferences",
+            serde_json::json!({
+                "connectionId": "connection-1",
+                "preferences": {"tabs": [], "active_tab_id": null}
+            }),
+        ),
+        ("get_last_open_connections", serde_json::Value::Null),
+        (
+            "set_last_active_connection",
+            serde_json::json!({"connectionId": "connection-1"}),
+        ),
+    ];
+
+    for (command, payload) in commands {
+        let response = dispatcher
+            .dispatch(
+                command,
+                RequestId(format!("request-{command}")),
+                &json_headers(),
+                Bytes::from(serde_json::to_vec(&payload).unwrap()),
+                Some(uuid::Uuid::new_v4()),
             )
             .await;
         assert_eq!(response.status(), StatusCode::OK, "{command}");

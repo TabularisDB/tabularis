@@ -5,11 +5,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { ThemeContext } from "./ThemeContext";
 import { themeRegistry } from "../themes/themeRegistry";
 import { applyThemeToCSS } from "../themes/themeUtils";
 import type { Theme, ThemeSettings } from "../types/theme";
+import { useTabularisClient } from "../hooks/useTabularisClient";
 
 const DEFAULT_THEME_SETTINGS: ThemeSettings = {
   activeThemeId: "tabularis-dark",
@@ -19,19 +19,8 @@ const DEFAULT_THEME_SETTINGS: ThemeSettings = {
   customThemes: [],
 };
 
-interface AppConfig {
-  theme?: string;
-  language?: string;
-  resultPageSize?: number;
-  fontFamily?: string;
-  fontSize?: number;
-  aiEnabled?: boolean;
-  aiProvider?: string;
-  aiModel?: string;
-  aiCustomModels?: Record<string, string[]>;
-}
-
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
+  const client = useTabularisClient();
   const [currentTheme, setCurrentTheme] = useState<Theme>(() =>
     themeRegistry.getDefault(),
   );
@@ -52,7 +41,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     const loadThemes = async () => {
       try {
         // Load theme from backend config
-        const config = await invoke<AppConfig>("get_config");
+        const config = await client.call("get_config", undefined);
 
         // Migration: check localStorage for old theme settings
         const oldLocalSettings = localStorage.getItem(
@@ -67,8 +56,8 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
             activeThemeId = oldSettings.activeThemeId;
 
             // Save to backend
-            await invoke("save_config", {
-              config: { ...config, theme: activeThemeId },
+            await client.call("save_config", {
+              config: { theme: activeThemeId },
             });
 
             // Clean up old localStorage
@@ -86,14 +75,15 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
           activeThemeId = prefersDark ? "tabularis-dark" : "tabularis-light";
 
           // Save the detected theme
-          await invoke("save_config", {
-            config: { ...config, theme: activeThemeId },
+          await client.call("save_config", {
+            config: { theme: activeThemeId },
           });
         }
 
         // Load custom themes from backend
-        const loadedCustomThemes = await invoke<Theme[]>(
+        const loadedCustomThemes = await client.call(
           "get_all_themes",
+          undefined,
         ).catch(() => [] as Theme[]);
         setCustomThemes(loadedCustomThemes.filter((t) => !t.isPreset));
 
@@ -119,7 +109,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     };
 
     loadThemes();
-  }, []);
+  }, [client]);
 
   // Apply theme to CSS when currentTheme changes
   useEffect(() => {
@@ -131,13 +121,13 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   // Save theme to config.json when it changes (not on initial load)
   useEffect(() => {
     if (!isLoading && currentTheme) {
-      invoke("save_config", {
+      client.call("save_config", {
         config: { theme: currentTheme.id },
       }).catch((error) => {
         console.error("Failed to save theme to config:", error);
       });
     }
-  }, [currentTheme, isLoading]);
+  }, [client, currentTheme, isLoading]);
 
   // Optional: Listen for system theme changes and auto-switch if using system theme
   useEffect(() => {
@@ -187,7 +177,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
         updatedAt: new Date().toISOString(),
       };
 
-      await invoke("save_custom_theme", { theme: newTheme });
+      await client.call("save_custom_theme", { theme: newTheme });
 
       setCustomThemes((prev) => [...prev, newTheme]);
       setSettings((prev) => ({
@@ -197,7 +187,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
       return newTheme;
     },
-    [allThemes],
+    [allThemes, client],
   );
 
   const updateCustomTheme = useCallback(
@@ -211,7 +201,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
         updatedAt: new Date().toISOString(),
       };
 
-      await invoke("save_custom_theme", { theme: updatedTheme });
+      await client.call("save_custom_theme", { theme: updatedTheme });
 
       setCustomThemes((prev) =>
         prev.map((t) => (t.id === updatedTheme.id ? updatedTheme : t)),
@@ -222,7 +212,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
         setCurrentTheme(updatedTheme);
       }
     },
-    [currentTheme.id],
+    [client, currentTheme.id],
   );
 
   const deleteCustomTheme = useCallback(
@@ -232,7 +222,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("Cannot delete preset themes");
       }
 
-      await invoke("delete_custom_theme", { themeId });
+      await client.call("delete_custom_theme", { themeId });
 
       setCustomThemes((prev) => prev.filter((t) => t.id !== themeId));
       setSettings((prev) => ({
@@ -247,7 +237,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
         setSettings((prev) => ({ ...prev, activeThemeId: defaultTheme.id }));
       }
     },
-    [allThemes, currentTheme.id],
+    [allThemes, client, currentTheme.id],
   );
 
   const duplicateTheme = useCallback(
@@ -267,7 +257,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
         updatedAt: new Date().toISOString(),
       };
 
-      await invoke("save_custom_theme", { theme: duplicatedTheme });
+      await client.call("save_custom_theme", { theme: duplicatedTheme });
 
       setCustomThemes((prev) => [...prev, duplicatedTheme]);
       setSettings((prev) => ({
@@ -277,7 +267,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
       return duplicatedTheme;
     },
-    [allThemes],
+    [allThemes, client],
   );
 
   const importTheme = useCallback(async (themeJson: string): Promise<Theme> => {
@@ -298,7 +288,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
       updatedAt: new Date().toISOString(),
     };
 
-    await invoke("save_custom_theme", { theme: customTheme });
+    await client.call("save_custom_theme", { theme: customTheme });
 
     setCustomThemes((prev) => [...prev, customTheme]);
     setSettings((prev) => ({
@@ -307,7 +297,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     }));
 
     return customTheme;
-  }, []);
+  }, [client]);
 
   const exportTheme = useCallback(
     async (themeId: string): Promise<string> => {

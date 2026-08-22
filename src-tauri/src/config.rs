@@ -166,7 +166,7 @@ pub fn get_config_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> Option<PathBuf> 
     app.path().app_config_dir().ok()
 }
 
-fn cache_config(config: &AppConfig) {
+pub(crate) fn cache_config(config: &AppConfig) {
     if let Ok(mut cached) = CONFIG_CACHE.write() {
         *cached = config.clone();
     }
@@ -247,231 +247,24 @@ pub fn load_config_internal<R: tauri::Runtime>(app: &AppHandle<R>) -> AppConfig 
 
 #[tauri::command]
 pub fn get_config(app: AppHandle) -> AppConfig {
-    load_config_internal(&app)
+    crate::application::persistence::load_config(&app.state::<crate::runtime::RuntimeContext>())
 }
 
 #[tauri::command]
 pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
-    if let Some(config_dir) = get_config_dir(&app) {
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-        }
-        let config_path = config_dir.join("config.json");
+    let runtime = app.state::<crate::runtime::RuntimeContext>();
+    let previous_ping_interval =
+        crate::application::persistence::load_config(&runtime).ping_interval;
+    let requested_ping_interval = config.ping_interval;
+    let saved = crate::application::persistence::save_config(&runtime, config)?;
 
-        // Load existing config and merge with new values
-        let mut existing_config = load_config_internal(&app);
-
-        // Merge: only update fields that are Some in the new config
-        if config.theme.is_some() {
-            existing_config.theme = config.theme;
-        }
-        if config.language.is_some() {
-            existing_config.language = config.language;
-        }
-        if config.result_page_size.is_some() {
-            existing_config.result_page_size = config.result_page_size;
-        }
-        if config.font_family.is_some() {
-            existing_config.font_family = config.font_family;
-        }
-        if config.font_size.is_some() {
-            existing_config.font_size = config.font_size;
-        }
-        if config.result_color_by_type.is_some() {
-            existing_config.result_color_by_type = config.result_color_by_type;
-        }
-        if config.result_type_colors.is_some() {
-            existing_config.result_type_colors = config.result_type_colors;
-        }
-        if config.ai_enabled.is_some() {
-            existing_config.ai_enabled = config.ai_enabled;
-        }
-        if config.ai_provider.is_some() {
-            existing_config.ai_provider = config.ai_provider;
-        }
-        if config.ai_model.is_some() {
-            existing_config.ai_model = config.ai_model;
-        }
-        if config.ai_custom_models.is_some() {
-            existing_config.ai_custom_models = config.ai_custom_models;
-        }
-        if config.ai_ollama_port.is_some() {
-            existing_config.ai_ollama_port = config.ai_ollama_port;
-        }
-        if config.ai_custom_openai_url.is_some() {
-            existing_config.ai_custom_openai_url = config.ai_custom_openai_url;
-        }
-        if config.ai_custom_openai_model.is_some() {
-            existing_config.ai_custom_openai_model = config.ai_custom_openai_model;
-        }
-        if config.check_for_updates.is_some() {
-            existing_config.check_for_updates = config.check_for_updates;
-        }
-        if config.auto_check_updates_on_startup.is_some() {
-            existing_config.auto_check_updates_on_startup = config.auto_check_updates_on_startup;
-        }
-        if config.last_dismissed_version.is_some() {
-            existing_config.last_dismissed_version = config.last_dismissed_version;
-        }
-        if config.er_diagram_default_layout.is_some() {
-            existing_config.er_diagram_default_layout = config.er_diagram_default_layout;
-        }
-        if config.schema_preferences.is_some() {
-            existing_config.schema_preferences = config.schema_preferences;
-        }
-        if config.selected_schemas.is_some() {
-            existing_config.selected_schemas = config.selected_schemas;
-        }
-        if config.max_blob_size.is_some() {
-            existing_config.max_blob_size = config.max_blob_size;
-        }
-        if config.copy_format.is_some() {
-            existing_config.copy_format = config.copy_format;
-        }
-        if config.csv_delimiter.is_some() {
-            existing_config.csv_delimiter = config.csv_delimiter;
-        }
-        if config.csv_include_headers.is_some() {
-            existing_config.csv_include_headers = config.csv_include_headers;
-        }
-        if config.active_external_drivers.is_some() {
-            existing_config.active_external_drivers = config.active_external_drivers;
-        }
-        if config.tabularium_registry_url.is_some() {
-            existing_config.tabularium_registry_url = config.tabularium_registry_url;
-        }
-        if config.release_channel.is_some() {
-            existing_config.release_channel = config.release_channel;
-        }
-        if config.plugins.is_some() {
-            existing_config.plugins = config.plugins;
-        }
-        if config.editor_theme.is_some() {
-            existing_config.editor_theme = config.editor_theme;
-        }
-        if config.editor_font_family.is_some() {
-            existing_config.editor_font_family = config.editor_font_family;
-        }
-        if config.editor_font_size.is_some() {
-            existing_config.editor_font_size = config.editor_font_size;
-        }
-        if config.editor_line_height.is_some() {
-            existing_config.editor_line_height = config.editor_line_height;
-        }
-        if config.editor_tab_size.is_some() {
-            existing_config.editor_tab_size = config.editor_tab_size;
-        }
-        if config.editor_word_wrap.is_some() {
-            existing_config.editor_word_wrap = config.editor_word_wrap;
-        }
-        if config.editor_show_line_numbers.is_some() {
-            existing_config.editor_show_line_numbers = config.editor_show_line_numbers;
-        }
-        if config.editor_accept_suggestion_on_enter.is_some() {
-            existing_config.editor_accept_suggestion_on_enter =
-                config.editor_accept_suggestion_on_enter;
-        }
-        if config.run_statement_under_cursor.is_some() {
-            existing_config.run_statement_under_cursor = config.run_statement_under_cursor;
-        }
-        if config.safety_confirmation_delay_enabled.is_some() {
-            existing_config.safety_confirmation_delay_enabled =
-                config.safety_confirmation_delay_enabled;
-        }
-        if config.ping_interval.is_some() {
-            let old_interval = existing_config.ping_interval;
-            existing_config.ping_interval = config.ping_interval;
-            // Restart the ping loop if the interval changed.
-            if existing_config.ping_interval != old_interval {
-                let interval = existing_config
-                    .ping_interval
-                    .unwrap_or(crate::health_check::DEFAULT_PING_INTERVAL);
-                tauri::async_runtime::spawn(crate::health_check::restart_ping_loop(
-                    app.clone(),
-                    interval as u64,
-                ));
-            }
-        }
-        if config.query_history_max_entries.is_some() {
-            existing_config.query_history_max_entries = config.query_history_max_entries;
-        }
-        if config.show_welcome.is_some() {
-            existing_config.show_welcome = config.show_welcome;
-        }
-        if config.start_maximized.is_some() {
-            existing_config.start_maximized = config.start_maximized;
-        }
-        if config.display_timezone.is_some() {
-            existing_config.display_timezone = config.display_timezone;
-        }
-        if config.ai_audit_enabled.is_some() {
-            existing_config.ai_audit_enabled = config.ai_audit_enabled;
-        }
-        if config.ai_audit_max_entries.is_some() {
-            existing_config.ai_audit_max_entries = config.ai_audit_max_entries;
-        }
-        if config.ai_session_gap_minutes.is_some() {
-            existing_config.ai_session_gap_minutes = config.ai_session_gap_minutes;
-        }
-        if config.mcp_readonly_default.is_some() {
-            existing_config.mcp_readonly_default = config.mcp_readonly_default;
-        }
-        if config.mcp_readonly_connections.is_some() {
-            existing_config.mcp_readonly_connections = config.mcp_readonly_connections;
-        }
-        if config.mcp_approval_mode.is_some() {
-            existing_config.mcp_approval_mode = config.mcp_approval_mode;
-        }
-        if config.mcp_approval_timeout_seconds.is_some() {
-            existing_config.mcp_approval_timeout_seconds = config.mcp_approval_timeout_seconds;
-        }
-        if config.mcp_preflight_explain.is_some() {
-            existing_config.mcp_preflight_explain = config.mcp_preflight_explain;
-        }
-        if config.mcp_approval_always_on_top.is_some() {
-            existing_config.mcp_approval_always_on_top = config.mcp_approval_always_on_top;
-        }
-        if config.mcp_approval_notify_sound.is_some() {
-            existing_config.mcp_approval_notify_sound = config.mcp_approval_notify_sound;
-        }
-        if config.backup_mode.is_some() {
-            existing_config.backup_mode = config.backup_mode;
-        }
-        if config.backup_directory.is_some() {
-            existing_config.backup_directory = config.backup_directory;
-        }
-        if config.backup_interval_minutes.is_some() {
-            existing_config.backup_interval_minutes = config.backup_interval_minutes;
-        }
-        if config.backup_retention.is_some() {
-            existing_config.backup_retention = config.backup_retention;
-        }
-        if config.backup_target.is_some() {
-            existing_config.backup_target = config.backup_target;
-        }
-        if config.backup_webdav_url.is_some() {
-            existing_config.backup_webdav_url = config.backup_webdav_url;
-        }
-        if config.backup_webdav_username.is_some() {
-            existing_config.backup_webdav_username = config.backup_webdav_username;
-        }
-        if config.auto_connect_last_connection.is_some() {
-            existing_config.auto_connect_last_connection = config.auto_connect_last_connection;
-        }
-        if config.last_active_connection_id.is_some() {
-            existing_config.last_active_connection_id = config.last_active_connection_id;
-        }
-        if config.last_open_connection_ids.is_some() {
-            existing_config.last_open_connection_ids = config.last_open_connection_ids;
-        }
-
-        let content = serde_json::to_string_pretty(&existing_config).map_err(|e| e.to_string())?;
-        fs::write(config_path, content).map_err(|e| e.to_string())?;
-        cache_config(&existing_config);
-        Ok(())
-    } else {
-        Err("Could not resolve config directory".to_string())
+    if requested_ping_interval.is_some() && saved.ping_interval != previous_ping_interval {
+        let interval = saved
+            .ping_interval
+            .unwrap_or(crate::health_check::DEFAULT_PING_INTERVAL);
+        tauri::async_runtime::spawn(crate::health_check::restart_ping_loop(app, interval as u64));
     }
+    Ok(())
 }
 
 #[tauri::command]
@@ -497,7 +290,8 @@ pub fn set_schema_preference(
 
 #[tauri::command]
 pub fn get_last_active_connection(app: AppHandle) -> Option<String> {
-    load_config_internal(&app).last_active_connection_id
+    crate::application::persistence::load_config(&app.state::<crate::runtime::RuntimeContext>())
+        .last_active_connection_id
 }
 
 #[tauri::command]
@@ -505,25 +299,15 @@ pub fn set_last_active_connection(
     app: AppHandle,
     connection_id: Option<String>,
 ) -> Result<(), String> {
-    if let Some(config_dir) = get_config_dir(&app) {
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-        }
-        let config_path = config_dir.join("config.json");
-        let mut config = load_config_internal(&app);
-        config.last_active_connection_id = connection_id;
-        let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-        fs::write(config_path, content).map_err(|e| e.to_string())?;
-        cache_config(&config);
-        Ok(())
-    } else {
-        Err("Could not resolve config directory".to_string())
-    }
+    crate::application::persistence::set_last_active_connection_for_desktop(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        connection_id,
+    )
 }
 
 #[tauri::command]
 pub fn get_last_open_connections(app: AppHandle) -> Vec<String> {
-    load_config_internal(&app)
+    crate::application::persistence::load_config(&app.state::<crate::runtime::RuntimeContext>())
         .last_open_connection_ids
         .unwrap_or_default()
 }
@@ -533,20 +317,10 @@ pub fn set_last_open_connections(
     app: AppHandle,
     connection_ids: Vec<String>,
 ) -> Result<(), String> {
-    if let Some(config_dir) = get_config_dir(&app) {
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-        }
-        let config_path = config_dir.join("config.json");
-        let mut config = load_config_internal(&app);
-        config.last_open_connection_ids = Some(connection_ids);
-        let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-        fs::write(config_path, content).map_err(|e| e.to_string())?;
-        cache_config(&config);
-        Ok(())
-    } else {
-        Err("Could not resolve config directory".to_string())
-    }
+    crate::application::persistence::set_last_open_connections_for_desktop(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        connection_ids,
+    )
 }
 
 #[tauri::command]
@@ -693,117 +467,131 @@ pub fn check_ai_key_status(app: AppHandle, provider: String) -> AiKeyStatus {
     get_ai_api_key_status(&app, &provider)
 }
 
-const DEFAULT_SYSTEM_PROMPT: &str = "You are an expert SQL assistant. Your task is to generate a SQL query based on the user's request and the provided database schema.\nReturn ONLY the SQL query, without any markdown formatting, explanations, or code blocks.\n\nSchema:\n{{SCHEMA}}";
-const DEFAULT_EXPLAIN_PROMPT: &str =
-    "You are a helpful SQL assistant. Explain SQL queries in {{LANGUAGE}}.";
-const DEFAULT_EXPLAINPLAN_PROMPT: &str =
-    "You are a database performance expert. Analyze the following SQL query and its EXPLAIN plan output. Identify performance bottlenecks, suggest index improvements, and explain the execution strategy. Respond in {{LANGUAGE}}.";
-const DEFAULT_CELLNAME_PROMPT: &str = "You are an assistant that generates concise, descriptive names for notebook cells.\nGiven a SQL query or Markdown content, return ONLY a short name (3-6 words max) that describes what the cell does or what it is about.\nDo not include quotes, punctuation, or explanations. Just the name.";
-const DEFAULT_TABRENAME_PROMPT: &str = "You are an assistant that generates concise, descriptive names for SQL query result tabs.\nGiven a SQL query, return ONLY a short name (3-6 words max) that describes what the query does.\nDo not include quotes, punctuation, or explanations. Just the name.";
-
-fn get_prompt(app: &AppHandle, filename: &str, default: &str) -> String {
-    if let Some(config_dir) = get_config_dir(app) {
-        let path = config_dir.join(filename);
-        if let Ok(content) = fs::read_to_string(path) {
-            return content;
-        }
-    }
-    default.to_string()
+fn prompt_kind(app: &AppHandle, kind: crate::application::persistence::PromptKind) -> String {
+    crate::application::persistence::get_prompt(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        kind,
+    )
 }
 
-fn save_prompt(app: &AppHandle, filename: &str, prompt: &str) -> Result<(), String> {
-    let config_dir = get_config_dir(app).ok_or("Could not resolve config directory")?;
-    if !config_dir.exists() {
-        fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-    }
-    fs::write(config_dir.join(filename), prompt).map_err(|e| e.to_string())
+fn save_prompt_kind(
+    app: &AppHandle,
+    kind: crate::application::persistence::PromptKind,
+    prompt: &str,
+) -> Result<(), String> {
+    crate::application::persistence::save_prompt(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        kind,
+        prompt,
+    )
 }
 
-fn reset_prompt(app: &AppHandle, filename: &str, default: &str) -> Result<String, String> {
-    if let Some(config_dir) = get_config_dir(app) {
-        let path = config_dir.join(filename);
-        if path.exists() {
-            fs::remove_file(path).map_err(|e| e.to_string())?;
-        }
-    }
-    Ok(default.to_string())
+fn reset_prompt_kind(
+    app: &AppHandle,
+    kind: crate::application::persistence::PromptKind,
+) -> Result<String, String> {
+    crate::application::persistence::reset_prompt(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        kind,
+    )
 }
 
 #[tauri::command]
 pub fn get_system_prompt(app: AppHandle) -> String {
-    get_prompt(&app, "prompt_query.txt", DEFAULT_SYSTEM_PROMPT)
+    prompt_kind(&app, crate::application::persistence::PromptKind::System)
 }
 #[tauri::command]
 pub fn save_system_prompt(app: AppHandle, prompt: String) -> Result<(), String> {
-    save_prompt(&app, "prompt_query.txt", &prompt)
+    save_prompt_kind(
+        &app,
+        crate::application::persistence::PromptKind::System,
+        &prompt,
+    )
 }
 #[tauri::command]
 pub fn reset_system_prompt(app: AppHandle) -> Result<String, String> {
-    reset_prompt(&app, "prompt_query.txt", DEFAULT_SYSTEM_PROMPT)
+    reset_prompt_kind(&app, crate::application::persistence::PromptKind::System)
 }
 
 #[tauri::command]
 pub fn get_explain_prompt(app: AppHandle) -> String {
-    get_prompt(&app, "prompt_explain.txt", DEFAULT_EXPLAIN_PROMPT)
+    prompt_kind(&app, crate::application::persistence::PromptKind::Explain)
 }
 #[tauri::command]
 pub fn save_explain_prompt(app: AppHandle, prompt: String) -> Result<(), String> {
-    save_prompt(&app, "prompt_explain.txt", &prompt)
+    save_prompt_kind(
+        &app,
+        crate::application::persistence::PromptKind::Explain,
+        &prompt,
+    )
 }
 #[tauri::command]
 pub fn reset_explain_prompt(app: AppHandle) -> Result<String, String> {
-    reset_prompt(&app, "prompt_explain.txt", DEFAULT_EXPLAIN_PROMPT)
+    reset_prompt_kind(&app, crate::application::persistence::PromptKind::Explain)
 }
 
 #[tauri::command]
 pub fn get_explainplan_prompt(app: AppHandle) -> String {
-    get_prompt(&app, "prompt_explainplan.txt", DEFAULT_EXPLAINPLAN_PROMPT)
+    prompt_kind(
+        &app,
+        crate::application::persistence::PromptKind::ExplainPlan,
+    )
 }
 #[tauri::command]
 pub fn save_explainplan_prompt(app: AppHandle, prompt: String) -> Result<(), String> {
-    save_prompt(&app, "prompt_explainplan.txt", &prompt)
+    save_prompt_kind(
+        &app,
+        crate::application::persistence::PromptKind::ExplainPlan,
+        &prompt,
+    )
 }
 #[tauri::command]
 pub fn reset_explainplan_prompt(app: AppHandle) -> Result<String, String> {
-    reset_prompt(&app, "prompt_explainplan.txt", DEFAULT_EXPLAINPLAN_PROMPT)
+    reset_prompt_kind(
+        &app,
+        crate::application::persistence::PromptKind::ExplainPlan,
+    )
 }
 
 #[tauri::command]
 pub fn get_cellname_prompt(app: AppHandle) -> String {
-    get_prompt(&app, "prompt_cellname.txt", DEFAULT_CELLNAME_PROMPT)
+    prompt_kind(&app, crate::application::persistence::PromptKind::CellName)
 }
 #[tauri::command]
 pub fn save_cellname_prompt(app: AppHandle, prompt: String) -> Result<(), String> {
-    save_prompt(&app, "prompt_cellname.txt", &prompt)
+    save_prompt_kind(
+        &app,
+        crate::application::persistence::PromptKind::CellName,
+        &prompt,
+    )
 }
 #[tauri::command]
 pub fn reset_cellname_prompt(app: AppHandle) -> Result<String, String> {
-    reset_prompt(&app, "prompt_cellname.txt", DEFAULT_CELLNAME_PROMPT)
+    reset_prompt_kind(&app, crate::application::persistence::PromptKind::CellName)
 }
 
 #[tauri::command]
 pub fn get_tabrename_prompt(app: AppHandle) -> String {
-    get_prompt(&app, "prompt_tabrename.txt", DEFAULT_TABRENAME_PROMPT)
+    prompt_kind(&app, crate::application::persistence::PromptKind::TabRename)
 }
 #[tauri::command]
 pub fn save_tabrename_prompt(app: AppHandle, prompt: String) -> Result<(), String> {
-    save_prompt(&app, "prompt_tabrename.txt", &prompt)
+    save_prompt_kind(
+        &app,
+        crate::application::persistence::PromptKind::TabRename,
+        &prompt,
+    )
 }
 #[tauri::command]
 pub fn reset_tabrename_prompt(app: AppHandle) -> Result<String, String> {
-    reset_prompt(&app, "prompt_tabrename.txt", DEFAULT_TABRENAME_PROMPT)
+    reset_prompt_kind(&app, crate::application::persistence::PromptKind::TabRename)
 }
 
 #[tauri::command]
 pub fn get_config_json(app: AppHandle) -> Result<String, String> {
-    if let Some(config_dir) = get_config_dir(&app) {
-        let config_path = config_dir.join("config.json");
-        if config_path.exists() {
-            return fs::read_to_string(config_path).map_err(|e| e.to_string());
-        }
-    }
-    // Return empty JSON object if no config file exists yet
-    Ok("{}".to_string())
+    crate::application::persistence::get_config_json_for_desktop(
+        &app.state::<crate::runtime::RuntimeContext>(),
+    )
 }
 
 #[tauri::command]
@@ -813,23 +601,10 @@ pub fn relaunch_app(app: AppHandle) {
 
 #[tauri::command]
 pub fn save_config_json(app: AppHandle, json: String) -> Result<(), String> {
-    // Validate the JSON parses as a valid AppConfig
-    serde_json::from_str::<AppConfig>(&json)
-        .map_err(|e| format!("Invalid configuration JSON: {}", e))?;
-
-    if let Some(config_dir) = get_config_dir(&app) {
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
-        }
-        let config_path = config_dir.join("config.json");
-        // Re-serialize with pretty-printing for consistency
-        let value: serde_json::Value = serde_json::from_str(&json).map_err(|e| e.to_string())?;
-        let pretty = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
-        fs::write(config_path, pretty).map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err("Could not resolve config directory".to_string())
-    }
+    crate::application::persistence::save_config_json_for_desktop(
+        &app.state::<crate::runtime::RuntimeContext>(),
+        &json,
+    )
 }
 
 #[cfg(test)]

@@ -152,8 +152,8 @@ export const Connections = () => {
     void (async () => {
       try {
         const [openIds, activeId] = await Promise.all([
-          invoke<string[]>("get_last_open_connections"),
-          invoke<string | null>("get_last_active_connection"),
+          client.call("get_last_open_connections", undefined),
+          client.call("get_last_active_connection", undefined),
         ]);
         const toRestore = (openIds ?? []).filter(
           (id) => connections.some((c) => c.id === id) && !isConnectionOpen(id),
@@ -183,6 +183,7 @@ export const Connections = () => {
       }
     })();
   }, [
+    client,
     connections,
     settings.autoConnectLastConnection,
     isConnectionOpen,

@@ -6,7 +6,6 @@ use crate::models::{
 use crate::runtime::RuntimeContext;
 use serde::Serialize;
 use serde_json::Value;
-use std::fs;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -381,16 +380,7 @@ pub fn set_selected_schemas(
     connection_id: String,
     schemas: Vec<String>,
 ) -> Result<(), String> {
-    let mut config = load_config(runtime);
-    let selections = config
-        .selected_schemas
-        .get_or_insert_with(std::collections::HashMap::new);
-    if schemas.is_empty() {
-        selections.remove(&connection_id);
-    } else {
-        selections.insert(connection_id, schemas);
-    }
-    save_config(runtime, &config)
+    crate::application::persistence::set_selected_schemas(runtime, connection_id, schemas)
 }
 
 pub fn get_schema_preference(runtime: &RuntimeContext, connection_id: &str) -> Option<String> {
@@ -404,32 +394,11 @@ pub fn set_schema_preference(
     connection_id: String,
     schema: String,
 ) -> Result<(), String> {
-    let mut config = load_config(runtime);
-    config
-        .schema_preferences
-        .get_or_insert_with(std::collections::HashMap::new)
-        .insert(connection_id, schema);
-    save_config(runtime, &config)
+    crate::application::persistence::set_schema_preference(runtime, connection_id, schema)
 }
 
 fn load_config(runtime: &RuntimeContext) -> crate::config::AppConfig {
-    let path = runtime.paths.config_dir().join("config.json");
-    if !path.exists() {
-        return crate::config::AppConfig::default();
-    }
-    let mut config = fs::read_to_string(path)
-        .ok()
-        .and_then(|content| serde_json::from_str(&content).ok())
-        .unwrap_or_default();
-    crate::plugins::compat::migrate_legacy_config(&mut config);
-    config
-}
-
-fn save_config(runtime: &RuntimeContext, config: &crate::config::AppConfig) -> Result<(), String> {
-    let config_dir = runtime.paths.config_dir();
-    fs::create_dir_all(config_dir).map_err(|error| error.to_string())?;
-    let content = serde_json::to_string_pretty(config).map_err(|error| error.to_string())?;
-    fs::write(config_dir.join("config.json"), content).map_err(|error| error.to_string())
+    crate::application::persistence::load_config(runtime)
 }
 
 fn json(value: impl Serialize) -> Result<Value, String> {

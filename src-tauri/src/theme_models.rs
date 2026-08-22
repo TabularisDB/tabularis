@@ -82,6 +82,7 @@ pub struct ThemeBorderColors {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ThemeSemanticColors {
     pub string: String,
     pub number: String,

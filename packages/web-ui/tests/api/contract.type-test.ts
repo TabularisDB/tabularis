@@ -82,6 +82,17 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     host: "%",
     password: "write-only-secret",
   });
+  const config = caller.call("get_config", undefined);
+  const savedConfig: Promise<void> = caller.call("save_config", {
+    config: { language: "en", formatterTabWidth: 2 },
+  });
+  const editorPreferences = caller.call("load_editor_preferences", {
+    connectionId: "connection-1",
+  });
+  const sessionSelection: Promise<string[]> = caller.call(
+    "get_last_open_connections",
+    undefined,
+  );
 
   // @ts-expect-error execute_query requires a connection id.
   caller.call("execute_query", { query: "SELECT 1" });
@@ -123,6 +134,10 @@ function assertCommandContract(caller: TypedCommandCaller): void {
     blob,
     viewDefinition,
     passwordChange,
+    config,
+    savedConfig,
+    editorPreferences,
+    sessionSelection,
     explainResult,
     cancellation,
     wrongResponse,
@@ -164,6 +179,9 @@ const sshAuthorization: CommandAuthorization<"get_ssh_connections"> = "local-adm
 const askpassAuthorization: CommandAuthorization<"respond_ssh_askpass"> = "sensitive";
 const passwordAuthorization: CommandAuthorization<"set_db_user_password"> = "sensitive";
 const userListAuthorization: CommandAuthorization<"get_db_users"> = "sensitive";
+const configAuthorization: CommandAuthorization<"get_config"> = "local-admin";
+const editorPreferencesAuthorization: CommandAuthorization<"load_editor_preferences"> = "database";
+const sessionSelectionAuthorization: CommandAuthorization<"get_last_open_connections"> = "session";
 // @ts-expect-error execute_query is not a local-admin operation.
 const wrongAuthorization: CommandAuthorization<"execute_query"> = "local-admin";
 const rpcFailure: RpcFailure = {
@@ -195,6 +213,9 @@ void sshAuthorization;
 void askpassAuthorization;
 void passwordAuthorization;
 void userListAuthorization;
+void configAuthorization;
+void editorPreferencesAuthorization;
+void sessionSelectionAuthorization;
 void wrongAuthorization;
 void rpcFailure;
 void failureWithoutRequestId;

@@ -7,6 +7,7 @@ import { useEditorTheme } from "../../hooks/useEditorTheme";
 import { loadMonacoTheme } from "../../themes/themeUtils";
 import { Modal } from "../ui/Modal";
 import { ConfirmModal } from "./ConfirmModal";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
 
 interface ConfigJsonModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface ConfigJsonModalProps {
 
 export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
   const { t } = useTranslation();
+  const client = useTabularisClient();
   const editorTheme = useEditorTheme();
   const [jsonValue, setJsonValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -27,11 +29,11 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
     if (!isOpen) return;
     setIsLoading(true);
     setError(null);
-    invoke<string>("get_config_json")
+    client.call("get_config_json", undefined)
       .then((json) => setJsonValue(json))
       .catch((e) => setError(String(e)))
       .finally(() => setIsLoading(false));
-  }, [isOpen]);
+  }, [client, isOpen]);
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -42,7 +44,7 @@ export const ConfigJsonModal = ({ isOpen, onClose }: ConfigJsonModalProps) => {
     setError(null);
     setIsSaving(true);
     try {
-      await invoke("save_config_json", { json: jsonValue });
+      await client.call("save_config_json", { json: jsonValue });
       setShowRestartConfirm(true);
     } catch (e) {
       setError(String(e));

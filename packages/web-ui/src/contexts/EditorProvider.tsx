@@ -70,7 +70,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     const loadPreferences = async () => {
       setIsLoading(true);
       try {
-        const { tabs: loadedTabs, activeTabId: loadedActiveTabId } = await loadEditorPreferences(activeConnectionId);
+        const { tabs: loadedTabs, activeTabId: loadedActiveTabId } =
+          await loadEditorPreferences(client, activeConnectionId);
 
         // Migrate old notebook tabs: notebookState → notebookId
         for (const tab of loadedTabs) {
@@ -129,7 +130,7 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     };
 
     loadPreferences();
-  }, [activeConnectionId]);
+  }, [activeConnectionId, client]);
 
   const createInitialTab = useCallback(
     (partial?: Partial<Tab>): Tab => {
@@ -156,8 +157,8 @@ export const EditorProvider = ({ children }: { children: ReactNode }) => {
     );
     const activeTabId = activeTabIds[activeConnectionId] || null;
 
-    saveTabsToStorage(activeConnectionId, connectionTabs, activeTabId);
-  }, [tabs, activeTabIds, activeConnectionId, isLoading]);
+    saveTabsToStorage(client, activeConnectionId, connectionTabs, activeTabId);
+  }, [client, tabs, activeTabIds, activeConnectionId, isLoading]);
 
   const activeTabId = activeConnectionId
     ? activeTabIds[activeConnectionId] || null

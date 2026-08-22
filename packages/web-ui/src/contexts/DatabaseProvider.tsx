@@ -990,7 +990,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
     // the empty list to protect the startup state) — otherwise disconnecting the
     // last connection would leave it in `last_open_connection_ids` and the app
     // would auto-reconnect it (and restore its tabs) on next launch.
-    invoke('set_last_open_connections', { connectionIds: remainingIds }).catch(() => {});
+    client.call('set_last_open_connections', { connectionIds: remainingIds }).catch(() => {});
 
     if (activeConnectionId === targetId) {
       if (remainingIds.length > 0) {
@@ -998,7 +998,7 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setActiveConnectionId(null);
         setActiveTable(null);
-        invoke('set_last_active_connection', { connectionId: null }).catch(() => {});
+        client.call('set_last_active_connection', { connectionId: null }).catch(() => {});
       }
     }
   };
@@ -1092,8 +1092,8 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   // the value before the startup auto-connect gets a chance to read it.
   useEffect(() => {
     if (!activeConnectionId) return;
-    invoke('set_last_active_connection', { connectionId: activeConnectionId }).catch(() => {});
-  }, [activeConnectionId]);
+    client.call('set_last_active_connection', { connectionId: activeConnectionId }).catch(() => {});
+  }, [activeConnectionId, client]);
 
   // Persist the full set of open connections so the app can reopen all of them
   // on next launch. Skip the empty startup state so the saved list isn't wiped
@@ -1109,8 +1109,8 @@ export const DatabaseProvider = ({ children }: { children: ReactNode }) => {
   // longer needs to chase the empty state for correctness.)
   useEffect(() => {
     if (openConnectionIds.length === 0) return;
-    invoke('set_last_open_connections', { connectionIds: openConnectionIds }).catch(() => {});
-  }, [openConnectionIds]);
+    client.call('set_last_open_connections', { connectionIds: openConnectionIds }).catch(() => {});
+  }, [client, openConnectionIds]);
 
   // Listen for backend health-check failures and clean up dead connections.
   useEffect(() => {

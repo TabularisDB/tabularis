@@ -10,6 +10,11 @@ import type { UpdateCheckResult } from "../../src/contexts/UpdateContext";
 vi.mock("@tauri-apps/api/core");
 vi.mock("@tauri-apps/api/event");
 
+const mockClient = vi.hoisted(() => ({ call: vi.fn() }));
+vi.mock("../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => mockClient,
+}));
+
 describe("UpdateProvider", () => {
   let unlistenProgressMock: () => void;
   let unlistenInstallingMock: () => void;
@@ -31,6 +36,8 @@ describe("UpdateProvider", () => {
       }
       return Promise.resolve(vi.fn());
     });
+
+    mockClient.call.mockImplementation((command, request) => invoke(command, request));
 
     // Default mock for invoke
     vi.mocked(invoke).mockImplementation((cmd: string) => {
@@ -374,7 +381,7 @@ describe("UpdateProvider", () => {
       await vi.runAllTimersAsync();
     });
 
-    expect(invoke).toHaveBeenCalledWith("get_config");
+    expect(invoke).toHaveBeenCalledWith("get_config", undefined);
     expect(invoke).not.toHaveBeenCalledWith("check_for_updates", expect.anything());
   });
 

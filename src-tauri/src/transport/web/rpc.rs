@@ -1,8 +1,8 @@
 use crate::application::{
     connections::ConnectionCommand, database_objects::DatabaseObjectCommand,
-    metadata::MetadataCommand, queries::QueryCommand, records::RecordCommand,
-    tunnels::TunnelCommand, ApplicationApi, ApplicationError, ApplicationRequestContext,
-    AuthorizationLevel,
+    metadata::MetadataCommand, persistence::PersistenceCommand, queries::QueryCommand,
+    records::RecordCommand, tunnels::TunnelCommand, ApplicationApi, ApplicationError,
+    ApplicationRequestContext, AuthorizationLevel,
 };
 use crate::models::{
     ColumnDefinition, ConnectionAppearance, ConnectionParams, K8sConnectionInput, RoutineCallArg,
@@ -46,6 +46,30 @@ enum RpcCommand {
     Query(QueryRpcCommand),
     Record(RecordRpcCommand),
     Tunnel(TunnelRpcCommand),
+    Persistence(PersistenceRpcCommand),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PersistenceRpcCommand {
+    GetConfig,
+    SaveConfig,
+    GetConfigJson,
+    SaveConfigJson,
+    GetKeybindings,
+    SaveKeybindings,
+    GetAllThemes,
+    SaveCustomTheme,
+    DeleteCustomTheme,
+    GetPrompt(crate::application::persistence::PromptKind),
+    SavePrompt(crate::application::persistence::PromptKind),
+    ResetPrompt(crate::application::persistence::PromptKind),
+    LoadEditorPreferences,
+    SaveEditorPreferences,
+    DeleteEditorPreferences,
+    GetLastActiveConnection,
+    SetLastActiveConnection,
+    GetLastOpenConnections,
+    SetLastOpenConnections,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -187,6 +211,61 @@ struct CommandMetadata {
 struct CancelQueryRequest {
     connection_id: String,
     query_request_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SaveConfigRequest {
+    config: crate::config::AppConfig,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SaveConfigJsonRequest {
+    json: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SaveKeybindingsRequest {
+    keybindings: Value,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SaveThemeRequest {
+    theme: crate::theme_models::Theme,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ThemeIdRequest {
+    theme_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SavePromptRequest {
+    prompt: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SaveEditorPreferencesRequest {
+    connection_id: String,
+    preferences: crate::preferences::EditorPreferences,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetLastActiveConnectionRequest {
+    connection_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetLastOpenConnectionsRequest {
+    connection_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -747,6 +826,10 @@ impl RpcDispatcher {
         }
     }
 
+    pub fn clear_session(&self, session_id: uuid::Uuid) {
+        self.application.clear_session(session_id);
+    }
+
     pub async fn dispatch(
         &self,
         command_name: &str,
@@ -948,6 +1031,14 @@ impl RpcDispatcher {
                     .await
                     .map_err(InvocationError::Application)
             }
+            RpcCommand::Persistence(command) => {
+                let command = decode_persistence_command(command, body)
+                    .map_err(InvocationError::InvalidPayload)?;
+                self.application
+                    .execute_persistence_command(context, command)
+                    .await
+                    .map_err(InvocationError::Application)
+            }
         }
     }
 
@@ -988,7 +1079,8 @@ impl RpcCommand {
                 .or_else(|| TunnelRpcCommand::parse(name).map(Self::Tunnel))
                 .or_else(|| DatabaseObjectRpcCommand::parse(name).map(Self::DatabaseObject))
                 .or_else(|| MetadataRpcCommand::parse(name).map(Self::Metadata))
-                .or_else(|| ConnectionRpcCommand::parse(name).map(Self::Connection)),
+                .or_else(|| ConnectionRpcCommand::parse(name).map(Self::Connection))
+                .or_else(|| PersistenceRpcCommand::parse(name).map(Self::Persistence)),
         }
     }
 
@@ -1054,6 +1146,64 @@ impl RpcCommand {
                 application_error_code: "TUNNEL_COMMAND_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
+            Self::Persistence(command) => CommandMetadata {
+                authorization: command.authorization(),
+                application_error_code: "PREFERENCE_COMMAND_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
+        }
+    }
+}
+
+impl PersistenceRpcCommand {
+    fn parse(name: &str) -> Option<Self> {
+        use crate::application::persistence::PromptKind;
+        Some(match name {
+            "get_config" => Self::GetConfig,
+            "save_config" => Self::SaveConfig,
+            "get_config_json" => Self::GetConfigJson,
+            "save_config_json" => Self::SaveConfigJson,
+            "get_keybindings" => Self::GetKeybindings,
+            "save_keybindings" => Self::SaveKeybindings,
+            "get_all_themes" => Self::GetAllThemes,
+            "save_custom_theme" => Self::SaveCustomTheme,
+            "delete_custom_theme" => Self::DeleteCustomTheme,
+            "get_system_prompt" => Self::GetPrompt(PromptKind::System),
+            "save_system_prompt" => Self::SavePrompt(PromptKind::System),
+            "reset_system_prompt" => Self::ResetPrompt(PromptKind::System),
+            "get_explain_prompt" => Self::GetPrompt(PromptKind::Explain),
+            "save_explain_prompt" => Self::SavePrompt(PromptKind::Explain),
+            "reset_explain_prompt" => Self::ResetPrompt(PromptKind::Explain),
+            "get_explainplan_prompt" => Self::GetPrompt(PromptKind::ExplainPlan),
+            "save_explainplan_prompt" => Self::SavePrompt(PromptKind::ExplainPlan),
+            "reset_explainplan_prompt" => Self::ResetPrompt(PromptKind::ExplainPlan),
+            "get_cellname_prompt" => Self::GetPrompt(PromptKind::CellName),
+            "save_cellname_prompt" => Self::SavePrompt(PromptKind::CellName),
+            "reset_cellname_prompt" => Self::ResetPrompt(PromptKind::CellName),
+            "get_tabrename_prompt" => Self::GetPrompt(PromptKind::TabRename),
+            "save_tabrename_prompt" => Self::SavePrompt(PromptKind::TabRename),
+            "reset_tabrename_prompt" => Self::ResetPrompt(PromptKind::TabRename),
+            "load_editor_preferences" => Self::LoadEditorPreferences,
+            "save_editor_preferences" => Self::SaveEditorPreferences,
+            "delete_editor_preferences" => Self::DeleteEditorPreferences,
+            "get_last_active_connection" => Self::GetLastActiveConnection,
+            "set_last_active_connection" => Self::SetLastActiveConnection,
+            "get_last_open_connections" => Self::GetLastOpenConnections,
+            "set_last_open_connections" => Self::SetLastOpenConnections,
+            _ => return None,
+        })
+    }
+
+    fn authorization(self) -> AuthorizationLevel {
+        match self {
+            Self::LoadEditorPreferences
+            | Self::SaveEditorPreferences
+            | Self::DeleteEditorPreferences => AuthorizationLevel::Database,
+            Self::GetLastActiveConnection
+            | Self::SetLastActiveConnection
+            | Self::GetLastOpenConnections
+            | Self::SetLastOpenConnections => AuthorizationLevel::Session,
+            _ => AuthorizationLevel::LocalAdmin,
         }
     }
 }
@@ -1221,6 +1371,90 @@ impl ConnectionRpcCommand {
             _ => return None,
         })
     }
+}
+
+fn decode_persistence_command(
+    command: PersistenceRpcCommand,
+    body: &[u8],
+) -> Result<PersistenceCommand, String> {
+    Ok(match command {
+        PersistenceRpcCommand::GetConfig => {
+            decode_empty_payload(body)?;
+            PersistenceCommand::GetConfig
+        }
+        PersistenceRpcCommand::SaveConfig => {
+            let request: SaveConfigRequest = decode_payload(body)?;
+            PersistenceCommand::SaveConfig(request.config)
+        }
+        PersistenceRpcCommand::GetConfigJson => {
+            decode_empty_payload(body)?;
+            PersistenceCommand::GetConfigJson
+        }
+        PersistenceRpcCommand::SaveConfigJson => {
+            let request: SaveConfigJsonRequest = decode_payload(body)?;
+            PersistenceCommand::SaveConfigJson(request.json)
+        }
+        PersistenceRpcCommand::GetKeybindings => {
+            decode_empty_payload(body)?;
+            PersistenceCommand::GetKeybindings
+        }
+        PersistenceRpcCommand::SaveKeybindings => {
+            let request: SaveKeybindingsRequest = decode_payload(body)?;
+            PersistenceCommand::SaveKeybindings(request.keybindings)
+        }
+        PersistenceRpcCommand::GetAllThemes => {
+            decode_empty_payload(body)?;
+            PersistenceCommand::GetAllThemes
+        }
+        PersistenceRpcCommand::SaveCustomTheme => {
+            let request: SaveThemeRequest = decode_payload(body)?;
+            PersistenceCommand::SaveCustomTheme(request.theme)
+        }
+        PersistenceRpcCommand::DeleteCustomTheme => {
+            let request: ThemeIdRequest = decode_payload(body)?;
+            PersistenceCommand::DeleteCustomTheme(request.theme_id)
+        }
+        PersistenceRpcCommand::GetPrompt(kind) => {
+            decode_empty_payload(body)?;
+            PersistenceCommand::GetPrompt(kind)
+        }
+        PersistenceRpcCommand::SavePrompt(kind) => {
+            let request: SavePromptRequest = decode_payload(body)?;
+            PersistenceCommand::SavePrompt(kind, request.prompt)
+        }
+        PersistenceRpcCommand::ResetPrompt(kind) => {
+            decode_empty_payload(body)?;
+            PersistenceCommand::ResetPrompt(kind)
+        }
+        PersistenceRpcCommand::LoadEditorPreferences => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            PersistenceCommand::LoadEditorPreferences(request.connection_id)
+        }
+        PersistenceRpcCommand::SaveEditorPreferences => {
+            let request: SaveEditorPreferencesRequest = decode_payload(body)?;
+            PersistenceCommand::SaveEditorPreferences(request.connection_id, request.preferences)
+        }
+        PersistenceRpcCommand::DeleteEditorPreferences => {
+            let request: ConnectionIdRequest = decode_payload(body)?;
+            PersistenceCommand::DeleteEditorPreferences(request.connection_id)
+        }
+        PersistenceRpcCommand::GetLastActiveConnection => {
+            decode_empty_payload(body)?;
+            PersistenceCommand::GetLastActiveConnection
+        }
+        PersistenceRpcCommand::SetLastActiveConnection => {
+            let request: SetLastActiveConnectionRequest = decode_payload(body)?;
+            PersistenceCommand::SetLastActiveConnection(request.connection_id)
+        }
+        PersistenceRpcCommand::GetLastOpenConnections => {
+            decode_empty_payload(body)?;
+            PersistenceCommand::GetLastOpenConnections
+        }
+        PersistenceRpcCommand::SetLastOpenConnections => {
+            let request: SetLastOpenConnectionsRequest = decode_payload(body)?;
+            PersistenceCommand::SetLastOpenConnections(request.connection_ids)
+        }
+    })
 }
 
 fn decode_query_command(command: QueryRpcCommand, body: &[u8]) -> Result<QueryCommand, String> {

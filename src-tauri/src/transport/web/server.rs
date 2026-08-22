@@ -567,6 +567,7 @@ async fn logout(
     Extension(session): Extension<AuthenticatedSession>,
 ) -> Response {
     state.events.remove_session(session.event_scope());
+    state.rpc.clear_session(session.event_scope());
     crate::application::records::cleanup_session_transfers(&state.data_dir, session.event_scope());
     state.security.logout(&session);
     let mut response = StatusCode::NO_CONTENT.into_response();
