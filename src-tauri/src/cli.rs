@@ -87,6 +87,14 @@ pub struct WebArgs {
     /// Grant remote sessions high-risk local-administrator capabilities
     #[arg(long, requires = "auth")]
     pub allow_high_risk: bool,
+
+    /// Allow the Web UI to browse this server directory; repeat as needed
+    #[arg(
+        long = "server-file-browser-root",
+        value_name = "PATH",
+        action = clap::ArgAction::Append
+    )]
+    pub server_file_browser_roots: Vec<PathBuf>,
 }
 
 impl Args {

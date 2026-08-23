@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { TabularisClient } from "../../src/api/client";
 import { BrowserPlatformCapabilities } from "../../src/platform/browserCapabilities";
 import { BROWSER_CAPABILITY_FALLBACK_EVENT } from "../../src/platform/browserFallbacks";
+import {
+  subscribeBrowserMessageRequests,
+  subscribeBrowserServerPathRequests,
+} from "../../src/platform/browserDialogs";
 
 function clientFixture(overrides: Partial<TabularisClient>): TabularisClient {
   return overrides as TabularisClient;
@@ -61,7 +65,8 @@ describe("BrowserPlatformCapabilities browser adaptations", () => {
     expect(capabilities.negotiation.capabilities.chooseServerPath).toEqual({
       supported: false,
       adaptation: "unsupported",
-      reason: "Browsers cannot select paths on the Tabularis server",
+      reason:
+        "Server file browsing is disabled. Start Tabularis with --server-file-browser-root <PATH> to enable it.",
     });
   });
 
@@ -84,9 +89,12 @@ describe("BrowserPlatformCapabilities browser adaptations", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uses browser-native accessible confirmation and message dialogs", async () => {
+  it("uses browser-native confirmation and the in-app message bridge", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
-    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const messageHandler = vi.fn(
+      ({ resolve }: { resolve: () => void }) => resolve(),
+    );
+    const unsubscribe = subscribeBrowserMessageRequests(messageHandler);
     const capabilities = new BrowserPlatformCapabilities(clientFixture({}));
 
     await expect(
@@ -95,7 +103,39 @@ describe("BrowserPlatformCapabilities browser adaptations", () => {
     await capabilities.showMessage({ message: "Export complete" });
 
     expect(confirm).toHaveBeenCalledWith("Warning\n\nDrop table?");
-    expect(alert).toHaveBeenCalledWith("Export complete");
+    expect(messageHandler).toHaveBeenCalledOnce();
+    expect(messageHandler.mock.calls[0][0].request).toEqual({
+      message: "Export complete",
+    });
+    unsubscribe();
+  });
+
+  it("opens the server picker bridge only when advertised by the server", async () => {
+    const capabilities = new BrowserPlatformCapabilities(
+      clientFixture({}),
+      undefined,
+      true,
+    );
+    const handler = vi.fn(
+      ({ resolve }: { resolve: (value: { reference: string }) => void }) =>
+        resolve({ reference: "/srv/databases/main.sqlite" }),
+    );
+    const unsubscribe = subscribeBrowserServerPathRequests(handler);
+
+    await expect(
+      capabilities.chooseServerPath({ kind: "file" }),
+    ).resolves.toEqual({ reference: "/srv/databases/main.sqlite" });
+    await expect(
+      capabilities.chooseSaveTarget({ suggestedName: "database.db" }),
+    ).resolves.toEqual({ reference: "/srv/databases/main.sqlite" });
+    expect(capabilities.supports("chooseServerPath")).toBe(true);
+    expect(capabilities.supports("chooseSaveTarget")).toBe(true);
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(handler.mock.calls[1][0].options).toMatchObject({
+      mode: "save",
+      suggestedName: "database.db",
+    });
+    unsubscribe();
   });
 
   it("falls back in-app when browser notification permission is denied", async () => {

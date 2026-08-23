@@ -24,6 +24,7 @@ The Web-specific options are:
 | `--public-url` | Public HTTPS origin seen by browsers, for example `https://tabularis.example.com`. It must not contain a path, query, fragment, or credentials. |
 | `--allowed-origin` | Allowed HTTPS browser origin. Repeat the option for additional origins; the public URL must be included. |
 | `--allow-high-risk` | Give remote sessions `local-admin` authority. Without it, remote sessions are restricted to database operations. Do not enable it for shared deployments. |
+| `--server-file-browser-root` | Allow the Web UI to browse one server directory. Repeat it to expose additional roots. Paths outside these roots remain inaccessible; remote sessions also require `--allow-high-risk`. |
 
 `--debug` enables additional logging, including SQLx query logging, in desktop and Web modes. Treat debug output as sensitive and disable it after diagnosis. Use `tabularis --help` for the complete process-mode CLI.
 
@@ -35,6 +36,16 @@ tabularis web --port 8081 --web-root packages/web-ui/dist
 ```
 
 `--web-root` must point to assets from the same source revision as the server. Do not combine a server binary and UI bundle from different releases.
+
+Server file browsing is disabled by default. Enable only the directories required by the Web UI:
+
+```bash
+tabularis web \
+  --server-file-browser-root /srv/databases \
+  --server-file-browser-root /var/backups
+```
+
+The picker canonicalizes configured roots and directory entries, rejects traversal outside them, and skips symlinks whose targets leave the allowed root. It also provides a save mode for operations such as **New SQLite Database**, allowing a new file name only inside the selected root. Without this option, browse and save actions show the standard in-app unavailable dialog.
 
 ## Local security behavior
 

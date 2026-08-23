@@ -1,4 +1,12 @@
 {
+  "serverFilePicker": {
+    "title": "浏览服务器文件",
+    "subtitle": "在 Tabularis 主机上选择文件或文件夹",
+    "roots": "已配置的根目录",
+    "empty": "此文件夹为空",
+    "fileName": "文件名",
+    "select": "选择"
+  },
   "toolbar": {
     "filters": "筛选器",
     "toggleFilterPanel": "切换结构化筛选面板",

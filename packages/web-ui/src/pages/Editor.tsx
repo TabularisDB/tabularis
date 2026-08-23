@@ -3402,13 +3402,16 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         name: format === "markdown" ? "Markdown" : format.toUpperCase(),
         extensions: [extension],
       };
-      const target = platform.supports("chooseSaveTarget")
+      const usesNativeSaveTarget =
+        platform.negotiation.environment === "tauri" &&
+        platform.supports("chooseSaveTarget");
+      const target = usesNativeSaveTarget
         ? await platform.chooseSaveTarget({
             suggestedName: fileName,
             filters: [filter],
           })
         : null;
-      if (platform.supports("chooseSaveTarget") && !target) return;
+      if (usesNativeSaveTarget && !target) return;
 
       setExportState({
         isOpen: true,

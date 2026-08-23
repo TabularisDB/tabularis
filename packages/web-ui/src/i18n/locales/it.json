@@ -1,4 +1,12 @@
 {
+  "serverFilePicker": {
+    "title": "Sfoglia i file del server",
+    "subtitle": "Seleziona un file o una cartella sull'host Tabularis",
+    "roots": "Percorsi configurati",
+    "empty": "Questa cartella è vuota",
+    "fileName": "Nome file",
+    "select": "Seleziona"
+  },
   "toolbar": {
     "filters": "Filtri",
     "toggleFilterPanel": "Pannello filtri strutturati",

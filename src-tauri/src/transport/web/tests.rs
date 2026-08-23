@@ -549,6 +549,7 @@ async fn rejects_non_loopback_binding_without_explicit_remote_authentication() {
         public_url: None,
         allowed_origins: Vec::new(),
         allow_high_risk: false,
+        server_file_browser_roots: Vec::new(),
         application: test_application(temp.path()),
         events: WebEventBus::default(),
     })
@@ -2545,6 +2546,7 @@ async fn authenticates_websockets_and_delivers_scoped_events_with_heartbeat() {
         security,
         test_application(temp.path()),
         events.clone(),
+        Arc::default(),
         async move {
             let _ = shutdown_rx.await;
         },

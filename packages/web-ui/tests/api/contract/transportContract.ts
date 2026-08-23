@@ -75,6 +75,7 @@ const SESSION = {
     downloads: false,
     pluginAssets: false,
     mcpHostConfiguration: true,
+    serverFileBrowser: false,
     nativeUpdater: false,
   },
   queryResponsePolicy: {

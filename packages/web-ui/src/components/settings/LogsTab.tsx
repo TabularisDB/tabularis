@@ -84,13 +84,16 @@ export function LogsTab() {
   const handleExportLogs = useCallback(async () => {
     try {
       const fileName = `tabularis_logs_${new Date().toISOString().split("T")[0]}.log`;
-      const target = platform.supports("chooseSaveTarget")
+      const usesNativeSaveTarget =
+        platform.negotiation.environment === "tauri" &&
+        platform.supports("chooseSaveTarget");
+      const target = usesNativeSaveTarget
         ? await platform.chooseSaveTarget({
             suggestedName: fileName,
             filters: [{ name: "Log Files", extensions: ["log"] }],
           })
         : null;
-      if (platform.supports("chooseSaveTarget") && !target) return;
+      if (usesNativeSaveTarget && !target) return;
       const generated = await client.call("export_logs", {
         ...(target ? { filePath: target.reference } : {}),
       });

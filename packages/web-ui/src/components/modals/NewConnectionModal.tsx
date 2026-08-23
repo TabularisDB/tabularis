@@ -1557,7 +1557,7 @@ export const NewConnectionModal = ({
       });
       if (!path || activeActionRef.current !== actionId) return;
 
-      const createdPath = await invoke<string>("create_sqlite_file", { path });
+      const createdPath = await client.call("create_sqlite_file", { path });
       if (activeActionRef.current !== actionId) return;
       updateField("database", createdPath);
     } catch (error) {

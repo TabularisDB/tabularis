@@ -5,6 +5,7 @@ export interface WebTransportCapabilities {
   readonly downloads: boolean;
   readonly pluginAssets: boolean;
   readonly mcpHostConfiguration: boolean;
+  readonly serverFileBrowser: boolean;
   readonly nativeUpdater: false;
 }
 

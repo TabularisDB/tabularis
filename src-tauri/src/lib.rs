@@ -190,6 +190,7 @@ pub fn run() {
                     public_url: web_args.public_url.clone(),
                     allowed_origins: web_args.allowed_origins.clone(),
                     allow_high_risk: web_args.allow_high_risk,
+                    server_file_browser_roots: web_args.server_file_browser_roots.clone(),
                     application: application_api,
                     events: web_events,
                 },

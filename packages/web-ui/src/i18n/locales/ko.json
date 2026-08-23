@@ -1,4 +1,12 @@
 {
+  "serverFilePicker": {
+    "title": "서버 파일 찾아보기",
+    "subtitle": "Tabularis 호스트에서 파일 또는 폴더를 선택하세요",
+    "roots": "설정된 루트",
+    "empty": "이 폴더는 비어 있습니다",
+    "fileName": "파일 이름",
+    "select": "선택"
+  },
   "toolbar": {
     "filters": "필터",
     "toggleFilterPanel": "구조화된 필터 패널 토글",

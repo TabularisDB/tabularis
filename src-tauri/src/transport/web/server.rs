@@ -59,6 +59,7 @@ pub struct WebServerOptions {
     pub public_url: Option<String>,
     pub allowed_origins: Vec<String>,
     pub allow_high_risk: bool,
+    pub server_file_browser_roots: Vec<PathBuf>,
     pub application: Arc<dyn ApplicationApi>,
     pub events: WebEventBus,
 }
@@ -71,6 +72,7 @@ struct WebServerState {
     transfers: FileTransferStore,
     data_dir: PathBuf,
     mcp_host_configuration: bool,
+    server_file_browser: bool,
 }
 
 #[derive(Deserialize)]
@@ -89,6 +91,8 @@ struct BlobUploadResponse {
 }
 
 pub async fn run(options: WebServerOptions) -> Result<(), String> {
+    let server_file_browser_roots =
+        super::server_files::canonicalize_roots(&options.server_file_browser_roots)?;
     let listener = TcpListener::bind((options.host.as_str(), options.port))
         .await
         .map_err(|error| {
@@ -164,6 +168,7 @@ pub async fn run(options: WebServerOptions) -> Result<(), String> {
         security,
         options.application,
         options.events,
+        server_file_browser_roots,
         shutdown_signal(),
     )
     .await
@@ -200,6 +205,7 @@ where
         security,
         application,
         WebEventBus::default(),
+        Arc::default(),
         shutdown,
     )
     .await
@@ -212,6 +218,7 @@ pub(crate) async fn serve_with_events<F>(
     security: LocalSessionSecurity,
     application: Arc<dyn ApplicationApi>,
     events: WebEventBus,
+    server_file_browser_roots: Arc<[PathBuf]>,
     shutdown: F,
 ) -> std::io::Result<()>
 where
@@ -219,7 +226,14 @@ where
 {
     axum::serve(
         listener,
-        router(web_root, data_dir, security, application, events),
+        router(
+            web_root,
+            data_dir,
+            security,
+            application,
+            events,
+            server_file_browser_roots,
+        ),
     )
     .with_graceful_shutdown(shutdown)
     .await
@@ -231,24 +245,28 @@ fn router(
     security: LocalSessionSecurity,
     application: Arc<dyn ApplicationApi>,
     events: WebEventBus,
+    server_file_browser_roots: Arc<[PathBuf]>,
 ) -> Router {
     let index = web_root.join("index.html");
     let static_files = ServeDir::new(web_root).fallback(ServeFile::new(index));
     let max_body_bytes = security.max_body_bytes();
     let mcp_host_configuration =
         !security.is_remote() && mcp_host_configuration_enabled(security.expected_origin());
+    let server_file_browser = !server_file_browser_roots.is_empty();
     let state = WebServerState {
         security,
         rpc: RpcDispatcher::with_access_policy(
             application,
             RpcAccessPolicy {
                 mcp_host_configuration,
+                server_file_browser_roots,
             },
         ),
         events,
         transfers: FileTransferStore::new(&data_dir),
         data_dir,
         mcp_host_configuration,
+        server_file_browser,
     };
 
     let standard_routes = Router::new()
@@ -398,12 +416,18 @@ async fn session(
 ) -> impl IntoResponse {
     (
         [(CACHE_CONTROL, "no-store")],
-        Json(SessionNegotiation::authenticated_with_access(
-            session.csrf_token.clone(),
-            state.mcp_host_configuration,
-            session.is_remote(),
-            session.authorization(),
-        )),
+        Json(
+            SessionNegotiation::authenticated_with_access(
+                session.csrf_token.clone(),
+                state.mcp_host_configuration,
+                session.is_remote(),
+                session.authorization(),
+            )
+            .with_server_file_browser(
+                state.server_file_browser
+                    && session.authorization() == AuthorizationLevel::LocalAdmin,
+            ),
+        ),
     )
 }
 

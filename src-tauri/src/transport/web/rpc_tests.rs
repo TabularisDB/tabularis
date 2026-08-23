@@ -701,11 +701,98 @@ fn registers_mcp_host_commands_with_local_admin_authorization() {
 }
 
 #[tokio::test]
+async fn lists_only_configured_server_directories_for_local_admin_sessions() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("main.sqlite"), b"").unwrap();
+    let roots =
+        crate::transport::web::server_files::canonicalize_roots(&[root.path().to_path_buf()])
+            .unwrap();
+    let dispatcher = RpcDispatcher::with_access_policy(
+        Arc::new(FixtureApplication::new(Duration::ZERO)),
+        RpcAccessPolicy {
+            server_file_browser_roots: roots,
+            ..RpcAccessPolicy::default()
+        },
+    );
+    let payload = serde_json::json!({ "path": root.path() });
+
+    let response = dispatcher
+        .dispatch_authorized(
+            "list_server_directory",
+            RequestId("server-files".to_string()),
+            &json_headers(),
+            Bytes::from(serde_json::to_vec(&payload).unwrap()),
+            Some(Uuid::new_v4()),
+            AuthorizationLevel::LocalAdmin,
+        )
+        .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response_json(response).await["data"]["entries"][0]["name"],
+        "main.sqlite"
+    );
+}
+
+#[tokio::test]
+async fn creates_sqlite_files_only_inside_configured_server_roots() {
+    let root = tempfile::tempdir().unwrap();
+    let roots =
+        crate::transport::web::server_files::canonicalize_roots(&[root.path().to_path_buf()])
+            .unwrap();
+    let dispatcher = RpcDispatcher::with_access_policy(
+        Arc::new(FixtureApplication::new(Duration::ZERO)),
+        RpcAccessPolicy {
+            server_file_browser_roots: roots,
+            ..RpcAccessPolicy::default()
+        },
+    );
+    let path = root.path().join("customers.db");
+
+    let response = dispatcher
+        .dispatch_authorized(
+            "create_sqlite_file",
+            RequestId("create-sqlite-file".to_string()),
+            &json_headers(),
+            Bytes::from(
+                serde_json::to_vec(&serde_json::json!({ "path": path.to_string_lossy() })).unwrap(),
+            ),
+            Some(Uuid::new_v4()),
+            AuthorizationLevel::LocalAdmin,
+        )
+        .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(path.exists());
+
+    let database_path = root.path().join("inventory.sqlite");
+    let response = dispatcher
+        .dispatch_authorized(
+            "create_sqlite_database",
+            RequestId("create-sqlite-database".to_string()),
+            &json_headers(),
+            Bytes::from(
+                serde_json::to_vec(&serde_json::json!({
+                    "path": database_path.to_string_lossy()
+                }))
+                .unwrap(),
+            ),
+            Some(Uuid::new_v4()),
+            AuthorizationLevel::LocalAdmin,
+        )
+        .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(database_path.exists());
+}
+
+#[tokio::test]
 async fn rejects_mcp_host_configuration_without_local_admin_authorization() {
     let dispatcher = RpcDispatcher::with_access_policy(
         Arc::new(FixtureApplication::new(Duration::ZERO)),
         RpcAccessPolicy {
             mcp_host_configuration: true,
+            ..RpcAccessPolicy::default()
         },
     );
     for (command, payload) in [
@@ -736,6 +823,7 @@ async fn disables_mcp_host_configuration_when_web_policy_is_remote() {
         Arc::new(FixtureApplication::new(Duration::ZERO)),
         RpcAccessPolicy {
             mcp_host_configuration: false,
+            ..RpcAccessPolicy::default()
         },
     );
     for (command, payload) in [
@@ -770,6 +858,7 @@ async fn routes_mcp_host_commands_through_the_shared_application_api() {
         application.clone(),
         RpcAccessPolicy {
             mcp_host_configuration: true,
+            ..RpcAccessPolicy::default()
         },
     );
 

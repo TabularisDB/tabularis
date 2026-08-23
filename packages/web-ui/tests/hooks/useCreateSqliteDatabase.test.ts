@@ -1,7 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { invoke } from "@tauri-apps/api/core";
+
 const chooseSaveTarget = vi.hoisted(() => vi.fn());
+
+const call = vi.hoisted(() => vi.fn());
 
 vi.mock("../../src/hooks/usePlatformCapabilities", () => ({
   usePlatformCapabilities: () => ({
@@ -9,9 +11,12 @@ vi.mock("../../src/hooks/usePlatformCapabilities", () => ({
     chooseSaveTarget,
   }),
 }));
+
+vi.mock("../../src/hooks/useTabularisClient", () => ({
+  useTabularisClient: () => ({ call }),
+}));
 import { useCreateSqliteDatabase } from "../../src/hooks/useCreateSqliteDatabase";
 
-const mockInvoke = vi.mocked(invoke);
 const mockSave = chooseSaveTarget;
 
 const connection = {
@@ -27,7 +32,7 @@ describe("useCreateSqliteDatabase", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSave.mockResolvedValue({ reference: "/tmp/customers.db" });
-    mockInvoke.mockResolvedValue(connection);
+    call.mockResolvedValue(connection);
   });
 
   it("creates a SQLite database from the selected save path", async () => {
@@ -48,7 +53,7 @@ describe("useCreateSqliteDatabase", () => {
         },
       ],
     });
-    expect(mockInvoke).toHaveBeenCalledWith("create_sqlite_database", {
+    expect(call).toHaveBeenCalledWith("create_sqlite_database", {
       path: "/tmp/customers.db",
     });
     expect(created).toEqual(connection);
@@ -65,7 +70,7 @@ describe("useCreateSqliteDatabase", () => {
     });
 
     expect(created).toBeNull();
-    expect(mockInvoke).not.toHaveBeenCalled();
+    expect(call).not.toHaveBeenCalled();
   });
 
   it("prevents concurrent creation attempts", async () => {
@@ -95,7 +100,7 @@ describe("useCreateSqliteDatabase", () => {
   });
 
   it("clears the loading state when creation fails", async () => {
-    mockInvoke.mockRejectedValue(new Error("permission denied"));
+    call.mockRejectedValue(new Error("permission denied"));
     const { result } = renderHook(() => useCreateSqliteDatabase());
 
     await act(async () => {

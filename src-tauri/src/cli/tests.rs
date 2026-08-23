@@ -40,6 +40,10 @@ fn parses_all_web_options() {
         "--allowed-origin",
         "https://admin.example.com",
         "--allow-high-risk",
+        "--server-file-browser-root",
+        "/srv/databases",
+        "--server-file-browser-root",
+        "/var/backups",
         "--debug",
     ])
     .expect("web options should parse");
@@ -62,6 +66,13 @@ fn parses_all_web_options() {
         ]
     );
     assert!(web_args.allow_high_risk);
+    assert_eq!(
+        web_args.server_file_browser_roots,
+        [
+            PathBuf::from("/srv/databases"),
+            PathBuf::from("/var/backups")
+        ]
+    );
     assert!(args.debug);
 }
 
@@ -90,6 +101,7 @@ fn web_options_require_web_subcommand() {
         "--auth",
         "--public-url",
         "--allowed-origin",
+        "--server-file-browser-root",
     ] {
         let value = match option {
             "--host" => "localhost",
@@ -97,6 +109,7 @@ fn web_options_require_web_subcommand() {
             "--web-root" => "/tmp/tabularis-web",
             "--auth" => "proxy",
             "--public-url" | "--allowed-origin" => "https://tabularis.example.com",
+            "--server-file-browser-root" => "/srv/databases",
             _ => unreachable!(),
         };
         let error = Args::try_parse_from(["tabularis", option, value])
@@ -140,6 +153,7 @@ fn help_lists_web_subcommand_and_options() {
         "--public-url <URL>",
         "--allowed-origin <ORIGIN>",
         "--allow-high-risk",
+        "--server-file-browser-root <PATH>",
     ] {
         assert!(
             help.contains(option),

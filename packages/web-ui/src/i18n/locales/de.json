@@ -1,4 +1,12 @@
 {
+  "serverFilePicker": {
+    "title": "Serverdateien durchsuchen",
+    "subtitle": "Datei oder Ordner auf dem Tabularis-Host auswählen",
+    "roots": "Konfigurierte Stammordner",
+    "empty": "Dieser Ordner ist leer",
+    "fileName": "Dateiname",
+    "select": "Auswählen"
+  },
   "toolbar": {
     "filters": "Filter",
     "toggleFilterPanel": "Strukturiertes Filterpanel ein-/ausblenden",

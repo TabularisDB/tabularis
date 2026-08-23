@@ -38,6 +38,7 @@ const WEB_SESSION: SessionNegotiation = {
     downloads: true,
     pluginAssets: true,
     mcpHostConfiguration: true,
+    serverFileBrowser: false,
     nativeUpdater: false,
   },
   queryResponsePolicy: {

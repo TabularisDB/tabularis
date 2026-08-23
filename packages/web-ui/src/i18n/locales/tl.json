@@ -1,4 +1,12 @@
 {
+  "serverFilePicker": {
+    "title": "Mag-browse ng mga file sa server",
+    "subtitle": "Pumili ng file o folder sa Tabularis host",
+    "roots": "Mga naka-configure na root",
+    "empty": "Walang laman ang folder na ito",
+    "fileName": "Pangalan ng file",
+    "select": "Piliin"
+  },
   "toolbar": {
     "filters": "Mga Filter",
     "toggleFilterPanel": "I-toggle ang structured filter panel",

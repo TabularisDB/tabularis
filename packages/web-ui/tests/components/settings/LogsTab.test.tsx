@@ -27,6 +27,7 @@ vi.mock("lucide-react", () => ({
 
 vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
   usePlatformCapabilities: () => ({
+    negotiation: { environment: "browser" },
     supports: () => false,
   }),
 }));

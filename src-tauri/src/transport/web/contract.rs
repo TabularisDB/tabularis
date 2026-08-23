@@ -33,6 +33,7 @@ pub struct WebTransportCapabilities {
     pub downloads: bool,
     pub plugin_assets: bool,
     pub mcp_host_configuration: bool,
+    pub server_file_browser: bool,
     pub native_updater: bool,
 }
 
@@ -87,6 +88,11 @@ impl SessionNegotiation {
         )
     }
 
+    pub fn with_server_file_browser(mut self, enabled: bool) -> Self {
+        self.capabilities.server_file_browser = enabled;
+        self
+    }
+
     fn new(
         authenticated: bool,
         csrf_token: String,
@@ -123,6 +129,7 @@ impl SessionNegotiation {
                 downloads: true,
                 plugin_assets: true,
                 mcp_host_configuration,
+                server_file_browser: false,
                 native_updater: false,
             },
             query_response_policy: WebQueryResponsePolicy {

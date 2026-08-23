@@ -1,4 +1,12 @@
 {
+  "serverFilePicker": {
+    "title": "サーバーファイルを参照",
+    "subtitle": "Tabularis ホスト上のファイルまたはフォルダーを選択します",
+    "roots": "設定済みルート",
+    "empty": "このフォルダーは空です",
+    "fileName": "ファイル名",
+    "select": "選択"
+  },
   "toolbar": {
     "filters": "フィルター",
     "toggleFilterPanel": "構造化フィルターパネルを切り替え",

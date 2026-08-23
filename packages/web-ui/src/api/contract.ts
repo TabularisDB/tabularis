@@ -79,6 +79,35 @@ export interface CommandDefinition<
   readonly authorization: Authorization;
 }
 
+export interface ServerPathEntry {
+  readonly name: string;
+  readonly path: string;
+  readonly kind: "file" | "directory";
+}
+
+export interface ServerDirectoryListing {
+  readonly path: string | null;
+  readonly parent: string | null;
+  readonly entries: readonly ServerPathEntry[];
+}
+
+export interface ListServerDirectoryRequest {
+  readonly path?: string;
+}
+
+export interface ResolveServerSaveTargetRequest {
+  readonly directory: string;
+  readonly fileName: string;
+}
+
+export interface ServerSaveTarget {
+  readonly path: string;
+}
+
+export interface SqlitePathRequest {
+  readonly path: string;
+}
+
 export interface ConnectionParameters {
   driver: string;
   database: string | string[];
@@ -399,6 +428,26 @@ export interface PersistedConfig extends Partial<Settings> {
 
 export interface CommandMap {
   is_debug_mode: CommandDefinition<undefined, boolean, "local-admin">;
+  list_server_directory: CommandDefinition<
+    ListServerDirectoryRequest,
+    ServerDirectoryListing,
+    "local-admin"
+  >;
+  resolve_server_save_target: CommandDefinition<
+    ResolveServerSaveTargetRequest,
+    ServerSaveTarget,
+    "local-admin"
+  >;
+  create_sqlite_file: CommandDefinition<
+    SqlitePathRequest,
+    string,
+    "local-admin"
+  >;
+  create_sqlite_database: CommandDefinition<
+    SqlitePathRequest,
+    SavedConnection,
+    "local-admin"
+  >;
   get_installation_source: CommandDefinition<
     undefined,
     string | null,

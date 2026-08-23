@@ -33,7 +33,11 @@ async function startApplication() {
     await bootstrapTabularisRuntime(environment);
   const platformCapabilities = environment === 'tauri'
     ? new TauriPlatformCapabilities()
-    : new BrowserPlatformCapabilities(tabularisClient);
+    : new BrowserPlatformCapabilities(
+        tabularisClient,
+        undefined,
+        session?.capabilities.serverFileBrowser ?? false,
+      );
   registerActivePlatformCapabilities(platformCapabilities);
 
   ReactDOM.createRoot(rootElement).render(

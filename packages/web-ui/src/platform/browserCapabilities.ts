@@ -34,21 +34,33 @@ import {
   buildRouteWindowLabel,
 } from "../routing";
 import { publishBrowserCapabilityFallback } from "./browserFallbacks";
+import {
+  requestBrowserMessage,
+  requestBrowserSaveTarget,
+  requestBrowserServerPath,
+} from "./browserDialogs";
 
-const BROWSER_CAPABILITY_NEGOTIATION = createPlatformCapabilityNegotiation(
-  "browser",
-  {
+function browserCapabilityNegotiation(
+  serverFileBrowser: boolean,
+): PlatformCapabilityNegotiation {
+  return createPlatformCapabilityNegotiation("browser", {
     chooseInputFile: { supported: true, adaptation: "adapted" },
-    chooseSaveTarget: {
-      supported: false,
-      adaptation: "unsupported",
-      reason: "Browsers cannot select writable paths on the Tabularis server",
-    },
-    chooseServerPath: {
-      supported: false,
-      adaptation: "unsupported",
-      reason: "Browsers cannot select paths on the Tabularis server",
-    },
+    chooseSaveTarget: serverFileBrowser
+      ? { supported: true, adaptation: "adapted" }
+      : {
+          supported: false,
+          adaptation: "unsupported",
+          reason:
+            "Server file browsing is disabled. Start Tabularis with --server-file-browser-root <PATH> to enable it.",
+        },
+    chooseServerPath: serverFileBrowser
+      ? { supported: true, adaptation: "adapted" }
+      : {
+          supported: false,
+          adaptation: "unsupported",
+          reason:
+            "Server file browsing is disabled. Start Tabularis with --server-file-browser-root <PATH> to enable it.",
+        },
     confirm: { supported: true, adaptation: "adapted" },
     showMessage: { supported: true, adaptation: "adapted" },
     readClipboard: { supported: true, adaptation: "adapted" },
@@ -64,21 +76,25 @@ const BROWSER_CAPABILITY_NEGOTIATION = createPlatformCapabilityNegotiation(
       adaptation: "unsupported",
       reason: "The browser cannot restart the Tabularis server",
     },
-  },
-);
+  });
+}
 
 type BrowserFilePicker = (accept?: string) => Promise<File | null>;
 
 export class BrowserPlatformCapabilities implements PlatformCapabilities {
-  readonly negotiation: PlatformCapabilityNegotiation =
-    BROWSER_CAPABILITY_NEGOTIATION;
+  readonly negotiation: PlatformCapabilityNegotiation;
   private readonly client: TabularisClient;
   private readonly filePicker: BrowserFilePicker;
   private readonly inputFiles = new Map<string, File>();
 
-  constructor(client: TabularisClient, filePicker: BrowserFilePicker = pickFile) {
+  constructor(
+    client: TabularisClient,
+    filePicker: BrowserFilePicker = pickFile,
+    serverFileBrowser = false,
+  ) {
     this.client = client;
     this.filePicker = filePicker;
+    this.negotiation = browserCapabilityNegotiation(serverFileBrowser);
   }
 
   supports(capability: PlatformCapabilityName): boolean {
@@ -99,17 +115,21 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
   }
 
   chooseSaveTarget(
-    _options?: ChooseSaveTargetOptions,
+    options: ChooseSaveTargetOptions = {},
   ): Promise<ChosenSaveTarget | null> {
-    void _options;
-    return this.unsupported("chooseSaveTarget");
+    if (!this.supports("chooseSaveTarget")) {
+      return this.unsupported("chooseSaveTarget");
+    }
+    return requestBrowserSaveTarget(options);
   }
 
   chooseServerPath(
-    _options: ChooseServerPathOptions,
+    options: ChooseServerPathOptions,
   ): Promise<ChosenSaveTarget | null> {
-    void _options;
-    return this.unsupported("chooseServerPath");
+    if (!this.supports("chooseServerPath")) {
+      return this.unsupported("chooseServerPath");
+    }
+    return requestBrowserServerPath(options);
   }
 
   confirm(request: PlatformDialogRequest): Promise<boolean> {
@@ -117,8 +137,7 @@ export class BrowserPlatformCapabilities implements PlatformCapabilities {
   }
 
   showMessage(request: PlatformDialogRequest): Promise<void> {
-    window.alert(dialogText(request));
-    return Promise.resolve();
+    return requestBrowserMessage(request);
   }
 
   async readInputFile(reference: string): Promise<Uint8Array> {

@@ -18,8 +18,8 @@ use crate::application::{
     ApplicationApi, ApplicationError, ApplicationRequestContext, AuthorizationLevel,
 };
 use crate::models::{
-    ColumnDefinition, ConnectionAppearance, ConnectionParams, K8sConnectionInput, RoutineCallArg,
-    SshConnectionInput, SshTestParams, TestConnectionRequest,
+    ColumnDefinition, ConnectionAppearance, ConnectionParams, DatabaseSelection,
+    K8sConnectionInput, RoutineCallArg, SshConnectionInput, SshTestParams, TestConnectionRequest,
 };
 use axum::body::Bytes;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
@@ -29,6 +29,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -130,15 +131,17 @@ impl RpcConcurrency {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct RpcAccessPolicy {
     pub mcp_host_configuration: bool,
+    pub server_file_browser_roots: Arc<[PathBuf]>,
 }
 
 impl Default for RpcAccessPolicy {
     fn default() -> Self {
         Self {
             mcp_host_configuration: false,
+            server_file_browser_roots: Arc::default(),
         }
     }
 }
@@ -151,6 +154,10 @@ enum RpcCommand {
     IsDebugMode,
     GetConnections,
     CancelQuery,
+    ListServerDirectory,
+    ResolveServerSaveTarget,
+    CreateSqliteFile,
+    CreateSqliteDatabase,
     Connection(ConnectionRpcCommand),
     ConnectionFiles(ConnectionFilesRpcCommand),
     DatabaseTransfer(DatabaseTransferRpcCommand),
@@ -442,6 +449,25 @@ struct CommandMetadata {
 struct CancelQueryRequest {
     connection_id: String,
     query_request_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ListServerDirectoryRequest {
+    path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ResolveServerSaveTargetRequest {
+    directory: String,
+    file_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SqlitePathRequest {
+    path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1574,6 +1600,69 @@ impl RpcDispatcher {
                     .map_err(InvocationError::Application)?;
                 Ok(Value::Null)
             }
+            RpcCommand::ListServerDirectory => {
+                let request: ListServerDirectoryRequest =
+                    decode_payload(body).map_err(InvocationError::InvalidPayload)?;
+                let listing = super::server_files::list_directory(
+                    &self.access_policy.server_file_browser_roots,
+                    request.path.as_deref(),
+                )
+                .map_err(|error| InvocationError::Application(ApplicationError::new(error)))?;
+                serde_json::to_value(listing).map_err(|error| {
+                    InvocationError::Application(ApplicationError::new(error.to_string()))
+                })
+            }
+            RpcCommand::ResolveServerSaveTarget => {
+                let request: ResolveServerSaveTargetRequest =
+                    decode_payload(body).map_err(InvocationError::InvalidPayload)?;
+                let path = super::server_files::resolve_save_target(
+                    &self.access_policy.server_file_browser_roots,
+                    &request.directory,
+                    &request.file_name,
+                )
+                .map_err(|error| InvocationError::Application(ApplicationError::new(error)))?;
+                Ok(serde_json::json!({ "path": path }))
+            }
+            RpcCommand::CreateSqliteFile | RpcCommand::CreateSqliteDatabase => {
+                let request: SqlitePathRequest =
+                    decode_payload(body).map_err(InvocationError::InvalidPayload)?;
+                let path = super::server_files::validate_save_target(
+                    &self.access_policy.server_file_browser_roots,
+                    &request.path,
+                )
+                .map_err(|error| InvocationError::Application(ApplicationError::new(error)))?;
+                let database_path = crate::sqlite_database::create_sqlite_file(path)
+                    .await
+                    .map_err(|error| InvocationError::Application(ApplicationError::new(error)))?;
+                if command == RpcCommand::CreateSqliteFile {
+                    return Ok(Value::String(database_path));
+                }
+
+                let path = PathBuf::from(&database_path);
+                let name = crate::sqlite_database::connection_name(&path)
+                    .map_err(|error| InvocationError::Application(ApplicationError::new(error)))?;
+                let params = ConnectionParams {
+                    driver: "sqlite".to_string(),
+                    database: DatabaseSelection::Single(database_path),
+                    ..ConnectionParams::default()
+                };
+                let result = self
+                    .application
+                    .execute_connection_command(
+                        context,
+                        ConnectionCommand::SaveConnection {
+                            name,
+                            params,
+                            detect_json_in_text_columns: None,
+                            environment: None,
+                        },
+                    )
+                    .await;
+                if result.is_err() {
+                    let _ = std::fs::remove_file(&path);
+                }
+                result.map_err(InvocationError::Application)
+            }
             RpcCommand::Query(command) => {
                 let command =
                     decode_query_command(command, body).map_err(InvocationError::InvalidPayload)?;
@@ -1736,6 +1825,10 @@ impl RpcCommand {
             "is_debug_mode" => Some(Self::IsDebugMode),
             "get_connections" => Some(Self::GetConnections),
             "cancel_query" => Some(Self::CancelQuery),
+            "list_server_directory" => Some(Self::ListServerDirectory),
+            "resolve_server_save_target" => Some(Self::ResolveServerSaveTarget),
+            "create_sqlite_file" => Some(Self::CreateSqliteFile),
+            "create_sqlite_database" => Some(Self::CreateSqliteDatabase),
             name => QueryRpcCommand::parse(name)
                 .map(Self::Query)
                 .or_else(|| RecordRpcCommand::parse(name).map(Self::Record))
@@ -1771,6 +1864,21 @@ impl RpcCommand {
             Self::CancelQuery => CommandMetadata {
                 authorization: AuthorizationLevel::Database,
                 application_error_code: "QUERY_CANCELLATION_FAILED",
+                application_error_status: StatusCode::CONFLICT,
+            },
+            Self::ListServerDirectory => CommandMetadata {
+                authorization: AuthorizationLevel::LocalAdmin,
+                application_error_code: "SERVER_DIRECTORY_LIST_FAILED",
+                application_error_status: StatusCode::BAD_REQUEST,
+            },
+            Self::ResolveServerSaveTarget => CommandMetadata {
+                authorization: AuthorizationLevel::LocalAdmin,
+                application_error_code: "SERVER_SAVE_TARGET_FAILED",
+                application_error_status: StatusCode::BAD_REQUEST,
+            },
+            Self::CreateSqliteFile | Self::CreateSqliteDatabase => CommandMetadata {
+                authorization: AuthorizationLevel::LocalAdmin,
+                application_error_code: "SQLITE_DATABASE_CREATE_FAILED",
                 application_error_status: StatusCode::CONFLICT,
             },
             Self::Query(_) => CommandMetadata {
