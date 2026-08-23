@@ -53,14 +53,14 @@
     "authorizationLevel": "Minimum intended web authorization scope; all levels still require an authenticated session."
   },
   "summary": {
-    "literalCommandCount": 21,
-    "literalCallSiteCount": 26,
+    "literalCommandCount": 19,
+    "literalCallSiteCount": 24,
     "dynamicCallSiteCount": 0,
     "handlerRegistrationCount": 258,
     "registeredCommandCount": 258,
     "duplicateHandlerRegistrations": [],
     "frontendCommandsMissingRegistration": [],
-    "registeredCommandsWithoutFrontendCall": 237
+    "registeredCommandsWithoutFrontendCall": 239
   },
   "commands": [
     {
@@ -88,34 +88,6 @@
         {
           "file": "packages/web-ui/src/hooks/useDeepLinkInstall.ts",
           "line": 68
-        }
-      ]
-    },
-    {
-      "name": "create_sqlite_database",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "write",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/hooks/useCreateSqliteDatabase.ts",
-          "line": 32
-        }
-      ]
-    },
-    {
-      "name": "create_sqlite_file",
-      "featureGroup": "connections",
-      "eventUse": "none",
-      "filesystemUse": "write",
-      "authorizationLevel": "sensitive",
-      "registered": true,
-      "callSites": [
-        {
-          "file": "packages/web-ui/src/components/modals/NewConnectionModal.tsx",
-          "line": 1560
         }
       ]
     },
@@ -407,6 +379,8 @@
     "create_db_user",
     "create_group_path",
     "create_notebook",
+    "create_sqlite_database",
+    "create_sqlite_file",
     "create_trigger",
     "create_view",
     "decide_pending_approval",

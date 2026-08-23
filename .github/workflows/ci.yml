@@ -6,7 +6,7 @@ concurrency:
 
 on:
   push:
-    branches: [main, feat/web-ui]
+    branches: [main]
     paths:
       - 'packages/web-ui/**'
       - 'src-tauri/**'
@@ -16,7 +16,7 @@ on:
       - 'web-ui-project/**'
       - '.github/workflows/**'
   pull_request:
-    branches: [main, feat/web-ui]
+    branches: [main]
     paths:
       - 'packages/web-ui/**'
       - 'src-tauri/**'

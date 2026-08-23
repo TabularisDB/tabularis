@@ -12,7 +12,10 @@ test("the Web operator guide covers every Web CLI option", () => {
   const guide = read(guidePath);
   const cli = read("src-tauri/src/cli.rs");
   const webOptions = cli.slice(cli.indexOf("pub struct WebArgs"));
-  const optionOverrides = { allowed_origins: "allowed-origin" };
+  const optionOverrides = {
+    allowed_origins: "allowed-origin",
+    server_file_browser_roots: "server-file-browser-root",
+  };
   const optionNames = [...webOptions.matchAll(/pub ([a-z_]+):/g)].map(([, name]) => {
     const optionName = optionOverrides[name] ?? name.replaceAll("_", "-");
     return `--${optionName}`;
@@ -27,6 +30,7 @@ test("the Web operator guide covers every Web CLI option", () => {
     "--public-url",
     "--allowed-origin",
     "--allow-high-risk",
+    "--server-file-browser-root",
   ]);
   assert.ok(guide.includes("`web`"), "web subcommand is undocumented");
   for (const option of optionNames) {
