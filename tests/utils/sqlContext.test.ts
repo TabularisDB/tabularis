@@ -487,8 +487,14 @@ describe('sqlContext', () => {
     });
 
     it('isolates subquery scopes and restores outer frame on closing paren', () => {
-      const insideSubquery = 'SELECT * FROM orders o WHERE o.id IN (SELECT id FROM users u WHERE ';
-      expect(analyzeSqlContext(insideSubquery).lastTableRef).toBe('u');
+      const insideSubqueryAliased = 'SELECT * FROM orders o WHERE o.id IN (SELECT id FROM users u WHERE ';
+      expect(analyzeSqlContext(insideSubqueryAliased).lastTableRef).toBe('u');
+
+      const insideSubqueryUnaliased = 'SELECT * FROM orders o WHERE o.id IN (SELECT id FROM users WHERE ';
+      expect(analyzeSqlContext(insideSubqueryUnaliased).lastTableRef).toBe('users');
+
+      const insideSubqueryNestedExpr = 'SELECT * FROM orders o WHERE o.id IN (SELECT id FROM users WHERE (a = 1 AND ';
+      expect(analyzeSqlContext(insideSubqueryNestedExpr).lastTableRef).toBe('users');
 
       const afterSubquery = 'SELECT * FROM (SELECT id FROM users u) sub WHERE ';
       expect(analyzeSqlContext(afterSubquery).lastTableRef).toBe('sub');

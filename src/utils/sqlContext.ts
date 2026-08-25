@@ -271,6 +271,9 @@ const applyWord = (frame: Frame, upper: string, prev: WordToken | null): void =>
     case 'SELECT':
       frame.clause = 'select';
       frame.isStatement = true;
+      frame.fromTableRef = null;
+      frame.currentJoinTableRef = null;
+      frame.lastTableRef = null;
       frame.awaitingAlias = false;
       break;
     case 'FROM':
@@ -315,6 +318,9 @@ const applyWord = (frame: Frame, upper: string, prev: WordToken | null): void =>
       if (prev?.upper === 'FOR' || prev?.upper === 'KEY') break;
       frame.clause = 'update';
       frame.isStatement = true;
+      frame.fromTableRef = null;
+      frame.currentJoinTableRef = null;
+      frame.lastTableRef = null;
       frame.awaitingAlias = false;
       break;
     case 'SET':
@@ -324,12 +330,18 @@ const applyWord = (frame: Frame, upper: string, prev: WordToken | null): void =>
     case 'DELETE':
       frame.clause = 'delete';
       frame.isStatement = true;
+      frame.fromTableRef = null;
+      frame.currentJoinTableRef = null;
+      frame.lastTableRef = null;
       frame.awaitingAlias = false;
       break;
     case 'INSERT':
     case 'REPLACE':
       frame.clause = 'insert-into';
       frame.isStatement = true;
+      frame.fromTableRef = null;
+      frame.currentJoinTableRef = null;
+      frame.lastTableRef = null;
       frame.awaitingAlias = false;
       break;
     case 'INTO':
