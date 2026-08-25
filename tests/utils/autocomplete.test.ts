@@ -775,6 +775,48 @@ describe('autocomplete', () => {
       expect(notBoosted?.sortText).toBe('2_1_SELECT');
     });
 
+    it('ranks columns of the nearest table above other tables in scope', async () => {
+      const mockInvoke = invoke as unknown as ReturnType<typeof vi.fn>;
+      mockInvoke.mockImplementation(async (cmd, args: { tableName: string }) => {
+        if (args.tableName === 'customers') {
+          return [{ name: 'customer_name', data_type: 'VARCHAR' }];
+        }
+        if (args.tableName === 'orders') {
+          return [{ name: 'order_total', data_type: 'INT' }];
+        }
+        return [];
+      });
+
+      const { parseTablesFromQuery } = await import('../../src/utils/sqlAnalysis');
+      (parseTablesFromQuery as unknown as ReturnType<typeof vi.fn>).mockReturnValue(
+        new Map([
+          ['o', { name: 'orders' }],
+          ['c', { name: 'customers' }],
+        ]),
+      );
+
+      const provider = setup([{ name: 'orders' }, { name: 'customers' }]);
+      // In ON clause, the joined table `customers c` is nearest
+      const onQuery = 'SELECT * FROM orders o JOIN customers c ON ';
+      const modelOn = createMockModel(onQuery);
+      const resultOn = await provider.provideCompletionItems(modelOn, { lineNumber: 1, column: onQuery.length + 1 });
+
+      const custColOn = resultOn.suggestions.find((s: { label: string }) => s.label === 'customer_name');
+      const orderColOn = resultOn.suggestions.find((s: { label: string }) => s.label === 'order_total');
+      expect(custColOn?.sortText).toBe('0_0_customer_name');
+      expect(orderColOn?.sortText).toBe('0_1_order_total');
+
+      // In WHERE clause, the primary FROM table `orders o` is nearest
+      const whereQuery = 'SELECT * FROM orders o JOIN customers c ON o.cust_id = c.id WHERE ';
+      const modelWhere = createMockModel(whereQuery);
+      const resultWhere = await provider.provideCompletionItems(modelWhere, { lineNumber: 1, column: whereQuery.length + 1 });
+
+      const orderColWhere = resultWhere.suggestions.find((s: { label: string }) => s.label === 'order_total');
+      const custColWhere = resultWhere.suggestions.find((s: { label: string }) => s.label === 'customer_name');
+      expect(orderColWhere?.sortText).toBe('0_0_order_total');
+      expect(custColWhere?.sortText).toBe('0_1_customer_name');
+    });
+
     it('suggests only keywords on an empty buffer', async () => {
       const provider = setup();
       const model = createMockModel('');

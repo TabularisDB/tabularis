@@ -453,4 +453,50 @@ describe('sqlContext', () => {
       }
     });
   });
+
+  describe('analyzeSqlContext - lastTableRef exposure', () => {
+    it('captures the single FROM table', () => {
+      expect(analyzeSqlContext('SELECT * FROM orders WHERE ').lastTableRef).toBe('orders');
+    });
+
+    it('captures the FROM table alias when present', () => {
+      expect(analyzeSqlContext('SELECT * FROM orders o WHERE ').lastTableRef).toBe('o');
+      expect(analyzeSqlContext('SELECT * FROM orders AS o WHERE ').lastTableRef).toBe('o');
+      expect(analyzeSqlContext('SELECT * FROM "orders" "o" WHERE ').lastTableRef).toBe('o');
+    });
+
+    it('captures schema-qualified table name and alias', () => {
+      expect(analyzeSqlContext('SELECT * FROM public.orders o WHERE ').lastTableRef).toBe('o');
+      expect(analyzeSqlContext('SELECT * FROM public.orders WHERE ').lastTableRef).toBe('orders');
+    });
+
+    it('captures the table being joined in an ON clause', () => {
+      expect(analyzeSqlContext('SELECT * FROM orders o JOIN customers c ON ').lastTableRef).toBe('c');
+      expect(analyzeSqlContext('SELECT * FROM orders o LEFT JOIN customers AS c ON ').lastTableRef).toBe('c');
+      expect(analyzeSqlContext('SELECT * FROM orders JOIN customers ON ').lastTableRef).toBe('customers');
+    });
+
+    it('captures the latest joined table in a multi-JOIN chain', () => {
+      const sql = 'SELECT * FROM orders o JOIN customers c ON o.cust_id = c.id JOIN items i ON ';
+      expect(analyzeSqlContext(sql).lastTableRef).toBe('i');
+    });
+
+    it('defaults to the primary FROM table in a WHERE clause after JOINs', () => {
+      const sql = 'SELECT * FROM orders o JOIN customers c ON o.cust_id = c.id WHERE ';
+      expect(analyzeSqlContext(sql).lastTableRef).toBe('o');
+    });
+
+    it('isolates subquery scopes and restores outer frame on closing paren', () => {
+      const insideSubquery = 'SELECT * FROM orders o WHERE o.id IN (SELECT id FROM users u WHERE ';
+      expect(analyzeSqlContext(insideSubquery).lastTableRef).toBe('u');
+
+      const afterSubquery = 'SELECT * FROM (SELECT id FROM users u) sub WHERE ';
+      expect(analyzeSqlContext(afterSubquery).lastTableRef).toBe('sub');
+    });
+
+    it('captures the target table of UPDATE and INSERT INTO', () => {
+      expect(analyzeSqlContext('UPDATE users u SET ').lastTableRef).toBe('u');
+      expect(analyzeSqlContext('INSERT INTO users (').lastTableRef).toBe('users');
+    });
+  });
 });
