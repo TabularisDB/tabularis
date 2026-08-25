@@ -10,21 +10,17 @@ pub use progress::{ProgressEmitter, DEFAULT_INTERVAL as DEFAULT_PROGRESS_INTERVA
 pub use sink::{CsvSink, JsonSink, MarkdownSink, RowSink};
 
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::BufWriter;
+use std::io::Write;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use serde::Serialize;
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, Runtime, State};
+use tauri::State;
 
-use crate::commands::{
-    expand_k8s_connection_params, expand_ssh_connection_params, find_connection_by_id,
-    register_abort_handle, resolve_connection_params_with_id, unregister_abort_handle,
-    AbortHandleMap,
-};
+use crate::commands::AbortHandleMap;
 use crate::drivers::{mysql, postgres, sqlite};
 use crate::models::ConnectionParams;
+use crate::runtime::RuntimeContext;
 
 pub struct ExportCancellationState {
     pub handles: Arc<Mutex<AbortHandleMap>>,
@@ -38,35 +34,18 @@ impl Default for ExportCancellationState {
     }
 }
 
-#[derive(Clone, Serialize)]
-struct ExportProgressPayload {
-    rows_processed: u64,
-}
-
-const EXPORT_PROGRESS_EVENT: &str = "export_progress";
-
-fn sanitize_query(query: &str) -> String {
-    query.trim().trim_end_matches(';').to_string()
-}
-
 #[tauri::command]
 pub async fn cancel_export(
     state: State<'_, ExportCancellationState>,
     connection_id: String,
 ) -> Result<(), String> {
-    let entries = {
-        let mut handles = state.handles.lock().unwrap();
-        handles.remove(&connection_id).unwrap_or_default()
-    };
-    for handle in entries {
-        handle.abort();
-    }
-    Ok(())
+    crate::application::generic_exports::cancel_export(state.inner(), None, &connection_id)
 }
 
 #[tauri::command]
-pub async fn export_query_to_file<R: Runtime>(
-    app: AppHandle<R>,
+#[allow(clippy::too_many_arguments)]
+pub async fn export_query_to_file(
+    runtime: State<'_, RuntimeContext>,
     state: State<'_, ExportCancellationState>,
     connection_id: String,
     query: String,
@@ -74,79 +53,38 @@ pub async fn export_query_to_file<R: Runtime>(
     format: String,
     csv_delimiter: Option<String>,
     database: Option<String>,
-) -> Result<(), String> {
-    let sanitized_query = sanitize_query(&query);
-    let saved_conn = find_connection_by_id(&app, &connection_id)?;
-    let expanded_params = expand_ssh_connection_params(&app, &saved_conn.params).await?;
-    let expanded_params = expand_k8s_connection_params(&app, &expanded_params).await?;
-    let mut params = resolve_connection_params_with_id(&expanded_params, &connection_id)?;
-    // Scope the export to the selected database on connections that expose multiple
-    // databases (e.g. MySQL/MariaDB), so the query runs against the database the
-    // user is viewing rather than the connection's primary database.
-    if let Some(db) = database {
-        params.database = crate::models::DatabaseSelection::Single(db);
-    }
-    let driver = saved_conn.params.driver.clone();
-
-    let export_format = ExportFormat::parse(&format)?;
-    let delimiter = parse_csv_delimiter(csv_delimiter.as_deref());
-
-    let app_for_task = app.clone();
-    let task_connection_id = connection_id.clone();
-
-    let task = tokio::spawn(async move {
-        let file = File::create(&file_path).map_err(|e| e.to_string())?;
-        let writer = BufWriter::new(file);
-        run_export(
-            app_for_task,
-            &driver,
-            &params,
-            &sanitized_query,
-            writer,
-            export_format,
-            delimiter,
-        )
-        .await
-    });
-
-    let abort_handle = Arc::new(task.abort_handle());
-    register_abort_handle(
-        &state.handles,
-        task_connection_id.clone(),
-        abort_handle.clone(),
-    );
-
-    let result = task.await;
-
-    unregister_abort_handle(&state.handles, &task_connection_id, &abort_handle);
-
-    match result {
-        Ok(res) => res,
-        Err(_) => Err("Export cancelled".into()),
-    }
+) -> Result<Option<crate::application::connection_files::GeneratedFile>, String> {
+    crate::application::generic_exports::export_query(
+        runtime.inner(),
+        state.inner(),
+        None,
+        connection_id,
+        query,
+        crate::application::generic_exports::ExportDestination::ServerPath(PathBuf::from(
+            file_path,
+        )),
+        format,
+        csv_delimiter,
+        database,
+    )
+    .await
 }
 
 /// Wires the driver stream, the row sink, and the progress emitter together.
-/// Kept as a free function so the spawned task body stays linear and the
-/// pieces remain individually unit-testable.
-async fn run_export<R: Runtime>(
-    app: AppHandle<R>,
+pub async fn run_export<W, F>(
     driver: &str,
     params: &ConnectionParams,
     query: &str,
-    writer: BufWriter<File>,
+    writer: W,
     format: ExportFormat,
     delimiter: u8,
-) -> Result<(), String> {
-    let app_for_progress = app.clone();
-    let mut progress = ProgressEmitter::new(DEFAULT_PROGRESS_INTERVAL, move |count| {
-        let _ = app_for_progress.emit(
-            EXPORT_PROGRESS_EVENT,
-            ExportProgressPayload {
-                rows_processed: count,
-            },
-        );
-    });
+    on_progress: F,
+) -> Result<(), String>
+where
+    W: Write + Send,
+    F: FnMut(u64) + Send,
+{
+    let mut progress = ProgressEmitter::new(DEFAULT_PROGRESS_INTERVAL, on_progress);
 
     match format {
         ExportFormat::Csv => {
@@ -191,16 +129,12 @@ where
         "mysql" => mysql::export::stream_query(params, query, &mut on_row).await,
         "postgres" => postgres::export::stream_query(params, query, &mut on_row).await,
         "sqlite" => sqlite::export::stream_query(params, query, &mut on_row).await,
-        // External plugin drivers: page through the driver's own paginated
-        // `execute_query` and forward every row to the sink.
         other => stream_query_via_plugin(other, params, query, &mut on_row).await,
     }
 }
 
 /// Streams a query for an external plugin driver by repeatedly calling its
-/// `execute_query` with the driver's pagination, forwarding each row to
-/// `on_row`. Built-in drivers stream directly from the database; plugins only
-/// expose paged query execution over JSON-RPC, so we drive that here.
+/// paginated execution API and forwarding each row to the export sink.
 async fn stream_query_via_plugin<F>(
     driver_id: &str,
     params: &ConnectionParams,
@@ -230,7 +164,7 @@ where
         let has_more = result
             .pagination
             .as_ref()
-            .map(|p| p.has_more)
+            .map(|pagination| pagination.has_more)
             .unwrap_or(fetched >= PAGE_SIZE);
 
         if fetched == 0 || !has_more {

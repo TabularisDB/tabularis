@@ -1,0 +1,29 @@
+{
+  "name": "@tabularis/web-ui",
+  "private": true,
+  "version": "0.20.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "cd ../.. && eslint .",
+    "preview": "vite preview",
+    "test": "cd ../.. && vitest --config packages/web-ui/vitest.config.ts",
+    "test:contract": "cd ../.. && vitest --config packages/web-ui/vitest.config.ts run packages/web-ui/tests/api/dualTransportContract.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "test:coverage": "cd ../.. && vitest --config packages/web-ui/vitest.config.ts run --coverage"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/node": "^24.12.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "autoprefixer": "^10.4.27",
+    "eslint": "^9.39.4",
+    "jsdom": "^28.1.0",
+    "postcss": "^8.5.8",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.1.2"
+  }
+}

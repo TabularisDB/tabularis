@@ -205,14 +205,84 @@ jobs:
           tauriScript: ${{ inputs.experimental_appimage && matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'pnpm tauri' }}
           args: ${{ matrix.args }}
 
-      - name: Upload portable executable (Windows only)
+      - name: Verify packaged Web UI (Linux)
+        if: matrix.platform == 'ubuntu-24.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+          deb=$(find src-tauri/target -path '*/bundle/deb/*.deb' -print -quit)
+          appimage=$(find src-tauri/target -path '*/bundle/appimage/*.AppImage' -print -quit)
+          test -n "$deb"
+          test -n "$appimage"
+          web-ui-project/scripts/verify-linux-web-package.sh assets "$deb"
+          web-ui-project/scripts/verify-linux-web-package.sh assets "$appimage"
+
+      - name: Smoke-test headless Web mode (Linux)
+        if: matrix.platform == 'ubuntu-24.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+          deb=$(find src-tauri/target -path '*/bundle/deb/*.deb' -print -quit)
+          test -n "$deb"
+          web-ui-project/scripts/verify-linux-web-package.sh headless "$deb"
+
+      - name: Verify packaged Web UI (macOS)
+        if: startsWith(matrix.platform, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+          app=$(find src-tauri/target -path '*/bundle/macos/*.app' -type d -print -quit)
+          test -n "$app"
+          web_root="$app/Contents/Resources/web-ui"
+          test -f "$web_root/index.html"
+          test -n "$(find "$web_root/assets" -type f -print -quit)"
+          cmp packages/web-ui/dist/index.html "$web_root/index.html"
+
+      - name: Verify packaged Web UI (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem src-tauri\target -Recurse -File -Filter *.msi | Select-Object -First 1
+          if (-not $msi) { throw "No MSI artifact was produced" }
+
+          $extract = Join-Path $env:RUNNER_TEMP "tabularis-msi-$([guid]::NewGuid())"
+          New-Item -ItemType Directory -Path $extract | Out-Null
+          $msiExtraction = Start-Process msiexec.exe -ArgumentList "/a", "`"$($msi.FullName)`"", "/qn", "TARGETDIR=`"$extract`"" -Wait -PassThru
+          if ($msiExtraction.ExitCode -ne 0) {
+            throw "MSI extraction failed with exit code $($msiExtraction.ExitCode)"
+          }
+
+          $index = Get-ChildItem $extract -Recurse -File -Filter index.html |
+            Where-Object { $_.FullName -match '[\\/]web-ui[\\/]index\.html$' } |
+            Select-Object -First 1
+          if (-not $index) { throw "The MSI does not contain web-ui/index.html" }
+          $assets = Join-Path $index.DirectoryName "assets"
+          if (-not (Get-ChildItem $assets -Recurse -File | Select-Object -First 1)) {
+            throw "The MSI does not contain Web UI assets"
+          }
+          if ((Get-FileHash packages\web-ui\dist\index.html).Hash -ne (Get-FileHash $index.FullName).Hash) {
+            throw "The MSI Web UI index differs from the built distribution"
+          }
+          Remove-Item $extract -Recurse -Force
+
+      - name: Package and upload portable Web UI bundle (Windows only)
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $version = "${{ inputs.tag }}".TrimStart('v')
-          $src = "src-tauri\target\release\tabularis.exe"
-          $portable = "tabularis_${version}_x64-portable.exe"
-          Copy-Item $src $portable
+          $portableRoot = "tabularis_${version}_x64-portable"
+          $portable = "tabularis_${version}_x64-portable.zip"
+          New-Item -ItemType Directory -Path $portableRoot | Out-Null
+          Copy-Item src-tauri\target\release\tabularis.exe (Join-Path $portableRoot "tabularis.exe")
+          Copy-Item packages\web-ui\dist (Join-Path $portableRoot "web-ui") -Recurse
+          Compress-Archive -Path "$portableRoot\*" -DestinationPath $portable
+
+          $verify = Join-Path $env:RUNNER_TEMP "tabularis-portable-$([guid]::NewGuid())"
+          Expand-Archive $portable -DestinationPath $verify
+          if (-not (Test-Path (Join-Path $verify "tabularis.exe"))) { throw "Portable executable is missing" }
+          if (-not (Test-Path (Join-Path $verify "web-ui\index.html"))) { throw "Portable Web UI is missing" }
+          Remove-Item $verify -Recurse -Force
+
           gh release upload "${{ inputs.tag }}" $portable --clobber

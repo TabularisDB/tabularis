@@ -111,6 +111,32 @@ impl SshTunnel {
         remote_host: &str,
         remote_port: u16,
     ) -> Result<Self, String> {
+        Self::new_with_askpass(
+            ssh_host,
+            ssh_port,
+            ssh_user,
+            ssh_password,
+            ssh_key_file,
+            ssh_key_passphrase,
+            ssh_allow_passphrase_prompt,
+            remote_host,
+            remote_port,
+            None,
+        )
+    }
+
+    pub fn new_with_askpass(
+        ssh_host: &str,
+        ssh_port: u16,
+        ssh_user: &str,
+        ssh_password: Option<&str>,
+        ssh_key_file: Option<&str>,
+        ssh_key_passphrase: Option<&str>,
+        ssh_allow_passphrase_prompt: bool,
+        remote_host: &str,
+        remote_port: u16,
+        askpass_server: Option<crate::askpass::AskpassServer>,
+    ) -> Result<Self, String> {
         let use_system_ssh = should_use_system_ssh(ssh_password);
         eprintln!(
             "[SSH Tunnel] New Request: Host={}, Port={}, User={}, UseSystemSSH={}, AllowPrompt={}",
@@ -137,6 +163,7 @@ impl SshTunnel {
                 remote_host,
                 remote_port,
                 local_port,
+                askpass_server,
             )
             .map_err(|e| {
                 eprintln!("[SSH Tunnel Error] System SSH failed: {}", e);
@@ -170,6 +197,7 @@ impl SshTunnel {
         remote_host: &str,
         remote_port: u16,
         local_port: u16,
+        askpass_server: Option<crate::askpass::AskpassServer>,
     ) -> Result<Self, String> {
         let mut args = Vec::with_capacity(16); // Pre-allocate for typical argument count
 
@@ -219,7 +247,8 @@ impl SshTunnel {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let askpass_server = configure_askpass(&mut command, ssh_allow_passphrase_prompt)?;
+        let askpass_server =
+            configure_askpass(&mut command, ssh_allow_passphrase_prompt, askpass_server)?;
 
         let mut child = command.spawn().map_err(|e| {
             let err = format!(
@@ -567,6 +596,28 @@ pub fn test_ssh_connection(
     ssh_key_passphrase: Option<&str>,
     ssh_allow_passphrase_prompt: bool,
 ) -> Result<String, String> {
+    test_ssh_connection_with_askpass(
+        ssh_host,
+        ssh_port,
+        ssh_user,
+        ssh_password,
+        ssh_key_file,
+        ssh_key_passphrase,
+        ssh_allow_passphrase_prompt,
+        None,
+    )
+}
+
+pub fn test_ssh_connection_with_askpass(
+    ssh_host: &str,
+    ssh_port: u16,
+    ssh_user: &str,
+    ssh_password: Option<&str>,
+    ssh_key_file: Option<&str>,
+    ssh_key_passphrase: Option<&str>,
+    ssh_allow_passphrase_prompt: bool,
+    askpass_server: Option<crate::askpass::AskpassServer>,
+) -> Result<String, String> {
     let use_system_ssh = should_use_system_ssh(ssh_password);
     eprintln!(
         "[SSH Test] Testing connection to {}:{} as {} (UseSystemSSH={}, AllowPrompt={})",
@@ -580,6 +631,7 @@ pub fn test_ssh_connection(
             ssh_user,
             ssh_key_file,
             ssh_allow_passphrase_prompt,
+            askpass_server,
         )
     } else {
         test_ssh_connection_russh(
@@ -600,6 +652,7 @@ fn test_ssh_connection_system(
     ssh_user: &str,
     ssh_key_file: Option<&str>,
     ssh_allow_passphrase_prompt: bool,
+    askpass_server: Option<crate::askpass::AskpassServer>,
 ) -> Result<String, String> {
     eprintln!("[SSH Test] Using system SSH (supports ~/.ssh/config)");
 
@@ -641,7 +694,8 @@ fn test_ssh_connection_system(
 
     // Keep the askpass server alive while ssh runs: prompts can arrive at any
     // point until the process exits.
-    let _askpass_server = configure_askpass(&mut command, ssh_allow_passphrase_prompt)?;
+    let _askpass_server =
+        configure_askpass(&mut command, ssh_allow_passphrase_prompt, askpass_server)?;
 
     let output = command.output().map_err(|e| {
         format!(
@@ -768,11 +822,15 @@ fn test_ssh_connection_russh(
 fn configure_askpass(
     command: &mut Command,
     ssh_allow_passphrase_prompt: bool,
+    askpass_server: Option<crate::askpass::AskpassServer>,
 ) -> Result<Option<crate::askpass::AskpassServer>, String> {
     if !ssh_allow_passphrase_prompt {
         return Ok(None);
     }
-    match crate::askpass::start_frontend_server() {
+    let server = askpass_server
+        .map(Ok)
+        .unwrap_or_else(crate::askpass::start_frontend_server);
+    match server {
         Ok(server) => {
             server.configure_command(command)?;
             eprintln!(

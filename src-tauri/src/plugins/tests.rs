@@ -114,7 +114,8 @@ fn preserves_ui_extension_driver_filter_from_manifest() {
     {
       "slot": "connection-modal.connection_content",
       "module": "ui/dist/index.js",
-      "driver": "wordpress"
+      "driver": "wordpress",
+      "api_version": "0.1.1"
     },
     {
       "slot": "data-grid.toolbar.actions",
@@ -128,6 +129,7 @@ fn preserves_ui_extension_driver_filter_from_manifest() {
 
     let entries = manifest.ui_extensions.expect("ui_extensions present");
     assert_eq!(entries[0].driver.as_deref(), Some("wordpress"));
+    assert_eq!(entries[0].api_version.as_deref(), Some("0.1.1"));
     assert_eq!(entries[1].driver, None);
     assert_eq!(entries[1].order, Some(10));
 }

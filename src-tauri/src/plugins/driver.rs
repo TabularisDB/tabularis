@@ -1291,6 +1291,10 @@ impl DatabaseDriver for RpcDriver {
 }
 
 #[cfg(test)]
+#[path = "driver_resilience_tests.rs"]
+mod resilience_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::drivers::driver_trait::DriverCapabilities;

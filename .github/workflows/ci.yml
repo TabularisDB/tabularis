@@ -8,20 +8,22 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/**'
+      - 'packages/web-ui/**'
       - 'src-tauri/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
-      - 'tsconfig.json'
+      - 'eslint.config.js'
+      - 'web-ui-project/**'
       - '.github/workflows/**'
   pull_request:
     branches: [main]
     paths:
-      - 'src/**'
+      - 'packages/web-ui/**'
       - 'src-tauri/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
-      - 'tsconfig.json'
+      - 'eslint.config.js'
+      - 'web-ui-project/**'
       - '.github/workflows/**'
 
 jobs:
@@ -54,8 +56,95 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      - name: Check web API inventory
+        run: pnpm run web:inventory
+
+      - name: Check web frontend boundaries
+        run: pnpm run web:boundaries
+
+      - name: Check Web UI packaging contract
+        run: pnpm run web:packaging
+
+      - name: Check Web UI documentation
+        run: pnpm run web:docs
+
+      - name: Check signed Web UI parity audit
+        run: pnpm run web:manual-parity
+
       - name: Build
         run: pnpm run build
 
+      - name: Check dual-transport contract
+        run: pnpm run test:web-contract
+
+      - name: Check Web UI resilience
+        run: pnpm run test:web-resilience
+
       - name: Test
         run: pnpm run test:all
+
+  web-e2e:
+    runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: tabularis-e2e
+          POSTGRES_DB: tabularis_e2e
+        ports:
+          - 45432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tabularis_e2e"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: tabularis-e2e
+          MYSQL_DATABASE: tabularis_e2e
+        ports:
+          - 43306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -ptabularis-e2e"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        name: Install pnpm
+
+      - name: Install Rust/Tauri dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libsoup-3.0-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install browser engines
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+
+      - name: Run real-database browser matrix
+        env:
+          TABULARIS_E2E_MANAGED_DATABASES: "1"
+        run: pnpm test:web-e2e:browsers
+
+      - name: Upload browser E2E artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-e2e-artifacts
+          path: web-ui-project/.runtime/e2e
+          if-no-files-found: ignore

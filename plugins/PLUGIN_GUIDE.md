@@ -300,15 +300,18 @@ Add an optional `ui_extensions` array to your manifest:
     {
       "slot": "row-editor-sidebar.field.after",
       "module": "ui/field-preview.js",
+      "api_version": "0.1.1",
       "order": 50
     },
     {
       "slot": "data-grid.toolbar.actions",
-      "module": "ui/export-button.js"
+      "module": "ui/export-button.js",
+      "api_version": "0.1.1"
     },
     {
       "slot": "settings.plugin.before_settings",
       "module": "ui/auth-panel.js",
+      "api_version": "0.1.1",
       "driver": "my-plugin"
     }
   ]
@@ -323,6 +326,7 @@ Add an optional `ui_extensions` array to your manifest:
 | `module` | string | yes | Relative path to the pre-built IIFE JavaScript bundle inside the plugin folder. |
 | `order` | number | no | Sort order within the slot. Lower values render first. Default: `100`. |
 | `driver` | string | no | If set, the contribution is only active when the active connection's driver matches this value. Useful for plugins that should only appear for their own driver. |
+| `api_version` | string | recommended | Exact `@tabularis/plugin-api` version used to build the bundle. Incompatible bundles are skipped before execution. Omit only for legacy compatibility. |
 
 ### Available Slots
 
@@ -359,6 +363,8 @@ interface SlotContext {
 ```
 
 ### Building UI Extension Bundles
+
+Installed UI extensions execute as trusted application code rather than sandboxed widgets. Review the [plugin UI extension trust model](../docs/security/plugin-ui-extensions.md) before distributing or installing third-party bundles.
 
 Plugin UI components must be pre-built as **IIFE bundles** (Immediately Invoked Function Expression). The host provides `React`, `ReactJSXRuntime`, and the plugin API as globals — your bundle must **not** bundle its own copies of these.
 

@@ -1,0 +1,2635 @@
+use super::auth::{
+    AuthenticationError, LocalSessionSecurity, LocalSessionSecurityConfig, LoginRateLimitConfig,
+    RemoteAuthentication, RemoteSessionSecurityConfig,
+};
+use super::contract::{SessionNegotiation, WEB_API_VERSION};
+use super::events::{EventBusConfig, WebEventBus};
+use super::rpc::{RPC_CANCELLATION_HEADER_NAME, RPC_DEADLINE_HEADER_NAME};
+use super::{server, static_assets};
+use crate::application::{ApplicationApi, AuthorizationLevel, RuntimeApplicationApi};
+use crate::runtime::{
+    paths::FixedRuntimePaths, secrets::RuntimeSecrets, state::ApplicationState, RuntimeContext,
+};
+use futures::{SinkExt, StreamExt};
+use reqwest::header::{COOKIE, HOST, LOCATION, ORIGIN, SET_COOKIE};
+use serde_json::Value;
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tokio::net::TcpListener;
+use tokio::sync::oneshot;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use tokio_tungstenite::tungstenite::{Error as WebSocketError, Message as WebSocketMessage};
+
+const CSRF_HEADER: &str = "x-tabularis-csrf";
+const REQUEST_ID_HEADER: &str = "x-request-id";
+
+#[derive(Default)]
+struct TestRuntimeSecrets {
+    values: Mutex<HashMap<String, String>>,
+}
+
+impl RuntimeSecrets for TestRuntimeSecrets {
+    fn get(&self, account: &str) -> Result<Option<String>, String> {
+        Ok(self.values.lock().unwrap().get(account).cloned())
+    }
+
+    fn set(&self, account: &str, secret: &str) -> Result<(), String> {
+        self.values
+            .lock()
+            .unwrap()
+            .insert(account.to_string(), secret.to_string());
+        Ok(())
+    }
+
+    fn delete(&self, account: &str) -> Result<(), String> {
+        self.values.lock().unwrap().remove(account);
+        Ok(())
+    }
+}
+
+#[test]
+fn enforces_remote_credentials_origins_rate_limits_and_capability_policy() {
+    let config = RemoteSessionSecurityConfig {
+        public_origin: "https://tabularis.example.com".to_string(),
+        allowed_origins: vec![
+            "https://tabularis.example.com".to_string(),
+            "https://admin.example.com".to_string(),
+        ],
+        session_ttl: Duration::from_secs(60),
+        max_body_bytes: 1_048_576,
+        authorization: AuthorizationLevel::Database,
+        rate_limit: LoginRateLimitConfig {
+            max_failures: 2,
+            window: Duration::from_secs(60),
+            lockout: Duration::from_secs(60),
+        },
+    };
+    let mut insecure_config = config.clone();
+    insecure_config.public_origin = "http://tabularis.example.com".to_string();
+    insecure_config.allowed_origins = vec![insecure_config.public_origin.clone()];
+    assert!(LocalSessionSecurity::new_remote(
+        insecure_config,
+        RemoteAuthentication::password("correct horse battery staple"),
+    )
+    .unwrap_err()
+    .contains("HTTPS"));
+
+    let password_security = LocalSessionSecurity::new_remote(
+        config.clone(),
+        RemoteAuthentication::password("correct horse battery staple"),
+    )
+    .unwrap();
+
+    assert!(password_security.is_remote());
+    assert!(password_security.secure_cookie());
+    assert!(password_security.origin_allowed("https://admin.example.com"));
+    assert!(password_security.host_allowed("tabularis.example.com"));
+    assert!(!password_security.origin_allowed("https://attacker.invalid"));
+    assert!(matches!(
+        password_security.authenticate_password("wrong"),
+        Err(AuthenticationError::InvalidCredentials)
+    ));
+    assert!(matches!(
+        password_security.authenticate_password("still-wrong"),
+        Err(AuthenticationError::InvalidCredentials)
+    ));
+    assert!(matches!(
+        password_security.authenticate_password("correct horse battery staple"),
+        Err(AuthenticationError::RateLimited)
+    ));
+
+    let password_security = LocalSessionSecurity::new_remote(
+        config.clone(),
+        RemoteAuthentication::password("correct horse battery staple"),
+    )
+    .unwrap();
+    let issued = password_security
+        .authenticate_password("correct horse battery staple")
+        .unwrap();
+    let session = password_security
+        .authenticate(&issued.cookie_value)
+        .unwrap();
+    assert!(session.is_remote());
+    assert_eq!(session.authorization(), AuthorizationLevel::Database);
+
+    let proxy_security = LocalSessionSecurity::new_remote(
+        config,
+        RemoteAuthentication::proxy("a-proxy-shared-secret-with-32-bytes"),
+    )
+    .unwrap();
+    assert!(matches!(
+        proxy_security.authenticate_proxy("wrong", "alice@example.com"),
+        Err(AuthenticationError::InvalidCredentials)
+    ));
+    let issued = proxy_security
+        .authenticate_proxy("a-proxy-shared-secret-with-32-bytes", "alice@example.com")
+        .unwrap();
+    assert!(proxy_security.authenticate(&issued.cookie_value).is_some());
+}
+
+#[test]
+fn advertises_mcp_host_configuration_only_for_loopback_web_origins() {
+    for origin in [
+        "http://127.0.0.1:8080",
+        "http://[::1]:8080",
+        "http://localhost:8080",
+    ] {
+        assert!(server::mcp_host_configuration_enabled(origin), "{origin}");
+    }
+    for origin in ["http://0.0.0.0:8080", "http://192.0.2.10:8080"] {
+        assert!(!server::mcp_host_configuration_enabled(origin), "{origin}");
+    }
+
+    let local = SessionNegotiation::authenticated("csrf".to_string(), true);
+    let remote = SessionNegotiation::authenticated("csrf".to_string(), false);
+    assert!(local.capabilities.mcp_host_configuration);
+    assert!(!remote.capabilities.mcp_host_configuration);
+}
+
+async fn rpc_data(
+    client: &reqwest::Client,
+    base_url: &str,
+    cookie: &str,
+    csrf_token: &str,
+    command: &str,
+    payload: serde_json::Value,
+) -> serde_json::Value {
+    let response = client
+        .post(format!("{base_url}/api/v1/rpc/{command}"))
+        .header(COOKIE, cookie)
+        .header(ORIGIN, base_url)
+        .header(CSRF_HEADER, csrf_token)
+        .json(&payload)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::OK, "{command}");
+    response.json::<serde_json::Value>().await.unwrap()["data"].clone()
+}
+
+fn test_application(root: &Path) -> Arc<dyn ApplicationApi> {
+    test_application_with_state(root, Arc::new(ApplicationState::default()))
+}
+
+fn test_application_with_state(
+    root: &Path,
+    state: Arc<ApplicationState>,
+) -> Arc<dyn ApplicationApi> {
+    let context = RuntimeContext::new(
+        Arc::new(FixedRuntimePaths::new(
+            root.to_path_buf(),
+            root.to_path_buf(),
+        )),
+        Arc::new(crate::runtime::events::NoopRuntimeEvents),
+        Arc::new(TestRuntimeSecrets::default()),
+    );
+    Arc::new(RuntimeApplicationApi::new(context, state))
+}
+
+#[tokio::test]
+async fn requires_a_single_use_bootstrap_and_authenticated_session() {
+    let temp = tempfile::tempdir().unwrap();
+    let assets = temp.path();
+    std::fs::create_dir_all(assets.join("assets")).unwrap();
+    std::fs::write(assets.join("index.html"), "<main>Tabularis Web</main>").unwrap();
+    std::fs::write(assets.join("assets/app.js"), "window.tabularis = true;").unwrap();
+    let plugin_dir = assets.join("plugins/example-plugin");
+    std::fs::create_dir_all(plugin_dir.join("ui/dist")).unwrap();
+    std::fs::write(
+        plugin_dir.join(".tabularium"),
+        r#"{
+  "id": "example-plugin",
+  "name": "Example Plugin",
+  "version": "1.0.0",
+  "description": "Web asset fixture",
+  "ui_extensions": [{
+    "slot": "data-grid.toolbar.actions",
+    "module": "ui/dist/index.js",
+    "api_version": "0.1.1"
+  }]
+}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        plugin_dir.join("ui/dist/index.js"),
+        "window.pluginLoaded = true;",
+    )
+    .unwrap();
+    std::fs::write(plugin_dir.join("ui/dist/private.txt"), "not public").unwrap();
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let (security, bootstrap_token) =
+        LocalSessionSecurity::new(base_url.clone(), LocalSessionSecurityConfig::default()).unwrap();
+    let bootstrap_url = format!(
+        "{base_url}/api/v1/auth/bootstrap?token={}",
+        bootstrap_token.expose()
+    );
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve(
+        listener,
+        assets.to_path_buf(),
+        security,
+        test_application(assets),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+
+    let health = client
+        .get(format!("{base_url}/healthz"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(health.status(), reqwest::StatusCode::OK);
+    assert_eq!(health.text().await.unwrap(), "ok");
+
+    let unauthorized = client
+        .get(format!("{base_url}/api/v1/session"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unauthorized.status(), reqwest::StatusCode::UNAUTHORIZED);
+    let unauthorized_plugin_asset = client
+        .get(format!(
+            "{base_url}/api/v1/assets/plugins/example-plugin/ui/dist/index.js"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        unauthorized_plugin_asset.status(),
+        reqwest::StatusCode::UNAUTHORIZED
+    );
+    assert!(uuid::Uuid::parse_str(
+        unauthorized
+            .headers()
+            .get(REQUEST_ID_HEADER)
+            .unwrap()
+            .to_str()
+            .unwrap()
+    )
+    .is_ok());
+
+    let invalid_bootstrap = client
+        .get(format!("{base_url}/api/v1/auth/bootstrap?token=invalid"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        invalid_bootstrap.status(),
+        reqwest::StatusCode::UNAUTHORIZED
+    );
+
+    let cross_origin_bootstrap = client
+        .get(&bootstrap_url)
+        .header(ORIGIN, "https://attacker.invalid")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        cross_origin_bootstrap.status(),
+        reqwest::StatusCode::FORBIDDEN
+    );
+
+    let bootstrap = client.get(&bootstrap_url).send().await.unwrap();
+    assert_eq!(bootstrap.status(), reqwest::StatusCode::SEE_OTHER);
+    assert_eq!(bootstrap.headers().get(LOCATION).unwrap(), "/");
+    assert_eq!(
+        bootstrap.headers().get("referrer-policy").unwrap(),
+        "no-referrer"
+    );
+    let set_cookie = bootstrap
+        .headers()
+        .get(SET_COOKIE)
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(set_cookie.contains("HttpOnly"));
+    assert!(set_cookie.contains("SameSite=Strict"));
+    assert!(set_cookie.contains("Path=/"));
+    let cookie = set_cookie.split(';').next().unwrap().to_string();
+
+    let replay = client.get(&bootstrap_url).send().await.unwrap();
+    assert_eq!(replay.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let session = client
+        .get(format!("{base_url}/api/v1/session"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(session.status(), reqwest::StatusCode::OK);
+    let session: SessionNegotiation = session.json().await.unwrap();
+    assert_eq!(session.api_version, WEB_API_VERSION);
+    assert_eq!(session.server_version, env!("CARGO_PKG_VERSION"));
+    let session_json = serde_json::to_value(&session).unwrap();
+    assert_eq!(session_json["capabilities"]["nativeUpdater"], false);
+    assert!(session_json["serverBuild"]["target"]
+        .as_str()
+        .is_some_and(|target| !target.is_empty()));
+    assert!(session_json["serverBuild"]["profile"]
+        .as_str()
+        .is_some_and(|profile| !profile.is_empty()));
+    assert!(session.authenticated);
+    assert!(!session.csrf_token.is_empty());
+    assert!(!session.access.remote);
+    assert_eq!(session.access.authorization_level, "local-admin");
+    assert!(session.access.high_risk_capabilities);
+    assert!(session.capabilities.rpc);
+    assert!(session.capabilities.events);
+    assert!(session.capabilities.uploads);
+    assert!(session.capabilities.downloads);
+    assert!(session.capabilities.plugin_assets);
+    assert_eq!(
+        session.query_response_policy.max_rows_per_page,
+        crate::application::queries::WEB_MAX_ROWS_PER_PAGE
+    );
+    assert_eq!(
+        session.query_response_policy.max_response_bytes,
+        crate::application::queries::WEB_MAX_RESPONSE_BYTES
+    );
+    assert!(!session.query_response_policy.streaming);
+
+    let index = client
+        .get(&base_url)
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(index.status(), reqwest::StatusCode::OK);
+    assert_eq!(index.text().await.unwrap(), "<main>Tabularis Web</main>");
+
+    let asset = client
+        .get(format!("{base_url}/assets/app.js"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(asset.status(), reqwest::StatusCode::OK);
+    assert_eq!(asset.text().await.unwrap(), "window.tabularis = true;");
+
+    let plugin_asset = client
+        .get(format!(
+            "{base_url}/api/v1/assets/plugins/example-plugin/ui/dist/index.js"
+        ))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(plugin_asset.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        plugin_asset.headers().get("content-type").unwrap(),
+        "text/javascript; charset=utf-8"
+    );
+    assert_eq!(
+        plugin_asset.headers().get("content-security-policy").unwrap(),
+        "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; sandbox"
+    );
+    assert_eq!(
+        plugin_asset
+            .headers()
+            .get("cross-origin-resource-policy")
+            .unwrap(),
+        "same-origin"
+    );
+    assert_eq!(
+        plugin_asset.text().await.unwrap(),
+        "window.pluginLoaded = true;"
+    );
+
+    let undeclared_plugin_asset = client
+        .get(format!(
+            "{base_url}/api/v1/assets/plugins/example-plugin/ui/dist/private.txt"
+        ))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        undeclared_plugin_asset.status(),
+        reqwest::StatusCode::NOT_FOUND
+    );
+
+    let spa_route = client
+        .get(format!("{base_url}/connections/example"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(spa_route.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        spa_route.text().await.unwrap(),
+        "<main>Tabularis Web</main>"
+    );
+
+    let cross_origin = client
+        .get(format!("{base_url}/api/v1/session"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, "https://attacker.invalid")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cross_origin.status(), reqwest::StatusCode::FORBIDDEN);
+
+    let bad_host = client
+        .get(format!("{base_url}/api/v1/session"))
+        .header(COOKIE, &cookie)
+        .header(HOST, "attacker.invalid")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(bad_host.status(), reqwest::StatusCode::FORBIDDEN);
+
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_ai_activity",
+            Value::Null,
+        )
+        .await,
+        serde_json::json!([])
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_ai_sessions",
+            Value::Null,
+        )
+        .await,
+        serde_json::json!([])
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "list_pending_approvals",
+            Value::Null,
+        )
+        .await,
+        serde_json::json!([])
+    );
+
+    let missing_csrf = client
+        .post(format!("{base_url}/api/v1/logout"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(missing_csrf.status(), reqwest::StatusCode::FORBIDDEN);
+
+    let oversized = client
+        .post(format!("{base_url}/api/v1/not-implemented"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header(reqwest::header::CONTENT_LENGTH, 1_048_577)
+        .body("x")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(oversized.status(), reqwest::StatusCode::PAYLOAD_TOO_LARGE);
+
+    let logout = client
+        .post(format!("{base_url}/api/v1/logout"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(logout.status(), reqwest::StatusCode::NO_CONTENT);
+    assert!(logout
+        .headers()
+        .get(SET_COOKIE)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .contains("Max-Age=0"));
+
+    let logged_out = client
+        .get(format!("{base_url}/api/v1/session"))
+        .header(COOKIE, cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(logged_out.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    shutdown_tx.send(()).unwrap();
+    server.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn rejects_non_loopback_binding_without_explicit_remote_authentication() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
+    let error = server::run(server::WebServerOptions {
+        host: "0.0.0.0".to_string(),
+        port: 0,
+        web_root: temp.path().to_path_buf(),
+        data_dir: temp.path().to_path_buf(),
+        open_browser: false,
+        auth: None,
+        public_url: None,
+        allowed_origins: Vec::new(),
+        allow_high_risk: false,
+        server_file_browser_roots: Vec::new(),
+        application: test_application(temp.path()),
+        events: WebEventBus::default(),
+    })
+    .await
+    .unwrap_err();
+
+    assert!(error.contains("Non-loopback"));
+}
+
+#[tokio::test]
+async fn authenticates_remote_password_and_proxy_requests_with_auditing() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
+    let log_buffer = crate::runtime::bootstrap::initialize_logging(false);
+    let public_origin = "https://tabularis.example.com";
+    let remote_config = RemoteSessionSecurityConfig {
+        public_origin: public_origin.to_string(),
+        allowed_origins: vec![public_origin.to_string()],
+        session_ttl: Duration::from_secs(60),
+        max_body_bytes: 1_048_576,
+        authorization: AuthorizationLevel::Database,
+        rate_limit: LoginRateLimitConfig::default(),
+    };
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let security = LocalSessionSecurity::new_remote(
+        remote_config.clone(),
+        RemoteAuthentication::password("correct horse battery staple"),
+    )
+    .unwrap();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve(
+        listener,
+        temp.path().to_path_buf(),
+        security,
+        test_application(temp.path()),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+
+    let login_page = client
+        .get(format!("{base_url}/login"))
+        .header(HOST, "tabularis.example.com")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(login_page.status(), reqwest::StatusCode::OK);
+    assert!(login_page.text().await.unwrap().contains("Sign in"));
+
+    let login = client
+        .post(format!("{base_url}/api/v1/auth/login"))
+        .header(HOST, "tabularis.example.com")
+        .header(ORIGIN, public_origin)
+        .header(
+            reqwest::header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .body("password=correct%20horse%20battery%20staple")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(login.status(), reqwest::StatusCode::SEE_OTHER);
+    let set_cookie = login.headers().get(SET_COOKIE).unwrap().to_str().unwrap();
+    assert!(set_cookie.contains("Secure"));
+    let cookie = set_cookie.split(';').next().unwrap().to_string();
+
+    for _ in 0..5 {
+        let invalid_login = client
+            .post(format!("{base_url}/api/v1/auth/login"))
+            .header(HOST, "tabularis.example.com")
+            .header(ORIGIN, public_origin)
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
+            .body("password=wrong")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(invalid_login.status(), reqwest::StatusCode::UNAUTHORIZED);
+    }
+    let rate_limited = client
+        .post(format!("{base_url}/api/v1/auth/login"))
+        .header(HOST, "tabularis.example.com")
+        .header(ORIGIN, public_origin)
+        .header(
+            reqwest::header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .body("password=wrong")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        rate_limited.status(),
+        reqwest::StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_eq!(rate_limited.headers().get("retry-after").unwrap(), "300");
+
+    let session = client
+        .get(format!("{base_url}/api/v1/session"))
+        .header(HOST, "tabularis.example.com")
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(session.status(), reqwest::StatusCode::OK);
+    let session: SessionNegotiation = session.json().await.unwrap();
+    assert!(session.access.remote);
+    assert_eq!(session.access.authorization_level, "database");
+    assert!(!session.access.high_risk_capabilities);
+
+    let blocked = client
+        .post(format!("{base_url}/api/v1/rpc/clear_logs"))
+        .header(HOST, "tabularis.example.com")
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, public_origin)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&Value::Null)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(blocked.status(), reqwest::StatusCode::FORBIDDEN);
+
+    shutdown_tx.send(()).unwrap();
+    server.await.unwrap().unwrap();
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let security = LocalSessionSecurity::new_remote(
+        remote_config,
+        RemoteAuthentication::proxy("a-proxy-shared-secret-with-32-bytes"),
+    )
+    .unwrap();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve(
+        listener,
+        temp.path().to_path_buf(),
+        security,
+        test_application(temp.path()),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+
+    let proxy_session = client
+        .get(format!("{base_url}/api/v1/session"))
+        .header(HOST, "tabularis.example.com")
+        .header(
+            "x-tabularis-proxy-secret",
+            "a-proxy-shared-secret-with-32-bytes",
+        )
+        .header("x-tabularis-user", "alice@example.com")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(proxy_session.status(), reqwest::StatusCode::OK);
+    assert!(proxy_session
+        .headers()
+        .get(SET_COOKIE)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .contains("Secure"));
+
+    shutdown_tx.send(()).unwrap();
+    server.await.unwrap().unwrap();
+
+    let logs = log_buffer.lock().unwrap().get_entries(None, None);
+    assert!(logs.iter().any(|entry| {
+        entry.target.as_deref() == Some("tabularis::web_audit")
+            && entry.message.contains("request_id=")
+            && entry.message.contains("session_id=")
+    }));
+    assert!(!logs
+        .iter()
+        .any(|entry| entry.message.contains("correct horse battery staple")));
+}
+
+#[tokio::test]
+async fn expires_bootstrap_tokens_and_sessions() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let (security, expired_bootstrap) = LocalSessionSecurity::new(
+        base_url.clone(),
+        LocalSessionSecurityConfig {
+            bootstrap_ttl: Duration::from_millis(20),
+            session_ttl: Duration::from_secs(1),
+            max_body_bytes: 1_048_576,
+        },
+    )
+    .unwrap();
+    tokio::time::sleep(Duration::from_millis(30)).await;
+    assert!(security
+        .consume_bootstrap(expired_bootstrap.expose())
+        .is_none());
+
+    let (security, bootstrap_token) = LocalSessionSecurity::new(
+        base_url.clone(),
+        LocalSessionSecurityConfig {
+            bootstrap_ttl: Duration::from_secs(1),
+            session_ttl: Duration::from_millis(20),
+            max_body_bytes: 1_048_576,
+        },
+    )
+    .unwrap();
+    let bootstrap_url = format!(
+        "{base_url}/api/v1/auth/bootstrap?token={}",
+        bootstrap_token.expose()
+    );
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve(
+        listener,
+        temp.path().to_path_buf(),
+        security,
+        test_application(temp.path()),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let bootstrap = client.get(bootstrap_url).send().await.unwrap();
+    let cookie = bootstrap
+        .headers()
+        .get(SET_COOKIE)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+
+    tokio::time::sleep(Duration::from_millis(30)).await;
+    let expired_session = client
+        .get(format!("{base_url}/api/v1/session"))
+        .header(COOKIE, cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(expired_session.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    shutdown_tx.send(()).unwrap();
+    server.await.unwrap().unwrap();
+}
+
+#[test]
+fn redacts_generated_security_tokens() {
+    let (security, bootstrap_token) = LocalSessionSecurity::new(
+        "http://127.0.0.1:8080".to_string(),
+        LocalSessionSecurityConfig::default(),
+    )
+    .unwrap();
+    let token = bootstrap_token.expose().to_string();
+
+    assert!(token.len() >= 43);
+    assert!(!format!("{bootstrap_token:?}").contains(&token));
+    assert!(!format!("{security:?}").contains(&token));
+}
+
+#[test]
+fn resolves_explicit_and_packaged_web_roots() {
+    let temp = tempfile::tempdir().unwrap();
+    let explicit = temp.path().join("explicit");
+    std::fs::create_dir_all(&explicit).unwrap();
+    std::fs::write(explicit.join("index.html"), "Tabularis").unwrap();
+
+    assert_eq!(
+        static_assets::resolve_web_root(Some(&explicit)).unwrap(),
+        explicit.canonicalize().unwrap()
+    );
+
+    let candidates = static_assets::candidate_web_roots(
+        Path::new("/opt/Tabularis.app/Contents/MacOS/tabularis"),
+        Path::new("/workspace/packages/web-ui/dist"),
+    );
+    assert!(candidates
+        .contains(&Path::new("/opt/Tabularis.app/Contents/Resources/web-ui").to_path_buf()));
+    assert!(candidates.contains(&Path::new("/workspace/packages/web-ui/dist").to_path_buf()));
+
+    let linux_candidates = static_assets::candidate_web_roots(
+        Path::new("/usr/bin/tabularis"),
+        Path::new("/workspace/packages/web-ui/dist"),
+    );
+    assert!(linux_candidates.contains(&Path::new("/usr/lib/tabularis/web-ui").to_path_buf()));
+
+    let portable_candidates = static_assets::candidate_web_roots(
+        Path::new("/portable/tabularis.exe"),
+        Path::new("/workspace/packages/web-ui/dist"),
+    );
+    assert!(portable_candidates.contains(&Path::new("/portable/web-ui").to_path_buf()));
+}
+
+#[test]
+fn rejects_a_web_root_without_an_index() {
+    let temp = tempfile::tempdir().unwrap();
+    let error = static_assets::resolve_web_root(Some(temp.path())).unwrap_err();
+
+    assert!(error.contains("index.html"));
+}
+
+#[tokio::test]
+async fn streams_safe_session_owned_file_uploads() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "<main>Tabularis Web</main>").unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let (security, bootstrap_token) =
+        LocalSessionSecurity::new(base_url.clone(), LocalSessionSecurityConfig::default()).unwrap();
+    let issued = security
+        .consume_bootstrap(bootstrap_token.expose())
+        .unwrap();
+    let session = security.authenticate(&issued.cookie_value).unwrap();
+    let cookie = format!("tabularis_session={}", issued.cookie_value);
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve(
+        listener,
+        temp.path().to_path_buf(),
+        security,
+        test_application(temp.path()),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post(format!("{base_url}/api/v1/uploads"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header("content-type", "text/csv; charset=utf-8")
+        .header("x-tabularis-file-name", "..%2Fquarterly%0Areport.csv")
+        .header("x-tabularis-purpose", "connection-import")
+        .body("region,total\nwest,42\n")
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), reqwest::StatusCode::CREATED);
+    let metadata = response.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(metadata["fileName"], "quarterly_report.csv");
+    assert_eq!(metadata["mimeType"], "text/csv");
+    assert_eq!(metadata["size"], 21);
+    assert!(metadata["token"].as_str().unwrap().len() >= 36);
+    assert!(metadata["expiresAt"].as_str().unwrap().ends_with('Z'));
+
+    let guessed = client
+        .get(format!(
+            "{base_url}/api/v1/downloads/00000000-0000-4000-8000-000000000000"
+        ))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(guessed.status(), reqwest::StatusCode::NOT_FOUND);
+
+    shutdown_tx.send(()).unwrap();
+    server.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn executes_representative_commands_over_versioned_rpc() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
+    let log_buffer = crate::runtime::bootstrap::initialize_logging(false);
+    crate::application::operations::clear_logs(&log_buffer).unwrap();
+    log_buffer.lock().unwrap().push(crate::logger::LogEntry {
+        timestamp: "2026-08-22 09:00:00.000".to_string(),
+        level: "ERROR".to_string(),
+        message: "Authenticated operational RPC fixture".to_string(),
+        target: Some("web-contract".to_string()),
+    });
+
+    crate::drivers::registry::register_driver(crate::drivers::sqlite::SqliteDriver::new()).await;
+    let sqlite_path = temp.path().join("metadata.sqlite");
+    crate::sqlite_database::initialize_sqlite_file(&sqlite_path)
+        .await
+        .unwrap();
+    let sqlite_params = crate::models::ConnectionParams {
+        driver: "sqlite".to_string(),
+        database: crate::models::DatabaseSelection::Single(
+            sqlite_path.to_string_lossy().into_owned(),
+        ),
+        ..Default::default()
+    };
+    for statement in [
+        "CREATE TABLE teams (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+        "CREATE TABLE files (id INTEGER PRIMARY KEY, name TEXT NOT NULL, payload BLOB)",
+        "CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, team_id INTEGER, name TEXT, FOREIGN KEY (team_id) REFERENCES teams(id))",
+        "CREATE INDEX idx_users_name ON users(name)",
+        "CREATE VIEW active_users AS SELECT id, name FROM users",
+        "CREATE TRIGGER users_name_required BEFORE INSERT ON users WHEN NEW.name IS NULL BEGIN SELECT RAISE(ABORT, 'name required'); END",
+    ] {
+        crate::drivers::sqlite::execute_query(&sqlite_params, statement, None, 1)
+            .await
+            .unwrap();
+    }
+    crate::persistence::save_connections_file(
+        &crate::paths::resolve_connections_path(temp.path()),
+        &crate::models::ConnectionsFile {
+            connections: vec![crate::models::SavedConnection {
+                id: "metadata-fixture".to_string(),
+                name: "Metadata fixture".to_string(),
+                params: sqlite_params,
+                group_id: None,
+                sort_order: None,
+                detect_json_in_text_columns: None,
+                appearance: None,
+                tag_ids: None,
+                environment: None,
+            }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let (security, bootstrap_token) =
+        LocalSessionSecurity::new(base_url.clone(), LocalSessionSecurityConfig::default()).unwrap();
+    let bootstrap_url = format!(
+        "{base_url}/api/v1/auth/bootstrap?token={}",
+        bootstrap_token.expose()
+    );
+    let application_state = Arc::new(ApplicationState::default());
+    let session_security = security.clone();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve(
+        listener,
+        temp.path().to_path_buf(),
+        security,
+        test_application_with_state(temp.path(), application_state.clone()),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let bootstrap = client.get(bootstrap_url).send().await.unwrap();
+    let cookie = bootstrap
+        .headers()
+        .get(SET_COOKIE)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+    let session: SessionNegotiation = client
+        .get(format!("{base_url}/api/v1/session"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    let logs = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_logs",
+        serde_json::json!({
+            "request": {"limit": 100, "level_filter": "ERROR"}
+        }),
+    )
+    .await;
+    assert!(logs
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|entry| { entry["message"] == "Authenticated operational RPC fixture" }));
+    let log_settings = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_log_settings",
+        Value::Null,
+    )
+    .await;
+    assert_eq!(log_settings["enabled"], true);
+    assert!(rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_process_list",
+        Value::Null,
+    )
+    .await
+    .is_array());
+    assert!(rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_system_stats",
+        Value::Null,
+    )
+    .await["process_count"]
+        .is_number());
+    assert!(rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_tabularis_children",
+        Value::Null,
+    )
+    .await
+    .is_array());
+    for (command, payload) in [
+        ("set_log_max_size", serde_json::json!({"maxSize": 500})),
+        ("set_log_enabled", serde_json::json!({"enabled": false})),
+        ("set_log_enabled", serde_json::json!({"enabled": true})),
+        ("clear_logs", Value::Null),
+        ("set_log_max_size", serde_json::json!({"maxSize": 1000})),
+    ] {
+        assert!(rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            command,
+            payload,
+        )
+        .await
+        .is_null());
+    }
+
+    let query_export = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "export_query_to_file",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "query": "SELECT 1 AS value UNION ALL SELECT 2",
+            "format": "csv",
+            "csvDelimiter": ";"
+        }),
+    )
+    .await;
+    assert_eq!(query_export["kind"], "download");
+    let query_export_response = client
+        .get(format!(
+            "{base_url}/api/v1/downloads/{}",
+            query_export["token"].as_str().unwrap()
+        ))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(query_export_response.status(), reqwest::StatusCode::OK);
+    assert_eq!(query_export_response.text().await.unwrap(), "value\n1\n2\n");
+
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "save_config",
+        serde_json::json!({"config": {"language": "en", "formatterTabWidth": 4}}),
+    )
+    .await;
+    let config = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_config",
+        serde_json::Value::Null,
+    )
+    .await;
+    assert_eq!(config["language"], "en");
+    assert_eq!(config["formatterTabWidth"], 4);
+
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "save_keybindings",
+        serde_json::json!({"keybindings": {"editor.run": {"key": "Enter"}}}),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_keybindings",
+            serde_json::Value::Null,
+        )
+        .await["editor.run"]["key"],
+        "Enter"
+    );
+
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "save_system_prompt",
+        serde_json::json!({"prompt": "Generate safe SQL"}),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_system_prompt",
+            serde_json::Value::Null,
+        )
+        .await,
+        "Generate safe SQL"
+    );
+
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "save_editor_preferences",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "preferences": {
+                "tabs": [{"id": "tab-1", "title": "Browser console"}],
+                "active_tab_id": "tab-1"
+            }
+        }),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "load_editor_preferences",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await["active_tab_id"],
+        "tab-1"
+    );
+
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "set_last_open_connections",
+        serde_json::json!({"connectionIds": ["metadata-fixture"]}),
+    )
+    .await;
+    let exported = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "export_connections_file",
+        serde_json::json!({"mode": "noSecrets"}),
+    )
+    .await;
+    assert_eq!(exported["kind"], "download");
+    let export_token = exported["token"].as_str().unwrap();
+    let export_response = client
+        .get(format!("{base_url}/api/v1/downloads/{export_token}"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(export_response.status(), reqwest::StatusCode::OK);
+    let export_content = export_response.text().await.unwrap();
+    assert!(export_content.contains("metadata-fixture"));
+    let exported_payload: Value = serde_json::from_str(&export_content).unwrap();
+    assert!(exported_payload["connections"][0]["params"]["password"].is_null());
+    assert!(exported_payload["connections"][0]["params"]["connection_uri"].is_null());
+
+    let upload = client
+        .post(format!("{base_url}/api/v1/uploads"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header("content-type", "application/json")
+        .header("x-tabularis-file-name", "connections.json")
+        .header("x-tabularis-purpose", "connection-import")
+        .body(export_content)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(upload.status(), reqwest::StatusCode::CREATED);
+    let upload_token = upload.json::<Value>().await.unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let preview = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "preview_tabularis_import_file",
+        serde_json::json!({
+            "file": {"kind": "upload", "token": upload_token}
+        }),
+    )
+    .await;
+    assert_eq!(preview["kind"], "preview");
+    assert_eq!(
+        preview["preview"]["items"][0]["status"]["kind"],
+        "duplicate"
+    );
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "apply_prepared_tabularis_import",
+        serde_json::json!({"resolutions": [{"index": 0, "action": "skip"}]}),
+    )
+    .await;
+
+    let dump = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "dump_database",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "options": {"structure": true, "data": true, "tables": ["teams"]}
+        }),
+    )
+    .await;
+    assert_eq!(dump["kind"], "download");
+    let dump_token = dump["token"].as_str().unwrap();
+    let dump_response = client
+        .get(format!("{base_url}/api/v1/downloads/{dump_token}"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(dump_response.status(), reqwest::StatusCode::OK);
+    let dump_sql = dump_response.text().await.unwrap();
+    assert!(dump_sql.contains("CREATE TABLE teams"));
+    assert!(!dump_sql.contains(temp.path().to_string_lossy().as_ref()));
+
+    let database_import = client
+        .post(format!("{base_url}/api/v1/uploads"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header("content-type", "application/sql")
+        .header("x-tabularis-file-name", "database-import.sql")
+        .header("x-tabularis-purpose", "database-import")
+        .body(
+            "CREATE TABLE imported_transfer (id INTEGER PRIMARY KEY, name TEXT);\n\
+             INSERT INTO imported_transfer (id, name) VALUES (1, 'Platform');\n",
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(database_import.status(), reqwest::StatusCode::CREATED);
+    let database_import_token = database_import.json::<Value>().await.unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "import_database",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "uploadToken": database_import_token
+        }),
+    )
+    .await;
+    let imported_rows = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "execute_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "query": "SELECT name FROM imported_transfer WHERE id = 1",
+            "limit": 10,
+            "page": 1
+        }),
+    )
+    .await;
+    assert_eq!(imported_rows["rows"][0][0], "Platform");
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "execute_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "query": "DROP TABLE imported_transfer",
+            "limit": 10,
+            "page": 1
+        }),
+    )
+    .await;
+
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "set_last_active_connection",
+        serde_json::json!({"connectionId": "metadata-fixture"}),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_last_open_connections",
+            serde_json::Value::Null,
+        )
+        .await,
+        serde_json::json!(["metadata-fixture"])
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_last_active_connection",
+            serde_json::Value::Null,
+        )
+        .await,
+        "metadata-fixture"
+    );
+    assert!(!temp.path().join("preferences").exists());
+
+    let saved_query = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "save_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "name": "All users",
+            "sql": "SELECT * FROM users",
+            "database": "main"
+        }),
+    )
+    .await;
+    let saved_query_id = saved_query["id"].as_str().unwrap();
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_saved_queries",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await[0]["sql"],
+        "SELECT * FROM users"
+    );
+    let cross_connection_update = client
+        .post(format!("{base_url}/api/v1/rpc/update_saved_query"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "connectionId": "another-connection",
+            "id": saved_query_id,
+            "name": "Unsafe update",
+            "sql": "SELECT 2",
+            "database": null
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        cross_connection_update.status(),
+        reqwest::StatusCode::CONFLICT
+    );
+    let updated_query = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "update_saved_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "id": saved_query_id,
+            "name": "Named users",
+            "sql": "SELECT name FROM users",
+            "database": "main"
+        }),
+    )
+    .await;
+    assert_eq!(updated_query["name"], "Named users");
+
+    let history_entry = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "add_query_history_entry",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "sql": "SELECT name FROM users",
+            "executedAt": "2026-08-22T00:00:00Z",
+            "executionTimeMs": 1.5,
+            "status": "success",
+            "rowsAffected": 0,
+            "error": null,
+            "database": "main"
+        }),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_query_history",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await["entries"][0]["id"],
+        history_entry["id"]
+    );
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "delete_query_history_entry",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "id": history_entry["id"]
+        }),
+    )
+    .await;
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "clear_query_history",
+        serde_json::json!({"connectionId": "metadata-fixture"}),
+    )
+    .await;
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "delete_saved_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "id": saved_query_id
+        }),
+    )
+    .await;
+
+    let notebook_content = serde_json::json!({
+        "version": 2,
+        "title": "Web notebook",
+        "createdAt": "2026-08-22T00:00:00Z",
+        "cells": [{
+            "type": "sql",
+            "content": "SELECT 1",
+            "chartConfig": {
+                "type": "bar",
+                "labelColumn": "value",
+                "valueColumns": ["value"]
+            }
+        }],
+        "stopOnError": true
+    })
+    .to_string();
+    let notebook_target = serde_json::json!({
+        "connectionId": "metadata-fixture",
+        "notebookId": "notebook-web-1"
+    });
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "create_notebook",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "notebookId": "notebook-web-1",
+            "content": notebook_content
+        }),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "load_notebook",
+            notebook_target.clone(),
+        )
+        .await,
+        notebook_content
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "load_notebook",
+            serde_json::json!({
+                "connectionId": "another-connection",
+                "notebookId": "notebook-web-1"
+            }),
+        )
+        .await,
+        Value::Null
+    );
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "save_notebook",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "notebookId": "notebook-web-1",
+            "content": notebook_content
+        }),
+    )
+    .await;
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "rename_notebook",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "notebookId": "notebook-web-1",
+            "title": "Renamed web notebook"
+        }),
+    )
+    .await;
+    let notebooks = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "list_notebooks",
+        serde_json::json!({"connectionId": "metadata-fixture"}),
+    )
+    .await;
+    assert_eq!(notebooks[0]["id"], "notebook-web-1");
+    assert_eq!(notebooks[0]["title"], "Renamed web notebook");
+    assert_eq!(notebooks[0]["createdAt"], "2026-08-22T00:00:00Z");
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "delete_notebook",
+        notebook_target.clone(),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "load_notebook",
+            notebook_target,
+        )
+        .await,
+        Value::Null
+    );
+
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_tables",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await,
+        serde_json::json!([{"name": "files"}, {"name": "teams"}, {"name": "users"}])
+    );
+    let columns = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_columns",
+        serde_json::json!({"connectionId": "metadata-fixture", "tableName": "users"}),
+    )
+    .await;
+    assert_eq!(columns.as_array().unwrap().len(), 3);
+    assert_eq!(columns[0]["name"], "id");
+    assert_eq!(columns[0]["is_pk"], true);
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_foreign_keys",
+            serde_json::json!({"connectionId": "metadata-fixture", "tableName": "users"}),
+        )
+        .await[0]["ref_table"],
+        "teams"
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_indexes",
+            serde_json::json!({"connectionId": "metadata-fixture", "tableName": "users"}),
+        )
+        .await[0]["name"],
+        "idx_users_name"
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_views",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await[0]["name"],
+        "active_users"
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_triggers",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await[0]["name"],
+        "users_name_required"
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_schema_snapshot",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await
+        .as_array()
+        .unwrap()
+        .len(),
+        3
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "set_selected_schemas",
+            serde_json::json!({"connectionId": "metadata-fixture", "schemas": ["main"]}),
+        )
+        .await,
+        serde_json::Value::Null
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_selected_schemas",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await,
+        serde_json::json!(["main"])
+    );
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "set_schema_preference",
+        serde_json::json!({"connectionId": "metadata-fixture", "schema": "main"}),
+    )
+    .await;
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "get_schema_preference",
+            serde_json::json!({"connectionId": "metadata-fixture"}),
+        )
+        .await,
+        "main"
+    );
+
+    assert!(rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_view_definition",
+        serde_json::json!({"connectionId": "metadata-fixture", "viewName": "active_users"}),
+    )
+    .await
+    .as_str()
+    .unwrap()
+    .contains("SELECT id, name FROM users"));
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "create_view",
+            serde_json::json!({
+                "connectionId": "metadata-fixture",
+                "viewName": "web_users",
+                "definition": "SELECT id FROM users"
+            }),
+        )
+        .await,
+        serde_json::Value::Null
+    );
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "alter_view",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "viewName": "web_users",
+            "definition": "SELECT id, name FROM users"
+        }),
+    )
+    .await;
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "drop_view",
+        serde_json::json!({"connectionId": "metadata-fixture", "viewName": "web_users"}),
+    )
+    .await;
+    assert!(rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_trigger_definition",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "triggerName": "users_name_required",
+            "tableName": "users"
+        }),
+    )
+    .await
+    .as_str()
+    .unwrap()
+    .contains("CREATE TRIGGER"));
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "create_trigger",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "triggerSql": "CREATE TRIGGER web_users_audit AFTER UPDATE ON users BEGIN SELECT 1; END"
+        }),
+    )
+    .await;
+    rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "drop_trigger",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "triggerName": "web_users_audit",
+            "tableName": "users"
+        }),
+    )
+    .await;
+    let create_index_sql = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_create_index_sql",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "table": "users",
+            "indexName": "idx_users_team",
+            "columns": ["team_id"],
+            "isUnique": false
+        }),
+    )
+    .await;
+    assert!(create_index_sql[0]
+        .as_str()
+        .unwrap()
+        .contains("idx_users_team"));
+
+    let inserted = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "execute_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "query": "INSERT INTO teams (name) VALUES ('core')",
+            "limit": 100,
+            "page": 1
+        }),
+    )
+    .await;
+    assert_eq!(inserted["affected_rows"], 1);
+
+    let queried = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "execute_query",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "query": "SELECT id, name FROM teams ORDER BY id",
+            "limit": 100,
+            "page": 1
+        }),
+    )
+    .await;
+    assert_eq!(queried["rows"], serde_json::json!([[1, "core"]]));
+    assert_eq!(queried["pagination"]["page_size"], 100);
+
+    let batch = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "execute_query_batch",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "queries": [
+                "INSERT INTO teams (name) VALUES ('batch')",
+                "SELECT COUNT(*) AS total FROM teams"
+            ],
+            "limit": 100,
+            "page": 1,
+            "batchId": "http-batch-1"
+        }),
+    )
+    .await;
+    assert_eq!(batch.as_array().unwrap().len(), 2);
+    assert!(batch[0]["result"].is_object());
+    assert_eq!(batch[1]["result"]["rows"], serde_json::json!([[2]]));
+
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "count_query",
+            serde_json::json!({
+                "connectionId": "metadata-fixture",
+                "query": "SELECT * FROM teams"
+            }),
+        )
+        .await,
+        serde_json::json!(2)
+    );
+    assert!(!rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "get_server_now",
+        serde_json::json!({"connectionId": "metadata-fixture"}),
+    )
+    .await
+    .as_str()
+    .unwrap()
+    .is_empty());
+    let explain = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "explain_query_plan",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "query": "SELECT * FROM teams",
+            "analyze": false
+        }),
+    )
+    .await;
+    assert_eq!(explain["kind"], "raw");
+    assert_eq!(explain["raw"]["engine"], "sqlite");
+
+    let forged_path = client
+        .post(format!("{base_url}/api/v1/rpc/insert_record"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "table": "files",
+            "data": {
+                "id": 99,
+                "name": "forged",
+                "payload": "BLOB_FILE_REF:4:text/plain:/etc/passwd"
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(forged_path.status(), reqwest::StatusCode::CONFLICT);
+    assert!(
+        forged_path.json::<serde_json::Value>().await.unwrap()["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("cannot contain server file paths")
+    );
+
+    let blob_bytes = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+    let upload = client
+        .post(format!("{base_url}/api/v1/uploads/blobs"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header(reqwest::header::CONTENT_TYPE, "image/png")
+        .body(blob_bytes.clone())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(upload.status(), reqwest::StatusCode::CREATED);
+    let upload_value = upload.json::<serde_json::Value>().await.unwrap()["value"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(upload_value.starts_with("BLOB_UPLOAD_REF:8:image/png:"));
+    assert!(!upload_value.contains(temp.path().to_string_lossy().as_ref()));
+    let upload_token = upload_value.rsplit(':').next().unwrap();
+    let preview = client
+        .get(format!("{base_url}/api/v1/uploads/blobs/{upload_token}"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(preview.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        preview.headers()["content-security-policy"],
+        "sandbox; default-src 'none'"
+    );
+    assert_eq!(preview.headers()["x-content-type-options"], "nosniff");
+    assert_eq!(
+        preview.bytes().await.unwrap().as_ref(),
+        blob_bytes.as_slice()
+    );
+
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "insert_record",
+            serde_json::json!({
+                "connectionId": "metadata-fixture",
+                "table": "files",
+                "data": {"id": 1, "name": "before", "payload": upload_value}
+            }),
+        )
+        .await,
+        serde_json::json!(1)
+    );
+    assert_eq!(
+        client
+            .get(format!("{base_url}/api/v1/uploads/blobs/{upload_token}"))
+            .header(COOKIE, &cookie)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "update_record",
+            serde_json::json!({
+                "connectionId": "metadata-fixture",
+                "table": "files",
+                "pkMap": {"id": 1},
+                "colName": "name",
+                "newVal": "after"
+            }),
+        )
+        .await,
+        serde_json::json!(1)
+    );
+    let blob_download = rpc_data(
+        &client,
+        &base_url,
+        &cookie,
+        &session.csrf_token,
+        "fetch_blob",
+        serde_json::json!({
+            "connectionId": "metadata-fixture",
+            "table": "files",
+            "pkMap": {"id": 1},
+            "colName": "payload"
+        }),
+    )
+    .await;
+    assert_eq!(blob_download["kind"], "download");
+    assert_eq!(blob_download["size"], 8);
+    assert_eq!(blob_download["mimeType"], "image/png");
+    let download_token = blob_download["token"].as_str().unwrap();
+    let download_url = format!("{base_url}/api/v1/downloads/{download_token}");
+    let download = client
+        .get(&download_url)
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(download.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        download.bytes().await.unwrap().as_ref(),
+        blob_bytes.as_slice()
+    );
+    assert_eq!(
+        client
+            .get(&download_url)
+            .header(COOKIE, &cookie)
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::NOT_FOUND
+    );
+    let oversized_blob = client
+        .post(format!("{base_url}/api/v1/uploads/blobs"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header(
+            reqwest::header::CONTENT_LENGTH,
+            crate::application::records::MAX_WEB_BLOB_BYTES + 1,
+        )
+        .body("x")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        oversized_blob.status(),
+        reqwest::StatusCode::PAYLOAD_TOO_LARGE
+    );
+    assert_eq!(
+        rpc_data(
+            &client,
+            &base_url,
+            &cookie,
+            &session.csrf_token,
+            "delete_record",
+            serde_json::json!({
+                "connectionId": "metadata-fixture",
+                "table": "files",
+                "pkMap": {"id": 1}
+            }),
+        )
+        .await,
+        serde_json::json!(1)
+    );
+
+    let debug = client
+        .post(format!("{base_url}/api/v1/rpc/is_debug_mode"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::Value::Null)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(debug.status(), reqwest::StatusCode::OK);
+    assert_eq!(debug.json::<serde_json::Value>().await.unwrap()["ok"], true);
+
+    let connections = client
+        .post(format!("{base_url}/api/v1/rpc/get_connections"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::Value::Null)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(connections.status(), reqwest::StatusCode::OK);
+    let direct_connections = crate::application::connections::load_connections(
+        &crate::paths::resolve_connections_path(temp.path()),
+    )
+    .unwrap();
+    assert_eq!(
+        connections.json::<serde_json::Value>().await.unwrap(),
+        serde_json::json!({"ok": true, "data": direct_connections})
+    );
+
+    let saved = client
+        .post(format!("{base_url}/api/v1/rpc/save_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "name": "Browser connection",
+            "params": {
+                "driver": "postgres",
+                "host": "127.0.0.1",
+                "port": 5432,
+                "username": "browser-user",
+                "password": "browser-secret",
+                "database": "browser-db",
+                "save_in_keychain": false
+            },
+            "environment": "development"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(saved.status(), reqwest::StatusCode::OK);
+    let saved = saved.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(saved["data"]["name"], "Browser connection");
+    assert!(saved["data"]["params"]["password"].is_null());
+    let saved_id = saved["data"]["id"].as_str().unwrap().to_string();
+
+    let upload = client
+        .post(format!("{base_url}/api/v1/uploads/connection-icons"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header("content-type", "image/png")
+        .body(vec![0x89, b'P', b'N', b'G'])
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(upload.status(), reqwest::StatusCode::CREATED);
+    let upload_token = upload.json::<serde_json::Value>().await.unwrap()["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let icon = client
+        .post(format!("{base_url}/api/v1/rpc/save_connection_icon"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "connectionId": saved_id,
+            "uploadToken": upload_token
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(icon.status(), reqwest::StatusCode::OK);
+    let icon_path = icon.json::<serde_json::Value>().await.unwrap()["data"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let icon_asset = client
+        .get(format!("{base_url}/api/v1/assets/{icon_path}"))
+        .header(COOKIE, &cookie)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(icon_asset.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        icon_asset.bytes().await.unwrap().as_ref(),
+        &[0x89, b'P', b'N', b'G']
+    );
+
+    let listed = client
+        .post(format!("{base_url}/api/v1/rpc/get_connections_with_groups"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::Value::Null)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(listed.status(), reqwest::StatusCode::OK);
+    let listed = listed.json::<serde_json::Value>().await.unwrap();
+    let browser_connection = listed["data"]["connections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|connection| connection["name"] == "Browser connection")
+        .unwrap();
+    assert!(browser_connection["params"]["password"].is_null());
+
+    let saved_ssh = client
+        .post(format!("{base_url}/api/v1/rpc/save_ssh_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "name": "Browser bastion",
+            "ssh": {
+                "host": "bastion.example.com",
+                "port": 22,
+                "user": "browser-user",
+                "auth_type": "password",
+                "password": "write-only-secret",
+                "save_in_keychain": false
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(saved_ssh.status(), reqwest::StatusCode::OK);
+    let saved_ssh = saved_ssh.json::<serde_json::Value>().await.unwrap();
+    assert!(saved_ssh["data"]["password"].is_null());
+    let ssh_id = saved_ssh["data"]["id"].as_str().unwrap().to_string();
+
+    let listed_ssh = client
+        .post(format!("{base_url}/api/v1/rpc/get_ssh_connections"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::Value::Null)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(listed_ssh.status(), reqwest::StatusCode::OK);
+    let listed_ssh = listed_ssh.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(listed_ssh["data"][0]["name"], "Browser bastion");
+    assert!(listed_ssh["data"][0]["password"].is_null());
+
+    let updated_ssh = client
+        .post(format!("{base_url}/api/v1/rpc/update_ssh_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "id": ssh_id,
+            "name": "Updated bastion",
+            "ssh": {
+                "host": "updated.example.com",
+                "port": 2222,
+                "user": "browser-user",
+                "auth_type": "password",
+                "save_in_keychain": false
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(updated_ssh.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        updated_ssh.json::<serde_json::Value>().await.unwrap()["data"]["host"],
+        "updated.example.com"
+    );
+
+    let deleted_ssh = client
+        .post(format!("{base_url}/api/v1/rpc/delete_ssh_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({"id": ssh_id}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(deleted_ssh.status(), reqwest::StatusCode::OK);
+
+    let saved_k8s = client
+        .post(format!("{base_url}/api/v1/rpc/save_k8s_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "k8s": {
+                "name": "Browser cluster",
+                "context": "local",
+                "namespace": "database",
+                "resource_type": "service",
+                "resource_name": "postgres",
+                "port": 5432
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(saved_k8s.status(), reqwest::StatusCode::OK);
+    let saved_k8s = saved_k8s.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(saved_k8s["data"]["name"], "Browser cluster");
+    let k8s_id = saved_k8s["data"]["id"].as_str().unwrap().to_string();
+
+    let updated_k8s = client
+        .post(format!("{base_url}/api/v1/rpc/update_k8s_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({
+            "id": k8s_id,
+            "k8s": {
+                "name": "Updated cluster",
+                "context": "local",
+                "namespace": "database",
+                "resource_type": "service",
+                "resource_name": "postgres-primary",
+                "port": 5432
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(updated_k8s.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        updated_k8s.json::<serde_json::Value>().await.unwrap()["data"]["resource_name"],
+        "postgres-primary"
+    );
+
+    let deleted_k8s = client
+        .post(format!("{base_url}/api/v1/rpc/delete_k8s_connection"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .json(&serde_json::json!({"id": k8s_id}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(deleted_k8s.status(), reqwest::StatusCode::OK);
+
+    let cookie_value = cookie.split_once('=').unwrap().1;
+    let session_id = session_security
+        .authenticate(cookie_value)
+        .unwrap()
+        .event_scope();
+    let query_request_id = "query-request-1";
+    let cancellation_slot = format!(
+        "web-query:{session_id}:{}:connection-1:{query_request_id}",
+        "connection-1".len()
+    );
+    let query_task = tokio::spawn(std::future::pending::<()>());
+    crate::commands::register_abort_handle(
+        &application_state.query_cancellation.handles,
+        cancellation_slot,
+        Arc::new(query_task.abort_handle()),
+    );
+    let cancellation = client
+        .post(format!("{base_url}/api/v1/rpc/cancel_query"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header(RPC_DEADLINE_HEADER_NAME, "1000")
+        .header(RPC_CANCELLATION_HEADER_NAME, "query-1")
+        .json(&serde_json::json!({
+            "connectionId": "connection-1",
+            "queryRequestId": query_request_id
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cancellation.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        cancellation.json::<serde_json::Value>().await.unwrap(),
+        serde_json::json!({"ok": true, "data": null})
+    );
+    assert!(query_task.await.is_err());
+
+    let request_id = "request-http".to_string();
+    let cancellation_error = client
+        .post(format!("{base_url}/api/v1/rpc/cancel_query"))
+        .header(COOKIE, &cookie)
+        .header(ORIGIN, &base_url)
+        .header(CSRF_HEADER, &session.csrf_token)
+        .header(REQUEST_ID_HEADER, &request_id)
+        .json(&serde_json::json!({"connectionId": "connection-1"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(cancellation_error.status(), reqwest::StatusCode::CONFLICT);
+    assert_eq!(
+        cancellation_error.headers().get(REQUEST_ID_HEADER).unwrap(),
+        request_id.as_str()
+    );
+    let cancellation_error = cancellation_error
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    assert_eq!(
+        cancellation_error["error"]["code"],
+        "QUERY_CANCELLATION_FAILED"
+    );
+    assert_eq!(cancellation_error["error"]["requestId"], request_id);
+
+    shutdown_tx.send(()).unwrap();
+    server.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn authenticates_websockets_and_delivers_scoped_events_with_heartbeat() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("index.html"), "Tabularis").unwrap();
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base_url = format!("http://{address}");
+    let websocket_url = format!("ws://{address}/api/v1/events");
+    let (security, bootstrap_token) =
+        LocalSessionSecurity::new(base_url.clone(), LocalSessionSecurityConfig::default()).unwrap();
+    let issued = security
+        .consume_bootstrap(bootstrap_token.expose())
+        .unwrap();
+    let event_scope = security
+        .authenticate(&issued.cookie_value)
+        .unwrap()
+        .event_scope();
+    let events = WebEventBus::new(EventBusConfig {
+        connection_queue_capacity: 4,
+        session_history_capacity: 4,
+        max_sessions: 4,
+        max_connections_per_session: 2,
+        disconnected_session_ttl: Duration::from_secs(1),
+        heartbeat_interval: Duration::from_millis(20),
+        heartbeat_timeout: Duration::from_millis(80),
+    });
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(server::serve_with_events(
+        listener,
+        temp.path().to_path_buf(),
+        temp.path().to_path_buf(),
+        security,
+        test_application(temp.path()),
+        events.clone(),
+        Arc::default(),
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
+
+    let unauthorized = tokio_tungstenite::connect_async(&websocket_url)
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        unauthorized,
+        WebSocketError::Http(response)
+            if response.status() == reqwest::StatusCode::UNAUTHORIZED
+    ));
+
+    let mut request = websocket_url.into_client_request().unwrap();
+    request.headers_mut().insert(
+        "cookie",
+        format!("tabularis_session={}", issued.cookie_value)
+            .parse()
+            .unwrap(),
+    );
+    request
+        .headers_mut()
+        .insert("origin", base_url.parse().unwrap());
+    let (mut websocket, response) = tokio_tungstenite::connect_async(request).await.unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::SWITCHING_PROTOCOLS);
+
+    websocket
+        .send(WebSocketMessage::Text(
+            serde_json::json!({
+                "type": "subscribe",
+                "events": ["connection-health-failed"]
+            })
+            .to_string(),
+        ))
+        .await
+        .unwrap();
+    let acknowledgement = websocket.next().await.unwrap().unwrap();
+    let WebSocketMessage::Text(acknowledgement) = acknowledgement else {
+        panic!("expected a subscription acknowledgement");
+    };
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&acknowledgement).unwrap()["type"],
+        "subscribed"
+    );
+
+    let heartbeat = websocket.next().await.unwrap().unwrap();
+    let WebSocketMessage::Ping(payload) = heartbeat else {
+        panic!("expected a heartbeat ping");
+    };
+    websocket
+        .send(WebSocketMessage::Pong(payload))
+        .await
+        .unwrap();
+
+    events
+        .emit_to(
+            event_scope,
+            "connection-health-failed",
+            serde_json::json!({"connectionId": "connection-1", "error": "offline"}),
+        )
+        .unwrap();
+    let event = loop {
+        match websocket.next().await.unwrap().unwrap() {
+            WebSocketMessage::Text(event) => break event,
+            WebSocketMessage::Ping(payload) => {
+                websocket
+                    .send(WebSocketMessage::Pong(payload))
+                    .await
+                    .unwrap();
+            }
+            message => panic!("expected an event message, received {message:?}"),
+        }
+    };
+    let event: serde_json::Value = serde_json::from_str(&event).unwrap();
+    assert_eq!(event["type"], "event");
+    assert_eq!(event["event"], "connection-health-failed");
+    assert_eq!(event["payload"]["connectionId"], "connection-1");
+
+    websocket.close(None).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    assert_eq!(events.connection_count(event_scope), 0);
+
+    shutdown_tx.send(()).unwrap();
+    server.await.unwrap().unwrap();
+}

@@ -236,6 +236,11 @@
             "type": "integer",
             "minimum": 0,
             "description": "Ordering weight when multiple plugins target the same slot. Lower runs first."
+          },
+          "api_version": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+            "description": "@tabularis/plugin-api version used to build the bundle."
           }
         }
       }

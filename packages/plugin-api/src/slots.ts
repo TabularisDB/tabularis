@@ -9,7 +9,7 @@ import type { ComponentType } from "react";
  * mounted (no more `context.columnName!` sprinkled everywhere).
  *
  * Keep this map aligned with the host-side slot providers in
- * `src/contexts/PluginSlotProvider.tsx` and related renderers.
+ * `packages/web-ui/src/contexts/PluginSlotProvider.tsx` and related renderers.
  */
 export type SlotContextMap = {
   "row-edit-modal.field.after": {
@@ -85,7 +85,7 @@ export type SlotContextMap = {
 
 /**
  * Union of all valid slot names. Source of truth for host-side validation
- * is `src/types/pluginSlots.ts`; this type must stay in sync.
+ * is `packages/web-ui/src/types/pluginSlots.ts`; this type must stay in sync.
  */
 export type SlotName = keyof SlotContextMap;
 
@@ -127,6 +127,8 @@ export interface UIExtensionDeclaration {
   module: string;
   order?: number;
   driver?: string;
+  /** @tabularis/plugin-api version used to build the bundle. */
+  api_version?: string;
 }
 
 /**

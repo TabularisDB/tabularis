@@ -23,6 +23,10 @@ pub struct PluginLoadError {
 
 #[tauri::command]
 pub fn get_plugin_startup_errors() -> Vec<PluginLoadError> {
+    crate::application::plugins::get_plugin_startup_errors()
+}
+
+pub fn take_plugin_startup_errors() -> Vec<PluginLoadError> {
     let mut guard = STARTUP_ERRORS.lock().unwrap_or_else(|e| e.into_inner());
     std::mem::take(&mut *guard)
 }
@@ -101,7 +105,19 @@ pub async fn load_plugins_with_configs(
         }
     };
 
-    let entries = match fs::read_dir(&plugins_dir) {
+    load_plugins_from_dir(&plugins_dir, plugin_configs, enabled_ids).await;
+}
+
+/// Load external drivers from a runtime-provided directory.
+///
+/// Startup adapters resolve paths; plugin discovery and registration remain
+/// platform-neutral and can therefore run without a Tauri `AppHandle`.
+pub async fn load_plugins_from_dir(
+    plugins_dir: &Path,
+    plugin_configs: HashMap<String, PluginConfig>,
+    enabled_ids: Option<&[String]>,
+) {
+    let entries = match fs::read_dir(plugins_dir) {
         Ok(e) => e,
         Err(e) => {
             log::error!("Failed to read plugins directory: {}", e);

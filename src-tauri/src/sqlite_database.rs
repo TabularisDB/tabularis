@@ -52,7 +52,7 @@ pub(crate) fn expand_sqlite_filename_with_home(value: &str, home: Option<&Path>)
     }
 }
 
-fn connection_name(path: &Path) -> Result<String, String> {
+pub(crate) fn connection_name(path: &Path) -> Result<String, String> {
     path.file_stem()
         .and_then(|name| name.to_str())
         .filter(|name| !name.trim().is_empty())

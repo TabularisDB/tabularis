@@ -25,11 +25,16 @@ tauri-build = { version = "2.5.3", features = [] }
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+bytes = "1"
 log = "0.4"
 tauri = { version = "2.10.2", features = ["protocol-asset", "devtools"] }
 tauri-plugin-log = "2"
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "mysql", "postgres", "tls-rustls-ring-native-roots", "chrono", "uuid", "rust_decimal", "json"] }
 tokio = { version = "1.49.0", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+axum = { version = "0.7.9", features = ["ws"] }
+tower-http = { version = "0.6.8", features = ["fs", "limit"] }
+open = "5.3.3"
 openssl = { version = "0.10", features = ["vendored"] }
 uuid = { version = "1.20.0", features = ["v4", "serde"] }
 rust_decimal = { version = "1.36", features = ["db-tokio-postgres", "serde"] }
@@ -103,3 +108,4 @@ tauri-plugin-updater = "2"
 [dev-dependencies]
 tempfile = "3.24.0"
 filetime = "0.2"
+tokio-tungstenite = "0.24.0"

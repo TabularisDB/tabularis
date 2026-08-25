@@ -22,7 +22,7 @@ use crate::models::{
 pub type BatchProgressFn = dyn Fn(usize, &BatchStatementResult) + Send + Sync;
 
 /// SQL dialect declaration used by the frontend statement splitter
-/// (`src/utils/sqlSplitter/`) to pick per-dialect tokenizer rules:
+/// (`packages/web-ui/src/utils/sqlSplitter/`) to pick per-dialect tokenizer rules:
 /// string-literal quoting, identifier quoting (backticks vs brackets),
 /// dollar-quoted strings, `DELIMITER` / `GO` directives, etc.
 ///
@@ -156,7 +156,7 @@ pub struct DriverCapabilities {
     /// that needs to tell "explicitly postgres" apart from "unspecified."
     /// The frontend's own splitter still applies the historical
     /// postgres-default at its point of use (`?? "postgres"` in
-    /// `src/utils/identifiers.ts`/`sqlSplitter`); this Rust-side field
+    /// `packages/web-ui/src/utils/identifiers.ts`/`sqlSplitter`); this Rust-side field
     /// stays a strict `Option` so security-relevant Rust consumers (the SSL
     /// mode migration, the MCP schema default) can't inherit that default
     /// by accident.
@@ -186,6 +186,10 @@ pub struct UIExtensionEntry {
     /// matches this identifier (e.g. `"wordpress"`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub driver: Option<String>,
+    /// `@tabularis/plugin-api` version used to build the UI bundle.
+    /// Absent for legacy bundles, which remain supported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_version: Option<String>,
 }
 
 /// A single user-configurable setting declared in a plugin's manifest.

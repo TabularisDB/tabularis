@@ -1,0 +1,2813 @@
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
+import { useTranslation } from "react-i18next";
+import {
+  useReactTable,
+  getCoreRowModel,
+  flexRender,
+  createColumnHelper,
+} from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { ContextMenu, type ContextMenuItem } from "./ContextMenu";
+import { SlotAnchor } from "./SlotAnchor";
+import {
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  Braces,
+  ClipboardPaste,
+  Copy,
+  CopyPlus,
+  Clock,
+  Undo,
+  Trash2,
+  Edit,
+  Sparkles,
+  Ban,
+  Eraser,
+  FileDigit,
+  ExternalLink,
+  PanelBottomOpen,
+  Eye,
+  EyeOff,
+  ListChecks,
+} from "lucide-react";
+import { usePlatformCapabilities } from "../../hooks/usePlatformCapabilities";
+import { getJsonViewerSessionHost } from "../../platform/secondaryWindowSessions";
+import { useAlert } from "../../hooks/useAlert";
+import { useToast } from "../../hooks/useToast";
+import {
+  USE_DEFAULT_SENTINEL,
+  DATA_GRID_ROW_HEIGHT,
+  formatCellValue,
+  getColumnSortState,
+  calculateSelectionRange,
+  toggleSetValue,
+  getResultValueType,
+  buildPkMap,
+  serializePkKey,
+  resolveInsertionCellDisplay,
+  resolveExistingCellDisplay,
+  parsePasteMatrix,
+  stripHeaderRow,
+  computePasteTargets,
+  type PasteTarget,
+  type ColumnDisplayInfo,
+  type MergedRow,
+} from "../../utils/dataGrid";
+import { useSettings } from "../../hooks/useSettings";
+import { useTabularisClient } from "../../hooks/useTabularisClient";
+import { isGeometricType, formatGeometricValue } from "../../utils/geometry";
+import { isBlobColumn, isBlobWireFormat } from "../../utils/blob";
+import {
+  isJsonColumn,
+  isJsonContent,
+  isStructuredValue,
+} from "../../utils/json";
+import { supportsEmptyString } from "../../utils/text";
+import {
+  pickPrimaryForeignKeyByColumn,
+  getForeignKeyForPreview,
+} from "../../utils/foreignKeys";
+import {
+  getDateInputMode,
+  parseDateTime,
+  formatDateTime,
+} from "../../utils/dateInput";
+import { useRightSidebar } from "../../hooks/useRightSidebar";
+import { useDatabase } from "../../hooks/useDatabase";
+import { useProductionGuard } from "../../hooks/useProductionGuard";
+import {
+  columnValuesForCopy,
+  columnValuesToInClause,
+  formatRowsForCopy,
+  getSelectedRows,
+  projectColumns,
+  copyTextToClipboard,
+} from "../../utils/clipboard";
+import {
+  DEFAULT_MASKING_PATTERNS,
+  isColumnMasked,
+} from "../../utils/columnMasking";
+import type {
+  PendingInsertion,
+  TableColumn,
+  ForeignKey,
+} from "../../types/editor";
+import { MemoRow, type RowCtx } from "./DataGridRow";
+
+interface DataGridProps {
+  columns: string[];
+  data: unknown[][];
+  tableName?: string | null;
+  pkColumns?: string[] | null;
+  autoIncrementColumns?: string[];
+  defaultValueColumns?: string[];
+  nullableColumns?: string[];
+  columnMetadata?: TableColumn[];
+  foreignKeys?: ForeignKey[];
+  onForeignKeyNavigate?: (fk: ForeignKey, value: unknown) => void;
+  onForeignKeyShowPanel?: (fk: ForeignKey, value: unknown) => void;
+  onForeignKeyHidePanel?: () => void;
+  connectionId?: string | null;
+  onRefresh?: () => void;
+  pendingChanges?: Record<
+    string,
+    { pkOriginalValue: unknown; changes: Record<string, unknown> }
+  >;
+  pendingDeletions?: Record<string, unknown>;
+  pendingInsertions?: Record<string, PendingInsertion>;
+  onPendingChange?: (pkVal: unknown, colName: string, value: unknown) => void;
+  onPendingInsertionChange?: (
+    tempId: string,
+    colName: string,
+    value: unknown,
+  ) => void;
+  onDiscardInsertion?: (tempId: string) => void;
+  onRevertDeletion?: (pkVal: unknown) => void;
+  onMarkForDeletion?: (pkVal: unknown) => void;
+  onMarkMultipleForDeletion?: (pkVals: unknown[]) => void;
+  onDuplicateRow?: (rowData: Record<string, unknown>) => void;
+  selectedRows?: Set<number>;
+  onSelectionChange?: (indices: Set<number>) => void;
+  copyFormat?: "csv" | "json" | "sql-insert" | "markdown";
+  csvDelimiter?: string;
+  csvIncludeHeaders?: boolean;
+  sortClause?: string;
+  onSort?: (colName: string) => void;
+  readonly?: boolean;
+  /**
+   * Total rows in the full result set when known (server-side pagination).
+   * Null when the user hasn't requested a row count yet.
+   */
+  totalRows?: number | null;
+  /** True when more pages exist beyond the loaded one. */
+  hasMore?: boolean;
+  /** Fetches and copies every row of the result set (not just the page). */
+  onCopyAllRows?: () => void;
+}
+
+// Keys handled by the grid itself when a cell is focused; anything else keeps
+// its default behaviour.
+const NAVIGATION_KEYS = new Set([
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+  "Enter",
+  "F2",
+]);
+
+export const DataGrid = React.memo(
+  ({
+    columns,
+    data,
+    tableName,
+    pkColumns,
+    autoIncrementColumns,
+    defaultValueColumns,
+    nullableColumns,
+    columnMetadata,
+    foreignKeys,
+    onForeignKeyNavigate,
+    onForeignKeyShowPanel,
+    onForeignKeyHidePanel,
+    connectionId,
+    onRefresh,
+    pendingChanges,
+    pendingDeletions,
+    pendingInsertions,
+    onPendingChange,
+    onPendingInsertionChange,
+    onDiscardInsertion,
+    onRevertDeletion,
+    onMarkForDeletion,
+    onMarkMultipleForDeletion,
+    onDuplicateRow,
+    selectedRows: externalSelectedRows,
+    onSelectionChange,
+    copyFormat,
+    csvDelimiter = ",",
+    csvIncludeHeaders = true,
+    sortClause,
+    onSort,
+    readonly: readonlyProp,
+    totalRows,
+    hasMore,
+    onCopyAllRows,
+  }: DataGridProps) => {
+    const { t } = useTranslation();
+    const client = useTabularisClient();
+    const platform = usePlatformCapabilities();
+    const { activeSchema, connections } = useDatabase();
+    const guardProductionWrite = useProductionGuard();
+    const { showAlert } = useAlert();
+    const { showToast } = useToast();
+    const { settings } = useSettings();
+    const rightSidebar = useRightSidebar();
+    const colorByType = settings.resultColorByType ?? false;
+    const stickyColumnHeaders = settings.stickyColumnHeaders ?? true;
+
+    // Sensitive-column masking (#485): display-only — copy/export keep the
+    // real values; only the rendered grid masks them.
+    const maskingEnabled = settings.columnMaskingEnabled ?? true;
+    const maskingPatterns =
+      settings.columnMaskingPatterns ?? DEFAULT_MASKING_PATTERNS;
+    const maskingOverrides = settings.columnMaskingOverrides;
+    const maskedColIndices = useMemo(() => {
+      const masked = new Set<number>();
+      if (!maskingEnabled) return masked;
+      columns.forEach((colName, index) => {
+        if (
+          isColumnMasked(colName, tableName, connectionId, {
+            enabled: maskingEnabled,
+            patterns: maskingPatterns,
+            overrides: maskingOverrides,
+          })
+        ) {
+          masked.add(index);
+        }
+      });
+      return masked;
+    }, [
+      maskingEnabled,
+      maskingPatterns,
+      maskingOverrides,
+      columns,
+      tableName,
+      connectionId,
+    ]);
+
+    // Reveal state is grid-local and resets with the result data: eye toggle
+    // in the header reveals a whole column, eye on a cell reveals just it.
+    const [revealedColIndices, setRevealedColIndices] = useState<Set<number>>(
+      new Set(),
+    );
+    const [revealedCells, setRevealedCells] = useState<Set<string>>(new Set());
+
+    const detectJsonInTextColumns = useMemo(() => {
+      if (!connectionId) return false;
+      return (
+        connections.find((c) => c.id === connectionId)
+          ?.detect_json_in_text_columns === true
+      );
+    }, [connections, connectionId]);
+
+    const [contextMenu, setContextMenu] = useState<{
+      x: number;
+      y: number;
+      row: unknown[];
+      rowIndex: number;
+      colIndex: number;
+      colName: string;
+      mergedRow?: {
+        type: "existing" | "insertion";
+        rowData: unknown[];
+        displayIndex: number;
+        tempId?: string;
+      };
+    } | null>(null);
+    const [headerContextMenu, setHeaderContextMenu] = useState<{
+      x: number;
+      y: number;
+      colName: string;
+      colIndex: number;
+    } | null>(null);
+    const [editingCell, setEditingCell] = useState<{
+      rowIndex: number;
+      colIndex: number;
+      value: unknown;
+      isRawSql?: boolean;
+    } | null>(null);
+    const [expandedCell, setExpandedCell] = useState<{
+      rowIndex: number;
+      colIndex: number;
+      kind: "json" | "text";
+    } | null>(null);
+    // Cell range selection (DBeaver-style): normalized rectangle between the
+    // focused anchor cell and a Shift+clicked cell. Grid-local like column
+    // selection, and exclusive with row/column selection.
+    const [cellRange, setCellRange] = useState<{
+      minRow: number;
+      maxRow: number;
+      minCol: number;
+      maxCol: number;
+    } | null>(null);
+
+    useEffect(() => {
+      setExpandedCell(null);
+      setRevealedColIndices(new Set());
+      setRevealedCells(new Set());
+      setCellRange(null);
+    }, [data]);
+
+    const [internalSelectedRowIndices, setInternalSelectedRowIndices] =
+      useState<Set<number>>(new Set());
+    const [lastSelectedRowIndex, setLastSelectedRowIndex] = useState<
+      number | null
+    >(null);
+    // Column selection (DBeaver-style): indices into `columns`. Grid-local —
+    // unlike row selection it isn't persisted to tab state.
+    const [selectedColIndices, setSelectedColIndices] = useState<Set<number>>(
+      new Set(),
+    );
+    const [lastSelectedColIndex, setLastSelectedColIndex] = useState<
+      number | null
+    >(null);
+    const [focusedCell, setFocusedCell] = useState<{
+      rowIndex: number;
+      colIndex: number;
+    } | null>(null);
+    const editInputRef = useRef<HTMLInputElement>(null);
+    const focusTriggerRef = useRef(0);
+    // Mirror of editingCell so the commit/keydown callbacks can read the latest
+    // value without listing editingCell in their deps — keeps their identity
+    // stable so the memoized rows don't re-render on every keystroke/scroll.
+    const editingCellRef = useRef(editingCell);
+    useEffect(() => {
+      editingCellRef.current = editingCell;
+    }, [editingCell]);
+    const selectedRowIndices =
+      externalSelectedRows || internalSelectedRowIndices;
+
+    const updateSelection = useCallback(
+      (newSelection: Set<number>) => {
+        if (onSelectionChange) {
+          onSelectionChange(newSelection);
+        } else {
+          setInternalSelectedRowIndices(newSelection);
+        }
+      },
+      [onSelectionChange],
+    );
+
+    // Pre-calculate pkIndex array once for O(1) lookup instead of O(n) in render loop
+    const pkIndexMaps = useMemo((): number[] => {
+      if (!pkColumns || pkColumns.length === 0) return [];
+      const indices = pkColumns.map((col) => columns.indexOf(col));
+      // If any PK column is absent from the result set, disable editing entirely
+      // to avoid partial WHERE clauses that could match multiple rows.
+      if (indices.some((idx) => idx < 0)) return [];
+      return indices;
+    }, [columns, pkColumns]);
+
+    // Create column type map for O(1) lookup during cell rendering
+    const columnTypeMap = useMemo(() => {
+      if (!columnMetadata) return null;
+      return new Map(columnMetadata.map((col) => [col.name, col.data_type]));
+    }, [columnMetadata]);
+
+    // Create column length map for O(1) lookup during blob rendering decisions
+    const columnLengthMap = useMemo(() => {
+      if (!columnMetadata) return null;
+      return new Map(
+        columnMetadata.map((col) => [col.name, col.character_maximum_length]),
+      );
+    }, [columnMetadata]);
+
+    const generatedColumns = useMemo(() => {
+      if (!columnMetadata) return null;
+      return new Set(
+        columnMetadata
+          .filter((col) => col.is_generated)
+          .map((col) => col.name.toLowerCase()),
+      );
+    }, [columnMetadata]);
+
+    // Physical columns of the underlying table (lowercased). Aliases and
+    // computed result columns are absent and must not be staged as updates.
+    const physicalColumnSet = useMemo(
+      () =>
+        columnMetadata && columnMetadata.length > 0
+          ? new Set(columnMetadata.map((col) => col.name.toLowerCase()))
+          : null,
+      [columnMetadata],
+    );
+
+    // Primary key columns (lowercased), for guards that must not touch row
+    // identity. Real metadata PKs when available — the pkColumns prop is the
+    // row-identity fallback, which on keyless tables covers every column.
+    const pkColumnSet = useMemo(
+      () =>
+        new Set(
+          columnMetadata
+            ? columnMetadata
+                .filter((col) => col.is_pk)
+                .map((col) => col.name.toLowerCase())
+            : (pkColumns ?? []).map((col) => col.toLowerCase()),
+        ),
+      [columnMetadata, pkColumns],
+    );
+
+    // True when the cell is masked and not revealed, at either the column or
+    // the individual-cell level.
+    const isCellMasked = useCallback(
+      (rowIndex: number, colIndex: number) =>
+        maskedColIndices.has(colIndex) &&
+        !revealedColIndices.has(colIndex) &&
+        !revealedCells.has(`${rowIndex}:${colIndex}`),
+      [maskedColIndices, revealedColIndices, revealedCells],
+    );
+
+    // Precompute the result-coloring class per column once (the type is fixed
+    // per column), so rows don't reclassify every cell on each render. `null`
+    // when the feature is off, which makes rows skip the wrapper entirely.
+    const resultColorClassMap = useMemo(() => {
+      if (!colorByType) return null;
+      const map = new Map<string, string>();
+      for (const colName of columns) {
+        const colType = columnTypeMap?.get(colName);
+        if (colType) map.set(colName, `rcell-${getResultValueType(undefined, colType)}`);
+      }
+      return map;
+    }, [colorByType, columns, columnTypeMap]);
+
+    const isJsonCellTarget = useCallback(
+      (colType: string | undefined, value: unknown): boolean => {
+        if (colType && isJsonColumn(colType)) return true;
+        if (isStructuredValue(value)) return true;
+        if (!detectJsonInTextColumns) return false;
+        if (isJsonContent(value)) return true;
+        return false;
+      },
+      [detectJsonInTextColumns],
+    );
+
+    const buildRowLabel = useCallback(
+      (rowData: unknown[], rowIndex: number, isInsertion: boolean): string => {
+        if (isInsertion) return t("dataGrid.newRow", { defaultValue: "NEW" });
+        if (pkColumns && pkColumns.length > 0 && pkIndexMaps.length > 0) {
+          const pkVal = rowData[pkIndexMaps[0]];
+          if (pkVal !== null && pkVal !== undefined && pkVal !== "") {
+            return `${pkColumns[0]}=${String(pkVal)}`;
+          }
+        }
+        return `Row ${rowIndex + 1}`;
+      },
+      [pkColumns, pkIndexMaps, t],
+    );
+
+    const openJsonViewerWindow = useCallback(
+      async (
+        value: unknown,
+        originalValue: unknown,
+        colName: string,
+        rowData: unknown[],
+        rowIndex: number,
+        isInsertion: boolean,
+        tempId: string | undefined,
+        readOnly: boolean,
+      ) => {
+        try {
+          const rowLabel = buildRowLabel(rowData, rowIndex, isInsertion);
+          let cellKey: string | null = null;
+          const canSaveBack =
+            (isInsertion && !!tempId) ||
+            (!isInsertion && pkIndexMaps.length > 0);
+          if (isInsertion && tempId) {
+            cellKey = `ins:${tempId}:${colName}`;
+          } else if (!isInsertion && pkIndexMaps.length > 0) {
+            const pkMapVal = buildPkMap(pkColumns!, rowData, pkIndexMaps);
+            const serialized = serializePkKey(pkMapVal);
+            if (serialized !== "" && serialized !== "null" && serialized !== "undefined") {
+              cellKey = `pk:${serialized}:${colName}`;
+            }
+          }
+          await getJsonViewerSessionHost(platform).open(
+            {
+              value,
+              originalValue,
+              columnName: colName,
+              rowLabel,
+              readOnly: readOnly || !canSaveBack,
+              cellKey,
+            },
+            readOnly || !canSaveBack
+              ? undefined
+              : (savedValue) => {
+                  if (isInsertion && onPendingInsertionChange && tempId) {
+                    onPendingInsertionChange(tempId, colName, savedValue);
+                  } else if (
+                    !isInsertion &&
+                    onPendingChange &&
+                    pkIndexMaps.length > 0
+                  ) {
+                    const pkMapVal = buildPkMap(
+                      pkColumns!,
+                      rowData,
+                      pkIndexMaps,
+                    );
+                    onPendingChange(pkMapVal, colName, savedValue);
+                  }
+                },
+          );
+        } catch (e) {
+          console.error("Failed to open JSON viewer window:", e);
+        }
+      },
+      [
+        buildRowLabel,
+        onPendingChange,
+        onPendingInsertionChange,
+        pkIndexMaps,
+        pkColumns,
+        platform,
+      ],
+    );
+
+    const fksByColumn = useMemo(
+      () => pickPrimaryForeignKeyByColumn(foreignKeys),
+      [foreignKeys],
+    );
+
+    // Merge existing rows with pending insertions
+    const mergedRows = useMemo(() => {
+      const rows: MergedRow[] = [];
+
+      // Add existing rows first (displayIndex 0, 1, 2, ...)
+      data.forEach((rowData, idx) => {
+        rows.push({
+          type: "existing",
+          rowData,
+          displayIndex: idx,
+        });
+      });
+
+      // Add pending insertions at the end
+      if (pendingInsertions) {
+        const existingRowCount = data.length;
+        let insertionIndex = 0;
+        Object.entries(pendingInsertions).forEach(([tempId, insertion]) => {
+          const rowData = columns.map((col) => insertion.data[col] ?? null);
+          rows.push({
+            type: "insertion",
+            rowData,
+            displayIndex: existingRowCount + insertionIndex,
+            tempId,
+          });
+          insertionIndex++;
+        });
+      }
+
+      // Sort by displayIndex (insertions are now at the end)
+      return rows.sort((a, b) => a.displayIndex - b.displayIndex);
+    }, [data, pendingInsertions, columns]);
+
+    const handleRowClick = useCallback(
+      (index: number, event: React.MouseEvent) => {
+        let newSelected = new Set(selectedRowIndices);
+
+        if (event.shiftKey && lastSelectedRowIndex !== null) {
+          // Range selection
+          const range = calculateSelectionRange(lastSelectedRowIndex, index);
+
+          // If NOT Ctrl/Cmd, clear previous selection first (standard OS behavior)
+          if (!event.ctrlKey && !event.metaKey) {
+            newSelected.clear();
+          }
+
+          range.forEach((i) => newSelected.add(i));
+        } else if (event.ctrlKey || event.metaKey) {
+          // Toggle selection
+          newSelected = toggleSetValue(newSelected, index);
+          setLastSelectedRowIndex(index);
+        } else {
+          // Single selection
+          newSelected.clear();
+          newSelected.add(index);
+          setLastSelectedRowIndex(index);
+        }
+
+        updateSelection(newSelected);
+        // Row, column and cell-range selection are mutually exclusive (keeps
+        // copy semantics unambiguous).
+        setSelectedColIndices(new Set());
+        setCellRange(null);
+      },
+      [selectedRowIndices, lastSelectedRowIndex, updateSelection],
+    );
+
+    // Column header selection: Cmd/Ctrl+click toggles one column, Shift+click
+    // range-selects from the anchor. Plain click stays reserved for sorting.
+    const handleColumnHeaderSelect = useCallback(
+      (index: number, event: React.MouseEvent) => {
+        setFocusedCell(null);
+        setCellRange(null);
+        onForeignKeyHidePanel?.();
+        // Row and column selection are mutually exclusive.
+        updateSelection(new Set());
+        if (event.shiftKey && lastSelectedColIndex !== null) {
+          setSelectedColIndices(
+            new Set(calculateSelectionRange(lastSelectedColIndex, index)),
+          );
+        } else {
+          setSelectedColIndices((prev) => toggleSetValue(prev, index));
+          setLastSelectedColIndex(index);
+        }
+      },
+      [lastSelectedColIndex, updateSelection, onForeignKeyHidePanel],
+    );
+
+    const clearColSelection = useCallback(
+      () => setSelectedColIndices(new Set()),
+      [],
+    );
+
+    // Cell click: plain click focuses the cell (the anchor for a later range);
+    // Shift+click extends a rectangular range from the anchor. Row, column and
+    // cell-range selection are mutually exclusive.
+    const handleCellClick = useCallback(
+      (rowIndex: number, colIndex: number, event: React.MouseEvent) => {
+        if (event.shiftKey && focusedCell) {
+          setCellRange({
+            minRow: Math.min(focusedCell.rowIndex, rowIndex),
+            maxRow: Math.max(focusedCell.rowIndex, rowIndex),
+            minCol: Math.min(focusedCell.colIndex, colIndex),
+            maxCol: Math.max(focusedCell.colIndex, colIndex),
+          });
+        } else {
+          setFocusedCell({ rowIndex, colIndex });
+          setCellRange(null);
+        }
+        updateSelection(new Set());
+        setSelectedColIndices(new Set());
+      },
+      [focusedCell, updateSelection],
+    );
+
+    // tableColumns is memoized without selection deps (rebuilding column defs
+    // on every selection change would churn react-table), so the header click
+    // reaches the latest handler through a ref.
+    const handleColumnHeaderSelectRef = useRef(handleColumnHeaderSelect);
+    useEffect(() => {
+      handleColumnHeaderSelectRef.current = handleColumnHeaderSelect;
+    });
+
+    // True when the result set continues beyond the loaded page and the parent
+    // can fetch and copy it in full. The total may be unknown (user hasn't
+    // requested a row count) — has_more is enough to offer the full copy.
+    const hasUnloadedRows =
+      !!onCopyAllRows &&
+      (totalRows != null ? totalRows > mergedRows.length : hasMore === true);
+
+    // True when the selection covers every loaded row — the toast then says
+    // "N of M" so a page-only copy of a larger result is never silent.
+    const selectionCoversAllLoaded =
+      selectedRowIndices.size > 0 &&
+      selectedRowIndices.size === mergedRows.length;
+
+    const rowsCopiedToast = useCallback(
+      (count: number) =>
+        hasUnloadedRows && selectionCoversAllLoaded && totalRows != null
+          ? t("dataGrid.copiedRowsOfTotal", { loaded: count, total: totalRows })
+          : t("dataGrid.copiedRows", { count }),
+      [hasUnloadedRows, selectionCoversAllLoaded, totalRows, t],
+    );
+
+    const handleSelectAll = useCallback(() => {
+      setFocusedCell(null);
+      setCellRange(null);
+      onForeignKeyHidePanel?.();
+      if (selectedRowIndices.size === mergedRows.length) {
+        updateSelection(new Set());
+      } else {
+        // Select only — copying is a separate, explicit action (Cmd/Ctrl+C or
+        // the context menu), which is where the full-result-set offer appears.
+        const allIndices = new Set(mergedRows.map((_, i) => i));
+        updateSelection(allIndices);
+      }
+    }, [
+      selectedRowIndices.size,
+      mergedRows,
+      updateSelection,
+      onForeignKeyHidePanel,
+    ]);
+
+    useEffect(() => {
+      if (editingCell && editInputRef.current) {
+        editInputRef.current.focus();
+      }
+    }, [editingCell]);
+
+    const buildRowDataWithPending = useCallback(
+      (rowArray: unknown[], isInsertion: boolean): Record<string, unknown> => {
+        const rowData: Record<string, unknown> = {};
+        columns.forEach((col, idx) => {
+          rowData[col] = rowArray[idx];
+        });
+        if (!isInsertion && pkIndexMaps.length > 0) {
+          const pkMapVal = buildPkMap(pkColumns!, rowArray, pkIndexMaps);
+          const pending = pendingChanges?.[serializePkKey(pkMapVal)]?.changes;
+          if (pending) Object.assign(rowData, pending);
+        }
+        return rowData;
+      },
+      [columns, pkIndexMaps, pkColumns, pendingChanges],
+    );
+
+    // Keep the sidebar's onChangeRef always pointing at the latest logic.
+    // This avoids storing stale closures in context state.
+    useEffect(() => {
+      if (!rightSidebar.isOpen || rightSidebar.activePanel !== "row-editor") return;
+      const currentRowIndex = rightSidebar.rowEditorData?.rowIndex;
+      if (currentRowIndex == null) return;
+
+      rightSidebar.onChangeRef.current = (colName: string, value: unknown) => {
+        const mr = mergedRows[currentRowIndex];
+        if (!mr) return;
+        const isIns = mr.type === "insertion";
+        if (isIns && onPendingInsertionChange && mr.tempId) {
+          onPendingInsertionChange(mr.tempId, colName, value);
+        } else if (!isIns && onPendingChange && pkColumns && pkIndexMaps.length > 0) {
+          const pkMapVal = buildPkMap(pkColumns, mr.rowData, pkIndexMaps);
+          onPendingChange(pkMapVal, colName, value);
+        }
+      };
+    });
+
+    // Close sidebar when this DataGrid unmounts (route change, tab switch)
+    const rightSidebarRef = useRef(rightSidebar);
+    rightSidebarRef.current = rightSidebar;
+    useEffect(() => {
+      return () => {
+        if (rightSidebarRef.current.isOpen && rightSidebarRef.current.activePanel === "row-editor") {
+          rightSidebarRef.current.close();
+        }
+      };
+    }, []);
+
+    // Unified handler for opening a row in the right sidebar
+    const openInSidebar = useCallback(
+      (rowIndex: number, focusField?: string) => {
+        const mergedRow = mergedRows[rowIndex];
+        if (!mergedRow) return;
+        const isInsertion = mergedRow.type === "insertion";
+        const rowData = buildRowDataWithPending(mergedRow.rowData, isInsertion);
+        const originalRowData = !isInsertion
+          ? columns.reduce<Record<string, unknown>>((acc, col, idx) => {
+              acc[col] = mergedRow.rowData[idx];
+              return acc;
+            }, {})
+          : undefined;
+
+        const colsMeta = columns.map((colName) => {
+          const meta = columnMetadata?.find((c) => c.name === colName);
+          return {
+            name: colName,
+            type: meta?.data_type,
+            characterMaximumLength: meta?.character_maximum_length,
+            isGenerated: meta?.is_generated,
+          };
+        });
+
+        rightSidebar.openRowEditor({
+          rowData,
+          originalRowData,
+          rowIndex,
+          focusField,
+          focusTrigger: focusField ? ++focusTriggerRef.current : undefined,
+          isInsertion,
+          columns: colsMeta,
+          autoIncrementColumns,
+          defaultValueColumns,
+          nullableColumns,
+          detectJsonInTextColumns,
+          connectionId,
+          tableName,
+          pkColumns,
+          schema: activeSchema,
+        });
+      },
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [
+        mergedRows,
+        buildRowDataWithPending,
+        columns,
+        columnMetadata,
+        autoIncrementColumns,
+        defaultValueColumns,
+        nullableColumns,
+        detectJsonInTextColumns,
+        connectionId,
+        tableName,
+        pkColumns,
+        activeSchema,
+        rightSidebar.openRowEditor,
+      ],
+    );
+
+    // Follow row selection: update sidebar when a single row is selected
+    useEffect(() => {
+      if (!rightSidebar.isOpen || rightSidebar.activePanel !== "row-editor") return;
+      if (rightSidebar.isPinned) return;
+      if (settings.rowEditorFollowSelection === false) return;
+      if (selectedRowIndices.size !== 1) return;
+
+      const rowIndex = selectedRowIndices.values().next().value as number;
+      const mergedRow = mergedRows[rowIndex];
+      if (!mergedRow) return;
+
+      // Don't update if it's the same row already showing
+      if (rightSidebar.rowEditorData?.rowIndex === rowIndex) return;
+
+      const isInsertion = mergedRow.type === "insertion";
+      const rowData = buildRowDataWithPending(mergedRow.rowData, isInsertion);
+      const originalRowData = !isInsertion
+        ? columns.reduce<Record<string, unknown>>((acc, col, idx) => {
+            acc[col] = mergedRow.rowData[idx];
+            return acc;
+          }, {})
+        : undefined;
+
+      rightSidebar.updateRowEditorData({
+        rowData,
+        originalRowData,
+        rowIndex,
+        isInsertion,
+        focusField: undefined,
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+      selectedRowIndices,
+      rightSidebar.isOpen,
+      rightSidebar.activePanel,
+      rightSidebar.isPinned,
+      rightSidebar.rowEditorData?.rowIndex,
+      rightSidebar.updateRowEditorData,
+      settings.rowEditorFollowSelection,
+      mergedRows,
+      buildRowDataWithPending,
+      columns,
+    ]);
+
+    // Handle keyboard shortcut toggle: if sidebar is open, close it.
+    // If closed and a row is selected, open with that row's data.
+    useEffect(() => {
+      const handler = () => {
+        if (rightSidebar.isOpen) {
+          rightSidebar.close();
+          return;
+        }
+        // Don't open if readonly or no table context
+        if (readonlyProp || !tableName) return;
+        // Find the single selected row to open
+        if (selectedRowIndices.size === 1) {
+          const rowIndex = selectedRowIndices.values().next().value as number;
+          openInSidebar(rowIndex);
+        }
+      };
+      window.addEventListener("tabularis:toggle-right-sidebar", handler);
+      return () => {
+        window.removeEventListener("tabularis:toggle-right-sidebar", handler);
+      };
+    }, [rightSidebar, selectedRowIndices, openInSidebar, readonlyProp, tableName]);
+
+    const handleCellDoubleClick = useCallback(
+      (rowIndex: number, colIndex: number, value: unknown) => {
+      if (!tableName || readonlyProp) return;
+
+      const mergedRow = mergedRows[rowIndex];
+      if (!mergedRow) return;
+      // No usable row identity (no primary key and no safe all-columns
+      // fallback, see resolveRowIdentity) → explain instead of silently
+      // ignoring the double-click (#598).
+      if (
+        mergedRow.type !== "insertion" &&
+        (!pkColumns || pkColumns.length === 0)
+      ) {
+        showAlert(
+          t("dataGrid.noRowIdentity", {
+            table: tableName,
+            defaultValue:
+              'Rows can\'t be edited: "{{table}}" has no primary key, so editing requires the result to include all table columns. Select all columns (e.g. SELECT *) or add a primary key.',
+          }),
+          { title: t("common.error"), kind: "warning" },
+        );
+        return;
+      }
+
+      const colName = columns[colIndex];
+
+      if (generatedColumns?.has(colName.toLowerCase())) {
+        return;
+      }
+
+      // For existing rows we must be able to build a safe UPDATE. Two guards,
+      // each running whenever the data it depends on is available, so they
+      // don't silently no-op when a driver omits result metadata:
+      //
+      // 1. Every primary key column must be present in the result set (needed
+      //    for the WHERE clause). Depends only on pkColumns + columns.
+      // 2. The edited column must map to a real physical column of the table
+      //    (prevents malformed UPDATEs on aliased/computed columns). Requires
+      //    columnMetadata; skipped when it's unavailable.
+      if (mergedRow.type !== "insertion") {
+        const missingPk = (pkColumns ?? []).filter(
+          (pk) => !columns.some((c) => c.toLowerCase() === pk.toLowerCase()),
+        );
+        if (missingPk.length > 0) {
+          showAlert(
+            t("dataGrid.pkRequiredToEdit", {
+              pk: missingPk.join(", "),
+              defaultValue:
+                'To edit this result, include the primary key column "{{pk}}" in your SELECT.',
+            }),
+            { title: t("common.error"), kind: "warning" },
+          );
+          return;
+        }
+
+        if (columnMetadata && columnMetadata.length > 0) {
+          const realColumns = new Set(
+            columnMetadata.map((c) => c.name.toLowerCase()),
+          );
+          if (!realColumns.has(colName.toLowerCase())) {
+            showAlert(
+              t("dataGrid.columnNotEditable", {
+                column: colName,
+                table: tableName,
+                defaultValue:
+                  'Column "{{column}}" can\'t be edited — it is not a direct column of table "{{table}}" (likely an alias or computed value).',
+              }),
+              { title: t("common.error"), kind: "warning" },
+            );
+            return;
+          }
+        }
+      }
+
+      const colType = columnTypeMap?.get(colName);
+
+      if (
+        colType &&
+        (isBlobColumn(colType, columnLengthMap?.get(colName)) ||
+          isBlobWireFormat(value))
+      ) {
+        openInSidebar(rowIndex, colName);
+        return;
+      }
+
+      // Open the dedicated viewer for structured cells instead of the inline
+      // textarea, which would stringify an array into a cramped, comma-joined
+      // box. Array values always qualify (like json/jsonb columns); JSON found
+      // inside text columns still follows the detect-json-in-text setting.
+      const rawCellValue = mergedRow.rowData[colIndex];
+      if (isJsonCellTarget(colType, rawCellValue) || Array.isArray(rawCellValue)) {
+        const isInsertion = mergedRow.type === "insertion";
+        openJsonViewerWindow(
+          value,
+          rawCellValue,
+          colName,
+          mergedRow.rowData,
+          rowIndex,
+          isInsertion,
+          mergedRow.tempId,
+          readonlyProp ?? false,
+        );
+        return;
+      }
+
+      let editValue = value;
+      if (
+        colType &&
+        isGeometricType(colType) &&
+        value !== null &&
+        value !== undefined
+      ) {
+        editValue = formatGeometricValue(value);
+      } else if (
+        value !== null &&
+        typeof value === "object"
+      ) {
+        editValue = JSON.stringify(value);
+      }
+
+      const doubleClickAction = settings.cellDoubleClickAction ?? "inline";
+
+      if (doubleClickAction === "sidebar") {
+        openInSidebar(rowIndex, colName);
+      } else if (doubleClickAction === "both") {
+        setEditingCell({ rowIndex, colIndex, value: editValue });
+        // Don't pass focusField — inline edit keeps focus, sidebar just scrolls
+        openInSidebar(rowIndex);
+      } else {
+        // "inline" — default current behavior
+        setEditingCell({ rowIndex, colIndex, value: editValue });
+      }
+    },
+      [
+        tableName,
+        readonlyProp,
+        mergedRows,
+        pkColumns,
+        columns,
+        columnTypeMap,
+        columnLengthMap,
+        columnMetadata,
+        generatedColumns,
+        isJsonCellTarget,
+        openInSidebar,
+        openJsonViewerWindow,
+        showAlert,
+        t,
+        settings.cellDoubleClickAction,
+      ],
+    );
+
+    const isCommittingRef = useRef(false);
+
+    const handleEditCommit = useCallback(async () => {
+      // Prevent multiple concurrent commits (e.g., from rapid blur events)
+      if (isCommittingRef.current) return;
+      const editingCell = editingCellRef.current;
+      if (!editingCell || !tableName) {
+        setEditingCell(null);
+        return;
+      }
+
+      isCommittingRef.current = true;
+
+      try {
+        const { rowIndex, colIndex, value } = editingCell;
+
+        // Safety check: ensure mergedRows has data
+        if (!mergedRows || rowIndex >= mergedRows.length) {
+          console.warn("Invalid rowIndex in handleEditCommit");
+          setEditingCell(null);
+          return;
+        }
+
+        // Check if this is an insertion row
+        const mergedRow = mergedRows[rowIndex];
+        const isInsertion = mergedRow?.type === "insertion";
+
+        if (isInsertion) {
+          // Handle insertion cell edit
+          if (onPendingInsertionChange && mergedRow.tempId) {
+            const colName = columns[colIndex];
+            onPendingInsertionChange(mergedRow.tempId, colName, value);
+          }
+          setEditingCell(null);
+          return;
+        }
+
+        // Existing row logic
+        const row = mergedRow.rowData;
+        if (!row) {
+          console.warn("Invalid row data in handleEditCommit");
+          setEditingCell(null);
+          return;
+        }
+
+        // Original value
+        const originalValue = row[colIndex];
+
+        // Check if value changed (handling string/number differences)
+        const isUnchanged = String(value) === String(originalValue);
+
+        if (isUnchanged && !onPendingChange) {
+          setEditingCell(null);
+          return;
+        }
+
+        // PK Value - check pkIndexMaps is valid
+        if (pkIndexMaps.length === 0 || !pkColumns) {
+          setEditingCell(null);
+          return;
+        }
+        const pkMapVal = buildPkMap(pkColumns, row, pkIndexMaps);
+        const colName = columns[colIndex];
+
+        if (onPendingChange) {
+          // If value matches original, pass undefined to remove the pending change
+          onPendingChange(pkMapVal, colName, isUnchanged ? undefined : value);
+          setEditingCell(null);
+          return;
+        }
+
+        if (!connectionId) return;
+
+        // Production safety: this path writes immediately, without the
+        // staged-changes commit (which has its own guard upstream).
+        if (!(await guardProductionWrite(connectionId))) {
+          setEditingCell(null);
+          return;
+        }
+
+        // Legacy immediate update
+        try {
+          await client.call("update_record", {
+            connectionId,
+            table: tableName,
+            pkMap: pkMapVal,
+            colName,
+            newVal: value,
+            ...(activeSchema ? { schema: activeSchema } : {}),
+          });
+          if (onRefresh) onRefresh();
+        } catch (e) {
+          console.error("Update failed:", e);
+          showAlert(t("dataGrid.updateFailed") + e, {
+            title: t("common.error"),
+            kind: "error",
+          });
+        }
+        setEditingCell(null);
+      } finally {
+        isCommittingRef.current = false;
+      }
+    }, [
+      tableName,
+      mergedRows,
+      columns,
+      onPendingInsertionChange,
+      onPendingChange,
+      pkIndexMaps,
+      pkColumns,
+      connectionId,
+      activeSchema,
+      onRefresh,
+      showAlert,
+      t,
+      guardProductionWrite,
+      client,
+    ]);
+
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+      const editingCell = editingCellRef.current;
+      if (e.key === "Enter") {
+        handleEditCommit();
+        // The editor unmounts here, dropping focus to <body>. Hand it back to
+        // the grid so arrow-key navigation keeps working. Only for keyboard
+        // exits — committing via blur must leave focus wherever the user clicked.
+        parentRef.current?.focus({ preventScroll: true });
+      } else if (e.key === "Escape") {
+        setEditingCell(null);
+        parentRef.current?.focus({ preventScroll: true });
+      } else if (e.key === "Tab") {
+        e.preventDefault(); // Prevent default tab behavior
+
+        if (!editingCell) return;
+
+        // Commit current cell first
+        handleEditCommit();
+
+        const { rowIndex, colIndex } = editingCell;
+        const totalRows = mergedRows.length;
+        const totalCols = columns.length;
+
+        // Calculate next position
+        let nextRowIndex = rowIndex;
+        let nextColIndex = colIndex + 1;
+
+        // If we're at the last column, move to next row
+        if (nextColIndex >= totalCols) {
+          nextColIndex = 0;
+          nextRowIndex = rowIndex + 1;
+
+          // If we're at the last row, wrap to first row
+          if (nextRowIndex >= totalRows) {
+            nextRowIndex = 0;
+          }
+        }
+
+        // Get the value of the next cell
+        const nextRow = mergedRows[nextRowIndex];
+        if (nextRow) {
+          const nextValue = nextRow.rowData[nextColIndex];
+
+          // Set editing on the next cell
+          setTimeout(() => {
+            setEditingCell({
+              rowIndex: nextRowIndex,
+              colIndex: nextColIndex,
+              value: nextValue,
+            });
+          }, 0);
+        }
+      }
+    }, [handleEditCommit, mergedRows, columns]);
+
+    // Commit a specific value in a single event, bypassing the editingCellRef
+    // lag (the ref is synced via a passive effect, so a picker that changes and
+    // commits within the same click — e.g. an ENUM dropdown — would otherwise
+    // read the stale previous value).
+    const commitEditWithValue = useCallback(
+      (value: unknown) => {
+        if (editingCellRef.current) {
+          editingCellRef.current = { ...editingCellRef.current, value };
+        }
+        handleEditCommit();
+      },
+      [handleEditCommit],
+    );
+
+    const columnHelper = useMemo(() => createColumnHelper<unknown[]>(), []);
+
+    const coreRowModel = useMemo(() => getCoreRowModel(), []);
+
+    const tableColumns = React.useMemo(
+      () =>
+        columns.map((colName, index) =>
+          columnHelper.accessor((row) => row[index], {
+            // react-table requires a non-empty `id` when an accessorFn is used.
+            // Some drivers (e.g. SQL Server `SELECT @@VERSION`, Postgres `SELECT 1 AS ""`)
+            // return columns with an empty name, which would otherwise crash the grid.
+            id: colName !== "" ? colName : `__unnamed_${index}__`,
+            header: () => {
+              const sortState = getColumnSortState(colName, sortClause);
+              const displaySortState: "none" | "asc" | "desc" =
+                sortState ?? "none";
+              // Column data type for the DataGrip-style header hover tooltip.
+              // Only populated when column metadata is present (i.e. table
+              // browse), not for arbitrary query results.
+              const colType = columnTypeMap?.get(colName);
+              const tooltipAlignment =
+                index === columns.length - 1 ? "right-0" : "left-0";
+
+              return (
+                <div
+                  role={onSort ? "button" : undefined}
+                  tabIndex={onSort ? 0 : undefined}
+                  aria-label={onSort ? (
+                    displaySortState === "none"
+                      ? t("dataGrid.sortByAsc", { col: colName })
+                      : displaySortState === "asc"
+                        ? t("dataGrid.sortByDesc", { col: colName })
+                        : t("dataGrid.clearSort")
+                  ) : undefined}
+                  className={`relative flex items-center gap-2 select-none group/header ${onSort ? "cursor-pointer" : ""}`}
+                  onClick={(e) => {
+                    // Modifier clicks select columns instead of sorting:
+                    // Cmd/Ctrl toggles one, Shift range-selects from the anchor.
+                    if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleColumnHeaderSelectRef.current(index, e);
+                      return;
+                    }
+                    if (onSort) onSort(colName);
+                  }}
+                  onKeyDown={(e) => { if (onSort && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSort(colName); } }}
+                  title={
+                    // Suppress the native sort-hint title while the type tooltip
+                    // is shown, to avoid two overlapping tooltips on hover.
+                    colType
+                      ? undefined
+                      : onSort
+                        ? displaySortState === "none"
+                          ? t("dataGrid.sortByAsc", { col: colName })
+                          : displaySortState === "asc"
+                            ? t("dataGrid.sortByDesc", { col: colName })
+                            : t("dataGrid.clearSort")
+                        : undefined
+                  }
+                >
+                  <span>{colName}</span>
+                  {onSort && (
+                    <span className="flex flex-col items-center justify-center">
+                      {displaySortState === "asc" && (
+                        <ArrowUp size={14} className="text-blue-400" />
+                      )}
+                      {displaySortState === "desc" && (
+                        <ArrowDown size={14} className="text-blue-400" />
+                      )}
+                      {displaySortState === "none" && (
+                        <ArrowUpDown
+                          size={14}
+                          className="text-secondary/60 opacity-50 group-hover/header:opacity-100 transition-opacity"
+                        />
+                      )}
+                    </span>
+                  )}
+                  {colType && (
+                    <span
+                      role="tooltip"
+                      className={`pointer-events-none absolute ${tooltipAlignment} top-full z-20 mt-1 hidden whitespace-nowrap rounded-lg border border-strong bg-tooltip px-2 py-1 text-xs font-normal normal-case tracking-normal text-secondary shadow-xl group-hover/header:block`}
+                    >
+                      <span className="text-primary">{colName}</span>: {colType}
+                    </span>
+                  )}
+                </div>
+              );
+            },
+          }),
+        ),
+      [
+        columns,
+        columnHelper,
+        t,
+        sortClause,
+        onSort,
+        columnTypeMap,
+      ],
+    );
+
+    const parentRef = useRef<HTMLDivElement>(null);
+    // Tracks whether this grid was the last one interacted with, so
+    // document-level shortcuts (Cmd/Ctrl+A) only act on the active grid when
+    // several grids are mounted (e.g. multi-result panels).
+    const isActiveGridRef = useRef(false);
+    const [parentViewportWidth, setParentViewportWidth] = useState(0);
+
+    useEffect(() => {
+      const el = parentRef.current;
+      if (!el) return;
+      const update = () => setParentViewportWidth(el.clientWidth);
+      update();
+      const ro = new ResizeObserver(update);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }, []);
+
+    // Memoize table data to prevent unnecessary re-renders
+    const tableData = useMemo(
+      () => mergedRows.map((r) => r.rowData),
+      [mergedRows],
+    );
+
+    const table = useReactTable({
+      data: tableData,
+      columns: tableColumns,
+      getCoreRowModel: coreRowModel,
+    });
+
+    const { rows: tableRows } = table.getRowModel();
+
+    const rowVirtualizer = useVirtualizer({
+      count: tableRows.length,
+      getScrollElement: () => parentRef.current,
+      estimateSize: () => DATA_GRID_ROW_HEIGHT,
+      overscan: 10,
+    });
+
+    // Track insertion count to auto-scroll to bottom when new rows are added
+    const prevInsertionCountRef = useRef(0);
+    useEffect(() => {
+      const insertionCount = pendingInsertions
+        ? Object.keys(pendingInsertions).length
+        : 0;
+      if (
+        insertionCount > prevInsertionCountRef.current &&
+        tableRows.length > 0
+      ) {
+        rowVirtualizer.scrollToIndex(tableRows.length - 1, { align: "end" });
+      }
+      prevInsertionCountRef.current = insertionCount;
+    }, [pendingInsertions, tableRows.length, rowVirtualizer]);
+
+    const handleContextMenu = useCallback(
+      (
+        e: React.MouseEvent,
+        row: unknown[],
+        rowIndex: number,
+        colIndex: number,
+        colName: string,
+      ) => {
+        if (tableName) {
+          e.preventDefault();
+          // Find the merged row corresponding to this DOM element
+          const mergedRow = mergedRows.find((mr) => mr.rowData === row);
+          setContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            row,
+            rowIndex,
+            colIndex,
+            colName,
+            mergedRow,
+          });
+        }
+      },
+      [tableName, mergedRows],
+    );
+
+    const revertSelectedRow = useCallback(() => {
+      if (!contextMenu) return;
+
+      const isInsertion = contextMenu.mergedRow?.type === "insertion";
+      const tempId = contextMenu.mergedRow?.tempId;
+
+      // Handle insertion row revert (discard)
+      if (isInsertion && tempId && onDiscardInsertion) {
+        onDiscardInsertion(tempId);
+        setContextMenu(null);
+        return;
+      }
+
+      // For existing rows, need pkColumns
+      if (!pkColumns || pkIndexMaps.length === 0) return;
+
+      const pkMapVal = buildPkMap(pkColumns, contextMenu.row, pkIndexMaps);
+      const pkValStr = serializePkKey(pkMapVal);
+
+      // Handle pending deletion revert
+      const isPendingDelete = pendingDeletions?.[pkValStr] !== undefined;
+      if (isPendingDelete && onRevertDeletion) {
+        onRevertDeletion(pkMapVal);
+        setContextMenu(null);
+        return;
+      }
+
+      // Handle pending changes revert
+      const rowPendingChanges = pendingChanges?.[pkValStr];
+      if (rowPendingChanges && onPendingChange) {
+        // Revert all pending changes for this row by setting them to undefined
+        Object.keys(rowPendingChanges.changes).forEach((colName) => {
+          onPendingChange(pkMapVal, colName, undefined);
+        });
+        setContextMenu(null);
+        return;
+      }
+
+      setContextMenu(null);
+    }, [
+      contextMenu,
+      onPendingChange,
+      onRevertDeletion,
+      onDiscardInsertion,
+      pkColumns,
+      pkIndexMaps,
+      pendingChanges,
+      pendingDeletions,
+    ]);
+
+    const deleteRowsByIndices = useCallback((indicesToDelete: number[]) => {
+      const pkVals: unknown[] = [];
+      for (const idx of indicesToDelete) {
+        const mergedRow = mergedRows[idx];
+        if (!mergedRow) continue;
+
+        if (mergedRow.type === "insertion" && mergedRow.tempId && onDiscardInsertion) {
+          onDiscardInsertion(mergedRow.tempId);
+        } else if (mergedRow.type === "existing" && pkColumns && pkIndexMaps.length > 0) {
+          pkVals.push(buildPkMap(pkColumns, mergedRow.rowData, pkIndexMaps));
+        }
+      }
+
+      // Use batch handler to avoid stale-closure overwrites when called per-row.
+      if (pkVals.length > 0) {
+        if (onMarkMultipleForDeletion) {
+          onMarkMultipleForDeletion(pkVals);
+        } else if (onMarkForDeletion) {
+          pkVals.forEach((v) => onMarkForDeletion(v));
+        }
+      }
+    }, [mergedRows, onDiscardInsertion, onMarkForDeletion, onMarkMultipleForDeletion, pkColumns, pkIndexMaps]);
+
+    const deleteSelectedRow = useCallback(() => {
+      if (!contextMenu) return;
+
+      // If the right-clicked row is part of a multi-selection, delete all selected rows.
+      // Otherwise fall back to deleting just the right-clicked row.
+      const rightClickedIsSelected = selectedRowIndices.has(contextMenu.rowIndex);
+      const indicesToDelete =
+        rightClickedIsSelected && selectedRowIndices.size > 1
+          ? Array.from(selectedRowIndices)
+          : [contextMenu.rowIndex];
+
+      deleteRowsByIndices(indicesToDelete);
+      setContextMenu(null);
+    }, [contextMenu, selectedRowIndices, deleteRowsByIndices]);
+
+    const duplicateSelectedRow = useCallback(() => {
+      if (!contextMenu || !onDuplicateRow) return;
+
+      const mergedRow = contextMenu.mergedRow;
+      const rowData: Record<string, unknown> = {};
+
+      if (mergedRow?.type === "insertion" && mergedRow.tempId && pendingInsertions) {
+        const insertion = pendingInsertions[mergedRow.tempId];
+        if (insertion) {
+          Object.assign(rowData, insertion.data);
+        }
+      } else {
+        columns.forEach((col, idx) => {
+          rowData[col] = contextMenu.row[idx];
+        });
+      }
+
+      onDuplicateRow(rowData);
+      setContextMenu(null);
+    }, [contextMenu, columns, pendingInsertions, onDuplicateRow]);
+
+    const openSidebarEditor = useCallback(() => {
+      if (!contextMenu) return;
+      openInSidebar(contextMenu.rowIndex);
+      setContextMenu(null);
+    }, [contextMenu, openInSidebar]);
+
+    const openJsonEditor = useCallback(() => {
+      if (!contextMenu) return;
+      const isInsertion = contextMenu.mergedRow?.type === "insertion";
+
+      openJsonViewerWindow(
+        contextMenu.row[contextMenu.colIndex],
+        contextMenu.row[contextMenu.colIndex],
+        contextMenu.colName,
+        contextMenu.row,
+        contextMenu.rowIndex,
+        isInsertion,
+        contextMenu.mergedRow?.tempId,
+        readonlyProp ?? false,
+      );
+      setContextMenu(null);
+    }, [contextMenu, openJsonViewerWindow, readonlyProp]);
+
+    // Unified handler for setting cell values from context menu actions
+    const setCellValue = useCallback(
+      (value: unknown) => {
+        if (!contextMenu) return;
+        const { colName, mergedRow } = contextMenu;
+        const isInsertion = mergedRow?.type === "insertion";
+
+        if (isInsertion && onPendingInsertionChange && mergedRow.tempId) {
+          onPendingInsertionChange(mergedRow.tempId, colName, value);
+        } else if (onPendingChange && pkIndexMaps.length > 0) {
+          const pkMapVal = buildPkMap(pkColumns!, contextMenu.row, pkIndexMaps);
+          onPendingChange(pkMapVal, colName, value);
+        }
+        setContextMenu(null);
+      },
+      [contextMenu, onPendingInsertionChange, onPendingChange, pkIndexMaps, pkColumns],
+    );
+
+    const setCellGenerate = useCallback(
+      () => setCellValue(null),
+      [setCellValue],
+    );
+    const setCellNull = useCallback(() => setCellValue(null), [setCellValue]);
+    const setCellDefault = useCallback(() => {
+      if (!contextMenu) return;
+      const isInsertion = contextMenu.mergedRow?.type === "insertion";
+      // For insertions, null triggers <default> display; for existing rows, use sentinel
+      setCellValue(isInsertion ? null : USE_DEFAULT_SENTINEL);
+    }, [contextMenu, setCellValue]);
+    const setCellEmpty = useCallback(() => setCellValue(""), [setCellValue]);
+
+    const setCellServerNow = useCallback(() => {
+      if (!contextMenu || !connectionId) return;
+      const { colName, mergedRow, row } = contextMenu;
+      const isInsertion = mergedRow?.type === "insertion";
+      const colDataType = columnTypeMap?.get(colName) ?? "";
+      const dateMode = getDateInputMode(colDataType);
+      if (!dateMode) return;
+
+      setContextMenu(null);
+      client.call("get_server_now", { connectionId })
+        .then((raw) => {
+          const formatted = formatDateTime(parseDateTime(raw), dateMode);
+          if (isInsertion && onPendingInsertionChange && mergedRow?.tempId) {
+            onPendingInsertionChange(mergedRow.tempId, colName, formatted);
+          } else if (onPendingChange && pkIndexMaps.length > 0) {
+            const pkMapVal = buildPkMap(pkColumns!, row, pkIndexMaps);
+            onPendingChange(pkMapVal, colName, formatted);
+          }
+        })
+        .catch((err) => {
+          showAlert(String(err), { title: t("general.error"), kind: "error" });
+        });
+    }, [
+      contextMenu,
+      connectionId,
+      columnTypeMap,
+      onPendingInsertionChange,
+      onPendingChange,
+      pkIndexMaps,
+      pkColumns,
+      t,
+      showAlert,
+      client,
+    ]);
+
+    const copyToClipboard = useCallback(
+      async (text: string, toastMessage?: string) => {
+        try {
+          await copyTextToClipboard(text);
+          if (toastMessage) {
+            showToast(toastMessage, { kind: "success" });
+          }
+        } catch (e) {
+          console.error("Copy failed:", e);
+          showAlert(t("common.error") + ": " + e, {
+            title: t("common.error"),
+            kind: "error",
+          });
+        }
+      },
+      [t, showAlert, showToast],
+    );
+
+    const formatRows = useCallback(
+      (rows: unknown[][], withHeaders = false) =>
+        formatRowsForCopy(rows, columns, copyFormat ?? "csv", {
+          withHeaders,
+          csvIncludeHeaders,
+          csvDelimiter,
+          tableName,
+        }),
+      [columns, copyFormat, csvDelimiter, csvIncludeHeaders, tableName],
+    );
+
+    const copySelectedOrContextRow = useCallback(async () => {
+      if (!contextMenu) return;
+
+      const rows =
+        selectedRowIndices.size > 0
+          ? getSelectedRows(data, selectedRowIndices)
+          : [contextMenu.row];
+
+      await copyToClipboard(
+        formatRows(rows, true),
+        rowsCopiedToast(rows.length),
+      );
+    }, [
+      contextMenu,
+      selectedRowIndices,
+      data,
+      formatRows,
+      copyToClipboard,
+      rowsCopiedToast,
+    ]);
+
+    const copyHeaderName = useCallback(async () => {
+      if (!headerContextMenu) return;
+      await copyToClipboard(headerContextMenu.colName);
+      setHeaderContextMenu(null);
+    }, [headerContextMenu, copyToClipboard]);
+
+    const copyHeaderNameQuoted = useCallback(async () => {
+      if (!headerContextMenu) return;
+      await copyToClipboard(`\`${headerContextMenu.colName}\``);
+      setHeaderContextMenu(null);
+    }, [headerContextMenu, copyToClipboard]);
+
+    const copyHeaderNameTable = useCallback(async () => {
+      if (!headerContextMenu) return;
+      const tName = tableName ? `${tableName}.` : "";
+      await copyToClipboard(`${tName}${headerContextMenu.colName}`);
+      setHeaderContextMenu(null);
+    }, [headerContextMenu, tableName, copyToClipboard]);
+
+    const copySelectedCells = useCallback(async () => {
+      if (selectedRowIndices.size === 0) return;
+      const rows = getSelectedRows(data, selectedRowIndices);
+      await copyToClipboard(
+        formatRows(rows, true),
+        rowsCopiedToast(rows.length),
+      );
+    }, [
+      selectedRowIndices,
+      data,
+      formatRows,
+      copyToClipboard,
+      rowsCopiedToast,
+    ]);
+
+    // Copies one column for the selected rows, or every visible row when
+    // nothing is selected, using the same export format as other copy actions.
+    // Copies the selected columns (all loaded rows) in the active copy format.
+    const copySelectedColumns = useCallback(async () => {
+      if (selectedColIndices.size === 0) return;
+      const projected = projectColumns(data, columns, selectedColIndices);
+      await copyToClipboard(
+        formatRowsForCopy(projected.rows, projected.columns, copyFormat ?? "csv", {
+          withHeaders: true,
+          csvIncludeHeaders,
+          csvDelimiter,
+          tableName,
+        }),
+        rowsCopiedToast(data.length),
+      );
+    }, [
+      selectedColIndices,
+      data,
+      columns,
+      copyFormat,
+      csvIncludeHeaders,
+      csvDelimiter,
+      tableName,
+      copyToClipboard,
+      rowsCopiedToast,
+    ]);
+
+    // Copies the rectangular cell range (anchor..Shift+click target) in the
+    // active copy format.
+    const copyCellRange = useCallback(async () => {
+      if (!cellRange) return;
+      const rangeRows = mergedRows
+        .slice(cellRange.minRow, cellRange.maxRow + 1)
+        .map((r) => r.rowData);
+      const rangeColIndices = new Set<number>();
+      for (let c = cellRange.minCol; c <= cellRange.maxCol; c++) {
+        rangeColIndices.add(c);
+      }
+      const projected = projectColumns(rangeRows, columns, rangeColIndices);
+      await copyToClipboard(
+        formatRowsForCopy(projected.rows, projected.columns, copyFormat ?? "csv", {
+          withHeaders: true,
+          csvIncludeHeaders,
+          csvDelimiter,
+          tableName,
+        }),
+        t("dataGrid.copiedCells", {
+          count: rangeRows.length * projected.columns.length,
+        }),
+      );
+    }, [
+      cellRange,
+      mergedRows,
+      columns,
+      copyFormat,
+      csvIncludeHeaders,
+      csvDelimiter,
+      tableName,
+      copyToClipboard,
+      t,
+    ]);
+
+    const copyColumnValues = useCallback(
+      async (colIndex: number) => {        if (colIndex < 0) return;
+        const rows =
+          selectedRowIndices.size > 0
+            ? getSelectedRows(data, selectedRowIndices)
+            : data;
+        const text = columnValuesForCopy(rows, columns, colIndex, {
+          format: copyFormat ?? "csv",
+          delimiter: csvDelimiter,
+          includeHeader: csvIncludeHeaders,
+          tableName: tableName ?? "table",
+        });
+        await copyToClipboard(text);
+      },
+      [
+        selectedRowIndices,
+        data,
+        columns,
+        copyFormat,
+        csvDelimiter,
+        csvIncludeHeaders,
+        tableName,
+        copyToClipboard,
+      ],
+    );
+
+    const copyColumnValuesAsInClause = useCallback(
+      async (colIndex: number) => {
+        if (colIndex < 0) return;
+        const rows =
+          selectedRowIndices.size > 0
+            ? getSelectedRows(data, selectedRowIndices)
+            : data;
+        await copyToClipboard(columnValuesToInClause(rows, colIndex));
+      },
+      [selectedRowIndices, data, copyToClipboard],
+    );
+
+    const copyCellValue = useCallback(
+      async (rowIndex: number, colIndex: number) => {
+        const mergedRow = mergedRows[rowIndex];
+        if (!mergedRow) return;
+        const rawValue = mergedRow.rowData[colIndex];
+        const colName = columns[colIndex];
+        const colType = columnTypeMap?.get(colName);
+        const colLength = columnLengthMap?.get(colName);
+        const text = formatCellValue(rawValue, "null", colType, colLength);
+        await copyToClipboard(text);
+      },
+      [mergedRows, columns, columnTypeMap, columnLengthMap, copyToClipboard],
+    );
+
+    const copyCellFromContext = useCallback(async () => {
+      if (!contextMenu) return;
+      await copyCellValue(contextMenu.rowIndex, contextMenu.colIndex);
+      setContextMenu(null);
+    }, [contextMenu, copyCellValue]);
+
+    // Pastes clipboard text into the grid as staged edits. The paste target,
+    // in priority order: the cell range's top-left, the given cell (context
+    // menu), the top of the row selection, or the focused cell. A single
+    // copied value fills the whole selected range / selected rows.
+    const pasteFromClipboard = useCallback(
+      async (anchorOverride?: { rowIndex: number; colIndex: number }) => {
+        if (readonlyProp) return;
+        const rowSelectionAnchor =
+          selectedRowIndices.size > 0
+            ? { rowIndex: Math.min(...selectedRowIndices), colIndex: 0 }
+            : null;
+        const anchor = cellRange
+          ? { rowIndex: cellRange.minRow, colIndex: cellRange.minCol }
+          : (anchorOverride ?? rowSelectionAnchor ?? focusedCell);
+        if (!anchor) return;
+
+        let text: string | null = null;
+        try {
+          text = await platform.readClipboard();
+        } catch (e) {
+          console.error("Failed to read clipboard:", e);
+          showToast(t("dataGrid.pasteReadFailed"), { kind: "error" });
+          return;
+        }
+        if (!text) return;
+
+        const matrix = stripHeaderRow(
+          parsePasteMatrix(text, csvDelimiter),
+          columns,
+          anchor.colIndex,
+        );
+        let targets: PasteTarget[];
+        if (
+          matrix.length === 1 &&
+          matrix[0].length === 1 &&
+          !cellRange &&
+          !anchorOverride &&
+          rowSelectionAnchor
+        ) {
+          // Single value + row selection: fill every cell of the selected rows
+          // (the row selection is the "range" here, like a spreadsheet).
+          // Primary key columns are excluded — a whole-row fill overwriting
+          // row identities is never what the user meant; explicit pastes
+          // (range / focused cell / a multi-cell matrix) still accept PK
+          // values.
+          const value = matrix[0][0];
+          targets = [];
+          for (const rowIndex of selectedRowIndices) {
+            for (let colIndex = 0; colIndex < columns.length; colIndex++) {
+              if (pkColumnSet.has(columns[colIndex].toLowerCase())) continue;
+              targets.push({ rowIndex, colIndex, value });
+            }
+          }
+        } else {
+          targets = computePasteTargets(
+            matrix,
+            anchor,
+            mergedRows.length,
+            columns.length,
+            cellRange,
+          );
+        }
+        if (targets.length === 0) return;
+
+        // Existing rows can only be staged when the grid can identify them —
+        // without a usable key (raw query results, keyless tables) only
+        // pending-insertion rows accept a paste.
+        const canEditExisting =
+          !!onPendingChange && !!pkColumns && pkIndexMaps.length > 0;
+        let applied = 0;
+        for (const { rowIndex, colIndex, value } of targets) {
+          const mergedRow = mergedRows[rowIndex];
+          if (!mergedRow) continue;
+          const colName = columns[colIndex];
+          // Same guard as inline editing: generated columns are computed by
+          // the database and never accept a value, and masked cells must be
+          // revealed before they take one.
+          if (generatedColumns?.has(colName.toLowerCase())) continue;
+          if (isCellMasked(rowIndex, colIndex)) continue;
+          if (mergedRow.type === "insertion") {
+            if (onPendingInsertionChange && mergedRow.tempId) {
+              onPendingInsertionChange(mergedRow.tempId, colName, value);
+              applied++;
+            }
+          } else if (canEditExisting) {
+            // Same guard as inline editing: aliases and computed result
+            // columns are not physical columns and must not be staged.
+            if (
+              physicalColumnSet &&
+              !physicalColumnSet.has(colName.toLowerCase())
+            ) {
+              continue;
+            }
+            const pkMapVal = buildPkMap(pkColumns!, mergedRow.rowData, pkIndexMaps);
+            // Same convention as handleEditCommit: pasting the original value
+            // back clears any pending change instead of staging a no-op.
+            const isUnchanged =
+              String(value) === String(mergedRow.rowData[colIndex]);
+            onPendingChange!(pkMapVal, colName, isUnchanged ? undefined : value);
+            applied++;
+          }
+        }
+        if (applied > 0) {
+          showToast(t("dataGrid.pastedCells", { count: applied }), {
+            kind: "success",
+          });
+        } else {
+          showToast(t("dataGrid.pasteNotEditable"), { kind: "info" });
+        }
+      },
+      [
+        readonlyProp,
+        platform,
+        cellRange,
+        focusedCell,
+        selectedRowIndices,
+        mergedRows,
+        columns,
+        physicalColumnSet,
+        generatedColumns,
+        pkColumnSet,
+        isCellMasked,
+        csvDelimiter,
+        onPendingChange,
+        onPendingInsertionChange,
+        pkColumns,
+        pkIndexMaps,
+        showToast,
+        t,
+      ],
+    );
+
+    // Track the last-interacted grid so document-level shortcuts don't fire in
+    // every mounted grid at once.
+    useEffect(() => {
+      const handleMouseDown = (e: MouseEvent) => {
+        isActiveGridRef.current = !!parentRef.current?.contains(
+          e.target as Node,
+        );
+      };
+      document.addEventListener("mousedown", handleMouseDown);
+      return () => document.removeEventListener("mousedown", handleMouseDown);
+    }, []);
+
+    // The value the mouse path hands to handleCellDoubleClick: pending changes
+    // applied and the auto-increment/DEFAULT placeholders normalized to an empty
+    // editor, so keyboard editing never exposes the internal sentinel.
+    const editableCellValue = useCallback(
+      (mergedRow: MergedRow, colIndex: number): unknown => {
+        const colName = columns[colIndex];
+        const columnInfo: ColumnDisplayInfo = {
+          colName,
+          autoIncrementColumns,
+          defaultValueColumns,
+          nullableColumns,
+        };
+        const cellValue = mergedRow.rowData[colIndex];
+        const resolved =
+          mergedRow.type === "insertion"
+            ? resolveInsertionCellDisplay(cellValue, columnInfo)
+            : resolveExistingCellDisplay(
+                cellValue,
+                pkIndexMaps.length > 0 && pkColumns
+                  ? serializePkKey(
+                      buildPkMap(pkColumns, mergedRow.rowData, pkIndexMaps),
+                    )
+                  : null,
+                pkColumns,
+                pendingChanges,
+                columnInfo,
+              );
+        return resolved.isAutoIncrementPlaceholder ||
+          resolved.isDefaultValuePlaceholder
+          ? ""
+          : resolved.displayValue;
+      },
+      [
+        columns,
+        autoIncrementColumns,
+        defaultValueColumns,
+        nullableColumns,
+        pkIndexMaps,
+        pkColumns,
+        pendingChanges,
+      ],
+    );
+
+    // Arrow-key cell navigation. Bound to the grid container instead of the
+    // document so that pages rendering several grids (e.g. a notebook with
+    // multiple SQL cells) only move the one the user is actually inside.
+    const handleGridKeyDown = useCallback(
+      (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (editingCellRef.current) return;
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+        // Let anything that handles keys itself keep them: text inputs, and the
+        // focusable controls living inside cells and headers (FK/BLOB buttons,
+        // sortable column headers) — Enter must still activate those.
+        const target = e.target as HTMLElement;
+        if (
+          target.isContentEditable ||
+          target.closest("input, textarea, select, button, [role='button']")
+        ) {
+          return;
+        }
+
+        const totalRows = mergedRows.length;
+        const totalCols = columns.length;
+        if (totalRows === 0) return;
+
+        if (!NAVIGATION_KEYS.has(e.key)) return;
+        e.preventDefault();
+
+        // First keystroke inside an unfocused grid enters at the top-left cell.
+        if (!focusedCell) {
+          setFocusedCell({ rowIndex: 0, colIndex: 0 });
+          return;
+        }
+
+        const { rowIndex, colIndex } = focusedCell;
+        let nextRow = rowIndex;
+        let nextCol = colIndex;
+
+        switch (e.key) {
+          case "ArrowUp":
+            nextRow = Math.max(0, rowIndex - 1);
+            break;
+          case "ArrowDown":
+            nextRow = Math.min(totalRows - 1, rowIndex + 1);
+            break;
+          case "ArrowLeft":
+            nextCol = Math.max(0, colIndex - 1);
+            break;
+          case "ArrowRight":
+            nextCol = Math.min(totalCols - 1, colIndex + 1);
+            break;
+          case "Home":
+            nextCol = 0;
+            break;
+          case "End":
+            nextCol = totalCols - 1;
+            break;
+          case "PageUp":
+          case "PageDown": {
+            // One viewport worth of rows, minus one so the row the user came
+            // from stays visible as an anchor.
+            const height = parentRef.current?.clientHeight ?? 0;
+            const step = Math.max(
+              1,
+              Math.floor(height / DATA_GRID_ROW_HEIGHT) - 1,
+            );
+            nextRow =
+              e.key === "PageUp"
+                ? Math.max(0, rowIndex - step)
+                : Math.min(totalRows - 1, rowIndex + step);
+            break;
+          }
+          case "Enter":
+          case "F2": {
+            const mergedRow = mergedRows[rowIndex];
+            if (!mergedRow) return;
+            // Masked cells must be revealed before editing, same as the
+            // double-click path.
+            if (
+              maskedColIndices.has(colIndex) &&
+              !revealedColIndices.has(colIndex) &&
+              !revealedCells.has(`${rowIndex}:${colIndex}`)
+            ) {
+              return;
+            }
+            handleCellDoubleClick(
+              rowIndex,
+              colIndex,
+              editableCellValue(mergedRow, colIndex),
+            );
+            return;
+          }
+        }
+
+        if (nextRow !== rowIndex || nextCol !== colIndex) {
+          // Moving the focus by keyboard abandons any Shift+click range, the
+          // same way a plain click does.
+          setCellRange(null);
+          setFocusedCell({ rowIndex: nextRow, colIndex: nextCol });
+        }
+      },
+      [
+        focusedCell,
+        mergedRows,
+        columns,
+        editableCellValue,
+        handleCellDoubleClick,
+        maskedColIndices,
+        revealedColIndices,
+        revealedCells,
+      ],
+    );
+
+    // Keep the focused cell visible: the virtualizer covers the vertical axis,
+    // scrolling the cell itself covers the horizontal one on wide tables.
+    useEffect(() => {
+      if (!focusedCell) return;
+      const parent = parentRef.current;
+      if (!parent) return;
+      if (!parent.contains(document.activeElement)) {
+        parent.focus({ preventScroll: true });
+      }
+      rowVirtualizer.scrollToIndex(focusedCell.rowIndex, { align: "auto" });
+      // scrollToIndex only updates the virtualizer's state — a row that was
+      // outside the window is mounted on the next frame, so look the cell up
+      // then rather than synchronously (a multi-row PageDown would miss it).
+      const frame = requestAnimationFrame(() => {
+        parent
+          .querySelector<HTMLTableCellElement>(
+            `tr[data-row-index="${focusedCell.rowIndex}"] td[data-col-index="${focusedCell.colIndex}"]`,
+          )
+          ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      });
+      return () => cancelAnimationFrame(frame);
+    }, [focusedCell, rowVirtualizer]);
+
+    // Handle keyboard shortcuts
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        const keyTarget = e.target as HTMLElement | null;
+        const isEditableTarget =
+          keyTarget instanceof HTMLInputElement ||
+          keyTarget instanceof HTMLTextAreaElement ||
+          keyTarget instanceof HTMLSelectElement ||
+          keyTarget?.isContentEditable === true;
+
+        // CMD/CTRL + C
+        if ((e.metaKey || e.ctrlKey) && e.key === "c") {
+          // Only handle if not editing a cell
+          if (!editingCell) {
+            if (cellRange) {
+              e.preventDefault();
+              copyCellRange();
+            } else if (focusedCell) {
+              e.preventDefault();
+              copyCellValue(focusedCell.rowIndex, focusedCell.colIndex);
+            } else if (selectedColIndices.size > 0) {
+              e.preventDefault();
+              copySelectedColumns();
+            } else if (selectedRowIndices.size > 0) {
+              e.preventDefault();
+              copySelectedCells();
+            }
+          }
+        }
+
+        // CMD/CTRL + V — paste clipboard cells into the grid as staged edits
+        if ((e.metaKey || e.ctrlKey) && e.key === "v") {
+          if (
+            !editingCell &&
+            !isEditableTarget &&
+            !readonlyProp &&
+            isActiveGridRef.current &&
+            (cellRange || focusedCell || selectedRowIndices.size > 0)
+          ) {
+            e.preventDefault();
+            pasteFromClipboard();
+          }
+        }
+
+        // CMD/CTRL + A — select all loaded rows
+        if ((e.metaKey || e.ctrlKey) && e.key === "a") {
+          // Only handle if not editing a cell, focus is not in a text field,
+          // and this grid was the last one interacted with.
+          if (!editingCell && !isEditableTarget && isActiveGridRef.current) {
+            e.preventDefault();
+            handleSelectAll();
+          }
+        }
+
+        // Delete / Backspace — delete selected rows
+        if ((e.key === "Delete" || e.key === "Backspace") && !editingCell && !readonlyProp && selectedRowIndices.size > 0) {
+          e.preventDefault();
+          deleteRowsByIndices(Array.from(selectedRowIndices));
+        }
+      };
+
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
+    }, [editingCell, selectedRowIndices, selectedColIndices, cellRange, focusedCell, copyCellValue, copySelectedCells, copySelectedColumns, copyCellRange, pasteFromClipboard, readonlyProp, deleteRowsByIndices, handleSelectAll]);
+
+    // Sensitive-column reveal actions (#485). Column toggling uses
+    // toggleSetValue like the other Set-based grid state.
+    const toggleRevealColumn = useCallback(
+      (index: number) =>
+        setRevealedColIndices((prev) => toggleSetValue(prev, index)),
+      [],
+    );
+    const toggleRevealCell = useCallback((rowIndex: number, colIndex: number) => {
+      setRevealedCells((prev) =>
+        toggleSetValue(prev, `${rowIndex}:${colIndex}`),
+      );
+    }, []);
+
+    // Stable per-row dependency bundle. Memoizing it lets React.memo on MemoRow
+    // skip re-rendering rows that didn't change during scroll.
+    const rowCtx: RowCtx = useMemo(
+      () => ({
+        columns,
+        autoIncrementColumns,
+        defaultValueColumns,
+        nullableColumns,
+        pkColumns,
+        pendingChanges,
+        columnTypeMap,
+        columnLengthMap,
+        resultColorClassMap,
+        isJsonCellTarget,
+        fksByColumn,
+        t,
+        mergedRows,
+        pkIndexMaps,
+        parentViewportWidth,
+        readonly: readonlyProp,
+        updateSelection,
+        maskedColIndices,
+        revealedColIndices,
+        revealedCells,
+        toggleRevealCell,
+        selectedColIndices,
+        clearColSelection,
+        cellRange,
+        handleCellClick,
+        setFocusedCell,
+        setExpandedCell,
+        setEditingCell,
+        openInSidebar,
+        handleRowClick,
+        handleCellDoubleClick,
+        handleContextMenu,
+        handleEditCommit,
+        commitEditWithValue,
+        handleKeyDown,
+        onForeignKeyShowPanel,
+        onForeignKeyHidePanel,
+        onForeignKeyNavigate,
+        onPendingChange,
+        onPendingInsertionChange,
+        openJsonViewerWindow,
+        editInputRef,
+      }),
+      [
+        columns,
+        autoIncrementColumns,
+        defaultValueColumns,
+        nullableColumns,
+        pkColumns,
+        pendingChanges,
+        columnTypeMap,
+        columnLengthMap,
+        resultColorClassMap,
+        isJsonCellTarget,
+        fksByColumn,
+        t,
+        mergedRows,
+        pkIndexMaps,
+        parentViewportWidth,
+        readonlyProp,
+        updateSelection,
+        maskedColIndices,
+        revealedColIndices,
+        revealedCells,
+        toggleRevealCell,
+        selectedColIndices,
+        clearColSelection,
+        cellRange,
+        handleCellClick,
+        setFocusedCell,
+        setExpandedCell,
+        setEditingCell,
+        openInSidebar,
+        handleRowClick,
+        handleCellDoubleClick,
+        handleContextMenu,
+        handleEditCommit,
+        commitEditWithValue,
+        handleKeyDown,
+        onForeignKeyShowPanel,
+        onForeignKeyHidePanel,
+        onForeignKeyNavigate,
+        onPendingChange,
+        onPendingInsertionChange,
+        openJsonViewerWindow,
+        editInputRef,
+      ],
+    );
+
+    // Show "no data" if there are no columns (even with pending insertions, we can't render without column info)
+    // OR if there are columns but no data and no pending insertions
+    if (columns.length === 0) {
+      return (
+        <div className="h-full flex items-center justify-center text-muted">
+          {t("dataGrid.noData")}
+        </div>
+      );
+    }
+
+    const virtualItems = rowVirtualizer.getVirtualItems();
+    const virtualPaddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+    const virtualPaddingBottom =
+      virtualItems.length > 0
+        ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
+        : 0;
+    const totalColumnCount = tableColumns.length + 1;
+
+    return (
+      <>
+        <div
+          ref={parentRef}
+          tabIndex={0}
+          onKeyDown={handleGridKeyDown}
+          className="h-full overflow-auto border border-default rounded bg-elevated relative focus:outline-none"
+        >
+          <table className="w-full text-left border-collapse">
+            <thead
+              className={`bg-base z-10 shadow-sm ${stickyColumnHeaders ? "sticky top-0" : ""}`}
+            >
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  <th
+                    onClick={handleSelectAll}
+                    title={
+                      selectedRowIndices.size === mergedRows.length
+                        ? t("dataGrid.deselectAll")
+                        : t("dataGrid.selectAll")
+                    }
+                    className="px-2 py-2 text-xs font-semibold text-muted border-b border-r border-default bg-base sticky left-0 z-20 text-center select-none w-[50px] min-w-[50px] cursor-pointer hover:bg-elevated"
+                  >
+                    #
+                  </th>
+                  {headerGroup.headers.map((header, headerColIndex) => (
+                    <th
+                      key={header.id}
+                      className={`px-4 py-2 text-xs font-semibold tracking-wider border-b border-r border-default last:border-r-0 whitespace-nowrap ${
+                        selectedColIndices.has(headerColIndex)
+                          ? "text-primary bg-blue-500/20"
+                          : "text-secondary"
+                      }`}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        // macOS turns Ctrl+click into a contextmenu event — the
+                        // user almost certainly meant "toggle this column".
+                        if (e.ctrlKey) {
+                          handleColumnHeaderSelectRef.current(
+                            headerColIndex,
+                            e,
+                          );
+                          return;
+                        }
+                        setHeaderContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          colName: header.id,
+                          colIndex: headerColIndex,
+                        });
+                      }}
+                    >
+                      <div className="flex items-center gap-1">
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
+                        {maskedColIndices.has(headerColIndex) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleRevealColumn(headerColIndex);
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            title={
+                              revealedColIndices.has(headerColIndex)
+                                ? t("dataGrid.maskColumn")
+                                : t("dataGrid.revealColumn")
+                            }
+                            className="shrink-0 text-muted hover:text-primary transition-colors"
+                          >
+                            {revealedColIndices.has(headerColIndex) ? (
+                              <EyeOff size={13} />
+                            ) : (
+                              <Eye size={13} />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {virtualPaddingTop > 0 && (
+                <tr>
+                  <td
+                    colSpan={totalColumnCount}
+                    style={{ height: virtualPaddingTop, padding: 0, border: "none" }}
+                  />
+                </tr>
+              )}
+              {virtualItems.map((virtualRow) => {
+                const rowIndex = virtualRow.index;
+                const row = tableRows[rowIndex];
+                const rowOriginal = row.original as unknown[];
+                const isSelected = selectedRowIndices.has(rowIndex);
+                const mergedRow = mergedRows[rowIndex];
+                const isInsertion = mergedRow?.type === "insertion";
+                const pkVal =
+                  pkIndexMaps.length > 0 && pkColumns
+                    ? serializePkKey(buildPkMap(pkColumns, rowOriginal as unknown[], pkIndexMaps))
+                    : null;
+                const isPendingDelete =
+                  !isInsertion && pkVal
+                    ? pendingDeletions?.[pkVal] !== undefined
+                    : false;
+                const isRowEditing = editingCell?.rowIndex === rowIndex;
+                const isRowFocused = focusedCell?.rowIndex === rowIndex;
+                const isRowExpanded = expandedCell?.rowIndex === rowIndex;
+                return (
+                  <MemoRow
+                    key={row.id}
+                    ctx={rowCtx}
+                    rowIndex={rowIndex}
+                    rowOriginal={rowOriginal}
+                    isSelected={isSelected}
+                    isInsertion={isInsertion}
+                    isPendingDelete={isPendingDelete}
+                    pkVal={pkVal}
+                    editingColIndex={isRowEditing ? editingCell!.colIndex : null}
+                    editingValue={isRowEditing ? editingCell!.value : undefined}
+                    focusedColIndex={isRowFocused ? focusedCell!.colIndex : null}
+                    expandedColIndex={isRowExpanded ? expandedCell!.colIndex : null}
+                    expandedKind={isRowExpanded ? expandedCell!.kind : null}
+                  />
+                );
+              })}
+              {virtualPaddingBottom > 0 && (
+                <tr>
+                  <td
+                    colSpan={totalColumnCount}
+                    style={{ height: virtualPaddingBottom, padding: 0, border: "none" }}
+                  />
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {contextMenu &&
+            (() => {
+              // Check if this row has any pending changes, deletions, or is an insertion
+              const isInsertion = contextMenu.mergedRow?.type === "insertion";
+              const pkVal =
+                pkIndexMaps.length > 0 && pkColumns
+                  ? serializePkKey(buildPkMap(pkColumns, contextMenu.row, pkIndexMaps))
+                  : null;
+              const hasPendingChanges =
+                !isInsertion && pkVal && pendingChanges?.[pkVal] !== undefined;
+              const hasPendingDeletion =
+                !isInsertion &&
+                pkVal &&
+                pendingDeletions?.[pkVal] !== undefined;
+
+              // Enable revert if there's any pending change, deletion, or insertion
+              const canRevert =
+                isInsertion || hasPendingChanges || hasPendingDeletion;
+
+              const deleteRowCount = selectedRowIndices.has(contextMenu.rowIndex)
+                ? selectedRowIndices.size
+                : 1;
+
+              // Determine which cell value options to show based on column properties
+              const { colName } = contextMenu;
+              const isAutoIncrement = autoIncrementColumns?.includes(colName);
+              const isNullable = nullableColumns?.includes(colName);
+              const hasDefault = defaultValueColumns?.includes(colName);
+
+              // Build menu items dynamically
+              const menuItems: ContextMenuItem[] = [];
+
+              if (!readonlyProp) {
+                // Cell value manipulation options (shown first for cell context)
+                // SET GENERATED only for insertion rows, not for existing rows
+                if (isAutoIncrement && isInsertion) {
+                  menuItems.push({
+                    label: t("dataGrid.setGenerate"),
+                    icon: Sparkles,
+                    action: setCellGenerate,
+                  });
+                }
+                if (isNullable) {
+                  menuItems.push({
+                    label: t("dataGrid.setNull"),
+                    icon: Ban,
+                    action: setCellNull,
+                  });
+                }
+                if (hasDefault) {
+                  menuItems.push({
+                    label: t("dataGrid.setDefault"),
+                    icon: FileDigit,
+                    action: setCellDefault,
+                  });
+                }
+                // Empty string ("") is only a valid value for textual columns.
+                // Strongly-typed columns (uuid, numeric, temporal, …) reject it,
+                // so offer "Set Empty" only where an empty string is assignable.
+                const colDataType = columnTypeMap?.get(colName) ?? "";
+                if (supportsEmptyString(colDataType)) {
+                  menuItems.push({
+                    label: t("dataGrid.setEmpty"),
+                    icon: Eraser,
+                    action: setCellEmpty,
+                  });
+                }
+                if (getDateInputMode(colDataType) !== null) {
+                  menuItems.push({
+                    label: t("dataGrid.setServerNow"),
+                    icon: Clock,
+                    action: setCellServerNow,
+                  });
+                }
+                if (isJsonColumn(colDataType)) {
+                  menuItems.push({
+                    label: t("contextMenu.openJsonEditor"),
+                    icon: Braces,
+                    action: openJsonEditor,
+                  });
+                }
+
+                // Separator before row actions
+                if (menuItems.length > 0) {
+                  menuItems.push({ separator: true });
+                }
+              }
+
+              const fkContextValue =
+                contextMenu.row[contextMenu.colIndex];
+              const fkForContextPreview = getForeignKeyForPreview(
+                contextMenu.colName,
+                fkContextValue,
+                fksByColumn,
+                { isInsertion },
+              );
+              if (fkForContextPreview) {
+                if (onForeignKeyShowPanel) {
+                  menuItems.push({
+                    label: t("dataGrid.previewReferenced"),
+                    icon: PanelBottomOpen,
+                    action: () => {
+                      setFocusedCell({
+                        rowIndex: contextMenu.rowIndex,
+                        colIndex: contextMenu.colIndex,
+                      });
+                      updateSelection(new Set());
+                      onForeignKeyShowPanel(
+                        fkForContextPreview,
+                        fkContextValue,
+                      );
+                      setContextMenu(null);
+                    },
+                  });
+                }
+                if (onForeignKeyNavigate) {
+                  menuItems.push({
+                    label: t("dataGrid.openReferenced", {
+                      table: fkForContextPreview.ref_table,
+                    }),
+                    icon: ExternalLink,
+                    action: () => {
+                      onForeignKeyNavigate(
+                        fkForContextPreview,
+                        fkContextValue,
+                      );
+                      setContextMenu(null);
+                    },
+                  });
+                }
+                if (onForeignKeyShowPanel || onForeignKeyNavigate) {
+                  menuItems.push({ separator: true });
+                }
+              }
+
+              menuItems.push({
+                label: t("dataGrid.copyCell"),
+                icon: Copy,
+                action: copyCellFromContext,
+              });
+
+              if (cellRange) {
+                menuItems.push({
+                  label: t("dataGrid.copyRangeN", {
+                    rows: cellRange.maxRow - cellRange.minRow + 1,
+                    cols: cellRange.maxCol - cellRange.minCol + 1,
+                  }),
+                  icon: Copy,
+                  action: async () => {
+                    await copyCellRange();
+                    setContextMenu(null);
+                  },
+                });
+              }
+
+              menuItems.push({
+                label: t("dataGrid.copySelectedN", {
+                  count:
+                    selectedRowIndices.size > 0 ? selectedRowIndices.size : 1,
+                }),
+                icon: Copy,
+                action: copySelectedOrContextRow,
+              });
+
+              // Direct one-click path to copy the entire result set when the
+              // page is only part of it — kept next to "Copy Selected" so the
+              // two copy scopes read as a pair (count explicit when known).
+              if (hasUnloadedRows) {
+                menuItems.push({
+                  label:
+                    totalRows != null
+                      ? t("dataGrid.copyAllRows", { count: totalRows })
+                      : t("dataGrid.copyAll"),
+                  icon: Copy,
+                  action: () => {
+                    onCopyAllRows?.();
+                    setContextMenu(null);
+                  },
+                });
+              }
+
+              menuItems.push({
+                label: t("dataGrid.copyColumnValues"),
+                icon: Copy,
+                action: async () => {
+                  await copyColumnValues(contextMenu.colIndex);
+                  setContextMenu(null);
+                },
+              });
+
+              menuItems.push({
+                label: t("dataGrid.copyColumnValuesIn"),
+                icon: Copy,
+                action: async () => {
+                  await copyColumnValuesAsInClause(contextMenu.colIndex);
+                  setContextMenu(null);
+                },
+              });
+
+              if (!readonlyProp) {
+                menuItems.push({
+                  label: t("dataGrid.pasteCells"),
+                  icon: ClipboardPaste,
+                  action: async () => {
+                    setContextMenu(null);
+                    await pasteFromClipboard({
+                      rowIndex: contextMenu.rowIndex,
+                      colIndex: contextMenu.colIndex,
+                    });
+                  },
+                });
+              }
+
+              menuItems.push({ separator: true });
+
+              menuItems.push({
+                label:
+                  selectedRowIndices.size === mergedRows.length
+                    ? t("dataGrid.deselectAll")
+                    : t("dataGrid.selectAllN", { count: mergedRows.length }),
+                icon: ListChecks,
+                action: () => {
+                  handleSelectAll();
+                  setContextMenu(null);
+                },
+              });
+
+              if (!readonlyProp) {
+                menuItems.push(
+                  {
+                    label: t("contextMenu.openSidebar"),
+                    icon: Edit,
+                    action: openSidebarEditor,
+                  },
+                  {
+                    label: t("dataGrid.duplicateRow"),
+                    icon: CopyPlus,
+                    action: duplicateSelectedRow,
+                  },
+                  {
+                    label: deleteRowCount > 1
+                      ? t("dataGrid.deleteRows", { count: deleteRowCount })
+                      : t("dataGrid.deleteRow"),
+                    icon: Trash2,
+                    danger: true,
+                    action: deleteSelectedRow,
+                  },
+                  {
+                    label: t("dataGrid.revertSelected"),
+                    icon: Undo,
+                    action: revertSelectedRow,
+                    disabled: !canRevert,
+                  },
+                );
+              }
+
+              return (
+                <ContextMenu
+                  x={contextMenu.x}
+                  y={contextMenu.y}
+                  onClose={() => setContextMenu(null)}
+                  items={menuItems}
+                >
+                  <SlotAnchor
+                    name="data-grid.context-menu.items"
+                    context={{
+                      connectionId,
+                      tableName,
+                      schema: activeSchema,
+                      columnName: contextMenu.colName,
+                      rowIndex: contextMenu.rowIndex,
+                      rowData: mergedRows[contextMenu.rowIndex]
+                        ?.rowData as unknown as
+                        | Record<string, unknown>
+                        | undefined,
+                    }}
+                    className="border-t border-default mt-1 pt-1"
+                  />
+                </ContextMenu>
+              );
+            })()}
+
+          {headerContextMenu && (
+            <ContextMenu
+              x={headerContextMenu.x}
+              y={headerContextMenu.y}
+              onClose={() => setHeaderContextMenu(null)}
+              items={[
+                {
+                  label: selectedColIndices.has(headerContextMenu.colIndex)
+                    ? t("dataGrid.deselectColumn")
+                    : t("dataGrid.selectColumn"),
+                  icon: ListChecks,
+                  action: () => {
+                    const next = toggleSetValue(
+                      selectedColIndices,
+                      headerContextMenu.colIndex,
+                    );
+                    setSelectedColIndices(next);
+                    // Row, column and cell-range selection are mutually exclusive.
+                    if (next.size > 0) {
+                      updateSelection(new Set());
+                      setCellRange(null);
+                    }
+                    setHeaderContextMenu(null);
+                  },
+                },
+                ...(selectedColIndices.size > 0
+                  ? [
+                      {
+                        label: t("dataGrid.copySelectedColumns", {
+                          count: selectedColIndices.size,
+                        }),
+                        icon: Copy,
+                        action: async () => {
+                          await copySelectedColumns();
+                          setHeaderContextMenu(null);
+                        },
+                      } as ContextMenuItem,
+                    ]
+                  : []),
+                { separator: true } as ContextMenuItem,
+                {
+                  label: t("dataGrid.copyColumnName"),
+                  icon: Copy,
+                  action: copyHeaderName,
+                },
+                {
+                  label: t("dataGrid.copyColumnNameQuoted"),
+                  icon: Copy,
+                  action: copyHeaderNameQuoted,
+                },
+                {
+                  label: t("dataGrid.copyColumnNameTable"),
+                  icon: Copy,
+                  action: copyHeaderNameTable,
+                },
+                {
+                  label: t("dataGrid.copyColumnValues"),
+                  icon: Copy,
+                  action: async () => {
+                    await copyColumnValues(
+                      columns.indexOf(headerContextMenu.colName),
+                    );
+                    setHeaderContextMenu(null);
+                  },
+                },
+                {
+                  label: t("dataGrid.copyColumnValuesIn"),
+                  icon: Copy,
+                  action: async () => {
+                    await copyColumnValuesAsInClause(
+                      columns.indexOf(headerContextMenu.colName),
+                    );
+                    setHeaderContextMenu(null);
+                  },
+                },
+              ]}
+            />
+          )}
+
+          {/* Row Editor Sidebar is now rendered in the RightSidebar layout component */}
+        </div>
+      </>
+    );
+  },
+);

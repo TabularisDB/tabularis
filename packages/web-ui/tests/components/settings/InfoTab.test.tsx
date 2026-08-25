@@ -1,0 +1,188 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { InfoTab } from "../../../src/components/settings/InfoTab";
+import type { Settings } from "../../../src/contexts/SettingsContext";
+
+const translations: Record<string, string> = {
+  "settings.releaseChannel": "Release channel",
+  "settings.releaseChannelDesc":
+    "Stable ships tested releases. Nightly builds from the latest main branch — newer, but may be unstable.",
+  "settings.channelStable": "Stable",
+  "settings.channelNightly": "Nightly",
+  "update.nightlyWarning":
+    "Nightly builds are unstable pre-releases. Only assets built for the nightly channel are installed.",
+  "update.managedByPackageManager": "Updates managed by {{source}}",
+  "update.managedByPackageManagerDesc":
+    "Use your package manager to update Tabularis.",
+  "update.serverManagedTitle": "Server-managed updates",
+  "update.serverManagedDesc":
+    "A browser cannot replace the Tabularis server binary. Ask the server administrator to follow the upgrade guide.",
+  "update.serverVersion": "Server version",
+  "update.serverBuild": "Server build",
+  "update.openServerUpgradeGuide": "Open server upgrade guide",
+};
+
+vi.mock("lucide-react", () => ({
+  Github: () => null,
+  CheckCircle2: () => null,
+  Circle: () => null,
+  Heart: () => null,
+  Info: () => null,
+  Code2: () => null,
+  Library: () => null,
+  Download: () => null,
+  Loader2: () => null,
+  ExternalLink: () => null,
+  Activity: () => null,
+  Sparkles: () => null,
+  Share2: () => null,
+}));
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) =>
+      (translations[key] ?? key).replace(
+        "{{source}}",
+        String(values?.source ?? ""),
+      ),
+  }),
+}));
+
+const openExternalUrl = vi.hoisted(() => vi.fn());
+vi.mock("../../../src/hooks/usePlatformCapabilities", () => ({
+  usePlatformCapabilities: () => ({ openExternalUrl }),
+}));
+
+vi.mock("../../../src/hooks/useTheme", () => ({
+  useTheme: vi.fn(() => ({
+    currentTheme: { id: "tabularis-dark", colors: {} },
+  })),
+}));
+
+vi.mock("../../../src/hooks/useChangelog", () => ({
+  useChangelog: vi.fn(() => ({
+    entries: [],
+    isLoading: false,
+    error: null,
+  })),
+}));
+
+vi.mock("../../../src/hooks/useSecondaryWindows", () => ({
+  useSecondaryWindows: () => ({ openTaskManager: vi.fn() }),
+}));
+
+// Not under test here; avoid pulling in their own icon/markdown dependencies.
+vi.mock("../../../src/components/modals/WhatsNewModal", () => ({
+  WhatsNewModal: () => null,
+}));
+vi.mock("../../../src/components/modals/OpenSourceLibrariesModal", () => ({
+  OpenSourceLibrariesModal: () => null,
+}));
+
+const mockUseSettings = vi.fn();
+vi.mock("../../../src/hooks/useSettings", () => ({
+  useSettings: (...args: unknown[]) => mockUseSettings(...args),
+}));
+
+const mockUseUpdate = vi.fn();
+vi.mock("../../../src/hooks/useUpdate", () => ({
+  useUpdate: (...args: unknown[]) => mockUseUpdate(...args),
+}));
+
+interface RenderInfoTabOptions {
+  installationSource?: string | null;
+  releaseChannel?: Settings["releaseChannel"];
+  updateSetting?: (...args: unknown[]) => void;
+  updaterMode?: "native" | "server-managed";
+}
+
+function renderInfoTab({
+  installationSource = null,
+  releaseChannel,
+  updateSetting = vi.fn(),
+  updaterMode = "native",
+}: RenderInfoTabOptions) {
+  mockUseSettings.mockReturnValue({
+    settings: { releaseChannel } as Settings,
+    updateSetting,
+  });
+  mockUseUpdate.mockReturnValue({
+    checkForUpdates: vi.fn(),
+    isChecking: false,
+    updateInfo: null,
+    error: null,
+    isUpToDate: false,
+    installationSource,
+    updaterMode,
+    serverInfo:
+      updaterMode === "server-managed"
+        ? {
+            version: "1.4.2",
+            build: {
+              target: "linux-x86_64",
+              profile: "release",
+              commit: "abc1234",
+            },
+          }
+        : null,
+  });
+  return render(<InfoTab />);
+}
+
+describe("InfoTab", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows the release channel selector on a direct install", () => {
+    renderInfoTab({ installationSource: null });
+    expect(screen.getByText("Release channel")).toBeInTheDocument();
+  });
+
+  it("persists a channel change", () => {
+    const updateSetting = vi.fn();
+    renderInfoTab({ installationSource: null, updateSetting });
+    fireEvent.click(screen.getByRole("button", { name: "Nightly" }));
+    expect(updateSetting).toHaveBeenCalledWith("releaseChannel", "nightly");
+  });
+
+  it("hides the selector for managed installs", () => {
+    renderInfoTab({ installationSource: "aur" });
+    expect(screen.queryByText("Release channel")).not.toBeInTheDocument();
+  });
+
+  it("shows the custom package manager name", () => {
+    renderInfoTab({ installationSource: "Solus" });
+    expect(screen.getByText("Updates managed by Solus")).toBeInTheDocument();
+    expect(screen.queryByText("Release channel")).not.toBeInTheDocument();
+  });
+
+  it("shows the nightly warning when the nightly channel is selected", () => {
+    renderInfoTab({ installationSource: null, releaseChannel: "nightly" });
+    expect(
+      screen.getByText(
+        "Nightly builds are unstable pre-releases. Only assets built for the nightly channel are installed.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows server build details and upgrade guidance in web mode", () => {
+    renderInfoTab({ updaterMode: "server-managed" });
+
+    expect(screen.getByText("Server-managed updates")).toBeInTheDocument();
+    expect(screen.getByText("v1.4.2")).toBeInTheDocument();
+    expect(
+      screen.getByText("linux-x86_64 · release · abc1234"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open server upgrade guide" }),
+    );
+    expect(openExternalUrl).toHaveBeenCalledWith(
+      "https://github.com/TabularisDB/tabularis/blob/main/web-ui-project/docs/WEB_MODE_UPGRADES.md",
+    );
+    expect(screen.queryByText("Release channel")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "settings.checkNow" }),
+    ).not.toBeInTheDocument();
+  });
+});

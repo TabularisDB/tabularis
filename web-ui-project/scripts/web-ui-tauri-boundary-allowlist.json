@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "adapterFiles": [
+    "packages/web-ui/src/api/transports/tauriTransport.ts",
+    "packages/web-ui/src/platform/environment.ts",
+    "packages/web-ui/src/platform/tauriCapabilities.ts"
+  ],
+  "legacyTauriImports": {
+    "packages/web-ui/src/components/ConnectionHealthMonitor.tsx": 1,
+    "packages/web-ui/src/components/modals/ClipboardImportModal.tsx": 1,
+    "packages/web-ui/src/components/modals/ConfigJsonModal.tsx": 1,
+    "packages/web-ui/src/components/modals/NewConnectionModal.tsx": 1,
+    "packages/web-ui/src/components/settings/PluginsTab.tsx": 2,
+    "packages/web-ui/src/contexts/DatabaseProvider.tsx": 2,
+    "packages/web-ui/src/contexts/UpdateProvider.tsx": 2,
+    "packages/web-ui/src/hooks/useDataTypes.ts": 1,
+    "packages/web-ui/src/hooks/useDeepLinkInstall.ts": 2,
+    "packages/web-ui/src/pages/Editor.tsx": 1,
+    "packages/web-ui/src/pages/VisualExplainPage.tsx": 1,
+    "packages/web-ui/src/utils/mcpApprovalAttention.ts": 1
+  },
+  "legacyDirectInvokes": {
+    "packages/web-ui/src/components/modals/ClipboardImportModal.tsx": 2,
+    "packages/web-ui/src/components/modals/ConfigJsonModal.tsx": 1,
+    "packages/web-ui/src/components/modals/NewConnectionModal.tsx": 1,
+    "packages/web-ui/src/components/settings/PluginsTab.tsx": 1,
+    "packages/web-ui/src/contexts/DatabaseProvider.tsx": 6,
+    "packages/web-ui/src/contexts/UpdateProvider.tsx": 2,
+    "packages/web-ui/src/hooks/useDataTypes.ts": 1,
+    "packages/web-ui/src/hooks/useDeepLinkInstall.ts": 1,
+    "packages/web-ui/src/pages/Editor.tsx": 1,
+    "packages/web-ui/src/pages/VisualExplainPage.tsx": 2
+  }
+}
