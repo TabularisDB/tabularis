@@ -23,13 +23,16 @@ fn escape_identifier(name: &str) -> String {
     name.replace('"', "\"\"")
 }
 
-fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> TableColumn {
+fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> Option<TableColumn> {
     let pk: i32 = row.try_get("pk").unwrap_or(0);
     let notnull: i32 = row.try_get("notnull").unwrap_or(0);
     let dflt_value: Option<String> = row.try_get("dflt_value").ok();
     let hidden: i32 = row.try_get("hidden").unwrap_or(0);
+    if hidden == 1 {
+        return None;
+    }
 
-    TableColumn {
+    Some(TableColumn {
         name: row.try_get("name").unwrap_or_default(),
         data_type: row.try_get("type").unwrap_or_default(),
         is_pk: pk > 0,
@@ -38,7 +41,7 @@ fn sqlite_column_from_row(row: &sqlx::sqlite::SqliteRow) -> TableColumn {
         is_generated: hidden == 2 || hidden == 3,
         default_value: dflt_value,
         character_maximum_length: None,
-    }
+    })
 }
 
 async fn is_generated_column(
@@ -97,7 +100,7 @@ pub async fn get_columns(
         .await
         .map_err(|e| e.to_string())?;
 
-    Ok(rows.iter().map(sqlite_column_from_row).collect())
+    Ok(rows.iter().filter_map(sqlite_column_from_row).collect())
 }
 
 pub async fn get_routines(_params: &ConnectionParams) -> Result<Vec<RoutineInfo>, String> {
@@ -169,7 +172,7 @@ pub async fn get_all_columns_batch(
             .await
             .map_err(|e| e.to_string())?;
 
-        let columns: Vec<TableColumn> = rows.iter().map(sqlite_column_from_row).collect();
+        let columns: Vec<TableColumn> = rows.iter().filter_map(sqlite_column_from_row).collect();
 
         result.insert(table_name.clone(), columns);
     }
@@ -857,7 +860,7 @@ pub async fn get_view_columns(
         .await
         .map_err(|e| e.to_string())?;
 
-    Ok(rows.iter().map(sqlite_column_from_row).collect())
+    Ok(rows.iter().filter_map(sqlite_column_from_row).collect())
 }
 
 pub async fn get_triggers(params: &ConnectionParams) -> Result<Vec<TriggerInfo>, String> {

@@ -101,6 +101,7 @@ pub struct ImportSourceInfo {
     pub connection_count: usize,
     pub reads_passwords_from_keychain: bool,
     pub needs_file: bool,
+    pub manual_path_supported: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -336,6 +337,7 @@ pub async fn list_import_sources() -> Result<Vec<ImportSourceInfo>, String> {
             connection_count,
             reads_passwords_from_keychain: importer.reads_passwords_from_keychain(),
             needs_file: importer.import_file_types().is_some(),
+            manual_path_supported: importer.supports_manual_path(),
         });
     }
     Ok(sources)

@@ -118,12 +118,15 @@ export const ImportFromAppModal = ({
       connectionCount: 0,
       readsPasswordsFromKeychain: false,
       needsFile: true,
+      manualPathSupported: false,
     };
     client.call("list_connection_import_sources", undefined)
       .then((list) => {
         const all = [tabularisSource, ...list];
         setSources(all);
-        const firstAvailable = all.find((s) => s.available);
+        const firstAvailable = all.find(
+          (s) => s.available || s.needsFile || s.manualPathSupported,
+        );
         setSelectedId(firstAvailable?.id ?? null);
       })
       .catch((e) => setError(toErrorMessage(e)))
@@ -131,6 +134,11 @@ export const ImportFromAppModal = ({
   }, [client, isOpen, reset]);
 
   const selectedSource = sources.find((s) => s.id === selectedId) ?? null;
+  const canContinueFromPicker =
+    !!selectedSource &&
+    (selectedSource.available ||
+      selectedSource.needsFile ||
+      selectedSource.manualPathSupported);
 
   // Seed the preview step from a returned ImportPreview: import everything,
   // skip duplicates, and default each item's group to its source folder
@@ -167,7 +175,14 @@ export const ImportFromAppModal = ({
   };
 
   const handleContinue = async () => {
-    if (!selectedSource || !selectedSource.available) return;
+    if (
+      !selectedSource ||
+      (!selectedSource.available &&
+        !selectedSource.needsFile &&
+        !selectedSource.manualPathSupported)
+    ) {
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
@@ -193,7 +208,13 @@ export const ImportFromAppModal = ({
       }
 
       let file: ConnectionImportFile | null = null;
-      if (selectedSource.needsFile) {
+      const needsManualPath =
+        selectedSource.manualPathSupported && !selectedSource.available;
+      if (needsManualPath) {
+        const picked = await platform.chooseServerPath({ kind: "directory" });
+        if (!picked) return;
+        file = { kind: "serverPath", path: picked.reference };
+      } else if (selectedSource.needsFile) {
         const picked = await platform.chooseInputFile();
         if (!picked) return;
         file = await prepareConnectionImportFile(client, platform, picked);
@@ -509,7 +530,7 @@ export const ImportFromAppModal = ({
             {step === "picker" ? (
               <button
                 onClick={handleContinue}
-                disabled={!selectedSource?.available || loading}
+                disabled={!canContinueFromPicker || loading}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {t("common.continue", { defaultValue: "Continue" })}
@@ -559,8 +580,13 @@ const SourcePicker = ({
 
   const subtitle = (s: ImportSourceInfo) => {
     if (s.id === TABULARIS_SOURCE_ID) return t("connections.importFromApp.tabularisJsonHint");
-    if (!s.available) return t("connections.importFromApp.notInstalled");
     if (s.needsFile) return t("connections.importFromApp.chooseFile");
+    if (!s.available && s.manualPathSupported) {
+      return t("connections.importFromApp.chooseConfigPath", {
+        defaultValue: "Choose the app config folder to import",
+      });
+    }
+    if (!s.available) return t("connections.importFromApp.notInstalled");
     return t("connections.importFromApp.connectionsFound", { count: s.connectionCount });
   };
 
@@ -574,14 +600,17 @@ const SourcePicker = ({
           return (
             <button
               key={s.id}
-              disabled={!s.available}
+              disabled={!s.available && !s.needsFile && !s.manualPathSupported}
               onClick={() => onSelect(s.id)}
               className={clsx(
                 "w-full flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all",
                 selected
                   ? "border-blue-500/60 bg-blue-500/10"
                   : "border-strong bg-base hover:border-blue-400/40",
-                !s.available && "opacity-50 cursor-not-allowed hover:border-strong",
+                !s.available &&
+                  !s.needsFile &&
+                  !s.manualPathSupported &&
+                  "opacity-50 cursor-not-allowed hover:border-strong",
               )}
             >
               <div className="p-2 rounded-lg bg-surface-secondary">

@@ -235,6 +235,42 @@ async fn test_get_columns_includes_generated_table_columns() {
 }
 
 #[tokio::test]
+async fn test_get_columns_excludes_hidden_virtual_table_columns() {
+    let (params, _file) = setup_test_db().await;
+
+    let path = params.database.primary().to_string();
+    let options = SqliteConnectOptions::new().filename(&path);
+    let pool = SqlitePoolOptions::new()
+        .connect_with(options)
+        .await
+        .expect("connect to test DB");
+
+    sqlx::query("CREATE VIRTUAL TABLE docs USING fts5(title, body)")
+        .execute(&pool)
+        .await
+        .expect("create fts5 table");
+
+    pool.close().await;
+
+    let cols = get_columns(&params, "docs")
+        .await
+        .expect("get virtual table columns");
+    let col_names: Vec<&str> = cols.iter().map(|col| col.name.as_str()).collect();
+    assert_eq!(col_names, vec!["title", "body"]);
+
+    let batch = get_all_columns_batch(&params, &["docs".to_string()])
+        .await
+        .expect("get batch columns");
+    let batch_col_names: Vec<&str> = batch["docs"]
+        .iter()
+        .map(|col| col.name.as_str())
+        .collect();
+    assert_eq!(batch_col_names, vec!["title", "body"]);
+
+    crate::pool_manager::close_pool(&params).await;
+}
+
+#[tokio::test]
 async fn test_generated_table_columns_are_not_inserted_or_updated() {
     let (params, _file) = setup_test_db().await;
 

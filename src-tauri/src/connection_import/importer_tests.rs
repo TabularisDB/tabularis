@@ -96,6 +96,36 @@ async fn tableplus_parses_plist() {
 }
 
 #[tokio::test]
+async fn tableplus_import_accepts_manual_data_dir() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data_dir = tmp.path().join("Moved/TablePlus/Data");
+    write(
+        &data_dir.join("Connections.plist"),
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<array>
+  <dict>
+    <key>ConnectionName</key><string>Moved PG</string>
+    <key>Driver</key><string>PostgreSQL</string>
+    <key>DatabaseHost</key><string>db.local</string>
+    <key>DatabasePort</key><integer>5432</integer>
+    <key>DatabaseUser</key><string>dev</string>
+    <key>DatabaseName</key><string>app</string>
+  </dict>
+</array>
+</plist>"#,
+    );
+
+    let importer = TablePlusImporter::default();
+    let env = importer.import(false, Some(&data_dir)).await.unwrap();
+    let c = &env.connections[0];
+    assert_eq!(c.name, "Moved PG");
+    assert_eq!(c.host, "db.local");
+    assert_eq!(c.database, "app");
+}
+
+#[tokio::test]
 async fn datagrip_parses_xml() {
     let tmp = tempfile::tempdir().unwrap();
     let ds = tmp

@@ -78,6 +78,11 @@ pub trait ForeignAppImporter: Send + Sync {
     fn import_file_types(&self) -> Option<Vec<&'static str>> {
         None
     }
+    /// True when the importer can accept a user-selected config path if
+    /// auto-discovery fails.
+    fn supports_manual_path(&self) -> bool {
+        false
+    }
     /// True when the source app's data is present on disk.
     async fn is_available(&self) -> bool;
     /// Best-effort count of discoverable connections (0 on any error).

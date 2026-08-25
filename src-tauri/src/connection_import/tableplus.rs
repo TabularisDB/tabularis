@@ -37,6 +37,9 @@ impl ForeignAppImporter for TablePlusImporter {
     fn reads_passwords_from_keychain(&self) -> bool {
         true
     }
+    fn supports_manual_path(&self) -> bool {
+        true
+    }
     async fn is_available(&self) -> bool {
         self.connections_file().is_file()
     }
@@ -49,9 +52,10 @@ impl ForeignAppImporter for TablePlusImporter {
     async fn import(
         &self,
         include_passwords: bool,
-        _file: Option<&Path>,
+        file: Option<&Path>,
     ) -> Result<ImportEnvelope, ForeignImportError> {
-        let path = self.connections_file();
+        let data_dir = self.data_dir_for(file);
+        let path = data_dir.join("Connections.plist");
         if !path.is_file() {
             return Err(ForeignImportError::FileNotFound(self.display_name().to_string()));
         }
@@ -59,7 +63,7 @@ impl ForeignAppImporter for TablePlusImporter {
             ForeignImportError::UnsupportedFormat("Expected array in Connections.plist".into())
         })?;
 
-        let group_map = self.load_groups();
+        let group_map = self.load_groups_from(&data_dir);
         let mut envelope = ImportEnvelope {
             source_name: self.display_name().to_string(),
             ..Default::default()
@@ -169,9 +173,17 @@ impl TablePlusImporter {
         self.data_dir().join("Connections.plist")
     }
 
-    fn load_groups(&self) -> std::collections::HashMap<String, String> {
+    fn data_dir_for(&self, file: Option<&Path>) -> PathBuf {
+        match file {
+            Some(path) if path.is_dir() => path.to_path_buf(),
+            Some(path) => path.parent().map(Path::to_path_buf).unwrap_or_else(|| self.data_dir()),
+            None => self.data_dir(),
+        }
+    }
+
+    fn load_groups_from(&self, data_dir: &Path) -> std::collections::HashMap<String, String> {
         let mut map = std::collections::HashMap::new();
-        if let Some(array) = load_plist_array(&self.data_dir().join("ConnectionGroups.plist")) {
+        if let Some(array) = load_plist_array(&data_dir.join("ConnectionGroups.plist")) {
             for group in array {
                 if let Some(dict) = group.as_dictionary() {
                     if let (Some(id), Some(name)) = (

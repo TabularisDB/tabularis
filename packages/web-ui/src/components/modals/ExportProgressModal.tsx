@@ -1,4 +1,11 @@
-import { X, FileText, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import {
+  X,
+  FileText,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  AlertTriangle,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "../ui/Modal";
 
@@ -10,6 +17,7 @@ interface ExportProgressModalProps {
   rowsProcessed: number;
   fileName: string;
   errorMessage?: string;
+  warningMessage?: string;
   onCancel: () => void;
   onClose: () => void;
 }
@@ -22,6 +30,7 @@ export const ExportProgressModal = ({
   onClose,
   fileName,
   errorMessage,
+  warningMessage,
 }: ExportProgressModalProps) => {
   const { t } = useTranslation();
 
@@ -62,12 +71,20 @@ export const ExportProgressModal = ({
                 {errorMessage}
               </p>
             ) : (
-              <p className="text-secondary text-sm">
-                {t("editor.rowsProcessed")}:{" "}
-                <span className="text-white font-mono font-bold">
-                  {rowsProcessed.toLocaleString()}
-                </span>
-              </p>
+              <>
+                <p className="text-secondary text-sm">
+                  {t("editor.rowsProcessed")}:{" "}
+                  <span className="text-white font-mono font-bold">
+                    {rowsProcessed.toLocaleString()}
+                  </span>
+                </p>
+                {warningMessage && (
+                  <div className="mt-3 flex items-start gap-2 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-left text-xs text-amber-200">
+                    <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                    <span>{warningMessage}</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -86,7 +103,7 @@ export const ExportProgressModal = ({
               onClick={onClose}
               className="px-4 py-2 bg-surface-tertiary hover:bg-surface-tertiary text-white rounded flex items-center gap-2 transition-colors text-sm font-medium"
             >
-              {t("common.close")} {/* Assicurati che "close" esista in common, altrimenti usa "cancel" o aggiungilo */}
+              {t("common.close")}
             </button>
           )}
         </div>

@@ -39,7 +39,7 @@ pub async fn preview_connection_import<R: Runtime>(
     cache: tauri::State<'_, ImportEnvelopeCache>,
     source_id: String,
     include_passwords: bool,
-    file_path: Option<String>,
+    file: Option<ConnectionImportFile>,
 ) -> Result<analyzer::ImportPreview, String> {
     connection_files::preview_foreign_import(
         app.state::<crate::runtime::RuntimeContext>().inner(),
@@ -47,7 +47,7 @@ pub async fn preview_connection_import<R: Runtime>(
         None,
         source_id,
         include_passwords,
-        file_path.map(|path| ConnectionImportFile::ServerPath { path }),
+        file,
     )
     .await
 }

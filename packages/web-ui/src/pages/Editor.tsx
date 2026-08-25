@@ -4,6 +4,10 @@ import { useTranslation } from "react-i18next";
 import { reconstructTableQuery, resolveTabPageSize } from "../utils/editor";
 import { shouldShowStatementSuccess } from "../utils/resultPresentation";
 import { formatRowsForCopy, copyTextToClipboard } from "../utils/clipboard";
+import {
+  formatResultForExport,
+  getLoadedRowsExportLimit,
+} from "../utils/resultExport";
 import { serializePkKey, buildPkMap } from "../utils/dataGrid";
 import {
   buildKeylessUpdatePlan,
@@ -96,6 +100,7 @@ import {
   removeOtherEntries,
   removeEntriesToRight,
   removeEntriesToLeft,
+  findActiveEntry,
 } from "../utils/multiResult";
 import {
   extractQueryParams,
@@ -162,7 +167,10 @@ import { computeAutoScrollSpeed } from "../utils/notebookDnd";
 import clsx from "clsx";
 import { useTabularisClient } from "../hooks/useTabularisClient";
 import { createRequestId } from "../api/errors";
-import { downloadGeneratedFile } from "../utils/fileDownloads";
+import {
+  downloadGeneratedFile,
+  downloadTextFile,
+} from "../utils/fileDownloads";
 
 const CHEVRON_SELECT_STYLE: React.CSSProperties = {
   backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
@@ -266,6 +274,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     rowsProcessed: number;
     fileName: string;
     errorMessage?: string;
+    warningMessage?: string;
   }>({
     isOpen: false,
     status: "exporting",
@@ -477,6 +486,16 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const isMultiDb = usesMultiDatabaseLayout(activeCapabilities, selectedDatabases);
   const isEditorOpen =
     !isTableTab && (activeTab?.isEditorOpen ?? activeTab?.type !== "table");
+  const activeResultEntry = useMemo(
+    () =>
+      activeTab?.results
+        ? findActiveEntry(activeTab.results, activeTab.activeResultId)
+        : undefined,
+    [activeTab?.activeResultId, activeTab?.results],
+  );
+  const activeExportResult = activeResultEntry?.result ?? activeTab?.result;
+  const canExportActiveResult =
+    !!activeExportResult && activeExportResult.rows.length > 0;
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
@@ -1382,7 +1401,15 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         applied.add(idx);
         applyStatement(idx, item);
       });
-      updateTab(targetTabId, { isLoading: false });
+      const firstResultEntry = batchResults.findIndex(
+        (item) => (item.result?.rows.length ?? 0) > 0,
+      );
+      updateTab(targetTabId, {
+        isLoading: false,
+        ...(firstResultEntry >= 0
+          ? { activeResultId: entries[firstResultEntry].id }
+          : {}),
+      });
     },
     [
       client,
@@ -3385,6 +3412,64 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
   const handleExportCommon = async (format: "csv" | "json" | "markdown") => {
     if (!activeTab || !activeConnectionId) return;
 
+    const extension = format === "markdown" ? "md" : format;
+    const multiResult = activeResultEntry?.result;
+    if (multiResult?.rows.length) {
+      try {
+        const loadedRowsLimit = getLoadedRowsExportLimit(multiResult);
+        const warningMessage = loadedRowsLimit
+          ? t("editor.exportLoadedRowsWarning", {
+              loaded: loadedRowsLimit.loadedRows.toLocaleString(),
+              total: loadedRowsLimit.totalRows.toLocaleString(),
+            })
+          : undefined;
+
+        const fileName = `result_${Date.now()}.${extension}`;
+        setExportState({
+          isOpen: true,
+          status: "exporting",
+          rowsProcessed: multiResult.rows.length,
+          fileName,
+          errorMessage: undefined,
+          warningMessage,
+        });
+        setExportMenuOpen(false);
+
+        const downloaded = await downloadTextFile(platform, {
+          fileName,
+          contents: formatResultForExport(multiResult, format, csvDelimiter),
+          mimeType:
+            format === "json"
+              ? "application/json"
+              : format === "markdown"
+                ? "text/markdown"
+                : "text/csv",
+          filters: [
+            {
+              name: format === "markdown" ? "Markdown" : format.toUpperCase(),
+              extensions: [extension],
+            },
+          ],
+        });
+        if (!downloaded) {
+          setExportState((prev) => ({ ...prev, isOpen: false }));
+          return;
+        }
+
+        setExportState((prev) => ({
+          ...prev,
+          status: "completed",
+        }));
+      } catch (e) {
+        setExportState((prev) => ({
+          ...prev,
+          status: "error",
+          errorMessage: String(e),
+        }));
+      }
+      return;
+    }
+
     const effectiveSchema =
       activeCapabilities?.schemas === true ? activeTab.schema : undefined;
     const tabForQuery = { ...activeTab, schema: effectiveSchema };
@@ -3396,7 +3481,6 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
     if (!query || !query.trim()) return;
 
     try {
-      const extension = format === "markdown" ? "md" : format;
       const fileName = `result_${Date.now()}.${extension}`;
       const filter = {
         name: format === "markdown" ? "Markdown" : format.toUpperCase(),
@@ -3418,6 +3502,8 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         status: "exporting",
         rowsProcessed: 0,
         fileName,
+        errorMessage: undefined,
+        warningMessage: undefined,
       });
       setExportMenuOpen(false);
 
@@ -3939,7 +4025,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         <div ref={exportMenuRef} className="relative ml-auto shrink-0">
           <button
             onClick={() => setExportMenuOpen(!exportMenuOpen)}
-            disabled={!activeTab.result || activeTab.result.rows.length === 0}
+            disabled={!canExportActiveResult}
             aria-haspopup="menu"
             aria-expanded={exportMenuOpen}
             title={t("editor.export")}
@@ -4950,6 +5036,7 @@ export const Editor = ({ commandScopeId }: EditorProps) => {
         rowsProcessed={exportState.rowsProcessed}
         fileName={exportState.fileName}
         errorMessage={exportState.errorMessage}
+        warningMessage={exportState.warningMessage}
         onCancel={cancelExport}
         onClose={closeExportModal}
       />
