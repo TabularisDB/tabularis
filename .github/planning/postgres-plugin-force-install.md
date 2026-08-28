@@ -328,31 +328,56 @@ correctly filled-out issue in the *plugin's own repo* — which is also
 where its maintainers actually triage reports, and the reason the plugin
 was split into its own repo in the first place.
 
-This is built without any new telemetry or auto-collection: a shared
-helper, `src/utils/pluginIssueReport.ts`, exposes
+This is built without any new telemetry or auto-collection, and without
+relying on GitHub's plain `issues/new?title=&body=` prefill — that
+mechanism only prefills a single free-text body, has no way to enforce
+that a report actually contains what's needed, and stops working outright
+on any repo with an issue-template chooser configured. Instead, the plugin
+repo ships two **GitHub Issue Forms**
+(`.github/ISSUE_TEMPLATE/migration-failure.yml` and `capability-gap.yml` —
+structured YAML forms, not the old markdown templates), each with named,
+typed fields — a required `error` textarea, a `failure_mode` dropdown,
+`plugin_version`/`app_version`/`os` inputs — and a label already set in
+the form's own frontmatter, so labels apply automatically instead of
+depending on a `labels=` query param.
+
+A shared helper, `src/utils/pluginIssueReport.ts`, exposes
 `buildPluginIssueUrl({ pluginId, pluginVersion, repoUrl, appVersion, os,
 failureMode, context })`, which builds a
-`github.com/<org>/<repo>/issues/new?title=...&body=...&labels=...`
-URL — GitHub's own issue-prefill query parameters, no API call or auth
-needed — and opens it with the existing `openUrl` from
-`@tauri-apps/plugin-opener` (already used for exactly this in
-`InfoTab.tsx`/`SocialLinks.tsx`). `repoUrl` comes from the plugin's own
+`github.com/<org>/<repo>/issues/new?template=migration-failure.yml&plugin_version=...&error=...`
+URL — GitHub's query-param prefill targets a specific form's fields by
+their `id`, not a raw body string — and opens it with the existing
+`openUrl` from `@tauri-apps/plugin-opener` (already used for exactly this
+in `InfoTab.tsx`/`SocialLinks.tsx`). `repoUrl` comes from the plugin's own
 registry manifest (`RegistryPluginWithStatus.repo_url`, already fetched by
 `useDrivers`, `registry.rs:93` → `types/plugins.ts:133`), so no new
-backend field is needed. The user sees the pre-filled form on GitHub's own
-page before anything is submitted — the app assembles a draft, the user
-reviews and sends it, the same trust model as a `mailto:` link.
+backend field is needed. The user lands on the pre-filled form on GitHub's
+own page, reviews it, and submits it themselves — the app assembles a
+draft, nothing is sent on the user's behalf, the same trust model as a
+`mailto:` link.
 
-The body template interpolates only a fixed, named set of fields — plugin
-id/version, app version, OS, the specific error, which driver the
+Only a fixed, named set of fields is ever interpolated into the URL —
+plugin id/version, app version, OS, the specific error, which driver the
 connection came from — never a raw `params` object. That's a deliberate
 constraint, not an oversight: there's no code path by which a credential
-or connection string can end up in a public issue body.
+or connection string can end up in a public issue.
+
+Filing an issue this way still requires the user to have and be signed
+into a GitHub account — GitHub has no anonymous issue-creation path, and
+building one (a hosted proxy holding a bot token with `issues:write`)
+would be new infrastructure disproportionate to this feature and
+inconsistent with the no-new-backend approach used everywhere else in
+this design. That's an accepted constraint, not a gap to solve here.
 
 Two entry points surface "Report an issue": right next to Undo on a
-failed post-migration test (above), and as a standing link on the
-plugin's own Settings page (`PluginSettingsPage.tsx`) for problems found
-later, unrelated to the migration moment itself.
+failed post-migration test (above), targeting `migration-failure.yml`; and
+a standing "Report a plugin issue" link on the plugin's own Settings page
+(`PluginSettingsPage.tsx`) for problems found later, unrelated to the
+migration moment itself. That link targets a third, general-purpose
+template, `bug_report.yml` — `migration-failure.yml`'s fields
+(`failure_mode`, `migrated_from_driver`) only make sense mid-migration, so
+a generic bug needs its own form rather than a forced fit into either
+migration-specific template.
 
 ### Feature-parity gaps
 
@@ -372,11 +397,10 @@ but it's still shown, with the specific gap named inline ("uses IAM
 auth — not yet supported by the plugin") and a "Report this gap" action
 next to it.
 
-That action uses the same `buildPluginIssueUrl` helper with a distinct
-template ("Feature parity: `{feature}` not supported" rather than a
-migration-failure report), and the fact that it was reported is recorded
-locally (a `knownCapabilityGaps: Record<pluginId, string[]>` map) so the
-same user isn't prompted to re-report a gap already filed.
+That action uses the same `buildPluginIssueUrl` helper, targeting the
+`capability-gap.yml` form instead, and the fact that it was reported is
+recorded locally (a `knownCapabilityGaps: Record<pluginId, string[]>` map)
+so the same user isn't prompted to re-report a gap already filed.
 
 No separate parity checklist needs to be maintained in the plugin repo —
 its own test suite is the checklist. A builtin capability without a
@@ -385,7 +409,8 @@ work, add the test and make it pass. Concretely, before this ships: do the
 builtin-vs-plugin capability diff once by hand and file whatever it turns
 up as real issues in `tabularis-postgresql-plugin` now, so the migration
 doesn't launch with a known, unaddressed gap already sitting in the
-checklist. (Tracking issue for the labels this needs:
+checklist. (Tracking issue for the Issue Form templates, labels, and this
+capability diff:
 [tabularis-postgresql-plugin#56](https://github.com/TabularisDB/tabularis-postgresql-plugin/issues/56).)
 The intent is for the "unchecked by default" list to shrink release over
 release as the plugin catches up — a temporary state, not a permanent
@@ -469,34 +494,15 @@ Connections row), small tag, not alarming red:
 > specific to `prod-analytics-db` — no connection was attempted.
 > [Undo] [Report an issue]
 
-**GitHub issue prefill — migration failure** (branches on `failureMode`):
-> Title (connection-level): `Migration from builtin failed: {error, truncated}`
-> Title (process-level): `Plugin failed to start: {startupError, truncated}`
-> Body:
+**Issue Form prefill — migration failure** (targets
+`migration-failure.yml`, connection-level example):
+> `github.com/TabularisDB/tabularis-postgresql-plugin/issues/new?template=migration-failure.yml&failure_mode=connection&plugin_version={pluginVersion}&app_version={appVersion}&os={os}&migrated_from_driver=postgres&error={error}`
 >
-> ```text
-> **Failure mode:** {connection|process}
-> **Migrated from:** builtin `postgres` → plugin `postgresql` v{pluginVersion}
-> **App version:** {appVersion}
-> **OS:** {os}
-> **Error:** {error or startupError}
->
-> <!-- Add any additional context above. No credentials are included. -->
-> ```
+> Renders as a form with those fields already filled in; `error` and
+> `failure_mode` are required, so the user can't submit without them.
 
-**GitHub issue prefill — capability gap:**
-> Title: `Feature parity gap: {feature} not supported`
-> Body:
->
-> ```text
-> **Feature:** {feature} (used by a builtin postgres connection)
-> **Plugin version:** {pluginVersion}
-> **App version:** {appVersion}
->
-> The builtin PostgreSQL driver supports {feature}; the plugin's declared
-> capabilities do not yet. Filed automatically from Tabularis's
-> builtin-to-plugin migration flow.
-> ```
+**Issue Form prefill — capability gap** (targets `capability-gap.yml`):
+> `github.com/TabularisDB/tabularis-postgresql-plugin/issues/new?template=capability-gap.yml&feature={feature}&plugin_version={pluginVersion}&app_version={appVersion}`
 
 ## Implementation summary
 
@@ -525,7 +531,9 @@ Connections row), small tag, not alarming red:
 - `src/utils/findUnsupportedFeatures.ts` (new) — pure comparison of a
   connection's used params against a plugin's declared `DriverCapabilities`
 - `src/utils/pluginIssueReport.ts` (new) — `buildPluginIssueUrl(...)`,
-  driver-agnostic, shared by migration-failure and capability-gap reports
+  driver-agnostic, targets a plugin's Issue Form templates
+  (`migration-failure.yml`, `capability-gap.yml`, `bug_report.yml`) by
+  field id rather than assembling a free-text body
 - `src/components/banners/PostgresPluginMigrationBanner.tsx` (new)
 - `src/pages/Connections.tsx` — render the banner inline
 - Connections list row / context menu — bidirectional "Switch to plugin" /
@@ -554,9 +562,11 @@ Connections row), small tag, not alarming red:
 - Frontend test for `useBuiltinDriverMigration`'s gating: dismissed
   setting, empty vs. non-empty connection list, banner reappearing only
   when a new builtin connection of that type is added post-dismissal.
-- Frontend test for `buildPluginIssueUrl`: confirms the generated URL/body
-  never contains connection params beyond the explicitly listed fields —
-  a security-relevant test, not just a happy-path one.
+- Frontend test for `buildPluginIssueUrl`: confirms the generated URL
+  never contains connection params beyond the explicitly listed fields,
+  and that it targets the correct template (`migration-failure.yml`,
+  `capability-gap.yml`, or `bug_report.yml`) for each call site — a
+  security-relevant test, not just a happy-path one.
 - Manual, full lifecycle:
   1. Fresh app data dir → launch → `postgresql` plugin appears under
      Settings → Plugins with no user action, and the release's WhatsNew
@@ -569,16 +579,22 @@ Connections row), small tag, not alarming red:
   4. Click Undo → the driver flips back and the row's action reverts to
      "Switch to plugin".
   5. Migrate again against an unreachable host → the failure state offers
-     both Undo and Report an issue, and Report opens a pre-filled GitHub
-     issue on `TabularisDB/tabularis-postgresql-plugin` with no
-     credentials in the body.
+     both Undo and Report an issue, and Report opens the
+     `migration-failure.yml` Issue Form on
+     `TabularisDB/tabularis-postgresql-plugin` with its fields already
+     filled in and no credentials anywhere in the URL or form.
   6. Open the connection-type picker for a new connection → the builtin
      postgres entry shows the deprecated badge, the plugin entry appears
      first in the group, and the tooltip names the replacement and timeline.
   7. Create a connection with SSH tunneling on the builtin driver → open
      the migration checklist → it's shown unchecked by default with the
-     specific gap named, and "Report this gap" opens the capability-gap
-     issue template, distinct from the migration-failure one.
+     specific gap named, and "Report this gap" opens the
+     `capability-gap.yml` Issue Form, distinct from the migration-failure one.
+  8. While signed out of GitHub in the browser, click "Report an issue" →
+     confirm the login redirect eventually lands back on the pre-filled
+     form with fields intact, not a blank one — see the note under
+     Follow-ups; this needs a one-time manual check against a real GitHub
+     session before shipping, since it can't be verified without one.
 
 ## Follow-ups
 
@@ -586,3 +602,18 @@ Connections row), small tag, not alarming red:
   date into a committed date/version, once the signals in
   [Measuring adoption](#measuring-adoption) show real migration uptake.
 - Refine the draft copy above during implementation or PR review.
+- **Verify the login-redirect path preserves prefilled fields.** GitHub
+  requires a signed-in session even to *view* an issue-creation URL, so a
+  logged-out user gets redirected to `github.com/login?return_to=<original
+  URL>` first. `return_to` is GitHub's own mechanism for returning to the
+  original destination post-login, but whether it preserves the full query
+  string (and therefore the prefilled fields) through that round-trip
+  hasn't been confirmed hands-on — do that once with a real GitHub account
+  before relying on it. If it drops the fields, the fallback is a "Copy
+  issue details" action next to "Report an issue" that copies the same
+  field values as plain text, so a user who hits this (or who simply
+  doesn't have a GitHub account) still has something to paste elsewhere.
+- Filing an issue this way requires a GitHub account — there is no
+  anonymous path, and a hosted proxy to work around that was considered
+  and deliberately not pursued (see the design section above). Revisit
+  only if this turns out to be a real adoption blocker in practice.
