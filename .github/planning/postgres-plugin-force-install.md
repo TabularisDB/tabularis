@@ -407,14 +407,15 @@ recorded locally (a `knownCapabilityGaps: Record<pluginId, string[]>` map)
 so the same user isn't prompted to re-report a gap already filed.
 
 No separate parity checklist needs to be maintained in the plugin repo —
-its own test suite is the checklist. A builtin capability without a
-corresponding test in the plugin *is* the gap; closing it is ordinary TDD
-work, add the test and make it pass. Concretely, before this ships: do the
-builtin-vs-plugin capability diff once by hand and file whatever it turns
-up as real issues in `tabularis-postgresql-plugin` now, so the migration
-doesn't launch with a known, unaddressed gap already sitting in the
-checklist. (Tracking issue for the Issue Form templates, labels, and this
-capability diff:
+its own test suite is the checklist, and the builtin-vs-plugin capability
+diff already runs as part of every plugin release. A builtin capability
+without a corresponding test in the plugin *is* the gap; closing it is
+ordinary TDD work, add the test and make it pass. What that existing
+release-time diff turns up should get filed as real issues in
+`tabularis-postgresql-plugin`, using the `capability-gap` template, so the
+migration flow's exclusion list reflects tracked issues rather than an
+untracked known-gaps list. (Tracking issue for the Issue Form templates
+and labels:
 [tabularis-postgresql-plugin#56](https://github.com/TabularisDB/tabularis-postgresql-plugin/issues/56).)
 The intent is for the "unchecked by default" list to shrink release over
 release as the plugin catches up — a temporary state, not a permanent
