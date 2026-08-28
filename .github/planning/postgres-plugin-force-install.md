@@ -367,7 +367,11 @@ into a GitHub account — GitHub has no anonymous issue-creation path, and
 building one (a hosted proxy holding a bot token with `issues:write`)
 would be new infrastructure disproportionate to this feature and
 inconsistent with the no-new-backend approach used everywhere else in
-this design. That's an accepted constraint, not a gap to solve here.
+this design. That's an accepted constraint, not a gap to solve here. A
+logged-out user who clicks "Report an issue" is redirected to GitHub's
+login page first — confirmed hands-on that the prefilled query string
+survives that round-trip via GitHub's `return_to` mechanism, so they land
+back on the same pre-filled form after signing in, not a blank one.
 
 Two entry points surface "Report an issue": right next to Undo on a
 failed post-migration test (above), targeting `migration-failure.yml`; and
@@ -591,10 +595,10 @@ Connections row), small tag, not alarming red:
      specific gap named, and "Report this gap" opens the
      `capability-gap.yml` Issue Form, distinct from the migration-failure one.
   8. While signed out of GitHub in the browser, click "Report an issue" →
-     confirm the login redirect eventually lands back on the pre-filled
-     form with fields intact, not a blank one — see the note under
-     Follow-ups; this needs a one-time manual check against a real GitHub
-     session before shipping, since it can't be verified without one.
+     the login redirect lands back on the pre-filled form with fields
+     intact, not a blank one — confirmed via GitHub's `return_to`
+     mechanism, which preserves the full original query string through
+     the login round-trip.
 
 ## Follow-ups
 
@@ -602,17 +606,6 @@ Connections row), small tag, not alarming red:
   date into a committed date/version, once the signals in
   [Measuring adoption](#measuring-adoption) show real migration uptake.
 - Refine the draft copy above during implementation or PR review.
-- **Verify the login-redirect path preserves prefilled fields.** GitHub
-  requires a signed-in session even to *view* an issue-creation URL, so a
-  logged-out user gets redirected to `github.com/login?return_to=<original
-  URL>` first. `return_to` is GitHub's own mechanism for returning to the
-  original destination post-login, but whether it preserves the full query
-  string (and therefore the prefilled fields) through that round-trip
-  hasn't been confirmed hands-on — do that once with a real GitHub account
-  before relying on it. If it drops the fields, the fallback is a "Copy
-  issue details" action next to "Report an issue" that copies the same
-  field values as plain text, so a user who hits this (or who simply
-  doesn't have a GitHub account) still has something to paste elsewhere.
 - Filing an issue this way requires a GitHub account — there is no
   anonymous path, and a hosted proxy to work around that was considered
   and deliberately not pursued (see the design section above). Revisit
