@@ -744,7 +744,7 @@ List views in a schema/database.
 
 Get the SQL definition of a view.
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "view": string }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "view_name": string }`
 
 **Result:** `"SELECT * FROM users WHERE active = true"`
 
@@ -754,7 +754,7 @@ Get the SQL definition of a view.
 
 Get column information for a view.
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "view": string }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "view_name": string }`
 
 **Result:** Same structure as `get_columns`.
 
@@ -764,7 +764,7 @@ Get column information for a view.
 
 Create a new view.
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "name": string, "definition": string }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "view_name": string, "definition": string }`
 
 **Result:** `null` on success, or an error.
 
@@ -774,7 +774,7 @@ Create a new view.
 
 Replace or modify an existing view.
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "name": string, "definition": string }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "view_name": string, "definition": string }`
 
 **Result:** `null` on success, or an error.
 
@@ -784,7 +784,7 @@ Replace or modify an existing view.
 
 Drop a view.
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "name": string }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "view_name": string }`
 
 **Result:** `null` on success, or an error.
 
@@ -849,7 +849,7 @@ List stored procedures and functions.
 
 Get parameters of a stored routine.
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "routine": string }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "routine_name": string }`
 
 **Result:**
 ```json
@@ -864,7 +864,7 @@ Get parameters of a stored routine.
 
 Get the SQL body of a stored routine.
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "routine": string }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "routine_name": string, "routine_type": string }`
 
 **Result:** `"BEGIN ... END"`
 
@@ -935,9 +935,10 @@ Execute a SQL query and return results.
 ```json
 {
   "params": ConnectionParams,
+  "schema": null,
   "query": "SELECT * FROM users",
-  "page": 1,
-  "page_size": 100
+  "limit": 100,
+  "page": 1
 }
 ```
 
@@ -967,11 +968,12 @@ Insert a new row into a table.
   "params": ConnectionParams,
   "schema": null,
   "table": "users",
-  "data": { "name": "Bob", "email": "bob@example.com" }
+  "data": { "name": "Bob", "email": "bob@example.com" },
+  "max_blob_size": 10485760
 }
 ```
 
-**Result:** `null` on success, or an error.
+**Result:** Number of affected rows (e.g. `1`), or an error.
 
 ---
 
@@ -979,16 +981,20 @@ Insert a new row into a table.
 
 Update a single field in a row.
 
+`pk_map` holds every primary key column of the row, so composite keys survive the
+round trip. A driver that reads a single `pk_col`/`pk_val` pair will filter on
+nothing and silently report zero updated rows.
+
 **Params:**
 ```json
 {
   "params": ConnectionParams,
   "schema": null,
   "table": "users",
-  "pk_col": "id",
-  "pk_val": 42,
+  "pk_map": { "id": 42 },
   "col_name": "name",
-  "new_val": "Robert"
+  "new_val": "Robert",
+  "max_blob_size": 10485760
 }
 ```
 
@@ -1006,8 +1012,7 @@ Delete a row from a table.
   "params": ConnectionParams,
   "schema": null,
   "table": "users",
-  "pk_col": "id",
-  "pk_val": 42
+  "pk_map": { "id": 42 }
 }
 ```
 
@@ -1156,41 +1161,41 @@ These methods generate SQL statements. Tabularis may display the SQL to the user
 
 #### `get_create_table_sql`
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string }`
+**Params:** `{ "table_name": string, "columns": ColumnDefinition[], "schema": string | null }`
 
-**Result:** `"CREATE TABLE users (...)"`
+**Result:** `["CREATE TABLE users (...)"]` — an array of statements.
 
 ---
 
 #### `get_add_column_sql`
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "column": ColumnDefinition }`
+**Params:** `{ "table": string, "column": ColumnDefinition, "schema": string | null }`
 
-**Result:** `"ALTER TABLE users ADD COLUMN ..."`
+**Result:** `["ALTER TABLE users ADD COLUMN ..."]` — an array of statements.
 
 ---
 
 #### `get_alter_column_sql`
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "column": ColumnDefinition }`
+**Params:** `{ "table": string, "old_column": ColumnDefinition, "new_column": ColumnDefinition, "schema": string | null }`
 
-**Result:** `"ALTER TABLE users MODIFY COLUMN ..."`
+**Result:** `["ALTER TABLE users MODIFY COLUMN ..."]` — an array of statements.
 
 ---
 
 #### `get_create_index_sql`
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "index": IndexDefinition }`
+**Params:** `{ "table": string, "index_name": string, "columns": string[], "is_unique": boolean, "schema": string | null }`
 
-**Result:** `"CREATE INDEX idx_email ON users(email)"`
+**Result:** `["CREATE INDEX idx_email ON users(email)"]` — an array of statements.
 
 ---
 
 #### `get_create_foreign_key_sql`
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "fk": ForeignKeyDefinition }`
+**Params:** `{ "table": string, "fk_name": string, "column": string, "ref_table": string, "ref_column": string, "on_delete": string | null, "on_update": string | null, "schema": string | null }`
 
-**Result:** `"ALTER TABLE orders ADD CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id)"`
+**Result:** `["ALTER TABLE orders ADD CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id)"]` — an array of statements.
 
 ---
 
@@ -1204,7 +1209,7 @@ These methods generate SQL statements. Tabularis may display the SQL to the user
 
 #### `drop_foreign_key`
 
-**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "constraint_name": string }`
+**Params:** `{ "params": ConnectionParams, "schema": string | null, "table": string, "fk_name": string }`
 
 **Result:** `null` on success, or an error.
 
