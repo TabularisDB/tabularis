@@ -22,6 +22,25 @@ export interface PluginConfig {
   settings?: Record<string, unknown>;
 }
 
+/** One entry in the append-only driver-migration history. Kept even after an
+ * undo so a filed issue has the before/after to attach. */
+export interface DriverMigrationRecord {
+  /** Connection that was migrated. */
+  connectionId: string;
+  /** Driver id migrated from (e.g. the built-in "postgres"). */
+  fromDriver: string;
+  /** Driver id migrated to (e.g. the plugin "postgresql"). */
+  toDriver: string;
+  /** ISO-8601 timestamp of the migration. */
+  migratedAt: string;
+  /** Whether the post-migration "Switched — Undo" toast was dismissed. */
+  toastDismissed?: boolean;
+}
+
+/** Whether a built-in driver's migration is opt-in or forced. Flipping to
+ * "forced" is a separate, later decision; the default everywhere is "opt-in". */
+export type MigrationMode = "opt-in" | "forced";
+
 export interface Settings {
   resultPageSize: number; // Changed from queryLimit to match backend config
   language: AppLanguage;
@@ -123,6 +142,19 @@ export interface Settings {
     string,
     { include?: string[]; exclude?: string[] }
   >;
+  // Built-in driver migration
+  /** Whether the user has dismissed the PostgreSQL-plugin migration banner.
+   * Absent/undefined → banner is eligible to show. */
+  postgresPluginMigrationBannerDismissed?: boolean;
+  /** Append-only record of every connection migrated between built-in and
+   * plugin drivers. Kept even after an undo. */
+  driverMigrationHistory?: DriverMigrationRecord[];
+  /** Map of pluginId → list of capability-gap feature names already reported,
+   * so the same user isn't prompted to re-report a gap already filed. */
+  knownCapabilityGaps?: Record<string, string[]>;
+  /** Per built-in driver id → migration mode. Defaults to "opt-in" when unset;
+   * flipping an entry to "forced" is a separate, later decision. */
+  migrationModeByDriver?: Record<string, MigrationMode>;
 }
 
 export interface SettingsContextType {
