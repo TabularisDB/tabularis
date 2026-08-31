@@ -10,10 +10,11 @@ Tabularis ships a builtin `postgres` driver and a standalone plugin
 now the source of truth for Postgres support — the in-tree driver was
 extracted into the plugin in `4149839f`. Plugin adoption is low. This doc
 designs an interim step ahead of the builtin's eventual removal: install
-the plugin for every user automatically, make the builtin's deprecated
-status visible everywhere it appears, and give users a low-friction,
-reversible path to move their existing connections onto the plugin —
-without ever forcing the migration or removing the builtin outright.
+the plugin for any user who already has a connection that needs it, make
+the builtin's deprecated status visible everywhere it appears, and give
+users a low-friction, reversible path to move their existing connections
+onto the plugin — without ever forcing the migration in this iteration or
+removing the builtin outright.
 
 ## Background
 
@@ -32,49 +33,87 @@ this design.
 
 ## Goals
 
-1. Every user has the `postgresql` plugin installed automatically, whether
-   or not they use Postgres, so it's available and adoption grows.
-2. Users with existing builtin-postgres connections are shown a clear,
-   low-pressure path to migrate them to the plugin.
+1. Any user with an existing builtin-postgres connection gets the
+   `postgresql` plugin installed automatically, so it's ready before
+   they're asked to migrate anything. Users with no Postgres connections
+   at all aren't affected — this avoids bloating installs with drivers
+   nobody needs, the same principle already behind treating plugins as
+   separate from the app in the first place.
+2. Those users are shown a clear, low-pressure path to migrate their
+   existing connections to the plugin.
 3. New connections are steered toward the plugin by default.
 4. Migrating is reversible and safe: a bad outcome is a one-click Undo,
    not a support ticket.
 5. Any friction the migration surfaces — a failed connection, a missing
    capability — becomes a pre-filled, reviewable GitHub issue in the
    plugin repo, not a dead end.
+6. The opt-in migration flow here is step one. A later, separate decision
+   can flip migration from opt-in to forced, per builtin driver, once
+   there's real adoption/quality signal to justify it (see
+   [Staging toward forced migration](#staging-toward-forced-migration)).
 
 ## Non-goals
 
 - Removing or disabling the builtin driver.
-- Forcing migration — there is no unskippable blocker anywhere in this flow.
-- Auto-migrating a connection without explicit user confirmation.
+- Forcing migration in this iteration — every migration here requires
+  explicit user confirmation. A future, separately-decided switch to
+  forced migration is designed below, but not enabled by this design.
+- Installing the plugin for users who have no need for it yet.
 - Adding telemetry or usage tracking (see [Measuring adoption](#measuring-adoption)).
 
 ## Design
 
-### Force-installing the plugin
+### Installing the plugin when it's needed
 
-On launch, the app ensures the `postgresql` plugin is installed, whether or
-not the user has any Postgres connections. This runs as a background async
-task spawned from `src-tauri/src/lib.rs`'s `setup()` closure, right after
-the existing plugin-loading block (`plugins::manager::load_plugins(...)`,
-~line 276) — spawned via `tauri::async_runtime::spawn`, not `block_on`, so a
-slow or failed registry fetch never delays window creation. This mirrors
-the existing health-check-ping-loop spawn a few lines below it.
+The plugin is installed only when triggered by an existing need, not
+unconditionally for every user — a user with no Postgres connections at
+all never gets it installed. This follows an already-shipped precedent in
+this codebase: `NewConnectionModal.tsx` (line ~291) already installs a
+driver on the fly, right before connecting, if the user picks one that
+isn't installed yet. The trigger here is the same idea applied to existing
+connections instead of a new-connection pick: on launch, if at least one
+saved connection has `params.driver == "postgres"` (builtin), the app
+ensures the `postgresql` plugin is installed before offering to migrate
+anything.
+
+This runs as a background async task spawned from `src-tauri/src/lib.rs`'s
+`setup()` closure, right after the existing plugin-loading block
+(`plugins::manager::load_plugins(...)`, ~line 276) — spawned via
+`tauri::async_runtime::spawn`, not `block_on`, so a slow or failed
+registry fetch never delays window creation. This mirrors the existing
+health-check-ping-loop spawn a few lines below it.
 
 ```rust
 {
     let handle = app.handle().clone();
     tauri::async_runtime::spawn(async move {
-        plugins::force_install::ensure_plugin_installed(&handle, "postgresql").await;
+        plugins::force_install::ensure_plugin_installed_if_needed(
+            &handle, "postgres", "postgresql",
+        ).await;
     });
 }
 ```
 
-A new module, `src-tauri/src/plugins/force_install.rs`, does the check and
-install:
+A new module, `src-tauri/src/plugins/force_install.rs`, checks for a
+triggering connection before installing:
 
 ```rust
+pub async fn ensure_plugin_installed_if_needed(
+    app: &AppHandle,
+    builtin_id: &str,
+    plugin_id: &str,
+) {
+    match connections_use_driver(app, builtin_id) {
+        Ok(false) => return, // nothing on this builtin driver, nothing to do
+        Ok(true) => {}
+        Err(e) => {
+            log::warn!("[force-install] could not read connections: {e}");
+            return;
+        }
+    }
+    ensure_plugin_installed(app, plugin_id).await;
+}
+
 pub async fn ensure_plugin_installed(app: &AppHandle, plugin_id: &str) {
     match installer::list_installed() {
         Ok(installed) if installed.iter().any(|p| p.id == plugin_id) => return,
@@ -98,11 +137,14 @@ pub async fn ensure_plugin_installed(app: &AppHandle, plugin_id: &str) {
 }
 ```
 
-`ensure_plugin_installed` takes the driver id as a parameter rather than
-hardcoding postgres, so future deprecations add a call, not a new function.
-Which plugins get force-installed is a small static list,
-`FORCE_INSTALLED_PLUGINS: &[(&str, &str)]` of `(builtin_id, plugin_id)`
-pairs — one line per future deprecation.
+`ensure_plugin_installed_if_needed` and `ensure_plugin_installed` both
+take driver ids as parameters rather than hardcoding postgres, so future
+deprecations add a call, not a new function. Which builtin/plugin pairs
+this applies to is a small static list, `MIGRATABLE_DRIVERS: &[(&str, &str)]`
+of `(builtin_id, plugin_id)` pairs — one line per future deprecation.
+`connections_use_driver` reuses the same connection-reading path
+`get_connections` already uses (`commands.rs:1432`) — no new persistence
+code.
 
 This reuses `install_plugin` (`src-tauri/src/plugins/commands.rs:153`)
 as-is: it already resolves the latest version via Tabularium, verifies
@@ -113,7 +155,7 @@ code is needed.
 release's `min_tabularis_version` before installing — that field exists on
 the manifest but today is used only to inform a human choosing a version
 manually (`RegistryReleaseWithStatus.min_tabularis_version`). Left as-is,
-an unattended force-install could silently install a plugin release that
+an unattended install could silently install a plugin release that
 requires a newer Tabularis than the user is running, leaving them
 installed-but-non-functional with no explanation. `plugin_compatible_with_this_app`
 closes this gap by checking the latest release's `min_tabularis_version`
@@ -121,29 +163,32 @@ against the running app's own version (`env!("CARGO_PKG_VERSION")`) using
 the same semver comparison `classify_install` already implements
 (`registry.rs:43`, reused rather than reimplemented). An incompatible
 release is skipped for this launch and retried on the next one — the same
-posture as any other force-install failure.
+posture as any other install failure below.
 
-**Failure behavior.** Every failure path — can't list installed plugins,
-incompatible version, install itself fails — logs via `log::warn!` and
-returns silently; there's no UI-visible error and no retry loop within a
-single launch. The check re-runs from scratch on every launch, so a
-transient failure (network blip, temporary incompatibility) self-heals on
-its own without any additional state to manage.
+**Failure behavior.** Every failure path — can't read connections, can't
+list installed plugins, incompatible version, install itself fails —
+logs via `log::warn!` and returns silently; there's no UI-visible error
+and no retry loop within a single launch. The check re-runs from scratch
+on every launch, so a transient failure (network blip, temporary
+incompatibility) self-heals on its own without any additional state to
+manage.
 
 **Disclosure.** Installing a plugin with no visible trace is a trust
 problem as well as a UX one — it runs as a subprocess with its own code on
 the user's machine. Rather than building new UI for this, the release's
-`WhatsNewModal` changelog entry gets one line: "Pre-installed the new
-PostgreSQL plugin — see Settings → Plugins." That's enough for a user who
-notices or goes looking to find an explanation, without a dedicated
-notification.
+`WhatsNewModal` changelog entry gets one line: "Existing PostgreSQL
+connections now get the new plugin installed automatically — see Settings
+→ Plugins." That's enough for a user who notices or goes looking to find
+an explanation, without a dedicated notification.
 
-**Reinstall after manual uninstall.** If a user uninstalls the plugin,
-this force-installs it again on the next launch — there's no "user opted
-out" state tracked anywhere. That's the correct behavior given the
-adoption goal, but it should be called out explicitly in the PR
-description, since it's the piece of this design most likely to surprise
-someone.
+**Reinstall after manual uninstall.** If a user with a builtin-postgres
+connection uninstalls the plugin, the trigger condition (a builtin-postgres
+connection exists) is still true, so it installs again on the next launch —
+there's no "user opted out" state tracked anywhere. That's consistent with
+the same on-demand-install precedent this section is modeled on
+(`NewConnectionModal.tsx`), but it should still be called out explicitly
+in the PR description, since it's the piece of this design most likely to
+surprise someone.
 
 ### Flagging the builtin as deprecated
 
@@ -155,7 +200,7 @@ real time. Closing this is as important as the migration flow itself.
 `PluginManifest` (`src-tauri/src/drivers/driver_trait.rs`, mirrored in
 `src/types/plugins.ts`) gains a `deprecated: Option<DeprecationInfo>` field,
 where `DeprecationInfo` carries `{ replacementId, removalDate, removalVersion }`.
-It's populated the same way as `FORCE_INSTALLED_PLUGINS` — a small static
+It's populated the same way as `MIGRATABLE_DRIVERS` — a small static
 table, stamped onto the builtin's manifest at driver registration time in
 `lib.rs` — not a registry round-trip, since this is an app-level decision
 about the app's own builtins.
@@ -317,6 +362,48 @@ an undo, so a filed issue has the actual before/after to attach, and a
 future deprecation pass can see who already tried and bounced off a given
 plugin.
 
+### Staging toward forced migration
+
+Everything above is opt-in: a user chooses to migrate, and can choose to
+undo it. That's deliberate for this first release — it lets the plugin
+prove itself against real, varied connections before anyone is migrated
+without asking. But opt-in isn't the end state; the goal is still to get
+everyone off the builtin driver eventually, and low opt-in uptake alone
+shouldn't be treated as "done, ship it" — the plan is to revisit and
+tighten this once there's real signal the plugin is ready.
+
+That transition is modeled as a per-builtin-driver setting rather than a
+single global switch, because postgres, mysql, and sqlite won't reach
+"ready to force" on the same schedule — postgres could move to forced
+migration while mysql's plugin is still opt-in and hasn't even started
+generating its own adoption data. `AppConfig` gains
+`migration_mode_by_driver: Option<HashMap<String, MigrationMode>>` (Rust)
+/ `migrationModeByDriver?: Record<string, "opt-in" | "forced">` (TS),
+keyed by builtin driver id, every entry defaulting to `"opt-in"` if unset.
+`useBuiltinDriverMigration(builtinId, pluginId)` reads its own driver's
+entry from this map, so flipping postgres to `"forced"` has no effect on
+any other driver's migration flow.
+
+**What "forced" changes, precisely — and what it doesn't.** Forced mode
+skips the inline confirm dialog before migrating (the "guard against an
+accidental click" mechanic from the previous section is unnecessary once
+the app itself decides to migrate, not the user), and it may migrate
+proactively rather than waiting for a banner click. Forced mode does
+**not** skip the post-migration `test_connection` check or the Undo toast
+— those are a safety net, not a consent mechanic, and matter more, not
+less, once the user didn't personally choose the timing. Turning "forced"
+into "no confirm, no test, no undo, just flip the driver and hope" would
+recreate exactly the silent-failure risk the reversibility design above
+exists to prevent — worse here, since the user never opted in to begin
+with.
+
+This isn't built in this iteration — `migrationModeByDriver` is designed
+now, defaults to `opt-in` everywhere, and the actual decision to flip
+postgres to `forced` is a separate, later call, gated on the same
+adoption/quality signals that revisit the tentative removal date (see
+[Measuring adoption](#measuring-adoption)) — not a fixed timer or an
+arbitrary toggle flipped without that evidence.
+
 ### Turning failures into GitHub issues
 
 The person best positioned to report a plugin bug is the one who just hit
@@ -333,10 +420,11 @@ relying on GitHub's plain `issues/new?title=&body=` prefill — that
 mechanism only prefills a single free-text body, has no way to enforce
 that a report actually contains what's needed, and stops working outright
 on any repo with an issue-template chooser configured. Instead, the plugin
-repo ships two **GitHub Issue Forms**
-(`.github/ISSUE_TEMPLATE/migration-failure.yml` and `capability-gap.yml` —
-structured YAML forms, not the old markdown templates), each with named,
-typed fields — a required `error` textarea, a `failure_mode` dropdown,
+repo ships **GitHub Issue Forms**
+(`.github/ISSUE_TEMPLATE/migration-failure.yml` and `capability-gap.yml`,
+plus a third general-purpose form covered below — structured YAML forms,
+not the old markdown templates), each with named, typed fields — a
+required `error` textarea, a `failure_mode` dropdown,
 `plugin_version`/`app_version`/`os` inputs — and a label already set in
 the form's own frontmatter, so labels apply automatically instead of
 depending on a `labels=` query param.
@@ -427,13 +515,14 @@ Every piece above takes a driver-id parameter rather than hardcoding
 postgres, so the mysql and sqlite deprecations later are additive, not a
 redesign:
 
-- `force_install.rs`'s `FORCE_INSTALLED_PLUGINS` list gains a
+- `force_install.rs`'s `MIGRATABLE_DRIVERS` list gains a
   `(builtin_id, plugin_id)` pair.
 - `useBuiltinDriverMigration(builtinId, pluginId)` gets a new call site;
   the banner, contextual action, rollback toast, and issue helper all
   already key off that pair, not a string literal.
-- `deprecated` on `PluginManifest` and `driverMigrationHistory`'s
-  `fromDriver`/`toDriver` fields are already generic.
+- `deprecated` on `PluginManifest`, `driverMigrationHistory`'s
+  `fromDriver`/`toDriver` fields, and `migrationModeByDriver`'s keys are
+  already generic.
 - `pluginIssueReport.ts` takes a plugin id/repo/version and nothing else —
   it's directly reusable, and arguably useful as a general "report a
   plugin issue" feature independent of any deprecation.
@@ -448,11 +537,13 @@ first-run usage tracking would be a much bigger decision than this feature
 warrants. Adoption is instead read from signals that already exist: the
 Tabularium registry's download counter (`tracked_download_url`/
 `tracked_latest_download_url`, `commands.rs:141-147`) already increments
-on every `install_plugin` call, including force-installs; and issue volume
-under the `migration`/`capability-gap` labels in the plugin repo serves as
-a proxy for both uptake and friction. The tentative removal date is
-revisited using these signals once Parts of this design have actually
-shipped — there's no way to firm it up before that.
+on every `install_plugin` call, including the on-demand installs from this
+flow; and issue volume under the `migration`/`capability-gap` labels in
+the plugin repo serves as a proxy for both uptake and friction. These
+same signals are what a later decision to flip a given driver's
+`migrationModeByDriver` entry to `forced` (above) should be based on,
+along with the tentative removal date — neither is firmed up on a fixed
+timer, only once real data justifies it.
 
 ## Draft copy
 
@@ -514,21 +605,23 @@ Connections row), small tag, not alarming red:
 **Rust:**
 
 - `src-tauri/src/plugins/force_install.rs` (new) —
+  `ensure_plugin_installed_if_needed(app, builtin_id, plugin_id)` and
   `ensure_plugin_installed(app, plugin_id)`,
-  driven by a `FORCE_INSTALLED_PLUGINS` list of `(builtin_id, plugin_id)`
+  driven by a `MIGRATABLE_DRIVERS` list of `(builtin_id, plugin_id)`
   pairs; includes the `min_tabularis_version` compatibility check
-- `src-tauri/src/lib.rs` — spawn the force-install call(s) in `setup()`;
-  stamp `deprecated` onto builtin manifests at driver registration
+- `src-tauri/src/lib.rs` — spawn the install-if-needed call(s) in
+  `setup()`; stamp `deprecated` onto builtin manifests at driver registration
 - `src-tauri/src/config.rs` — new `postgres_plugin_migration_banner_dismissed`,
-  `driver_migration_history: Option<Vec<DriverMigrationRecord>>`, and
-  `known_capability_gaps: Option<HashMap<String, Vec<String>>>` fields
+  `driver_migration_history: Option<Vec<DriverMigrationRecord>>`,
+  `known_capability_gaps: Option<HashMap<String, Vec<String>>>`, and
+  `migration_mode_by_driver: Option<HashMap<String, MigrationMode>>` fields
   (all generic, none postgres-specific)
 - `src-tauri/src/drivers/driver_trait.rs` — `deprecated: Option<DeprecationInfo>`
   on `PluginManifest`
 
 **TypeScript:**
 
-- `src/contexts/SettingsContext.ts` — the three new settings fields above + defaults
+- `src/contexts/SettingsContext.ts` — the four new settings fields above + defaults
 - `src/types/plugins.ts` — `deprecated` field on the manifest type
 - `src/hooks/useBuiltinDriverMigration.ts` (new, parameterized by
   `(builtinId, pluginId)`) — detection, dismissal, migration, and
@@ -558,9 +651,12 @@ Connections row), small tag, not alarming red:
 
 ## Verification plan
 
-- Rust unit tests for `ensure_plugin_installed`: already-installed is a
-  no-op, not-installed calls install, and an incompatible
-  `min_tabularis_version` skips the install (mock/stub `installer::list_installed`).
+- Rust unit tests for `ensure_plugin_installed_if_needed`: no triggering
+  connection is a no-op (install never called), a triggering connection
+  present calls through to `ensure_plugin_installed`. Rust unit tests for
+  `ensure_plugin_installed` itself: already-installed is a no-op,
+  not-installed calls install, and an incompatible `min_tabularis_version`
+  skips the install (mock/stub `installer::list_installed`).
 - Frontend test for `findUnsupportedFeatures`: flags SSH/IAM/k8s-using
   connections against a manifest missing those capabilities, and returns
   empty for a fully-covered connection.
@@ -573,11 +669,13 @@ Connections row), small tag, not alarming red:
   `capability-gap.yml`, or `bug_report.yml`) for each call site — a
   security-relevant test, not just a happy-path one.
 - Manual, full lifecycle:
-  1. Fresh app data dir → launch → `postgresql` plugin appears under
-     Settings → Plugins with no user action, and the release's WhatsNew
-     entry mentions it.
-  2. Add a builtin-postgres connection → relaunch → the banner appears in
-     Connections (not a modal) → dismiss it → relaunch → it stays dismissed.
+  1. Fresh app data dir, no Postgres connections → launch → the
+     `postgresql` plugin is **not** installed; nothing in Settings →
+     Plugins changes.
+  2. Add a builtin-postgres connection → relaunch → the `postgresql`
+     plugin is now installed automatically, and the release's WhatsNew
+     entry mentions it. The banner appears in Connections (not a modal)
+     → dismiss it → relaunch → it stays dismissed.
   3. Use the per-connection action to migrate one connection → it flips
      driver in `connections.json`, runs a post-migration `test_connection`,
      and shows the "Switched — Undo" toast.
@@ -606,6 +704,10 @@ Connections row), small tag, not alarming red:
 - Firm up (or deliberately push) the October 5, 2026 tentative removal
   date into a committed date/version, once the signals in
   [Measuring adoption](#measuring-adoption) show real migration uptake.
+- Decide when (and whether) to flip `migrationModeByDriver["postgres"]`
+  from `opt-in` to `forced` — a separate, later decision gated on the same
+  adoption signals, not part of this iteration's scope (see
+  [Staging toward forced migration](#staging-toward-forced-migration)).
 - Refine the draft copy above during implementation or PR review.
 - Filing an issue this way requires a GitHub account — there is no
   anonymous path, and a hosted proxy to work around that was considered
