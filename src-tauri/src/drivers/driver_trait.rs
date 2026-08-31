@@ -205,6 +205,45 @@ pub struct PluginSettingDefinition {
     pub options: Vec<String>,
 }
 
+/// Deprecation notice for a built-in driver that's being retired in favour
+/// of a standalone plugin. Stamped onto the built-in's `PluginManifest` at
+/// registration time (an app-level decision, not a registry round-trip).
+/// `None` on a manifest means the driver is not deprecated.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DeprecationInfo {
+    /// Driver id of the replacement plugin (e.g. `"postgresql"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replacement_id: Option<String>,
+    /// Human-readable target removal date (tentative, e.g. `"2026-10-05"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub removal_date: Option<String>,
+    /// App version targeted for removal, if decided (e.g. `"2.0.0"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub removal_version: Option<String>,
+}
+
+/// The single source of truth for which built-in drivers are deprecated and
+/// what their replacement is. Each built-in driver stamps the result of
+/// [`deprecation_for_builtin`] onto its manifest at construction time, so the
+/// decision lives in one table rather than spread across driver modules. The
+/// next deprecation (mysql, sqlite) is one entry here plus a call site.
+///
+/// The tentative removal date is revisited once real migration data exists
+/// (see the design doc's "Measuring adoption" section).
+pub fn deprecation_for_builtin(builtin_id: &str) -> Option<DeprecationInfo> {
+    match builtin_id {
+        "postgres" => Some(DeprecationInfo {
+            replacement_id: Some("postgresql".to_string()),
+            removal_date: Some("2026-10-05".to_string()),
+            removal_version: None,
+        }),
+        // mysql and sqlite are expected to follow the same path later; not
+        // deprecated yet, so they return `None` and get no badge.
+        _ => None,
+    }
+}
+
 /// Metadata describing a registered driver plugin.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PluginManifest {
@@ -256,6 +295,11 @@ pub struct PluginManifest {
     /// trait method directly.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub type_mappings: HashMap<String, String>,
+    /// Deprecation notice for a built-in driver being retired in favour of a
+    /// plugin. `None` (and absent from serialized manifests) for drivers that
+    /// are not deprecated. Stamped onto built-ins at registration time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<DeprecationInfo>,
 }
 
 /// The complete interface every database driver plugin must implement.

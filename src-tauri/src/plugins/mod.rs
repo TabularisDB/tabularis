@@ -2,6 +2,7 @@ pub mod commands;
 pub mod compat; // COMPAT(registry-ga): remove with the BC layer
 pub mod deep_link;
 pub mod driver;
+pub mod force_install;
 pub mod install_cancellation;
 pub mod installer;
 pub mod integrity;

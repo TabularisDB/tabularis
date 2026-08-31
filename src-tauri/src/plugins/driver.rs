@@ -1316,6 +1316,7 @@ mod tests {
             settings: Vec::new(),
             ui_extensions: None,
             type_mappings: HashMap::new(),
+            deprecated: None,
         }
     }
 

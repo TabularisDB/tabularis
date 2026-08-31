@@ -177,6 +177,57 @@ pub struct AppConfig {
     pub last_active_connection_id: Option<String>,
     /// Ids of all connections that were open when the app was last closed.
     pub last_open_connection_ids: Option<Vec<String>>,
+
+    // ----- Built-in driver migration -----
+    /// Whether the user has dismissed the PostgreSQL-plugin migration banner.
+    /// `None`/`false` → banner is eligible to show. All four fields in this
+    /// section are driver-id-generic so future built-in deprecations reuse
+    /// them without new config plumbing.
+    #[serde(default)]
+    pub postgres_plugin_migration_banner_dismissed: Option<bool>,
+    /// Append-only record of every connection migrated between built-in and
+    /// plugin drivers. Kept even after an undo, so a filed issue has the
+    /// before/after to attach and a later deprecation pass can see who
+    /// already tried and bounced off a given plugin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driver_migration_history: Option<Vec<DriverMigrationRecord>>,
+    /// Map of `plugin_id` → list of capability-gap feature names the user has
+    /// already reported. Prevents re-prompting for a gap already filed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub known_capability_gaps: Option<HashMap<String, Vec<String>>>,
+    /// Per built-in driver id → migration mode. Defaults to `opt-in` when
+    /// unset; flipping an entry to `forced` is a separate, later decision
+    /// gated on adoption signal — never enabled by this field's existence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub migration_mode_by_driver: Option<HashMap<String, MigrationMode>>,
+}
+
+/// One entry in the append-only driver-migration history.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DriverMigrationRecord {
+    /// Connection that was migrated.
+    pub connection_id: String,
+    /// Driver id migrated from (e.g. the built-in `"postgres"`).
+    pub from_driver: String,
+    /// Driver id migrated to (e.g. the plugin `"postgresql"`).
+    pub to_driver: String,
+    /// ISO-8601 timestamp of the migration.
+    pub migrated_at: String,
+    /// Whether the post-migration "Switched — Undo" toast was dismissed.
+    #[serde(default)]
+    pub toast_dismissed: bool,
+}
+
+/// Whether a built-in driver's migration is opt-in or forced. Flipping to
+/// `Forced` is a separate, later decision; the default everywhere is
+/// `OptIn`.
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum MigrationMode {
+    #[default]
+    OptIn,
+    Forced,
 }
 
 static CONFIG_CACHE: Lazy<RwLock<AppConfig>> = Lazy::new(|| RwLock::new(AppConfig::default()));
@@ -496,6 +547,19 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         }
         if config.last_open_connection_ids.is_some() {
             existing_config.last_open_connection_ids = config.last_open_connection_ids;
+        }
+        if config.postgres_plugin_migration_banner_dismissed.is_some() {
+            existing_config.postgres_plugin_migration_banner_dismissed =
+                config.postgres_plugin_migration_banner_dismissed;
+        }
+        if config.driver_migration_history.is_some() {
+            existing_config.driver_migration_history = config.driver_migration_history;
+        }
+        if config.known_capability_gaps.is_some() {
+            existing_config.known_capability_gaps = config.known_capability_gaps;
+        }
+        if config.migration_mode_by_driver.is_some() {
+            existing_config.migration_mode_by_driver = config.migration_mode_by_driver;
         }
 
         let content = serde_json::to_string_pretty(&existing_config).map_err(|e| e.to_string())?;

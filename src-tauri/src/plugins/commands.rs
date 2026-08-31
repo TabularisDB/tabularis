@@ -299,6 +299,9 @@ pub async fn get_plugin_manifest(plugin_id: String) -> Result<PluginManifest, St
         settings: config.settings,
         ui_extensions: config.ui_extensions,
         type_mappings: config.type_mappings,
+        // `deprecated` is a built-in-only concept stamped at registration;
+        // external plugins read from disk are never deprecated by the app.
+        deprecated: None,
     })
 }
 

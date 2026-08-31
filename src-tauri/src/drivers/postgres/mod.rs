@@ -1739,7 +1739,9 @@ pub async fn drop_trigger(
 // Plugin wrapper
 // ============================================================
 
-use crate::drivers::driver_trait::{DatabaseDriver, DriverCapabilities, PluginManifest, SqlDialect};
+use crate::drivers::driver_trait::{
+    deprecation_for_builtin, DatabaseDriver, DriverCapabilities, PluginManifest, SqlDialect,
+};
 use async_trait::async_trait;
 use std::collections::HashMap;
 
@@ -1794,6 +1796,10 @@ impl PostgresDriver {
                 settings: vec![],
                 ui_extensions: None,
                 type_mappings: std::collections::HashMap::new(),
+                // The built-in postgres driver is deprecated in favour of the
+                // standalone `postgresql` plugin; the decision lives in the
+                // single `deprecation_for_builtin` table.
+                deprecated: deprecation_for_builtin("postgres"),
             },
         }
     }
