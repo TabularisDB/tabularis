@@ -146,32 +146,47 @@ of `(builtin_id, plugin_id)` pairs — one line per future deprecation.
 `get_connections` already uses (`commands.rs:1432`) — no new persistence
 code.
 
-This reuses `install_plugin` (`src-tauri/src/plugins/commands.rs:153`)
-as-is: it already resolves the latest version via Tabularium, verifies
+This calls `install_plugin` (`src-tauri/src/plugins/commands.rs:153`)
+directly: it already resolves the latest version via Tabularium, verifies
 sha256, downloads, and hot-registers the driver. No new download or verify
-code is needed.
+code is needed. `install_plugin` leaves activation to its caller (it
+hot-registers but does not persist `active_external_drivers`), so
+`ensure_plugin_installed` persists activation itself — see
+[Activating the plugin, not just installing it](#installing-the-plugin-when-its-needed)
+above.
 
 **Version compatibility.** `install_plugin` doesn't currently check a
 release's `min_tabularis_version` before installing — that field exists on
 the manifest but today is used only to inform a human choosing a version
-manually (`RegistryReleaseWithStatus.min_tabularis_version`). Left as-is,
+manually (`RegistryReleaseWithStatus.min_tabularis_version`, `registry.rs:129`).
+Left as-is,
 an unattended install could silently install a plugin release that
 requires a newer Tabularis than the user is running, leaving them
 installed-but-non-functional with no explanation. `plugin_compatible_with_this_app`
 closes this gap by checking the latest release's `min_tabularis_version`
-against the running app's own version (`env!("CARGO_PKG_VERSION")`) using
-the same semver comparison `classify_install` already implements
-(`registry.rs:43`, reused rather than reimplemented). An incompatible
-release is skipped for this launch and retried on the next one — the same
-posture as any other install failure below.
+against the running app's own version (`env!("CARGO_PKG_VERSION")`). This is
+new comparison code: `classify_install` (`registry.rs:43`) parses semver for a
+*different* comparison (installed-vs-target plugin version), so it isn't a
+drop-in reuse — but its `semver::Version::parse` primitive is, and the new
+check reuses that rather than pulling in a second semver dependency. An
+incompatible release is skipped for this launch and retried on the next
+one — the same posture as any other install failure below.
 
 **Failure behavior.** Every failure path — can't read connections, can't
 list installed plugins, incompatible version, install itself fails —
 logs via `log::warn!` and returns silently; there's no UI-visible error
 and no retry loop within a single launch. The check re-runs from scratch
-on every launch, so a transient failure (network blip, temporary
-incompatibility) self-heals on its own without any additional state to
-manage.
+on every launch, so a *transient* failure (momentary network blip,
+temporary incompatibility) self-heals on its own without any additional
+state to manage. A *persistent* failure — the user is behind a corporate
+proxy, on an air-gapped box, or the registry is unreachable from their
+network — does **not** self-heal: every launch re-attempts the same
+fetch and fails identically, with no progress and, as written, no
+user-facing explanation. That persistent case is what
+[Connectivity and download failure](#connectivity-and-download-failure)
+below addresses, because the install failing silently is only harmless
+when something else isn't already nudging the user toward a migration
+that can't succeed without the plugin.
 
 **Disclosure.** Installing a plugin with no visible trace is a trust
 problem as well as a UX one — it runs as a subprocess with its own code on
@@ -181,14 +196,118 @@ connections now get the new plugin installed automatically — see Settings
 → Plugins." That's enough for a user who notices or goes looking to find
 an explanation, without a dedicated notification.
 
+**Activating the plugin, not just installing it.** `install_plugin`
+hot-registers the driver for the current session, but it does **not** add
+the plugin id to `active_external_drivers` (`config.rs:69`) — the persisted
+allowlist that `setup()` reads at line 266 and hands to
+`load_plugins(..., active_ext_drivers.as_deref())`. Any installed-but-unlisted
+plugin is skipped as "disabled" on the next launch (`manager.rs:105-113`).
+Without persisting activation, the plugin installs and works once, then
+silently vanishes on relaunch — and any connection already migrated to
+`driver: "postgresql"` fails to connect with no obvious cause. This is the
+one piece `install_plugin` leaves to its caller: the `NewConnectionModal`
+precedent this section is modeled on follows its `install_plugin` call with
+`updateSetting("activeExternalDrivers", [...new Set([...existing, slug])])`
+(`NewConnectionModal.tsx:291-296`). `ensure_plugin_installed` must do the
+same — but it runs backend-side inside a `tauri::async_runtime::spawn`, not
+in the React tree, so it can't call the frontend `updateSetting`. It
+persists activation directly via the existing `save_config` merge
+(`config.rs:273`, which only overwrites fields that are `Some`, so a
+`Config { active_external_drivers: Some(updated), ..Default::default() }`
+payload leaves every other setting untouched), after a successful install:
+
+```rust
+// After a successful install, persist activation so the plugin loads
+// on the next launch. Same effect as NewConnectionModal's updateSetting,
+// written from the backend because this runs in a spawned task.
+let mut config = crate::config::load_config_internal(app);
+let mut active = config.active_external_drivers.unwrap_or_default();
+if !active.contains(&plugin_id.to_string()) {
+    active.push(plugin_id.to_string());
+    config.active_external_drivers = Some(active);
+    if let Err(e) = crate::config::save_config(app.clone(), config) {
+        log::warn!("[force-install] could not activate {plugin_id}: {e}");
+    }
+}
+```
+
+This must run only after the install itself succeeds, so a failed or
+incompatible install never activates a plugin that isn't actually present.
+
 **Reinstall after manual uninstall.** If a user with a builtin-postgres
 connection uninstalls the plugin, the trigger condition (a builtin-postgres
-connection exists) is still true, so it installs again on the next launch —
-there's no "user opted out" state tracked anywhere. That's consistent with
-the same on-demand-install precedent this section is modeled on
-(`NewConnectionModal.tsx`), but it should still be called out explicitly
-in the PR description, since it's the piece of this design most likely to
-surprise someone.
+connection exists) is still true, so it installs *and re-activates* again
+on the next launch — there's no "user opted out" state tracked anywhere.
+That's consistent with the same on-demand-install precedent this section
+is modeled on (`NewConnectionModal.tsx`), but it should still be called out
+explicitly in the PR description, since it's the piece of this design most
+likely to surprise someone. It also means an uninstall that also removed
+the id from `active_external_drivers` (as `PluginsTab.tsx:842` does) is
+correctly reversed: the reinstall re-adds it.
+
+#### Connectivity and download failure
+
+Connectivity to the registry is a precondition for this whole flow, not
+just one of its failure modes — and the design as first written treated
+it as an assumption rather than something it checks. Two distinct problems
+hide under "the download failed," and they need different handling:
+
+- **The ordering trap.** `ensure_plugin_installed` calls
+  `plugin_compatible_with_this_app` *before* installing, and that check
+  itself needs the registry — it reads the latest release's
+  `min_tabularis_version` from a fetched release. On a total network
+  failure the flow bails at the compatibility check, not the download, but
+  with the same silent `log::warn!` outcome. The failure-behavior
+  paragraph above treats these as one indistinguishable bucket, which is
+  accurate for the *transient* case and misleading for the *persistent*
+  one.
+- **The nudge-without-plugin trap.** The install runs in a background
+  spawn and swallows its failure; meanwhile the migration **banner**
+  (separate code path) triggers purely on "a saved connection has
+  `params.driver == "postgres"`" — frontend-side, against
+  `get_connections`, with **no dependency on whether the install
+  succeeded**. So a persistently-offline user gets *no plugin installed*
+  *but the banner still nudging them to migrate*. They click "Switch to
+  plugin," the driver flips to `postgresql`, and `test_connection` then
+  fails with a process-level error ("The PostgreSQL plugin didn't start")
+  because the plugin was never downloaded — a failure state the nudge
+  itself created. The design's Undo + Report-an-issue catches it after
+  the fact, but the user was led into it.
+
+Both are fixed by making the migration nudge *depend on* the plugin
+being present, rather than firing on the connection existing alone:
+
+1. **Gate the banner on the plugin being installed and active.** The
+   banner trigger becomes "at least one builtin-postgres connection
+   *and* the `postgresql` plugin is present in `useDrivers().allDrivers`
+   (and in `active_external_drivers`)" — the same installed/active data
+   `PluginSettingsPage` already reads. If the plugin isn't there yet, the
+   install is in flight or has failed; don't nudge into a guaranteed
+   failure. This is the coupling the design was missing: the nudge now
+   waits on the install rather than racing it.
+2. **Reuse the existing `registryOffline` signal** to tell transient from
+   persistent. `useConnectionCatalogue` already exposes
+   `registryOffline: boolean` (set when `fetch_plugin_registry` rejects,
+   `useConnectionCatalogue.ts:49-55`), and `ConnectionCatalogue.tsx:157`
+   already renders a "registry offline" notice in the new-connection
+   picker — the migration flow just doesn't consume it. When
+   `registryOffline` is true, the banner either stays suppressed or
+   shows an honest message — "The PostgreSQL plugin couldn't be
+   downloaded — we'll retry on next launch; check your connection if this
+   persists" — instead of a "Switch to plugin" nudge it can't back up.
+   No new infrastructure; the signal exists and is already user-visible
+   elsewhere.
+3. **Distinguish transient from persistent in the failure copy** (done
+   above): the install's silent-bail is only harmless when the nudge
+   can't fire ahead of it. With the banner gated on the plugin being
+   present, a persistent block simply means no nudge and no migration
+   pressure until connectivity returns — which is the correct state for
+   someone who can't reach the registry at all.
+
+This keeps the no-new-backend approach intact: the connectivity signal,
+the installed-plugin list, and the active-drivers list all already exist
+in the frontend. The change is wiring them into the banner's trigger
+condition so the nudge can't outrun the install it depends on.
 
 ### Flagging the builtin as deprecated
 
@@ -242,22 +361,31 @@ not new UI work.
 
 For users with connections already on the builtin driver, the nudge to
 migrate is a **dismissible banner**, not a modal. `App.tsx` already stacks
-up to four launch-time modals (Update, Community, WhatsNew,
-PluginInstallConfirm); a fifth recurring one for a non-blocking
-recommendation would be a notification pile-up, and it's the wrong tool
-for a decision that isn't required to proceed. This is the same
-distinction JetBrains, VS Code, and GitHub draw between required
-confirmations (modals) and recommendations (non-blocking, dismissible
-banners that don't reappear every session).
+several top-level modals — four launch-time ones (Update, Community,
+WhatsNew, PluginInstallConfirm, `App.tsx:161-186`) plus on-demand gates
+like `AiApprovalGate` and `SshAskpass` (`App.tsx:183-184`); a recurring one
+for a non-blocking recommendation would be a notification pile-up, and
+it's the wrong tool for a decision that isn't required to proceed. This
+is the same distinction JetBrains, VS Code, and GitHub draw between
+required confirmations (modals) and recommendations (non-blocking,
+dismissible banners that don't reappear every session).
 
 The banner is triggered by at least one saved connection having
-`params.driver == "postgres"` — checked frontend-side against data already
-returned by `get_connections` (`commands.rs:1432`), no new backend command
-needed. It's shown once: dismissing it sets a persisted setting,
+`params.driver == "postgres"` **and the `postgresql` plugin being installed
+and active** — the connection condition is checked frontend-side against
+data already returned by `get_connections` (`commands.rs:1432`), and the
+plugin-present condition against `useDrivers().allDrivers` plus
+`active_external_drivers`, no new backend command needed. Gating on the
+plugin being present is what keeps the nudge from outrunning the install
+it depends on — see
+[Connectivity and download failure](#connectivity-and-download-failure).
+It's shown once: dismissing it sets a persisted setting,
 `postgresPluginMigrationBannerDismissed`, and it only resurfaces if a new
 builtin-postgres connection appears after that (the same
-"did-the-condition-change" logic `WhatsNewModal` uses for its own
-version-gating). There's no separate "don't show again" checkbox in
+"did-the-condition-change" logic used for the WhatsNew version gate,
+which lives in `App.tsx:36-78`, not in the `WhatsNewModal` component
+itself — that modal is purely presentational). There's no separate
+"don't show again" checkbox in
 Settings — dismissing the banner is the opt-out.
 
 Alongside the banner, a **persistent per-connection contextual action** —
@@ -289,9 +417,25 @@ builtin `postgres` id first.
 
 The migration itself is a call to the existing `update_connection`
 command (`commands.rs:1123`) with `params.driver` flipped from `"postgres"`
-to `"postgresql"` — no new backend command needed, since `update_connection`
-already handles a driver change correctly (dropping keychain-stored
-credentials that belonged to the old driver):
+to `"postgresql"` — no new backend command needed. How `update_connection`
+treats the connection's stored secrets on a driver change differs by
+credential type, and the design has to account for the one that breaks:
+
+- **DB password, SSH password, SSH key passphrase** are keyed by
+  `connection_id` only (`keychain_utils.rs:8/73/126`, e.g. `{id}:db`), not
+  by driver. They survive the flip untouched and are reused by the new
+  driver — same connection id, same credentials. A password-based
+  builtin-postgres connection migrates cleanly with no credential work.
+- **Connection URI** is keyed by `connection_id` but gated by `same_driver`
+  (`commands.rs:1147`). On a driver flip `same_driver == false`, so the
+  stored URI is *deleted* by intent (`commands.rs:1145-1147`: "Switching
+  drivers must drop it rather than hand one driver's credentials to
+  another"). A connection-URI-based builtin-postgres connection therefore
+  silently loses its URI on migration and won't reconnect until the user
+  re-enters it — and the post-migration `test_connection` reports a
+  generic connect failure, not "your URI was dropped because the driver
+  changed." That silent failure mode is what the pre-flight warning
+  below exists to surface.
 
 ```ts
 for (const conn of selectedConnections) {
@@ -302,6 +446,32 @@ for (const conn of selectedConnections) {
 }
 refreshConnections();
 ```
+
+**Pre-flight warning for connection-URI connections.** Because a driver
+flip deletes the stored URI (above), the migration flow warns the user
+*before* migrating any connection whose URI is in the keychain — rather
+than letting them discover the breakage as an opaque post-migration
+"couldn't connect." The detection is frontend-side against data the app
+already has: `get_connections` returns the full `SavedConnection`, whose
+`params.connection_uri_in_keychain` (`models.rs:200`) serializes through
+to the TS `ConnectionParams.connection_uri_in_keychain`
+(`connections.ts:28`). A connection with that flag truthy is URI-based
+and will lose its secret on the flip; no new backend command is needed.
+
+For a URI-based connection, the inline confirm (below) is extended with
+an explicit warning and a choice, rather than a bare "Switch":
+
+> Switch `prod-analytics-db` to the PostgreSQL plugin? Its connection
+> string is stored in the keychain and won't carry over to the plugin —
+> you'll need to re-enter it to reconnect. [Cancel] [Switch & re-enter
+> later]
+
+The migration still proceeds on "Switch & re-enter later" — the URI is
+dropped as designed, and the post-migration `test_connection` failure
+flow (next section) catches the predictable connect failure and offers
+Undo. The warning just makes that outcome a deliberate, explained choice
+instead of a silent surprise. A password-based connection sees the
+plain confirm with no warning, since its credentials carry over cleanly.
 
 One thing to verify during implementation, not a design change: whether
 any Postgres-specific `params` fields — `ssl_mode` spelling in particular,
@@ -355,12 +525,18 @@ back.
 
 Every migration is recorded — `{ connectionId, fromDriver, toDriver,
 migratedAt, toastDismissed }` — in a new `Settings` field,
-`driverMigrationHistory`, following the same
-array-of-records shape `AppConfig` already uses for
-`columnMaskingOverrides`/`schema_preferences`. Records are kept even after
-an undo, so a filed issue has the actual before/after to attach, and a
-future deprecation pass can see who already tried and bounced off a given
-plugin.
+`driverMigrationHistory: Option<Vec<DriverMigrationRecord>>`. This
+follows `AppConfig`'s existing pattern for optional persisted collections
+— fields like `schema_preferences: Option<HashMap<String, String>>`
+(`config.rs:62`) and `selected_schemas: Option<HashMap<String, Vec<String>>>`
+(`config.rs:63`), all `Option<…>` so a default-config file stays empty
+rather than carrying an empty container. (An earlier draft cited
+`columnMaskingOverrides` as an array-of-records precedent; that field
+doesn't exist, and `schema_preferences` is a map, not an array — so the
+new field is grounded on the real `Option<collection>` pattern instead.)
+Records are kept even after an undo, so a filed issue has the actual
+before/after to attach, and a future deprecation pass can see who already
+tried and bounced off a given plugin.
 
 ### Staging toward forced migration
 
@@ -436,13 +612,27 @@ failureMode, context })`, which builds a
 URL — GitHub's query-param prefill targets a specific form's fields by
 their `id`, not a raw body string — and opens it with the existing
 `openUrl` from `@tauri-apps/plugin-opener` (already used for exactly this
-in `InfoTab.tsx`/`SocialLinks.tsx`). `repoUrl` comes from the plugin's own
-registry manifest (`RegistryPluginWithStatus.repo_url`, already fetched by
-`useDrivers`, `registry.rs:93` → `types/plugins.ts:133`), so no new
-backend field is needed. The user lands on the pre-filled form on GitHub's
-own page, reviews it, and submits it themselves — the app assembles a
-draft, nothing is sent on the user's behalf, the same trust model as a
-`mailto:` link.
+in `InfoTab.tsx`/`SocialLinks.tsx`; note `InfoTab` lives at
+`src/components/settings/InfoTab.tsx`). The user lands on the pre-filled
+form on GitHub's own page, reviews it, and submits it themselves — the
+app assembles a draft, nothing is sent on the user's behalf, the same
+trust model as a `mailto:` link.
+
+**Where `repoUrl` actually comes from.** It is **not** on the driver
+manifest that `useDrivers` returns — `PluginManifest` (`types/plugins.ts:80`)
+has no `repo_url` field, and the `CatalogueDriver` the migration flow
+works with drops it (`toCatalogueDriver`, `connectionCatalogue.ts:21`). It
+*is* on the registry catalogue item `RegistryPluginWithStatus`
+(`registry.rs:152`, TS `types/plugins.ts:155`), which
+`useConnectionCatalogue`/`usePluginRegistry` fetch via the existing
+`fetch_plugin_registry` command. So `buildPluginIssueUrl`'s call sites
+resolve `repoUrl` by looking the plugin up in that registry data by id
+(`useConnectionCatalogue().registry` or `usePluginRegistry().plugins`),
+not from `useDrivers`. No new backend field is needed — the data is
+already in the frontend — but it's fetched on the catalogue path, not the
+driver-manifest path. `pluginVersion` is the installed version, available
+from the same catalogue item (`installed_version`) or from
+`useDrivers().installedPlugins`.
 
 Only a fixed, named set of fields is ever interpolated into the URL —
 plugin id/version, app version, OS, the specific error, which driver the
@@ -473,21 +663,48 @@ migration-specific template.
 
 ### Feature-parity gaps
 
-A connection that uses a builtin-only capability — SSH tunneling, IAM
-auth, Kubernetes port-forwarding — shouldn't be silently excluded from
-migration forever. Since the plugin is maintained by the same team as the
-builtin, a capability gap is a bug to fix, not a permanent platform
-difference to design around.
+A connection that uses a capability the plugin doesn't declare shouldn't
+be silently excluded from migration forever. Since the plugin is maintained
+by the same team as the builtin, a capability gap is a bug to fix, not a
+permanent platform difference to design around.
 
 Before offering to migrate a connection, a pure function,
 `findUnsupportedFeatures(connection, pluginManifest)`, compares what the
 connection actually uses against the plugin's declared
-`DriverCapabilities` (`driver_trait.rs:45`). A connection with an
-unsupported feature stays **unchecked by default** in the migration
-checklist — the safety property from the original design is unchanged —
-but it's still shown, with the specific gap named inline ("uses IAM
-auth — not yet supported by the plugin") and a "Report this gap" action
-next to it.
+`DriverCapabilities` (`driver_trait.rs:45`, mirrored at
+`types/plugins.ts:3`). A connection with an unsupported feature stays
+**unchecked by default** in the migration checklist — the safety property
+from the original design is unchanged — but it's still shown, with the
+specific gap named inline (e.g. "uses SSL — not yet supported by the
+plugin") and a "Report this gap" action next to it.
+
+**What this actually compares, and what it deliberately does not.** The
+real parity surface is the `DriverCapabilities` flags themselves —
+`supports_ssl`, `connection_string` / `connection_uri` /
+`connection_uri_schemes`, `schemas`, `views`, `materialized_views`,
+`routines`, `triggers`, `alter_primary_key`, `user_management`, etc.
+`findUnsupportedFeatures` compares the connection's used params against
+those flags: a connection with `ssl_mode` set against a manifest whose
+`supports_ssl` is false, or a `connection_uri` against a manifest whose
+`connection_uri` is false. That is the complete and correct list.
+
+What it does **not** compare, because they are not driver capabilities at
+all: **SSH tunneling, IAM auth, and Kubernetes port-forwarding.** These
+are app-level features, transparent to every driver. `test_connection`
+(`commands.rs:2300`) expands the SSH/k8s connection params and rewrites
+`params.port` to the tunnel's local forwarded port
+(`commands.rs:333`/`367`/`404`/`442`) *before* the driver ever sees the
+connection; IAM auth is resolved the same way (`require_iam_token`,
+`commands.rs:2322`). The driver trait has no SSH/tunnel/IAM methods, and
+`DriverCapabilities` has no fields for them — the builtin `postgres`
+driver doesn't "support" SSH tunneling as a driver capability either;
+the app handles it uniformly for all drivers. So a connection using SSH
+tunneling or IAM auth migrates cleanly to the plugin with no parity work
+needed, and must **not** be flagged as an unsupported feature. Naming
+those as example gaps (as an earlier draft of this section did) would
+both mislead users into thinking a safe migration was blocked, and
+misdirect the plugin team toward "implementing SSH" when the app already
+provides it.
 
 That action uses the same `buildPluginIssueUrl` helper, targeting the
 `capability-gap.yml` form instead, and the fact that it was reported is
@@ -536,7 +753,8 @@ No new telemetry is added — this repo has none today, and introducing
 first-run usage tracking would be a much bigger decision than this feature
 warrants. Adoption is instead read from signals that already exist: the
 Tabularium registry's download counter (`tracked_download_url`/
-`tracked_latest_download_url`, `commands.rs:141-147`) already increments
+`tracked_latest_download_url`, `tabularium.rs:120/134`, called from
+`resolve_api_install_asset` at `commands.rs:111`) already increments
 on every `install_plugin` call, including the on-demand installs from this
 flow; and issue volume under the `migration`/`capability-gap` labels in
 the plugin repo serves as a proxy for both uptake and friction. These
@@ -557,6 +775,13 @@ an Undo or Report action.
 > being retired (tentatively Oct 5, 2026). The plugin has the same
 > features and gets updates faster. [Review connections] [×]
 
+**Migration banner — plugin not downloaded** (shown only while
+`registryOffline` is true or the `postgresql` plugin isn't installed;
+suppresses the "Switch" nudge):
+> The PostgreSQL plugin couldn't be downloaded — we'll retry on the next
+> launch. Check your connection or network if this keeps happening.
+> [×]
+
 **Deprecated badge** (connection-type picker, Settings → Plugins,
 Connections row), small tag, not alarming red:
 > `Deprecated`
@@ -572,8 +797,15 @@ Connections row), small tag, not alarming red:
 > connected, it'll be disconnected and reopened using the plugin.
 > [Cancel] [Switch]
 
+**Migration confirm — connection-URI variant** (shown only when
+`connection_uri_in_keychain` is true; replaces the plain confirm above):
+> Switch `prod-analytics-db` to the PostgreSQL plugin? Its connection
+> string is stored in the keychain and won't carry over to the plugin —
+> you'll need to re-enter it to reconnect. [Cancel] [Switch & re-enter
+> later]
+
 **Migration checklist item, unsupported feature:**
-> ☐ `prod-analytics-db` — uses SSH tunneling, not yet supported by the
+> ☐ `prod-analytics-db` — uses SSL, not yet supported by the
 > plugin. [Report this gap]
 > *(unchecked, greyed if "select all" is used; the report action stays
 > active either way)*
@@ -608,7 +840,9 @@ Connections row), small tag, not alarming red:
   `ensure_plugin_installed_if_needed(app, builtin_id, plugin_id)` and
   `ensure_plugin_installed(app, plugin_id)`,
   driven by a `MIGRATABLE_DRIVERS` list of `(builtin_id, plugin_id)`
-  pairs; includes the `min_tabularis_version` compatibility check
+  pairs; includes the `min_tabularis_version` compatibility check and
+  the post-install activation write to `active_external_drivers` (persisted
+  via `save_config`, mirroring `NewConnectionModal`'s `updateSetting`)
 - `src-tauri/src/lib.rs` — spawn the install-if-needed call(s) in
   `setup()`; stamp `deprecated` onto builtin manifests at driver registration
 - `src-tauri/src/config.rs` — new `postgres_plugin_migration_banner_dismissed`,
@@ -624,14 +858,21 @@ Connections row), small tag, not alarming red:
 - `src/contexts/SettingsContext.ts` — the four new settings fields above + defaults
 - `src/types/plugins.ts` — `deprecated` field on the manifest type
 - `src/hooks/useBuiltinDriverMigration.ts` (new, parameterized by
-  `(builtinId, pluginId)`) — detection, dismissal, migration, and
-  rollback-toast state; a thin postgres-specific wrapper covers this rollout
+  `(builtinId, pluginId)`) — detection, dismissal, migration, rollback-toast
+  state, the connection-URI pre-flight (`connection_uri_in_keychain`
+  → URI-variant confirm), and the connectivity gate (banner only shows the
+  migration nudge when the plugin is installed+active *and*
+  `registryOffline` is false; otherwise shows the "couldn't be downloaded"
+  variant or stays suppressed); a thin postgres-specific wrapper covers this rollout
 - `src/utils/findUnsupportedFeatures.ts` (new) — pure comparison of a
   connection's used params against a plugin's declared `DriverCapabilities`
 - `src/utils/pluginIssueReport.ts` (new) — `buildPluginIssueUrl(...)`,
   driver-agnostic, targets a plugin's Issue Form templates
   (`migration-failure.yml`, `capability-gap.yml`, `bug_report.yml`) by
-  field id rather than assembling a free-text body
+  field id rather than assembling a free-text body. Call sites resolve
+  `repoUrl` from the registry catalogue (`useConnectionCatalogue` /
+  `usePluginRegistry`, which carry `RegistryPluginWithStatus.repo_url`),
+  *not* from `useDrivers` (whose `PluginManifest` has no `repo_url`).
 - `src/components/banners/PostgresPluginMigrationBanner.tsx` (new)
 - `src/pages/Connections.tsx` — render the banner inline
 - Connections list row / context menu — bidirectional "Switch to plugin" /
@@ -655,14 +896,33 @@ Connections row), small tag, not alarming red:
   connection is a no-op (install never called), a triggering connection
   present calls through to `ensure_plugin_installed`. Rust unit tests for
   `ensure_plugin_installed` itself: already-installed is a no-op,
-  not-installed calls install, and an incompatible `min_tabularis_version`
-  skips the install (mock/stub `installer::list_installed`).
-- Frontend test for `findUnsupportedFeatures`: flags SSH/IAM/k8s-using
-  connections against a manifest missing those capabilities, and returns
-  empty for a fully-covered connection.
+  not-installed calls install, an incompatible `min_tabularis_version`
+  skips the install (mock/stub `installer::list_installed`), and a
+  successful install persists the plugin id into `active_external_drivers`
+  while leaving every other config field unchanged (the activation
+  regression — without this, the plugin disappears on relaunch).
+- Frontend test for `findUnsupportedFeatures`: flags a connection using
+  a capability the manifest declares false (e.g. `ssl_mode` set against
+  `supports_ssl: false`, a `connection_uri` against `connection_uri:
+  false`), returns empty for a fully-covered connection, and **does not
+  flag** SSH-tunneling / IAM-auth / k8s-forwarding connections — those are
+  app-level and transparent to drivers, so they must never appear as gaps.
 - Frontend test for `useBuiltinDriverMigration`'s gating: dismissed
   setting, empty vs. non-empty connection list, banner reappearing only
   when a new builtin connection of that type is added post-dismissal.
+- Frontend test for the connectivity gate: the banner does **not** show the
+  "Switch to plugin" nudge when the `postgresql` plugin is absent or
+  `registryOffline` is true, even with a builtin-postgres connection
+  present — instead it shows the "couldn't be downloaded" variant or
+  stays suppressed. The nudge only appears once the plugin is installed
+  *and* active and the registry is reachable — so the install can't be
+  outrun by its own nudge.
+- Frontend test for the URI pre-flight: a connection with
+  `connection_uri_in_keychain === true` selects the connection-URI
+  variant of the confirm (with the re-enter warning) and a
+  `connection_uri_in_keychain === false`/unset connection selects the
+  plain confirm — so the silent-URI-drop failure mode is surfaced before,
+  not after, the flip.
 - Frontend test for `buildPluginIssueUrl`: confirms the generated URL
   never contains connection params beyond the explicitly listed fields,
   and that it targets the correct template (`migration-failure.yml`,
@@ -674,7 +934,10 @@ Connections row), small tag, not alarming red:
      Plugins changes.
   2. Add a builtin-postgres connection → relaunch → the `postgresql`
      plugin is now installed automatically, and the release's WhatsNew
-     entry mentions it. The banner appears in Connections (not a modal)
+     entry mentions it. **Relaunch a second time** → the plugin is still
+     loaded (its `active_external_drivers` entry persisted across the
+     restart); a migrated `postgresql` connection still connects. The
+     banner appears in Connections (not a modal)
      → dismiss it → relaunch → it stays dismissed.
   3. Use the per-connection action to migrate one connection → it flips
      driver in `connections.json`, runs a post-migration `test_connection`,
@@ -689,15 +952,39 @@ Connections row), small tag, not alarming red:
   6. Open the connection-type picker for a new connection → the builtin
      postgres entry shows the deprecated badge, the plugin entry appears
      first in the group, and the tooltip names the replacement and timeline.
-  7. Create a connection with SSH tunneling on the builtin driver → open
-     the migration checklist → it's shown unchecked by default with the
-     specific gap named, and "Report this gap" opens the
-     `capability-gap.yml` Issue Form, distinct from the migration-failure one.
+  7. Exercise the unsupported-feature path by giving the plugin a manifest
+     that declares a capability the connection uses as false (e.g. a test
+     build with `supports_ssl: false`, against a connection with `ssl_mode`
+     set) → open the migration checklist → that connection is shown unchecked
+     by default with the specific gap named, and "Report this gap" opens the
+     `capability-gap.yml` Issue Form, distinct from the
+     migration-failure one. Separately, create a connection with SSH
+     tunneling on the builtin driver → open the checklist → it is **not**
+     flagged (SSH is app-level, transparent to drivers), and migrates and
+     connects normally via the tunnel.
   8. While signed out of GitHub in the browser, click "Report an issue" →
      the login redirect lands back on the pre-filled form with fields
      intact, not a blank one — confirmed via GitHub's `return_to`
      mechanism, which preserves the full original query string through
      the login round-trip.
+  9. Create a builtin-postgres connection using a connection string (so
+     `connection_uri_in_keychain` is true) → use the per-connection action
+     → the confirm shows the "connection string won't carry over — re-enter
+     to reconnect" warning and a "Switch & re-enter later" button, not the
+     plain confirm. Switch → the post-migration `test_connection` fails to
+     connect (URI dropped) and offers Undo; Undo restores it. A
+     password-based connection in the same flow shows the plain confirm
+     with no warning and migrates cleanly.
+
+  10. Block the registry (e.g. point `tabularium_registry_url` at an
+     unreachable host, or disconnect the network) and add a
+     builtin-postgres connection → relaunch → the install fails silently,
+     `registryOffline` is true, and the Connections banner shows the
+     "couldn't be downloaded — we'll retry on next launch" variant, **not**
+     the "Switch to plugin" nudge. Confirm there is no way to reach a
+     "Switch to plugin" action that would flip the driver while the plugin
+     is absent. Restore connectivity → relaunch → the install succeeds,
+     the plugin is active, and the nudge now appears.
 
 ## Follow-ups
 
