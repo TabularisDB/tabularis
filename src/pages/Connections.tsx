@@ -9,6 +9,7 @@ import {
   type ExportMode,
 } from "../components/modals/ExportConnectionsModal";
 import { ImportFromAppModal } from "../components/modals/ImportFromAppModal";
+import { MigrationChecklistModal } from "../components/modals/MigrationChecklistModal";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -92,6 +93,7 @@ export const Connections = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportAppModalOpen, setIsImportAppModalOpen] = useState(false);
   const [isImportMenuOpen, setIsImportMenuOpen] = useState(false);
+  const [isMigrationChecklistOpen, setIsMigrationChecklistOpen] = useState(false);
   const importMenuBtnRef = useRef<HTMLButtonElement>(null);
   const [importMenuPos, setImportMenuPos] = useState({ top: 0, right: 0 });
 
@@ -1142,7 +1144,7 @@ export const Connections = () => {
         <PostgresPluginMigrationBanner
           variant={migration.banner.variant}
           onDismiss={migration.dismissBanner}
-          onReview={() => setIsModalOpen(true)}
+          onReview={() => setIsMigrationChecklistOpen(true)}
         />
       )}
 
@@ -1470,6 +1472,19 @@ export const Connections = () => {
         isOpen={isImportAppModalOpen}
         onClose={() => setIsImportAppModalOpen(false)}
         onImported={() => void loadConnections()}
+      />
+      <MigrationChecklistModal
+        isOpen={isMigrationChecklistOpen}
+        onClose={() => setIsMigrationChecklistOpen(false)}
+        connections={migration.builtinConnections}
+        manifest={allDrivers.find((d) => d.id === "postgresql")}
+        repoUrl={catalogueRegistry.find((p) => p.id === "postgresql")?.repo_url ?? undefined}
+        pluginVersion={
+          installedPlugins.find((p) => p.id === "postgresql")?.version ??
+          catalogueRegistry.find((p) => p.id === "postgresql")?.installed_version ??
+          "unknown"
+        }
+        migrateConnection={migration.migrateConnection}
       />
       <ConfirmModal
         isOpen={confirmModal !== null}

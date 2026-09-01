@@ -2239,6 +2239,22 @@
       "processFailure": "Hindi nag-start ang PostgreSQL plugin. Hindi ito partikular sa {{name}} — walang sinubukang koneksyon.",
       "undo": "I-undo",
       "reportIssue": "I-report ang isyu"
+    },
+    "checklist": {
+      "title": "Suriin ang mga koneksyon",
+      "subtitle_one": "{{count}} koneksyon na nasa built-in driver pa rin",
+      "subtitle_other": "{{count}} koneksyon na nasa built-in driver pa rin",
+      "migrateSelected_one": "Ilipat ang {{count}} napili",
+      "migrateSelected_other": "Ilipat ang {{count}} napili",
+      "reportThisGap": "I-report ang isyung ito",
+      "alreadyReported": "Na-report",
+      "uriWarning": "Ang connection string na naka-imbak sa keychain ay hindi madadala — kakailanganin mong ilagay ulit ito pagkatapos lumipat.",
+      "noGaps": "Walang koneksyon na susuriin.",
+      "close": "Isara",
+      "gap": {
+        "ssl": "Gumagamit ng SSL/TLS, hindi pa suportado ng plugin",
+        "connection_uri": "Gumagamit ng connection string, hindi pa suportado ng plugin"
+      }
     }
   }
 }

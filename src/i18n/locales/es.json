@@ -2049,6 +2049,22 @@
       "processFailure": "El complemento de PostgreSQL no se inició. No es específico de {{name}} — no se intentó ninguna conexión.",
       "undo": "Deshacer",
       "reportIssue": "Reportar un problema"
+    },
+    "checklist": {
+      "title": "Revisar conexiones",
+      "subtitle_one": "{{count}} conexión aún en el controlador integrado",
+      "subtitle_other": "{{count}} conexiones aún en el controlador integrado",
+      "migrateSelected_one": "Migrar {{count}} seleccionada",
+      "migrateSelected_other": "Migrar {{count}} seleccionadas",
+      "reportThisGap": "Reportar este problema",
+      "alreadyReported": "Reportado",
+      "uriWarning": "La cadena de conexión almacenada en el llavero no se transferirá — deberá volver a ingresarla después de migrar.",
+      "noGaps": "No hay conexiones para revisar.",
+      "close": "Cerrar",
+      "gap": {
+        "ssl": "Usa SSL/TLS, aún no admitido por el complemento",
+        "connection_uri": "Usa una cadena de conexión, aún no admitida por el complemento"
+      }
     }
   },
   "connectionCatalogue": {

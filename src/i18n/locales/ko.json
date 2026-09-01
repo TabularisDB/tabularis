@@ -2173,6 +2173,22 @@
       "processFailure": "PostgreSQL 플러그인이 시작되지 않았습니다. {{name}}에 국한된 문제가 아닙니다 —연결이 시도되지 않았습니다.",
       "undo": "실행 취소",
       "reportIssue": "문제 신고"
+    },
+    "checklist": {
+      "title": "연결 검토",
+      "subtitle_one": "{{count}}개 연결이 아직 내장 드라이버를 사용 중",
+      "subtitle_other": "{{count}}개 연결이 아직 내장 드라이버를 사용 중",
+      "migrateSelected_one": "선택한 {{count}}개 마이그레이션",
+      "migrateSelected_other": "선택한 {{count}}개 마이그레이션",
+      "reportThisGap": "이 문제 신고",
+      "alreadyReported": "신고됨",
+      "uriWarning": "키체인에 저장된 연결 문자열은 유지되지 않습니다 —마이그레이션 후 다시 입력해야 합니다.",
+      "noGaps": "검토할 연결이 없습니다.",
+      "close": "닫기",
+      "gap": {
+        "ssl": "SSL/TLS를 사용하며, 플러그인에서 아직 지원되지 않음",
+        "connection_uri": "연결 문자열을 사용하며, 플러그인에서 아직 지원되지 않음"
+      }
     }
   }
 }

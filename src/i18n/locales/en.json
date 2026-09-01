@@ -2219,6 +2219,22 @@
       "processFailure": "The PostgreSQL plugin didn't start. This isn't specific to {{name}} — no connection was attempted.",
       "undo": "Undo",
       "reportIssue": "Report an issue"
+    },
+    "checklist": {
+      "title": "Review connections",
+      "subtitle_one": "{{count}} connection still on the built-in driver",
+      "subtitle_other": "{{count}} connections still on the built-in driver",
+      "migrateSelected_one": "Migrate {{count}} selected",
+      "migrateSelected_other": "Migrate {{count}} selected",
+      "reportThisGap": "Report this gap",
+      "alreadyReported": "Reported",
+      "uriWarning": "Connection string is stored in the keychain and won't carry over — you'll need to re-enter it after migrating.",
+      "noGaps": "No connections to review.",
+      "close": "Close",
+      "gap": {
+        "ssl": "Uses SSL/TLS, not yet supported by the plugin",
+        "connection_uri": "Uses a connection string, not yet supported by the plugin"
+      }
     }
   },
   "connectionCatalogue": {

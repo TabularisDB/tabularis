@@ -2129,6 +2129,22 @@
       "processFailure": "Il plugin PostgreSQL non si è avviato. Non riguarda specificamente {{name}} — non è stata tentata alcuna connessione.",
       "undo": "Annulla",
       "reportIssue": "Segnala un problema"
+    },
+    "checklist": {
+      "title": "Rivedi connessioni",
+      "subtitle_one": "{{count}} connessione ancora sul driver integrato",
+      "subtitle_other": "{{count}} connessioni ancora sul driver integrato",
+      "migrateSelected_one": "Migra {{count}} selezionata",
+      "migrateSelected_other": "Migra {{count}} selezionate",
+      "reportThisGap": "Segnala questo problema",
+      "alreadyReported": "Segnalato",
+      "uriWarning": "La stringa di connessione salvata nel portachiavi non verrà trasferita — dovrai reinserirla dopo la migrazione.",
+      "noGaps": "Nessuna connessione da rivedere.",
+      "close": "Chiudi",
+      "gap": {
+        "ssl": "Usa SSL/TLS, non ancora supportato dal plugin",
+        "connection_uri": "Usa una stringa di connessione, non ancora supportata dal plugin"
+      }
     }
   },
   "connectionCatalogue": {

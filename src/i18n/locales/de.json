@@ -2127,6 +2127,22 @@
       "processFailure": "Das PostgreSQL-Plugin konnte nicht gestartet werden. Das betrifft nicht speziell {{name}} — es wurde keine Verbindung versucht.",
       "undo": "Rückgängig",
       "reportIssue": "Problem melden"
+    },
+    "checklist": {
+      "title": "Verbindungen prüfen",
+      "subtitle_one": "{{count}} Verbindung nutzt noch den integrierten Treiber",
+      "subtitle_other": "{{count}} Verbindungen nutzen noch den integrierten Treiber",
+      "migrateSelected_one": "{{count}} ausgewählte migrieren",
+      "migrateSelected_other": "{{count}} ausgewählte migrieren",
+      "reportThisGap": "Problem melden",
+      "alreadyReported": "Gemeldet",
+      "uriWarning": "Die im Schlüsselbund gespeicherte Verbindungszeichenfolge wird nicht übernommen — Sie müssen sie nach der Migration erneut eingeben.",
+      "noGaps": "Keine Verbindungen zu prüfen.",
+      "close": "Schließen",
+      "gap": {
+        "ssl": "Verwendet SSL/TLS, vom Plugin noch nicht unterstützt",
+        "connection_uri": "Verwendet eine Verbindungszeichenfolge, vom Plugin noch nicht unterstützt"
+      }
     }
   },
   "connectionCatalogue": {

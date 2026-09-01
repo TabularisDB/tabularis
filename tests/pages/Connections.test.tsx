@@ -62,7 +62,7 @@ vi.mock("../../src/hooks/useDatabase", () => ({
 }));
 
 vi.mock("../../src/hooks/useDrivers", () => ({
-  useDrivers: () => ({ drivers: mocks.drivers, allDrivers: mocks.drivers }),
+  useDrivers: () => ({ drivers: mocks.drivers, allDrivers: mocks.drivers, installedPlugins: [] }),
 }));
 
 vi.mock("../../src/hooks/useSettings", () => ({

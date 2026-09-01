@@ -2145,6 +2145,22 @@
       "processFailure": "PostgreSQL プラグインが起動しませんでした。これは {{name}} 固有の問題ではありません —接続は試行されませんでした。",
       "undo": "元に戻す",
       "reportIssue": "問題を報告"
+    },
+    "checklist": {
+      "title": "接続を確認",
+      "subtitle_one": "{{count}} 件の接続がまだ組み込みドライバーを使用しています",
+      "subtitle_other": "{{count}} 件の接続がまだ組み込みドライバーを使用しています",
+      "migrateSelected_one": "選択した {{count}} 件を移行",
+      "migrateSelected_other": "選択した {{count}} 件を移行",
+      "reportThisGap": "この問題を報告",
+      "alreadyReported": "報告済み",
+      "uriWarning": "キーチェーンに保存されている接続文字列は引き継がれません —移行後に再入力が必要です。",
+      "noGaps": "確認する接続はありません。",
+      "close": "閉じる",
+      "gap": {
+        "ssl": "SSL/TLS を使用しています。プラグインはまだ未対応です",
+        "connection_uri": "接続文字列を使用しています。プラグインはまだ未対応です"
+      }
     }
   },
   "connectionCatalogue": {

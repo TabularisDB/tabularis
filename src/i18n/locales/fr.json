@@ -2205,6 +2205,22 @@
       "processFailure": "Le plugin PostgreSQL n'a pas démarré. Cela ne concerne pas spécifiquement {{name}} — aucune connexion n'a été tentée.",
       "undo": "Annuler",
       "reportIssue": "Signaler un problème"
+    },
+    "checklist": {
+      "title": "Examiner les connexions",
+      "subtitle_one": "{{count}} connexion encore sur le pilote intégré",
+      "subtitle_other": "{{count}} connexions encore sur le pilote intégré",
+      "migrateSelected_one": "Migrer {{count}} sélectionnée",
+      "migrateSelected_other": "Migrer {{count}} sélectionnées",
+      "reportThisGap": "Signaler ce problème",
+      "alreadyReported": "Signalé",
+      "uriWarning": "La chaîne de connexion stockée dans le trousseau ne sera pas transférée — vous devrez la ressaisir après la migration.",
+      "noGaps": "Aucune connexion à examiner.",
+      "close": "Fermer",
+      "gap": {
+        "ssl": "Utilise SSL/TLS, pas encore prise en charge par le plugin",
+        "connection_uri": "Utilise une chaîne de connexion, pas encore prise en charge par le plugin"
+      }
     }
   },
   "connectionCatalogue": {
