@@ -67,6 +67,29 @@ export interface BuildPluginIssueUrlInput {
  * @throws if a required field for the chosen template is missing — better to
  *   fail loudly here than to hand GitHub a malformed, un-submittable form.
  */
+/**
+ * Known repo URLs for first-party plugins, used only as a fallback when the
+ * live registry lookup can't resolve one (e.g. the Tabularium API is
+ * unreachable but the plugin's repo location is stable and well-known).
+ * Registry data always wins when available — this only fills the gap so
+ * that an unrelated outage (the registry API) doesn't silently disable
+ * "Report an issue" for a plugin whose repo never moves.
+ */
+const KNOWN_PLUGIN_REPOS: Record<string, string> = {
+  postgresql: "https://github.com/TabularisDB/tabularis-postgresql-plugin",
+};
+
+/**
+ * Resolve a plugin's repo URL, preferring the live registry entry and
+ * falling back to `KNOWN_PLUGIN_REPOS` when the registry didn't provide one.
+ */
+export function resolvePluginRepoUrl(
+  pluginId: string,
+  registryRepoUrl: string | null | undefined,
+): string | undefined {
+  return registryRepoUrl ?? KNOWN_PLUGIN_REPOS[pluginId];
+}
+
 export function buildPluginIssueUrl(input: BuildPluginIssueUrlInput): string {
   const {
     pluginId,

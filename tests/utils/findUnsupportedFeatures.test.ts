@@ -31,8 +31,8 @@ describe("findUnsupportedFeatures", () => {
       expect(gaps[0].label).toContain("SSL");
     });
 
-    it("flags a connection using a connection URI against connection_uri: false", () => {
-      const manifest = makeManifest({ connection_uri: false });
+    it("flags a connection using a connection URI against connection_string: false", () => {
+      const manifest = makeManifest({ connection_string: false });
       const gaps = findUnsupportedFeatures({ connection_uri: "postgres://host/db" }, manifest);
       expect(gaps).toHaveLength(1);
       expect(gaps[0].feature).toBe("connection_uri");
@@ -40,7 +40,7 @@ describe("findUnsupportedFeatures", () => {
 
     it("flags a URI restorable from the keychain even when the field is empty", () => {
       // connection_uri_in_keychain marks a URI that's present at runtime.
-      const manifest = makeManifest({ connection_uri: false });
+      const manifest = makeManifest({ connection_string: false });
       const gaps = findUnsupportedFeatures({ connection_uri_in_keychain: true }, manifest);
       expect(gaps).toHaveLength(1);
       expect(gaps[0].feature).toBe("connection_uri");
@@ -48,8 +48,8 @@ describe("findUnsupportedFeatures", () => {
   });
 
   describe("returns empty for a fully-covered connection", () => {
-    it("no gaps when SSL and URI are both supported", () => {
-      const manifest = makeManifest({ supports_ssl: true, connection_uri: true });
+    it("no gaps when SSL and connection strings are both supported", () => {
+      const manifest = makeManifest({ supports_ssl: true, connection_string: true });
       const gaps = findUnsupportedFeatures(
         { ssl_mode: "verify-ca", connection_uri: "postgres://host/db" },
         manifest,
@@ -58,7 +58,7 @@ describe("findUnsupportedFeatures", () => {
     });
 
     it("no gaps when the connection uses neither feature", () => {
-      const manifest = makeManifest({ supports_ssl: false, connection_uri: false });
+      const manifest = makeManifest({ supports_ssl: false, connection_string: false });
       const gaps = findUnsupportedFeatures({ host: "localhost", port: 5432 }, manifest);
       expect(gaps).toEqual([]);
     });
@@ -69,9 +69,23 @@ describe("findUnsupportedFeatures", () => {
       expect(gaps).toEqual([]);
     });
 
-    it("accepts the camelCase connectionUri alias as supported", () => {
-      const manifest = makeManifest({ connection_uri: undefined, connectionUri: true });
+    it("treats connection_string as supported by default when omitted (backward-compat default)", () => {
+      const manifest = makeManifest({ connection_string: undefined });
       const gaps = findUnsupportedFeatures({ connection_uri: "postgres://host/db" }, manifest);
+      expect(gaps).toEqual([]);
+    });
+
+    it("accepts the camelCase connectionString alias as supported", () => {
+      const manifest = makeManifest({ connection_string: undefined, connectionString: true });
+      const gaps = findUnsupportedFeatures({ connection_uri: "postgres://host/db" }, manifest);
+      expect(gaps).toEqual([]);
+    });
+
+    it("does not flag a decomposable URI-based connection against a plugin with connection_uri: false (e.g. postgresql, same as builtin)", () => {
+      // connection_uri (verbatim-passthrough) is unrelated to whether the
+      // plugin accepts a connection string at all (connection_string).
+      const manifest = makeManifest({ connection_string: true, connection_uri: false });
+      const gaps = findUnsupportedFeatures({ connection_uri_in_keychain: true }, manifest);
       expect(gaps).toEqual([]);
     });
   });

@@ -54,7 +54,7 @@ import { useCreateSqliteDatabase } from "../hooks/useCreateSqliteDatabase";
 import { useBuiltinPostgresMigration } from "../hooks/useBuiltinDriverMigration";
 import { useConnectionCatalogue } from "../hooks/useConnectionCatalogue";
 import { useToast } from "../hooks/useToast";
-import { buildPluginIssueUrl } from "../utils/pluginIssueReport";
+import { buildPluginIssueUrl, resolvePluginRepoUrl } from "../utils/pluginIssueReport";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { APP_VERSION } from "../version";
 
@@ -173,16 +173,16 @@ export const Connections = () => {
     const handleReportIssue = (failureMode: "connection" | "process") => {
       const pluginId = outcome.pluginId ?? "postgresql";
       const registryEntry = catalogueRegistry.find((p) => p.id === pluginId);
-      const repoUrl = registryEntry?.repo_url;
+      const repoUrl = resolvePluginRepoUrl(pluginId, registryEntry?.repo_url);
       if (!repoUrl) {
-        // No registry entry (e.g. offline) — nothing to link to; the toast
-        // action simply has nowhere to send the user.
+        // No registry entry and no known fallback — nothing to link to; the
+        // toast action simply has nowhere to send the user.
         return;
       }
       const installed = installedPlugins.find((p) => p.id === pluginId);
       const url = buildPluginIssueUrl({
         pluginId,
-        pluginVersion: installed?.version ?? registryEntry.installed_version ?? "unknown",
+        pluginVersion: installed?.version ?? registryEntry?.installed_version ?? "unknown",
         repoUrl,
         appVersion: APP_VERSION,
         os: navigator.platform,
@@ -1478,7 +1478,10 @@ export const Connections = () => {
         onClose={() => setIsMigrationChecklistOpen(false)}
         connections={migration.builtinConnections}
         manifest={allDrivers.find((d) => d.id === "postgresql")}
-        repoUrl={catalogueRegistry.find((p) => p.id === "postgresql")?.repo_url ?? undefined}
+        repoUrl={resolvePluginRepoUrl(
+          "postgresql",
+          catalogueRegistry.find((p) => p.id === "postgresql")?.repo_url,
+        )}
         pluginVersion={
           installedPlugins.find((p) => p.id === "postgresql")?.version ??
           catalogueRegistry.find((p) => p.id === "postgresql")?.installed_version ??

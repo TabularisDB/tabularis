@@ -65,16 +65,21 @@ export const MigrationChecklistModal = ({
       connections.map((conn) => ({
         conn,
         gaps: manifest ? findUnsupportedFeatures(conn.params, manifest) : [],
+        isUriBased: conn.params.connection_uri_in_keychain === true,
       })),
     [connections, manifest],
   );
 
-  // Unchecked by default when the connection has any gap — the safety
-  // property the design calls out explicitly. Computed once per modal open
-  // (via the `isOpen` key trick below is unnecessary since this component
-  // unmounts/remounts with the parent's conditional render — see onClose).
+  // Unchecked by default when the connection has any capability gap, or when
+  // it's connection-URI-based (its stored secret won't carry over — the same
+  // safety property, since the user needs to notice and act before/after
+  // migrating either way). Computed once per modal open; this component
+  // unmounts/remounts with the parent's conditional render — see onClose.
   const [checked, setChecked] = useState<Set<string>>(
-    () => new Set(rows.filter((r) => r.gaps.length === 0).map((r) => r.conn.id)),
+    () =>
+      new Set(
+        rows.filter((r) => r.gaps.length === 0 && !r.isUriBased).map((r) => r.conn.id),
+      ),
   );
   const [rowStatus, setRowStatus] = useState<Record<string, RowStatus>>({});
   const [migrating, setMigrating] = useState(false);
@@ -162,9 +167,8 @@ export const MigrationChecklistModal = ({
           {rows.length === 0 ? (
             <p className="text-sm text-secondary">{t("migration.checklist.noGaps")}</p>
           ) : (
-            rows.map(({ conn, gaps }) => {
+            rows.map(({ conn, gaps, isUriBased }) => {
               const status = rowStatus[conn.id];
-              const isUriBased = conn.params.connection_uri_in_keychain === true;
               return (
                 <div
                   key={conn.id}

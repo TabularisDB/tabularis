@@ -18,7 +18,7 @@ import {
   validateSettings,
 } from "../../utils/pluginConfig";
 import { findConnectionsForDrivers } from "../../utils/connectionManager";
-import { buildPluginIssueUrl } from "../../utils/pluginIssueReport";
+import { buildPluginIssueUrl, resolvePluginRepoUrl } from "../../utils/pluginIssueReport";
 import { APP_VERSION } from "../../version";
 import type {
   PluginManifest,
@@ -190,7 +190,7 @@ function PluginSettingsForm({ pluginId, manifest }: PluginSettingsFormProps) {
   // instead; this one targets bug_report.yml). repoUrl comes from the
   // registry catalogue, not the driver manifest, which has no repo_url field.
   const registryEntry = catalogueRegistry.find((p) => p.id === pluginId);
-  const repoUrl = registryEntry?.repo_url;
+  const repoUrl = resolvePluginRepoUrl(pluginId, registryEntry?.repo_url);
   const handleReportIssue = useCallback(() => {
     if (!repoUrl) return;
     const installed = installedPlugins.find((p) => p.id === pluginId);

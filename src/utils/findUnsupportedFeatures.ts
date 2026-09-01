@@ -64,14 +64,24 @@ export function findUnsupportedFeatures(
   }
 
   // Connection URI: the connection uses a raw URI (present now or restorable
-  // from the keychain) but the plugin declares it can't consume one.
+  // from the keychain) but the plugin declares it can't accept a connection
+  // string at all. This checks `connection_string` (whether the plugin's
+  // connection form accepts a URI as an input, defaulting to true), NOT
+  // `connection_uri` (whether the plugin needs the URI passed through
+  // verbatim instead of decomposed — a structural requirement for drivers
+  // like MongoDB's `mongodb+srv://`, irrelevant to whether postgres-style
+  // decomposition is possible). A plugin that decomposes URIs just fine
+  // (`connection_uri: false`, e.g. the postgresql plugin, same as builtin
+  // postgres) is not a gap; only a plugin that rejects connection strings
+  // outright (`connection_string: false`) is.
   const usesUri =
     (connection.connection_uri !== undefined && connection.connection_uri !== "") ||
     connection.connection_uri_in_keychain === true;
-  // `connection_uri` is an optional capability with a camelCase alias; treat
-  // both as absent (→ unsupported) only when neither is explicitly true.
-  const supportsUri = caps.connection_uri === true || caps.connectionUri === true;
-  if (usesUri && !supportsUri) {
+  // `connection_string` defaults to true (backward-compat default in the
+  // Rust struct); absent/undefined means supported, not unsupported.
+  const supportsConnectionString =
+    caps.connection_string ?? caps.connectionString ?? true;
+  if (usesUri && !supportsConnectionString) {
     gaps.push({
       feature: "connection_uri",
       label: "uses a connection string, not yet supported by the plugin",
