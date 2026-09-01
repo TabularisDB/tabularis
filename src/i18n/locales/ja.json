@@ -67,7 +67,8 @@
     "copied": "コピーしました！",
     "showDetails": "詳細を表示",
     "hideDetails": "詳細を非表示",
-    "beta": "ベータ"
+    "beta": "ベータ",
+    "dismiss": "閉じる"
   },
   "sidebar": {
     "connections": "接続",
@@ -2113,6 +2114,13 @@
     "mismatchBody": "設定済みのレジストリは {{configured}} です。リンクは別の場所を指しています — 続行前にご確認ください。",
     "updateConfirm": "v{{version}} に更新",
     "alreadyInstalled": "バージョン {{version}} は既にインストールされています。"
+  },
+  "migration": {
+    "banner": {
+      "nudge": "新しい PostgreSQL プラグインをお試しください —組み込みの PostgreSQL ドライバーは廃止予定です（2026年10月5日を予定）。プラグインは同じ機能を持ち、より早く更新されます。",
+      "offline": "PostgreSQL プラグインをダウンロードできませんでした —次回起動時に再試行します。続く場合は接続やネットワークを確認してください。",
+      "reviewConnections": "接続を確認"
+    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "データベースを検索…",

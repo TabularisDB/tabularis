@@ -67,7 +67,8 @@
     "copied": "Copiato!",
     "showDetails": "Mostra dettagli",
     "hideDetails": "Nascondi dettagli",
-    "beta": "Beta"
+    "beta": "Beta",
+    "dismiss": "Chiudi"
   },
   "sidebar": {
     "connections": "Connessioni",
@@ -2097,6 +2098,13 @@
     "mismatchBody": "Il tuo registro configurato è {{configured}}. Il link punta altrove — controlla prima di continuare.",
     "updateConfirm": "Aggiorna a v{{version}}",
     "alreadyInstalled": "La versione {{version}} è già installata."
+  },
+  "migration": {
+    "banner": {
+      "nudge": "Prova il nuovo plugin PostgreSQL — il driver integrato PostgreSQL è in fase di ritiro (provvisoriamente il 5 ott. 2026). Il plugin ha le stesse funzionalità e si aggiorna più velocemente.",
+      "offline": "Il plugin PostgreSQL non è stato scaricato — riproveremo al prossimo avvio. Controlla la connessione o la rete se il problema persiste.",
+      "reviewConnections": "Rivedi connessioni"
+    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Cerca database…",

@@ -66,7 +66,8 @@
     "copied": "已复制！",
     "showDetails": "显示详情",
     "hideDetails": "隐藏详情",
-    "beta": "测试版"
+    "beta": "测试版",
+    "dismiss": "关闭"
   },
   "sidebar": {
     "connections": "连接",
@@ -2035,6 +2036,13 @@
     "mismatchBody": "你配置的注册表是 {{configured}}。链接指向其他位置 — 请先确认再继续。",
     "updateConfirm": "更新到 v{{version}}",
     "alreadyInstalled": "版本 {{version}} 已安装。"
+  },
+  "migration": {
+    "banner": {
+      "nudge": "试试新的 PostgreSQL 插件 —内置 PostgreSQL 驱动正在退役（暂定 2026 年 10 月 5 日）。插件功能相同且更新更快。",
+      "offline": "PostgreSQL 插件无法下载 —下次启动时会重试。如果持续出现，请检查您的连接或网络。",
+      "reviewConnections": "查看连接"
+    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "搜索数据库…",

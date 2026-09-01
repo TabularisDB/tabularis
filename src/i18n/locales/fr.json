@@ -67,7 +67,8 @@
     "copied": "Copié !",
     "showDetails": "Afficher les détails",
     "hideDetails": "Masquer les détails",
-    "beta": "Bêta"
+    "beta": "Bêta",
+    "dismiss": "Fermer"
   },
   "sidebar": {
     "connections": "Connexions",
@@ -2173,6 +2174,13 @@
     "mismatchBody": "Votre registre configuré est {{configured}}. Le lien pointe ailleurs — vérifiez avant de continuer.",
     "updateConfirm": "Mettre à jour vers v{{version}}",
     "alreadyInstalled": "La version {{version}} est déjà installée."
+  },
+  "migration": {
+    "banner": {
+      "nudge": "Essayez le nouveau plugin PostgreSQL — le pilote intégré PostgreSQL est en cours de retrait (provisoirement le 5 oct. 2026). Le plugin a les mêmes fonctionnalités et se met à jour plus rapidement.",
+      "offline": "Le plugin PostgreSQL n'a pas pu être téléchargé — une nouvelle tentative aura lieu au prochain lancement. Vérifiez votre connexion ou votre réseau si cela persiste.",
+      "reviewConnections": "Examiner les connexions"
+    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Rechercher des bases de données…",

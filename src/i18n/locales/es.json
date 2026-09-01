@@ -67,7 +67,8 @@
     "copied": "¡Copiado!",
     "showDetails": "Mostrar detalles",
     "hideDetails": "Ocultar detalles",
-    "beta": "Beta"
+    "beta": "Beta",
+    "dismiss": "Cerrar"
   },
   "sidebar": {
     "connections": "Conexiones",
@@ -2017,6 +2018,13 @@
     "mismatchBody": "Tu registro configurado es {{configured}}. El enlace apunta a otro — revisa antes de continuar.",
     "updateConfirm": "Actualizar a v{{version}}",
     "alreadyInstalled": "La versión {{version}} ya está instalada."
+  },
+  "migration": {
+    "banner": {
+      "nudge": "Prueba el nuevo complemento de PostgreSQL — el controlador integrado de PostgreSQL se está retirando (provisionalmente 5 oct. 2026). El complemento tiene las mismas funciones y se actualiza más rápido.",
+      "offline": "No se pudo descargar el complemento de PostgreSQL — lo reintentaremos en el próximo inicio. Revisa tu conexión o red si esto sigue ocurriendo.",
+      "reviewConnections": "Revisar conexiones"
+    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Buscar bases de datos…",

@@ -45,8 +45,10 @@ import { GroupHeader } from "../components/connections/GroupHeader";
 import { ConnectionCard } from "../components/connections/ConnectionCard";
 import { ConnectionListItem } from "../components/connections/ConnectionListItem";
 import { ConnectionErrorBanner } from "../components/ConnectionErrorBanner";
+import { PostgresPluginMigrationBanner } from "../components/banners/PostgresPluginMigrationBanner";
 import { BetaBadge } from "../components/ui/BetaBadge";
 import { useCreateSqliteDatabase } from "../hooks/useCreateSqliteDatabase";
+import { useBuiltinPostgresMigration } from "../hooks/useBuiltinDriverMigration";
 
 let autoConnectAttempted = false;
 
@@ -77,6 +79,7 @@ export const Connections = () => {
   const openConnectionInNewWindow = useOpenConnectionInNewWindow();
   const { createSqliteDatabase, isCreating: isCreatingSqliteDatabase } =
     useCreateSqliteDatabase();
+  const migration = useBuiltinPostgresMigration();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportAppModalOpen, setIsImportAppModalOpen] = useState(false);
   const [isImportMenuOpen, setIsImportMenuOpen] = useState(false);
@@ -986,6 +989,15 @@ export const Connections = () => {
           key={error}
           message={error}
           onClose={() => setError(null)}
+        />
+      )}
+
+      {/* ── Built-in → plugin migration banner ────────────────────────────── */}
+      {migration.banner?.visible && (
+        <PostgresPluginMigrationBanner
+          variant={migration.banner.variant}
+          onDismiss={migration.dismissBanner}
+          onReview={() => setIsModalOpen(true)}
         />
       )}
 
