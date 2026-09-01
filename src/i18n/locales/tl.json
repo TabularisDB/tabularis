@@ -754,6 +754,7 @@
         "fieldRequired": "Kailangan ang {{label}}",
         "saved": "Na-save",
         "resetToDefault": "I-reset sa default",
+        "reportIssue": "I-report ang isyu sa plugin",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2221,6 +2222,16 @@
     },
     "switchToPlugin": "Switch to plugin",
     "switchToBuiltin": "Switch back to built-in",
+    "confirm": {
+      "title": "Lumipat sa plugin?",
+      "message": "Lumipat ang {{name}} sa PostgreSQL plugin? Kung kasalukuyang konektado, ito ay magdiskonekta at mabubuksan muli gamit ang plugin.",
+      "uriMessage": "Lumipat ang {{name}} sa PostgreSQL plugin? Ang connection string na naka-imbak sa keychain ay hindi madadala — kakailanganin mong ilagay ulit ito para makakonekta.",
+      "confirmLabel": "Lumipat",
+      "confirmLabelUri": "Lumipat at ilagay ulit mamaya",
+      "undoTitle": "Bumalik sa built-in driver?",
+      "undoMessage": "Ibalik ang {{name}} sa built-in na PostgreSQL driver? Kung kasalukuyang konektado, ito ay magdiskonekta at mabubuksan muli gamit ang built-in driver.",
+      "undoConfirmLabel": "Ibalik"
+    },
     "toast": {
       "success": "Na-switch ang {{name}} sa PostgreSQL plugin.",
       "connectionFailure": "Hindi makakonekta sa {{name}} gamit ang plugin: {{error}}",

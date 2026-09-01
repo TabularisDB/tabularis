@@ -722,6 +722,7 @@
         "fieldRequired": "{{label}} ist erforderlich",
         "saved": "Gespeichert",
         "resetToDefault": "Auf Standard zurücksetzen",
+        "reportIssue": "Plugin-Problem melden",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2109,6 +2110,16 @@
     },
     "switchToPlugin": "Zum Plugin wechseln",
     "switchToBuiltin": "Zum integrierten Treiber zurück wechseln",
+    "confirm": {
+      "title": "Zum Plugin wechseln?",
+      "message": "{{name}} zum PostgreSQL-Plugin wechseln? Falls aktuell verbunden, wird die Verbindung getrennt und mit dem Plugin neu aufgebaut.",
+      "uriMessage": "{{name}} zum PostgreSQL-Plugin wechseln? Die im Schlüsselbund gespeicherte Verbindungszeichenfolge wird nicht übernommen — Sie müssen sie erneut eingeben, um sich wieder zu verbinden.",
+      "confirmLabel": "Wechseln",
+      "confirmLabelUri": "Wechseln & später neu eingeben",
+      "undoTitle": "Zurück zum integrierten Treiber wechseln?",
+      "undoMessage": "{{name}} zurück zum integrierten PostgreSQL-Treiber wechseln? Falls aktuell verbunden, wird die Verbindung getrennt und mit dem integrierten Treiber neu aufgebaut.",
+      "undoConfirmLabel": "Zurückwechseln"
+    },
     "toast": {
       "success": "Wechselte {{name}} zum PostgreSQL-Plugin.",
       "connectionFailure": "Verbindung zu {{name}} über das Plugin fehlgeschlagen: {{error}}",

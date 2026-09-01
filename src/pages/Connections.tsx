@@ -39,6 +39,7 @@ import { ContextMenu } from "../components/ui/ContextMenu";
 import type { SavedConnection } from "../contexts/DatabaseContext";
 import { flattenGroupTree } from "../utils/groupTree";
 import { toErrorMessage } from "../utils/errors";
+import { migrationDirectionForDriver } from "../utils/connections";
 import { fuzzyFilter } from "../utils/fuzzy";
 import { useOpenConnectionInNewWindow } from "../hooks/useOpenConnectionInNewWindow";
 import { useConnectionTags } from "../hooks/useConnectionTags";
@@ -638,6 +639,41 @@ export const Connections = () => {
     });
   };
 
+  // Bidirectional built-in <-> plugin migration confirm. A connection-URI
+  // connection gets an extra warning: the driver flip drops the stored URI
+  // (by design), so re-entering it after switching is the tradeoff being
+  // confirmed, not a surprise discovered after the fact.
+  const handleMigrate = (conn: SavedConnection, direction: "to-plugin" | "to-builtin") => {
+    const isUriBased = conn.params.connection_uri_in_keychain === true;
+    if (direction === "to-plugin") {
+      setConfirmModal({
+        title: t("migration.confirm.title"),
+        message: isUriBased
+          ? t("migration.confirm.uriMessage", { name: conn.name })
+          : t("migration.confirm.message", { name: conn.name }),
+        confirmLabel: isUriBased
+          ? t("migration.confirm.confirmLabelUri")
+          : t("migration.confirm.confirmLabel"),
+        variant: isUriBased ? "warning" : "info",
+        onConfirm: () => {
+          setConfirmModal(null);
+          void migration.migrateConnection(conn.id);
+        },
+      });
+    } else {
+      setConfirmModal({
+        title: t("migration.confirm.undoTitle"),
+        message: t("migration.confirm.undoMessage", { name: conn.name }),
+        confirmLabel: t("migration.confirm.undoConfirmLabel"),
+        variant: "info",
+        onConfirm: () => {
+          setConfirmModal(null);
+          void migration.undoMigration(conn.id);
+        },
+      });
+    }
+  };
+
   const openEdit = async (conn: SavedConnection) => {
     if (isConnectionOpenAnywhere(conn.id)) {
       await disconnect(conn.id);
@@ -721,6 +757,10 @@ export const Connections = () => {
     selected: selectedIds.has(conn.id),
     selectionActive: selectedIds.size > 0,
     onToggleSelect: () => toggleSelect(conn.id),
+    onMigrate: () => {
+      const direction = migrationDirectionForDriver(conn.params.driver, allDrivers);
+      if (direction) handleMigrate(conn, direction);
+    },
   });
 
   const handleConnectionMouseDown = (e: React.MouseEvent, connId: string, currentGroupId: string | undefined) => {
@@ -1515,27 +1555,23 @@ export const Connections = () => {
                 // Bidirectional "Switch to plugin" / "Switch back to builtin"
                 // per-connection action. Direction is driven by the current
                 // driver — always available, even after the banner is
-                // dismissed.
-                ...(conn && (conn.params.driver === "postgres" || conn.params.driver === "postgresql")
-                  ? [
-                      { separator: true as const },
-                      {
-                        label:
-                          conn.params.driver === "postgres"
-                            ? t("migration.switchToPlugin")
-                            : t("migration.switchToBuiltin"),
-                        icon: ArrowLeftRight,
-                        action: () => {
-                          const id = connectionContextMenu.connId;
-                          if (conn.params.driver === "postgres") {
-                            void migration.migrateConnection(id);
-                          } else {
-                            void migration.undoMigration(id);
-                          }
-                        },
-                      },
-                    ]
-                  : []),
+                // dismissed. Uses the same confirm flow as the card button.
+                ...(() => {
+                  if (!conn) return [];
+                  const direction = migrationDirectionForDriver(conn.params.driver, allDrivers);
+                  if (!direction) return [];
+                  return [
+                    { separator: true as const },
+                    {
+                      label:
+                        direction === "to-plugin"
+                          ? t("migration.switchToPlugin")
+                          : t("migration.switchToBuiltin"),
+                      icon: ArrowLeftRight,
+                      action: () => handleMigrate(conn, direction),
+                    },
+                  ];
+                })(),
                 ...(hasAvailableGroups
                   ? [
                       { separator: true as const },

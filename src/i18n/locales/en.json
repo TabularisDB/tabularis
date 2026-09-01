@@ -767,6 +767,7 @@
         "fieldRequired": "{{label}} is required",
         "saved": "Saved",
         "resetToDefault": "Reset to default",
+        "reportIssue": "Report a plugin issue",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2201,6 +2202,16 @@
     },
     "switchToPlugin": "Switch to plugin",
     "switchToBuiltin": "Switch back to built-in",
+    "confirm": {
+      "title": "Switch to plugin?",
+      "message": "Switch {{name}} to the PostgreSQL plugin? If it's currently connected, it'll be disconnected and reopened using the plugin.",
+      "uriMessage": "Switch {{name}} to the PostgreSQL plugin? Its connection string is stored in the keychain and won't carry over to the plugin — you'll need to re-enter it to reconnect.",
+      "confirmLabel": "Switch",
+      "confirmLabelUri": "Switch & re-enter later",
+      "undoTitle": "Switch back to built-in?",
+      "undoMessage": "Switch {{name}} back to the built-in PostgreSQL driver? If it's currently connected, it'll be disconnected and reopened using the built-in driver.",
+      "undoConfirmLabel": "Switch back"
+    },
     "toast": {
       "success": "Switched {{name}} to the PostgreSQL plugin.",
       "connectionFailure": "Couldn't connect to {{name}} using the plugin: {{error}}",

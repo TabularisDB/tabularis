@@ -734,6 +734,7 @@
         "fieldRequired": "{{label}} é obrigatório",
         "saved": "Salvo",
         "resetToDefault": "Restaurar padrão",
+        "reportIssue": "Reportar um problema do plugin",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2160,6 +2161,16 @@
     },
     "switchToPlugin": "Mudar para o plugin",
     "switchToBuiltin": "Voltar para o integrado",
+    "confirm": {
+      "title": "Mudar para o plugin?",
+      "message": "Mudar {{name}} para o plugin do PostgreSQL? Se estiver conectado atualmente, será desconectado e reaberto usando o plugin.",
+      "uriMessage": "Mudar {{name}} para o plugin do PostgreSQL? A string de conexão armazenada no chaveiro não será transferida — você precisará digitá-la novamente para reconectar.",
+      "confirmLabel": "Mudar",
+      "confirmLabelUri": "Mudar e digitar novamente depois",
+      "undoTitle": "Voltar para o driver integrado?",
+      "undoMessage": "Voltar {{name}} para o driver integrado do PostgreSQL? Se estiver conectado atualmente, será desconectado e reaberto usando o driver integrado.",
+      "undoConfirmLabel": "Voltar"
+    },
     "toast": {
       "success": "{{name}} foi alterado para o plugin do PostgreSQL.",
       "connectionFailure": "Não foi possível conectar a {{name}} usando o plugin: {{error}}",

@@ -686,6 +686,7 @@
         "fieldRequired": "{{label}} 是必需的",
         "saved": "已保存",
         "resetToDefault": "重置为默认",
+        "reportIssue": "报告插件问题",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2049,6 +2050,16 @@
     },
     "switchToPlugin": "切换到插件",
     "switchToBuiltin": "切回内置驱动",
+    "confirm": {
+      "title": "切换到插件？",
+      "message": "将 {{name}} 切换到 PostgreSQL 插件？如果当前已连接，将断开连接并使用插件重新打开。",
+      "uriMessage": "将 {{name}} 切换到 PostgreSQL 插件？存储在密钥链中的连接字符串不会被带过来 —您需要重新输入才能重新连接。",
+      "confirmLabel": "切换",
+      "confirmLabelUri": "切换并稍后重新输入",
+      "undoTitle": "切回内置驱动？",
+      "undoMessage": "将 {{name}} 切回内置 PostgreSQL 驱动？如果当前已连接，将断开连接并使用内置驱动重新打开。",
+      "undoConfirmLabel": "切回"
+    },
     "toast": {
       "success": "已将 {{name}} 切换到 PostgreSQL 插件。",
       "connectionFailure": "无法使用插件连接到 {{name}}：{{error}}",

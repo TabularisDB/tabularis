@@ -699,6 +699,7 @@
         "fieldRequired": "{{label}}은(는) 필수 항목입니다",
         "saved": "저장됨",
         "resetToDefault": "기본값으로 재설정",
+        "reportIssue": "플러그인 문제 신고",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2155,6 +2156,16 @@
     },
     "switchToPlugin": "플러그인으로 전환",
     "switchToBuiltin": "내장 드라이버로 되돌리기",
+    "confirm": {
+      "title": "플러그인으로 전환하시겠습니까?",
+      "message": "{{name}}을(를) PostgreSQL 플러그인으로 전환하시겠습니까? 현재 연결되어 있다면 연결이 끊기고 플러그인으로 다시 열립니다.",
+      "uriMessage": "{{name}}을(를) PostgreSQL 플러그인으로 전환하시겠습니까? 키체인에 저장된 연결 문자열은 유지되지 않습니다 —다시 연결하려면 재입력해야 합니다.",
+      "confirmLabel": "전환",
+      "confirmLabelUri": "전환 후 나중에 재입력",
+      "undoTitle": "내장 드라이버로 되돌리시겠습니까?",
+      "undoMessage": "{{name}}을(를) 내장 PostgreSQL 드라이버로 되돌리시겠습니까? 현재 연결되어 있다면 연결이 끊기고 내장 드라이버로 다시 열립니다.",
+      "undoConfirmLabel": "되돌리기"
+    },
     "toast": {
       "success": "{{name}}을(를) PostgreSQL 플러그인으로 전환했습니다.",
       "connectionFailure": "플러그인을 사용하여 {{name}}에 연결할 수 없습니다: {{error}}",

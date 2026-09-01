@@ -736,6 +736,7 @@
         "fieldRequired": "{{label}} は必須です",
         "saved": "保存しました",
         "resetToDefault": "デフォルトに戻す",
+        "reportIssue": "プラグインの問題を報告",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2127,6 +2128,16 @@
     },
     "switchToPlugin": "プラグインに切り替え",
     "switchToBuiltin": "組み込みドライバーに戻す",
+    "confirm": {
+      "title": "プラグインに切り替えますか？",
+      "message": "{{name}} を PostgreSQL プラグインに切り替えますか？現在接続中の場合は切断され、プラグインで再接続されます。",
+      "uriMessage": "{{name}} を PostgreSQL プラグインに切り替えますか？キーチェーンに保存されている接続文字列は引き継がれません —再接続するには再入力が必要です。",
+      "confirmLabel": "切り替え",
+      "confirmLabelUri": "切り替えて後で再入力",
+      "undoTitle": "組み込みドライバーに戻しますか？",
+      "undoMessage": "{{name}} を組み込みの PostgreSQL ドライバーに戻しますか？現在接続中の場合は切断され、組み込みドライバーで再接続されます。",
+      "undoConfirmLabel": "戻す"
+    },
     "toast": {
       "success": "{{name}} を PostgreSQL プラグインに切り替えました。",
       "connectionFailure": "プラグインを使用して {{name}} に接続できませんでした: {{error}}",

@@ -747,6 +747,7 @@
         "fieldRequired": "{{label}} es obligatorio",
         "saved": "Guardado",
         "resetToDefault": "Restablecer predeterminado",
+        "reportIssue": "Reportar un problema del complemento",
         "builtin": {
           "mysql": {
             "maxAllowedPacket": {
@@ -2031,6 +2032,16 @@
     },
     "switchToPlugin": "Cambiar al complemento",
     "switchToBuiltin": "Volver al integrado",
+    "confirm": {
+      "title": "¿Cambiar al complemento?",
+      "message": "¿Cambiar {{name}} al complemento de PostgreSQL? Si está conectado actualmente, se desconectará y se volverá a abrir usando el complemento.",
+      "uriMessage": "¿Cambiar {{name}} al complemento de PostgreSQL? Su cadena de conexión almacenada en el llavero no se transferirá — deberá volver a ingresarla para reconectarse.",
+      "confirmLabel": "Cambiar",
+      "confirmLabelUri": "Cambiar y volver a ingresar después",
+      "undoTitle": "¿Volver al controlador integrado?",
+      "undoMessage": "¿Volver {{name}} al controlador integrado de PostgreSQL? Si está conectado actualmente, se desconectará y se volverá a abrir usando el controlador integrado.",
+      "undoConfirmLabel": "Volver"
+    },
     "toast": {
       "success": "Se cambió {{name}} al complemento de PostgreSQL.",
       "connectionFailure": "No se pudo conectar a {{name}} usando el complemento: {{error}}",

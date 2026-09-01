@@ -50,6 +50,10 @@ export interface SavedConnection {
     k8s_enabled?: boolean;
     k8s_connection_id?: string;
     startup_script?: string;
+    /** True when a connection URI is restorable from the OS keychain. A
+     * driver flip drops it (by design — a stored URI belongs to the driver
+     * that produced it), so the migration confirm warns before this happens. */
+    connection_uri_in_keychain?: boolean;
   };
   group_id?: string;
   sort_order?: number;
