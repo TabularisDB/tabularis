@@ -2030,7 +2030,15 @@
       "reviewConnections": "Revisar conexiones"
     },
     "switchToPlugin": "Cambiar al complemento",
-    "switchToBuiltin": "Volver al integrado"
+    "switchToBuiltin": "Volver al integrado",
+    "toast": {
+      "success": "Se cambió {{name}} al complemento de PostgreSQL.",
+      "connectionFailure": "No se pudo conectar a {{name}} usando el complemento: {{error}}",
+      "processFailureWithError": "El complemento de PostgreSQL no se inició: {{error}}. No es específico de {{name}} — no se intentó ninguna conexión.",
+      "processFailure": "El complemento de PostgreSQL no se inició. No es específico de {{name}} — no se intentó ninguna conexión.",
+      "undo": "Deshacer",
+      "reportIssue": "Reportar un problema"
+    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Buscar bases de datos…",

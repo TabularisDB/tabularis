@@ -2186,7 +2186,15 @@
       "reviewConnections": "Examiner les connexions"
     },
     "switchToPlugin": "Passer au plugin",
-    "switchToBuiltin": "Revenir au pilote intégré"
+    "switchToBuiltin": "Revenir au pilote intégré",
+    "toast": {
+      "success": "{{name}} a été basculé vers le plugin PostgreSQL.",
+      "connectionFailure": "Impossible de se connecter à {{name}} avec le plugin : {{error}}",
+      "processFailureWithError": "Le plugin PostgreSQL n'a pas démarré : {{error}}. Cela ne concerne pas spécifiquement {{name}} — aucune connexion n'a été tentée.",
+      "processFailure": "Le plugin PostgreSQL n'a pas démarré. Cela ne concerne pas spécifiquement {{name}} — aucune connexion n'a été tentée.",
+      "undo": "Annuler",
+      "reportIssue": "Signaler un problème"
+    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Rechercher des bases de données…",

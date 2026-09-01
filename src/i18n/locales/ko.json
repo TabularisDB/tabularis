@@ -2154,6 +2154,14 @@
       "reviewConnections": "연결 검토"
     },
     "switchToPlugin": "플러그인으로 전환",
-    "switchToBuiltin": "내장 드라이버로 되돌리기"
+    "switchToBuiltin": "내장 드라이버로 되돌리기",
+    "toast": {
+      "success": "{{name}}을(를) PostgreSQL 플러그인으로 전환했습니다.",
+      "connectionFailure": "플러그인을 사용하여 {{name}}에 연결할 수 없습니다: {{error}}",
+      "processFailureWithError": "PostgreSQL 플러그인이 시작되지 않았습니다: {{error}}. {{name}}에 국한된 문제가 아닙니다 —연결이 시도되지 않았습니다.",
+      "processFailure": "PostgreSQL 플러그인이 시작되지 않았습니다. {{name}}에 국한된 문제가 아닙니다 —연결이 시도되지 않았습니다.",
+      "undo": "실행 취소",
+      "reportIssue": "문제 신고"
+    }
   }
 }

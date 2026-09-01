@@ -2159,7 +2159,15 @@
       "reviewConnections": "Revisar conexões"
     },
     "switchToPlugin": "Mudar para o plugin",
-    "switchToBuiltin": "Voltar para o integrado"
+    "switchToBuiltin": "Voltar para o integrado",
+    "toast": {
+      "success": "{{name}} foi alterado para o plugin do PostgreSQL.",
+      "connectionFailure": "Não foi possível conectar a {{name}} usando o plugin: {{error}}",
+      "processFailureWithError": "O plugin do PostgreSQL não iniciou: {{error}}. Isso não é específico de {{name}} — nenhuma conexão foi tentada.",
+      "processFailure": "O plugin do PostgreSQL não iniciou. Isso não é específico de {{name}} — nenhuma conexão foi tentada.",
+      "undo": "Desfazer",
+      "reportIssue": "Reportar um problema"
+    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Buscar bancos de dados…",

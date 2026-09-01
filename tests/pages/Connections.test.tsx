@@ -108,6 +108,19 @@ vi.mock("../../src/hooks/useBuiltinDriverMigration", () => ({
   }),
 }));
 
+// Connections.tsx also calls useConnectionCatalogue directly (for the
+// migration outcome toast's repo_url lookup) — mock it the same way.
+vi.mock("../../src/hooks/useConnectionCatalogue", () => ({
+  useConnectionCatalogue: () => ({
+    groups: [],
+    facets: [],
+    loading: false,
+    registryOffline: false,
+    registry: [],
+    refresh: vi.fn(),
+  }),
+}));
+
 vi.mock("../../src/components/modals/NewConnectionModal", () => ({
   NewConnectionModal: () => null,
 }));

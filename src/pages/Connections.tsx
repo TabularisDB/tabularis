@@ -50,6 +50,11 @@ import { PostgresPluginMigrationBanner } from "../components/banners/PostgresPlu
 import { BetaBadge } from "../components/ui/BetaBadge";
 import { useCreateSqliteDatabase } from "../hooks/useCreateSqliteDatabase";
 import { useBuiltinPostgresMigration } from "../hooks/useBuiltinDriverMigration";
+import { useConnectionCatalogue } from "../hooks/useConnectionCatalogue";
+import { useToast } from "../hooks/useToast";
+import { buildPluginIssueUrl } from "../utils/pluginIssueReport";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { APP_VERSION } from "../version";
 
 let autoConnectAttempted = false;
 
@@ -75,12 +80,14 @@ export const Connections = () => {
     loadConnections,
     connections: contextConnections,
   } = useDatabase();
-  const { drivers, allDrivers } = useDrivers();
+  const { drivers, allDrivers, installedPlugins } = useDrivers();
   const { tags, refresh: refreshTags } = useConnectionTags();
   const openConnectionInNewWindow = useOpenConnectionInNewWindow();
   const { createSqliteDatabase, isCreating: isCreatingSqliteDatabase } =
     useCreateSqliteDatabase();
   const migration = useBuiltinPostgresMigration();
+  const { registry: catalogueRegistry } = useConnectionCatalogue();
+  const { showToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportAppModalOpen, setIsImportAppModalOpen] = useState(false);
   const [isImportMenuOpen, setIsImportMenuOpen] = useState(false);
@@ -145,6 +152,103 @@ export const Connections = () => {
   useEffect(() => {
     void loadConnections();
   }, [loadConnections]);
+
+  // Surface the migration outcome as a toast per the design's post-migration
+  // spec: success gets an Undo action; failures (connection- or process-level)
+  // get both Undo and Report an issue. The toast is the courtesy nudge, not
+  // the only way back — the per-connection action stays bidirectional even
+  // after this toast is dismissed.
+  const { lastOutcome, clearOutcome, undoMigration } = migration;
+  useEffect(() => {
+    if (!lastOutcome) return;
+    const outcome = lastOutcome;
+
+    const handleUndo = () => {
+      void undoMigration(outcome.connectionId);
+    };
+
+    const handleReportIssue = (failureMode: "connection" | "process") => {
+      const pluginId = outcome.pluginId ?? "postgresql";
+      const registryEntry = catalogueRegistry.find((p) => p.id === pluginId);
+      const repoUrl = registryEntry?.repo_url;
+      if (!repoUrl) {
+        // No registry entry (e.g. offline) — nothing to link to; the toast
+        // action simply has nowhere to send the user.
+        return;
+      }
+      const installed = installedPlugins.find((p) => p.id === pluginId);
+      const url = buildPluginIssueUrl({
+        pluginId,
+        pluginVersion: installed?.version ?? registryEntry.installed_version ?? "unknown",
+        repoUrl,
+        appVersion: APP_VERSION,
+        os: navigator.platform,
+        template: "migration-failure",
+        failureMode,
+        error: outcome.error ?? outcome.startupError ?? "unknown error",
+        migratedFromDriver: "postgres",
+      });
+      void openUrl(url);
+    };
+
+    if (outcome.status === "ok") {
+      showToast(
+        t("migration.toast.success", { name: outcome.connectionName }),
+        {
+          kind: "success",
+          duration: 0,
+          actions: [{ label: t("migration.toast.undo"), onClick: handleUndo }],
+        },
+      );
+    } else if (outcome.status === "connection") {
+      showToast(
+        t("migration.toast.connectionFailure", {
+          name: outcome.connectionName,
+          error: outcome.error,
+        }),
+        {
+          kind: "error",
+          duration: 0,
+          actions: [
+            { label: t("migration.toast.undo"), onClick: handleUndo },
+            {
+              label: t("migration.toast.reportIssue"),
+              onClick: () => handleReportIssue("connection"),
+            },
+          ],
+        },
+      );
+    } else {
+      showToast(
+        outcome.startupError
+          ? t("migration.toast.processFailureWithError", {
+              name: outcome.connectionName,
+              error: outcome.startupError,
+            })
+          : t("migration.toast.processFailure", { name: outcome.connectionName }),
+        {
+          kind: "error",
+          duration: 0,
+          actions: [
+            { label: t("migration.toast.undo"), onClick: handleUndo },
+            {
+              label: t("migration.toast.reportIssue"),
+              onClick: () => handleReportIssue("process"),
+            },
+          ],
+        },
+      );
+    }
+    clearOutcome();
+  }, [
+    lastOutcome,
+    clearOutcome,
+    undoMigration,
+    catalogueRegistry,
+    installedPlugins,
+    showToast,
+    t,
+  ]);
 
   useEffect(() => {
     if (autoConnectAttempted) return;

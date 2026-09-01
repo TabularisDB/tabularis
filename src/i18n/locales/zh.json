@@ -2048,7 +2048,15 @@
       "reviewConnections": "查看连接"
     },
     "switchToPlugin": "切换到插件",
-    "switchToBuiltin": "切回内置驱动"
+    "switchToBuiltin": "切回内置驱动",
+    "toast": {
+      "success": "已将 {{name}} 切换到 PostgreSQL 插件。",
+      "connectionFailure": "无法使用插件连接到 {{name}}：{{error}}",
+      "processFailureWithError": "PostgreSQL 插件未启动：{{error}}。这与 {{name}} 无关 —未尝试连接。",
+      "processFailure": "PostgreSQL 插件未启动。这与 {{name}} 无关 —未尝试连接。",
+      "undo": "撤销",
+      "reportIssue": "报告问题"
+    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "搜索数据库…",

@@ -34,8 +34,12 @@ export interface MigrationOutcome {
   connectionName: string;
   /** "ok" the post-migration test succeeded; "connection" / "process" on failure. */
   status: "ok" | "connection" | "process";
-  /** Error message when status !== "ok". */
+  /** Error message when status === "connection". */
   error?: string;
+  /** Startup error text when status === "process", if the plugin reported one. */
+  startupError?: string;
+  /** Plugin id, needed to word/build the process-level failure and issue report. */
+  pluginId?: string;
 }
 
 /** Snapshot of the migration state the banner (and per-connection actions) consume. */
@@ -191,6 +195,40 @@ export function useBuiltinDriverMigration(
       await loadConnections();
       await recordMigration(connectionId, fromDriver, pluginId);
 
+      // The plugin process never starting is a different failure than the
+      // connection itself failing — detectable because the registry never
+      // picked up the driver (get_registered_drivers won't list it), rather
+      // than by relying solely on get_plugin_startup_errors()'s one-shot
+      // drain (which PluginsTab's own mount effect may have already emptied)
+      // to detect the failure. Skipping the connection test in this case
+      // avoids attributing a plugin-startup failure to the connection's own
+      // credentials.
+      const registeredDrivers = await invoke<Array<{ id: string }>>("get_registered_drivers");
+      const pluginRegistered = registeredDrivers.some((d) => d.id === pluginId);
+      if (!pluginRegistered) {
+        // Best-effort: if the drain still has this plugin's error (nobody
+        // else read it first), surface the specific message; otherwise fall
+        // back to a generic one in the UI.
+        let startupError: string | undefined;
+        try {
+          const startupErrors = await invoke<Array<{ plugin_id: string; error: string }>>(
+            "get_plugin_startup_errors",
+          );
+          startupError = startupErrors.find((e) => e.plugin_id === pluginId)?.error;
+        } catch {
+          // Non-fatal — the UI falls back to a generic message.
+        }
+        const outcome: MigrationOutcome = {
+          connectionId,
+          connectionName: name,
+          status: "process",
+          pluginId,
+          startupError,
+        };
+        setLastOutcome(outcome);
+        return outcome;
+      }
+
       // Post-migration test to catch a bad outcome before declaring success.
       try {
         await invoke<string>("test_connection", {
@@ -213,6 +251,7 @@ export function useBuiltinDriverMigration(
           connectionName: name,
           status: "connection",
           error,
+          pluginId,
         };
         setLastOutcome(outcome);
         return outcome;

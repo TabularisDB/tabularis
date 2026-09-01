@@ -2220,6 +2220,14 @@
       "reviewConnections": "Review connections"
     },
     "switchToPlugin": "Switch to plugin",
-    "switchToBuiltin": "Switch back to built-in"
+    "switchToBuiltin": "Switch back to built-in",
+    "toast": {
+      "success": "Na-switch ang {{name}} sa PostgreSQL plugin.",
+      "connectionFailure": "Hindi makakonekta sa {{name}} gamit ang plugin: {{error}}",
+      "processFailureWithError": "Hindi nag-start ang PostgreSQL plugin: {{error}}. Hindi ito partikular sa {{name}} — walang sinubukang koneksyon.",
+      "processFailure": "Hindi nag-start ang PostgreSQL plugin. Hindi ito partikular sa {{name}} — walang sinubukang koneksyon.",
+      "undo": "I-undo",
+      "reportIssue": "I-report ang isyu"
+    }
   }
 }

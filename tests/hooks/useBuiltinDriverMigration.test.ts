@@ -44,6 +44,15 @@ import { invoke } from "@tauri-apps/api/core";
 
 const builtinConn = (id: string) => ({ id, name: id, params: { driver: "postgres" } });
 
+/** Default per-command invoke behavior: the plugin is registered and
+ * test_connection succeeds. Individual tests override specific commands via
+ * a custom mockImplementation. */
+const mockInvokeDefault = (cmd: string) => {
+  if (cmd === "get_registered_drivers") return Promise.resolve([{ id: "postgresql" }]);
+  if (cmd === "get_plugin_startup_errors") return Promise.resolve([]);
+  return Promise.resolve("ok");
+};
+
 const setPluginReady = (ready: boolean) => {
   driversMock.installedPlugins = ready ? [{ id: "postgresql" }] : [];
   driversMock.allDrivers = ready ? [{ id: "postgresql" }] : [];
@@ -65,7 +74,7 @@ describe("useBuiltinDriverMigration", () => {
     databaseMock.disconnect.mockClear();
     // Reset invoke to a permissive default; individual tests override.
     vi.mocked(invoke).mockReset();
-    vi.mocked(invoke).mockResolvedValue("ok");
+    vi.mocked(invoke).mockImplementation(mockInvokeDefault);
   });
 
   describe("banner gating", () => {
@@ -159,7 +168,6 @@ describe("useBuiltinDriverMigration", () => {
       setPluginReady(true);
       databaseMock.connections = [builtinConn("c1")];
       const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
-      vi.mocked(invoke).mockResolvedValue("ok");
 
       let outcome;
       await act(async () => {
@@ -189,7 +197,6 @@ describe("useBuiltinDriverMigration", () => {
       databaseMock.connections = [builtinConn("c1")];
       databaseMock.openConnectionIds = ["c1"];
       databaseMock.connectionDataMap = { c1: { driver: "postgres" } };
-      vi.mocked(invoke).mockResolvedValue("ok");
       const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
       await act(async () => {
         await result.current.migrateConnection("c1");
@@ -200,10 +207,11 @@ describe("useBuiltinDriverMigration", () => {
     it("records a connection-level failure when the post-migration test throws", async () => {
       setPluginReady(true);
       databaseMock.connections = [builtinConn("c1")];
-      // update_connection succeeds; only the post-migration test_connection fails.
+      // update_connection succeeds, the plugin is registered; only the
+      // post-migration test_connection fails.
       vi.mocked(invoke).mockImplementation((cmd: string) => {
         if (cmd === "test_connection") return Promise.reject("connection refused");
-        return Promise.resolve("ok");
+        return mockInvokeDefault(cmd);
       });
       const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
       let outcome;
@@ -212,6 +220,31 @@ describe("useBuiltinDriverMigration", () => {
       });
       expect(outcome.status).toBe("connection");
       expect(outcome.error).toContain("connection refused");
+    });
+
+    it("records a process-level failure when the plugin isn't registered after the flip", async () => {
+      // The registry never picked up the driver — a plugin startup failure,
+      // not a connection problem. test_connection must not be attempted.
+      setPluginReady(true);
+      databaseMock.connections = [builtinConn("c1")];
+      vi.mocked(invoke).mockImplementation((cmd: string) => {
+        if (cmd === "get_registered_drivers") return Promise.resolve([]); // plugin absent
+        if (cmd === "get_plugin_startup_errors") {
+          return Promise.resolve([{ plugin_id: "postgresql", error: "no such interpreter" }]);
+        }
+        if (cmd === "test_connection") {
+          throw new Error("test_connection must not be called when the plugin never started");
+        }
+        return mockInvokeDefault(cmd);
+      });
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      let outcome;
+      await act(async () => {
+        outcome = await result.current.migrateConnection("c1");
+      });
+      expect(outcome.status).toBe("process");
+      expect(outcome.startupError).toBe("no such interpreter");
+      expect(outcome.pluginId).toBe("postgresql");
     });
   });
 

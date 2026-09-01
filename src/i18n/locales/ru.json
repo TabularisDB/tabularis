@@ -2221,6 +2221,14 @@
       "reviewConnections": "Просмотреть подключения"
     },
     "switchToPlugin": "Перейти на плагин",
-    "switchToBuiltin": "Вернуться к встроенному"
+    "switchToBuiltin": "Вернуться к встроенному",
+    "toast": {
+      "success": "{{name}} переключено на плагин PostgreSQL.",
+      "connectionFailure": "Не удалось подключиться к {{name}} через плагин: {{error}}",
+      "processFailureWithError": "Плагин PostgreSQL не запустился: {{error}}. Это не связано конкретно с {{name}} — подключение не выполнялось.",
+      "processFailure": "Плагин PostgreSQL не запустился. Это не связано конкретно с {{name}} — подключение не выполнялось.",
+      "undo": "Отменить",
+      "reportIssue": "Сообщить о проблеме"
+    }
   }
 }

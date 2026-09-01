@@ -2108,7 +2108,15 @@
       "reviewConnections": "Verbindungen prüfen"
     },
     "switchToPlugin": "Zum Plugin wechseln",
-    "switchToBuiltin": "Zum integrierten Treiber zurück wechseln"
+    "switchToBuiltin": "Zum integrierten Treiber zurück wechseln",
+    "toast": {
+      "success": "Wechselte {{name}} zum PostgreSQL-Plugin.",
+      "connectionFailure": "Verbindung zu {{name}} über das Plugin fehlgeschlagen: {{error}}",
+      "processFailureWithError": "Das PostgreSQL-Plugin konnte nicht gestartet werden: {{error}}. Das betrifft nicht speziell {{name}} — es wurde keine Verbindung versucht.",
+      "processFailure": "Das PostgreSQL-Plugin konnte nicht gestartet werden. Das betrifft nicht speziell {{name}} — es wurde keine Verbindung versucht.",
+      "undo": "Rückgängig",
+      "reportIssue": "Problem melden"
+    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Datenbanken suchen…",

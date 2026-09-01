@@ -2126,7 +2126,15 @@
       "reviewConnections": "接続を確認"
     },
     "switchToPlugin": "プラグインに切り替え",
-    "switchToBuiltin": "組み込みドライバーに戻す"
+    "switchToBuiltin": "組み込みドライバーに戻す",
+    "toast": {
+      "success": "{{name}} を PostgreSQL プラグインに切り替えました。",
+      "connectionFailure": "プラグインを使用して {{name}} に接続できませんでした: {{error}}",
+      "processFailureWithError": "PostgreSQL プラグインが起動しませんでした: {{error}}。これは {{name}} 固有の問題ではありません —接続は試行されませんでした。",
+      "processFailure": "PostgreSQL プラグインが起動しませんでした。これは {{name}} 固有の問題ではありません —接続は試行されませんでした。",
+      "undo": "元に戻す",
+      "reportIssue": "問題を報告"
+    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "データベースを検索…",

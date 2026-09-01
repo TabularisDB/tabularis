@@ -2200,7 +2200,15 @@
       "reviewConnections": "Review connections"
     },
     "switchToPlugin": "Switch to plugin",
-    "switchToBuiltin": "Switch back to built-in"
+    "switchToBuiltin": "Switch back to built-in",
+    "toast": {
+      "success": "Switched {{name}} to the PostgreSQL plugin.",
+      "connectionFailure": "Couldn't connect to {{name}} using the plugin: {{error}}",
+      "processFailureWithError": "The PostgreSQL plugin didn't start: {{error}}. This isn't specific to {{name}} — no connection was attempted.",
+      "processFailure": "The PostgreSQL plugin didn't start. This isn't specific to {{name}} — no connection was attempted.",
+      "undo": "Undo",
+      "reportIssue": "Report an issue"
+    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Search databases…",

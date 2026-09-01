@@ -2110,7 +2110,15 @@
       "reviewConnections": "Rivedi connessioni"
     },
     "switchToPlugin": "Passa al plugin",
-    "switchToBuiltin": "Torna al driver integrato"
+    "switchToBuiltin": "Torna al driver integrato",
+    "toast": {
+      "success": "{{name}} è stato passato al plugin PostgreSQL.",
+      "connectionFailure": "Impossibile connettersi a {{name}} usando il plugin: {{error}}",
+      "processFailureWithError": "Il plugin PostgreSQL non si è avviato: {{error}}. Non riguarda specificamente {{name}} — non è stata tentata alcuna connessione.",
+      "processFailure": "Il plugin PostgreSQL non si è avviato. Non riguarda specificamente {{name}} — non è stata tentata alcuna connessione.",
+      "undo": "Annulla",
+      "reportIssue": "Segnala un problema"
+    }
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Cerca database…",
