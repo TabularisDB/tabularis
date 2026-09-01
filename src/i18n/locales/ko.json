@@ -648,6 +648,10 @@
       "install": "설치",
       "upToDate": "최신 버전",
       "downgrade": "다운그레이드:",
+      "deprecated": "사용 중단",
+      "deprecatedTooltip": "이 내장 드라이버는 {{replacement}} 플러그인으로 대체됩니다.",
+      "deprecatedTooltipDate": "이 내장 드라이버는 {{replacement}} 플러그인으로 대체됩니다(잠정 {{date}}).",
+      "migrationProgress": "{{total}}개 중 {{migrated}}개 마이그레이션됨",
       "olderVersions": "이전 버전",
       "noPlugins": "레지스트리에 사용 가능한 플러그인이 없습니다.",
       "searchPlaceholder": "플러그인 검색…",
@@ -2148,6 +2152,8 @@
       "nudge": "새 PostgreSQL 플러그인을 사용해 보세요 —내장 PostgreSQL 드라이버가 폐지 예정입니다(2026년 10월 5일 잠정). 플러그인은 동일한 기능을 가지며 더 빠르게 업데이트됩니다.",
       "offline": "PostgreSQL 플러그인을 다운로드할 수 없습니다 —다음 실행 시 다시 시도합니다. 계속되면 연결이나 네트워크를 확인하세요.",
       "reviewConnections": "연결 검토"
-    }
+    },
+    "switchToPlugin": "플러그인으로 전환",
+    "switchToBuiltin": "내장 드라이버로 되돌리기"
   }
 }

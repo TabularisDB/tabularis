@@ -635,6 +635,10 @@
       "install": "安装",
       "upToDate": "已是最新",
       "downgrade": "降级到",
+      "deprecated": "已弃用",
+      "deprecatedTooltip": "此内置驱动正由 {{replacement}} 插件取代。",
+      "deprecatedTooltipDate": "此内置驱动正由 {{replacement}} 插件取代（暂定 {{date}}）。",
+      "migrationProgress": "已迁移 {{migrated}} / {{total}}",
       "olderVersions": "旧版本",
       "noPlugins": "注册表中无可用插件。",
       "searchPlaceholder": "搜索插件…",
@@ -2042,7 +2046,9 @@
       "nudge": "试试新的 PostgreSQL 插件 —内置 PostgreSQL 驱动正在退役（暂定 2026 年 10 月 5 日）。插件功能相同且更新更快。",
       "offline": "PostgreSQL 插件无法下载 —下次启动时会重试。如果持续出现，请检查您的连接或网络。",
       "reviewConnections": "查看连接"
-    }
+    },
+    "switchToPlugin": "切换到插件",
+    "switchToBuiltin": "切回内置驱动"
   },
   "connectionCatalogue": {
     "searchPlaceholder": "搜索数据库…",
@@ -2059,6 +2065,8 @@
     "connectTo": "连接到 {{name}}",
     "unavailableOnPlatform": "在您的平台上不可用",
     "unavailable": "不可用",
+    "deprecated": "已弃用",
+    "deprecatedTooltip": "此内置驱动正由插件取代",
     "backToCatalogue": "返回目录",
     "pickDriver": "多个驱动程序可连接到 {{name}}。请选择一个：",
     "latestVersion": "最新 v{{version}}",

@@ -90,6 +90,24 @@ vi.mock("../../src/hooks/useCreateSqliteDatabase", () => ({
   }),
 }));
 
+// The migration banner hook pulls in useConnectionCatalogue and others the
+// SQLite-creation tests don't otherwise need. Mock it to a hidden-banner
+// no-op so the tests stay focused on the SQLite action.
+vi.mock("../../src/hooks/useBuiltinDriverMigration", () => ({
+  useBuiltinPostgresMigration: () => ({
+    builtinConnections: [],
+    needsMigration: false,
+    pluginReady: false,
+    registryOffline: false,
+    banner: null,
+    dismissBanner: vi.fn(),
+    migrateConnection: vi.fn(),
+    undoMigration: vi.fn(),
+    lastOutcome: null,
+    clearOutcome: vi.fn(),
+  }),
+}));
+
 vi.mock("../../src/components/modals/NewConnectionModal", () => ({
   NewConnectionModal: () => null,
 }));

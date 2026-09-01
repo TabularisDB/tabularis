@@ -696,6 +696,10 @@
       "install": "Instalar",
       "upToDate": "Actualizado",
       "downgrade": "Degradar a",
+      "deprecated": "Obsoleto",
+      "deprecatedTooltip": "Este controlador integrado está siendo reemplazado por el complemento {{replacement}}.",
+      "deprecatedTooltipDate": "Este controlador integrado está siendo reemplazado por el complemento {{replacement}}, provisionalmente el {{date}}.",
+      "migrationProgress": "{{migrated}} de {{total}} migradas",
       "olderVersions": "Versiones anteriores",
       "noPlugins": "No hay plugins disponibles en el registro.",
       "searchPlaceholder": "Buscar plugins…",
@@ -2024,7 +2028,9 @@
       "nudge": "Prueba el nuevo complemento de PostgreSQL — el controlador integrado de PostgreSQL se está retirando (provisionalmente 5 oct. 2026). El complemento tiene las mismas funciones y se actualiza más rápido.",
       "offline": "No se pudo descargar el complemento de PostgreSQL — lo reintentaremos en el próximo inicio. Revisa tu conexión o red si esto sigue ocurriendo.",
       "reviewConnections": "Revisar conexiones"
-    }
+    },
+    "switchToPlugin": "Cambiar al complemento",
+    "switchToBuiltin": "Volver al integrado"
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Buscar bases de datos…",
@@ -2041,6 +2047,8 @@
     "connectTo": "Conectar a {{name}}",
     "unavailableOnPlatform": "No disponible en tu plataforma",
     "unavailable": "No disponible",
+    "deprecated": "Obsoleto",
+    "deprecatedTooltip": "Este controlador integrado está siendo reemplazado por un complemento",
     "backToCatalogue": "Volver al catálogo",
     "pickDriver": "Varios controladores se conectan a {{name}}. Elige uno:",
     "latestVersion": "Última v{{version}}",

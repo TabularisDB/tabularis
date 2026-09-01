@@ -671,6 +671,10 @@
       "install": "Installieren",
       "upToDate": "Aktuell",
       "downgrade": "Herabstufen auf",
+      "deprecated": "Veraltet",
+      "deprecatedTooltip": "Dieser integrierte Treiber wird durch das {{replacement}}-Plugin ersetzt.",
+      "deprecatedTooltipDate": "Dieser integrierte Treiber wird durch das {{replacement}}-Plugin ersetzt, vorläufig bis {{date}}.",
+      "migrationProgress": "{{migrated}} von {{total}} migriert",
       "olderVersions": "Ältere Versionen",
       "noPlugins": "Keine Plugins im Registry verfügbar.",
       "searchPlaceholder": "Plugins suchen…",
@@ -2102,7 +2106,9 @@
       "nudge": "Probieren Sie das neue PostgreSQL-Plugin — der integrierte PostgreSQL-Treiber wird ausgemustert (vorläufig 5. Okt. 2026). Das Plugin hat dieselben Funktionen und erhält schneller Updates.",
       "offline": "Das PostgreSQL-Plugin konnte nicht heruntergeladen werden — wir versuchen es beim nächsten Start erneut. Prüfen Sie Ihre Verbindung oder Ihr Netzwerk, falls dies weiterhin auftritt.",
       "reviewConnections": "Verbindungen prüfen"
-    }
+    },
+    "switchToPlugin": "Zum Plugin wechseln",
+    "switchToBuiltin": "Zum integrierten Treiber zurück wechseln"
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Datenbanken suchen…",
@@ -2119,6 +2125,8 @@
     "connectTo": "Mit {{name}} verbinden",
     "unavailableOnPlatform": "Auf deiner Plattform nicht verfügbar",
     "unavailable": "Nicht verfügbar",
+    "deprecated": "Veraltet",
+    "deprecatedTooltip": "Dieser integrierte Treiber wird durch ein Plugin ersetzt",
     "backToCatalogue": "Zurück zum Katalog",
     "pickDriver": "Mehrere Treiber verbinden sich mit {{name}}. Wähle einen:",
     "latestVersion": "Neueste v{{version}}",

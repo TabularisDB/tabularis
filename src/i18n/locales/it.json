@@ -696,6 +696,10 @@
       "install": "Installa",
       "upToDate": "Aggiornato",
       "downgrade": "Effettua downgrade a",
+      "deprecated": "Deprecato",
+      "deprecatedTooltip": "Questo driver integrato viene sostituito dal plugin {{replacement}}.",
+      "deprecatedTooltipDate": "Questo driver integrato viene sostituito dal plugin {{replacement}}, provvisoriamente entro {{date}}.",
+      "migrationProgress": "{{migrated}} di {{total}} migrate",
       "olderVersions": "Versioni precedenti",
       "noPlugins": "Nessun plugin disponibile nel registro.",
       "searchPlaceholder": "Cerca plugin…",
@@ -2104,7 +2108,9 @@
       "nudge": "Prova il nuovo plugin PostgreSQL — il driver integrato PostgreSQL è in fase di ritiro (provvisoriamente il 5 ott. 2026). Il plugin ha le stesse funzionalità e si aggiorna più velocemente.",
       "offline": "Il plugin PostgreSQL non è stato scaricato — riproveremo al prossimo avvio. Controlla la connessione o la rete se il problema persiste.",
       "reviewConnections": "Rivedi connessioni"
-    }
+    },
+    "switchToPlugin": "Passa al plugin",
+    "switchToBuiltin": "Torna al driver integrato"
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Cerca database…",
@@ -2121,6 +2127,8 @@
     "connectTo": "Connetti a {{name}}",
     "unavailableOnPlatform": "Non disponibile sulla tua piattaforma",
     "unavailable": "Non disponibile",
+    "deprecated": "Deprecato",
+    "deprecatedTooltip": "Questo driver integrato viene sostituito da un plugin",
     "backToCatalogue": "Torna al catalogo",
     "pickDriver": "Più driver si connettono a {{name}}. Scegline uno:",
     "latestVersion": "Ultima v{{version}}",

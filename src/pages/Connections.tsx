@@ -28,6 +28,7 @@ import {
   FolderTree,
   ChevronDown,
   AppWindow,
+  ArrowLeftRight,
   Loader2,
 } from "lucide-react";
 import { useDatabase } from "../hooks/useDatabase";
@@ -1407,6 +1408,30 @@ export const Connections = () => {
                     if (conn) void handleOpenInNewWindow(conn);
                   },
                 },
+                // Bidirectional "Switch to plugin" / "Switch back to builtin"
+                // per-connection action. Direction is driven by the current
+                // driver — always available, even after the banner is
+                // dismissed.
+                ...(conn && (conn.params.driver === "postgres" || conn.params.driver === "postgresql")
+                  ? [
+                      { separator: true as const },
+                      {
+                        label:
+                          conn.params.driver === "postgres"
+                            ? t("migration.switchToPlugin")
+                            : t("migration.switchToBuiltin"),
+                        icon: ArrowLeftRight,
+                        action: () => {
+                          const id = connectionContextMenu.connId;
+                          if (conn.params.driver === "postgres") {
+                            void migration.migrateConnection(id);
+                          } else {
+                            void migration.undoMigration(id);
+                          }
+                        },
+                      },
+                    ]
+                  : []),
                 ...(hasAvailableGroups
                   ? [
                       { separator: true as const },

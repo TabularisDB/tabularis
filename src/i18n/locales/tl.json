@@ -703,6 +703,10 @@
       "install": "I-install",
       "upToDate": "Updated na",
       "downgrade": "I-downgrade sa",
+      "deprecated": "Deprecated",
+      "deprecatedTooltip": "This built-in driver is being replaced by the {{replacement}} plugin.",
+      "deprecatedTooltipDate": "This built-in driver is being replaced by the {{replacement}} plugin, tentatively by {{date}}.",
+      "migrationProgress": "{{migrated}} of {{total}} migrated",
       "olderVersions": "Mas lumang bersyon",
       "noPlugins": "Walang available na plugin sa registry.",
       "searchPlaceholder": "Maghanap ng plugin…",
@@ -2214,6 +2218,8 @@
       "nudge": "Try the new PostgreSQL plugin — the built-in PostgreSQL driver is being retired (tentatively Oct 5, 2026). The plugin has the same features and gets updates faster.",
       "offline": "The PostgreSQL plugin couldn't be downloaded — we'll retry on the next launch. Check your connection or network if this keeps happening.",
       "reviewConnections": "Review connections"
-    }
+    },
+    "switchToPlugin": "Switch to plugin",
+    "switchToBuiltin": "Switch back to built-in"
   }
 }

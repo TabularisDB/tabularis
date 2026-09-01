@@ -685,6 +685,10 @@
       "install": "インストール",
       "upToDate": "最新",
       "downgrade": "ダウングレード:",
+      "deprecated": "非推奨",
+      "deprecatedTooltip": "この組み込みドライバーは {{replacement}} プラグインに置き換えられます。",
+      "deprecatedTooltipDate": "この組み込みドライバーは {{replacement}} プラグインに置き換えられます（暫定 {{date}}）。",
+      "migrationProgress": "{{total}} 件中 {{migrated}} 件移行済み",
       "olderVersions": "以前のバージョン",
       "noPlugins": "レジストリに利用可能なプラグインがありません。",
       "searchPlaceholder": "プラグインを検索…",
@@ -2120,7 +2124,9 @@
       "nudge": "新しい PostgreSQL プラグインをお試しください —組み込みの PostgreSQL ドライバーは廃止予定です（2026年10月5日を予定）。プラグインは同じ機能を持ち、より早く更新されます。",
       "offline": "PostgreSQL プラグインをダウンロードできませんでした —次回起動時に再試行します。続く場合は接続やネットワークを確認してください。",
       "reviewConnections": "接続を確認"
-    }
+    },
+    "switchToPlugin": "プラグインに切り替え",
+    "switchToBuiltin": "組み込みドライバーに戻す"
   },
   "connectionCatalogue": {
     "searchPlaceholder": "データベースを検索…",
@@ -2137,6 +2143,8 @@
     "connectTo": "{{name}} に接続",
     "unavailableOnPlatform": "お使いのプラットフォームでは利用できません",
     "unavailable": "利用不可",
+    "deprecated": "非推奨",
+    "deprecatedTooltip": "この組み込みドライバーはプラグインに置き換えられます",
     "backToCatalogue": "カタログに戻る",
     "pickDriver": "複数のドライバーが {{name}} に接続します。1つ選択してください：",
     "latestVersion": "最新 v{{version}}",

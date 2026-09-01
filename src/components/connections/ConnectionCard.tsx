@@ -126,6 +126,21 @@ export const ConnectionCard = ({
             <span className="text-[10px] font-semibold text-secondary bg-surface-secondary border border-strong/40 px-1.5 py-0.5 rounded-md capitalize">
               {conn.params.driver}
             </span>
+            {driverManifest?.deprecated && (
+              <span
+                className="text-[10px] font-semibold text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 px-1.5 py-0.5 rounded-md"
+                title={driverManifest.deprecated.removal_date
+                  ? t("connections.deprecatedTooltipDate", {
+                      replacement: driverManifest.deprecated.replacement_id ?? "",
+                      date: driverManifest.deprecated.removal_date,
+                    })
+                  : t("connections.deprecatedTooltip", {
+                      replacement: driverManifest.deprecated.replacement_id ?? "",
+                    })}
+              >
+                {t("connections.deprecated")}
+              </span>
+            )}
             <EnvironmentBadge environment={conn.environment} />
             <TagChips tagIds={conn.tag_ids} tags={tags} />
             {conn.params.ssh_enabled && (

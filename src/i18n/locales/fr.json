@@ -704,6 +704,10 @@
       "install": "Installer",
       "upToDate": "À jour",
       "downgrade": "Rétrograder vers",
+      "deprecated": "Obsolète",
+      "deprecatedTooltip": "Ce pilote intégré est remplacé par le plugin {{replacement}}.",
+      "deprecatedTooltipDate": "Ce pilote intégré est remplacé par le plugin {{replacement}}, provisoirement le {{date}}.",
+      "migrationProgress": "{{migrated}} sur {{total}} migrées",
       "olderVersions": "Anciennes versions",
       "noPlugins": "Aucun plugin disponible dans le registre.",
       "searchPlaceholder": "Rechercher des plugins…",
@@ -2180,7 +2184,9 @@
       "nudge": "Essayez le nouveau plugin PostgreSQL — le pilote intégré PostgreSQL est en cours de retrait (provisoirement le 5 oct. 2026). Le plugin a les mêmes fonctionnalités et se met à jour plus rapidement.",
       "offline": "Le plugin PostgreSQL n'a pas pu être téléchargé — une nouvelle tentative aura lieu au prochain lancement. Vérifiez votre connexion ou votre réseau si cela persiste.",
       "reviewConnections": "Examiner les connexions"
-    }
+    },
+    "switchToPlugin": "Passer au plugin",
+    "switchToBuiltin": "Revenir au pilote intégré"
   },
   "connectionCatalogue": {
     "searchPlaceholder": "Rechercher des bases de données…",
@@ -2197,6 +2203,8 @@
     "connectTo": "Se connecter à {{name}}",
     "unavailableOnPlatform": "Indisponible sur votre plateforme",
     "unavailable": "Indisponible",
+    "deprecated": "Obsolète",
+    "deprecatedTooltip": "Ce pilote intégré est remplacé par un plugin",
     "backToCatalogue": "Retour au catalogue",
     "pickDriver": "Plusieurs pilotes se connectent à {{name}}. Choisissez-en un :",
     "latestVersion": "Dernière v{{version}}",
