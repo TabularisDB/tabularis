@@ -185,6 +185,12 @@ pub struct AppConfig {
     /// them without new config plumbing.
     #[serde(default)]
     pub postgres_plugin_migration_banner_dismissed: Option<bool>,
+    /// Connection ids that existed (on the builtin driver) at the moment the
+    /// banner was dismissed. A builtin connection id not in this list means
+    /// the trigger condition changed since the dismissal, so the banner
+    /// resurfaces — mirrors `WhatsNewModal`'s own version-comparison gating.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub postgres_plugin_migration_banner_dismissed_for: Option<Vec<String>>,
     /// Append-only record of every connection migrated between built-in and
     /// plugin drivers. Kept even after an undo, so a filed issue has the
     /// before/after to attach and a later deprecation pass can see who
@@ -551,6 +557,13 @@ pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
         if config.postgres_plugin_migration_banner_dismissed.is_some() {
             existing_config.postgres_plugin_migration_banner_dismissed =
                 config.postgres_plugin_migration_banner_dismissed;
+        }
+        if config
+            .postgres_plugin_migration_banner_dismissed_for
+            .is_some()
+        {
+            existing_config.postgres_plugin_migration_banner_dismissed_for =
+                config.postgres_plugin_migration_banner_dismissed_for;
         }
         if config.driver_migration_history.is_some() {
             existing_config.driver_migration_history = config.driver_migration_history;

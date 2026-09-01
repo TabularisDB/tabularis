@@ -19,7 +19,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import { useDatabase } from "./useDatabase";
 import { useDrivers } from "./useDrivers";
-import useConnectionCatalogue from "./useConnectionCatalogue";
+import { useConnectionCatalogue } from "./useConnectionCatalogue";
 import { useSettings } from "./useSettings";
 import { findConnectionsForDrivers } from "../utils/connectionManager";
 import type { SavedConnection } from "../contexts/DatabaseContext";
@@ -106,7 +106,18 @@ export function useBuiltinDriverMigration(
   // failure), the banner either stays suppressed or shows the honest
   // "couldn't be downloaded" variant — never a "Switch to plugin" nudge it
   // can't back up.
-  const dismissed = settings.postgresPluginMigrationBannerDismissed === true;
+  //
+  // Dismissal is the deliberate opt-out (no separate "don't show again"
+  // checkbox) — but it only holds for the connections that existed at
+  // dismissal time. A builtin connection id not in
+  // `postgresPluginMigrationBannerDismissedFor` means the trigger condition
+  // changed since the dismissal, so the banner resurfaces — the same
+  // "did-the-condition-change" gating `WhatsNewModal` uses for its own
+  // version comparison.
+  const dismissedForIds = settings.postgresPluginMigrationBannerDismissedFor ?? [];
+  const dismissed =
+    settings.postgresPluginMigrationBannerDismissed === true &&
+    builtinConnections.every((c) => dismissedForIds.includes(c.id));
   const banner = useMemo(() => {
     if (!needsMigration || dismissed) return null;
     if (!pluginReady || registryOffline) return { visible: true, variant: "offline" as const };
@@ -114,8 +125,18 @@ export function useBuiltinDriverMigration(
   }, [needsMigration, dismissed, pluginReady, registryOffline]);
 
   const dismissBanner = useCallback(() => {
-    void updateSetting("postgresPluginMigrationBannerDismissed", true);
-  }, [updateSetting]);
+    // Sequential and awaited, not fire-and-forget in parallel: updateSetting
+    // merges against a snapshot of state captured at call time, so two
+    // concurrent calls can each start from the same stale snapshot and the
+    // second write silently drops the first's field. Awaiting serializes them.
+    void (async () => {
+      await updateSetting("postgresPluginMigrationBannerDismissed", true);
+      await updateSetting(
+        "postgresPluginMigrationBannerDismissedFor",
+        builtinConnections.map((c) => c.id),
+      );
+    })();
+  }, [updateSetting, builtinConnections]);
 
   const clearOutcome = useCallback(() => setLastOutcome(null), []);
 

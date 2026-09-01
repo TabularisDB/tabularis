@@ -210,7 +210,6 @@ pub struct PluginSettingDefinition {
 /// registration time (an app-level decision, not a registry round-trip).
 /// `None` on a manifest means the driver is not deprecated.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-#[serde(rename_all = "camelCase")]
 pub struct DeprecationInfo {
     /// Driver id of the replacement plugin (e.g. `"postgresql"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]

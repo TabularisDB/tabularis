@@ -33,8 +33,7 @@ vi.mock("../../src/hooks/useDrivers", () => ({
   useDrivers: () => driversMock,
 }));
 vi.mock("../../src/hooks/useConnectionCatalogue", () => ({
-  default: () => catalogueMock,
-  __esModule: true,
+  useConnectionCatalogue: () => catalogueMock,
 }));
 vi.mock("../../src/hooks/useSettings", () => ({
   useSettings: () => settingsMock,
@@ -86,12 +85,33 @@ describe("useBuiltinDriverMigration", () => {
       expect(result.current.banner?.variant).toBe("nudge");
     });
 
-    it("stays hidden once dismissed even with a built-in connection present", () => {
+    it("stays hidden once dismissed for the connections that triggered it", () => {
       setPluginReady(true);
       databaseMock.connections = [builtinConn("c1")];
-      settingsMock.settings = { activeExternalDrivers: ["postgresql"], postgresPluginMigrationBannerDismissed: true };
+      settingsMock.settings = {
+        activeExternalDrivers: ["postgresql"],
+        postgresPluginMigrationBannerDismissed: true,
+        postgresPluginMigrationBannerDismissedFor: ["c1"],
+      };
       const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
       expect(result.current.banner).toBeNull();
+    });
+
+    it("resurfaces when a new built-in connection appears after dismissal", () => {
+      // Dismissal is the deliberate opt-out, but only for the connections that
+      // existed at the time — a genuinely new trigger (a second builtin
+      // connection the user hadn't dismissed for) must resurface the banner,
+      // the same "did-the-condition-change" gating WhatsNewModal uses.
+      setPluginReady(true);
+      databaseMock.connections = [builtinConn("c1"), builtinConn("c2")];
+      settingsMock.settings = {
+        activeExternalDrivers: ["postgresql"],
+        postgresPluginMigrationBannerDismissed: true,
+        postgresPluginMigrationBannerDismissedFor: ["c1"], // c2 is new
+      };
+      const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
+      expect(result.current.banner?.visible).toBe(true);
+      expect(result.current.banner?.variant).toBe("nudge");
     });
 
     it("shows the offline variant when the registry is offline, not the nudge", () => {
@@ -116,16 +136,20 @@ describe("useBuiltinDriverMigration", () => {
   });
 
   describe("dismissal", () => {
-    it("persists dismissal via updateSetting", () => {
+    it("persists dismissal and records which connections it applies to", async () => {
       setPluginReady(true);
       databaseMock.connections = [builtinConn("c1")];
       const { result } = renderHook(() => useBuiltinDriverMigration("postgres", "postgresql"));
-      act(() => {
+      await act(async () => {
         result.current.dismissBanner();
       });
       expect(settingsMock.updateSetting).toHaveBeenCalledWith(
         "postgresPluginMigrationBannerDismissed",
         true,
+      );
+      expect(settingsMock.updateSetting).toHaveBeenCalledWith(
+        "postgresPluginMigrationBannerDismissedFor",
+        ["c1"],
       );
     });
   });
