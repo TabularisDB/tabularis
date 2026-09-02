@@ -58,16 +58,6 @@ export interface BuildPluginIssueUrlInput {
 }
 
 /**
- * Build a `github.com/<org>/<repo>/issues/new?template=<form>.yml&<field>=…`
- * URL targeting a specific Issue Form by field id.
- *
- * Pure: returns the URL string only. Opening it (via `openUrl`) is the
- * caller's job, so this stays unit-testable without a browser/opener.
- *
- * @throws if a required field for the chosen template is missing — better to
- *   fail loudly here than to hand GitHub a malformed, un-submittable form.
- */
-/**
  * Known repo URLs for first-party plugins, used only as a fallback when the
  * live registry lookup can't resolve one (e.g. the Tabularium API is
  * unreachable but the plugin's repo location is stable and well-known).
@@ -90,6 +80,16 @@ export function resolvePluginRepoUrl(
   return registryRepoUrl ?? KNOWN_PLUGIN_REPOS[pluginId];
 }
 
+/**
+ * Build a `github.com/<org>/<repo>/issues/new?template=<form>.yml&<field>=…`
+ * URL targeting a specific Issue Form by field id.
+ *
+ * Pure: returns the URL string only. Opening it (via `openUrl`) is the
+ * caller's job, so this stays unit-testable without a browser/opener.
+ *
+ * @throws if a required field for the chosen template is missing — better to
+ *   fail loudly here than to hand GitHub a malformed, un-submittable form.
+ */
 export function buildPluginIssueUrl(input: BuildPluginIssueUrlInput): string {
   const {
     pluginId,
